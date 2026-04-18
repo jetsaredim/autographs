@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Autographs is a production-lean autograph photo sharing website for collectors and browsers to explore signed memorabilia through a public, anonymous gallery. The first release pairs a single self-hosted `Next.js` application with private OCI Object Storage for images and Oracle Autonomous Database Free for metadata, while also establishing the OCI bootstrap, CI/CD, and operator guidance needed to run it from a nearly blank repository.
+Autographs is a production-lean personal autograph collection website where you can publish your own signed memorabilia for anonymous public browsing. The first release pairs a single self-hosted `Next.js` application with private OCI Object Storage for images and Oracle Autonomous Database Free for metadata, while also establishing the OCI bootstrap, CI/CD, and operator guidance needed to run the collection as a real, durable personal project.
 
 ## Core Value
 
@@ -16,18 +16,18 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 
 ### Active
 
-- [ ] Deliver a thin but real end-to-end OCI-hosted autograph gallery foundation with infrastructure, application scaffold, and deployment automation.
-- [ ] Support anonymous public browsing with searchable autograph records and private image delivery mediated by the app.
-- [ ] Support a single-admin upload workflow with AI-assisted metadata suggestions reviewed before save.
+- [ ] Deliver a real end-to-end OCI-hosted personal autograph collection foundation with infrastructure, application scaffold, and deployment automation.
+- [ ] Support anonymous public browsing with searchable autograph records, private image delivery mediated by the app, and enough metadata to make the collection useful.
+- [ ] Support a single-admin collection management workflow with AI-assisted metadata suggestions, multiple images per item, and edit history from v1.
 - [ ] Keep the system operable by one developer using OCI Always Free services wherever practical.
 
 ### Out of Scope
 
-- Public user accounts and social features — v1 is intentionally anonymous and read-only for public users.
-- Multiple admin accounts or role hierarchies — the product only needs one admin path for the initial release.
-- Bulk import pipelines and multi-image-per-item workflows — these add complexity before the core upload/review loop is proven.
+- Public user accounts and social features — this is a personal collection site, not a platform for community participation.
+- Multiple admin accounts or role hierarchies — the product only needs one admin path for the collection owner.
+- Bulk import pipelines — these add complexity before the single-item workflow is proven.
 - Advanced search beyond metadata filters such as signer, category, and tags — richer discovery can wait until the base catalog is working.
-- Edit history, versioning, and moderation systems — not core to validating the catalog and upload experience.
+- Moderation systems — there is no public contribution model to moderate in v1.
 - Separate frontend and backend services — v1 intentionally uses one `Next.js` full-stack application.
 
 ## Context
@@ -37,6 +37,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - GitHub is the intended source of truth for delivery. Validation on pull requests and auto-deploy on merge to `main` are foundational platform requirements, not later enhancements.
 - The app should stay simple enough for a solo developer to operate, with clear tenancy bootstrap guidance, least-privilege IAM, narrow network exposure, and explicit secret contracts.
 - The prompt already narrows the product direction significantly: anonymous public browsing, one admin, containerized deployment, app-mediated image access, and AI-assisted metadata extraction with human review.
+- The intended product is a personal collection site rather than a reusable platform, so roadmap choices should prefer collection quality, manageability, and presentation over multi-user extensibility.
 
 ## Constraints
 
@@ -46,7 +47,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - **Storage**: Keep autograph images private in OCI Object Storage — access should be centralized through the app rather than direct public buckets.
 - **Delivery**: Auto-deploy from GitHub Actions on merge to `main` — CI/CD is part of project bootstrap, not optional polish.
 - **Operations**: One developer should be able to understand and run the system — avoid enterprise sprawl and multi-service complexity.
-- **Scope**: v1 must stay narrow — no staging environment, no bulk import, no public accounts, and no advanced search platform.
+- **Scope**: v1 must stay narrow — no staging environment, no bulk import, no public accounts, and no advanced search platform, but multi-image items and edit history are in scope because they matter directly for managing a personal collection well.
 - **Security**: Use least-privilege OCI access and explicit secret handling — routine deploy workflows should not rely on tenancy-wide admin power.
 
 ## Key Decisions
@@ -57,6 +58,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 | Treat the project as greenfield despite existing planning artifacts | There is no runtime app, infra, or test code to preserve; the committed assets are planning inputs | — Pending |
 | Start with GitHub-driven OCI bootstrap and deployment as first-class work | The prompt makes CI/CD and tenancy bootstrap foundational, so later phases should build on that instead of bolting it on | — Pending |
 | Bias toward OCI Always Free-compatible primitives and a single `Next.js` app | This matches the product brief and keeps the first release operable for one developer | — Pending |
+| Optimize for a personal collection rather than a general user platform | The site is meant to present and manage your own autograph collection, so features like multi-image support and edit history matter more than user systems or social capabilities | — Pending |
 
 ## Evolution
 
