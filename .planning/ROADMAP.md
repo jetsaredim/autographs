@@ -28,7 +28,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. Operator can provision the documented OCI baseline using committed infrastructure code plus the required one-time manual bootstrap steps.
   2. Operator can configure local and GitHub-based deployment from a clear committed environment and secret contract.
   3. Pull requests run repository validation, and merges to `main` can execute the documented deployment path.
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 01-01-PLAN.md - Scaffold the proof-of-life Next.js app and the committed nginx -> app runtime assets.
+- [ ] 01-02-PLAN.md - Define the OCI/Terraform bootstrap baseline, remote state path, and import/runbook guidance.
+- [ ] 01-03-PLAN.md - Define the config contract, GitHub Actions delivery spine, and OCI proof-of-life deployment runbook.
 
 ### Phase 2: Oracle and Private Media Core
 **Goal**: The application can persist autograph records in Oracle and manage private multi-image media in OCI Object Storage through app-controlled access.
