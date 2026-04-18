@@ -65,33 +65,33 @@ None currently. Future scope should be added only if it directly supports the pe
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLAT-01 | Unmapped | Pending |
-| PLAT-02 | Unmapped | Pending |
-| PLAT-03 | Unmapped | Pending |
-| DATA-01 | Unmapped | Pending |
-| DATA-02 | Unmapped | Pending |
-| DATA-03 | Unmapped | Pending |
-| DATA-04 | Unmapped | Pending |
-| MEDIA-01 | Unmapped | Pending |
-| MEDIA-02 | Unmapped | Pending |
-| MEDIA-03 | Unmapped | Pending |
-| MEDIA-04 | Unmapped | Pending |
-| GALL-01 | Unmapped | Pending |
-| GALL-02 | Unmapped | Pending |
-| GALL-03 | Unmapped | Pending |
-| GALL-04 | Unmapped | Pending |
-| ADMIN-01 | Unmapped | Pending |
-| ADMIN-02 | Unmapped | Pending |
-| ADMIN-03 | Unmapped | Pending |
-| ADMIN-04 | Unmapped | Pending |
-| AI-01 | Unmapped | Pending |
-| AI-02 | Unmapped | Pending |
-| AI-03 | Unmapped | Pending |
+| PLAT-01 | Phase 1 | Pending |
+| PLAT-02 | Phase 1 | Pending |
+| PLAT-03 | Phase 1 | Pending |
+| DATA-01 | Phase 2 | Pending |
+| DATA-02 | Phase 2 | Pending |
+| DATA-03 | Phase 4 | Pending |
+| DATA-04 | Phase 2 | Pending |
+| MEDIA-01 | Phase 2 | Pending |
+| MEDIA-02 | Phase 2 | Pending |
+| MEDIA-03 | Phase 2 | Pending |
+| MEDIA-04 | Phase 4 | Pending |
+| GALL-01 | Phase 3 | Pending |
+| GALL-02 | Phase 3 | Pending |
+| GALL-03 | Phase 3 | Pending |
+| GALL-04 | Phase 3 | Pending |
+| ADMIN-01 | Phase 4 | Pending |
+| ADMIN-02 | Phase 4 | Pending |
+| ADMIN-03 | Phase 4 | Pending |
+| ADMIN-04 | Phase 4 | Pending |
+| AI-01 | Phase 5 | Pending |
+| AI-02 | Phase 5 | Pending |
+| AI-03 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 22 total
-- Mapped to phases: 0
-- Unmapped: 22 ⚠️
+- Mapped to phases: 22
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-18*
