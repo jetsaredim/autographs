@@ -65,7 +65,7 @@ Phase 1 should be planned as a bootstrap-and-proof phase, not an application fea
 
 The biggest planning mistake would be treating this as “set up everything OCI-related.” The official docs make the key constraints pretty clear: the Terraform backend bucket must already exist, bucket versioning is strongly recommended, OCI policies should be compartment-scoped instead of root-scoped, Next.js self-hosting wants a reverse proxy in front of the app server, and GitHub’s modern direction is short-lived OIDC tokens even if this phase starts on API keys. That means the plan should explicitly model a bootstrap paradox, a future auth seam, and a production-like reverse-proxy runtime from day one. [CITED: https://developer.hashicorp.com/terraform/language/backend/oci] [CITED: https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usingversioning.htm] [CITED: https://docs.oracle.com/en/cloud/foundation/cloud_architecture/governance/compartments.html] [CITED: https://nextjs.org/docs/app/guides/self-hosting] [CITED: https://docs.github.com/en/actions/concepts/security/openid-connect]
 
-**Primary recommendation:** Plan Phase 1 around a two-step Terraform bootstrap (`bootstrap` then `main`), a two-container OCI VM runtime (`nginx` -> `Next.js`), and a two-workflow GitHub spine (`pr.yml` and `deploy.yml`) with a committed environment contract and a live proof-of-life deployment as the exit gate. [ASSUMED]
+**Primary recommendation:** Plan Phase 1 around a two-step Terraform bootstrap (`bootstrap` then `main`), a two-container OCI VM runtime (`nginx` -> `Next.js`), and a two-workflow GitHub spine (`pr.yml` and `deploy.yml`) where GitHub Actions publishes the app image to `ghcr.io`, repo-level secrets and variables form the baseline config contract, and a live proof-of-life deployment is the exit gate. [ASSUMED]
 
 ## Standard Stack
 
@@ -297,27 +297,27 @@ services:
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
 | A1 | Docker Compose is the best concrete VM orchestration mechanism for this phase’s two-container runtime. | Architecture Patterns | Low — the user explicitly left orchestration implementation discretionary; systemd-managed `docker run` is possible but less maintainable. |
-| A2 | `ghcr.io` is the cleanest default registry path for the app container image if the plan chooses prebuilt-image deploys. | Architecture Patterns | Medium — a host-build deploy path could be simpler if registry auth becomes annoying. |
+| A2 | `ghcr.io` is the selected Phase 1 registry path for the prebuilt app image deploy flow. | Architecture Patterns | Low — this is now a locked planning decision for Phase 1 rather than an unresolved branch. |
 | A3 | The exact recommended directory names (`apps/web`, `infra/terraform/bootstrap`, `deploy/compose`) are appropriate for this repo. | Recommended Project Structure | Low — the user cares about separation, not these exact names. |
 
 **If this table is empty:** All claims in this research were verified or cited — no user confirmation needed.
 
-## Open Questions
+## Open Questions (RESOLVED AND APPLIED TO PLANS)
 
 1. **Will deploys pull a prebuilt image or build on the VM?**
-   - What we know: GitHub can publish Docker images, and the runtime is locked to two containers on one VM. [CITED: https://docs.github.com/en/actions/publishing-packages/publishing-docker-images]
-   - What's unclear: Whether the planner should add registry auth on the VM now or avoid that by building on-host during deploy. [ASSUMED]
-   - Recommendation: Default to prebuilt image deploy only if the operator is comfortable storing read-only registry credentials on the VM; otherwise do an SSH-driven host build for Phase 1 and revisit registries later. [ASSUMED]
+   - Resolution: Phase 1 should use a prebuilt-image deploy path. GitHub Actions will build the app image, publish it to `ghcr.io`, and the OCI VM will pull that image during deployment.
+   - Why: This keeps the VM runtime lean, makes the delivery spine more reproducible, and gives the deploy workflow a concrete artifact contract instead of a host-build fork.
+   - Planning implication: The config contract, deploy workflow, VM deploy script, and runbook must all assume registry-backed pulls rather than on-host image builds.
 
 2. **Are GitHub environments usable for this repo’s plan and visibility?**
-   - What we know: GitHub documents plan-dependent limits for environments in private repositories. [CITED: https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments]
-   - What's unclear: The repository’s effective plan/visibility combination. [ASSUMED]
-   - Recommendation: Plan repo-level secrets/variables as the baseline and treat environments as additive. [ASSUMED]
+   - Resolution: Repo-level GitHub Secrets and GitHub Variables are the baseline contract for Phase 1. GitHub Environments are optional/additive rather than required.
+   - Why: This avoids blocking the bootstrap spine on repository-plan or visibility nuances while still leaving room to add environment-specific protections later.
+   - Planning implication: Workflow inputs and docs should work without GitHub Environments, with environments documented only as a possible enhancement.
 
 3. **Which OCI region and tenancy naming conventions will the operator use?**
-   - What we know: Always Free Autonomous Database can only be created in the home region. [CITED: https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/autonomous-always-free.html]
-   - What's unclear: The operator’s actual home region and chosen compartment/resource names. [ASSUMED]
-   - Recommendation: Make region and naming explicit inputs in the bootstrap docs and `.tfvars` contract before any resource code is written. [ASSUMED]
+   - Resolution: OCI region, home region, compartment OCIDs, and naming prefixes remain explicit operator-provided inputs rather than hidden assumptions.
+   - Why: Always Free and home-region constraints are real, but they should be surfaced through `.tfvars`, backend config, and docs instead of being hard-coded in plans.
+   - Planning implication: Terraform variables, backend examples, and bootstrap docs must make these values first-class required inputs.
 
 ## Environment Availability
 
@@ -335,7 +335,7 @@ services:
 | `oci` CLI | Helpful for bootstrap inspection and some operator steps | ✗ [VERIFIED: local env] | — | Console plus Terraform can cover most needs. [ASSUMED] |
 
 **Missing dependencies with no fallback:**
-- `terraform` — this blocks actual Phase 1 execution and should appear in Wave 0 or operator prerequisites. [VERIFIED: local env]
+- `terraform` — this blocks actual Phase 1 execution and must be handled by an explicit prerequisite checkpoint or manual setup step before any Terraform verification runs. [VERIFIED: local env]
 
 **Missing dependencies with fallback:**
 - `oci` CLI — not required if bootstrap docs rely on the OCI Console and Terraform instead. [ASSUMED]
