@@ -1,0 +1,11 @@
+# Non-sensitive OCI backend coordinates for the steady-state remote backend.
+# Keep real credential material out of VCS. Prefer OCI_* environment variables
+# or interactive prompts for tenancy_ocid, user_ocid, fingerprint, and
+# private_key_path when using API-key auth.
+
+bucket               = "autographs-tf-state"
+namespace            = "replace-with-your-object-storage-namespace"
+region               = "us-chicago-1"
+key                  = "envs/prod/terraform.tfstate"
+workspace_key_prefix = "envs"
+auth                 = "APIKey"
