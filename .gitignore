@@ -1,6 +1,9 @@
 .codex
 .codex/
 .tools/
+node_modules/
+app/node_modules/
+app/.next/
 .terraform/
 **/.terraform/*
 *.tfstate
