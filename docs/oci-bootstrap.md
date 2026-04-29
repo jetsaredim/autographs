@@ -53,7 +53,7 @@ cp infra/terraform/environments/prod/terraform.tfvars.example \
 ```
 
 3. If the bucket or compartment had to be created manually first, import it
-   before migrating state. Follow [imports.md](/home/jgreenwa/dev/git/github.com/jetsaredim/autographs/infra/terraform/bootstrap/imports.md).
+   before migrating state. Follow [imports.md](../infra/terraform/bootstrap/imports.md).
 
 4. Create a local `infra/terraform/bootstrap/backend.hcl` from the example
    file. Keep sensitive credentials out of that file when possible and prefer

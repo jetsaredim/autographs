@@ -63,7 +63,7 @@ manually with:
 - the final bucket name you intend Terraform to manage
 
 Then import it with the instructions in
-[imports.md](/home/jgreenwa/dev/git/github.com/jetsaredim/autographs/infra/terraform/bootstrap/imports.md)
+[imports.md](../infra/terraform/bootstrap/imports.md)
 before running `terraform init -migrate-state`.
 
 ## Operator Checklist
