@@ -1,0 +1,106 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  GHCR_IMAGE_REPOSITORY: ${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}
+  AUTOGRAPHS_HTTP_PORT: "80"
+
+jobs:
+  deploy:
+    name: Publish image and deploy to OCI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup runtime
+        uses: ./.github/actions/setup-runtime
+
+      - name: Validate
+        run: bash scripts/validate-ci.sh
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: app/Dockerfile
+          push: true
+          tags: |
+            ${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
+            ${{ env.GHCR_IMAGE_REPOSITORY }}:latest
+
+      - name: Write OCI API private key
+        env:
+          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/oci"
+          printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
+          chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
+
+      - name: Terraform apply
+        working-directory: infra/terraform
+        env:
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
+          OCI_REGION: ${{ vars.OCI_REGION }}
+          TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
+          TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          TF_VAR_private_key_path: ${{ runner.temp }}/oci/api_key.pem
+          TF_VAR_region: ${{ vars.OCI_REGION }}
+          TF_VAR_home_region: ${{ vars.OCI_HOME_REGION }}
+          TF_VAR_parent_compartment_ocid: ${{ vars.OCI_PARENT_COMPARTMENT_OCID || secrets.OCI_TENANCY_OCID }}
+          TF_VAR_existing_compartment_ocid: ${{ vars.OCI_EXISTING_COMPARTMENT_OCID }}
+          TF_VAR_create_compartment: ${{ vars.OCI_CREATE_COMPARTMENT || 'true' }}
+          TF_VAR_state_bucket_name: ${{ vars.OCI_STATE_BUCKET_NAME || 'autographs-tf-state' }}
+          TF_VAR_state_object_key: ${{ vars.OCI_STATE_OBJECT_KEY || 'envs/prod/terraform.tfstate' }}
+          TF_VAR_availability_domain: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
+          TF_VAR_runtime_image_ocid: ${{ vars.OCI_RUNTIME_IMAGE_OCID }}
+          TF_VAR_runtime_shape: ${{ vars.OCI_RUNTIME_SHAPE || 'VM.Standard.A1.Flex' }}
+          TF_VAR_runtime_ocpus: ${{ vars.OCI_RUNTIME_OCPUS || '1' }}
+          TF_VAR_runtime_memory_gbs: ${{ vars.OCI_RUNTIME_MEMORY_GBS || '6' }}
+          TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS }}
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.OCI_STATE_BUCKET_NAME || 'autographs-tf-state' }}" \
+            -backend-config="namespace=${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}" \
+            -backend-config="region=${{ vars.OCI_REGION }}" \
+            -backend-config="key=${{ vars.OCI_STATE_OBJECT_KEY || 'envs/prod/terraform.tfstate' }}" \
+            -backend-config="workspace_key_prefix=envs" \
+            -backend-config="auth=APIKey"
+          terraform apply -auto-approve
+          terraform output -raw runtime_public_ip > "$RUNNER_TEMP/runtime_public_ip"
+
+      - name: Deploy runtime to VM
+        env:
+          VM_PUBLIC_IP: ${{ vars.VM_PUBLIC_IP }}
+          DEPLOY_SSH_USER: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
+          AUTOGRAPHS_APP_IMAGE: ${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: |
+          if [ -z "${VM_PUBLIC_IP}" ] && [ -s "$RUNNER_TEMP/runtime_public_ip" ]; then
+            export VM_PUBLIC_IP="$(cat "$RUNNER_TEMP/runtime_public_ip")"
+          fi
+          bash scripts/deploy-vm.sh

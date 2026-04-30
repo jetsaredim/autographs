@@ -12,7 +12,7 @@ Autographs will ship as a lean personal collection app with the riskiest seams p
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Delivery Spine and OCI Bootstrap** - Stand up the deployable app foundation, OCI baseline, and GitHub-driven validation/deploy path.
+- [ ] **Phase 1: Delivery Spine and OCI Bootstrap** - Stand up the deployable app foundation, OCI baseline, and GitHub-driven validation/deploy path. Implementation complete; live OCI deploy proof awaits operator setup.
 - [ ] **Phase 2: Oracle and Private Media Core** - Prove the database and object-storage seams that every collection record depends on.
 - [ ] **Phase 3: Public Gallery MVP** - Deliver anonymous browse, filter, and detail views for published autograph items.
 - [ ] **Phase 4: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop.
@@ -30,10 +30,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Pull requests run repository validation, and merges to `main` can execute the documented deployment path.
 **Plans**: 4 plans
 Plans:
-- [ ] 01-01-PLAN.md - Scaffold the proof-of-life Next.js app inside the single-repo workspace.
-- [ ] 01-02-PLAN.md - Add the committed Docker, nginx, and compose runtime assets for the locked OCI topology.
-- [ ] 01-03-PLAN.md - Define the OCI/Terraform bootstrap baseline, remote state path, and import/runbook guidance.
-- [ ] 01-04-PLAN.md - Define the config contract, GitHub Actions delivery spine, and OCI proof-of-life deployment runbook.
+- [x] 01-01-PLAN.md - Scaffold the proof-of-life Next.js app inside the single-repo workspace.
+- [x] 01-02-PLAN.md - Add the committed Docker, nginx, and compose runtime assets for the locked OCI topology.
+- [x] 01-03-PLAN.md - Define the OCI/Terraform bootstrap baseline, remote state path, and import/runbook guidance.
+- [x] 01-04-PLAN.md - Define the config contract, GitHub Actions delivery spine, and OCI proof-of-life deployment runbook.
 
 ### Phase 2: Oracle and Private Media Core
 **Goal**: The application can persist autograph records in Oracle and manage private multi-image media in OCI Object Storage through app-controlled access.
@@ -88,7 +88,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Delivery Spine and OCI Bootstrap | 0/4 | Not started | - |
+| 1. Delivery Spine and OCI Bootstrap | 4/4 | Awaiting live OCI deploy proof | - |
 | 2. Oracle and Private Media Core | 0/TBD | Not started | - |
 | 3. Public Gallery MVP | 0/TBD | Not started | - |
 | 4. Admin Collection Workflow | 0/TBD | Not started | - |
