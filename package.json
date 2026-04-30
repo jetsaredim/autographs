@@ -1,0 +1,9 @@
+{
+  "name": "autographs",
+  "private": true,
+  "packageManager": "pnpm@10.6.2",
+  "scripts": {
+    "lint": "corepack pnpm --filter app lint",
+    "typecheck": "corepack pnpm --filter app typecheck"
+  }
+}
