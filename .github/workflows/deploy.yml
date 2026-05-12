@@ -85,7 +85,11 @@ jobs:
             -backend-config="region=${{ vars.OCI_REGION }}" \
             -backend-config="key=${{ vars.OCI_STATE_OBJECT_KEY || 'envs/prod/terraform.tfstate' }}" \
             -backend-config="workspace_key_prefix=envs" \
-            -backend-config="auth=APIKey"
+            -backend-config="auth=APIKey" \
+            -backend-config="tenancy_ocid=${{ secrets.OCI_TENANCY_OCID }}" \
+            -backend-config="user_ocid=${{ secrets.OCI_CLI_USER_OCID }}" \
+            -backend-config="fingerprint=${{ secrets.OCI_FINGERPRINT }}" \
+            -backend-config="private_key_path=${{ runner.temp }}/oci/api_key.pem"
           terraform apply -auto-approve
           terraform output -raw runtime_public_ip > "$RUNNER_TEMP/runtime_public_ip"
 
