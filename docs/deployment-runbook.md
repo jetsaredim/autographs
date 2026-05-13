@@ -30,17 +30,14 @@ That command builds the app image, starts Docker Compose, and checks `http://127
 
 ## OCI Bootstrap
 
-1. Follow [oci-bootstrap.md](oci-bootstrap.md) to prepare the tenancy, home region, runtime region, compartment path, and Terraform state bucket.
-2. Use `OCI_HOME_REGION` for IAM and tenancy-scoped resources.
-3. Use `OCI_REGION` for the runtime VM, network, and Object Storage state bucket.
+1. Follow [oci-bootstrap.md](oci-bootstrap.md) to prepare the tenancy, compartment path, and Terraform state bucket.
+2. This tenancy is codified as `us-ashburn-1` for both the OCI home region and runtime region.
+3. The deploy workflow codifies the Terraform state bucket as `autographs-tf-state` and the state object key as `envs/prod/terraform.tfstate`.
 4. If resources were created manually, import them using [imports.md](../infra/terraform/bootstrap/imports.md).
 5. Run `terraform apply` locally once if needed to prove the baseline and obtain outputs.
 
 Important operator inputs:
 
-- `OCI_REGION`
-- `OCI_HOME_REGION`
-- `OCI_COMPARTMENT_OCID`
 - `OCI_PARENT_COMPARTMENT_OCID`
 - `OCI_AVAILABILITY_DOMAIN`
 - `OCI_RUNTIME_IMAGE_OCID`
@@ -60,11 +57,7 @@ Populate repo-level GitHub Secrets:
 
 Populate repo-level GitHub Variables:
 
-- `OCI_REGION`
-- `OCI_HOME_REGION`
-- `OCI_COMPARTMENT_OCID`
 - `OCI_PARENT_COMPARTMENT_OCID`
-- `OCI_CREATE_COMPARTMENT`
 - `OCI_EXISTING_COMPARTMENT_OCID`
 - `OCI_AVAILABILITY_DOMAIN`
 - `OCI_RUNTIME_IMAGE_OCID`
@@ -72,8 +65,6 @@ Populate repo-level GitHub Variables:
 - `OCI_RUNTIME_OCPUS`
 - `OCI_RUNTIME_MEMORY_GBS`
 - `OCI_RUNTIME_SSH_PUBLIC_KEYS`
-- `OCI_STATE_BUCKET_NAME`
-- `OCI_STATE_OBJECT_KEY`
 - `OCI_OBJECT_STORAGE_NAMESPACE`
 - `VM_PUBLIC_IP`
 - `DEPLOY_SSH_USER`
@@ -81,6 +72,8 @@ Populate repo-level GitHub Variables:
 - `GHCR_IMAGE_REPOSITORY`
 
 `GHCR_IMAGE_REPOSITORY` should be a `ghcr.io` image path such as `ghcr.io/jetsaredim/autographs/app`.
+
+`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, and `GHCR_IMAGE_REPOSITORY` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
 ## Workflow Behavior
 

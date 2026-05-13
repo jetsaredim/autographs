@@ -5,9 +5,13 @@ resource "oci_core_instance" "runtime" {
   display_name        = "${var.name_prefix}-vm"
   shape               = var.shape
 
-  shape_config {
-    ocpus         = var.ocpus
-    memory_in_gbs = var.memory_in_gbs
+  dynamic "shape_config" {
+    for_each = endswith(lower(var.shape), ".flex") ? [1] : []
+
+    content {
+      ocpus         = var.ocpus
+      memory_in_gbs = var.memory_in_gbs
+    }
   }
 
   create_vnic_details {

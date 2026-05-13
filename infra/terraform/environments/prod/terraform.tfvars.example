@@ -5,15 +5,23 @@ project_name = "autographs"
 environment  = "prod"
 name_prefix  = "autographs-prod"
 
+auth                = "APIKey"
+config_file_profile = ""
+
 tenancy_ocid     = "ocid1.tenancy.oc1..replace_me"
 user_ocid        = "ocid1.user.oc1..replace_me"
 fingerprint      = "12:34:56:78:90:ab:cd:ef:12:34:56:78:90:ab:cd:ef"
 private_key_path = "~/.oci/autographs_api_key.pem"
 
+# For local bootstrap with `oci session authenticate`, use:
+# auth                = "SecurityToken"
+# config_file_profile = "DEFAULT"
+# Leave user_ocid, fingerprint, and private_key_path empty.
+
 # home_region is where OCI IAM resources such as policies and compartments live.
 # region is where the runtime network, VM, and state bucket live.
-home_region = "us-phoenix-1"
-region      = "us-chicago-1"
+home_region = "us-ashburn-1"
+region      = "us-ashburn-1"
 
 # Use the tenancy OCID when attaching the project compartment directly under the
 # tenancy root. Use another parent compartment OCID if you already organize OCI
@@ -40,15 +48,15 @@ ssh_ingress_cidrs        = ["203.0.113.10/32"]
 http_ingress_cidrs       = ["0.0.0.0/0"]
 https_ingress_cidrs      = ["0.0.0.0/0"]
 
-create_runtime_instance       = true
-availability_domain           = "Uocm:CHICAGO-AD-1"
-runtime_shape                 = "VM.Standard.A1.Flex"
-runtime_ocpus                 = 1
-runtime_memory_gbs            = 6
-runtime_boot_volume_size_gbs  = 50
-runtime_image_ocid            = ""
+create_runtime_instance      = true
+availability_domain          = "DcRr:US-ASHBURN-AD-3"
+runtime_shape                = "VM.Standard.E2.1.Micro"
+runtime_ocpus                = 1
+runtime_memory_gbs           = 1
+runtime_boot_volume_size_gbs = 50
+runtime_image_ocid           = ""
 oracle_linux_image_ocids = {
-  "us-chicago-1" = "ocid1.image.oc1.iad.replace_me"
+  "us-ashburn-1" = "ocid1.image.oc1.iad.replace_me"
 }
 runtime_ssh_public_keys = [
   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIreplace_me operator@laptop"

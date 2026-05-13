@@ -11,6 +11,12 @@ fi
 
 cd "$ROOT_DIR"
 
+if [ -z "${TF_DATA_DIR:-}" ]; then
+  TF_DATA_DIR="$(mktemp -d)"
+  export TF_DATA_DIR
+  trap 'rm -rf "$TF_DATA_DIR"' EXIT
+fi
+
 corepack pnpm install --frozen-lockfile
 corepack pnpm --filter app lint
 corepack pnpm --filter app typecheck

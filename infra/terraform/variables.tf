@@ -16,6 +16,23 @@ variable "name_prefix" {
   default     = "autographs-prod"
 }
 
+variable "auth" {
+  description = "OCI provider auth mode. Use SecurityToken for local OCI CLI session auth, or APIKey for GitHub/deploy API signing keys."
+  type        = string
+  default     = "APIKey"
+
+  validation {
+    condition     = contains(["APIKey", "SecurityToken"], var.auth)
+    error_message = "auth must be APIKey or SecurityToken."
+  }
+}
+
+variable "config_file_profile" {
+  description = "OCI CLI config profile used when auth is SecurityToken. Leave empty for APIKey auth."
+  type        = string
+  default     = ""
+}
+
 variable "tenancy_ocid" {
   description = "OCI tenancy OCID used by the Terraform provider."
   type        = string
@@ -39,11 +56,13 @@ variable "private_key_path" {
 variable "region" {
   description = "OCI region where runtime resources live."
   type        = string
+  default     = "us-ashburn-1"
 }
 
 variable "home_region" {
   description = "OCI home region for IAM and tenancy-scoped resources."
   type        = string
+  default     = "us-ashburn-1"
 }
 
 variable "parent_compartment_ocid" {
@@ -167,7 +186,7 @@ variable "availability_domain" {
 variable "runtime_shape" {
   description = "OCI shape for the runtime VM."
   type        = string
-  default     = "VM.Standard.A1.Flex"
+  default     = "VM.Standard.E2.1.Micro"
 }
 
 variable "runtime_ocpus" {
@@ -179,7 +198,7 @@ variable "runtime_ocpus" {
 variable "runtime_memory_gbs" {
   description = "Memory in GB for the flex runtime shape."
   type        = number
-  default     = 6
+  default     = 1
 }
 
 variable "runtime_boot_volume_size_gbs" {
