@@ -15,25 +15,62 @@ if ! id "$DEPLOY_USER" >/dev/null 2>&1; then
   exit 1
 fi
 
-install_docker() {
-  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+case "$DEPLOY_PATH" in
+  /opt/autographs | /opt/autographs/*) ;;
+  *)
+    echo "DEPLOY_PATH must be /opt/autographs or a child path: ${DEPLOY_PATH}" >&2
+    exit 1
+    ;;
+esac
+
+enable_oracle_epel() {
+  if ! [ -r /etc/os-release ]; then
+    echo "/etc/os-release is required to enable Oracle Linux EPEL repositories" >&2
+    exit 1
+  fi
+
+  . /etc/os-release
+
+  case "${VERSION_ID%%.*}" in
+    8)
+      dnf install -y oracle-epel-release-el8
+      dnf config-manager --enable ol8_developer_EPEL
+      ;;
+    9)
+      dnf install -y oracle-epel-release-el9
+      dnf config-manager --enable ol9_developer_EPEL
+      ;;
+    10)
+      dnf install -y oracle-epel-release-el10
+      dnf config-manager --enable ol10_u0_developer_EPEL
+      ;;
+    *)
+      echo "Unsupported Oracle Linux version for podman-compose bootstrap: ${VERSION_ID}" >&2
+      exit 1
+      ;;
+  esac
+}
+
+install_podman_compose() {
+  if command -v podman >/dev/null 2>&1 && command -v podman-compose >/dev/null 2>&1; then
     return
   fi
 
   if ! command -v dnf >/dev/null 2>&1; then
-    echo "dnf is required to install Docker on this runtime image" >&2
+    echo "dnf is required to install Podman on this runtime image" >&2
     exit 1
   fi
 
   dnf install -y dnf-plugins-core
-  dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
-  dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  dnf install -y podman
+
+  if ! command -v podman-compose >/dev/null 2>&1; then
+    enable_oracle_epel
+    dnf install -y podman-compose
+  fi
 }
 
-install_docker
-systemctl enable --now docker
-
-usermod -aG docker "$DEPLOY_USER"
+install_podman_compose
 
 install -d -o "$DEPLOY_USER" -m 0755 "$DEPLOY_PATH" "$DEPLOY_PATH/compose" "$DEPLOY_PATH/nginx"
 

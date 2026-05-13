@@ -42,6 +42,14 @@ validate_pattern GITHUB_ACTOR "$GITHUB_ACTOR" '^[A-Za-z0-9][A-Za-z0-9-]*$'
 validate_pattern AUTOGRAPHS_APP_IMAGE "$AUTOGRAPHS_APP_IMAGE" '^[A-Za-z0-9._:/@-]+$'
 validate_pattern AUTOGRAPHS_HTTP_PORT "$AUTOGRAPHS_HTTP_PORT" '^[0-9]+$'
 
+case "$DEPLOY_PATH" in
+  /opt/autographs | /opt/autographs/*) ;;
+  *)
+    echo "DEPLOY_PATH must be /opt/autographs or a child path: ${DEPLOY_PATH}" >&2
+    exit 1
+    ;;
+esac
+
 cleanup() {
   rm -f "$SSH_KEY_FILE"
 }
@@ -63,10 +71,10 @@ ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo DEPLOY_USER='${D
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/compose/compose.prod.yaml" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/compose/compose.prod.yaml"
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/nginx/nginx.conf" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/nginx/nginx.conf"
 
-printf '%s' "$GHCR_TOKEN" | ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo docker login ghcr.io -u '${GITHUB_ACTOR}' --password-stdin"
+printf '%s' "$GHCR_TOKEN" | ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo podman login ghcr.io -u '${GITHUB_ACTOR}' --password-stdin"
 
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
-  "cd '${DEPLOY_PATH}/compose' && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' docker compose -f compose.prod.yaml pull app && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' docker compose -f compose.prod.yaml up -d"
+  "cd '${DEPLOY_PATH}/compose' && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' podman-compose -f compose.prod.yaml pull && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' podman-compose -f compose.prod.yaml up -d"
 
 for _ in $(seq 1 30); do
   if curl --fail --silent "http://${VM_PUBLIC_IP}/health" >/dev/null; then

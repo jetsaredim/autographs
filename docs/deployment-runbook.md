@@ -1,6 +1,6 @@
 # Deployment Runbook
 
-This runbook gets the Phase 1 proof-of-life app from a clean checkout to an OCI VM running the committed Docker Compose topology: public `nginx` in front of a private `Next.js` app container.
+This runbook gets the Phase 1 proof-of-life app from a clean checkout to an OCI VM running the committed Compose topology with Podman: public `nginx` in front of a private `Next.js` app container.
 
 ## Preconditions
 
@@ -8,7 +8,7 @@ This runbook gets the Phase 1 proof-of-life app from a clean checkout to an OCI 
 - An OCI user or deploy identity has API signing keys for Phase 1.
 - The tenancy bootstrap root has created or imported the project compartment, state bucket, deploy user, groups, and policies.
 - The runtime VM image OCID, availability domain, and SSH public key are known.
-- Docker and Docker Compose are installed on the target VM image or through the operator's VM bootstrap process.
+- Podman and `podman-compose` are installed on the target VM image or through the committed VM bootstrap process.
 - GitHub repo-level GitHub Secrets and GitHub Variables from [configuration-contract.md](configuration-contract.md) are populated.
 - Optional GitHub Environments may be configured for approval gates, but they are not required for the baseline path.
 
@@ -26,7 +26,7 @@ To smoke-test the local runtime topology:
 bash scripts/validate-runtime.sh
 ```
 
-That command builds the app image, starts Docker Compose, and checks `http://127.0.0.1:8080/health` through nginx.
+That command builds the app image, starts the Compose topology locally with Docker, and checks `http://127.0.0.1:8080/health` through nginx.
 
 ## OCI Bootstrap
 
@@ -86,7 +86,7 @@ Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 2. publishes a prebuilt app image to `ghcr.io`,
 3. runs `terraform apply`,
 4. copies the committed compose and nginx files to the OCI VM,
-5. runs `docker compose pull` and restarts the runtime,
+5. runs `podman-compose pull` and restarts the runtime,
 6. checks the nginx-fronted `/health` proof-of-life route.
 
 The VM pulls the image built by GitHub Actions. The VM does not build application code during deploy.
@@ -110,8 +110,8 @@ If this fails, check the VM:
 ```bash
 ssh opc@"${VM_PUBLIC_IP}"
 cd /opt/autographs/compose
-docker compose -f compose.prod.yaml ps
-docker compose -f compose.prod.yaml logs app nginx
+sudo podman-compose -f compose.prod.yaml ps
+sudo podman-compose -f compose.prod.yaml logs app nginx
 ```
 
 ## Current Auth Note

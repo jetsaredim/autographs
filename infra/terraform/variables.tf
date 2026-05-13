@@ -177,8 +177,8 @@ variable "runtime_deploy_path" {
   default     = "/opt/autographs"
 
   validation {
-    condition     = can(regex("^/[A-Za-z0-9._/-]+$", var.runtime_deploy_path))
-    error_message = "runtime_deploy_path must be an absolute path containing only letters, numbers, dots, underscores, hyphens, and slashes."
+    condition     = can(regex("^/opt/autographs(/?[A-Za-z0-9._/-]*)?$", var.runtime_deploy_path))
+    error_message = "runtime_deploy_path must be /opt/autographs or a child path under /opt/autographs."
   }
 }
 
