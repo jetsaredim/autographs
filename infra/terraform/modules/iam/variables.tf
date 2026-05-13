@@ -22,7 +22,35 @@ variable "deploy_group_name" {
   type = string
 }
 
+variable "create_deploy_group" {
+  type = bool
+}
+
 variable "operator_group_name" {
+  type = string
+}
+
+variable "create_operator_group" {
+  type = bool
+}
+
+variable "create_deploy_user" {
+  type = bool
+}
+
+variable "deploy_user_name" {
+  type = string
+}
+
+variable "deploy_user_description" {
+  type = string
+}
+
+variable "deploy_user_email" {
+  type = string
+}
+
+variable "deploy_user_api_public_key" {
   type = string
 }
 

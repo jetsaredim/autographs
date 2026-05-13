@@ -1,13 +1,14 @@
 # Terraform State Strategy
 
-Phase 1 uses a two-step state flow:
+Phase 1 uses a bootstrap-plus-runtime state flow:
 
 1. Local state only long enough to create or import the remote backend bucket.
-2. OCI Object Storage as the steady-state backend for all later runs.
+2. OCI Object Storage as the steady-state backend for the tenancy bootstrap root.
+3. OCI Object Storage as the steady-state backend for the runtime/app root.
 
 ## Backend Contract
 
-The committed Terraform root keeps a partial backend block:
+Each committed Terraform root keeps a partial backend block:
 
 ```hcl
 terraform {
@@ -22,7 +23,10 @@ Storage path is deprecated for new use when Terraform can be upgraded.
 
 Populate the non-sensitive backend coordinates from
 `infra/terraform/bootstrap/backend.hcl.example`, then keep credentials out of
-version control.
+version control. Use separate state object keys for the two roots:
+
+- tenancy bootstrap: `envs/prod/tenancy-bootstrap.tfstate`
+- runtime/app: `envs/prod/terraform.tfstate`
 
 Recommended local-only backend inputs:
 
@@ -41,10 +45,10 @@ files out of Git.
 ## Migration Command
 
 Once the bucket exists and any manual bucket creation has been imported, migrate
-state with:
+state with the root and key you intend to initialize:
 
 ```bash
-.tools/terraform/terraform -chdir=infra/terraform init \
+terraform -chdir=infra/terraform init \
   -migrate-state \
   -backend-config=bootstrap/backend.hcl
 ```
@@ -70,6 +74,10 @@ manually with:
 Then import it with the instructions in
 [imports.md](../infra/terraform/bootstrap/imports.md)
 before running `terraform init -migrate-state`.
+
+For an existing single-state deployment, use
+[terraform-tenancy-split.md](terraform-tenancy-split.md) before applying either
+root from GitHub Actions.
 
 ## Operator Checklist
 

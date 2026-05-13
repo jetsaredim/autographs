@@ -6,7 +6,7 @@ This runbook gets the Phase 1 proof-of-life app from a clean checkout to an OCI 
 
 - OCI tenancy exists.
 - An OCI user or deploy identity has API signing keys for Phase 1.
-- The project compartment and state bucket are either ready to import or can be created by Terraform during bootstrap.
+- The tenancy bootstrap root has created or imported the project compartment, state bucket, deploy user, groups, and policies.
 - The runtime VM image OCID, availability domain, and SSH public key are known.
 - Docker and Docker Compose are installed on the target VM image or through the operator's VM bootstrap process.
 - GitHub repo-level GitHub Secrets and GitHub Variables from [configuration-contract.md](configuration-contract.md) are populated.
@@ -32,13 +32,15 @@ That command builds the app image, starts Docker Compose, and checks `http://127
 
 1. Follow [oci-bootstrap.md](oci-bootstrap.md) to prepare the tenancy, compartment path, and Terraform state bucket.
 2. This tenancy is codified as `us-ashburn-1` for both the OCI home region and runtime region.
-3. The deploy workflow codifies the Terraform state bucket as `autographs-tf-state` and the state object key as `envs/prod/terraform.tfstate`.
-4. If resources were created manually, import them using [imports.md](../infra/terraform/bootstrap/imports.md).
-5. Run `terraform apply` locally once if needed to prove the baseline and obtain outputs.
+3. Run the tenancy bootstrap root locally with an administrative/operator identity.
+4. The deploy workflow codifies the Terraform state bucket as `autographs-tf-state` and the runtime state object key as `envs/prod/terraform.tfstate`.
+5. If resources were created manually, import them using [imports.md](../infra/terraform/bootstrap/imports.md).
+6. Migrate existing state with [terraform-tenancy-split.md](terraform-tenancy-split.md) if this is an existing environment.
+7. Run runtime Terraform locally once if needed to prove the baseline and obtain outputs.
 
 Important operator inputs:
 
-- `OCI_PARENT_COMPARTMENT_OCID`
+- `OCI_COMPARTMENT_OCID`
 - `OCI_AVAILABILITY_DOMAIN`
 - `OCI_RUNTIME_IMAGE_OCID`
 - `OCI_RUNTIME_SSH_PUBLIC_KEYS`
@@ -57,8 +59,7 @@ Populate repo-level GitHub Secrets:
 
 Populate repo-level GitHub Variables:
 
-- `OCI_PARENT_COMPARTMENT_OCID`
-- `OCI_EXISTING_COMPARTMENT_OCID`
+- `OCI_COMPARTMENT_OCID`
 - `OCI_AVAILABILITY_DOMAIN`
 - `OCI_RUNTIME_IMAGE_OCID`
 - `OCI_RUNTIME_SHAPE`

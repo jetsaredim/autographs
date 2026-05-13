@@ -8,7 +8,8 @@ Phase 1 uses one explicit contract for local work, GitHub validation, and GitHub
 |------|---------|
 | `.env.example` | Local development and operator reference values |
 | `.github/.env.github.example` | Repo-level GitHub Secrets and GitHub Variables checklist |
-| `infra/terraform/environments/prod/terraform.tfvars.example` | Terraform variable shape for local operator runs |
+| `infra/terraform/tenancy/environments/prod/terraform.tfvars.example` | Tenancy/bootstrap Terraform variable shape for local operator runs |
+| `infra/terraform/environments/prod/terraform.tfvars.example` | Runtime/app Terraform variable shape for local operator runs |
 | `infra/terraform/bootstrap/backend.hcl.example` | OCI remote-state backend coordinate shape |
 
 Never put real private keys, API signing material, SSH private keys, or Terraform state in committed files.
@@ -33,8 +34,7 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 
 | Variable | Purpose |
 |----------|---------|
-| `OCI_PARENT_COMPARTMENT_OCID` | Parent compartment, often the tenancy OCID |
-| `OCI_EXISTING_COMPARTMENT_OCID` | Existing project compartment when not creating one |
+| `OCI_COMPARTMENT_OCID` | Project compartment OCID produced by the tenancy bootstrap root |
 | `OCI_AVAILABILITY_DOMAIN` | Availability domain for the runtime VM |
 | `OCI_RUNTIME_IMAGE_OCID` | Oracle Linux image OCID for the runtime VM |
 | `OCI_RUNTIME_SHAPE` | Optional OCI compute shape override; defaults to `VM.Standard.E2.1.Micro` |
@@ -47,11 +47,14 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `DEPLOY_PATH` | Directory on the VM that stores compose and nginx runtime files |
 | `GHCR_IMAGE_REPOSITORY` | Published app image path, for example `ghcr.io/jetsaredim/autographs/app` |
 
-The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the state object key is `envs/prod/terraform.tfstate`. `GHCR_IMAGE_REPOSITORY`, `OCI_PARENT_COMPARTMENT_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_IMAGE_OCID`, `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, `OCI_OBJECT_STORAGE_NAMESPACE`, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
+The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the runtime state object key is `envs/prod/terraform.tfstate`. `GHCR_IMAGE_REPOSITORY`, `OCI_COMPARTMENT_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_IMAGE_OCID`, `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, `OCI_OBJECT_STORAGE_NAMESPACE`, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
 
 ## Local Operator Values
 
-For local runs, copy `.env.example` to an untracked file such as `.env.local`, then copy `infra/terraform/environments/prod/terraform.tfvars.example` to `infra/terraform/environments/prod/terraform.tfvars`.
+For local runs, copy `.env.example` to an untracked file such as `.env.local`, then copy both Terraform examples:
+
+- `infra/terraform/tenancy/environments/prod/terraform.tfvars.example` to `infra/terraform/tenancy/environments/prod/terraform.tfvars`
+- `infra/terraform/environments/prod/terraform.tfvars.example` to `infra/terraform/environments/prod/terraform.tfvars`
 
 Local Terraform uses:
 
@@ -59,7 +62,8 @@ Local Terraform uses:
 - `user_ocid`
 - `fingerprint`
 - `private_key_path`
-- `parent_compartment_ocid`
+- bootstrap parent compartment and deploy identity inputs in the tenancy root
+- `compartment_ocid` in the runtime/app root
 - runtime VM image, availability domain, and SSH public keys
 - Object Storage namespace, bucket, and key when initializing the remote backend
 

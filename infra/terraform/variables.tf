@@ -59,80 +59,15 @@ variable "region" {
   default     = "us-ashburn-1"
 }
 
-variable "home_region" {
-  description = "OCI home region for IAM and tenancy-scoped resources."
-  type        = string
-  default     = "us-ashburn-1"
-}
-
-variable "parent_compartment_ocid" {
-  description = "Compartment that owns the project compartment and policies. Usually the tenancy OCID."
-  type        = string
-}
-
-variable "existing_compartment_ocid" {
-  description = "Existing project compartment OCID to use when create_compartment is false."
-  type        = string
-  default     = ""
-}
-
-variable "create_compartment" {
-  description = "Whether Terraform should create the project compartment."
-  type        = bool
-  default     = true
-}
-
-variable "compartment_description" {
-  description = "Description for the project compartment."
-  type        = string
-  default     = "Personal autograph collection application resources"
-}
-
 variable "owner_email" {
   description = "Optional owner tag value for OCI tagging."
   type        = string
   default     = ""
 }
 
-variable "deploy_group_name" {
-  description = "Existing OCI group name used by GitHub deploy automation."
+variable "compartment_ocid" {
+  description = "Project compartment OCID produced by the tenancy bootstrap root."
   type        = string
-  default     = "autographs-deployers"
-}
-
-variable "operator_group_name" {
-  description = "Existing OCI group name used by the human operator."
-  type        = string
-  default     = "autographs-operators"
-}
-
-variable "create_state_bucket" {
-  description = "Whether Terraform should create the remote state bucket."
-  type        = bool
-  default     = true
-}
-
-variable "state_bucket_name" {
-  description = "Object Storage bucket name for Terraform state."
-  type        = string
-  default     = "autographs-tf-state"
-}
-
-variable "state_bucket_storage_tier" {
-  description = "Storage tier for the Terraform state bucket."
-  type        = string
-  default     = "Standard"
-
-  validation {
-    condition     = contains(["Standard", "InfrequentAccess", "Archive"], var.state_bucket_storage_tier)
-    error_message = "state_bucket_storage_tier must be Standard, InfrequentAccess, or Archive."
-  }
-}
-
-variable "state_object_key" {
-  description = "Object key name for the environment state file inside the backend bucket."
-  type        = string
-  default     = "envs/prod/terraform.tfstate"
 }
 
 variable "create_network" {

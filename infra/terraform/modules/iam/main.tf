@@ -9,6 +9,52 @@ resource "oci_identity_compartment" "project" {
   freeform_tags = var.tags
 }
 
+resource "oci_identity_group" "deploy" {
+  provider       = oci.home
+  count          = var.create_deploy_group ? 1 : 0
+  compartment_id = var.parent_compartment_ocid
+  name           = var.deploy_group_name
+  description    = "Least-privilege deployment automation group for Autographs."
+
+  freeform_tags = var.tags
+}
+
+resource "oci_identity_group" "operator" {
+  provider       = oci.home
+  count          = var.create_operator_group ? 1 : 0
+  compartment_id = var.parent_compartment_ocid
+  name           = var.operator_group_name
+  description    = "Human operator group for Autographs day-two management."
+
+  freeform_tags = var.tags
+}
+
+resource "oci_identity_user" "deploy" {
+  provider       = oci.home
+  count          = var.create_deploy_user ? 1 : 0
+  compartment_id = var.parent_compartment_ocid
+  name           = var.deploy_user_name
+  description    = var.deploy_user_description
+  email          = var.deploy_user_email != "" ? var.deploy_user_email : null
+
+  freeform_tags = var.tags
+}
+
+resource "oci_identity_user_group_membership" "deploy" {
+  provider       = oci.home
+  count          = var.create_deploy_user && var.create_deploy_group ? 1 : 0
+  compartment_id = var.parent_compartment_ocid
+  group_id       = oci_identity_group.deploy[0].id
+  user_id        = oci_identity_user.deploy[0].id
+}
+
+resource "oci_identity_api_key" "deploy" {
+  provider  = oci.home
+  count     = var.create_deploy_user && var.deploy_user_api_public_key != "" ? 1 : 0
+  user_id   = oci_identity_user.deploy[0].id
+  key_value = var.deploy_user_api_public_key
+}
+
 locals {
   compartment_ocid = var.create_compartment ? oci_identity_compartment.project[0].id : var.existing_compartment_ocid
 
