@@ -44,6 +44,8 @@ jobs:
           tags: |
             ${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
             ${{ env.GHCR_IMAGE_REPOSITORY }}:latest
+          cache-from: type=gha,scope=app-image
+          cache-to: type=gha,scope=app-image,mode=max
 
       - name: Write OCI API private key
         env:
@@ -100,7 +102,7 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: |
-          if [ -z "${VM_PUBLIC_IP}" ] && [ -s "$RUNNER_TEMP/runtime_public_ip" ]; then
+          if [ -s "$RUNNER_TEMP/runtime_public_ip" ]; then
             export VM_PUBLIC_IP="$(cat "$RUNNER_TEMP/runtime_public_ip")"
           fi
           bash scripts/deploy-vm.sh
