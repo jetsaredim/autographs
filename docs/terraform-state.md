@@ -11,9 +11,14 @@ The committed Terraform root keeps a partial backend block:
 
 ```hcl
 terraform {
+  required_version = ">= 1.12.0, < 1.16.0"
   backend "oci" {}
 }
 ```
+
+The native OCI backend requires Terraform v1.12.0 or greater. Oracle recommends
+this backend for Object Storage state files; the older S3-compatible Object
+Storage path is deprecated for new use when Terraform can be upgraded.
 
 Populate the non-sensitive backend coordinates from
 `infra/terraform/bootstrap/backend.hcl.example`, then keep credentials out of
