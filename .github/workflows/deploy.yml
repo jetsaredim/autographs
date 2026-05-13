@@ -44,6 +44,8 @@ jobs:
           tags: |
             ${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
             ${{ env.GHCR_IMAGE_REPOSITORY }}:latest
+          cache-from: type=gha,scope=app-image
+          cache-to: type=gha,scope=app-image,mode=max
 
       - name: Write OCI API private key
         env:
