@@ -6,4 +6,4 @@ write_files:
     encoding: b64
     content: ${bootstrap_script_b64}
 runcmd:
-  - [bash, -lc, "DEPLOY_USER='${deploy_user}' DEPLOY_PATH='${deploy_path}' /usr/local/sbin/autographs-bootstrap-runtime.sh"]
+  - ["env", "DEPLOY_USER=${deploy_user}", "DEPLOY_PATH=${deploy_path}", "/usr/local/sbin/autographs-bootstrap-runtime.sh"]

@@ -164,12 +164,22 @@ variable "runtime_deploy_user" {
   description = "OS user that receives deployment files and runs container deployment commands."
   type        = string
   default     = "opc"
+
+  validation {
+    condition     = can(regex("^[A-Za-z_][A-Za-z0-9_-]*$", var.runtime_deploy_user))
+    error_message = "runtime_deploy_user must be a Linux username containing only letters, numbers, underscores, and hyphens, and must not start with a number."
+  }
 }
 
 variable "runtime_deploy_path" {
   description = "Absolute path on the runtime VM used for compose and nginx deployment files."
   type        = string
   default     = "/opt/autographs"
+
+  validation {
+    condition     = can(regex("^/[A-Za-z0-9._/-]+$", var.runtime_deploy_path))
+    error_message = "runtime_deploy_path must be an absolute path containing only letters, numbers, dots, underscores, hyphens, and slashes."
+  }
 }
 
 variable "assign_public_ip" {

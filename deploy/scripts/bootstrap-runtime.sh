@@ -16,7 +16,7 @@ if ! id "$DEPLOY_USER" >/dev/null 2>&1; then
 fi
 
 install_docker() {
-  if command -v docker >/dev/null 2>&1; then
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     return
   fi
 
