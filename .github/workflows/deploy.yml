@@ -60,6 +60,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
 
       - name: Terraform apply
+        id: terraform_apply
         working-directory: infra/terraform
         env:
           OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
@@ -93,11 +94,11 @@ jobs:
             -backend-config="workspace_key_prefix=envs" \
             -backend-config="auth=APIKey"
           terraform apply -auto-approve
-          terraform output -raw runtime_public_ip > "$RUNNER_TEMP/runtime_public_ip"
+          echo "runtime_public_ip=$(terraform output -raw runtime_public_ip)" >> "$GITHUB_OUTPUT"
 
       - name: Deploy runtime to VM
         env:
-          VM_PUBLIC_IP: ${{ vars.VM_PUBLIC_IP }}
+          VM_PUBLIC_IP: ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
           DEPLOY_SSH_USER: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
           DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
@@ -105,8 +106,4 @@ jobs:
           AUTOGRAPHS_APP_IMAGE: ${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
-        run: |
-          if [ -s "$RUNNER_TEMP/runtime_public_ip" ]; then
-            export VM_PUBLIC_IP="$(cat "$RUNNER_TEMP/runtime_public_ip")"
-          fi
-          bash scripts/deploy-vm.sh
+        run: bash scripts/deploy-vm.sh
