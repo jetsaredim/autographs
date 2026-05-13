@@ -20,3 +20,6 @@ jobs:
 
       - name: Validate
         run: bash scripts/validate-ci.sh
+
+      - name: Build app image
+        run: docker build --pull -f app/Dockerfile .
