@@ -17,7 +17,8 @@ manual bootstrap resources imported immediately afterward.
 
 ## Required Local Inputs
 
-- Terraform CLI: use the repo-local binary at `.tools/terraform/terraform`.
+- Terraform CLI v1.12.0 or greater; use the repo-local binary at
+  `.tools/terraform/terraform` when available.
 - Optional but helpful: OCI CLI for discovering OCIDs and validating identity.
 - A local copy of `infra/terraform/environments/prod/terraform.tfvars`.
 - A local backend config file derived from

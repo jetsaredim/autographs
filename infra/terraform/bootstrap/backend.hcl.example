@@ -1,4 +1,5 @@
 # Non-sensitive OCI backend coordinates for the steady-state remote backend.
+# The native OCI backend requires Terraform v1.12.0 or greater.
 # Keep real credential material out of VCS. Prefer OCI_* environment variables
 # or interactive prompts for tenancy_ocid, user_ocid, fingerprint, and
 # private_key_path when using API-key auth.

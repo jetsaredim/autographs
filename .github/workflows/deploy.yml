@@ -61,6 +61,11 @@ jobs:
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
           OCI_REGION: ${{ vars.OCI_REGION }}
+          OCI_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_private_key_path: ${{ runner.temp }}/oci/api_key.pem
+          OCI_region: ${{ vars.OCI_REGION }}
           TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
           TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
           TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
@@ -85,11 +90,7 @@ jobs:
             -backend-config="region=${{ vars.OCI_REGION }}" \
             -backend-config="key=${{ vars.OCI_STATE_OBJECT_KEY || 'envs/prod/terraform.tfstate' }}" \
             -backend-config="workspace_key_prefix=envs" \
-            -backend-config="auth=APIKey" \
-            -backend-config="tenancy_ocid=${{ secrets.OCI_TENANCY_OCID }}" \
-            -backend-config="user_ocid=${{ secrets.OCI_CLI_USER_OCID }}" \
-            -backend-config="fingerprint=${{ secrets.OCI_FINGERPRINT }}" \
-            -backend-config="private_key_path=${{ runner.temp }}/oci/api_key.pem"
+            -backend-config="auth=APIKey"
           terraform apply -auto-approve
           terraform output -raw runtime_public_ip > "$RUNNER_TEMP/runtime_public_ip"
 
