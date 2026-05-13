@@ -1,0 +1,52 @@
+# Copy this file to infra/terraform/tenancy/environments/prod/terraform.tfvars
+# locally and replace every placeholder. Keep real secrets and private paths out
+# of VCS. This root is run locally by an administrative/operator identity before
+# GitHub Actions can deploy the runtime stack.
+
+project_name = "autographs"
+environment  = "prod"
+name_prefix  = "autographs-prod"
+
+auth                = "SecurityToken"
+config_file_profile = "DEFAULT"
+
+tenancy_ocid     = "ocid1.tenancy.oc1..replace_me"
+user_ocid        = ""
+fingerprint      = ""
+private_key_path = ""
+
+home_region = "us-ashburn-1"
+region      = "us-ashburn-1"
+
+# Use the tenancy OCID when attaching the project compartment directly under the
+# tenancy root. Use another parent compartment OCID if you already organize OCI
+# under a broader shared hierarchy.
+parent_compartment_ocid = "ocid1.tenancy.oc1..replace_me"
+
+create_compartment       = true
+existing_compartment_ocid = ""
+compartment_description  = "Autographs production resources"
+
+owner_email = "collector@example.com"
+
+create_deploy_group   = true
+deploy_group_name     = "autographs-deployers"
+create_operator_group = true
+operator_group_name   = "autographs-operators"
+
+create_deploy_user      = true
+deploy_user_name        = "autographs-github-deploy"
+deploy_user_description = "GitHub Actions deployment user for Autographs."
+deploy_user_email       = ""
+
+# Optional: attach the deploy user's public API key from Terraform. Generate the
+# private key outside Terraform and store it in GitHub Secrets.
+deploy_user_api_public_key = <<EOT
+-----BEGIN PUBLIC KEY-----
+replace_me
+-----END PUBLIC KEY-----
+EOT
+
+create_state_bucket       = true
+state_bucket_name         = "autographs-tf-state"
+state_bucket_storage_tier = "Standard"

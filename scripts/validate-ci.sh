@@ -23,5 +23,7 @@ corepack pnpm --filter app typecheck
 corepack pnpm --filter app build
 
 "$TERRAFORM_BIN" -chdir=infra/terraform fmt -check -recursive
+"$TERRAFORM_BIN" -chdir=infra/terraform/tenancy init -backend=false
+"$TERRAFORM_BIN" -chdir=infra/terraform/tenancy validate
 "$TERRAFORM_BIN" -chdir=infra/terraform init -backend=false
 "$TERRAFORM_BIN" -chdir=infra/terraform validate

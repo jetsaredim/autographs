@@ -1,5 +1,7 @@
 # Copy this file to infra/terraform/environments/prod/terraform.tfvars locally
-# and replace every placeholder. Keep real secrets and private paths out of VCS.
+# for runtime/app Terraform. Bootstrap tenancy resources first with
+# infra/terraform/tenancy/environments/prod/terraform.tfvars.example.
+# Keep real secrets and private paths out of VCS.
 
 project_name = "autographs"
 environment  = "prod"
@@ -18,28 +20,9 @@ private_key_path = "~/.oci/autographs_api_key.pem"
 # config_file_profile = "DEFAULT"
 # Leave user_ocid, fingerprint, and private_key_path empty.
 
-# home_region is where OCI IAM resources such as policies and compartments live.
-# region is where the runtime network, VM, and state bucket live.
-home_region = "us-ashburn-1"
-region      = "us-ashburn-1"
-
-# Use the tenancy OCID when attaching the project compartment directly under the
-# tenancy root. Use another parent compartment OCID if you already organize OCI
-# under a broader shared hierarchy.
-parent_compartment_ocid = "ocid1.tenancy.oc1..replace_me"
-
-create_compartment       = true
-existing_compartment_ocid = ""
-compartment_description  = "Autographs production resources"
-
-owner_email         = "collector@example.com"
-deploy_group_name   = "autographs-deployers"
-operator_group_name = "autographs-operators"
-
-create_state_bucket      = true
-state_bucket_name        = "autographs-tf-state"
-state_bucket_storage_tier = "Standard"
-state_object_key         = "envs/prod/terraform.tfstate"
+region           = "us-ashburn-1"
+owner_email      = "collector@example.com"
+compartment_ocid = "ocid1.compartment.oc1..replace_me"
 
 create_network           = true
 vcn_cidr_block           = "10.42.0.0/16"
