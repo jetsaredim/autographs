@@ -57,26 +57,28 @@ resource "oci_identity_api_key" "deploy" {
 
 locals {
   compartment_ocid = var.create_compartment ? oci_identity_compartment.project[0].id : var.existing_compartment_ocid
+  deploy_group     = var.create_deploy_group ? "group id ${oci_identity_group.deploy[0].id}" : "group ${var.deploy_group_name}"
+  operator_group   = var.create_operator_group ? "group id ${oci_identity_group.operator[0].id}" : "group ${var.operator_group_name}"
 
   deploy_policy_statements = [
-    "Allow group ${var.deploy_group_name} to inspect compartments in tenancy",
-    "Allow group ${var.deploy_group_name} to read objectstorage-namespaces in tenancy",
-    "Allow group ${var.deploy_group_name} to manage instance-family in compartment id ${local.compartment_ocid}",
-    "Allow group ${var.deploy_group_name} to manage virtual-network-family in compartment id ${local.compartment_ocid}",
-    "Allow group ${var.deploy_group_name} to manage volume-family in compartment id ${local.compartment_ocid}",
-    "Allow group ${var.deploy_group_name} to manage buckets in compartment id ${local.compartment_ocid}",
-    "Allow group ${var.deploy_group_name} to manage objects in compartment id ${local.compartment_ocid}"
+    "Allow ${local.deploy_group} to inspect compartments in tenancy",
+    "Allow ${local.deploy_group} to read objectstorage-namespaces in tenancy",
+    "Allow ${local.deploy_group} to manage instance-family in compartment id ${local.compartment_ocid}",
+    "Allow ${local.deploy_group} to manage virtual-network-family in compartment id ${local.compartment_ocid}",
+    "Allow ${local.deploy_group} to manage volume-family in compartment id ${local.compartment_ocid}",
+    "Allow ${local.deploy_group} to manage buckets in compartment id ${local.compartment_ocid}",
+    "Allow ${local.deploy_group} to manage objects in compartment id ${local.compartment_ocid}"
   ]
 
   operator_policy_statements = [
-    "Allow group ${var.operator_group_name} to inspect compartments in tenancy",
-    "Allow group ${var.operator_group_name} to read objectstorage-namespaces in tenancy",
-    "Allow group ${var.operator_group_name} to inspect all-resources in compartment id ${local.compartment_ocid}",
-    "Allow group ${var.operator_group_name} to manage instance-family in compartment id ${local.compartment_ocid}",
-    "Allow group ${var.operator_group_name} to manage virtual-network-family in compartment id ${local.compartment_ocid}",
-    "Allow group ${var.operator_group_name} to manage volume-family in compartment id ${local.compartment_ocid}",
-    "Allow group ${var.operator_group_name} to manage buckets in compartment id ${local.compartment_ocid}",
-    "Allow group ${var.operator_group_name} to manage objects in compartment id ${local.compartment_ocid}"
+    "Allow ${local.operator_group} to inspect compartments in tenancy",
+    "Allow ${local.operator_group} to read objectstorage-namespaces in tenancy",
+    "Allow ${local.operator_group} to inspect all-resources in compartment id ${local.compartment_ocid}",
+    "Allow ${local.operator_group} to manage instance-family in compartment id ${local.compartment_ocid}",
+    "Allow ${local.operator_group} to manage virtual-network-family in compartment id ${local.compartment_ocid}",
+    "Allow ${local.operator_group} to manage volume-family in compartment id ${local.compartment_ocid}",
+    "Allow ${local.operator_group} to manage buckets in compartment id ${local.compartment_ocid}",
+    "Allow ${local.operator_group} to manage objects in compartment id ${local.compartment_ocid}"
   ]
 }
 
