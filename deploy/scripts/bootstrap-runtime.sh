@@ -39,7 +39,7 @@ enable_oracle_epel() {
       ;;
     10)
       dnf install -y oracle-epel-release-el10
-      dnf config-manager --enable ol10_u0_developer_EPEL
+      dnf config-manager --enable $(grep -E '^\[' $(rpm -ql oracle-epel-release-el10 | grep repo$) | tr -d '[]')
       ;;
     *)
       echo "Unsupported Oracle Linux version for podman-compose bootstrap: ${VERSION_ID}" >&2
