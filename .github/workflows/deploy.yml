@@ -76,6 +76,8 @@ jobs:
           TF_VAR_runtime_ocpus: ${{ vars.OCI_RUNTIME_OCPUS || 1 }}
           TF_VAR_runtime_memory_gbs: ${{ vars.OCI_RUNTIME_MEMORY_GBS || 1 }}
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
+          TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
         run: |
           terraform init \
             -backend-config="bucket=autographs-tf-state" \
