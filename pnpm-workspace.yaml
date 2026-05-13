@@ -1,2 +1,5 @@
 packages:
   - app
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
