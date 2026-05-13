@@ -15,13 +15,10 @@ if ! id "$DEPLOY_USER" >/dev/null 2>&1; then
   exit 1
 fi
 
-case "$DEPLOY_PATH" in
-  /opt/autographs | /opt/autographs/*) ;;
-  *)
-    echo "DEPLOY_PATH must be /opt/autographs or a child path: ${DEPLOY_PATH}" >&2
-    exit 1
-    ;;
-esac
+if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; then
+  echo "DEPLOY_PATH must be /opt/autographs or a safe child path: ${DEPLOY_PATH}" >&2
+  exit 1
+fi
 
 enable_oracle_epel() {
   if ! [ -r /etc/os-release ]; then
@@ -52,7 +49,7 @@ enable_oracle_epel() {
 }
 
 install_podman_compose() {
-  if command -v podman >/dev/null 2>&1 && command -v podman-compose >/dev/null 2>&1; then
+  if command -v podman >/dev/null 2>&1 && podman info >/dev/null 2>&1 && command -v podman-compose >/dev/null 2>&1 && podman-compose version >/dev/null 2>&1; then
     return
   fi
 

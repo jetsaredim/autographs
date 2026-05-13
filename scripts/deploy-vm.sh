@@ -42,13 +42,10 @@ validate_pattern GITHUB_ACTOR "$GITHUB_ACTOR" '^[A-Za-z0-9][A-Za-z0-9-]*$'
 validate_pattern AUTOGRAPHS_APP_IMAGE "$AUTOGRAPHS_APP_IMAGE" '^[A-Za-z0-9._:/@-]+$'
 validate_pattern AUTOGRAPHS_HTTP_PORT "$AUTOGRAPHS_HTTP_PORT" '^[0-9]+$'
 
-case "$DEPLOY_PATH" in
-  /opt/autographs | /opt/autographs/*) ;;
-  *)
-    echo "DEPLOY_PATH must be /opt/autographs or a child path: ${DEPLOY_PATH}" >&2
-    exit 1
-    ;;
-esac
+if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; then
+  echo "DEPLOY_PATH must be /opt/autographs or a safe child path: ${DEPLOY_PATH}" >&2
+  exit 1
+fi
 
 cleanup() {
   rm -f "$SSH_KEY_FILE"
