@@ -6,7 +6,7 @@
 
 bucket               = "autographs-tf-state"
 namespace            = "replace-with-your-object-storage-namespace"
-region               = "us-chicago-1"
+region               = "us-ashburn-1"
 key                  = "envs/prod/terraform.tfstate"
 workspace_key_prefix = "envs"
 auth                 = "APIKey"

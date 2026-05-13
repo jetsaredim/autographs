@@ -33,27 +33,21 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 
 | Variable | Purpose |
 |----------|---------|
-| `OCI_REGION` | Runtime OCI region |
-| `OCI_HOME_REGION` | OCI home region for IAM and tenancy-scoped operations |
-| `OCI_COMPARTMENT_OCID` | Existing project compartment OCID or expected deploy compartment coordinate |
 | `OCI_PARENT_COMPARTMENT_OCID` | Parent compartment, often the tenancy OCID |
-| `OCI_CREATE_COMPARTMENT` | `true` when Terraform creates the project compartment |
 | `OCI_EXISTING_COMPARTMENT_OCID` | Existing project compartment when not creating one |
 | `OCI_AVAILABILITY_DOMAIN` | Availability domain for the runtime VM |
 | `OCI_RUNTIME_IMAGE_OCID` | Oracle Linux image OCID for the runtime VM |
-| `OCI_RUNTIME_SHAPE` | OCI compute shape, defaulting to `VM.Standard.A1.Flex` |
-| `OCI_RUNTIME_OCPUS` | Flex OCPU count |
-| `OCI_RUNTIME_MEMORY_GBS` | Flex memory in GB |
+| `OCI_RUNTIME_SHAPE` | Optional OCI compute shape override; defaults to `VM.Standard.E2.1.Micro` |
+| `OCI_RUNTIME_OCPUS` | Optional flex-shape OCPU count; ignored by fixed shapes |
+| `OCI_RUNTIME_MEMORY_GBS` | Optional flex-shape memory in GB; ignored by fixed shapes |
 | `OCI_RUNTIME_SSH_PUBLIC_KEYS` | JSON list of SSH public keys injected into the VM |
-| `OCI_STATE_BUCKET_NAME` | OCI Object Storage bucket for Terraform state |
-| `OCI_STATE_OBJECT_KEY` | Terraform state object key |
 | `OCI_OBJECT_STORAGE_NAMESPACE` | OCI Object Storage namespace for Terraform remote state |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
 | `DEPLOY_SSH_USER` | SSH user for deploys, usually `opc` |
 | `DEPLOY_PATH` | Directory on the VM that stores compose and nginx runtime files |
 | `GHCR_IMAGE_REPOSITORY` | Published app image path, for example `ghcr.io/jetsaredim/autographs/app` |
 
-`GHCR_IMAGE_REPOSITORY`, `OCI_REGION`, `OCI_HOME_REGION`, `OCI_COMPARTMENT_OCID`, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
+The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the state object key is `envs/prod/terraform.tfstate`. `GHCR_IMAGE_REPOSITORY`, `OCI_PARENT_COMPARTMENT_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_IMAGE_OCID`, `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, `OCI_OBJECT_STORAGE_NAMESPACE`, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
 
 ## Local Operator Values
 
@@ -65,8 +59,6 @@ Local Terraform uses:
 - `user_ocid`
 - `fingerprint`
 - `private_key_path`
-- `region`
-- `home_region`
 - `parent_compartment_ocid`
 - runtime VM image, availability domain, and SSH public keys
 - Object Storage namespace, bucket, and key when initializing the remote backend
