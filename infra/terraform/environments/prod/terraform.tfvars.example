@@ -44,4 +44,6 @@ oracle_linux_image_ocids = {
 runtime_ssh_public_keys = [
   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIreplace_me operator@laptop"
 ]
+runtime_deploy_user = "opc"
+runtime_deploy_path = "/opt/autographs"
 assign_public_ip = true

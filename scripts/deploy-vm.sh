@@ -57,14 +57,16 @@ SSH_OPTS=(
   -o StrictHostKeyChecking=accept-new
 )
 
-ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "mkdir -p '${DEPLOY_PATH}/compose' '${DEPLOY_PATH}/nginx'"
+scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/scripts/bootstrap-runtime.sh" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:/tmp/autographs-bootstrap-runtime.sh"
+ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo DEPLOY_USER='${DEPLOY_SSH_USER}' DEPLOY_PATH='${DEPLOY_PATH}' bash /tmp/autographs-bootstrap-runtime.sh"
+
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/compose/compose.prod.yaml" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/compose/compose.prod.yaml"
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/nginx/nginx.conf" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/nginx/nginx.conf"
 
-printf '%s' "$GHCR_TOKEN" | ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "docker login ghcr.io -u '${GITHUB_ACTOR}' --password-stdin"
+printf '%s' "$GHCR_TOKEN" | ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo docker login ghcr.io -u '${GITHUB_ACTOR}' --password-stdin"
 
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
-  "cd '${DEPLOY_PATH}/compose' && AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' docker compose -f compose.prod.yaml pull app && AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' docker compose -f compose.prod.yaml up -d"
+  "cd '${DEPLOY_PATH}/compose' && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' docker compose -f compose.prod.yaml pull app && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' docker compose -f compose.prod.yaml up -d"
 
 for _ in $(seq 1 30); do
   if curl --fail --silent "http://${VM_PUBLIC_IP}/health" >/dev/null; then

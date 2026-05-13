@@ -160,6 +160,18 @@ variable "runtime_ssh_public_keys" {
   default     = []
 }
 
+variable "runtime_deploy_user" {
+  description = "OS user that receives deployment files and runs container deployment commands."
+  type        = string
+  default     = "opc"
+}
+
+variable "runtime_deploy_path" {
+  description = "Absolute path on the runtime VM used for compose and nginx deployment files."
+  type        = string
+  default     = "/opt/autographs"
+}
+
 variable "assign_public_ip" {
   description = "Whether the runtime VNIC should receive a public IP."
   type        = bool
