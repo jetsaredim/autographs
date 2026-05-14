@@ -79,11 +79,23 @@ ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
 
 for _ in $(seq 1 30); do
   if curl --fail --silent "http://${VM_PUBLIC_IP}/health" >/dev/null; then
-    curl --fail --silent "http://${VM_PUBLIC_IP}/health"
+    break
+  fi
+  sleep 5
+done
+
+if ! curl --fail --silent "http://${VM_PUBLIC_IP}/health" >/dev/null; then
+  echo "Deployment did not pass Caddy-fronted HTTP /health readiness check" >&2
+  exit 1
+fi
+
+for _ in $(seq 1 30); do
+  if curl --fail --silent "https://${AUTOGRAPHS_DOMAIN}/health" >/dev/null; then
+    curl --fail --silent "https://${AUTOGRAPHS_DOMAIN}/health"
     exit 0
   fi
   sleep 5
 done
 
-echo "Deployment did not pass Caddy-fronted /health check" >&2
+echo "Deployment did not pass Caddy-fronted HTTPS /health check for ${AUTOGRAPHS_DOMAIN}" >&2
 exit 1
