@@ -76,9 +76,10 @@ export default function ArchitecturePage() {
         <h1 id="architecture-title">Autographs system overview</h1>
         <p className="lede">
           This page documents the full target solution: GitHub owns source
-          control, validation, image publishing, and deployment automation; OCI
-          runs the Caddy-fronted Next.js app, Autonomous Database metadata, and
-          private Object Storage media.
+          control, validation, image publishing, and CI/CD deployment automation;
+          OCI runs the Caddy-fronted Next.js app, Autonomous Database metadata,
+          and private Object Storage media with a bias toward Always Free and
+          low-cost resources.
         </p>
       </section>
 
