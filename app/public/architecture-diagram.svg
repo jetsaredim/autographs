@@ -76,7 +76,7 @@
   <path class="flow" d="M260 660 C468 660 584 486 786 487" />
   <rect class="zone" x="682" y="708" width="248" height="44" rx="16" />
   <text class="label" x="748" y="735">Let&apos;s Encrypt</text>
-  <path class="flow" d="M815 468 C782 548 768 646 806 708" />
+  <path class="flow" d="M815 506 C790 566 784 652 806 708" />
   <circle class="badge" cx="772" cy="640" r="14" /><text class="badge-text" x="768" y="645">9</text>
   <path class="flow" d="M916 487 C980 482 996 370 1060 367" />
   <path class="flow" d="M916 487 C966 487 1010 499 1060 499" />
