@@ -32,3 +32,23 @@ output "runtime_nsg_id" {
   description = "OCI network security group ID protecting the runtime VM."
   value       = module.network.runtime_nsg_id
 }
+
+output "public_dns_zone_id" {
+  description = "OCI public DNS zone OCID when DNS is enabled."
+  value       = try(oci_dns_zone.app[0].id, null)
+}
+
+output "public_dns_zone_name" {
+  description = "OCI public DNS zone name when DNS is enabled."
+  value       = try(oci_dns_zone.app[0].name, null)
+}
+
+output "public_dns_nameservers" {
+  description = "Nameservers to delegate at the parent registrar when DNS is enabled."
+  value       = try([for nameserver in oci_dns_zone.app[0].nameservers : nameserver.hostname], [])
+}
+
+output "public_app_fqdn" {
+  description = "Public application FQDN when DNS is enabled."
+  value       = var.create_public_dns_zone ? var.public_dns_record_name : null
+}

@@ -47,3 +47,8 @@ runtime_ssh_public_keys = [
 runtime_deploy_user = "opc"
 runtime_deploy_path = "/opt/autographs"
 assign_public_ip = true
+
+create_public_dns_zone = false
+public_dns_zone_name   = "autographs.jetsaredim.net"
+public_dns_record_name = "autographs.jetsaredim.net"
+public_dns_record_ttl  = 300

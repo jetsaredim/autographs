@@ -85,6 +85,10 @@ jobs:
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
           TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
           TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
+          TF_VAR_create_public_dns_zone: ${{ vars.OCI_CREATE_PUBLIC_DNS_ZONE || 'false' }}
+          TF_VAR_public_dns_zone_name: ${{ vars.OCI_PUBLIC_DNS_ZONE_NAME || 'autographs.jetsaredim.net' }}
+          TF_VAR_public_dns_record_name: ${{ vars.OCI_PUBLIC_DNS_RECORD_NAME || 'autographs.jetsaredim.net' }}
+          TF_VAR_public_dns_record_ttl: ${{ vars.OCI_PUBLIC_DNS_RECORD_TTL || 300 }}
         run: |
           terraform init \
             -backend-config="bucket=autographs-tf-state" \
