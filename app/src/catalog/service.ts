@@ -1,0 +1,137 @@
+import { randomUUID } from "node:crypto";
+
+import type {
+  AutographImage,
+  AutographImageInput,
+  AutographItem,
+  AutographItemInput,
+  AutographItemUpdate,
+  CatalogRepository,
+} from "./types";
+import type { MediaUpload, PrivateMediaStore } from "../media";
+
+export type CatalogImageUploadInput = Omit<MediaUpload, "objectKey"> & {
+  filename: string;
+  isPrimary?: boolean;
+  sortOrder?: number;
+  altText?: string | null;
+};
+
+export type CatalogCreateInput = Omit<AutographItemInput, "images"> & {
+  imageUploads?: CatalogImageUploadInput[];
+};
+
+export type CatalogService = {
+  create(input: CatalogCreateInput): Promise<AutographItem>;
+  update(id: string, input: AutographItemUpdate): Promise<AutographItem>;
+  attachImages(id: string, images: CatalogImageUploadInput[]): Promise<AutographItem>;
+  getById(id: string, options?: { includeUnpublished?: boolean }): Promise<AutographItem | null>;
+  list(options?: Parameters<CatalogRepository["list"]>[0]): Promise<AutographItem[]>;
+};
+
+export class DefaultCatalogService implements CatalogService {
+  constructor(
+    private readonly repository: CatalogRepository,
+    private readonly mediaStore: PrivateMediaStore,
+  ) {}
+
+  async create(input: CatalogCreateInput): Promise<AutographItem> {
+    const { imageUploads = [], ...itemInput } = input;
+    const item = await this.repository.create({ ...itemInput, images: [] });
+
+    if (imageUploads.length === 0) {
+      return item;
+    }
+
+    return this.attachImages(item.id, imageUploads);
+  }
+
+  async update(id: string, input: AutographItemUpdate): Promise<AutographItem> {
+    return this.repository.update(id, input);
+  }
+
+  async attachImages(id: string, images: CatalogImageUploadInput[]): Promise<AutographItem> {
+    if (images.length === 0) {
+      const existing = await this.repository.getById(id, { includeUnpublished: true });
+      if (!existing) {
+        throw new Error(`Autograph item ${id} was not found.`);
+      }
+      return existing;
+    }
+
+    const existing = await this.repository.getById(id, { includeUnpublished: true });
+    if (!existing) {
+      throw new Error(`Autograph item ${id} was not found.`);
+    }
+
+    const uploadedImages = await Promise.all(
+      images.map(async (image, index) => {
+        const upload = await this.mediaStore.upload({
+          objectKey: buildObjectKey(id, image.filename),
+          contentType: image.contentType,
+          body: image.body,
+          byteSize: image.byteSize,
+          metadata: image.metadata,
+        });
+
+        return {
+          ...upload,
+          isPrimary: image.isPrimary ?? (existing.images.length === 0 && index === 0),
+          sortOrder: image.sortOrder ?? existing.images.length + index,
+          altText: image.altText ?? null,
+        };
+      }),
+    );
+
+    const normalizedImages = normalizePrimary([
+      ...existing.images.map(toImageInput),
+      ...uploadedImages,
+    ]);
+
+    return this.repository.update(id, { images: normalizedImages });
+  }
+
+  async getById(
+    id: string,
+    options?: { includeUnpublished?: boolean },
+  ): Promise<AutographItem | null> {
+    return this.repository.getById(id, options);
+  }
+
+  async list(options?: Parameters<CatalogRepository["list"]>[0]): Promise<AutographItem[]> {
+    return this.repository.list(options);
+  }
+}
+
+const toImageInput = (image: AutographImage): AutographImageInput => ({
+  storageNamespace: image.storageNamespace,
+  bucketName: image.bucketName,
+  objectKey: image.objectKey,
+  contentType: image.contentType,
+  byteSize: image.byteSize,
+  checksum: image.checksum,
+  etag: image.etag,
+  isPrimary: image.isPrimary,
+  sortOrder: image.sortOrder,
+  altText: image.altText,
+});
+
+const normalizePrimary = (images: AutographImageInput[]): AutographImageInput[] => {
+  const primaryIndex = images.findLastIndex((image) => image.isPrimary);
+  if (images.length === 0 || primaryIndex === -1) {
+    return images;
+  }
+
+  return images.map((image, index) => ({
+    ...image,
+    isPrimary: index === primaryIndex,
+  }));
+};
+
+const buildObjectKey = (itemId: string, filename: string): string => {
+  const safeFilename = filename
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `autographs/${itemId}/${randomUUID()}-${safeFilename || "image"}`;
+};

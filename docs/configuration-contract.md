@@ -27,6 +27,7 @@ These are repo-level GitHub Secrets for the deployment baseline and Phase 2 data
 | `DEPLOY_SSH_PRIVATE_KEY` | deploy workflow | SSH private key for the OCI runtime VM |
 | `ADB_ADMIN_PASSWORD` | deploy workflow / Terraform | Initial Oracle Autonomous Database ADMIN password when database creation is enabled |
 | `ORACLE_DB_PASSWORD` | deploy workflow / app runtime | Runtime database password passed to the Next.js container |
+| `AUTOGRAPHS_OPERATOR_API_TOKEN` | app runtime | Temporary Phase 2 operator token for guarded smoke/mutation endpoints until Phase 4 auth lands |
 
 The current Phase 1 OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the image build, Terraform, or VM deployment steps.
 
@@ -53,6 +54,7 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `ORACLE_DB_USER` | Runtime database user for the app container; defaults to `ADMIN` for the first bootstrap path |
 | `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connection alias or connect descriptor, for example `autographsdb_high` |
 | `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the app container; defaults to `/opt/autographs/wallet` |
+| `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER` | Media adapter mode; `oci` in production, `local` for local smoke work without OCI credentials |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
 | `DEPLOY_SSH_USER` | SSH user for deploys, usually `opc` |
 | `DEPLOY_PATH` | Directory on the VM that stores compose and Caddy runtime files |
@@ -86,7 +88,7 @@ GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_
 
 Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, ADMIN password, and runtime connection values.
 
-The runtime container receives database and media coordinates through Compose environment variables, not committed files. The deploy script writes a VM-local `.env` file beside `compose.prod.yaml`; keep wallet material, real database passwords, and API signing material out of git.
+The runtime container receives database and media coordinates through Compose environment variables, not committed files. The deploy script writes a VM-local `.env` file beside `compose.prod.yaml`; keep wallet material, real database passwords, operator tokens, and API signing material out of git. The Phase 2 media adapter supports `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER=local` for local smoke work and `oci` for production Object Storage.
 
 ## Optional GitHub Environments
 

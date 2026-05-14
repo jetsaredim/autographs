@@ -65,6 +65,7 @@ Populate repo-level GitHub Secrets:
 - `DEPLOY_SSH_PRIVATE_KEY`
 - `ADB_ADMIN_PASSWORD`
 - `ORACLE_DB_PASSWORD`
+- `AUTOGRAPHS_OPERATOR_API_TOKEN`
 
 Populate repo-level GitHub Variables:
 
@@ -85,6 +86,7 @@ Populate repo-level GitHub Variables:
 - `ORACLE_DB_USER`
 - `ORACLE_DB_CONNECT_STRING`
 - `ORACLE_DB_WALLET_DIR`
+- `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER`
 - `VM_PUBLIC_IP`
 - `DEPLOY_SSH_USER`
 - `DEPLOY_PATH`
@@ -96,6 +98,16 @@ Populate repo-level GitHub Variables:
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `GHCR_IMAGE_REPOSITORY`, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
 Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, ADMIN password, and runtime connection values are ready. When enabling Phase 2 data services, Terraform provisions the ADB and bucket, while the deploy step passes app runtime coordinates through the VM-local Compose `.env` file.
+
+## Data and Media Smoke
+
+Basic `/health` remains a proof-of-life check and does not require Oracle or Object Storage secrets. Use the deeper smoke path only when data-service credentials are present:
+
+```bash
+corepack pnpm --filter app data:smoke
+```
+
+The deployed app also exposes `GET /health/data` for configuration readiness and `GET /health/data?live=1` for guarded live checks. The live check requires `Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}` and verifies both Oracle catalog access and private media bucket readiness.
 
 ## Workflow Behavior
 

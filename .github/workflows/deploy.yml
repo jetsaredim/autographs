@@ -121,7 +121,13 @@ jobs:
           ORACLE_DB_PASSWORD: ${{ secrets.ORACLE_DB_PASSWORD }}
           ORACLE_DB_CONNECT_STRING: ${{ vars.ORACLE_DB_CONNECT_STRING || 'autographsdb_high' }}
           ORACLE_DB_WALLET_DIR: ${{ vars.ORACLE_DB_WALLET_DIR || '/opt/autographs/wallet' }}
+          AUTOGRAPHS_MEDIA_STORAGE_PROVIDER: ${{ vars.AUTOGRAPHS_MEDIA_STORAGE_PROVIDER || 'oci' }}
+          AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
           OCI_REGION: us-ashburn-1
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
           OCI_MEDIA_BUCKET_NAME: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
           OCI_MEDIA_NAMESPACE: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
