@@ -73,7 +73,7 @@
   <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M60 572 C12 508 16 286 92 246" marker-end="url(#arrow)" />
   <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M248 246 C280 246 282 220 314 220" marker-end="url(#arrow)" />
   <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M248 246 C282 264 282 334 314 334" marker-end="url(#arrow)" />
-  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M314 334 C284 358 276 413 248 413" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M314 334 C284 350 276 396 248 399" marker-end="url(#arrow)" />
   <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M464 334 C560 334 566 186 650 186" marker-end="url(#arrow)" />
   <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M248 413 C468 413 520 442 762 442" marker-end="url(#arrow)" />
   <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M228 572 C398 572 510 469 650 469" marker-end="url(#arrow)" />
