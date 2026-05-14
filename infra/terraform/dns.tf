@@ -25,5 +25,10 @@ resource "oci_dns_rrset" "app_a" {
       condition     = module.compute.public_ip != null && module.compute.public_ip != ""
       error_message = "A runtime VM public IP is required before creating the public DNS A record."
     }
+
+    precondition {
+      condition     = var.public_dns_record_name == var.public_dns_zone_name || endswith(var.public_dns_record_name, ".${var.public_dns_zone_name}")
+      error_message = "public_dns_record_name must be the public DNS zone apex or a subdomain of public_dns_zone_name."
+    }
   }
 }
