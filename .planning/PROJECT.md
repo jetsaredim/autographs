@@ -12,11 +12,11 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Phase 1 proved the OCI bootstrap and delivery spine: Terraform-managed baseline, explicit configuration contract, GitHub PR validation, GHCR image publishing, and live deploy from `main` to the OCI runtime.
 
 ### Active
 
-- [ ] Deliver a real end-to-end OCI-hosted personal autograph collection foundation with infrastructure, application scaffold, and deployment automation.
+- [x] Deliver a real end-to-end OCI-hosted personal autograph collection foundation with infrastructure, application scaffold, and deployment automation.
 - [ ] Support anonymous public browsing with searchable autograph records, private image delivery mediated by the app, and enough metadata to make the collection useful.
 - [ ] Support a single-admin collection management workflow with AI-assisted metadata suggestions, multiple images per item, and edit history from v1.
 - [ ] Keep the system operable by one developer using OCI Always Free services wherever practical.
@@ -56,7 +56,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 |----------|-----------|---------|
 | Use `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` as the canonical product brief | The repo has no implementation yet, and the prompt already captures concrete scope, architecture direction, and verification expectations | — Pending |
 | Treat the project as greenfield despite existing planning artifacts | There is no runtime app, infra, or test code to preserve; the committed assets are planning inputs | — Pending |
-| Start with GitHub-driven OCI bootstrap and deployment as first-class work | The prompt makes CI/CD and tenancy bootstrap foundational, so later phases should build on that instead of bolting it on | — Pending |
+| Start with GitHub-driven OCI bootstrap and deployment as first-class work | The prompt makes CI/CD and tenancy bootstrap foundational, so later phases should build on that instead of bolting it on | Validated in Phase 1 |
 | Bias toward OCI Always Free-compatible primitives and a single `Next.js` app | This matches the product brief and keeps the first release operable for one developer | — Pending |
 | Optimize for a personal collection rather than a general user platform | The site is meant to present and manage your own autograph collection, so features like multi-image support and edit history matter more than user systems or social capabilities | — Pending |
 
@@ -78,4 +78,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-18 after initialization*
+*Last updated: 2026-05-14 after Phase 1 deploy proof*

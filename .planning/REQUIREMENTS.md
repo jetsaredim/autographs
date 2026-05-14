@@ -7,9 +7,9 @@
 
 ### Platform Bootstrap
 
-- [ ] **PLAT-01**: Operator can provision the documented OCI baseline for the app using committed infrastructure code plus clearly documented one-time manual bootstrap steps.
-- [ ] **PLAT-02**: GitHub Actions validates the repository on pull requests and can deploy approved infrastructure and application changes on merge to `main`.
-- [ ] **PLAT-03**: Operator can configure the application using an explicit committed environment and secret contract for local and GitHub-based deployment.
+- [x] **PLAT-01**: Operator can provision the documented OCI baseline for the app using committed infrastructure code plus clearly documented one-time manual bootstrap steps.
+- [x] **PLAT-02**: GitHub Actions validates the repository on pull requests and can deploy approved infrastructure and application changes on merge to `main`.
+- [x] **PLAT-03**: Operator can configure the application using an explicit committed environment and secret contract for local and GitHub-based deployment.
 
 ### Catalog Data
 
@@ -65,9 +65,9 @@ None currently. Future scope should be added only if it directly supports the pe
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLAT-01 | Phase 1 | Pending |
-| PLAT-02 | Phase 1 | Pending |
-| PLAT-03 | Phase 1 | Pending |
+| PLAT-01 | Phase 1 | Complete |
+| PLAT-02 | Phase 1 | Complete |
+| PLAT-03 | Phase 1 | Complete |
 | DATA-01 | Phase 2 | Pending |
 | DATA-02 | Phase 2 | Pending |
 | DATA-03 | Phase 4 | Pending |

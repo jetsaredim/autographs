@@ -12,8 +12,8 @@ Autographs will ship as a lean personal collection app with the riskiest seams p
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Delivery Spine and OCI Bootstrap** - Stand up the deployable app foundation, OCI baseline, and GitHub-driven validation/deploy path. Implementation complete; live OCI deploy proof awaits operator setup.
-- [ ] **Phase 2: Oracle and Private Media Core** - Prove the database and object-storage seams that every collection record depends on.
+- [x] **Phase 1: Delivery Spine and OCI Bootstrap** - Stand up the deployable app foundation, OCI baseline, and GitHub-driven validation/deploy path. Complete; live OCI deploy proof passed from `main`.
+- [ ] **Phase 2: Oracle and Private Media Core** - Prove the database and object-storage seams that every collection record depends on. Planning complete; ready for execution.
 - [ ] **Phase 3: Public Gallery MVP** - Deliver anonymous browse, filter, and detail views for published autograph items.
 - [ ] **Phase 4: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop.
 - [ ] **Phase 5: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
@@ -44,7 +44,12 @@ Plans:
   2. Operator can load representative sample data for local development and verification.
   3. Admin can attach multiple private images to one autograph item, including one designated primary image and supporting images.
   4. Public users can view item images through app-mediated delivery without exposing direct object URLs or storage credentials.
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 02-01-PLAN.md - Add the Oracle schema, migration runner, and typed data layer foundation.
+- [ ] 02-02-PLAN.md - Provision ADB and private Object Storage through Terraform and the config contract.
+- [ ] 02-03-PLAN.md - Implement autograph record and media APIs over Oracle and Object Storage.
+- [ ] 02-04-PLAN.md - Add sample-data seeding and app-mediated private image delivery verification.
 
 ### Phase 3: Public Gallery MVP
 **Goal**: Anonymous visitors can browse the published autograph collection and inspect full item details against the proven metadata and media backbone.
@@ -88,8 +93,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Delivery Spine and OCI Bootstrap | 4/4 | Awaiting live OCI deploy proof | - |
-| 2. Oracle and Private Media Core | 0/TBD | Not started | - |
+| 1. Delivery Spine and OCI Bootstrap | 4/4 | Complete | 2026-05-14 |
+| 2. Oracle and Private Media Core | 0/4 | Planned | - |
 | 3. Public Gallery MVP | 0/TBD | Not started | - |
 | 4. Admin Collection Workflow | 0/TBD | Not started | - |
 | 5. AI-Assisted Ingest | 0/TBD | Not started | - |
