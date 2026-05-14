@@ -66,6 +66,7 @@ locals {
     "Allow ${local.deploy_group} to manage instance-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.deploy_group} to manage virtual-network-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.deploy_group} to manage volume-family in compartment id ${local.compartment_ocid}",
+    "Allow ${local.deploy_group} to manage autonomous-database-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.deploy_group} to manage buckets in compartment id ${local.compartment_ocid}",
     "Allow ${local.deploy_group} to manage objects in compartment id ${local.compartment_ocid}"
   ]
@@ -77,6 +78,7 @@ locals {
     "Allow ${local.operator_group} to manage instance-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.operator_group} to manage virtual-network-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.operator_group} to manage volume-family in compartment id ${local.compartment_ocid}",
+    "Allow ${local.operator_group} to manage autonomous-database-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.operator_group} to manage buckets in compartment id ${local.compartment_ocid}",
     "Allow ${local.operator_group} to manage objects in compartment id ${local.compartment_ocid}"
   ]

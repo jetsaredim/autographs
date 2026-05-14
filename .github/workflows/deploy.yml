@@ -87,6 +87,13 @@ jobs:
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
           TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
           TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
+          TF_VAR_create_autonomous_database: ${{ vars.OCI_CREATE_AUTONOMOUS_DATABASE || 'false' }}
+          TF_VAR_autonomous_database_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_NAME || 'autographsdb' }}
+          TF_VAR_autonomous_database_display_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME || 'autographs-prod-adb' }}
+          TF_VAR_autonomous_database_admin_password: ${{ secrets.ADB_ADMIN_PASSWORD }}
+          TF_VAR_create_media_bucket: ${{ vars.OCI_CREATE_MEDIA_BUCKET || 'false' }}
+          TF_VAR_media_bucket_namespace: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
+          TF_VAR_media_bucket_name: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
         run: |
           terraform init \
             -backend-config="bucket=autographs-tf-state" \
@@ -109,6 +116,14 @@ jobs:
           AUTOGRAPHS_DOMAIN: ${{ env.AUTOGRAPHS_DOMAIN }}
           AUTOGRAPHS_HTTP_PORT: ${{ env.AUTOGRAPHS_HTTP_PORT }}
           AUTOGRAPHS_HTTPS_PORT: ${{ env.AUTOGRAPHS_HTTPS_PORT }}
+          AUTOGRAPHS_DB_PROVIDER: oracle
+          ORACLE_DB_USER: ${{ vars.ORACLE_DB_USER || 'ADMIN' }}
+          ORACLE_DB_PASSWORD: ${{ secrets.ORACLE_DB_PASSWORD }}
+          ORACLE_DB_CONNECT_STRING: ${{ vars.ORACLE_DB_CONNECT_STRING || 'autographsdb_high' }}
+          ORACLE_DB_WALLET_DIR: ${{ vars.ORACLE_DB_WALLET_DIR || '/opt/autographs/wallet' }}
+          OCI_REGION: us-ashburn-1
+          OCI_MEDIA_BUCKET_NAME: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
+          OCI_MEDIA_NAMESPACE: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: bash scripts/deploy-vm.sh

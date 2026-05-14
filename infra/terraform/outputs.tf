@@ -32,3 +32,23 @@ output "runtime_nsg_id" {
   description = "OCI network security group ID protecting the runtime VM."
   value       = module.network.runtime_nsg_id
 }
+
+output "autonomous_database_id" {
+  description = "Oracle Autonomous Database OCID for the metadata store, when created."
+  value       = module.data_services.autonomous_database_id
+}
+
+output "autonomous_database_name" {
+  description = "Oracle Autonomous Database DB name used by wallet aliases and connection strings."
+  value       = module.data_services.autonomous_database_name
+}
+
+output "media_bucket_name" {
+  description = "Private OCI Object Storage bucket name for autograph images."
+  value       = module.data_services.media_bucket_name
+}
+
+output "media_bucket_namespace" {
+  description = "OCI Object Storage namespace for the private media bucket."
+  value       = module.data_services.media_bucket_namespace
+}

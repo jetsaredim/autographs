@@ -1,6 +1,6 @@
 # Deployment Runbook
 
-This runbook gets the Phase 1 proof-of-life app from a clean checkout to an OCI VM running the committed Compose topology with Podman: public `Caddy` in front of a private `Next.js` app container.
+This runbook gets the app from a clean checkout to an OCI VM running the committed Compose topology with Podman: public `Caddy` in front of a private `Next.js` app container, with Terraform-managed hooks for Oracle Autonomous Database Free and private OCI Object Storage media.
 
 ## Preconditions
 
@@ -10,6 +10,7 @@ This runbook gets the Phase 1 proof-of-life app from a clean checkout to an OCI 
 - The runtime VM image OCID, availability domain, and SSH public key are known.
 - Podman and `podman-compose` are installed on the target VM image or through the committed VM bootstrap process.
 - GitHub repo-level GitHub Secrets and GitHub Variables from [configuration-contract.md](configuration-contract.md) are populated.
+- Oracle Autonomous Database and Object Storage creation toggles are set intentionally before enabling Phase 2 data services.
 - Optional GitHub Environments may be configured for approval gates, but they are not required for the baseline path.
 
 ## Local Validation
@@ -46,6 +47,11 @@ Important operator inputs:
 - `OCI_RUNTIME_IMAGE_OCID`
 - `OCI_RUNTIME_SSH_PUBLIC_KEYS`
 - `OCI_OBJECT_STORAGE_NAMESPACE`
+- `OCI_CREATE_AUTONOMOUS_DATABASE`
+- `OCI_AUTONOMOUS_DATABASE_NAME`
+- `OCI_CREATE_MEDIA_BUCKET`
+- `OCI_MEDIA_BUCKET_NAME`
+- `OCI_MEDIA_NAMESPACE`
 - `VM_PUBLIC_IP` when not relying on Terraform output
 
 ## GitHub Configuration
@@ -57,6 +63,8 @@ Populate repo-level GitHub Secrets:
 - `OCI_FINGERPRINT`
 - `OCI_PRIVATE_KEY_PEM`
 - `DEPLOY_SSH_PRIVATE_KEY`
+- `ADB_ADMIN_PASSWORD`
+- `ORACLE_DB_PASSWORD`
 
 Populate repo-level GitHub Variables:
 
@@ -68,6 +76,15 @@ Populate repo-level GitHub Variables:
 - `OCI_RUNTIME_MEMORY_GBS`
 - `OCI_RUNTIME_SSH_PUBLIC_KEYS`
 - `OCI_OBJECT_STORAGE_NAMESPACE`
+- `OCI_CREATE_AUTONOMOUS_DATABASE`
+- `OCI_AUTONOMOUS_DATABASE_NAME`
+- `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`
+- `OCI_CREATE_MEDIA_BUCKET`
+- `OCI_MEDIA_BUCKET_NAME`
+- `OCI_MEDIA_NAMESPACE`
+- `ORACLE_DB_USER`
+- `ORACLE_DB_CONNECT_STRING`
+- `ORACLE_DB_WALLET_DIR`
 - `VM_PUBLIC_IP`
 - `DEPLOY_SSH_USER`
 - `DEPLOY_PATH`
@@ -77,6 +94,8 @@ Populate repo-level GitHub Variables:
 `GHCR_IMAGE_REPOSITORY` should be a `ghcr.io` image path such as `ghcr.io/jetsaredim/autographs/app`.
 
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `GHCR_IMAGE_REPOSITORY`, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
+
+Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, ADMIN password, and runtime connection values are ready. When enabling Phase 2 data services, Terraform provisions the ADB and bucket, while the deploy step passes app runtime coordinates through the VM-local Compose `.env` file.
 
 ## Workflow Behavior
 

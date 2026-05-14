@@ -1,6 +1,6 @@
 # Configuration Contract
 
-Phase 1 uses one explicit contract for local work, GitHub validation, and GitHub deployment. Sensitive values live in repo-level GitHub Secrets. Non-sensitive coordinates live in committed examples or repo-level GitHub Variables. Optional GitHub Environments can add approval gates later, but they are optional and additive, not required for the baseline delivery path.
+The project uses one explicit contract for local work, GitHub validation, and GitHub deployment. Sensitive values live in repo-level GitHub Secrets. Non-sensitive coordinates live in committed examples or repo-level GitHub Variables. Optional GitHub Environments can add approval gates later, but they are optional and additive, not required for the baseline delivery path.
 
 ## Committed Examples
 
@@ -16,7 +16,7 @@ Never put real private keys, API signing material, SSH private keys, or Terrafor
 
 ## GitHub Secrets
 
-These are repo-level GitHub Secrets for the Phase 1 baseline.
+These are repo-level GitHub Secrets for the deployment baseline and Phase 2 data services.
 
 | Secret | Used By | Purpose |
 |--------|---------|---------|
@@ -25,6 +25,8 @@ These are repo-level GitHub Secrets for the Phase 1 baseline.
 | `OCI_FINGERPRINT` | deploy workflow | OCI API signing key fingerprint |
 | `OCI_PRIVATE_KEY_PEM` | deploy workflow | OCI API signing private key PEM |
 | `DEPLOY_SSH_PRIVATE_KEY` | deploy workflow | SSH private key for the OCI runtime VM |
+| `ADB_ADMIN_PASSWORD` | deploy workflow / Terraform | Initial Oracle Autonomous Database ADMIN password when database creation is enabled |
+| `ORACLE_DB_PASSWORD` | deploy workflow / app runtime | Runtime database password passed to the Next.js container |
 
 The current Phase 1 OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the image build, Terraform, or VM deployment steps.
 
@@ -42,13 +44,22 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_RUNTIME_MEMORY_GBS` | Optional flex-shape memory in GB; ignored by fixed shapes |
 | `OCI_RUNTIME_SSH_PUBLIC_KEYS` | JSON list of SSH public keys injected into the VM |
 | `OCI_OBJECT_STORAGE_NAMESPACE` | OCI Object Storage namespace for Terraform remote state |
+| `OCI_CREATE_AUTONOMOUS_DATABASE` | Optional toggle for creating the Oracle Autonomous Database; defaults to `false` until credentials are ready |
+| `OCI_AUTONOMOUS_DATABASE_NAME` | Short Oracle DB name used by wallet aliases and connection strings; defaults to `autographsdb` |
+| `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME` | Display name for the Oracle Autonomous Database; defaults to `autographs-prod-adb` |
+| `OCI_CREATE_MEDIA_BUCKET` | Optional toggle for creating the private media Object Storage bucket; defaults to `false` until the namespace is confirmed |
+| `OCI_MEDIA_BUCKET_NAME` | Private Object Storage bucket for autograph images; defaults to `autographs-media-prod` |
+| `OCI_MEDIA_NAMESPACE` | Object Storage namespace for the private media bucket; usually matches `OCI_OBJECT_STORAGE_NAMESPACE` |
+| `ORACLE_DB_USER` | Runtime database user for the app container; defaults to `ADMIN` for the first bootstrap path |
+| `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connection alias or connect descriptor, for example `autographsdb_high` |
+| `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the app container; defaults to `/opt/autographs/wallet` |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
 | `DEPLOY_SSH_USER` | SSH user for deploys, usually `opc` |
 | `DEPLOY_PATH` | Directory on the VM that stores compose and Caddy runtime files |
 | `AUTOGRAPHS_DOMAIN` | Public hostname served by Caddy with automatic TLS; defaults to `autographs.jetsaredim.net` |
 | `GHCR_IMAGE_REPOSITORY` | Published app image path, for example `ghcr.io/jetsaredim/autographs/app` |
 
-The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the runtime state object key is `envs/prod/terraform.tfstate`. `GHCR_IMAGE_REPOSITORY`, `OCI_COMPARTMENT_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_IMAGE_OCID`, `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, `OCI_OBJECT_STORAGE_NAMESPACE`, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
+The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the runtime state object key is `envs/prod/terraform.tfstate`. `GHCR_IMAGE_REPOSITORY`, `OCI_COMPARTMENT_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_IMAGE_OCID`, `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, `OCI_OBJECT_STORAGE_NAMESPACE`, data-service toggles, data-service names, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
 
 ## Local Operator Values
 
@@ -66,9 +77,16 @@ Local Terraform uses:
 - bootstrap parent compartment and deploy identity inputs in the tenancy root
 - `compartment_ocid` in the runtime/app root
 - runtime VM image, availability domain, and SSH public keys
+- Autonomous Database and private media bucket toggles, names, and Object Storage namespace
 - Object Storage namespace, bucket, and key when initializing the remote backend
 
 GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_PRIVATE_KEY_PEM` to a temporary private key file at runtime.
+
+## Phase 2 Data Services
+
+Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, ADMIN password, and runtime connection values.
+
+The runtime container receives database and media coordinates through Compose environment variables, not committed files. The deploy script writes a VM-local `.env` file beside `compose.prod.yaml`; keep wallet material, real database passwords, and API signing material out of git.
 
 ## Optional GitHub Environments
 

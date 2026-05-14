@@ -24,7 +24,16 @@ DEPLOY_PATH="${DEPLOY_PATH:-/opt/autographs}"
 AUTOGRAPHS_DOMAIN="${AUTOGRAPHS_DOMAIN:-autographs.jetsaredim.net}"
 AUTOGRAPHS_HTTP_PORT="${AUTOGRAPHS_HTTP_PORT:-80}"
 AUTOGRAPHS_HTTPS_PORT="${AUTOGRAPHS_HTTPS_PORT:-443}"
+AUTOGRAPHS_DB_PROVIDER="${AUTOGRAPHS_DB_PROVIDER:-oracle}"
+ORACLE_DB_USER="${ORACLE_DB_USER:-ADMIN}"
+ORACLE_DB_PASSWORD="${ORACLE_DB_PASSWORD:-}"
+ORACLE_DB_CONNECT_STRING="${ORACLE_DB_CONNECT_STRING:-autographsdb_high}"
+ORACLE_DB_WALLET_DIR="${ORACLE_DB_WALLET_DIR:-/opt/autographs/wallet}"
+OCI_REGION="${OCI_REGION:-us-ashburn-1}"
+OCI_MEDIA_BUCKET_NAME="${OCI_MEDIA_BUCKET_NAME:-autographs-media-prod}"
+OCI_MEDIA_NAMESPACE="${OCI_MEDIA_NAMESPACE:-}"
 SSH_KEY_FILE="$(mktemp)"
+COMPOSE_ENV_FILE="$(mktemp)"
 
 validate_pattern() {
   local name="$1"
@@ -45,6 +54,16 @@ validate_pattern AUTOGRAPHS_APP_IMAGE "$AUTOGRAPHS_APP_IMAGE" '^[A-Za-z0-9._:/@-
 validate_pattern AUTOGRAPHS_DOMAIN "$AUTOGRAPHS_DOMAIN" '^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$'
 validate_pattern AUTOGRAPHS_HTTP_PORT "$AUTOGRAPHS_HTTP_PORT" '^[0-9]+$'
 validate_pattern AUTOGRAPHS_HTTPS_PORT "$AUTOGRAPHS_HTTPS_PORT" '^[0-9]+$'
+validate_pattern AUTOGRAPHS_DB_PROVIDER "$AUTOGRAPHS_DB_PROVIDER" '^[A-Za-z0-9_-]+$'
+validate_pattern ORACLE_DB_USER "$ORACLE_DB_USER" '^[A-Za-z][A-Za-z0-9_$#]*$'
+validate_pattern ORACLE_DB_CONNECT_STRING "$ORACLE_DB_CONNECT_STRING" '^[A-Za-z0-9._:/?=@+-]+$'
+validate_pattern ORACLE_DB_WALLET_DIR "$ORACLE_DB_WALLET_DIR" '^/[A-Za-z0-9._/-]+$'
+validate_pattern OCI_REGION "$OCI_REGION" '^[a-z]+-[a-z]+-[0-9]+$'
+validate_pattern OCI_MEDIA_BUCKET_NAME "$OCI_MEDIA_BUCKET_NAME" '^[A-Za-z0-9._-]+$'
+
+if [ -n "$OCI_MEDIA_NAMESPACE" ]; then
+  validate_pattern OCI_MEDIA_NAMESPACE "$OCI_MEDIA_NAMESPACE" '^[A-Za-z0-9._-]+$'
+fi
 
 if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; then
   echo "DEPLOY_PATH must be /opt/autographs or a safe child path: ${DEPLOY_PATH}" >&2
@@ -52,13 +71,37 @@ if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; 
 fi
 
 cleanup() {
-  rm -f "$SSH_KEY_FILE"
+  rm -f "$SSH_KEY_FILE" "$COMPOSE_ENV_FILE"
 }
 
 trap cleanup EXIT
 
 printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" >"$SSH_KEY_FILE"
 chmod 600 "$SSH_KEY_FILE"
+
+write_compose_env() {
+  local name="$1"
+  local value="$2"
+
+  value="${value//$'\n'/}"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '%s="%s"\n' "$name" "$value" >>"$COMPOSE_ENV_FILE"
+}
+
+write_compose_env AUTOGRAPHS_APP_IMAGE "$AUTOGRAPHS_APP_IMAGE"
+write_compose_env AUTOGRAPHS_DOMAIN "$AUTOGRAPHS_DOMAIN"
+write_compose_env AUTOGRAPHS_HTTP_PORT "$AUTOGRAPHS_HTTP_PORT"
+write_compose_env AUTOGRAPHS_HTTPS_PORT "$AUTOGRAPHS_HTTPS_PORT"
+write_compose_env AUTOGRAPHS_DB_PROVIDER "$AUTOGRAPHS_DB_PROVIDER"
+write_compose_env ORACLE_DB_USER "$ORACLE_DB_USER"
+write_compose_env ORACLE_DB_PASSWORD "$ORACLE_DB_PASSWORD"
+write_compose_env ORACLE_DB_CONNECT_STRING "$ORACLE_DB_CONNECT_STRING"
+write_compose_env ORACLE_DB_WALLET_DIR "$ORACLE_DB_WALLET_DIR"
+write_compose_env OCI_REGION "$OCI_REGION"
+write_compose_env OCI_MEDIA_BUCKET_NAME "$OCI_MEDIA_BUCKET_NAME"
+write_compose_env OCI_MEDIA_NAMESPACE "$OCI_MEDIA_NAMESPACE"
+chmod 600 "$COMPOSE_ENV_FILE"
 
 SSH_OPTS=(
   -i "$SSH_KEY_FILE"
@@ -70,12 +113,13 @@ scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/scripts/bootstrap-runtime.sh" "${DEPLOY_S
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo DEPLOY_USER='${DEPLOY_SSH_USER}' DEPLOY_PATH='${DEPLOY_PATH}' bash /tmp/autographs-bootstrap-runtime.sh"
 
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/compose/compose.prod.yaml" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/compose/compose.prod.yaml"
+scp "${SSH_OPTS[@]}" "$COMPOSE_ENV_FILE" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/compose/.env"
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/caddy/Caddyfile" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/caddy/Caddyfile"
 
 printf '%s' "$GHCR_TOKEN" | ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo podman login ghcr.io -u '${GITHUB_ACTOR}' --password-stdin"
 
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
-  "cd '${DEPLOY_PATH}/compose' && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_DOMAIN='${AUTOGRAPHS_DOMAIN}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' AUTOGRAPHS_HTTPS_PORT='${AUTOGRAPHS_HTTPS_PORT}' podman-compose -f compose.prod.yaml pull && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_DOMAIN='${AUTOGRAPHS_DOMAIN}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' AUTOGRAPHS_HTTPS_PORT='${AUTOGRAPHS_HTTPS_PORT}' podman-compose -f compose.prod.yaml up -d"
+  "cd '${DEPLOY_PATH}/compose' && sudo podman-compose -f compose.prod.yaml pull && sudo podman-compose -f compose.prod.yaml up -d"
 
 for _ in $(seq 1 30); do
   if curl --fail --silent "http://${VM_PUBLIC_IP}/health" >/dev/null; then

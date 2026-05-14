@@ -47,3 +47,19 @@ runtime_ssh_public_keys = [
 runtime_deploy_user = "opc"
 runtime_deploy_path = "/opt/autographs"
 assign_public_ip = true
+
+# Phase 2 data services. Keep create_autonomous_database false until the
+# admin password is supplied through an untracked tfvars file or GitHub Secret.
+create_autonomous_database                   = false
+autonomous_database_name                     = "autographsdb"
+autonomous_database_display_name             = "autographs-prod-adb"
+autonomous_database_admin_password           = ""
+autonomous_database_is_free_tier             = true
+autonomous_database_db_workload              = "OLTP"
+autonomous_database_license_model            = "LICENSE_INCLUDED"
+autonomous_database_data_storage_size_in_tbs = 1
+
+create_media_bucket     = false
+media_bucket_namespace  = "replace-with-your-object-storage-namespace"
+media_bucket_name       = "autographs-media-prod"
+media_bucket_versioning = "Enabled"

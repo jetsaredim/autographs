@@ -187,3 +187,86 @@ variable "assign_public_ip" {
   type        = bool
   default     = true
 }
+
+variable "create_autonomous_database" {
+  description = "Whether Terraform should create the Oracle Autonomous Database Free metadata store."
+  type        = bool
+  default     = false
+}
+
+variable "autonomous_database_name" {
+  description = "Oracle Autonomous Database DB name. Keep this short and alphanumeric for Oracle service constraints."
+  type        = string
+  default     = "autographsdb"
+
+  validation {
+    condition     = can(regex("^[A-Za-z][A-Za-z0-9]{0,13}$", var.autonomous_database_name))
+    error_message = "autonomous_database_name must start with a letter, contain only letters and numbers, and be at most 14 characters."
+  }
+}
+
+variable "autonomous_database_display_name" {
+  description = "Display name for the Oracle Autonomous Database metadata store."
+  type        = string
+  default     = "autographs-prod-adb"
+}
+
+variable "autonomous_database_admin_password" {
+  description = "Initial ADMIN password for the Oracle Autonomous Database. Required only when create_autonomous_database is true."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "autonomous_database_is_free_tier" {
+  description = "Whether the Autonomous Database should use Oracle Always Free sizing."
+  type        = bool
+  default     = true
+}
+
+variable "autonomous_database_db_workload" {
+  description = "Autonomous Database workload type."
+  type        = string
+  default     = "OLTP"
+}
+
+variable "autonomous_database_license_model" {
+  description = "Autonomous Database license model."
+  type        = string
+  default     = "LICENSE_INCLUDED"
+}
+
+variable "autonomous_database_data_storage_size_in_tbs" {
+  description = "Autonomous Database storage size in TB."
+  type        = number
+  default     = 1
+}
+
+variable "create_media_bucket" {
+  description = "Whether Terraform should create the private Object Storage bucket for autograph images."
+  type        = bool
+  default     = false
+}
+
+variable "media_bucket_namespace" {
+  description = "OCI Object Storage namespace for the private autograph media bucket."
+  type        = string
+  default     = ""
+}
+
+variable "media_bucket_name" {
+  description = "Name of the private Object Storage bucket for autograph images."
+  type        = string
+  default     = "autographs-media-prod"
+}
+
+variable "media_bucket_versioning" {
+  description = "Object Storage versioning mode for the private media bucket."
+  type        = string
+  default     = "Enabled"
+
+  validation {
+    condition     = contains(["Enabled", "Disabled"], var.media_bucket_versioning)
+    error_message = "media_bucket_versioning must be Enabled or Disabled."
+  }
+}

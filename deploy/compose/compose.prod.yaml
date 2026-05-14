@@ -5,6 +5,15 @@ services:
       context: ../..
       dockerfile: app/Dockerfile
     restart: unless-stopped
+    environment:
+      AUTOGRAPHS_DB_PROVIDER: ${AUTOGRAPHS_DB_PROVIDER:-oracle}
+      ORACLE_DB_USER: ${ORACLE_DB_USER:-ADMIN}
+      ORACLE_DB_PASSWORD: ${ORACLE_DB_PASSWORD:-}
+      ORACLE_DB_CONNECT_STRING: ${ORACLE_DB_CONNECT_STRING:-autographsdb_high}
+      ORACLE_DB_WALLET_DIR: ${ORACLE_DB_WALLET_DIR:-/opt/autographs/wallet}
+      OCI_REGION: ${OCI_REGION:-us-ashburn-1}
+      OCI_MEDIA_BUCKET_NAME: ${OCI_MEDIA_BUCKET_NAME:-autographs-media-prod}
+      OCI_MEDIA_NAMESPACE: ${OCI_MEDIA_NAMESPACE:-}
     expose:
       - "3000"
     healthcheck:
