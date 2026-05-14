@@ -42,7 +42,7 @@
   <text class="label" x="338" y="667">End user</text>
   <text class="small" x="332" y="689">public browser</text>
 
-  <path class="flow" d="M144 536 C86 482 60 330 92 246" />
+  <path class="flow" d="M60 572 C12 508 16 286 92 246" />
   <path class="flow" d="M248 246 C280 246 282 220 314 220" />
   <path class="flow" d="M248 246 C282 264 282 334 314 334" />
   <path class="flow" d="M314 334 C276 358 248 384 208 396" />
@@ -75,10 +75,10 @@
   <text class="small" x="1082" y="540">suggestions</text>
 
   <path class="flow" d="M464 334 C560 334 566 186 650 186" />
-  <path class="flow" d="M248 413 C470 413 520 486 762 486" />
-  <path class="flow" d="M228 572 C390 572 506 146 650 146" />
+  <path class="flow" d="M248 413 C468 413 520 444 762 444" />
+  <path class="flow" d="M228 572 C398 572 510 218 650 218" />
   <path class="flow" d="M468 672 C560 672 636 487 786 487" />
-  <path class="flow" d="M228 572 C440 572 610 487 858 487" />
+  <path class="flow" d="M228 572 C438 572 602 486 786 487" />
   <path class="flow" d="M916 487 C980 474 1000 290 1060 290" />
   <path class="flow" d="M916 487 C966 476 1010 406 1060 406" />
   <path class="flow" d="M916 487 C966 488 1010 522 1060 522" />
@@ -88,13 +88,13 @@
   <path class="flow" d="M815 506 C790 566 784 652 806 708" />
 
   <circle class="badge" cx="514" cy="134" r="14" /><text class="badge-text" x="510" y="139">1</text>
-  <circle class="badge" cx="104" cy="402" r="14" /><text class="badge-text" x="100" y="407">2</text>
+  <circle class="badge" cx="28" cy="412" r="14" /><text class="badge-text" x="24" y="417">2</text>
   <circle class="badge" cx="276" cy="220" r="14" /><text class="badge-text" x="272" y="225">3</text>
   <circle class="badge" cx="278" cy="310" r="14" /><text class="badge-text" x="274" y="315">4</text>
-  <circle class="badge" cx="572" cy="280" r="14" /><text class="badge-text" x="568" y="285">5</text>
-  <circle class="badge" cx="510" cy="430" r="14" /><text class="badge-text" x="506" y="435">6</text>
+  <circle class="badge" cx="572" cy="310" r="14" /><text class="badge-text" x="568" y="315">5</text>
+  <circle class="badge" cx="510" cy="426" r="14" /><text class="badge-text" x="506" y="431">6</text>
   <circle class="badge" cx="604" cy="610" r="14" /><text class="badge-text" x="600" y="615">7</text>
   <circle class="badge" cx="1004" cy="376" r="14" /><text class="badge-text" x="1000" y="381">8</text>
   <circle class="badge" cx="772" cy="640" r="14" /><text class="badge-text" x="768" y="645">9</text>
-  <circle class="badge" cx="510" cy="554" r="14" /><text class="badge-text" x="502" y="559">10</text>
+  <circle class="badge" cx="510" cy="558" r="14" /><text class="badge-text" x="502" y="563">10</text>
 </svg>

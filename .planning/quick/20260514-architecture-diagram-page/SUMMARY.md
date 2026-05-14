@@ -21,6 +21,7 @@ Added a static `/architecture` page backed by committed draw.io source and an SV
 - Retargeted deployment and bootstrap workflow arrows to the outer OCI boundary while keeping Terraform details in the workflow table.
 - Removed the extra layer ownership card section and simplified the page heading to focus on the system diagram.
 - Added step 10 for the site admin content workflow: upload images/data through the app, store media in Object Storage, and use AI processing for metadata suggestions.
+- Adjusted workflow routing so admin-to-repo flares out, GHCR enters the VM near the VM label, and admin content management enters through Caddy.
 - Added `app/app/architecture/page.tsx` with concise solution overview copy, diagram display, and workflow table.
 - Updated `app/app/page.tsx` with a link to the architecture page.
 - Updated `app/app/globals.css` for a monochrome black/gray theme and diagram/table presentation.

@@ -67,7 +67,7 @@ const workflowSteps = [
     number: 10,
     name: "Manage collection content",
     description:
-      "The admin user uploads new autograph images and collection data through the app, which stores media in Object Storage and uses AI processing to suggest metadata before saving curated records in Autonomous Database.",
+      "The admin user uploads new autograph images and collection data through Caddy into the app, which stores media in Object Storage and uses AI processing to suggest metadata before saving curated records in Autonomous Database.",
   },
 ];
 
