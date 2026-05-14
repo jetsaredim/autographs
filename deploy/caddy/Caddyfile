@@ -1,3 +1,7 @@
+http://{$AUTOGRAPHS_DOMAIN} {
+  redir https://{host}{uri} permanent
+}
+
 {$AUTOGRAPHS_DOMAIN} {
   encode zstd gzip
 

@@ -2,8 +2,8 @@
   color-scheme: light;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at top, #f3efe6 0, #f7f4ec 34%, #efe8da 100%);
-  color: #1e1a16;
+    radial-gradient(circle at top, #ffffff 0, #f4f4f5 42%, #e5e7eb 100%);
+  color: #111111;
 }
 
 * {
@@ -24,6 +24,10 @@ a {
   color: inherit;
 }
 
+a:hover {
+  text-decoration-thickness: 0.16em;
+}
+
 .proof-shell {
   min-height: 100vh;
   padding: 3rem 1.5rem;
@@ -33,10 +37,10 @@ a {
   max-width: 48rem;
   margin: 0 auto;
   padding: 2rem;
-  border: 1px solid rgba(30, 26, 22, 0.12);
+  border: 1px solid #d4d4d8;
   border-radius: 1.5rem;
-  background: rgba(255, 252, 246, 0.9);
-  box-shadow: 0 24px 60px rgba(55, 38, 18, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08);
 }
 
 .eyebrow {
@@ -45,7 +49,7 @@ a {
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #875a1d;
+  color: #52525b;
 }
 
 .proof-card h1 {
@@ -58,7 +62,11 @@ a {
   margin: 1.25rem 0 0;
   font-size: 1.1rem;
   line-height: 1.7;
-  color: #453a2e;
+  color: #3f3f46;
+}
+
+.lede-action {
+  font-weight: 650;
 }
 
 .status-grid {
@@ -70,8 +78,8 @@ a {
 .status-tile {
   padding: 1rem 1.1rem;
   border-radius: 1rem;
-  background: #f8f1e4;
-  border: 1px solid rgba(135, 90, 29, 0.15);
+  background: #f4f4f5;
+  border: 1px solid #d4d4d8;
 }
 
 .status-tile strong,
@@ -87,6 +95,179 @@ a {
   font-size: 0.95rem;
 }
 
+.architecture-shell {
+  min-height: 100vh;
+  padding: 3rem 1.5rem;
+}
+
+.architecture-hero,
+.diagram-card,
+.architecture-grid,
+.workflow-card {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.architecture-hero {
+  padding: 2rem;
+  border: 1px solid #d4d4d8;
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08);
+}
+
+.architecture-hero h1,
+.section-heading h2 {
+  margin: 0;
+}
+
+.architecture-hero h1 {
+  max-width: 58rem;
+  font-size: clamp(1.8rem, 3vw, 3rem);
+  line-height: 1.05;
+}
+
+.back-link {
+  display: inline-flex;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #3f3f46;
+}
+
+.diagram-card,
+.architecture-grid,
+.workflow-card {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid #d4d4d8;
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.section-heading {
+  margin-bottom: 1.25rem;
+}
+
+.section-heading h2 {
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+}
+
+.architecture-diagram {
+  overflow-x: auto;
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)),
+    repeating-linear-gradient(
+      45deg,
+      rgba(0, 0, 0, 0.04) 0,
+      rgba(0, 0, 0, 0.04) 1px,
+      transparent 1px,
+      transparent 14px
+    );
+}
+
+.architecture-diagram-image {
+  display: block;
+  width: 100%;
+  min-width: 60rem;
+  height: auto;
+  border: 1px solid #d4d4d8;
+  border-radius: 1rem;
+  background: #ffffff;
+}
+
+.architecture-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.architecture-grid .section-heading {
+  margin-bottom: 0.25rem;
+}
+
+.architecture-tile {
+  padding: 1.1rem;
+  border: 1px solid #d4d4d8;
+  border-radius: 1rem;
+  background: #f4f4f5;
+}
+
+.architecture-tile h3,
+.architecture-tile p {
+  margin: 0;
+}
+
+.architecture-tile h3 {
+  font-size: 1.05rem;
+}
+
+.architecture-tile p {
+  margin-top: 0.45rem;
+  line-height: 1.55;
+  color: #3f3f46;
+}
+
+.workflow-table-wrap {
+  overflow-x: auto;
+}
+
+.workflow-table {
+  width: 100%;
+  min-width: 46rem;
+  border-collapse: collapse;
+  overflow: hidden;
+  border: 1px solid #d4d4d8;
+  border-radius: 1rem;
+  background: #ffffff;
+}
+
+.workflow-table th,
+.workflow-table td {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid #e4e4e7;
+  text-align: left;
+  vertical-align: top;
+}
+
+.workflow-table th {
+  background: #f4f4f5;
+  color: #27272a;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workflow-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.workflow-table td:first-child {
+  width: 5rem;
+}
+
+.workflow-table td:nth-child(2) {
+  width: 16rem;
+  font-weight: 800;
+}
+
+.workflow-table td:nth-child(3) {
+  color: #3f3f46;
+  line-height: 1.55;
+}
+
+.step-badge {
+  display: inline-grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #111111;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
 @media (min-width: 720px) {
   .proof-shell {
     padding: 5rem 2rem;
@@ -98,5 +279,30 @@ a {
 
   .status-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .architecture-shell {
+    padding: 5rem 2rem;
+  }
+
+  .architecture-hero {
+    padding: 3rem;
+  }
+
+  .diagram-card {
+    padding: 2rem;
+  }
+
+  .workflow-card {
+    padding: 2rem;
+  }
+
+  .architecture-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 2rem;
+  }
+
+  .architecture-grid .section-heading {
+    grid-column: 1 / -1;
   }
 }
