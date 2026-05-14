@@ -21,7 +21,9 @@ require_env GITHUB_ACTOR
 require_env GHCR_TOKEN
 
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/autographs}"
+AUTOGRAPHS_DOMAIN="${AUTOGRAPHS_DOMAIN:-autographs.jetsaredim.net}"
 AUTOGRAPHS_HTTP_PORT="${AUTOGRAPHS_HTTP_PORT:-80}"
+AUTOGRAPHS_HTTPS_PORT="${AUTOGRAPHS_HTTPS_PORT:-443}"
 SSH_KEY_FILE="$(mktemp)"
 
 validate_pattern() {
@@ -40,7 +42,9 @@ validate_pattern DEPLOY_SSH_USER "$DEPLOY_SSH_USER" '^[A-Za-z_][A-Za-z0-9_-]*$'
 validate_pattern DEPLOY_PATH "$DEPLOY_PATH" '^/[A-Za-z0-9._/-]+$'
 validate_pattern GITHUB_ACTOR "$GITHUB_ACTOR" '^[A-Za-z0-9][A-Za-z0-9-]*$'
 validate_pattern AUTOGRAPHS_APP_IMAGE "$AUTOGRAPHS_APP_IMAGE" '^[A-Za-z0-9._:/@-]+$'
+validate_pattern AUTOGRAPHS_DOMAIN "$AUTOGRAPHS_DOMAIN" '^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$'
 validate_pattern AUTOGRAPHS_HTTP_PORT "$AUTOGRAPHS_HTTP_PORT" '^[0-9]+$'
+validate_pattern AUTOGRAPHS_HTTPS_PORT "$AUTOGRAPHS_HTTPS_PORT" '^[0-9]+$'
 
 if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; then
   echo "DEPLOY_PATH must be /opt/autographs or a safe child path: ${DEPLOY_PATH}" >&2
@@ -66,12 +70,12 @@ scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/scripts/bootstrap-runtime.sh" "${DEPLOY_S
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo DEPLOY_USER='${DEPLOY_SSH_USER}' DEPLOY_PATH='${DEPLOY_PATH}' bash /tmp/autographs-bootstrap-runtime.sh"
 
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/compose/compose.prod.yaml" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/compose/compose.prod.yaml"
-scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/nginx/nginx.conf" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/nginx/nginx.conf"
+scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/caddy/Caddyfile" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/caddy/Caddyfile"
 
 printf '%s' "$GHCR_TOKEN" | ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo podman login ghcr.io -u '${GITHUB_ACTOR}' --password-stdin"
 
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
-  "cd '${DEPLOY_PATH}/compose' && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' podman-compose -f compose.prod.yaml pull && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' podman-compose -f compose.prod.yaml up -d"
+  "cd '${DEPLOY_PATH}/compose' && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_DOMAIN='${AUTOGRAPHS_DOMAIN}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' AUTOGRAPHS_HTTPS_PORT='${AUTOGRAPHS_HTTPS_PORT}' podman-compose -f compose.prod.yaml pull && sudo env AUTOGRAPHS_APP_IMAGE='${AUTOGRAPHS_APP_IMAGE}' AUTOGRAPHS_DOMAIN='${AUTOGRAPHS_DOMAIN}' AUTOGRAPHS_HTTP_PORT='${AUTOGRAPHS_HTTP_PORT}' AUTOGRAPHS_HTTPS_PORT='${AUTOGRAPHS_HTTPS_PORT}' podman-compose -f compose.prod.yaml up -d"
 
 for _ in $(seq 1 30); do
   if curl --fail --silent "http://${VM_PUBLIC_IP}/health" >/dev/null; then
@@ -81,5 +85,5 @@ for _ in $(seq 1 30); do
   sleep 5
 done
 
-echo "Deployment did not pass nginx-fronted /health check" >&2
+echo "Deployment did not pass Caddy-fronted /health check" >&2
 exit 1

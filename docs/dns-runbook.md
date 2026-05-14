@@ -39,13 +39,28 @@ Or check the GitHub Variable fallback:
 gh variable get VM_PUBLIC_IP --repo jetsaredim/autographs
 ```
 
+## TLS
+
+The deployed edge container uses Caddy, which automatically obtains and renews a
+Let's Encrypt certificate for `autographs.jetsaredim.net`. Certificate issuance
+requires all of the following before the deploy runs:
+
+- the Porkbun `A` record resolves to the runtime VM public IP
+- OCI ingress allows ports 80 and 443
+- the VM firewall allows HTTP and HTTPS
+
+OCI NSG and VM firewall rules are already managed for ports 80 and 443 by the
+committed Terraform and bootstrap scripts.
+
 ## Verification
 
-After Porkbun is updated, verify resolution and the app health endpoint:
+After Porkbun is updated and the deploy workflow has completed, verify DNS,
+HTTP, and HTTPS:
 
 ```bash
 dig A autographs.jetsaredim.net
 curl --fail --silent http://autographs.jetsaredim.net/health
+curl --fail --silent https://autographs.jetsaredim.net/health
 ```
 
 Expected response:
