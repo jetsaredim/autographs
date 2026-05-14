@@ -1,0 +1,9 @@
+{$AUTOGRAPHS_DOMAIN} {
+  encode zstd gzip
+
+  reverse_proxy app:3000
+}
+
+:80 {
+  reverse_proxy app:3000
+}
