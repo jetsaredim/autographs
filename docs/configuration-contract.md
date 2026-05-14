@@ -55,6 +55,7 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connection alias or connect descriptor, for example `autographsdb_high` |
 | `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the app container; defaults to `/opt/autographs/wallet` |
 | `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER` | Media adapter mode; `oci` in production, `local` for local smoke work without OCI credentials |
+| `AUTOGRAPHS_SMOKE_BASE_URL` | Optional local/operator value used by the data/media smoke script to verify a deployed app-mediated image route |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
 | `DEPLOY_SSH_USER` | SSH user for deploys, usually `opc` |
 | `DEPLOY_PATH` | Directory on the VM that stores compose and Caddy runtime files |

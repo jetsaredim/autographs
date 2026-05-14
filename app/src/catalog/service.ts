@@ -9,6 +9,7 @@ import type {
   CatalogRepository,
 } from "./types";
 import type { MediaUpload, PrivateMediaStore } from "../media";
+import type { MediaReadResult } from "../media/types";
 
 export type CatalogImageUploadInput = Omit<MediaUpload, "objectKey"> & {
   filename: string;
@@ -25,6 +26,7 @@ export type CatalogService = {
   create(input: CatalogCreateInput): Promise<AutographItem>;
   update(id: string, input: AutographItemUpdate): Promise<AutographItem>;
   attachImages(id: string, images: CatalogImageUploadInput[]): Promise<AutographItem>;
+  readPublishedImage(id: string, imageId: string): Promise<MediaReadResult | null>;
   getById(id: string, options?: { includeUnpublished?: boolean }): Promise<AutographItem | null>;
   list(options?: Parameters<CatalogRepository["list"]>[0]): Promise<AutographItem[]>;
 };
@@ -96,6 +98,24 @@ export class DefaultCatalogService implements CatalogService {
     options?: { includeUnpublished?: boolean },
   ): Promise<AutographItem | null> {
     return this.repository.getById(id, options);
+  }
+
+  async readPublishedImage(id: string, imageId: string): Promise<MediaReadResult | null> {
+    const item = await this.repository.getById(id);
+    if (!item) {
+      return null;
+    }
+
+    const image = item.images.find((candidate) => candidate.id === imageId);
+    if (!image) {
+      return null;
+    }
+
+    return this.mediaStore.read({
+      storageNamespace: image.storageNamespace,
+      bucketName: image.bucketName,
+      objectKey: image.objectKey,
+    });
   }
 
   async list(options?: Parameters<CatalogRepository["list"]>[0]): Promise<AutographItem[]> {

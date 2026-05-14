@@ -13,16 +13,16 @@
 
 ### Catalog Data
 
-- [ ] **DATA-01**: Admin can store an autograph record in Oracle Autonomous Database Free with title, signer, description, category, tags, object references, event/source, event/location, inscription text, certification company and ID, estimated year, and publication status fields.
-- [ ] **DATA-02**: Application can create, read, update, and list autograph metadata records through the chosen Oracle-backed data layer.
+- [x] **DATA-01**: Admin can store an autograph record in Oracle Autonomous Database Free with title, signer, description, category, tags, object references, event/source, event/location, inscription text, certification company and ID, estimated year, and publication status fields.
+- [x] **DATA-02**: Application can create, read, update, and list autograph metadata records through the chosen Oracle-backed data layer.
 - [ ] **DATA-03**: Application records edit history for autograph items so the admin can see what changed over time in v1.
-- [ ] **DATA-04**: Application can seed or otherwise load representative sample data for local development and verification.
+- [x] **DATA-04**: Application can seed or otherwise load representative sample data for local development and verification.
 
 ### Media Storage
 
-- [ ] **MEDIA-01**: Admin can upload multiple images for a single autograph item into a private OCI Object Storage bucket.
-- [ ] **MEDIA-02**: Application stores and retrieves one designated primary image plus additional supporting images for an autograph item.
-- [ ] **MEDIA-03**: Public users can view autograph images through app-mediated delivery without exposing public object URLs or bucket credentials.
+- [x] **MEDIA-01**: Admin can upload multiple images for a single autograph item into a private OCI Object Storage bucket.
+- [x] **MEDIA-02**: Application stores and retrieves one designated primary image plus additional supporting images for an autograph item.
+- [x] **MEDIA-03**: Public users can view autograph images through app-mediated delivery without exposing public object URLs or bucket credentials.
 - [ ] **MEDIA-04**: Application keeps image objects and metadata references in sync so uploads and edits do not leave orphaned records or orphaned files in normal operation.
 
 ### Public Gallery
@@ -68,13 +68,13 @@ None currently. Future scope should be added only if it directly supports the pe
 | PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 1 | Complete |
 | PLAT-03 | Phase 1 | Complete |
-| DATA-01 | Phase 2 | Pending |
-| DATA-02 | Phase 2 | Pending |
+| DATA-01 | Phase 2 | Complete |
+| DATA-02 | Phase 2 | Complete |
 | DATA-03 | Phase 4 | Pending |
-| DATA-04 | Phase 2 | Pending |
-| MEDIA-01 | Phase 2 | Pending |
-| MEDIA-02 | Phase 2 | Pending |
-| MEDIA-03 | Phase 2 | Pending |
+| DATA-04 | Phase 2 | Complete |
+| MEDIA-01 | Phase 2 | Complete |
+| MEDIA-02 | Phase 2 | Complete |
+| MEDIA-03 | Phase 2 | Complete |
 | MEDIA-04 | Phase 4 | Pending |
 | GALL-01 | Phase 3 | Pending |
 | GALL-02 | Phase 3 | Pending |
@@ -95,4 +95,4 @@ None currently. Future scope should be added only if it directly supports the pe
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-04-18 after initial definition*
+*Last updated: 2026-05-14 after Phase 2 implementation*

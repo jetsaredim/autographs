@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 01 complete; Phase 02 planned and ready for execution
+status: executing
+stopped_at: Phase 02 implementation complete; Phase 03 ready for planning
 last_updated: "2026-05-14T00:00:00.000Z"
-last_activity: 2026-05-14 -- Phase 01 live OCI deploy proof passed and Phase 02 planning opened
+last_activity: 2026-05-14 -- Phase 02 Oracle and private media core implementation completed with documented live smoke gate
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
-  completed_plans: 4
-  percent: 50
+  completed_plans: 8
+  percent: 100
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-18)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 02 — oracle-and-private-media-core
+**Current focus:** Phase 03 — public-gallery-mvp
 
 ## Current Position
 
-Phase: 02 (oracle-and-private-media-core) — PLANNING COMPLETE
-Plan: 0 of 4
-Status: Phase 1 live deploy proof passed from `main`; Phase 2 is ready to execute the Oracle and private media core plans
-Last activity: 2026-05-14 -- Phase 01 live OCI deploy proof passed and Phase 02 planning opened
+Phase: 03 (public-gallery-mvp) — READY FOR PLANNING
+Plan: 0 of TBD
+Status: Phase 2 implementation is complete; live Oracle/Object Storage smoke is documented for operator execution when credentials are present
+Last activity: 2026-05-14 -- Phase 02 Oracle and private media core implementation completed with documented live smoke gate
 
-Progress: [█████░░░░░] 50%
+Progress: [██████████] 100% of currently planned execution plans
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 4
+- Total plans completed: 8
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -45,11 +45,11 @@ Progress: [█████░░░░░] 50%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 4 | 118 min | 29 min |
-| 02 | 4 planned | - | - |
+| 02 | 4 | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: 01-01, 01-02, 01-03, 01-04
+- Last 5 plans: 01-04, 02-01, 02-02, 02-03, 02-04
 - Trend: Positive
 
 ## Accumulated Context
@@ -62,6 +62,8 @@ Recent decisions affecting current work:
 - Phase 1: Start with OCI bootstrap and delivery automation before feature work spreads.
 - Phase 1: Live GitHub-to-OCI deploy proof passed on 2026-05-14.
 - Phase 2: Prove Oracle and private media seams before building gallery or admin UX on top of them.
+- Phase 2: Keep public image delivery app-mediated through `/api/catalog/{itemId}/images/{imageId}` rather than direct Object Storage URLs.
+- Phase 2: Use token-guarded operator endpoints only as a temporary verification seam until Phase 4 admin auth replaces them.
 - Phase 4: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
 
 ### Pending Todos
@@ -70,12 +72,11 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 2 must preserve app-mediated private media access; do not expose public bucket URLs or storage credentials.
-- Oracle Autonomous Database and Object Storage integration should be proven before gallery/admin UX depends on them.
+- Live Phase 2 data/media smoke requires real ADB and private Object Storage credentials; run `AUTOGRAPHS_SMOKE_BASE_URL=https://autographs.jetsaredim.net bash scripts/smoke-data-media.sh` when ready to prove the deployed route.
 - Single-admin authentication mechanism remains a phase-planning choice, but scope is intentionally one admin only.
 
 ## Session Continuity
 
 Last session: 2026-05-14T00:00:00.000Z
-Stopped at: Phase 01 complete; Phase 02 planned and ready for execution
-Resume file: .planning/phases/02-oracle-and-private-media-core/02-01-PLAN.md
+Stopped at: Phase 02 implementation complete; Phase 03 ready for planning
+Resume file: .planning/phases/02-oracle-and-private-media-core/02-04-SUMMARY.md

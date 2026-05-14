@@ -104,10 +104,20 @@ Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` 
 Basic `/health` remains a proof-of-life check and does not require Oracle or Object Storage secrets. Use the deeper smoke path only when data-service credentials are present:
 
 ```bash
-corepack pnpm --filter app data:smoke
+bash scripts/smoke-data-media.sh
+```
+
+That command runs migrations, loads representative seed records with generated SVG fixture images, creates a published smoke item, uploads a private smoke image, reads it back through the catalog/media service, and confirms list/detail behavior. It is intentionally not part of CI because it requires live ADB and private Object Storage credentials. Seed records are additive; reset the target schema before rerunning if you need a pristine sample dataset.
+
+To include the deployed app-mediated image route in the smoke proof, set `AUTOGRAPHS_SMOKE_BASE_URL` first:
+
+```bash
+AUTOGRAPHS_SMOKE_BASE_URL=https://autographs.jetsaredim.net bash scripts/smoke-data-media.sh
 ```
 
 The deployed app also exposes `GET /health/data` for configuration readiness and `GET /health/data?live=1` for guarded live checks. The live check requires `Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}` and verifies both Oracle catalog access and private media bucket readiness.
+
+Published images are served through app-mediated URLs shaped as `/api/catalog/{itemId}/images/{imageId}`. The URL contains app-level catalog identifiers only; it does not expose Object Storage bucket credentials, signed direct URLs, or raw object keys as the public access contract.
 
 ## Workflow Behavior
 
