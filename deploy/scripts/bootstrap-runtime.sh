@@ -69,7 +69,7 @@ install_podman_compose() {
 
 install_podman_compose
 
-install -d -o "$DEPLOY_USER" -m 0755 "$DEPLOY_PATH" "$DEPLOY_PATH/compose" "$DEPLOY_PATH/nginx"
+install -d -o "$DEPLOY_USER" -m 0755 "$DEPLOY_PATH" "$DEPLOY_PATH/compose" "$DEPLOY_PATH/caddy"
 
 if command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active --quiet firewalld; then
   firewall-cmd --permanent --add-service=http
