@@ -37,7 +37,7 @@ That command builds the app image, starts the Compose topology locally with Dock
 5. If resources were created manually, import them using [imports.md](../infra/terraform/bootstrap/imports.md).
 6. Migrate existing state with [terraform-tenancy-split.md](terraform-tenancy-split.md) if this is an existing environment.
 7. Run runtime Terraform locally once if needed to prove the baseline and obtain outputs.
-8. Follow [dns-runbook.md](dns-runbook.md) when enabling the public app hostname.
+8. Follow [dns-runbook.md](dns-runbook.md) when enabling the public app hostname through Porkbun.
 
 Important operator inputs:
 
@@ -72,10 +72,6 @@ Populate repo-level GitHub Variables:
 - `DEPLOY_SSH_USER`
 - `DEPLOY_PATH`
 - `GHCR_IMAGE_REPOSITORY`
-- `OCI_CREATE_PUBLIC_DNS_ZONE`
-- `OCI_PUBLIC_DNS_ZONE_NAME`
-- `OCI_PUBLIC_DNS_RECORD_NAME`
-- `OCI_PUBLIC_DNS_RECORD_TTL`
 
 `GHCR_IMAGE_REPOSITORY` should be a `ghcr.io` image path such as `ghcr.io/jetsaredim/autographs/app`.
 
