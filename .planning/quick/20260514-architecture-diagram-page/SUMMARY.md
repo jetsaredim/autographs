@@ -11,7 +11,7 @@ Added a static `/architecture` page backed by committed draw.io source and an SV
 
 - Added `docs/architecture.drawio` as the editable draw.io diagram source.
 - Added `app/public/architecture-diagram.svg` as the website-rendered diagram export.
-- Simplified the diagram into large GitHub and OCI boxes with repo/CI/deploy/GHCR, VCN/subnet/VM/container stack, ADB, Object Storage, and Let's Encrypt interactions.
+- Simplified the diagram into large GitHub and OCI boxes with repo/CI/deploy/GHCR, VCN/subnet/VM/container stack, ADB, Object Storage, AI metadata processing, and Let's Encrypt interactions.
 - Added step 9 for Caddy's Let's Encrypt certificate obtain/renew flow, with Let's Encrypt shown outside the OCI boundary as an external gray service.
 - Renumbered workflow steps so manual Terraform tenancy bootstrap is step 1, followed by code push, validation, deploy, OCI runtime provisioning, image publishing, public traffic, private data access, and certificate management.
 - Routed the admin-to-GitHub workflow as a smooth left-side path to reduce overlap with GitHub title text.
@@ -20,6 +20,7 @@ Added a static `/architecture` page backed by committed draw.io source and an SV
 - Kept the VM label while leaving only the Caddy and Next container boxes inside the VM boundary.
 - Retargeted deployment and bootstrap workflow arrows to the outer OCI boundary while keeping Terraform details in the workflow table.
 - Removed the extra layer ownership card section and simplified the page heading to focus on the system diagram.
+- Added step 10 for the site admin content workflow: upload images/data through the app, store media in Object Storage, and use AI processing for metadata suggestions.
 - Added `app/app/architecture/page.tsx` with concise solution overview copy, diagram display, and workflow table.
 - Updated `app/app/page.tsx` with a link to the architecture page.
 - Updated `app/app/globals.css` for a monochrome black/gray theme and diagram/table presentation.
