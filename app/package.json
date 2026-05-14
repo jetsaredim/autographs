@@ -8,10 +8,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:seed:dry-run": "tsx scripts/seed.ts --dry-run"
   },
   "dependencies": {
     "next": "16.2.4",
+    "oci-sdk": "^2.131.2",
+    "oracledb": "^6.10.0",
     "react": "19.2.5",
     "react-dom": "19.2.5"
   },
@@ -22,6 +27,7 @@
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "16.2.4",
+    "tsx": "^4.21.0",
     "typescript": "6.0.3"
   }
 }

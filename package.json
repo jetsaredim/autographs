@@ -8,5 +8,11 @@
   "scripts": {
     "lint": "corepack pnpm --filter app lint",
     "typecheck": "corepack pnpm --filter app typecheck"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "esbuild",
+      "oracledb"
+    ]
   }
 }
