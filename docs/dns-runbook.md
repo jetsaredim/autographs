@@ -1,67 +1,58 @@
 # DNS Runbook
 
-This project uses OCI DNS for the app hostname while Porkbun remains the registrar
-for `jetsaredim.net`.
+This project uses Porkbun DNS directly for the public app hostname. OCI public
+DNS zones are intentionally not managed by Terraform because OCI public DNS is
+not available in the current free-tier setup.
 
-## Delegation Model
+## DNS Model
 
-Delegate only the app subdomain to OCI:
-
-```text
-autographs.jetsaredim.net
-```
-
-This keeps the rest of `jetsaredim.net` in Porkbun and lets Terraform manage only
-the DNS zone needed by this app.
-
-## Terraform Resources
-
-The runtime Terraform root can create:
-
-- OCI public DNS zone: `autographs.jetsaredim.net`
-- A record: `autographs.jetsaredim.net -> runtime_public_ip`
-
-DNS is disabled by default so IAM permissions can be applied first.
-
-Enable it with:
-
-```hcl
-create_public_dns_zone = true
-public_dns_zone_name   = "autographs.jetsaredim.net"
-public_dns_record_name = "autographs.jetsaredim.net"
-public_dns_record_ttl  = 300
-```
-
-The deploy workflow reads the equivalent GitHub Variables:
+Keep `jetsaredim.net` hosted at Porkbun and create a direct `A` record for the
+app hostname:
 
 ```text
-OCI_CREATE_PUBLIC_DNS_ZONE=true
-OCI_PUBLIC_DNS_ZONE_NAME=autographs.jetsaredim.net
-OCI_PUBLIC_DNS_RECORD_NAME=autographs.jetsaredim.net
-OCI_PUBLIC_DNS_RECORD_TTL=300
+autographs.jetsaredim.net -> runtime_public_ip
 ```
 
-## Required Order
+The runtime VM public IP is produced by Terraform and currently also mirrored in
+the `VM_PUBLIC_IP` GitHub Variable for deploy fallback behavior.
 
-1. Apply the tenancy root so the deploy and operator policies include OCI DNS
-   permissions.
-2. Enable DNS in the runtime root and apply it.
-3. Read the Terraform output:
+## Porkbun Record
 
-```bash
-terraform -chdir=infra/terraform output public_dns_nameservers
+In Porkbun DNS for `jetsaredim.net`, create or update this record:
+
+```text
+Type: A
+Host: autographs
+Answer: <runtime_public_ip>
+TTL: 300
 ```
 
-4. In Porkbun DNS for `jetsaredim.net`, add NS records for the subdomain
-   `autographs` using the OCI nameserver hostnames from the output.
-5. Verify delegation:
+Use the current Terraform output for the address:
 
 ```bash
-dig NS autographs.jetsaredim.net
+terraform -chdir=infra/terraform output -raw runtime_public_ip
+```
+
+Or check the GitHub Variable fallback:
+
+```bash
+gh variable get VM_PUBLIC_IP --repo jetsaredim/autographs
+```
+
+## Verification
+
+After Porkbun is updated, verify resolution and the app health endpoint:
+
+```bash
 dig A autographs.jetsaredim.net
 curl --fail --silent http://autographs.jetsaredim.net/health
 ```
 
-OCI notes that resolver caches can take 24-48 hours to fully recognize a
-delegation change, although direct `dig` checks against authoritative servers can
-show the configuration sooner.
+Expected response:
+
+```json
+{"ok":true,"service":"autographs","scope":"proof-of-life"}
+```
+
+DNS changes can take time to propagate through recursive resolver caches, but a
+low TTL such as 300 seconds should make routine updates settle quickly.
