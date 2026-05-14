@@ -78,7 +78,7 @@
         <mxCell id="e-deploy-ghcr" edge="1" parent="1" source="deploy" style="endArrow=block;html=1;rounded=1;strokeColor=#27272a;strokeWidth=1;entryX=1;entryY=0.25;entryDx=0;entryDy=0;" target="ghcr">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-deploy-oci" edge="1" parent="1" source="deploy" style="endArrow=block;html=1;rounded=1;strokeColor=#27272a;strokeWidth=1;" target="oci-zone">
+        <mxCell id="e-deploy-oci" edge="1" parent="1" source="deploy" style="endArrow=block;html=1;rounded=1;strokeColor=#27272a;strokeWidth=1;entryX=0;entryY=0.425;entryDx=0;entryDy=0;" target="oci-zone">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e-ghcr-vm" edge="1" parent="1" source="ghcr" style="endArrow=block;html=1;rounded=1;strokeColor=#27272a;strokeWidth=1;entryX=0;entryY=0.25;" target="vm">
