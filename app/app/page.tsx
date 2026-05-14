@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const healthPayload = `{"ok":true,"service":"autographs","scope":"proof-of-life"}`;
 
 export default function HomePage() {
@@ -11,6 +13,10 @@ export default function HomePage() {
           scaffold exists, renders through the App Router, and exposes a stable
           health surface before gallery, admin, Oracle, or object-storage work
           begins.
+        </p>
+        <p className="lede lede-action">
+          Review the <Link href="/architecture">end-to-end architecture diagram</Link>{" "}
+          for the current delivery path from GitHub Actions to Caddy on OCI.
         </p>
 
         <div className="status-grid">

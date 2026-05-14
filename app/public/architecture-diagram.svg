@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">Autographs simplified architecture</title>
+  <desc id="desc">Simplified Autographs architecture with GitHub and OCI as the main zones. GitHub contains the repository, validation workflow, deploy workflow, and GHCR. OCI contains a VCN hierarchy with subnet, VM, Caddy, Next.js, plus ADB and Object Storage to the right. Numbered arrows correspond to the workflow table on the architecture page.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0 L7 3.5 L0 7 Z" fill="#27272a" />
+    </marker>
+    <style>
+      .bg{fill:#fff}.zone{fill:#f4f4f5;stroke:#a1a1aa;stroke-width:2}.panel{fill:#fff;stroke:#d4d4d8;stroke-width:2}.box{fill:#fff;stroke:#52525b;stroke-width:1.5}.subbox{fill:#fafafa;stroke:#71717a;stroke-width:1.5}.service{fill:#fff;stroke:#52525b;stroke-width:1.5}.title{font:700 26px Arial,Helvetica,sans-serif;fill:#111}.subtitle{font:400 13px Arial,Helvetica,sans-serif;fill:#3f3f46}.zone-title{font:700 22px Arial,Helvetica,sans-serif;fill:#111}.label{font:700 16px Arial,Helvetica,sans-serif;fill:#111}.small{font:400 13px Arial,Helvetica,sans-serif;fill:#3f3f46}.tiny{font:400 12px Arial,Helvetica,sans-serif;fill:#52525b}.flow{fill:none;stroke:#27272a;stroke-width:1;marker-end:url(#arrow)}.badge{fill:#111}.badge-text{font:700 12px Arial,Helvetica,sans-serif;fill:#fff}
+    </style>
+  </defs>
+
+  <rect class="bg" width="1280" height="760" rx="24" />
+  <text class="title" x="52" y="52">Autographs architecture</text>
+  <text class="subtitle" x="52" y="78">GitHub builds and deploys; OCI runs the application, metadata database, and private image storage.</text>
+
+  <rect class="box" x="60" y="112" width="168" height="72" rx="16" />
+  <text class="label" x="92" y="143">Admin user</text>
+  <text class="small" x="89" y="165">code + bootstrap</text>
+
+  <rect class="zone" x="54" y="214" width="458" height="360" rx="24" />
+  <text class="zone-title" x="86" y="252">GitHub</text>
+  <text class="small" x="86" y="274">Source, CI/CD, and container image publishing</text>
+
+  <rect class="box" x="92" y="310" width="156" height="76" rx="14" />
+  <text class="label" x="125" y="343">Repository</text>
+  <text class="small" x="113" y="365">app, infra, deploy</text>
+
+  <rect class="box" x="314" y="290" width="150" height="64" rx="14" />
+  <text class="label" x="354" y="322">Validate</text>
+  <text class="small" x="344" y="342">PR workflow</text>
+
+  <rect class="box" x="314" y="404" width="150" height="64" rx="14" />
+  <text class="label" x="360" y="436">Deploy</text>
+  <text class="small" x="339" y="456">main workflow</text>
+
+  <rect class="box" x="92" y="486" width="156" height="58" rx="14" />
+  <text class="label" x="145" y="517">GHCR</text>
+  <text class="small" x="115" y="537">app image</text>
+
+  <rect class="box" x="92" y="624" width="168" height="72" rx="16" />
+  <text class="label" x="130" y="655">End user</text>
+  <text class="small" x="124" y="677">public browser</text>
+
+  <path class="flow" d="M60 148 C22 176 18 318 92 348" />
+  <path class="flow" d="M248 348 C280 348 282 322 314 322" />
+  <path class="flow" d="M248 348 C282 366 282 436 314 436" />
+  <path class="flow" d="M314 436 C276 460 248 486 208 498" />
+
+  <rect class="zone" x="650" y="116" width="576" height="570" rx="24" />
+  <text class="zone-title" x="682" y="154">Oracle Cloud Infrastructure</text>
+  <text class="small" x="682" y="176">Runtime network, VM containers, ADB, and private Object Storage</text>
+
+  <rect class="panel" x="684" y="250" width="330" height="362" rx="18" />
+  <text class="label" x="716" y="284">VCN</text>
+  <rect class="subbox" x="722" y="322" width="254" height="246" rx="16" />
+  <text class="label" x="754" y="355">Public subnet</text>
+  <rect class="box" x="762" y="414" width="176" height="112" rx="16" />
+  <text class="label" x="790" y="445">Runtime VM</text>
+  <rect class="subbox" x="786" y="468" width="58" height="38" rx="10" />
+  <text class="tiny" x="799" y="492">Caddy</text>
+  <rect class="subbox" x="858" y="468" width="58" height="38" rx="10" />
+  <text class="tiny" x="871" y="492">Next</text>
+
+  <rect class="service" x="1060" y="330" width="118" height="74" rx="16" />
+  <text class="label" x="1093" y="362">ADB</text>
+  <text class="small" x="1080" y="384">metadata</text>
+
+  <rect class="service" x="1060" y="462" width="118" height="74" rx="16" />
+  <text class="label" x="1097" y="494">OS</text>
+  <text class="small" x="1086" y="516">images</text>
+
+  <path class="flow" d="M464 436 C560 436 566 186 650 186" />
+  <path class="flow" d="M248 515 C470 515 520 486 762 486" />
+  <path class="flow" d="M228 148 C390 148 506 136 650 146" />
+  <path class="flow" d="M260 660 C468 660 584 486 786 487" />
+  <rect class="zone" x="682" y="708" width="248" height="44" rx="16" />
+  <text class="label" x="748" y="735">Let&apos;s Encrypt</text>
+  <path class="flow" d="M815 468 C782 548 768 646 806 708" />
+  <circle class="badge" cx="772" cy="640" r="14" /><text class="badge-text" x="768" y="645">9</text>
+  <path class="flow" d="M916 487 C980 482 996 370 1060 367" />
+  <path class="flow" d="M916 487 C966 487 1010 499 1060 499" />
+
+  <circle class="badge" cx="30" cy="258" r="14" /><text class="badge-text" x="26" y="263">2</text>
+  <circle class="badge" cx="276" cy="322" r="14" /><text class="badge-text" x="272" y="327">3</text>
+  <circle class="badge" cx="278" cy="412" r="14" /><text class="badge-text" x="274" y="417">4</text>
+  <circle class="badge" cx="572" cy="310" r="14" /><text class="badge-text" x="568" y="315">5</text>
+  <circle class="badge" cx="510" cy="514" r="14" /><text class="badge-text" x="506" y="519">6</text>
+  <circle class="badge" cx="514" cy="134" r="14" /><text class="badge-text" x="510" y="139">1</text>
+  <circle class="badge" cx="528" cy="594" r="14" /><text class="badge-text" x="524" y="599">7</text>
+  <circle class="badge" cx="1004" cy="434" r="14" /><text class="badge-text" x="1000" y="439">8</text>
+</svg>
