@@ -75,11 +75,12 @@ export default function ArchitecturePage() {
         <p className="eyebrow">System architecture</p>
         <h1 id="architecture-title">Autographs system overview</h1>
         <p className="lede">
-          This page documents the full target solution: GitHub owns source
-          control, validation, image publishing, and CI/CD deployment automation;
-          OCI runs the Caddy-fronted Next.js app, Autonomous Database metadata,
-          and private Object Storage media with a bias toward Always Free and
-          low-cost resources.
+          The goal is to serve my autograph collection images on a public
+          website using only OCI Free Tier resources and GitHub CI/CD automation
+          for management. This page documents the full target solution: GitHub
+          owns source control, validation, image publishing, and deployment
+          automation; OCI runs the Caddy-fronted Next.js app, Autonomous
+          Database metadata, and private Object Storage media.
         </p>
       </section>
 
