@@ -67,7 +67,8 @@ locals {
     "Allow ${local.deploy_group} to manage virtual-network-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.deploy_group} to manage volume-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.deploy_group} to manage buckets in compartment id ${local.compartment_ocid}",
-    "Allow ${local.deploy_group} to manage objects in compartment id ${local.compartment_ocid}"
+    "Allow ${local.deploy_group} to manage objects in compartment id ${local.compartment_ocid}",
+    "Allow ${local.deploy_group} to manage dns in tenancy"
   ]
 
   operator_policy_statements = [
@@ -78,7 +79,8 @@ locals {
     "Allow ${local.operator_group} to manage virtual-network-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.operator_group} to manage volume-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.operator_group} to manage buckets in compartment id ${local.compartment_ocid}",
-    "Allow ${local.operator_group} to manage objects in compartment id ${local.compartment_ocid}"
+    "Allow ${local.operator_group} to manage objects in compartment id ${local.compartment_ocid}",
+    "Allow ${local.operator_group} to manage dns in tenancy"
   ]
 }
 
