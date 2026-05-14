@@ -1,100 +1,108 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
-  <title id="title">Autographs simplified architecture</title>
-  <desc id="desc">Simplified Autographs architecture with GitHub and OCI as the main zones. GitHub contains the repository, validation workflow, deploy workflow, and GHCR. OCI contains a VCN hierarchy with subnet, VM, Caddy, Next.js, ADB, Object Storage, and AI metadata processing. Numbered arrows correspond to the workflow table on the architecture page.</desc>
+  <title id="title">Autographs architecture diagram</title>
+  <desc id="desc">End-to-end system diagram showing GitHub CI/CD, OCI runtime resources, private storage, database, AI metadata suggestions, Let's Encrypt certificates, and user workflows.</desc>
   <defs>
-    <marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
-      <path d="M0 0 L7 3.5 L0 7 Z" fill="#27272a" />
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#27272a" />
     </marker>
     <style>
-      .bg{fill:#fff}.zone{fill:#f4f4f5;stroke:#a1a1aa;stroke-width:2}.panel{fill:#fff;stroke:#d4d4d8;stroke-width:2}.box{fill:#fff;stroke:#52525b;stroke-width:1.5}.subbox{fill:#fafafa;stroke:#71717a;stroke-width:1.5}.service{fill:#fff;stroke:#52525b;stroke-width:1.5}.title{font:700 26px Arial,Helvetica,sans-serif;fill:#111}.subtitle{font:400 13px Arial,Helvetica,sans-serif;fill:#3f3f46}.zone-title{font:700 22px Arial,Helvetica,sans-serif;fill:#111}.label{font:700 16px Arial,Helvetica,sans-serif;fill:#111}.small{font:400 13px Arial,Helvetica,sans-serif;fill:#3f3f46}.tiny{font:400 12px Arial,Helvetica,sans-serif;fill:#52525b}.flow{fill:none;stroke:#27272a;stroke-width:1;marker-end:url(#arrow)}.badge{fill:#111}.badge-text{font:700 12px Arial,Helvetica,sans-serif;fill:#fff}
+      .page-title { fill: #111111; font-family: Arial, Helvetica, sans-serif; font-size: 26px; font-weight: 700; }
+      .subtitle { fill: #3f3f46; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 400; }
+      .zone { fill: #f4f4f5; stroke: #a1a1aa; stroke-width: 1.5; }
+      .panel { fill: #ffffff; stroke: #d4d4d8; stroke-width: 1.5; }
+      .subpanel { fill: #fafafa; stroke: #71717a; stroke-width: 1.5; }
+      .box { fill: #ffffff; stroke: #52525b; stroke-width: 1.5; }
+      .container { fill: #fafafa; stroke: #71717a; stroke-width: 1.3; }
+      .flow { fill: none; stroke: #27272a; stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; }
+      .zone-title { fill: #111111; font-family: Arial, Helvetica, sans-serif; font-size: 22px; font-weight: 700; }
+      .zone-small { fill: #3f3f46; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 400; }
+      .label { fill: #111111; font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: 700; }
+      .small { fill: #3f3f46; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 400; }
+      .container-label { fill: #111111; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 600; }
+      .badge { fill: #111111; }
+      .badge-text { fill: #ffffff; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; }
     </style>
   </defs>
-
-  <rect class="bg" width="1280" height="760" rx="24" />
-  <text class="title" x="52" y="52">Autographs architecture</text>
-  <text class="subtitle" x="52" y="78">GitHub builds and deploys; OCI runs the application, metadata database, private image storage, and AI-assisted metadata workflow.</text>
-
-  <rect class="zone" x="54" y="112" width="458" height="360" rx="24" />
-  <text class="zone-title" x="86" y="150">GitHub</text>
-  <text class="small" x="86" y="172">Source, CI/CD, and container image publishing</text>
-
+  <text class="page-title" x="52" y="53" text-anchor="start">Autographs architecture</text>
+  <text class="subtitle" x="52" y="79" text-anchor="start">GitHub builds and deploys; OCI runs the application, metadata database, private image storage, and AI-assisted metadata workflow.</text>
+  <rect class="zone" x="54" y="112" width="458" height="360" rx="18" />
+  <rect class="zone" x="650" y="116" width="576" height="570" rx="18" />
+  <rect class="zone" x="682" y="708" width="248" height="44" rx="14" />
+  <rect class="panel" x="684" y="250" width="330" height="362" rx="14" />
+  <rect class="subpanel" x="722" y="322" width="254" height="246" rx="12" />
+  <rect class="box" x="762" y="414" width="176" height="112" rx="14" />
+  <text class="zone-title" x="86" y="151" text-anchor="start">GitHub</text>
+  <text class="zone-small" x="86" y="173" text-anchor="start">Source, CI/CD, and container image publishing</text>
+  <text class="zone-title" x="682" y="155" text-anchor="start">Oracle Cloud Infrastructure</text>
+  <text class="zone-small" x="682" y="177" text-anchor="start">Runtime network, VM containers, ADB, Object Storage, and AI metadata processing</text>
+  <text class="label" x="716" y="289" text-anchor="start">VCN</text>
+  <text class="label" x="754" y="358" text-anchor="start">Public subnet</text>
+  <text class="label" x="790" y="448" text-anchor="start">Runtime VM</text>
+  <text class="label" x="806" y="736" text-anchor="middle">Let's Encrypt</text>
   <rect class="box" x="92" y="208" width="156" height="76" rx="14" />
-  <text class="label" x="125" y="241">Repository</text>
-  <text class="small" x="113" y="263">app, infra, deploy</text>
-
+  <text class="label" x="170" y="235" text-anchor="middle">Repository</text>
+  <text class="small" x="170" y="257" text-anchor="middle">app, infra, deploy</text>
   <rect class="box" x="314" y="188" width="150" height="64" rx="14" />
-  <text class="label" x="354" y="220">Validate</text>
-  <text class="small" x="344" y="240">PR workflow</text>
-
+  <text class="label" x="389" y="215" text-anchor="middle">Validate</text>
+  <text class="small" x="389" y="237" text-anchor="middle">PR workflow</text>
   <rect class="box" x="314" y="302" width="150" height="64" rx="14" />
-  <text class="label" x="360" y="334">Deploy</text>
-  <text class="small" x="339" y="354">main workflow</text>
-
+  <text class="label" x="389" y="329" text-anchor="middle">Deploy</text>
+  <text class="small" x="389" y="351" text-anchor="middle">main workflow</text>
   <rect class="box" x="92" y="384" width="156" height="58" rx="14" />
-  <text class="label" x="145" y="415">GHCR</text>
-  <text class="small" x="115" y="435">app image</text>
-
-  <rect class="box" x="60" y="536" width="168" height="72" rx="16" />
-  <text class="label" x="92" y="567">Admin user</text>
-  <text class="small" x="88" y="589">code, bootstrap, data</text>
-
-  <rect class="box" x="300" y="636" width="168" height="72" rx="16" />
-  <text class="label" x="338" y="667">End user</text>
-  <text class="small" x="332" y="689">public browser</text>
-
-  <path class="flow" d="M60 572 C12 508 16 286 92 246" />
-  <path class="flow" d="M248 246 C280 246 282 220 314 220" />
-  <path class="flow" d="M248 246 C282 264 282 334 314 334" />
-  <path class="flow" d="M314 334 C276 358 248 384 208 396" />
-
-  <rect class="zone" x="650" y="116" width="576" height="570" rx="24" />
-  <text class="zone-title" x="682" y="154">Oracle Cloud Infrastructure</text>
-  <text class="small" x="682" y="176">Runtime network, VM containers, ADB, Object Storage, and AI metadata processing</text>
-
-  <rect class="panel" x="684" y="250" width="330" height="362" rx="18" />
-  <text class="label" x="716" y="284">VCN</text>
-  <rect class="subbox" x="722" y="322" width="254" height="246" rx="16" />
-  <text class="label" x="754" y="355">Public subnet</text>
-  <rect class="box" x="762" y="414" width="176" height="112" rx="16" />
-  <text class="label" x="790" y="445">Runtime VM</text>
-  <rect class="subbox" x="786" y="468" width="58" height="38" rx="10" />
-  <text class="tiny" x="799" y="492">Caddy</text>
-  <rect class="subbox" x="858" y="468" width="58" height="38" rx="10" />
-  <text class="tiny" x="871" y="492">Next</text>
-
-  <rect class="service" x="1060" y="258" width="118" height="64" rx="16" />
-  <text class="label" x="1093" y="288">ADB</text>
-  <text class="small" x="1080" y="308">metadata</text>
-
-  <rect class="service" x="1060" y="374" width="118" height="64" rx="16" />
-  <text class="label" x="1097" y="404">OS</text>
-  <text class="small" x="1086" y="424">images</text>
-
-  <rect class="service" x="1060" y="490" width="118" height="64" rx="16" />
-  <text class="label" x="1095" y="520">AI</text>
-  <text class="small" x="1082" y="540">suggestions</text>
-
-  <path class="flow" d="M464 334 C560 334 566 186 650 186" />
-  <path class="flow" d="M248 413 C468 413 520 444 762 444" />
-  <path class="flow" d="M228 572 C398 572 510 218 650 218" />
-  <path class="flow" d="M468 672 C560 672 636 487 786 487" />
-  <path class="flow" d="M228 572 C438 572 602 486 786 487" />
-  <path class="flow" d="M916 487 C980 474 1000 290 1060 290" />
-  <path class="flow" d="M916 487 C966 476 1010 406 1060 406" />
-  <path class="flow" d="M916 487 C966 488 1010 522 1060 522" />
-
-  <rect class="zone" x="682" y="708" width="248" height="44" rx="16" />
-  <text class="label" x="748" y="735">Let&apos;s Encrypt</text>
-  <path class="flow" d="M815 506 C790 566 784 652 806 708" />
-
-  <circle class="badge" cx="514" cy="134" r="14" /><text class="badge-text" x="510" y="139">1</text>
-  <circle class="badge" cx="28" cy="412" r="14" /><text class="badge-text" x="24" y="417">2</text>
-  <circle class="badge" cx="276" cy="220" r="14" /><text class="badge-text" x="272" y="225">3</text>
-  <circle class="badge" cx="278" cy="310" r="14" /><text class="badge-text" x="274" y="315">4</text>
-  <circle class="badge" cx="572" cy="310" r="14" /><text class="badge-text" x="568" y="315">5</text>
-  <circle class="badge" cx="510" cy="426" r="14" /><text class="badge-text" x="506" y="431">6</text>
-  <circle class="badge" cx="604" cy="610" r="14" /><text class="badge-text" x="600" y="615">7</text>
-  <circle class="badge" cx="1004" cy="376" r="14" /><text class="badge-text" x="1000" y="381">8</text>
-  <circle class="badge" cx="772" cy="640" r="14" /><text class="badge-text" x="768" y="645">9</text>
-  <circle class="badge" cx="510" cy="558" r="14" /><text class="badge-text" x="502" y="563">10</text>
+  <text class="label" x="170" y="411" text-anchor="middle">GHCR</text>
+  <text class="small" x="170" y="433" text-anchor="middle">app image</text>
+  <rect class="box" x="60" y="536" width="168" height="72" rx="14" />
+  <text class="label" x="144" y="563" text-anchor="middle">Admin user</text>
+  <text class="small" x="144" y="585" text-anchor="middle">code, bootstrap, data</text>
+  <rect class="box" x="300" y="636" width="168" height="72" rx="14" />
+  <text class="label" x="384" y="663" text-anchor="middle">End user</text>
+  <text class="small" x="384" y="685" text-anchor="middle">public browser</text>
+  <rect class="box" x="1060" y="258" width="118" height="64" rx="14" />
+  <text class="label" x="1119" y="285" text-anchor="middle">ADB</text>
+  <text class="small" x="1119" y="307" text-anchor="middle">metadata</text>
+  <rect class="box" x="1060" y="374" width="118" height="64" rx="14" />
+  <text class="label" x="1119" y="401" text-anchor="middle">OS</text>
+  <text class="small" x="1119" y="423" text-anchor="middle">images</text>
+  <rect class="box" x="1060" y="490" width="118" height="64" rx="14" />
+  <text class="label" x="1119" y="517" text-anchor="middle">AI</text>
+  <text class="small" x="1119" y="539" text-anchor="middle">suggestions</text>
+  <rect class="container" x="786" y="468" width="58" height="38" rx="14" />
+  <text class="container-label" x="815" y="492" text-anchor="middle">Caddy</text>
+  <rect class="container" x="858" y="468" width="58" height="38" rx="14" />
+  <text class="container-label" x="887" y="492" text-anchor="middle">Next</text>
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M60 572 C12 508 16 286 92 246" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M248 246 C280 246 282 220 314 220" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M248 246 C282 264 282 334 314 334" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M314 334 C284 358 276 413 248 413" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M464 334 C560 334 566 186 650 186" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M248 413 C468 413 520 442 762 442" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M228 572 C398 572 510 469 650 469" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M468 672 C560 672 636 487 786 487" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M228 572 C438 572 602 487 786 487" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M916 487 C980 474 1000 290 1060 290" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M916 487 C966 476 1010 406 1060 406" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M916 487 C966 488 1010 522 1060 522" marker-end="url(#arrow)" />
+  <path class="flow" fill="none" stroke="#27272a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M815 506 C790 566 784 652 806 708" marker-end="url(#arrow)" />
+  <circle class="badge" cx="276" cy="220" r="14" />
+  <text class="badge-text" x="276" y="224" text-anchor="middle">3</text>
+  <circle class="badge" cx="278" cy="310" r="14" />
+  <text class="badge-text" x="278" y="314" text-anchor="middle">4</text>
+  <circle class="badge" cx="554" cy="334" r="14" />
+  <text class="badge-text" x="554" y="338" text-anchor="middle">5</text>
+  <circle class="badge" cx="1000" cy="366" r="14" />
+  <text class="badge-text" x="1000" y="370" text-anchor="middle">8</text>
+  <circle class="badge" cx="28" cy="412" r="14" />
+  <text class="badge-text" x="28" y="416" text-anchor="middle">2</text>
+  <circle class="badge" cx="510" cy="426" r="14" />
+  <text class="badge-text" x="510" y="430" text-anchor="middle">6</text>
+  <circle class="badge" cx="434" cy="504" r="14" />
+  <text class="badge-text" x="434" y="508" text-anchor="middle">1</text>
+  <circle class="badge" cx="1004" cy="532" r="14" />
+  <text class="badge-text" x="1004" y="536" text-anchor="middle">10</text>
+  <circle class="badge" cx="538" cy="540" r="14" />
+  <text class="badge-text" x="538" y="544" text-anchor="middle">10</text>
+  <circle class="badge" cx="604" cy="610" r="14" />
+  <text class="badge-text" x="604" y="614" text-anchor="middle">7</text>
+  <circle class="badge" cx="772" cy="640" r="14" />
+  <text class="badge-text" x="772" y="644" text-anchor="middle">9</text>
 </svg>

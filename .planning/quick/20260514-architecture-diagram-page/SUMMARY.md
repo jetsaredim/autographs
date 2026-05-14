@@ -22,6 +22,8 @@ Added a static `/architecture` page backed by committed draw.io source and an SV
 - Removed the extra layer ownership card section and simplified the page heading to focus on the system diagram.
 - Added step 10 for the site admin content workflow: upload images/data through the app, store media in Object Storage, and use AI processing for metadata suggestions.
 - Adjusted workflow routing so admin-to-repo flares out, GHCR enters the VM near the VM label, and admin content management enters through Caddy.
+- Replaced the canonical draw.io source with the manually edited `architecture-1.drawio` version and regenerated the website SVG from that layout.
+- Preserved the intentional duplicate step 10 markers, ended the deploy-to-GHCR arrow on the GHCR box edge, and aligned the admin-to-OCI/admin-to-Caddy origins on the right side of the Admin user box.
 - Added `app/app/architecture/page.tsx` with concise solution overview copy, diagram display, and workflow table.
 - Updated `app/app/page.tsx` with a link to the architecture page.
 - Updated `app/app/globals.css` for a monochrome black/gray theme and diagram/table presentation.
