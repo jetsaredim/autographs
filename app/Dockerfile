@@ -19,6 +19,9 @@ COPY app/tsconfig.json app/tsconfig.json
 COPY app/next-env.d.ts app/next-env.d.ts
 COPY app/eslint.config.mjs app/eslint.config.mjs
 COPY app/app app/app
+COPY app/src app/src
+COPY app/db app/db
+COPY app/scripts app/scripts
 COPY app/public app/public
 
 RUN corepack enable && corepack prepare pnpm@11.1.1 --activate && pnpm --filter app build
