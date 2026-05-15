@@ -224,6 +224,24 @@ variable "autonomous_database_is_free_tier" {
   default     = true
 }
 
+variable "autonomous_database_is_mtls_connection_required" {
+  description = "Whether the Autonomous Database should require mTLS wallet authentication. Keep false for walletless TLS connection descriptors."
+  type        = bool
+  default     = false
+}
+
+variable "autonomous_database_access_control_enabled" {
+  description = "Whether the Autonomous Database should reject clients not listed in autonomous_database_whitelisted_ips."
+  type        = bool
+  default     = false
+}
+
+variable "autonomous_database_whitelisted_ips" {
+  description = "CIDR blocks or IP addresses allowed when Autonomous Database access control is enabled."
+  type        = list(string)
+  default     = []
+}
+
 variable "autonomous_database_db_workload" {
   description = "Autonomous Database workload type."
   type        = string

@@ -91,6 +91,9 @@ jobs:
           TF_VAR_autonomous_database_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_NAME || 'autographsdb' }}
           TF_VAR_autonomous_database_display_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME || 'autographs-prod-adb' }}
           TF_VAR_autonomous_database_admin_password: ${{ secrets.ADB_ADMIN_PASSWORD }}
+          TF_VAR_autonomous_database_is_mtls_connection_required: ${{ vars.OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED || 'false' }}
+          TF_VAR_autonomous_database_access_control_enabled: ${{ vars.OCI_AUTONOMOUS_DATABASE_ACCESS_CONTROL_ENABLED || 'false' }}
+          TF_VAR_autonomous_database_whitelisted_ips: ${{ vars.OCI_AUTONOMOUS_DATABASE_WHITELISTED_IPS || '[]' }}
           TF_VAR_create_media_bucket: ${{ vars.OCI_CREATE_MEDIA_BUCKET || 'false' }}
           TF_VAR_media_bucket_namespace: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           TF_VAR_media_bucket_name: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}

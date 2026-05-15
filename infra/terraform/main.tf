@@ -37,18 +37,21 @@ module "compute" {
 module "data_services" {
   source = "./modules/data_services"
 
-  create_autonomous_database                   = var.create_autonomous_database
-  autonomous_database_name                     = var.autonomous_database_name
-  autonomous_database_display_name             = var.autonomous_database_display_name
-  autonomous_database_admin_password           = var.autonomous_database_admin_password
-  autonomous_database_is_free_tier             = var.autonomous_database_is_free_tier
-  autonomous_database_db_workload              = var.autonomous_database_db_workload
-  autonomous_database_license_model            = var.autonomous_database_license_model
-  autonomous_database_data_storage_size_in_tbs = var.autonomous_database_data_storage_size_in_tbs
-  create_media_bucket                          = var.create_media_bucket
-  media_bucket_namespace                       = var.media_bucket_namespace
-  media_bucket_name                            = var.media_bucket_name
-  media_bucket_versioning                      = var.media_bucket_versioning
-  compartment_id                               = var.compartment_ocid
-  tags                                         = local.tags
+  create_autonomous_database                      = var.create_autonomous_database
+  autonomous_database_name                        = var.autonomous_database_name
+  autonomous_database_display_name                = var.autonomous_database_display_name
+  autonomous_database_admin_password              = var.autonomous_database_admin_password
+  autonomous_database_is_free_tier                = var.autonomous_database_is_free_tier
+  autonomous_database_is_mtls_connection_required = var.autonomous_database_is_mtls_connection_required
+  autonomous_database_access_control_enabled      = var.autonomous_database_access_control_enabled
+  autonomous_database_whitelisted_ips             = var.autonomous_database_whitelisted_ips
+  autonomous_database_db_workload                 = var.autonomous_database_db_workload
+  autonomous_database_license_model               = var.autonomous_database_license_model
+  autonomous_database_data_storage_size_in_tbs    = var.autonomous_database_data_storage_size_in_tbs
+  create_media_bucket                             = var.create_media_bucket
+  media_bucket_namespace                          = var.media_bucket_namespace
+  media_bucket_name                               = var.media_bucket_name
+  media_bucket_versioning                         = var.media_bucket_versioning
+  compartment_id                                  = var.compartment_ocid
+  tags                                            = local.tags
 }
