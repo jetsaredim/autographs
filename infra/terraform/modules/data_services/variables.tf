@@ -29,6 +29,21 @@ variable "autonomous_database_is_free_tier" {
   type        = bool
 }
 
+variable "autonomous_database_is_mtls_connection_required" {
+  description = "Whether Autonomous Database requires mTLS wallet authentication."
+  type        = bool
+}
+
+variable "autonomous_database_access_control_enabled" {
+  description = "Whether Autonomous Database network access control filtering is enabled."
+  type        = bool
+}
+
+variable "autonomous_database_whitelisted_ips" {
+  description = "CIDR blocks or IP addresses allowed when Autonomous Database access control is enabled."
+  type        = list(string)
+}
+
 variable "autonomous_database_db_workload" {
   description = "Autonomous Database workload type."
   type        = string
