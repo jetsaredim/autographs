@@ -1,0 +1,39 @@
+name: Data Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  data-smoke:
+    name: Verify Oracle and private media
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup runtime
+        uses: ./.github/actions/setup-runtime
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Run data/media smoke
+        env:
+          AUTOGRAPHS_DB_PROVIDER: oracle
+          ORACLE_DB_USER: ${{ vars.ORACLE_DB_USER || 'ADMIN' }}
+          ORACLE_DB_PASSWORD: ${{ secrets.ORACLE_DB_PASSWORD }}
+          ORACLE_DB_CONNECT_STRING: ${{ vars.ORACLE_DB_CONNECT_STRING }}
+          ORACLE_DB_WALLET_DIR: ${{ vars.ORACLE_DB_WALLET_DIR }}
+          AUTOGRAPHS_MEDIA_STORAGE_PROVIDER: ${{ vars.AUTOGRAPHS_MEDIA_STORAGE_PROVIDER || 'oci' }}
+          OCI_REGION: us-ashburn-1
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+          OCI_MEDIA_BUCKET_NAME: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
+          OCI_MEDIA_NAMESPACE: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
+          AUTOGRAPHS_SMOKE_BASE_URL: ${{ vars.AUTOGRAPHS_SMOKE_BASE_URL || 'https://autographs.jetsaredim.net' }}
+        run: bash scripts/smoke-data-media.sh

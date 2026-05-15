@@ -52,8 +52,8 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_MEDIA_BUCKET_NAME` | Private Object Storage bucket for autograph images; defaults to `autographs-media-prod` |
 | `OCI_MEDIA_NAMESPACE` | Object Storage namespace for the private media bucket; usually matches `OCI_OBJECT_STORAGE_NAMESPACE` |
 | `ORACLE_DB_USER` | Runtime database user for the app container; defaults to `ADMIN` for the first bootstrap path |
-| `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connection alias or connect descriptor, for example `autographsdb_high` |
-| `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the app container; defaults to `/opt/autographs/wallet` |
+| `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect descriptor; use the walletless TLS descriptor from the ADB console when mTLS is not required |
+| `ORACLE_DB_WALLET_DIR` | Optional runtime wallet directory inside the app container; leave empty for walletless TLS |
 | `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER` | Media adapter mode; `oci` in production, `local` for local smoke work without OCI credentials |
 | `AUTOGRAPHS_SMOKE_BASE_URL` | Optional local/operator value used by the data/media smoke script to verify a deployed app-mediated image route |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
