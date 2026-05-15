@@ -91,10 +91,7 @@ jobs:
           TF_VAR_autonomous_database_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_NAME || 'autographsdb' }}
           TF_VAR_autonomous_database_display_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME || 'autographs-prod-adb' }}
           TF_VAR_autonomous_database_admin_password: ${{ secrets.ADB_ADMIN_PASSWORD }}
-          TF_VAR_autonomous_database_is_mtls_connection_required: ${{ vars.OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED || 'false' }}
-          TF_VAR_autonomous_database_access_control_enabled: ${{ vars.OCI_AUTONOMOUS_DATABASE_ACCESS_CONTROL_ENABLED || 'true' }}
-          TF_VAR_autonomous_database_whitelisted_ips: ${{ vars.OCI_AUTONOMOUS_DATABASE_WHITELISTED_IPS || '[]' }}
-          TF_VAR_autonomous_database_allow_runtime_public_ip: ${{ vars.OCI_AUTONOMOUS_DATABASE_ALLOW_RUNTIME_PUBLIC_IP || 'true' }}
+          TF_VAR_autonomous_database_is_mtls_connection_required: ${{ vars.OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED || 'true' }}
           TF_VAR_create_media_bucket: ${{ vars.OCI_CREATE_MEDIA_BUCKET || 'false' }}
           TF_VAR_media_bucket_namespace: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           TF_VAR_media_bucket_name: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
@@ -124,7 +121,8 @@ jobs:
           ORACLE_DB_USER: ${{ vars.ORACLE_DB_USER || 'ADMIN' }}
           ORACLE_DB_PASSWORD: ${{ secrets.ORACLE_DB_PASSWORD }}
           ORACLE_DB_CONNECT_STRING: ${{ vars.ORACLE_DB_CONNECT_STRING || 'autographsdb_high' }}
-          ORACLE_DB_WALLET_DIR: ${{ vars.ORACLE_DB_WALLET_DIR }}
+          ORACLE_DB_WALLET_DIR: ${{ vars.ORACLE_DB_WALLET_DIR || '/opt/autographs/wallet' }}
+          ORACLE_DB_WALLET_ZIP_BASE64: ${{ secrets.ORACLE_DB_WALLET_ZIP_BASE64 }}
           AUTOGRAPHS_MEDIA_STORAGE_PROVIDER: ${{ vars.AUTOGRAPHS_MEDIA_STORAGE_PROVIDER || 'oci' }}
           AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
           OCI_REGION: us-ashburn-1

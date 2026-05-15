@@ -99,7 +99,7 @@ Populate repo-level GitHub Variables:
 
 Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, ADMIN password, and runtime connection values are ready. When enabling Phase 2 data services, Terraform provisions the ADB and bucket, while the deploy step passes app runtime coordinates through the VM-local Compose `.env` file.
 
-For the initial production path, prefer the ADB console's walletless TLS connection descriptor when the database is configured with mTLS not required. In that mode, set `ORACLE_DB_CONNECT_STRING` to the full `(description=...)` descriptor, leave `ORACLE_DB_WALLET_DIR` empty, keep `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=false`, and keep `OCI_AUTONOMOUS_DATABASE_ACCESS_CONTROL_ENABLED=true` with `OCI_AUTONOMOUS_DATABASE_ALLOW_RUNTIME_PUBLIC_IP=true` so Terraform adds the runtime VM public IP to the required ADB ACL. Use `OCI_AUTONOMOUS_DATABASE_WHITELISTED_IPS` only for extra stable client IPs/CIDRs.
+For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the app container.
 
 ## Data and Media Smoke
 

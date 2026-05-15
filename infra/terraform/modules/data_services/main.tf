@@ -8,10 +8,8 @@ resource "oci_database_autonomous_database" "catalog" {
   db_workload                 = var.autonomous_database_db_workload
   is_free_tier                = var.autonomous_database_is_free_tier
   is_mtls_connection_required = var.autonomous_database_is_mtls_connection_required
-  is_access_control_enabled   = var.autonomous_database_access_control_enabled
   license_model               = var.autonomous_database_license_model
   data_storage_size_in_tbs    = var.autonomous_database_data_storage_size_in_tbs
-  whitelisted_ips             = var.autonomous_database_whitelisted_ips
   freeform_tags               = var.tags
 
   lifecycle {

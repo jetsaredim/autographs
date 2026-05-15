@@ -27,6 +27,7 @@ These are repo-level GitHub Secrets for the deployment baseline and Phase 2 data
 | `DEPLOY_SSH_PRIVATE_KEY` | deploy workflow | SSH private key for the OCI runtime VM |
 | `ADB_ADMIN_PASSWORD` | deploy workflow / Terraform | Initial Oracle Autonomous Database ADMIN password when database creation is enabled |
 | `ORACLE_DB_PASSWORD` | deploy workflow / app runtime | Runtime database password passed to the Next.js container |
+| `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / app runtime | Base64-encoded ADB wallet zip used for mTLS connections |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | app runtime | Temporary Phase 2 operator token for guarded smoke/mutation endpoints until Phase 4 auth lands |
 
 The current Phase 1 OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the image build, Terraform, or VM deployment steps.
@@ -48,16 +49,13 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_CREATE_AUTONOMOUS_DATABASE` | Optional toggle for creating the Oracle Autonomous Database; defaults to `false` until credentials are ready |
 | `OCI_AUTONOMOUS_DATABASE_NAME` | Short Oracle DB name used by wallet aliases and connection strings; defaults to `autographsdb` |
 | `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME` | Display name for the Oracle Autonomous Database; defaults to `autographs-prod-adb` |
-| `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED` | Optional ADB mTLS toggle; defaults to `false` for walletless TLS descriptors |
-| `OCI_AUTONOMOUS_DATABASE_ACCESS_CONTROL_ENABLED` | Optional ADB network access-control toggle; defaults to `true` because walletless one-way TLS public endpoints require an ACL |
-| `OCI_AUTONOMOUS_DATABASE_WHITELISTED_IPS` | JSON list of additional ADB allowed IPs/CIDRs when ADB access control is enabled; defaults to `[]` |
-| `OCI_AUTONOMOUS_DATABASE_ALLOW_RUNTIME_PUBLIC_IP` | Optional toggle that adds the Terraform-managed runtime VM public IP to the ADB allow-list; defaults to `true` |
+| `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED` | Optional ADB mTLS toggle; defaults to `true` for the wallet-based production path |
 | `OCI_CREATE_MEDIA_BUCKET` | Optional toggle for creating the private media Object Storage bucket; defaults to `false` until the namespace is confirmed |
 | `OCI_MEDIA_BUCKET_NAME` | Private Object Storage bucket for autograph images; defaults to `autographs-media-prod` |
 | `OCI_MEDIA_NAMESPACE` | Object Storage namespace for the private media bucket; usually matches `OCI_OBJECT_STORAGE_NAMESPACE` |
 | `ORACLE_DB_USER` | Runtime database user for the app container; defaults to `ADMIN` for the first bootstrap path |
-| `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect descriptor; use the walletless TLS descriptor from the ADB console when mTLS is not required |
-| `ORACLE_DB_WALLET_DIR` | Optional runtime wallet directory inside the app container; leave empty for walletless TLS |
+| `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect alias or descriptor; use the wallet alias such as `autographsdb_medium` for mTLS |
+| `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the app container; defaults to `/opt/autographs/wallet` in deploy |
 | `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER` | Media adapter mode; `oci` in production, `local` for local smoke work without OCI credentials |
 | `AUTOGRAPHS_SMOKE_BASE_URL` | Optional local/operator value used by the data/media smoke script to verify a deployed app-mediated image route |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |

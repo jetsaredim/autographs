@@ -23,6 +23,8 @@ services:
       OCI_MEDIA_NAMESPACE: ${OCI_MEDIA_NAMESPACE:-}
     expose:
       - "3000"
+    volumes:
+      - ../wallet:/opt/autographs/wallet:ro
     healthcheck:
       test:
         [
