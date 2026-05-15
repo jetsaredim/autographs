@@ -39,11 +39,6 @@ jobs:
           private_key_path: ${{ runner.temp }}/oci/api_key.pem
           VM_PUBLIC_IP: ${{ vars.VM_PUBLIC_IP }}
         run: |
-          if [ -n "$VM_PUBLIC_IP" ]; then
-            echo "VM_PUBLIC_IP=$VM_PUBLIC_IP" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
           terraform init \
             -backend-config="bucket=autographs-tf-state" \
             -backend-config="namespace=${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}" \
@@ -51,7 +46,15 @@ jobs:
             -backend-config="key=envs/prod/terraform.tfstate" \
             -backend-config="workspace_key_prefix=envs" \
             -backend-config="auth=APIKey"
-          echo "VM_PUBLIC_IP=$(terraform output -raw runtime_public_ip)" >> "$GITHUB_ENV"
+          RESOLVED_VM_PUBLIC_IP="$(terraform output -raw runtime_public_ip 2>/dev/null || true)"
+          if [ -z "$RESOLVED_VM_PUBLIC_IP" ]; then
+            RESOLVED_VM_PUBLIC_IP="$VM_PUBLIC_IP"
+          fi
+          if [ -z "$RESOLVED_VM_PUBLIC_IP" ]; then
+            echo "Unable to resolve runtime VM IP from Terraform state or VM_PUBLIC_IP." >&2
+            exit 1
+          fi
+          echo "VM_PUBLIC_IP=$RESOLVED_VM_PUBLIC_IP" >> "$GITHUB_ENV"
 
       - name: Run data/media smoke on VM
         env:
