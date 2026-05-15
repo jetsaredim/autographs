@@ -29,6 +29,7 @@ ORACLE_DB_USER="${ORACLE_DB_USER:-ADMIN}"
 ORACLE_DB_PASSWORD="${ORACLE_DB_PASSWORD:-}"
 ORACLE_DB_CONNECT_STRING="${ORACLE_DB_CONNECT_STRING:-autographsdb_high}"
 ORACLE_DB_WALLET_DIR="${ORACLE_DB_WALLET_DIR:-}"
+ORACLE_DB_WALLET_ZIP_BASE64="${ORACLE_DB_WALLET_ZIP_BASE64:-}"
 AUTOGRAPHS_MEDIA_STORAGE_PROVIDER="${AUTOGRAPHS_MEDIA_STORAGE_PROVIDER:-oci}"
 AUTOGRAPHS_OPERATOR_API_TOKEN="${AUTOGRAPHS_OPERATOR_API_TOKEN:-}"
 OCI_REGION="${OCI_REGION:-us-ashburn-1}"
@@ -41,6 +42,9 @@ OCI_MEDIA_BUCKET_NAME="${OCI_MEDIA_BUCKET_NAME:-autographs-media-prod}"
 OCI_MEDIA_NAMESPACE="${OCI_MEDIA_NAMESPACE:-}"
 SSH_KEY_FILE="$(mktemp)"
 COMPOSE_ENV_FILE="$(mktemp)"
+WALLET_ZIP_FILE="$(mktemp)"
+WALLET_TAR_FILE="$(mktemp)"
+WALLET_EXTRACT_DIR="$(mktemp -d)"
 
 validate_pattern() {
   local name="$1"
@@ -98,7 +102,8 @@ if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; 
 fi
 
 cleanup() {
-  rm -f "$SSH_KEY_FILE" "$COMPOSE_ENV_FILE"
+  rm -f "$SSH_KEY_FILE" "$COMPOSE_ENV_FILE" "$WALLET_ZIP_FILE" "$WALLET_TAR_FILE"
+  rm -rf "$WALLET_EXTRACT_DIR"
 }
 
 trap cleanup EXIT
@@ -149,6 +154,15 @@ ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo DEPLOY_USER='${D
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/compose/compose.prod.yaml" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/compose/compose.prod.yaml"
 scp "${SSH_OPTS[@]}" "$COMPOSE_ENV_FILE" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/compose/.env"
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/caddy/Caddyfile" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/caddy/Caddyfile"
+
+if [ -n "$ORACLE_DB_WALLET_ZIP_BASE64" ]; then
+  printf '%s' "$ORACLE_DB_WALLET_ZIP_BASE64" | base64 -d >"$WALLET_ZIP_FILE"
+  unzip -q "$WALLET_ZIP_FILE" -d "$WALLET_EXTRACT_DIR"
+  tar -C "$WALLET_EXTRACT_DIR" -czf "$WALLET_TAR_FILE" .
+  scp "${SSH_OPTS[@]}" "$WALLET_TAR_FILE" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:/tmp/autographs-wallet.tgz"
+  ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
+    "sudo install -d -o '${DEPLOY_SSH_USER}' -m 0700 '${DEPLOY_PATH}/wallet' && sudo tar -xzf /tmp/autographs-wallet.tgz -C '${DEPLOY_PATH}/wallet' && sudo chown -R '${DEPLOY_SSH_USER}:${DEPLOY_SSH_USER}' '${DEPLOY_PATH}/wallet' && sudo chmod -R go-rwx '${DEPLOY_PATH}/wallet'"
+fi
 
 printf '%s' "$GHCR_TOKEN" | ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo podman login ghcr.io -u '${GITHUB_ACTOR}' --password-stdin"
 
