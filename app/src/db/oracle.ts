@@ -43,10 +43,6 @@ const createExecutorFromConnection = (
 export const createOracleExecutor = (): DatabaseExecutor => {
   const config = getOracleDatabaseConfig();
 
-  if (config.walletDir) {
-    process.env.TNS_ADMIN = config.walletDir;
-  }
-
   const withConnection = async <T>(
     work: (connection: Connection) => Promise<T>,
   ): Promise<T> => {
@@ -54,6 +50,15 @@ export const createOracleExecutor = (): DatabaseExecutor => {
       user: config.user,
       password: config.password,
       connectString: config.connectString,
+      ...(config.walletDir
+        ? {
+            configDir: config.walletDir,
+            walletLocation: config.walletDir,
+          }
+        : {}),
+      ...(config.walletPassword
+        ? { walletPassword: config.walletPassword }
+        : {}),
     });
 
     try {

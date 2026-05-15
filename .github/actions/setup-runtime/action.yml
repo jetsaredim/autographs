@@ -13,7 +13,7 @@ runs:
       shell: bash
       run: |
         corepack enable
-        corepack prepare pnpm@11.1.1 --activate
+        corepack prepare pnpm@11.1.2 --activate
 
     - name: Set up Terraform
       uses: hashicorp/setup-terraform@v4
