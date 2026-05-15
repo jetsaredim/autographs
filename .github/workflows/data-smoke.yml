@@ -17,23 +17,46 @@ jobs:
       - name: Setup runtime
         uses: ./.github/actions/setup-runtime
 
-      - name: Install dependencies
-        run: corepack pnpm install --frozen-lockfile
-
-      - name: Run data/media smoke
+      - name: Write OCI API private key
         env:
-          AUTOGRAPHS_DB_PROVIDER: oracle
-          ORACLE_DB_USER: ${{ vars.ORACLE_DB_USER || 'ADMIN' }}
-          ORACLE_DB_PASSWORD: ${{ secrets.ORACLE_DB_PASSWORD }}
-          ORACLE_DB_CONNECT_STRING: ${{ vars.ORACLE_DB_CONNECT_STRING }}
-          ORACLE_DB_WALLET_DIR: ${{ vars.ORACLE_DB_WALLET_DIR }}
-          AUTOGRAPHS_MEDIA_STORAGE_PROVIDER: ${{ vars.AUTOGRAPHS_MEDIA_STORAGE_PROVIDER || 'oci' }}
-          OCI_REGION: us-ashburn-1
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-          OCI_MEDIA_BUCKET_NAME: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
-          OCI_MEDIA_NAMESPACE: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/oci"
+          printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
+          chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
+
+      - name: Resolve runtime VM IP
+        working-directory: infra/terraform
+        env:
+          OCI_REGION: us-ashburn-1
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
+          tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
+          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          private_key_path: ${{ runner.temp }}/oci/api_key.pem
+          VM_PUBLIC_IP: ${{ vars.VM_PUBLIC_IP }}
+        run: |
+          if [ -n "$VM_PUBLIC_IP" ]; then
+            echo "VM_PUBLIC_IP=$VM_PUBLIC_IP" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          terraform init \
+            -backend-config="bucket=autographs-tf-state" \
+            -backend-config="namespace=${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}" \
+            -backend-config="region=us-ashburn-1" \
+            -backend-config="key=envs/prod/terraform.tfstate" \
+            -backend-config="workspace_key_prefix=envs" \
+            -backend-config="auth=APIKey"
+          echo "VM_PUBLIC_IP=$(terraform output -raw runtime_public_ip)" >> "$GITHUB_ENV"
+
+      - name: Run data/media smoke on VM
+        env:
+          DEPLOY_SSH_USER: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           AUTOGRAPHS_SMOKE_BASE_URL: ${{ vars.AUTOGRAPHS_SMOKE_BASE_URL || 'https://autographs.jetsaredim.net' }}
-        run: bash scripts/smoke-data-media.sh
+        run: bash scripts/smoke-data-media-vm.sh

@@ -41,7 +41,11 @@ COPY --from=builder /workspace/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=builder /workspace/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=builder /workspace/app/package.json ./app/package.json
 COPY --from=builder /workspace/app/next.config.ts ./app/next.config.ts
+COPY --from=builder /workspace/app/tsconfig.json ./app/tsconfig.json
 COPY --from=builder /workspace/app/public ./app/public
+COPY --from=builder /workspace/app/src ./app/src
+COPY --from=builder /workspace/app/db ./app/db
+COPY --from=builder /workspace/app/scripts ./app/scripts
 COPY --from=builder /workspace/app/.next ./app/.next
 
 EXPOSE 3000
