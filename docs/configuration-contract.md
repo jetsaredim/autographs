@@ -49,8 +49,9 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_AUTONOMOUS_DATABASE_NAME` | Short Oracle DB name used by wallet aliases and connection strings; defaults to `autographsdb` |
 | `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME` | Display name for the Oracle Autonomous Database; defaults to `autographs-prod-adb` |
 | `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED` | Optional ADB mTLS toggle; defaults to `false` for walletless TLS descriptors |
-| `OCI_AUTONOMOUS_DATABASE_ACCESS_CONTROL_ENABLED` | Optional ADB network access-control toggle; defaults to `false` so the app VM is not rejected by ADB ACL filtering |
-| `OCI_AUTONOMOUS_DATABASE_WHITELISTED_IPS` | JSON list of ADB allowed IPs/CIDRs when ADB access control is enabled; defaults to `[]` |
+| `OCI_AUTONOMOUS_DATABASE_ACCESS_CONTROL_ENABLED` | Optional ADB network access-control toggle; defaults to `true` because walletless one-way TLS public endpoints require an ACL |
+| `OCI_AUTONOMOUS_DATABASE_WHITELISTED_IPS` | JSON list of additional ADB allowed IPs/CIDRs when ADB access control is enabled; defaults to `[]` |
+| `OCI_AUTONOMOUS_DATABASE_ALLOW_RUNTIME_PUBLIC_IP` | Optional toggle that adds the Terraform-managed runtime VM public IP to the ADB allow-list; defaults to `true` |
 | `OCI_CREATE_MEDIA_BUCKET` | Optional toggle for creating the private media Object Storage bucket; defaults to `false` until the namespace is confirmed |
 | `OCI_MEDIA_BUCKET_NAME` | Private Object Storage bucket for autograph images; defaults to `autographs-media-prod` |
 | `OCI_MEDIA_NAMESPACE` | Object Storage namespace for the private media bucket; usually matches `OCI_OBJECT_STORAGE_NAMESPACE` |

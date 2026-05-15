@@ -231,15 +231,21 @@ variable "autonomous_database_is_mtls_connection_required" {
 }
 
 variable "autonomous_database_access_control_enabled" {
-  description = "Whether the Autonomous Database should reject clients not listed in autonomous_database_whitelisted_ips."
+  description = "Whether the Autonomous Database should reject clients not listed in the effective ADB allow-list. Required for walletless one-way TLS public endpoints."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "autonomous_database_whitelisted_ips" {
-  description = "CIDR blocks or IP addresses allowed when Autonomous Database access control is enabled."
+  description = "Additional CIDR blocks or IP addresses allowed when Autonomous Database access control is enabled."
   type        = list(string)
   default     = []
+}
+
+variable "autonomous_database_allow_runtime_public_ip" {
+  description = "Whether Terraform should add the runtime VM public IP to the Autonomous Database allow-list."
+  type        = bool
+  default     = true
 }
 
 variable "autonomous_database_db_workload" {
