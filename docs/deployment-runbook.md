@@ -92,6 +92,8 @@ Populate repo-level GitHub Variables:
 - `VM_PUBLIC_IP`
 - `DEPLOY_SSH_USER`
 - `DEPLOY_PATH`
+- `DEPLOY_SSH_READY_TIMEOUT_SECONDS`
+- `DEPLOY_SSH_READY_INTERVAL_SECONDS`
 - `GHCR_IMAGE_REPOSITORY`
 - `GHCR_CLEANUP_RETAIN_TAGGED`
 - `GHCR_CLEANUP_MIN_AGE_DAYS`
@@ -99,7 +101,7 @@ Populate repo-level GitHub Variables:
 
 `GHCR_IMAGE_REPOSITORY` should be a `ghcr.io` image path such as `ghcr.io/jetsaredim/autographs/app`.
 
-`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `GHCR_IMAGE_REPOSITORY`, `GHCR_CLEANUP_RETAIN_TAGGED`, `GHCR_CLEANUP_MIN_AGE_DAYS`, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
+`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_IMAGE_REPOSITORY`, `GHCR_CLEANUP_RETAIN_TAGGED`, `GHCR_CLEANUP_MIN_AGE_DAYS`, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
 Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, ADMIN password, and runtime connection values are ready. When enabling Phase 2 data services, Terraform provisions the ADB and bucket, while the deploy step passes app runtime coordinates through the VM-local Compose `.env` file.
 
@@ -136,12 +138,13 @@ Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 1. validates the repository,
 2. publishes a prebuilt app image to `ghcr.io`,
 3. runs `terraform apply`,
-4. copies the committed compose and Caddy files to the OCI VM,
-5. maintains a 2 GiB `/.swapfile` on the OCI VM,
-6. copies wallet and OCI API key material to protected VM paths,
-7. runs `podman-compose pull` and restarts the runtime,
-8. checks the Caddy-fronted `/health` proof-of-life route,
-9. prunes old GHCR app image versions.
+4. waits for SSH readiness when Terraform has created or replaced the OCI VM,
+5. copies the committed compose and Caddy files to the OCI VM,
+6. maintains a 2 GiB `/.swapfile` on the OCI VM,
+7. copies wallet and OCI API key material to protected VM paths,
+8. runs `podman-compose pull` and restarts the runtime,
+9. checks the Caddy-fronted `/health` proof-of-life route,
+10. prunes old GHCR app image versions.
 
 The VM pulls the image built by GitHub Actions. The VM does not build application code during deploy.
 
