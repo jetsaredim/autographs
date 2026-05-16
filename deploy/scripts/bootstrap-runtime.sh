@@ -58,10 +58,15 @@ install_podman_compose() {
     exit 1
   fi
 
-  dnf install -y dnf-plugins-core
-  dnf install -y podman
+  if ! rpm -q dnf-plugins-core >/dev/null 2>&1; then
+    dnf install -y dnf-plugins-core
+  fi
 
-  if ! command -v podman-compose >/dev/null 2>&1; then
+  if ! rpm -q podman >/dev/null 2>&1; then
+    dnf install -y podman
+  fi
+
+  if ! rpm -q podman-compose >/dev/null 2>&1; then
     enable_oracle_epel
     dnf install -y podman-compose
   fi
