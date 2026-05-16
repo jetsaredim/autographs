@@ -108,6 +108,11 @@ if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; 
   exit 1
 fi
 
+if [ "$DEPLOY_SSH_READY_TIMEOUT_SECONDS" -lt 1 ] || [ "$DEPLOY_SSH_READY_INTERVAL_SECONDS" -lt 1 ]; then
+  echo "DEPLOY_SSH_READY_TIMEOUT_SECONDS and DEPLOY_SSH_READY_INTERVAL_SECONDS must be positive integers" >&2
+  exit 1
+fi
+
 cleanup() {
   rm -f "$SSH_KEY_FILE" "$COMPOSE_ENV_FILE" "$OCI_PRIVATE_KEY_FILE" "$WALLET_ZIP_FILE" "$WALLET_TAR_FILE"
   rm -rf "$WALLET_EXTRACT_DIR"
