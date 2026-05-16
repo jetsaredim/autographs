@@ -65,6 +65,8 @@ Populate repo-level GitHub Secrets:
 - `DEPLOY_SSH_PRIVATE_KEY`
 - `ADB_ADMIN_PASSWORD`
 - `ORACLE_DB_PASSWORD`
+- `ORACLE_DB_WALLET_ZIP_BASE64` when using an mTLS wallet
+- `ORACLE_DB_WALLET_PASSWORD` when the node-oracledb Thin connection needs the downloaded wallet password
 - `AUTOGRAPHS_OPERATOR_API_TOKEN`
 
 Populate repo-level GitHub Variables:
@@ -91,15 +93,17 @@ Populate repo-level GitHub Variables:
 - `DEPLOY_SSH_USER`
 - `DEPLOY_PATH`
 - `GHCR_IMAGE_REPOSITORY`
+- `GHCR_CLEANUP_RETAIN_TAGGED`
+- `GHCR_CLEANUP_MIN_AGE_DAYS`
 - `AUTOGRAPHS_DOMAIN`
 
 `GHCR_IMAGE_REPOSITORY` should be a `ghcr.io` image path such as `ghcr.io/jetsaredim/autographs/app`.
 
-`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `GHCR_IMAGE_REPOSITORY`, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
+`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `GHCR_IMAGE_REPOSITORY`, `GHCR_CLEANUP_RETAIN_TAGGED`, `GHCR_CLEANUP_MIN_AGE_DAYS`, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
 Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, ADMIN password, and runtime connection values are ready. When enabling Phase 2 data services, Terraform provisions the ADB and bucket, while the deploy step passes app runtime coordinates through the VM-local Compose `.env` file.
 
-For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the app container.
+For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Also store the wallet download password in `ORACLE_DB_WALLET_PASSWORD` if the Thin driver requires it. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the app container.
 
 ## Data and Media Smoke
 
@@ -132,9 +136,12 @@ Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 3. runs `terraform apply`,
 4. copies the committed compose and Caddy files to the OCI VM,
 5. runs `podman-compose pull` and restarts the runtime,
-6. checks the Caddy-fronted `/health` proof-of-life route.
+6. checks the Caddy-fronted `/health` proof-of-life route,
+7. prunes old GHCR app image versions.
 
 The VM pulls the image built by GitHub Actions. The VM does not build application code during deploy.
+
+The GHCR cleanup step runs only after the VM deploy succeeds. By default it keeps the newest 10 app image versions, keeps the currently deployed commit image, keeps `latest`, and refuses to delete images newer than 7 days. Tune those guardrails with `GHCR_CLEANUP_RETAIN_TAGGED` and `GHCR_CLEANUP_MIN_AGE_DAYS`.
 
 ## Manual Smoke Path
 

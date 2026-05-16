@@ -6,6 +6,7 @@ export type OracleDatabaseConfig = {
   password: string;
   connectString: string;
   walletDir?: string;
+  walletPassword?: string;
 };
 
 const readEnv = (name: string): string | undefined => {
@@ -30,5 +31,6 @@ export const getOracleDatabaseConfig = (): OracleDatabaseConfig => {
     password,
     connectString,
     walletDir: readEnv("ORACLE_DB_WALLET_DIR"),
+    walletPassword: readEnv("ORACLE_DB_WALLET_PASSWORD"),
   };
 };

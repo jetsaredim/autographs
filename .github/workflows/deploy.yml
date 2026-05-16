@@ -122,6 +122,7 @@ jobs:
           ORACLE_DB_PASSWORD: ${{ secrets.ORACLE_DB_PASSWORD }}
           ORACLE_DB_CONNECT_STRING: ${{ vars.ORACLE_DB_CONNECT_STRING || 'autographsdb_high' }}
           ORACLE_DB_WALLET_DIR: ${{ vars.ORACLE_DB_WALLET_DIR || '/opt/autographs/wallet' }}
+          ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
           ORACLE_DB_WALLET_ZIP_BASE64: ${{ secrets.ORACLE_DB_WALLET_ZIP_BASE64 }}
           AUTOGRAPHS_MEDIA_STORAGE_PROVIDER: ${{ vars.AUTOGRAPHS_MEDIA_STORAGE_PROVIDER || 'oci' }}
           AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
@@ -135,3 +136,13 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: bash scripts/deploy-vm.sh
+
+      - name: Prune old GHCR app images
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+          GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
+          GHCR_CLEANUP_RETAIN_TAGGED: ${{ vars.GHCR_CLEANUP_RETAIN_TAGGED || '10' }}
+          GHCR_CLEANUP_MIN_AGE_DAYS: ${{ vars.GHCR_CLEANUP_MIN_AGE_DAYS || '7' }}
+        run: node scripts/cleanup-ghcr-images.mjs

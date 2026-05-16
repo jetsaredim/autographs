@@ -28,6 +28,7 @@ These are repo-level GitHub Secrets for the deployment baseline and Phase 2 data
 | `ADB_ADMIN_PASSWORD` | deploy workflow / Terraform | Initial Oracle Autonomous Database ADMIN password when database creation is enabled |
 | `ORACLE_DB_PASSWORD` | deploy workflow / app runtime | Runtime database password passed to the Next.js container |
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / app runtime | Base64-encoded ADB wallet zip used for mTLS connections |
+| `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / app runtime | Optional wallet password for node-oracledb Thin mode mTLS connections |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | app runtime | Temporary Phase 2 operator token for guarded smoke/mutation endpoints until Phase 4 auth lands |
 
 The current Phase 1 OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the image build, Terraform, or VM deployment steps.
@@ -63,8 +64,10 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `DEPLOY_PATH` | Directory on the VM that stores compose and Caddy runtime files |
 | `AUTOGRAPHS_DOMAIN` | Public hostname served by Caddy with automatic TLS; defaults to `autographs.jetsaredim.net` |
 | `GHCR_IMAGE_REPOSITORY` | Published app image path, for example `ghcr.io/jetsaredim/autographs/app` |
+| `GHCR_CLEANUP_RETAIN_TAGGED` | Number of newest GHCR app image versions to retain after deploy; defaults to `10` |
+| `GHCR_CLEANUP_MIN_AGE_DAYS` | Minimum image age before GHCR cleanup can delete it; defaults to `7` |
 
-The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the runtime state object key is `envs/prod/terraform.tfstate`. `GHCR_IMAGE_REPOSITORY`, `OCI_COMPARTMENT_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_IMAGE_OCID`, `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, `OCI_OBJECT_STORAGE_NAMESPACE`, data-service toggles, data-service names, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
+The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the runtime state object key is `envs/prod/terraform.tfstate`. `GHCR_IMAGE_REPOSITORY`, `GHCR_CLEANUP_RETAIN_TAGGED`, `GHCR_CLEANUP_MIN_AGE_DAYS`, `OCI_COMPARTMENT_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_IMAGE_OCID`, `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, `OCI_OBJECT_STORAGE_NAMESPACE`, data-service toggles, data-service names, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
 
 ## Local Operator Values
 
@@ -91,7 +94,7 @@ GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_
 
 Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, ADMIN password, and runtime connection values.
 
-The runtime container receives database and media coordinates through Compose environment variables, not committed files. The deploy script writes a VM-local `.env` file beside `compose.prod.yaml`; keep wallet material, real database passwords, operator tokens, and API signing material out of git. The Phase 2 media adapter supports `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER=local` for local smoke work and `oci` for production Object Storage.
+The runtime container receives database and media coordinates through Compose environment variables, not committed files. The deploy script writes a VM-local `.env` file beside `compose.prod.yaml`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. The Phase 2 media adapter supports `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER=local` for local smoke work and `oci` for production Object Storage.
 
 ## Optional GitHub Environments
 
@@ -99,4 +102,4 @@ GitHub Environments may be added later for manual approval, deployment history, 
 
 ## Runtime Image Contract
 
-Deployments publish a prebuilt app image to `ghcr.io` and set `AUTOGRAPHS_APP_IMAGE` on the VM. The VM does not build the application. It pulls the exact image published by GitHub Actions, restarts the Podman-backed Compose topology, and checks the Caddy-fronted `/health` route before the workflow succeeds.
+Deployments publish a prebuilt app image to `ghcr.io` and set `AUTOGRAPHS_APP_IMAGE` on the VM. The VM does not build the application. It pulls the exact image published by GitHub Actions, restarts the Podman-backed Compose topology, and checks the Caddy-fronted `/health` route before the workflow succeeds. After a successful VM deploy, the workflow prunes old GHCR app image versions while keeping the deployed commit image, `latest`, the newest retained versions, and any image newer than the configured minimum age.
