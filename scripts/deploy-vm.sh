@@ -41,8 +41,10 @@ OCI_PRIVATE_KEY_PEM="${OCI_PRIVATE_KEY_PEM:-}"
 OCI_PRIVATE_KEY_PATH="${OCI_PRIVATE_KEY_PATH:-}"
 OCI_MEDIA_BUCKET_NAME="${OCI_MEDIA_BUCKET_NAME:-autographs-media-prod}"
 OCI_MEDIA_NAMESPACE="${OCI_MEDIA_NAMESPACE:-}"
+OCI_PRIVATE_KEY_CONTAINER_PATH="/opt/autographs/secrets/oci_api_key.pem"
 SSH_KEY_FILE="$(mktemp)"
 COMPOSE_ENV_FILE="$(mktemp)"
+OCI_PRIVATE_KEY_FILE="$(mktemp)"
 WALLET_ZIP_FILE="$(mktemp)"
 WALLET_TAR_FILE="$(mktemp)"
 WALLET_EXTRACT_DIR="$(mktemp -d)"
@@ -103,7 +105,7 @@ if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; 
 fi
 
 cleanup() {
-  rm -f "$SSH_KEY_FILE" "$COMPOSE_ENV_FILE" "$WALLET_ZIP_FILE" "$WALLET_TAR_FILE"
+  rm -f "$SSH_KEY_FILE" "$COMPOSE_ENV_FILE" "$OCI_PRIVATE_KEY_FILE" "$WALLET_ZIP_FILE" "$WALLET_TAR_FILE"
   rm -rf "$WALLET_EXTRACT_DIR"
 }
 
@@ -111,6 +113,12 @@ trap cleanup EXIT
 
 printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" >"$SSH_KEY_FILE"
 chmod 600 "$SSH_KEY_FILE"
+
+if [ -n "$OCI_PRIVATE_KEY_PEM" ]; then
+  printf '%s\n' "$OCI_PRIVATE_KEY_PEM" >"$OCI_PRIVATE_KEY_FILE"
+  chmod 600 "$OCI_PRIVATE_KEY_FILE"
+  OCI_PRIVATE_KEY_PATH="$OCI_PRIVATE_KEY_CONTAINER_PATH"
+fi
 
 write_compose_env() {
   local name="$1"
@@ -139,7 +147,6 @@ write_compose_env OCI_REGION "$OCI_REGION"
 write_compose_env OCI_TENANCY_OCID "$OCI_TENANCY_OCID"
 write_compose_env OCI_CLI_USER_OCID "$OCI_CLI_USER_OCID"
 write_compose_env OCI_FINGERPRINT "$OCI_FINGERPRINT"
-write_compose_env OCI_PRIVATE_KEY_PEM "$OCI_PRIVATE_KEY_PEM"
 write_compose_env OCI_PRIVATE_KEY_PATH "$OCI_PRIVATE_KEY_PATH"
 write_compose_env OCI_MEDIA_BUCKET_NAME "$OCI_MEDIA_BUCKET_NAME"
 write_compose_env OCI_MEDIA_NAMESPACE "$OCI_MEDIA_NAMESPACE"
@@ -157,6 +164,12 @@ ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo DEPLOY_USER='${D
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/compose/compose.prod.yaml" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/compose/compose.prod.yaml"
 scp "${SSH_OPTS[@]}" "$COMPOSE_ENV_FILE" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/compose/.env"
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/caddy/Caddyfile" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/caddy/Caddyfile"
+
+if [ -n "$OCI_PRIVATE_KEY_PEM" ]; then
+  scp "${SSH_OPTS[@]}" "$OCI_PRIVATE_KEY_FILE" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:/tmp/autographs-oci-api-key.pem"
+  ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
+    "trap 'sudo rm -f /tmp/autographs-oci-api-key.pem' EXIT; sudo install -d -o '${DEPLOY_SSH_USER}' -m 0700 '${DEPLOY_PATH}/secrets' && sudo install -o '${DEPLOY_SSH_USER}' -m 0600 /tmp/autographs-oci-api-key.pem '${DEPLOY_PATH}/secrets/oci_api_key.pem'"
+fi
 
 if [ -n "$ORACLE_DB_WALLET_ZIP_BASE64" ]; then
   printf '%s' "$ORACLE_DB_WALLET_ZIP_BASE64" | base64 -d >"$WALLET_ZIP_FILE"

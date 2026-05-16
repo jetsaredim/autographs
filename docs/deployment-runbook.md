@@ -105,6 +105,8 @@ Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` 
 
 For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Also store the wallet download password in `ORACLE_DB_WALLET_PASSWORD` if the Thin driver requires it. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the app container.
 
+The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM`. Terraform uses it from the runner temp directory. Runtime deploy copies it to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounts `${DEPLOY_PATH}/secrets` read-only into the app container, and sets `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. This preserves PEM newlines for the OCI SDK and avoids putting multiline private keys in the Compose `.env` file.
+
 ## Data and Media Smoke
 
 Basic `/health` remains a proof-of-life check and does not require Oracle or Object Storage secrets. Use the deeper smoke path only when data-service credentials are present:
@@ -135,11 +137,15 @@ Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 2. publishes a prebuilt app image to `ghcr.io`,
 3. runs `terraform apply`,
 4. copies the committed compose and Caddy files to the OCI VM,
-5. runs `podman-compose pull` and restarts the runtime,
-6. checks the Caddy-fronted `/health` proof-of-life route,
-7. prunes old GHCR app image versions.
+5. maintains a 2 GiB `/.swapfile` on the OCI VM,
+6. copies wallet and OCI API key material to protected VM paths,
+7. runs `podman-compose pull` and restarts the runtime,
+8. checks the Caddy-fronted `/health` proof-of-life route,
+9. prunes old GHCR app image versions.
 
 The VM pulls the image built by GitHub Actions. The VM does not build application code during deploy.
+
+The VM bootstrap keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because `tsx`, Next.js, and smoke/admin scripts can briefly exceed the VM's physical memory.
 
 The GHCR cleanup step runs only after the VM deploy succeeds. By default it keeps the newest 10 app image versions, keeps the currently deployed commit image, keeps `latest`, and refuses to delete images newer than 7 days. Tune those guardrails with `GHCR_CLEANUP_RETAIN_TAGGED` and `GHCR_CLEANUP_MIN_AGE_DAYS`.
 
