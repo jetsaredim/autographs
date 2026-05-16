@@ -67,9 +67,47 @@ install_podman_compose() {
   fi
 }
 
+configure_swap() {
+  local swap_file="/.swapfile"
+  local swap_size_mib=2048
+  local current_size_mib=0
+
+  if [ -f "$swap_file" ]; then
+    current_size_mib=$(du -m "$swap_file" | awk '{print $1}')
+  fi
+
+  if [ "$current_size_mib" -lt "$swap_size_mib" ]; then
+    if swapon --show=NAME --noheadings | grep -Fxq "$swap_file"; then
+      swapoff "$swap_file"
+    fi
+
+    rm -f "$swap_file"
+    fallocate -l "${swap_size_mib}M" "$swap_file"
+    chmod 600 "$swap_file"
+    mkswap "$swap_file"
+  fi
+
+  if ! swapon --show=NAME --noheadings | grep -Fxq "$swap_file"; then
+    swapon "$swap_file"
+  fi
+
+  if ! grep -Eq '^[^#[:space:]]+[[:space:]]+none[[:space:]]+swap[[:space:]]' /etc/fstab; then
+    printf '%s\n' "$swap_file none swap sw 0 0" >>/etc/fstab
+  elif ! grep -Eq "^${swap_file//\//\\/}[[:space:]]+none[[:space:]]+swap[[:space:]]" /etc/fstab; then
+    sed -i.bak -E "s|^[^#[:space:]]+[[:space:]]+none[[:space:]]+swap[[:space:]].*|$swap_file none swap sw 0 0|" /etc/fstab
+  fi
+
+  cat >/etc/sysctl.d/99-autographs-swap.conf <<'SYSCTL'
+vm.swappiness=20
+SYSCTL
+  sysctl --system >/dev/null
+}
+
+configure_swap
 install_podman_compose
 
 install -d -o "$DEPLOY_USER" -m 0755 "$DEPLOY_PATH" "$DEPLOY_PATH/compose" "$DEPLOY_PATH/caddy"
+install -d -o "$DEPLOY_USER" -m 0700 "$DEPLOY_PATH/secrets"
 
 if command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active --quiet firewalld; then
   firewall-cmd --permanent --add-service=http
