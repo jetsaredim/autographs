@@ -111,6 +111,8 @@ jobs:
           VM_PUBLIC_IP: ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
           DEPLOY_SSH_USER: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
+          DEPLOY_SSH_READY_TIMEOUT_SECONDS: ${{ vars.DEPLOY_SSH_READY_TIMEOUT_SECONDS || '900' }}
+          DEPLOY_SSH_READY_INTERVAL_SECONDS: ${{ vars.DEPLOY_SSH_READY_INTERVAL_SECONDS || '10' }}
           DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
           AUTOGRAPHS_APP_IMAGE: ${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}

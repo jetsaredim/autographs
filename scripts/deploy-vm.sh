@@ -21,6 +21,8 @@ require_env GITHUB_ACTOR
 require_env GHCR_TOKEN
 
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/autographs}"
+DEPLOY_SSH_READY_TIMEOUT_SECONDS="${DEPLOY_SSH_READY_TIMEOUT_SECONDS:-900}"
+DEPLOY_SSH_READY_INTERVAL_SECONDS="${DEPLOY_SSH_READY_INTERVAL_SECONDS:-10}"
 AUTOGRAPHS_DOMAIN="${AUTOGRAPHS_DOMAIN:-autographs.jetsaredim.net}"
 AUTOGRAPHS_HTTP_PORT="${AUTOGRAPHS_HTTP_PORT:-80}"
 AUTOGRAPHS_HTTPS_PORT="${AUTOGRAPHS_HTTPS_PORT:-443}"
@@ -63,6 +65,8 @@ validate_pattern() {
 validate_pattern VM_PUBLIC_IP "$VM_PUBLIC_IP" '^[A-Za-z0-9._:-]+$'
 validate_pattern DEPLOY_SSH_USER "$DEPLOY_SSH_USER" '^[A-Za-z_][A-Za-z0-9_-]*$'
 validate_pattern DEPLOY_PATH "$DEPLOY_PATH" '^/[A-Za-z0-9._/-]+$'
+validate_pattern DEPLOY_SSH_READY_TIMEOUT_SECONDS "$DEPLOY_SSH_READY_TIMEOUT_SECONDS" '^[0-9]+$'
+validate_pattern DEPLOY_SSH_READY_INTERVAL_SECONDS "$DEPLOY_SSH_READY_INTERVAL_SECONDS" '^[0-9]+$'
 validate_pattern GITHUB_ACTOR "$GITHUB_ACTOR" '^[A-Za-z0-9][A-Za-z0-9-]*$'
 validate_pattern AUTOGRAPHS_APP_IMAGE "$AUTOGRAPHS_APP_IMAGE" '^[A-Za-z0-9._:/@-]+$'
 validate_pattern AUTOGRAPHS_DOMAIN "$AUTOGRAPHS_DOMAIN" '^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$'
@@ -101,6 +105,11 @@ fi
 
 if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; then
   echo "DEPLOY_PATH must be /opt/autographs or a safe child path: ${DEPLOY_PATH}" >&2
+  exit 1
+fi
+
+if [ "$DEPLOY_SSH_READY_TIMEOUT_SECONDS" -lt 1 ] || [ "$DEPLOY_SSH_READY_INTERVAL_SECONDS" -lt 1 ]; then
+  echo "DEPLOY_SSH_READY_TIMEOUT_SECONDS and DEPLOY_SSH_READY_INTERVAL_SECONDS must be positive integers" >&2
   exit 1
 fi
 
@@ -154,9 +163,32 @@ chmod 600 "$COMPOSE_ENV_FILE"
 
 SSH_OPTS=(
   -i "$SSH_KEY_FILE"
+  -o BatchMode=yes
+  -o ConnectTimeout=10
   -o IdentitiesOnly=yes
   -o StrictHostKeyChecking=accept-new
 )
+
+wait_for_ssh() {
+  local elapsed=0
+
+  echo "Waiting up to ${DEPLOY_SSH_READY_TIMEOUT_SECONDS}s for SSH on ${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}..."
+
+  while [ "$elapsed" -lt "$DEPLOY_SSH_READY_TIMEOUT_SECONDS" ]; do
+    if ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "true" >/dev/null 2>&1; then
+      echo "SSH is ready on ${VM_PUBLIC_IP}."
+      return
+    fi
+
+    sleep "$DEPLOY_SSH_READY_INTERVAL_SECONDS"
+    elapsed=$((elapsed + DEPLOY_SSH_READY_INTERVAL_SECONDS))
+  done
+
+  echo "SSH did not become ready on ${VM_PUBLIC_IP} within ${DEPLOY_SSH_READY_TIMEOUT_SECONDS}s" >&2
+  exit 1
+}
+
+wait_for_ssh
 
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/scripts/bootstrap-runtime.sh" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:/tmp/autographs-bootstrap-runtime.sh"
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo DEPLOY_USER='${DEPLOY_SSH_USER}' DEPLOY_PATH='${DEPLOY_PATH}' bash /tmp/autographs-bootstrap-runtime.sh"
