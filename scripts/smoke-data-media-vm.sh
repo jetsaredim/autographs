@@ -13,6 +13,7 @@ require_env() {
 require_env VM_PUBLIC_IP
 require_env DEPLOY_SSH_USER
 require_env DEPLOY_SSH_PRIVATE_KEY
+require_env AUTOGRAPHS_TOOLS_IMAGE
 
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/autographs}"
 AUTOGRAPHS_SMOKE_BASE_URL="${AUTOGRAPHS_SMOKE_BASE_URL:-https://autographs.jetsaredim.net}"
