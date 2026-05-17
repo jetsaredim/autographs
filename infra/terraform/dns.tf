@@ -6,5 +6,9 @@ resource "porkbun_dns_record" "autographs" {
   type    = "A"
   content = module.compute.public_ip
   ttl     = var.autographs_dns_ttl
-  id      = var.autographs_dns_record_id
+}
+
+import {
+  to = porkbun_dns_record.autographs
+  id = var.autographs_dns_record_id
 }
