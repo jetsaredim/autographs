@@ -54,8 +54,8 @@ jobs:
           printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
           chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
 
-      - name: Terraform apply
-        id: terraform_apply
+      - name: Terraform plan
+        id: terraform_plan
         working-directory: infra/terraform
         env:
           OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
@@ -96,4 +96,4 @@ jobs:
             -backend-config="key=envs/prod/terraform.tfstate" \
             -backend-config="workspace_key_prefix=envs" \
             -backend-config="auth=APIKey"
-          terraform plan
+          terraform plan -no-color -input=false
