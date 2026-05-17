@@ -114,7 +114,7 @@ jobs:
           TF_VAR_porkbun_secret_key: ${{ secrets.PORKBUN_SECRET_KEY }}
           TF_VAR_autographs_dns_domain: ${{ vars.AUTOGRAPHS_DNS_DOMAIN || 'jetsaredim.net' }}
           TF_VAR_autographs_dns_subdomain: ${{ vars.AUTOGRAPHS_DNS_SUBDOMAIN || 'autographs' }}
-          TF_VAR_autographs_dns_ttl: ${{ vars.AUTOGRAPHS_DNS_TTL || 300 }}
+          TF_VAR_autographs_dns_ttl: ${{ vars.AUTOGRAPHS_DNS_TTL || 600 }}
         run: |
           terraform init \
             -backend-config="bucket=autographs-tf-state" \
