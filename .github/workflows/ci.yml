@@ -115,6 +115,7 @@ jobs:
           TF_VAR_autographs_dns_domain: ${{ vars.AUTOGRAPHS_DNS_DOMAIN || 'jetsaredim.net' }}
           TF_VAR_autographs_dns_subdomain: ${{ vars.AUTOGRAPHS_DNS_SUBDOMAIN || 'autographs' }}
           TF_VAR_autographs_dns_ttl: ${{ vars.AUTOGRAPHS_DNS_TTL || 600 }}
+          TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
         run: |
           terraform init \
             -backend-config="bucket=autographs-tf-state" \

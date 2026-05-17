@@ -314,3 +314,8 @@ variable "autographs_dns_ttl" {
   type        = number
   default     = 300
 }
+
+variable "autographs_dns_record_id" {
+  description = "Existing Porkbun DNS record ID for autographs.jetsaredim.net."
+  type        = string
+}
