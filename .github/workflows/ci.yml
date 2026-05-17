@@ -65,7 +65,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform fmt
-        run: terraform -chdir=infra/terraform fmt -check -recursive
+        run: terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff
 
       - name: Write OCI API private key
         env:
