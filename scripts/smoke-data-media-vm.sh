@@ -13,9 +13,11 @@ require_env() {
 require_env VM_PUBLIC_IP
 require_env DEPLOY_SSH_USER
 require_env DEPLOY_SSH_PRIVATE_KEY
+require_env AUTOGRAPHS_TOOLS_IMAGE
 
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/autographs}"
 AUTOGRAPHS_SMOKE_BASE_URL="${AUTOGRAPHS_SMOKE_BASE_URL:-https://autographs.jetsaredim.net}"
+AUTOGRAPHS_COMPOSE_NETWORK="${AUTOGRAPHS_COMPOSE_NETWORK:-autographs_runtime}"
 SSH_KEY_FILE="$(mktemp)"
 
 validate_pattern() {
@@ -57,7 +59,7 @@ SSH_OPTS=(
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
   "cd '${DEPLOY_PATH}/compose' && \
    sudo podman run --rm \
-     --network podman-compose_default \
+     --network '${AUTOGRAPHS_COMPOSE_NETWORK}' \
      --env-file .env \
      -v '${DEPLOY_PATH}/wallet:/opt/autographs/wallet:ro' \
      -v '${DEPLOY_PATH}/secrets:/opt/autographs/secrets:ro' \
@@ -67,7 +69,7 @@ ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
   "cd '${DEPLOY_PATH}/compose' && \
    sudo podman run --rm \
-     --network podman-compose_default \
+     --network '${AUTOGRAPHS_COMPOSE_NETWORK}' \
      --env-file .env \
      -v '${DEPLOY_PATH}/wallet:/opt/autographs/wallet:ro' \
      -v '${DEPLOY_PATH}/secrets:/opt/autographs/secrets:ro' \
@@ -77,7 +79,7 @@ ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
   "cd '${DEPLOY_PATH}/compose' && \
    sudo podman run --rm \
-     --network podman-compose_default \
+     --network '${AUTOGRAPHS_COMPOSE_NETWORK}' \
      --env-file .env \
      -v '${DEPLOY_PATH}/wallet:/opt/autographs/wallet:ro' \
      -v '${DEPLOY_PATH}/secrets:/opt/autographs/secrets:ro' \
