@@ -15,7 +15,7 @@ runs:
         corepack enable
         corepack prepare pnpm@11.1.2 --activate
 
-    - name: Configured pnpm store
+    - name: Configure pnpm store
       shell: bash
       run: pnpm config set store-dir ~/.local/share/pnpm/store
 

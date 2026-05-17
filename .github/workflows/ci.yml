@@ -99,4 +99,5 @@ jobs:
             -backend-config="key=envs/prod/terraform.tfstate" \
             -backend-config="workspace_key_prefix=envs" \
             -backend-config="auth=APIKey"
+          terraform validate
           terraform plan -no-color -input=false

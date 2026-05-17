@@ -62,9 +62,8 @@ ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
      -v '${DEPLOY_PATH}/wallet:/opt/autographs/wallet:ro' \
      -v '${DEPLOY_PATH}/secrets:/opt/autographs/secrets:ro' \
      '${AUTOGRAPHS_TOOLS_IMAGE}' \
-     sh -lc 'NODE_OPTIONS=\"--max-old-space-size=384\" pnpm --filter app db:migrate'"ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
-  "cd '${DEPLOY_PATH}/compose' && sudo podman-compose -f compose.prod.yaml exec -T app sh -lc 'NODE_OPTIONS=\"--max-old-space-size=384\" pnpm --filter app db:seed'"
-
+     sh -lc 'NODE_OPTIONS=\"--max-old-space-size=384\" pnpm --filter app db:migrate'"
+     
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
   "cd '${DEPLOY_PATH}/compose' && \
    sudo podman run --rm \
@@ -74,6 +73,7 @@ ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
      -v '${DEPLOY_PATH}/secrets:/opt/autographs/secrets:ro' \
      '${AUTOGRAPHS_TOOLS_IMAGE}' \
      sh -lc 'NODE_OPTIONS=\"--max-old-space-size=384\" pnpm --filter app db:seed'"
+
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
   "cd '${DEPLOY_PATH}/compose' && \
    sudo podman run --rm \
