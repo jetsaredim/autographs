@@ -7,3 +7,8 @@ provider "oci" {
   config_file_profile = var.config_file_profile
   region              = var.region
 }
+
+provider "porkbun" {
+  api_key    = var.porkbun_api_key
+  secret_key = var.porkbun_secret_key
+}
