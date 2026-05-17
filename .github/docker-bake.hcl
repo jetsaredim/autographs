@@ -1,3 +1,6 @@
+variable "GHCR_IMAGE_REPOSITORY" {}
+variable "GITHUB_SHA" {}
+
 group "default" {
   targets = ["app", "tools"]
 }
@@ -19,7 +22,8 @@ target "app" {
   inherits = ["common"]
   target = "runner"
   tags = [
-    "${GHCR_IMAGE_REPOSITORY}:${GITHUB_SHA}"
+    "${GHCR_IMAGE_REPOSITORY}:${GITHUB_SHA}",
+    "${GHCR_IMAGE_REPOSITORY}:latest"
   ]
 }
 
@@ -27,6 +31,7 @@ target "tools" {
   inherits = ["common"]
   target = "tools"
   tags = [
-    "${GHCR_IMAGE_REPOSITORY}-tools:${GITHUB_SHA}"
+    "${GHCR_IMAGE_REPOSITORY}-tools:${GITHUB_SHA}",
+    "${GHCR_IMAGE_REPOSITORY}-tools:latest"
   ]
 }
