@@ -55,5 +55,5 @@ output "media_bucket_namespace" {
 
 output "autographs_dns_fqdn" {
   description = "DNS name managed for the autographs runtime."
-  value       = var.manage_autographs_dns ? "${var.autographs_dns_subdomain}.${var.autographs_dns_domain}" : ""
+  value       = "${var.autographs_dns_subdomain}.${var.autographs_dns_domain}"
 }
