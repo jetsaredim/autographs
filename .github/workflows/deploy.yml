@@ -117,6 +117,12 @@ jobs:
           TF_VAR_create_media_bucket: ${{ vars.OCI_CREATE_MEDIA_BUCKET || 'false' }}
           TF_VAR_media_bucket_namespace: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           TF_VAR_media_bucket_name: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
+          TF_VAR_manage_autographs_dns: ${{ vars.MANAGE_AUTOGRAPHS_DNS || 'false' }}
+          TF_VAR_porkbun_api_key: ${{ secrets.PORKBUN_API_KEY }}
+          TF_VAR_porkbun_secret_key: ${{ secrets.PORKBUN_SECRET_KEY }}
+          TF_VAR_autographs_dns_domain: ${{ vars.AUTOGRAPHS_DNS_DOMAIN || 'jetsaredim.net' }}
+          TF_VAR_autographs_dns_subdomain: ${{ vars.AUTOGRAPHS_DNS_SUBDOMAIN || 'autographs' }}
+          TF_VAR_autographs_dns_ttl: ${{ vars.AUTOGRAPHS_DNS_TTL || 600 }}
         run: |
           terraform init \
             -backend-config="bucket=autographs-tf-state" \

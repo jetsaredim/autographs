@@ -276,3 +276,41 @@ variable "media_bucket_versioning" {
     error_message = "media_bucket_versioning must be Enabled or Disabled."
   }
 }
+
+variable "porkbun_api_key" {
+  description = "Porkbun API key used to manage DNS records."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "porkbun_secret_key" {
+  description = "Porkbun secret API key used to manage DNS records."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "manage_autographs_dns" {
+  description = "Whether Terraform should manage the autographs.jetsaredim.net DNS record."
+  type        = bool
+  default     = false
+}
+
+variable "autographs_dns_domain" {
+  description = "Porkbun domain that owns the autographs DNS record."
+  type        = string
+  default     = "jetsaredim.net"
+}
+
+variable "autographs_dns_subdomain" {
+  description = "Subdomain for the autographs app DNS record."
+  type        = string
+  default     = "autographs"
+}
+
+variable "autographs_dns_ttl" {
+  description = "TTL for the autographs DNS record."
+  type        = number
+  default     = 300
+}

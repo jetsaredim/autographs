@@ -6,6 +6,11 @@ terraform {
       source  = "oracle/oci"
       version = "~> 6.0"
     }
+
+    porkbun = {
+      source  = "cullenmcdermott/porkbun"
+      version = "~> 0.3"
+    }
   }
 
   backend "oci" {}
