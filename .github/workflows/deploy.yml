@@ -46,10 +46,24 @@ jobs:
         with:
           context: .
           file: app/Dockerfile
+          target: runner
           push: true
           tags: |
             ${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
             ${{ env.GHCR_IMAGE_REPOSITORY }}:latest
+          cache-from: type=gha,scope=app-image
+          cache-to: type=gha,scope=app-image,mode=max
+
+      - name: Build and publish tools image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: app/Dockerfile
+          target: tools
+          push: true
+          tags: |
+            ${{ env.GHCR_IMAGE_REPOSITORY }}-tools:${{ github.sha }}
+            ${{ env.GHCR_IMAGE_REPOSITORY }}-tools:latest
           cache-from: type=gha,scope=app-image
           cache-to: type=gha,scope=app-image,mode=max
 

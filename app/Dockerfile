@@ -39,3 +39,12 @@ COPY --from=builder /workspace/app/public ./app/public
 EXPOSE 3000
 
 CMD ["node", "app/server.js"]
+
+FROM builder as tools
+
+WORKDIR /workspace
+
+ENV NODE_ENV=production
+ENV NODE_OPTIONS=--max-old-space-size=384
+
+CMD ["pnpm", "--filter", "app", "data:smoke"]

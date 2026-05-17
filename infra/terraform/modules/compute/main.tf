@@ -60,7 +60,7 @@ resource "oci_core_instance" "runtime" {
     }
 
     ignore_changes = [
-      metadatap["user_data"]
+      metadata["user_data"]
     ]
   }
 }
