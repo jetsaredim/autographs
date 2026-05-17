@@ -31,7 +31,7 @@ env:
   AUTOGRAPHS_DOMAIN: ${{ vars.AUTOGRAPHS_DOMAIN || 'autographs.jetsaredim.net' }}
 
 jobs:
-  image-build:
+  build-images:
     name: Build and publish images
     runs-on: ubuntu-latest
     steps:
