@@ -24,6 +24,7 @@ require_env AUTOGRAPHS_TOOLS_IMAGE
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/autographs}"
 DEPLOY_SSH_READY_TIMEOUT_SECONDS="${DEPLOY_SSH_READY_TIMEOUT_SECONDS:-900}"
 DEPLOY_SSH_READY_INTERVAL_SECONDS="${DEPLOY_SSH_READY_INTERVAL_SECONDS:-10}"
+DEPLOY_CADDY="${DEPLOY_CADDY:-false}
 AUTOGRAPHS_DOMAIN="${AUTOGRAPHS_DOMAIN:-autographs.jetsaredim.net}"
 AUTOGRAPHS_HTTP_PORT="${AUTOGRAPHS_HTTP_PORT:-80}"
 AUTOGRAPHS_HTTPS_PORT="${AUTOGRAPHS_HTTPS_PORT:-443}"
@@ -217,7 +218,13 @@ fi
 printf '%s' "$GHCR_TOKEN" | ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo podman login ghcr.io -u '${GITHUB_ACTOR}' --password-stdin"
 
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
-  "cd '${DEPLOY_PATH}/compose' && sudo podman-compose -f compose.prod.yaml pull && sudo podman-compose -f compose.prod.yaml up -d"
+  "cd '${DEPLOY_PATH}/compose' && \
+   sudo podman-compose -f compose.prod.yaml pull && \
+   sudo podman-compose -f compose.prod.yaml up -d --no-deps app && \
+   if [ '${DEPLOY_CADDY}' = 'true' ] ; then \
+     sudo podman-compose -f compose.prod.yml pull caddy && \
+     sudo podman-compose -f compose.prod.yml up -d caddy; \
+   fi"
 
 for _ in $(seq 1 30); do
   if curl --fail --silent "http://${VM_PUBLIC_IP}/health" >/dev/null; then

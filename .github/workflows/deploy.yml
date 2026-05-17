@@ -139,6 +139,7 @@ jobs:
           DEPLOY_SSH_READY_TIMEOUT_SECONDS: ${{ vars.DEPLOY_SSH_READY_TIMEOUT_SECONDS || '900' }}
           DEPLOY_SSH_READY_INTERVAL_SECONDS: ${{ vars.DEPLOY_SSH_READY_INTERVAL_SECONDS || '10' }}
           DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_CADDY: ${{ inputs.deploy_caddy || 'false' }}
           GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
           AUTOGRAPHS_APP_IMAGE: ${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
           AUTOGRAPHS_DOMAIN: ${{ env.AUTOGRAPHS_DOMAIN }}
@@ -164,13 +165,3 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: bash scripts/deploy-vm.sh
-
-      - name: Prune old GHCR app images
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_SHA: ${{ github.sha }}
-          GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
-          GHCR_CLEANUP_RETAIN_TAGGED: ${{ vars.GHCR_CLEANUP_RETAIN_TAGGED || '10' }}
-          GHCR_CLEANUP_MIN_AGE_DAYS: ${{ vars.GHCR_CLEANUP_MIN_AGE_DAYS || '7' }}
-        run: node scripts/cleanup-ghcr-images.mjs

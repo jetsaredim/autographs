@@ -1,4 +1,4 @@
-name: Setup note runtime
+name: Setup node runtime
 description: Install Node and pnpm for Autographs workflows.
 
 runs:

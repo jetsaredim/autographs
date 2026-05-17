@@ -59,7 +59,7 @@ SSH_OPTS=(
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
   "cd '${DEPLOY_PATH}/compose' && \
    sudo podman run --rm \
-     --network ${AUTOGRAPHS_COMPOSE_NETWORK} \
+     --network '${AUTOGRAPHS_COMPOSE_NETWORK}' \
      --env-file .env \
      -v '${DEPLOY_PATH}/wallet:/opt/autographs/wallet:ro' \
      -v '${DEPLOY_PATH}/secrets:/opt/autographs/secrets:ro' \
@@ -69,7 +69,7 @@ ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
   "cd '${DEPLOY_PATH}/compose' && \
    sudo podman run --rm \
-     --network ${AUTOGRAPHS_COMPOSE_NETWORK} \
+     --network '${AUTOGRAPHS_COMPOSE_NETWORK}' \
      --env-file .env \
      -v '${DEPLOY_PATH}/wallet:/opt/autographs/wallet:ro' \
      -v '${DEPLOY_PATH}/secrets:/opt/autographs/secrets:ro' \
@@ -79,7 +79,7 @@ ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
   "cd '${DEPLOY_PATH}/compose' && \
    sudo podman run --rm \
-     --network ${AUTOGRAPHS_COMPOSE_NETWORK} \
+     --network '${AUTOGRAPHS_COMPOSE_NETWORK}' \
      --env-file .env \
      -v '${DEPLOY_PATH}/wallet:/opt/autographs/wallet:ro' \
      -v '${DEPLOY_PATH}/secrets:/opt/autographs/secrets:ro' \
