@@ -7,6 +7,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GHCR_IMAGE_REPOSITORY: ${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}
+
 jobs:
   validate:
     name: Validate repository
@@ -21,5 +24,80 @@ jobs:
       - name: Validate
         run: bash scripts/validate-ci.sh
 
-      - name: Build app image
-        run: docker build --pull -f app/Dockerfile .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and publish app image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: app/Dockerfile
+          target: runner
+          push: false
+          tags: ${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha,scope=app-image
+          cache-to: type=gha,scope=app-image,mode=max
+
+      - name: Build and publish tools image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: app/Dockerfile
+          target: tools
+          push: false
+          tags: ${{ env.GHCR_IMAGE_REPOSITORY }}-tools:${{ github.sha }}
+          cache-from: type=gha,scope=app-image
+          cache-to: type=gha,scope=app-image,mode=max
+
+      - name: Write OCI API private key
+        env:
+          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/oci"
+          printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
+          chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
+
+      - name: Terraform plan
+        id: terraform_plan
+        working-directory: infra/terraform
+        env:
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
+          OCI_REGION: us-ashburn-1
+          tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
+          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          private_key_path: ${{ runner.temp }}/oci/api_key.pem
+          TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
+          TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          TF_VAR_private_key_path: ${{ runner.temp }}/oci/api_key.pem
+          TF_VAR_compartment_ocid: ${{ vars.OCI_COMPARTMENT_OCID }}
+          TF_VAR_availability_domain: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
+          TF_VAR_runtime_image_ocid: ${{ vars.OCI_RUNTIME_IMAGE_OCID }}
+          TF_VAR_runtime_shape: ${{ vars.OCI_RUNTIME_SHAPE || 'VM.Standard.E2.1.Micro' }}
+          TF_VAR_runtime_ocpus: ${{ vars.OCI_RUNTIME_OCPUS || 1 }}
+          TF_VAR_runtime_memory_gbs: ${{ vars.OCI_RUNTIME_MEMORY_GBS || 1 }}
+          TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
+          TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
+          TF_VAR_create_autonomous_database: ${{ vars.OCI_CREATE_AUTONOMOUS_DATABASE || 'false' }}
+          TF_VAR_autonomous_database_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_NAME || 'autographsdb' }}
+          TF_VAR_autonomous_database_display_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME || 'autographs-prod-adb' }}
+          TF_VAR_autonomous_database_admin_password: ${{ secrets.ADB_ADMIN_PASSWORD }}
+          TF_VAR_autonomous_database_is_mtls_connection_required: ${{ vars.OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED || 'true' }}
+          TF_VAR_create_media_bucket: ${{ vars.OCI_CREATE_MEDIA_BUCKET || 'false' }}
+          TF_VAR_media_bucket_namespace: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
+          TF_VAR_media_bucket_name: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
+        run: |
+          terraform init \
+            -backend-config="bucket=autographs-tf-state" \
+            -backend-config="namespace=${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}" \
+            -backend-config="region=us-ashburn-1" \
+            -backend-config="key=envs/prod/terraform.tfstate" \
+            -backend-config="workspace_key_prefix=envs" \
+            -backend-config="auth=APIKey"
+          terraform validate
+          terraform plan -no-color -input=false

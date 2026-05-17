@@ -55,10 +55,31 @@ SSH_OPTS=(
 )
 
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
-  "cd '${DEPLOY_PATH}/compose' && sudo podman-compose -f compose.prod.yaml exec -T app pnpm --filter app db:migrate"
+  "cd '${DEPLOY_PATH}/compose' && \
+   sudo podman run --rm \
+     --network podman-compose_default \
+     --env-file .env \
+     -v '${DEPLOY_PATH}/wallet:/opt/autographs/wallet:ro' \
+     -v '${DEPLOY_PATH}/secrets:/opt/autographs/secrets:ro' \
+     '${AUTOGRAPHS_TOOLS_IMAGE}' \
+     sh -lc 'NODE_OPTIONS=\"--max-old-space-size=384\" pnpm --filter app db:migrate'"
+     
+ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
+  "cd '${DEPLOY_PATH}/compose' && \
+   sudo podman run --rm \
+     --network podman-compose_default \
+     --env-file .env \
+     -v '${DEPLOY_PATH}/wallet:/opt/autographs/wallet:ro' \
+     -v '${DEPLOY_PATH}/secrets:/opt/autographs/secrets:ro' \
+     '${AUTOGRAPHS_TOOLS_IMAGE}' \
+     sh -lc 'NODE_OPTIONS=\"--max-old-space-size=384\" pnpm --filter app db:seed'"
 
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
-  "cd '${DEPLOY_PATH}/compose' && sudo podman-compose -f compose.prod.yaml exec -T app pnpm --filter app db:seed"
-
-ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
-  "cd '${DEPLOY_PATH}/compose' && sudo podman-compose -f compose.prod.yaml exec -T -e AUTOGRAPHS_SMOKE_BASE_URL='${AUTOGRAPHS_SMOKE_BASE_URL}' app pnpm --filter app data:smoke"
+  "cd '${DEPLOY_PATH}/compose' && \
+   sudo podman run --rm \
+     --network podman-compose_default \
+     --env-file .env \
+     -v '${DEPLOY_PATH}/wallet:/opt/autographs/wallet:ro' \
+     -v '${DEPLOY_PATH}/secrets:/opt/autographs/secrets:ro' \
+     '${AUTOGRAPHS_TOOLS_IMAGE}' \
+     sh -lc 'NODE_OPTIONS=\"--max-old-space-size=384\" pnpm --filter app data:smoke'"

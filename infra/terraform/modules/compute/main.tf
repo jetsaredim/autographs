@@ -58,5 +58,9 @@ resource "oci_core_instance" "runtime" {
       condition     = !var.create_instance || length(var.ssh_public_keys) > 0
       error_message = "At least one SSH public key is required when create_instance is true."
     }
+
+    ignore_changes = [
+      metadata["user_data"]
+    ]
   }
 }

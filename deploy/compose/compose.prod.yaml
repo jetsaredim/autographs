@@ -27,17 +27,11 @@ services:
       - ../wallet:/opt/autographs/wallet:ro
       - ../secrets:/opt/autographs/secrets:ro
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:3000/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
-        ]
-      interval: 10s
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health >/dev/null"]
+      interval: 20s
       timeout: 5s
-      retries: 5
-      start_period: 15s
+      retries: 3
+      start_period: 30s
 
   caddy:
     image: docker.io/library/caddy:2-alpine
@@ -56,10 +50,10 @@ services:
       - caddy_config:/config
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null"]
-      interval: 10s
+      interval: 20s
       timeout: 5s
-      retries: 5
-      start_period: 5s
+      retries: 3
+      start_period: 15s
 
 volumes:
   caddy_data:

@@ -7,13 +7,25 @@ runs:
     - name: Set up Node
       uses: actions/setup-node@v6
       with:
-        node-version: ">=22.13.0"
+        node-version: "24"
 
     - name: Enable pnpm
       shell: bash
       run: |
         corepack enable
         corepack prepare pnpm@11.1.2 --activate
+
+    - name: Configure pnpm store
+      shell: bash
+      run: pnpm config set store-dir ~/.local/share/pnpm/store
+
+    - name: Set up pnpm cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/share/pnpm/store
+        key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-
 
     - name: Set up Terraform
       uses: hashicorp/setup-terraform@v4
