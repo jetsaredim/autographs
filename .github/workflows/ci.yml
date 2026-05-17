@@ -21,5 +21,15 @@ jobs:
       - name: Validate
         run: bash scripts/validate-ci.sh
 
-      - name: Build app image
-        run: docker build --pull -f app/Dockerfile .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and publish app image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: app/Dockerfile
+          push: false
+          tags: ${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha,scope=app-image
+          cache-to: type=gha,scope=app-image,mode=max

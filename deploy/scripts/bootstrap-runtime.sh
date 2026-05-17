@@ -4,6 +4,7 @@ set -euo pipefail
 
 DEPLOY_USER="${DEPLOY_USER:-opc}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/autographs}"
+SMOKE_MODE="${SMOKE_MODE:-true}"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "bootstrap-runtime.sh must run as root" >&2
@@ -19,6 +20,28 @@ if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; 
   echo "DEPLOY_PATH must be /opt/autographs or a safe child path: ${DEPLOY_PATH}" >&2
   exit 1
 fi
+
+mask_smoke_mode_services() {
+  if [ "$SMOKE_MODE" != "true" ]; then
+    return
+  fi
+
+  local services=(
+    oracle-cloud-agent.service
+    oracle-cloud-agent-updater.service
+    dnf-makecache.timer
+    fwupd-refresh.timer
+    pmie_check.timer
+    pmie_farm_check.timer
+    pmie_daily.timer
+    pmlogger_check.timer
+    pmlogger_farm_check.timer
+    pmlogger_daily.timer
+  )
+
+  systemctl disable --now "${services[@]}" >/dev/null 2>&1 || true
+  systemctl mask "${services[@]}" >/dev/null 2>&1 || true
+}
 
 enable_oracle_epel() {
   if ! [ -r /etc/os-release ]; then
@@ -109,6 +132,7 @@ SYSCTL
 }
 
 configure_swap
+mask_smoke_mode_services
 install_podman_compose
 
 install -d -o "$DEPLOY_USER" -m 0755 "$DEPLOY_PATH" "$DEPLOY_PATH/compose" "$DEPLOY_PATH/caddy"
