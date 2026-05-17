@@ -62,5 +62,5 @@ jobs:
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
           DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           AUTOGRAPHS_SMOKE_BASE_URL: ${{ vars.AUTOGRAPHS_SMOKE_BASE_URL || 'https://autographs.jetsaredim.net' }}
-          AUTOGAPHS_TOOLS_IMAGE: ${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}-tools:latest
+          AUTOGRAPHS_TOOLS_IMAGE: ${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}-tools:latest
         run: bash scripts/smoke-data-media-vm.sh
