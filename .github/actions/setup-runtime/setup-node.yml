@@ -1,5 +1,5 @@
-name: Setup runtime
-description: Install Node, pnpm, and Terraform for Autographs workflows.
+name: Setup note runtime
+description: Install Node and pnpm for Autographs workflows.
 
 runs:
   using: composite
@@ -26,9 +26,3 @@ runs:
         key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
         restore-keys: |
           ${{ runner.os }}-pnpm-
-
-    - name: Set up Terraform
-      uses: hashicorp/setup-terraform@v4
-      with:
-        terraform_version: "1.15.2"
-        terraform_wrapper: false
