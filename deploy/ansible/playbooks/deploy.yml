@@ -26,7 +26,7 @@
 
     - name: Write compose env
       ansible.builtin.template:
-        src: "{{ playbook_dir }}/../templates/env.j2"
+        src: "/{{ playbook_dir }}/../templates/env.j2"
         dest: "{{ compose_path }}/.env-new"
         owner: "{{ deploy_user }}"
         group: "{{ deploy_user }}"
@@ -35,7 +35,7 @@
 
     - name: Copy compose file
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../../compose/compose.prod.yaml"
+        src: "/{{ playbook_dir }}/../../compose/compose.prod.yaml"
         dest: "{{ compose_path }}/compose.prod.yaml-new"
         owner: "{{ deploy_user }}"
         group: "{{ deploy_user }}"
