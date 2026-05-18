@@ -9,7 +9,7 @@
 
   tasks:
     - name: Ensure deployment directories exist
-      file:
+      ansible.builtin.file:
         path: "{{ item }}"
         state: directory
         owner: "{{ deploy_user }}"
@@ -22,14 +22,14 @@
         - "{{ caddy_path }}"
 
     - name: Write compose env
-      template:
+      ansible.builtin.template:
         src: env.j2
         dest: "{{ compose_path }}/.env-new"
         owner: "{{ deploy_user }}"
         mode: "0600"
 
     - name: Copy compose file
-      copy:
+      ansible.builtin.copy:
         src: ../../compose/compose.prod.yaml
         dest: "{{ compose_path }}/compose.prod.yaml-new"
         owner: "{{ deploy_user }}"
@@ -49,4 +49,3 @@
     #   command: podman-compose -f compose.prod.yaml up -d --no-deps app
     #   args:
     #     chdir: "{{ compose_path }}"
-        
