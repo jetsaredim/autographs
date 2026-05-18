@@ -48,8 +48,8 @@ enable_oracle_epel() {
   epel_pkg="oracle-epel-release-el10"
 
   # install dnf config tools and EPEL repo file
-  dnf install -y dnf-plugins-core $epel_pkg
-  repo_file="$(rpm -ql $epel_pkg | grep 'repo$' | head -n 1)"
+  dnf install -y dnf-plugins-core "$epel_pkg"
+  repo_file="$(rpm -ql "$epel_pkg" | grep 'repo$' | head -n 1)"
 
   # enable EPEL repo
   dnf config-manager --enable "$(grep -E '^\[' "$repo_file" | tr -d '[]')"
@@ -71,7 +71,7 @@ install_podman_compose() {
   rpm -q podman >/dev/null 2>&1 || runtime_packages+=(podman)
   rpm -q podman-compose >/dev/null 2>&1 || runtime_packages+=(podman-compose)
 
-  if [ "${runtime_packages[@]}" -gt 0 ] ; then
+  if [ "${#runtime_packages[@]}" -gt 0 ] ; then
     dnf install -y "${runtime_packages[@]}"
   fi
 }
