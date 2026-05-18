@@ -165,7 +165,6 @@ jobs:
             --extra-vars oci_tenancy_ocid=${{ secrets.OCI_TENANCY_OCID }}
             --extra-vars oci_cli_user_ocid=${{ secrets.OCI_CLI_USER_OCID }}
             --extra-vars oci_fingerprint=${{ secrets.OCI_FINGERPRINT }}
-            --extra-vars oci_private_key_pem=${{ secrets.OCI_PRIVATE_KEY_PEM }}
 
       - name: Deploy runtime to VM
         env:
