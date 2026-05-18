@@ -15,7 +15,7 @@
 - name: Write compose env
   ansible.builtin.template:
     src: env.j2
-    dest: "{{ autographs_deploy_compose_path }}/.env-new"
+    dest: "{{ autographs_deploy_compose_path }}/.env"
     owner: "{{ autographs_deploy_user }}"
     group: "{{ autographs_deploy_user }}"
     mode: "0600"
@@ -24,10 +24,27 @@
 - name: Copy compose file
   ansible.builtin.copy:
     src: compose.prod.yaml
-    dest: "{{ autographs_deploy_compose_path }}/compose.prod.yaml-new"
+    dest: "{{ autographs_deploy_compose_path }}/compose.prod.yaml"
     owner: "{{ autographs_deploy_user }}"
     group: "{{ autographs_deploy_user }}"
     mode: "0644"
+
+- name: Copy Caddyfile
+  ansible.builtin.copy:
+    src: Caddyfile
+    dest: "{{ autographs_deploy_caddy_path }}/Caddyfile"
+    owner: "{{ autographs_deploy_user }}"
+    group: "{{ autographs_deploy_user }}"
+    mode: "0644"
+
+- name: Install OCI private key
+  ansible.builtin.copy:
+    content: "{{ lookup('env', 'OCI_PRIVATE_KEY_PEM') }}"
+    dest: "{{ autographs_deploy_secrets_path }}/oci_api_key.pem-new"
+    owner: "{{ autographs_deploy_user }}"
+    group: "{{ autographs_deploy_user }}"
+    mode: "0600"
+  no_log: true
 
 # - name: Login to GHCR
 #   shell: |
