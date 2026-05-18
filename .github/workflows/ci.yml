@@ -138,7 +138,13 @@ jobs:
         run: python3 -m pip install --user ansible ansible-lint
 
       - name: Syntax check Ansible playbook
-        run: ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml
+        run: |
+          cat > /tmp/ansible-inventory.ini <<'EOF'
+          [runtime]
+          localhost ansible_connection=local
+          EOF
+          
+          ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml
 
       - name: Lint Ansible playbook
         run: ansible-lint deploy/ansible/playbooks/deploy.yml
