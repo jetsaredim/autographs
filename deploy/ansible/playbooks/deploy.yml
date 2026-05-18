@@ -1,4 +1,5 @@
-- hosts: runtime
+- name: Deploy Autographs runtime
+  hosts: runtime
   become: true
   vars:
     deploy_path: /opt/autographs
