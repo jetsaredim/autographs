@@ -138,7 +138,7 @@ jobs:
         run: python3 -m pip install --user ansible ansible-lint
 
       - name: Syntax check Ansible playbook
-        run: ansible-playbook -vvv -i deploy/ansible/inventory/ci.ini --syntax-check deploy/ansible/playbooks/deploy.yml
+        run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook -vvv --syntax-check deploy/ansible/playbooks/deploy.yml
 
       - name: Lint Ansible playbook
-        run: ansible-lint deploy/ansible/playbooks/deploy.yml
+        run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/playbooks/deploy.yml
