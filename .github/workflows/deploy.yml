@@ -146,6 +146,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Run playbook
+        uses: dawidd6/action-ansible-playbook@v9
+        with:
+          playbook: playbooks/deploy.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            ${{ needs.terraform-apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ var.DEPLOY_SSH_USER || 'opc' }}
+          options: |
+            --extra-vars autographs_app_image=${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
+            --extra-vars autographs_tools_image=${{ env.GHCR_IMAGE_REPOSITORY }}-tools:${{ github.sha }}
+            --extra-vars oracle_db_password=${{ secrets.ORACLE_DB_PASSWORD }}
+            --extra-vars oracle_db_connect_string=${{ vars.ORACLE_DB_CONNECT_STRING }}
+            --extra-vars oracle_db_wallet_password=${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
+            --extra-vars autographs_operator_api_token=${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
+            --extra-vars oci_tenancy_ocid=${{ secrets.OCI_TENANCY_OCID }}
+            --extra-vars oci_cli_user_ocid=${{ secrets.OCI_CLI_USER_OCID }}
+            --extra-vars oci_fingerprint=${{ secrets.OCI_FINGERPRINT }}
+            --extra-vars oci_private_key_pem=${{ secrets.OCI_PRIVATE_KEY_PEM }}
+
       - name: Deploy runtime to VM
         env:
           VM_PUBLIC_IP: ${{ needs.terraform-apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}

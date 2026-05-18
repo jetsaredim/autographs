@@ -125,3 +125,17 @@ jobs:
             -backend-config="auth=APIKey"
           terraform validate
           terraform plan -no-color -input=false
+
+  validate-ansible:
+    name: Validate Ansible
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Ansible
+        run: python3 -m pip install --user ansible ansible-lint
+
+      - name: Syntax check Ansible playbook
+        run: ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml
+
+      - name: Lint Ansible playbook
+        run: ansible-lint deploy/ansible/playbooks/deploy.yml
