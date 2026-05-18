@@ -38,9 +38,6 @@ services:
   caddy:
     image: docker.io/library/caddy:2-alpine
     restart: unless-stopped
-    depends_on:
-      app:
-        condition: service_healthy
     environment:
       AUTOGRAPHS_DOMAIN: ${AUTOGRAPHS_DOMAIN:-autographs.jetsaredim.net}
     ports:
