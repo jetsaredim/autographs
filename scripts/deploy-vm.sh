@@ -196,10 +196,6 @@ wait_for_ssh
 scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/scripts/bootstrap-runtime.sh" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:/tmp/autographs-bootstrap-runtime.sh"
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo DEPLOY_USER='${DEPLOY_SSH_USER}' DEPLOY_PATH='${DEPLOY_PATH}' bash /tmp/autographs-bootstrap-runtime.sh"
 
-scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/compose/compose.prod.yaml" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/compose/compose.prod.yaml"
-scp "${SSH_OPTS[@]}" "$COMPOSE_ENV_FILE" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/compose/.env"
-scp "${SSH_OPTS[@]}" "$ROOT_DIR/deploy/caddy/Caddyfile" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:${DEPLOY_PATH}/caddy/Caddyfile"
-
 if [ -n "$OCI_PRIVATE_KEY_PEM" ]; then
   scp "${SSH_OPTS[@]}" "$OCI_PRIVATE_KEY_FILE" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}:/tmp/autographs-oci-api-key.pem"
   ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \

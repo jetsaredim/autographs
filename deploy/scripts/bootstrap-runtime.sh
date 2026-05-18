@@ -4,7 +4,6 @@ set -euo pipefail
 
 DEPLOY_USER="${DEPLOY_USER:-opc}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/autographs}"
-SMOKE_MODE="${SMOKE_MODE:-true}"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "bootstrap-runtime.sh must run as root" >&2
@@ -21,11 +20,7 @@ if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; 
   exit 1
 fi
 
-mask_smoke_mode_services() {
-  if [ "$SMOKE_MODE" != "true" ]; then
-    return
-  fi
-
+mask_services() {
   local services=(
     oracle-cloud-agent.service
     oracle-cloud-agent-updater.service
@@ -132,7 +127,7 @@ SYSCTL
 }
 
 configure_swap
-mask_smoke_mode_services
+mask_services
 install_podman_compose
 
 install -d -o "$DEPLOY_USER" -m 0755 "$DEPLOY_PATH" "$DEPLOY_PATH/compose" "$DEPLOY_PATH/caddy"
