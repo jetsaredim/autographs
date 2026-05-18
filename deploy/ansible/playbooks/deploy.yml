@@ -15,6 +15,7 @@
         path: "{{ item }}"
         state: directory
         owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
         mode: "0755"
       loop:
         - "{{ deploy_path }}"
@@ -28,13 +29,16 @@
         src: env.j2
         dest: "{{ compose_path }}/.env-new"
         owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
         mode: "0600"
+      no_log: true
 
     - name: Copy compose file
       ansible.builtin.copy:
         src: ../../compose/compose.prod.yaml
         dest: "{{ compose_path }}/compose.prod.yaml-new"
         owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
         mode: "0644"
 
     # - name: Login to GHCR
