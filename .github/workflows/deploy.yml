@@ -179,27 +179,7 @@ jobs:
           DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           DEPLOY_CADDY: ${{ inputs.deploy_caddy || 'false' }}
           GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
-          AUTOGRAPHS_APP_IMAGE: ${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
           AUTOGRAPHS_DOMAIN: ${{ env.AUTOGRAPHS_DOMAIN }}
-          AUTOGRAPHS_HTTP_PORT: ${{ env.AUTOGRAPHS_HTTP_PORT }}
-          AUTOGRAPHS_HTTPS_PORT: ${{ env.AUTOGRAPHS_HTTPS_PORT }}
-          AUTOGRAPHS_DB_PROVIDER: oracle
-          AUTOGRAPHS_TOOLS_IMAGE: ${{ env.GHCR_IMAGE_REPOSITORY }}-tools:${{ github.sha }}
-          ORACLE_DB_USER: ${{ vars.ORACLE_DB_USER || 'ADMIN' }}
-          ORACLE_DB_PASSWORD: ${{ secrets.ORACLE_DB_PASSWORD }}
-          ORACLE_DB_CONNECT_STRING: ${{ vars.ORACLE_DB_CONNECT_STRING || 'autographsdb_high' }}
-          ORACLE_DB_WALLET_DIR: ${{ vars.ORACLE_DB_WALLET_DIR || '/opt/autographs/wallet' }}
-          ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
-          ORACLE_DB_WALLET_ZIP_BASE64: ${{ secrets.ORACLE_DB_WALLET_ZIP_BASE64 }}
-          AUTOGRAPHS_MEDIA_STORAGE_PROVIDER: ${{ vars.AUTOGRAPHS_MEDIA_STORAGE_PROVIDER || 'oci' }}
-          AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
-          OCI_REGION: us-ashburn-1
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-          OCI_MEDIA_BUCKET_NAME: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
-          OCI_MEDIA_NAMESPACE: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: bash scripts/deploy-vm.sh
