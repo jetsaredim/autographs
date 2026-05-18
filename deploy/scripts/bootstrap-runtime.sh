@@ -20,7 +20,7 @@ if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; 
   exit 1
 fi
 
-mask_services() {
+mask_unneeded_services() {
   local services=(
     oracle-cloud-agent.service
     oracle-cloud-agent-updater.service
@@ -39,31 +39,20 @@ mask_services() {
 }
 
 enable_oracle_epel() {
-  if ! [ -r /etc/os-release ]; then
-    echo "/etc/os-release is required to enable Oracle Linux EPEL repositories" >&2
-    exit 1
+  # check if EPEL is already setup
+  if dnf repolist | grep -q EPEL ; then
+    return
   fi
 
-  . /etc/os-release
+  local repo_file epel_pkg
+  epel_pkg="oracle-epel-release-el10"
 
-  case "${VERSION_ID%%.*}" in
-    8)
-      dnf install -y oracle-epel-release-el8
-      dnf config-manager --enable ol8_developer_EPEL
-      ;;
-    9)
-      dnf install -y oracle-epel-release-el9
-      dnf config-manager --enable ol9_developer_EPEL
-      ;;
-    10)
-      dnf install -y oracle-epel-release-el10
-      dnf config-manager --enable $(grep -E '^\[' $(rpm -ql oracle-epel-release-el10 | grep repo$) | tr -d '[]')
-      ;;
-    *)
-      echo "Unsupported Oracle Linux version for podman-compose bootstrap: ${VERSION_ID}" >&2
-      exit 1
-      ;;
-  esac
+  # install dnf config tools and EPEL repo file
+  dnf install -y dnf-plugins-core $epel_pkg
+  repo_file="$(rpm -ql $epel_pkg | grep 'repo$' | head -n 1)"
+
+  # enable EPEL repo
+  dnf config-manager --enable "$(grep -E '^\[' "$repo_file" | tr -d '[]')"
 }
 
 install_podman_compose() {
@@ -76,17 +65,14 @@ install_podman_compose() {
     exit 1
   fi
 
-  if ! rpm -q dnf-plugins-core >/dev/null 2>&1; then
-    dnf install -y dnf-plugins-core
-  fi
+  enable_oracle_epel
 
-  if ! rpm -q podman >/dev/null 2>&1; then
-    dnf install -y podman
-  fi
+  local runtime_packages=()
+  rpm -q podman >/dev/null 2>&1 || runtime_packages+=(podman)
+  rpm -q podman-compose >/dev/null 2>&1 || runtime_packages+=(podman-compose)
 
-  if ! rpm -q podman-compose >/dev/null 2>&1; then
-    enable_oracle_epel
-    dnf install -y podman-compose
+  if [ "${runtime_packages[@]}" -gt 0 ] ; then
+    dnf install -y "${runtime_packages[@]}"
   fi
 }
 
@@ -127,7 +113,7 @@ SYSCTL
 }
 
 configure_swap
-mask_services
+mask_unneeded_services
 install_podman_compose
 
 install -d -o "$DEPLOY_USER" -m 0755 "$DEPLOY_PATH" "$DEPLOY_PATH/compose" "$DEPLOY_PATH/caddy"
