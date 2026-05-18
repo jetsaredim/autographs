@@ -1,0 +1,7 @@
+autographs_deploy_deploy_user: opc
+
+autographs_deploy_deploy_path: /opt/autographs
+autographs_deploy_compose_path: "{{ deploy_path }}/compose"
+autographs_deploy_wallet_path: "{{ deploy_path }}/wallet"
+autographs_deploy_secrets_path: "{{ deploy_path }}/secrets"
+autographs_deploy_caddy_path: "{{ deploy_path }}/caddy"
