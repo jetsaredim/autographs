@@ -131,6 +131,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout 
+        uses: actions/checkout@v6
+
       - name: Install Ansible
         run: python3 -m pip install --user ansible ansible-lint
 
