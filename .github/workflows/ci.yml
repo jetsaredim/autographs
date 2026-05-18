@@ -135,7 +135,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Check files
-        run: ls -ltr deploy/ansible/roles/autographs_deploy/files/
+        run: cat deploy/ansible/roles/autographs_deploy/files/compose.prod.yaml
 
       - name: Install Ansible
         run: python3 -m pip install --user ansible ansible-lint
