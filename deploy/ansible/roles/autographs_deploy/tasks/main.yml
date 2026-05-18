@@ -40,10 +40,45 @@
 - name: Install OCI private key
   ansible.builtin.copy:
     content: "{{ lookup('env', 'OCI_PRIVATE_KEY_PEM') }}"
-    dest: "{{ autographs_deploy_secrets_path }}/oci_api_key.pem-new"
+    dest: "{{ autographs_deploy_secrets_path }}/oci_api_key.pem"
     owner: "{{ autographs_deploy_user }}"
     group: "{{ autographs_deploy_user }}"
     mode: "0600"
+  no_log: true
+
+- name: Write Oracle DB wallet archive
+  ansible.builtin.copy:
+    content: "{{ lookup('env', 'ORACLE_DB_WALLET_ZIP_BASE64') }}"
+    dest: "{{ autographs_deploy_wallet_path }}/wallet.zip.b64"
+    owner: "{{ autographs_deploy_user }}"
+    group: "{{ autographs_deploy_user }}"
+    mode: "0600"
+  no_log: true
+
+- name: Decode Oracle DB wallet archive
+  ansible.builtin.command:
+    cmd: "base64 -d wallet.zip.b64 > wallet.zip"
+    chdir: "{{ autographs_deploy_wallet_path }}"
+  no_log: true
+  changed_when: true
+
+- name: Extract Oracle DB wallet archive
+  ansible.builtin.unarchive:
+    src: "{{ autographs_deploy_wallet_path }}/wallet.zip"
+    dest: "{{ autographs_deploy_wallet_path }}"
+    remote_src: true
+    owner: "{{ autographs_deploy_user }}"
+    group: "{{ autographs_deploy_user }}"
+    mode: "0600"
+  no_log: true
+
+- name: Remove temp wallet archives
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ autographs_deploy_wallet_path }}/wallet.zip.b64"
+    - "{{ autographs_deploy_wallet_path }}/wallet.zip"
   no_log: true
 
 # - name: Login to GHCR

@@ -157,6 +157,7 @@ jobs:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           ORACLE_DB_PASSWORD: ${{ secrets.ORACLE_DB_PASSWORD }}
           ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
+          ORACLE_DB_WALLET_ZIP_BASE64: ${{ secrets.ORACLE_DB_WALLET_ZIP_BASE64 }}
         with:
           playbook: playbooks/deploy.yml
           directory: deploy/ansible
