@@ -143,8 +143,8 @@ jobs:
           [runtime]
           localhost ansible_connection=local
           EOF
-          
-          ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml
+
+          ansible-playbook -i /tmp/ansible-inventory.ini --syntax-check deploy/ansible/playbooks/deploy.yml
 
       - name: Lint Ansible playbook
         run: ansible-lint deploy/ansible/playbooks/deploy.yml
