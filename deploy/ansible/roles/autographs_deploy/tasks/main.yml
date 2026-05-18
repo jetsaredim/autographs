@@ -6,11 +6,11 @@
     group: "{{ autographs_deploy_user }}"
     mode: "0755"
   loop:
-    - "{{autographs_deploy_deploy_path }}"
-    - "{{autographs_deploy_compose_path }}"
-    - "{{autographs_deploy_wallet_path }}"
-    - "{{autographs_deploy_secrets_path }}"
-    - "{{autographs_deploy_caddy_path }}"
+    - "{{ autographs_deploy_deploy_path }}"
+    - "{{ autographs_deploy_compose_path }}"
+    - "{{ autographs_deploy_wallet_path }}"
+    - "{{ autographs_deploy_secrets_path }}"
+    - "{{ autographs_deploy_caddy_path }}"
 
 - name: Write compose env
   ansible.builtin.template:
@@ -24,7 +24,7 @@
 - name: Copy compose file
   ansible.builtin.copy:
     src: compose.prod.yaml
-    dest: "{{autographs_deploy_compose_path }}/compose.prod.yaml-new"
+    dest: "{{ autographs_deploy_compose_path }}/compose.prod.yaml-new"
     owner: "{{ autographs_deploy_user }}"
     group: "{{ autographs_deploy_user }}"
     mode: "0644"
@@ -37,9 +37,9 @@
 # - name: Pull app image
 #   command: podman-compose -f compose.prod.yaml pull app
 #   args:
-#     chdir: "{{autographs_deploy_compose_path }}"
+#     chdir: "{{ autographs_deploy_compose_path }}"
 
 # - name: Deploy app
 #   command: podman-compose -f compose.prod.yaml up -d --no-deps app
 #   args:
-#     chdir: "{{autographs_deploy_compose_path }}"
+#     chdir: "{{ autographs_deploy_compose_path }}"
