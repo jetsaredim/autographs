@@ -291,12 +291,6 @@ variable "porkbun_secret_key" {
   default     = ""
 }
 
-variable "manage_autographs_dns" {
-  description = "Whether Terraform should manage the autographs.jetsaredim.net DNS record."
-  type        = bool
-  default     = false
-}
-
 variable "autographs_dns_domain" {
   description = "Porkbun domain that owns the autographs DNS record."
   type        = string
@@ -313,4 +307,9 @@ variable "autographs_dns_ttl" {
   description = "TTL for the autographs DNS record."
   type        = number
   default     = 300
+}
+
+variable "autographs_dns_record_id" {
+  description = "Existing Porkbun DNS record ID for autographs.jetsaredim.net."
+  type        = string
 }
