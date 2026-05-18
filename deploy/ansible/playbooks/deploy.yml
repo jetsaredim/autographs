@@ -3,6 +3,7 @@
   become: true
   vars:
     deploy_path: /opt/autographs
+    deploy_user: opc
     compose_path: "{{ deploy_path }}/compose"
     wallet_path: "{{ deploy_path }}/wallet"
     secrets_path: "{{ deploy_path }}/secrets"
