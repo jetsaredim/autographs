@@ -134,6 +134,9 @@ jobs:
       - name: Checkout 
         uses: actions/checkout@v6
 
+      - name: Check files
+        run: ls -ltr deploy/ansible/roles/autographs_deploy/files/
+
       - name: Install Ansible
         run: python3 -m pip install --user ansible ansible-lint
 
