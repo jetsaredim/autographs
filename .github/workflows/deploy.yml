@@ -148,7 +148,7 @@ jobs:
 
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v9
-        env: 
+        env:
           ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
         with:
           playbook: playbooks/deploy.yml
