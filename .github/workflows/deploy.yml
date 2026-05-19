@@ -172,17 +172,17 @@ jobs:
             --extra-vars autographs_app_image=${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
             --extra-vars autographs_tools_image=${{ env.GHCR_IMAGE_REPOSITORY }}-tools:${{ github.sha }}
 
-      - name: Deploy runtime to VM
-        env:
-          VM_PUBLIC_IP: ${{ needs.terraform-apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
-          DEPLOY_SSH_USER: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
-          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
-          DEPLOY_SSH_READY_TIMEOUT_SECONDS: ${{ vars.DEPLOY_SSH_READY_TIMEOUT_SECONDS || '900' }}
-          DEPLOY_SSH_READY_INTERVAL_SECONDS: ${{ vars.DEPLOY_SSH_READY_INTERVAL_SECONDS || '10' }}
-          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-          DEPLOY_CADDY: ${{ inputs.deploy_caddy || 'false' }}
-          GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
-          AUTOGRAPHS_DOMAIN: ${{ env.AUTOGRAPHS_DOMAIN }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
-        run: bash scripts/deploy-vm.sh
+      # - name: Deploy runtime to VM
+      #   env:
+      #     VM_PUBLIC_IP: ${{ needs.terraform-apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
+      #     DEPLOY_SSH_USER: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
+      #     DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
+      #     DEPLOY_SSH_READY_TIMEOUT_SECONDS: ${{ vars.DEPLOY_SSH_READY_TIMEOUT_SECONDS || '900' }}
+      #     DEPLOY_SSH_READY_INTERVAL_SECONDS: ${{ vars.DEPLOY_SSH_READY_INTERVAL_SECONDS || '10' }}
+      #     DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      #     DEPLOY_CADDY: ${{ inputs.deploy_caddy || 'false' }}
+      #     GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
+      #     AUTOGRAPHS_DOMAIN: ${{ env.AUTOGRAPHS_DOMAIN }}
+      #     GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+      #     GITHUB_ACTOR: ${{ github.actor }}
+      #   run: bash scripts/deploy-vm.sh
