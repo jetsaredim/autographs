@@ -14,8 +14,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup runtime
-        uses: ./.github/actions/setup-runtime
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.2"
+          terraform_wrapper: false
 
       - name: Write OCI API private key
         env:
