@@ -93,21 +93,13 @@
     password: "{{ lookup('env', 'GHCR_TOKEN') | default('', true) }}"
     registry: ghcr.io
 
+- name: Pull Autograph app image
+  community.docker.docker_compose_v2.pull:
+    project_src: "{{ autographs_deploy_compose_path }}"
+    files: "compose.prod.yaml"
+    services: "app"
+
 - name: GHCR logout
   containers.podman.podman_logout:
     registry: ghcr.io
 
-# - name: Login to GHCR
-#   shell: |
-#     echo "{{ ghcr_token }}" | podman login ghcr.io -u "{{ github_actor }}" --password-stdin
-#   no_log: true
-
-# - name: Pull app image
-#   command: podman-compose -f compose.prod.yaml pull app
-#   args:
-#     chdir: "{{ autographs_deploy_compose_path }}"
-
-# - name: Deploy app
-#   command: podman-compose -f compose.prod.yaml up -d --no-deps app
-#   args:
-#     chdir: "{{ autographs_deploy_compose_path }}"
