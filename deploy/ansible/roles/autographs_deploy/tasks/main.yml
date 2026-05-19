@@ -98,8 +98,10 @@
   become: true
   community.docker.docker_compose_v2_pull:
     project_src: "{{ autographs_deploy_compose_path }}"
-    files: "compose.prod.yaml"
-    services: "app"
+    files: 
+      - compose.prod.yaml
+    services: 
+      - app
 
 - name: GHCR logout
   become: true
