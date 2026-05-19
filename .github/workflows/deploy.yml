@@ -180,6 +180,6 @@ jobs:
           DEPLOY_CADDY: ${{ inputs.deploy_caddy || 'false' }}
           GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
           AUTOGRAPHS_DOMAIN: ${{ env.AUTOGRAPHS_DOMAIN }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: bash scripts/deploy-vm.sh
