@@ -167,7 +167,7 @@ jobs:
           inventory: |
             [runtime]
             ${{ needs.terraform-apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
-          requirements: deploy/ansible/collections/requirements.yml
+          requirements: collections/requirements.yml
           options: |
             --extra-vars autographs_app_image=${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
             --extra-vars autographs_tools_image=${{ env.GHCR_IMAGE_REPOSITORY }}-tools:${{ github.sha }}
