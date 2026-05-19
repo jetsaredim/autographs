@@ -88,7 +88,7 @@
   no_log: true
 
 - name: GHCR login
-  conainers.podman.podman_login:
+  containers.podman.podman_login:
     username: "{{ lookup('env', 'GITHUB_ACTOR') | default('', true) }}"
     password: "{{ lookup('env', 'GHCR_TOKEN') | default('', true) }}"
     registry: ghcr.io
