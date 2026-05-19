@@ -70,6 +70,7 @@ install_podman_compose() {
   local runtime_packages=()
   rpm -q podman >/dev/null 2>&1 || runtime_packages+=(podman)
   rpm -q podman-compose >/dev/null 2>&1 || runtime_packages+=(podman-compose)
+  rpm -q podman-docker >/dev/null 2>&1 || runtime_packages+=(podman-docker)
 
   if [ "${#runtime_packages[@]}" -gt 0 ] ; then
     dnf install -y "${runtime_packages[@]}"
