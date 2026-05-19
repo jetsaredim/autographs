@@ -134,8 +134,11 @@ jobs:
       - name: Checkout 
         uses: actions/checkout@v6
 
-      - name: Install Ansible
+      - name: Install Ansible tooling
         run: python3 -m pip install --user ansible ansible-lint
+
+      - name: Install Ansible collections
+        run: ansible-galaxy collection install -r deploy/ansible/collections/requirements.yml
 
       - name: Syntax check Ansible playbook
         run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook -vvv --syntax-check deploy/ansible/playbooks/deploy.yml

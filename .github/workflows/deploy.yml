@@ -151,6 +151,8 @@ jobs:
         env:
           ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
           AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
@@ -165,6 +167,7 @@ jobs:
           inventory: |
             [runtime]
             ${{ needs.terraform-apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          requirements: deploy/ansible/collections/requirements.yml
           options: |
             --extra-vars autographs_app_image=${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
             --extra-vars autographs_tools_image=${{ env.GHCR_IMAGE_REPOSITORY }}-tools:${{ github.sha }}
