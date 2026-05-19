@@ -55,6 +55,12 @@
     mode: "0600"
   no_log: true
 
+- name: Check for/install unzip
+  become: true
+  ansible.builtin.package:
+    name: unzip
+    state: present
+
 - name: Decode Oracle DB wallet archive
   ansible.builtin.shell:
     cmd: "base64 -d wallet.zip.b64 > wallet.zip"
