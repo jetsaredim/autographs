@@ -14,6 +14,7 @@ require_env VM_PUBLIC_IP
 require_env DEPLOY_SSH_USER
 require_env DEPLOY_SSH_PRIVATE_KEY
 require_env GHCR_TOKEN
+require_env GITHUB_ACTOR
 require_env AUTOGRAPHS_TOOLS_IMAGE
 
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/autographs}"
@@ -36,6 +37,7 @@ validate_pattern VM_PUBLIC_IP "$VM_PUBLIC_IP" '^[A-Za-z0-9._:-]+$'
 validate_pattern DEPLOY_SSH_USER "$DEPLOY_SSH_USER" '^[A-Za-z_][A-Za-z0-9_-]*$'
 validate_pattern DEPLOY_PATH "$DEPLOY_PATH" '^/[A-Za-z0-9._/-]+$'
 validate_pattern AUTOGRAPHS_SMOKE_BASE_URL "$AUTOGRAPHS_SMOKE_BASE_URL" '^https?://[A-Za-z0-9._:/?=&%-]+$'
+validate_pattern GITHUB_ACTOR "$GITHUB_ACTOR" '^[A-Za-z0-9][A-Za-z0-9-]*$'
 
 if [[ ! "$DEPLOY_PATH" =~ ^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$ ]]; then
   echo "DEPLOY_PATH must be /opt/autographs or a safe child path: ${DEPLOY_PATH}" >&2
