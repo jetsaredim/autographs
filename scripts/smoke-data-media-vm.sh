@@ -13,6 +13,7 @@ require_env() {
 require_env VM_PUBLIC_IP
 require_env DEPLOY_SSH_USER
 require_env DEPLOY_SSH_PRIVATE_KEY
+require_env GHCR_TOKEN
 require_env AUTOGRAPHS_TOOLS_IMAGE
 
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/autographs}"
@@ -55,6 +56,8 @@ SSH_OPTS=(
   -o IdentitiesOnly=yes
   -o StrictHostKeyChecking=accept-new
 )
+
+printf '%s' "$GHCR_TOKEN" | ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" "sudo podman login ghcr.io -u '${GITHUB_ACTOR}' --password-stdin"
 
 ssh "${SSH_OPTS[@]}" "${DEPLOY_SSH_USER}@${VM_PUBLIC_IP}" \
   "cd '${DEPLOY_PATH}/compose' && \
