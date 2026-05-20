@@ -26,7 +26,7 @@
       test -f {{ autographs_deploy_swap_file | quote }}
       [ "$(du -m {{ autographs_deploy_swap_file | quote }} | awk '{print $1}')" -ge {{ autographs_deploy_swap_size_mib }} ]
     executable: /bin/bash
-  register: autographs_swap_size_check
+  register: autographs_deploy_swap_size_check
   changed_when: false
   failed_when: false
 
@@ -42,7 +42,7 @@
       chmod 600 {{ autographs_deploy_swap_file | quote }}
       mkswap {{ autographs_deploy_swap_file | quote }}
     executable: /bin/bash
-  when: autographs_swap_size_check.rc != 0
+  when: autographs_deploy_swap_size_check.rc != 0
   changed_when: true
 
 - name: Check whether swap file is active
@@ -51,14 +51,14 @@
       set -o pipefail
       swapon --show=NAME --noheadings | grep -Fxq {{ autographs_deploy_swap_file | quote }}
     executable: /bin/bash
-  register: autographs_swap_active_check
+  register: autographs_deploy_swap_active_check
   changed_when: false
   failed_when: false
 
 - name: Enable swap file
   ansible.builtin.command:
     cmd: "swapon {{ autographs_deploy_swap_file }}"
-  when: autographs_swap_active_check.rc != 0
+  when: autographs_deploy_swap_active_check.rc != 0
   changed_when: true
 
 - name: Persist swap file in fstab
@@ -168,15 +168,15 @@
     group: "{{ autographs_deploy_user }}"
     mode: "0600"
   no_log: true
-  register: autographs_wallet_archive
+  register: autographs_deploy_wallet_archive
 
 - name: Decode Oracle DB wallet archive # noqa: no-handler
   ansible.builtin.shell:
     cmd: "base64 -d wallet.zip.b64 > wallet.zip"
     chdir: "{{ autographs_deploy_wallet_path }}"
   no_log: true
-  changed_when: autographs_wallet_archive.changed
-  when: autographs_wallet_archive.changed
+  changed_when: autographs_deploy_wallet_archive.changed
+  when: autographs_deploy_wallet_archive.changed
 
 - name: Extract Oracle DB wallet archive # noqa: no-handler
   ansible.builtin.unarchive:
@@ -212,11 +212,11 @@
   loop:
     - "{{ autographs_app_image }}"
     - "{{ autographs_deploy_caddy_image }}"
-  register: autographs_image_pull
+  register: autographs_deploy_image_pull
   changed_when: >-
-    'Downloaded newer image' in autographs_image_pull.stdout
-    or 'Copying blob' in autographs_image_pull.stdout
-    or 'Writing manifest' in autographs_image_pull.stdout
+    'Downloaded newer image' in autographs_deploy_image_pull.stdout
+    or 'Copying blob' in autographs_deploy_image_pull.stdout
+    or 'Writing manifest' in autographs_deploy_image_pull.stdout
 
 - name: GHCR logout after image pulls
   containers.podman.podman_logout:
