@@ -11,6 +11,29 @@ env:
   GHCR_IMAGE_REPOSITORY: ${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}
 
 jobs:
+  workflow-checks:
+    name: Workflow checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run actionlint
+        uses: raven-actions/actionlint@v2
+
+  dockerfile-checks:
+    name: Dockerfile checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Lint app Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: app/Dockerfile
+          verbose: true
+
   app-checks:
     name: App checks
     runs-on: ubuntu-latest
@@ -49,13 +72,13 @@ jobs:
           files: |
             .github/docker-bake.hcl
           push: false
-      
+
   terraform-checks:
     name: Terraform checks
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout 
+      - name: Checkout
         uses: actions/checkout@v6
 
       - name: Setup Terraform
@@ -131,7 +154,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout 
+      - name: Checkout
         uses: actions/checkout@v6
 
       - name: Install Ansible tooling

@@ -3,5 +3,5 @@ autographs_system_cleanup_env_path: "{{ autographs_system_cleanup_deploy_path }}
 autographs_system_cleanup_image_repository: ghcr.io/jetsaredim/autographs/app
 autographs_system_cleanup_tools_image_repository: "{{ autographs_system_cleanup_image_repository }}-tools"
 autographs_system_cleanup_retain_count: 3
-autographs_system_cleanup_protected_tags: ""
+autographs_system_cleanup_protected_tags: production
 autographs_system_cleanup_dry_run: "false"
