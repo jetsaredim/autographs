@@ -206,6 +206,13 @@ Use these entry points:
 Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
 <!-- GSD:workflow-end -->
 
+## Connectivity and Publishing Failures
+
+- If `git push`, `git fetch`, `gh`, SSH, DNS, or GitHub API calls fail because of local connectivity, local SSH configuration, credentials, network restrictions, or sandbox/network access, stop and tell the user immediately.
+- Do not spend time inventing alternate push/fetch workarounds such as overriding `GIT_SSH_COMMAND`, switching remotes, bypassing SSH config, or retrying through a different protocol unless the user explicitly asks for that approach.
+- Prefer a concise report with the failing command, the important error text, and the suggested user-side action. The user can often resolve host connectivity issues faster outside the Codex environment.
+- After the user confirms the issue is fixed, retry the original straightforward command.
+
 
 
 <!-- GSD:profile-start -->

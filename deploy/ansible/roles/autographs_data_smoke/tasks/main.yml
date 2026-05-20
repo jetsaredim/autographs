@@ -1,0 +1,50 @@
+- name: Validate smoke image input
+  ansible.builtin.assert:
+    that:
+      - autographs_tools_image is defined
+      - autographs_tools_image | length > 0
+    fail_msg: "autographs_tools_image must be provided."
+
+- name: Log in to GHCR for tools image pull
+  containers.podman.podman_login:
+    username: "{{ lookup('env', 'GITHUB_ACTOR') | default('', true) }}"
+    password: "{{ lookup('env', 'GHCR_TOKEN') | default('', true) }}"
+    registry: ghcr.io
+  no_log: true
+
+- name: Pull smoke tools image
+  ansible.builtin.command:
+    cmd: "podman pull {{ autographs_tools_image }}"
+  register: autographs_data_smoke_image_pull
+  changed_when: >-
+    'Downloaded newer image' in autographs_data_smoke_image_pull.stdout
+    or 'Copying blob' in autographs_data_smoke_image_pull.stdout
+    or 'Writing manifest' in autographs_data_smoke_image_pull.stdout
+
+- name: Log out from GHCR after tools image pull
+  containers.podman.podman_logout:
+    registry: ghcr.io
+  failed_when: false
+
+- name: Run data and media smoke commands
+  ansible.builtin.command:
+    argv:
+      - podman
+      - run
+      - --rm
+      - --network
+      - "{{ autographs_data_smoke_network_name }}"
+      - --env-file
+      - "{{ autographs_data_smoke_env_path }}/app.env"
+      - --env
+      - "AUTOGRAPHS_SMOKE_BASE_URL={{ autographs_smoke_base_url }}"
+      - -v
+      - "{{ autographs_data_smoke_wallet_path }}:/opt/autographs/wallet:ro"
+      - -v
+      - "{{ autographs_data_smoke_secrets_path }}:/opt/autographs/secrets:ro"
+      - "{{ autographs_tools_image }}"
+      - sh
+      - -lc
+      - "NODE_OPTIONS={{ autographs_data_smoke_node_options | quote }} pnpm --filter app {{ item }}"
+  loop: "{{ autographs_data_smoke_commands }}"
+  changed_when: false

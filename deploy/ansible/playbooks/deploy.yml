@@ -1,5 +1,10 @@
 - name: Deploy Autographs runtime
   hosts: runtime
   become: true
+  pre_tasks:
+    - name: Wait for runtime SSH readiness
+      ansible.builtin.wait_for_connection:
+        timeout: "{{ autographs_deploy_ssh_ready_timeout_seconds | default(900) | int }}"
+        sleep: "{{ autographs_deploy_ssh_ready_interval_seconds | default(10) | int }}"
   roles:
     - autographs_deploy

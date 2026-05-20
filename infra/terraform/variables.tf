@@ -95,19 +95,19 @@ variable "ssh_ingress_cidrs" {
 }
 
 variable "http_ingress_cidrs" {
-  description = "CIDRs allowed to reach nginx over HTTP."
+  description = "CIDRs allowed to reach the Caddy reverse proxy over HTTP."
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
 
 variable "https_ingress_cidrs" {
-  description = "CIDRs allowed to reach nginx over HTTPS."
+  description = "CIDRs allowed to reach the Caddy reverse proxy over HTTPS."
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
 
 variable "create_runtime_instance" {
-  description = "Whether Terraform should create the OCI VM used for the nginx to Next.js runtime."
+  description = "Whether Terraform should create the OCI VM used for the Caddy to Next.js runtime."
   type        = bool
   default     = true
 }
@@ -172,7 +172,7 @@ variable "runtime_deploy_user" {
 }
 
 variable "runtime_deploy_path" {
-  description = "Absolute path on the runtime VM used for compose and nginx deployment files."
+  description = "Absolute path on the runtime VM used by Ansible for quadlet, Caddy, wallet, and secret deployment files."
   type        = string
   default     = "/opt/autographs"
 

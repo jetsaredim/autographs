@@ -141,7 +141,11 @@ jobs:
         run: ansible-galaxy collection install -r deploy/ansible/collections/requirements.yml
 
       - name: Syntax check Ansible playbook
-        run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook -vvv --syntax-check deploy/ansible/playbooks/deploy.yml
+        run: |
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook -vvv --syntax-check \
+            deploy/ansible/playbooks/deploy.yml \
+            deploy/ansible/playbooks/data-smoke.yml \
+            deploy/ansible/playbooks/system-cleanup.yml
 
       - name: Lint Ansible playbook
         run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/

@@ -61,15 +61,17 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `AUTOGRAPHS_SMOKE_BASE_URL` | Optional local/operator value used by the data/media smoke script to verify a deployed app-mediated image route |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
 | `DEPLOY_SSH_USER` | SSH user for deploys, usually `opc` |
-| `DEPLOY_PATH` | Directory on the VM that stores compose and Caddy runtime files |
+| `DEPLOY_PATH` | Directory on the VM that stores Ansible-managed app env, Caddy config, wallet, and secret files |
 | `DEPLOY_SSH_READY_TIMEOUT_SECONDS` | Maximum time deploy waits for SSH after VM creation or replacement; defaults to `900` |
 | `DEPLOY_SSH_READY_INTERVAL_SECONDS` | Poll interval while waiting for SSH readiness; defaults to `10` |
 | `AUTOGRAPHS_DOMAIN` | Public hostname served by Caddy with automatic TLS; defaults to `autographs.jetsaredim.net` |
 | `GHCR_IMAGE_REPOSITORY` | Published app image path, for example `ghcr.io/jetsaredim/autographs/app` |
-| `GHCR_CLEANUP_RETAIN_TAGGED` | Number of newest GHCR app image versions to retain after deploy; defaults to `10` |
+| `GHCR_CLEANUP_RETAIN_TAGGED` | Number of newest GHCR app image versions to retain during scheduled/manual cleanup; defaults to `10` |
 | `GHCR_CLEANUP_MIN_AGE_DAYS` | Minimum image age before GHCR cleanup can delete it; defaults to `7` |
+| `GHCR_CLEANUP_PROTECTED_TAGS` | Optional comma-separated immutable tags that both GHCR and VM-local cleanup must preserve |
+| `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` | Number of newest local app/tools images to retain on the runtime VM during scheduled/manual cleanup; defaults to `3` |
 
-The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the runtime state object key is `envs/prod/terraform.tfstate`. `GHCR_IMAGE_REPOSITORY`, `GHCR_CLEANUP_RETAIN_TAGGED`, `GHCR_CLEANUP_MIN_AGE_DAYS`, `OCI_COMPARTMENT_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_IMAGE_OCID`, `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, `OCI_OBJECT_STORAGE_NAMESPACE`, data-service toggles, data-service names, SSH readiness timing, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
+The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the runtime state object key is `envs/prod/terraform.tfstate`. `GHCR_IMAGE_REPOSITORY`, cleanup retention/protection settings, `OCI_COMPARTMENT_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_IMAGE_OCID`, `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, `OCI_OBJECT_STORAGE_NAMESPACE`, data-service toggles, data-service names, SSH readiness timing, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
 
 ## Local Operator Values
 
@@ -96,7 +98,7 @@ GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_
 
 Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, ADMIN password, and runtime connection values.
 
-The runtime container receives database and media coordinates through Compose environment variables, not committed files. The deploy script writes a VM-local `.env` file beside `compose.prod.yaml`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values. The Phase 2 media adapter supports `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER=local` for local smoke work and `oci` for production Object Storage.
+The runtime container receives database and media coordinates through an Ansible-managed environment file consumed by Podman quadlets, not committed files. The deploy workflow writes a VM-local `app.env` under `${DEPLOY_PATH}/env`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values. The Phase 2 media adapter supports `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER=local` for local smoke work and `oci` for production Object Storage.
 
 ## Optional GitHub Environments
 
@@ -104,6 +106,6 @@ GitHub Environments may be added later for manual approval, deployment history, 
 
 ## Runtime Image Contract
 
-Deployments publish a prebuilt app image to `ghcr.io` and set `AUTOGRAPHS_APP_IMAGE` on the VM. The VM does not build the application. It pulls the exact image published by GitHub Actions, restarts the Podman-backed Compose topology, and checks the Caddy-fronted `/health` route before the workflow succeeds. After a successful VM deploy, the workflow prunes old GHCR app image versions while keeping the deployed commit image, `latest`, the newest retained versions, and any image newer than the configured minimum age.
+Deployments publish a prebuilt app image to `ghcr.io` and set `AUTOGRAPHS_APP_IMAGE` on the VM. The VM does not build the application. Ansible pulls the exact image published by GitHub Actions, installs systemd quadlets for both the app and Caddy containers on a dedicated Podman network, restarts the affected services, and checks the Caddy-fronted `/health` route before the workflow succeeds. Scheduled/manual image cleanup handles old GHCR versions and unused VM-local Podman images while preserving `latest`, protected tags, and the configured newest image count.
 
-The runtime VM bootstrap also maintains a 2 GiB `/.swapfile` with `vm.swappiness=20`. This gives the Always Free VM enough headroom for deploy churn and one-off smoke/admin scripts without changing the compute shape.
+The Ansible deploy role also maintains a 2 GiB `/.swapfile` with `vm.swappiness=20`, installs runtime packages, opens HTTP/HTTPS, and masks unnecessary systemd services. This gives the Always Free VM enough headroom for deploy churn and one-off smoke/admin scripts without changing the compute shape.

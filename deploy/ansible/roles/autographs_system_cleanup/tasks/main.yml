@@ -1,0 +1,120 @@
+- name: Read deployed app image
+  ansible.builtin.command:
+    argv:
+      - awk
+      - -F=
+      - /^AUTOGRAPHS_APP_IMAGE=/{print $2}
+      - "{{ autographs_system_cleanup_env_path }}/app.env"
+  register: autographs_system_cleanup_current_image
+  changed_when: false
+  failed_when: false
+
+- name: List local Podman images
+  ansible.builtin.command:
+    argv:
+      - podman
+      - images
+      - --format
+      - json
+  register: autographs_system_cleanup_images
+  changed_when: false
+
+- name: Select old local images for cleanup
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      python3 - "$RETAIN_COUNT" "$IMAGE_REPOSITORY" "$TOOLS_IMAGE_REPOSITORY" "$CURRENT_IMAGE" "$PROTECTED_TAGS" <<'PY'
+      import json
+      import os
+      import sys
+      from datetime import datetime, timezone
+
+      retain_count = max(int(sys.argv[1]), 0)
+      repositories = {sys.argv[2], sys.argv[3]}
+      current_image = sys.argv[4]
+      protected_tags = {tag.strip() for tag in sys.argv[5].split(",") if tag.strip()}
+      images = json.loads(os.environ["IMAGES_JSON"])
+
+      def created_at(image):
+          value = image.get("CreatedAt") or image.get("Created")
+          if isinstance(value, int):
+              return value
+          if not value:
+              return 0
+          try:
+              return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc).timestamp()
+          except ValueError:
+              return 0
+
+      candidates = []
+      keep_ids = set()
+      candidates_by_repository = {repository: [] for repository in repositories}
+
+      for image in images:
+          repository = image.get("Repository", "")
+          tag = image.get("Tag", "")
+          image_id = image.get("Id") or image.get("ID")
+
+          if repository not in repositories or not image_id:
+              continue
+
+          ref = f"{repository}:{tag}"
+          candidates.append(image)
+          candidates_by_repository[repository].append(image)
+
+          if ref == current_image or tag == "latest" or tag in protected_tags:
+              keep_ids.add(image_id)
+
+      newest_first = sorted(candidates, key=created_at, reverse=True)
+
+      for repository_candidates in candidates_by_repository.values():
+          repository_newest_first = sorted(repository_candidates, key=created_at, reverse=True)
+          for image in repository_newest_first[:retain_count]:
+              keep_ids.add(image.get("Id") or image.get("ID"))
+
+      for image in newest_first:
+          image_id = image.get("Id") or image.get("ID")
+          if image_id not in keep_ids:
+              print(image_id)
+      PY
+    executable: /bin/bash
+  environment:
+    RETAIN_COUNT: "{{ autographs_system_cleanup_retain_count }}"
+    IMAGE_REPOSITORY: "{{ autographs_system_cleanup_image_repository }}"
+    TOOLS_IMAGE_REPOSITORY: "{{ autographs_system_cleanup_tools_image_repository }}"
+    CURRENT_IMAGE: "{{ autographs_system_cleanup_current_image.stdout | trim }}"
+    PROTECTED_TAGS: "{{ autographs_system_cleanup_protected_tags }}"
+    IMAGES_JSON: "{{ autographs_system_cleanup_images.stdout }}"
+  register: autographs_system_cleanup_removable_images
+  changed_when: false
+
+- name: Remove old local app and tools images
+  ansible.builtin.command:
+    argv:
+      - podman
+      - rmi
+      - "{{ item }}"
+  loop: "{{ autographs_system_cleanup_removable_images.stdout_lines }}"
+  when:
+    - autographs_system_cleanup_dry_run | lower != "true"
+    - autographs_system_cleanup_removable_images.stdout_lines | length > 0
+  changed_when: true
+
+- name: Report old local app and tools images dry run
+  ansible.builtin.debug:
+    msg: "Would remove local Podman image {{ item }}"
+  loop: "{{ autographs_system_cleanup_removable_images.stdout_lines }}"
+  when:
+    - autographs_system_cleanup_dry_run | lower == "true"
+    - autographs_system_cleanup_removable_images.stdout_lines | length > 0
+
+- name: Prune dangling Podman images
+  ansible.builtin.command:
+    argv:
+      - podman
+      - image
+      - prune
+      - --force
+  register: autographs_system_cleanup_image_prune
+  changed_when: "'Total reclaimed space: 0B' not in autographs_system_cleanup_image_prune.stdout"
+  when: autographs_system_cleanup_dry_run | lower != "true"

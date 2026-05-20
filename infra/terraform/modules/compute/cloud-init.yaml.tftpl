@@ -1,9 +1,0 @@
-#cloud-config
-write_files:
-  - path: /usr/local/sbin/autographs-bootstrap-runtime.sh
-    owner: root:root
-    permissions: "0755"
-    encoding: b64
-    content: ${bootstrap_script_b64}
-runcmd:
-  - ["env", "DEPLOY_USER=${deploy_user}", "DEPLOY_PATH=${deploy_path}", "SMOKE_MODE=true", "/usr/local/sbin/autographs-bootstrap-runtime.sh"]

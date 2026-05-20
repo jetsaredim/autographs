@@ -29,11 +29,6 @@ resource "oci_core_instance" "runtime" {
 
   metadata = {
     ssh_authorized_keys = join("\n", var.ssh_public_keys)
-    user_data = base64encode(templatefile("${path.module}/cloud-init.yaml.tftpl", {
-      bootstrap_script_b64 = base64encode(var.bootstrap_script)
-      deploy_user          = var.deploy_user
-      deploy_path          = var.deploy_path
-    }))
   }
 
   freeform_tags = var.tags
@@ -58,9 +53,5 @@ resource "oci_core_instance" "runtime" {
       condition     = !var.create_instance || length(var.ssh_public_keys) > 0
       error_message = "At least one SSH public key is required when create_instance is true."
     }
-
-    ignore_changes = [
-      metadata["user_data"]
-    ]
   }
 }

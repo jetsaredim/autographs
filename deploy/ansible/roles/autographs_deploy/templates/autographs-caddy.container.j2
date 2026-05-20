@@ -1,0 +1,25 @@
+[Unit]
+Description=Autographs Caddy reverse proxy container
+After=network-online.target autographs-network.service autographs-app.service
+Wants=network-online.target
+Requires=autographs-network.service autographs-app.service
+
+[Container]
+ContainerName={{ autographs_deploy_caddy_container_name }}
+Image={{ autographs_deploy_caddy_image }}
+Pull=never
+Network=autographs.network
+EnvironmentFile={{ autographs_deploy_env_path }}/app.env
+Volume={{ autographs_deploy_caddy_path }}/Caddyfile:/etc/caddy/Caddyfile:ro
+Volume={{ autographs_deploy_caddy_data_path }}:/data
+Volume={{ autographs_deploy_caddy_config_path }}:/config
+PublishPort={{ autographs_deploy_http_port }}:80
+PublishPort={{ autographs_deploy_https_port }}:443
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

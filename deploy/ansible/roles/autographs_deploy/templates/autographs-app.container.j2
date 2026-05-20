@@ -1,0 +1,23 @@
+[Unit]
+Description=Autographs Next.js app container
+After=network-online.target autographs-network.service
+Wants=network-online.target
+Requires=autographs-network.service
+
+[Container]
+ContainerName={{ autographs_deploy_app_container_name }}
+Image={{ autographs_app_image }}
+Pull=never
+Network=autographs.network
+EnvironmentFile={{ autographs_deploy_env_path }}/app.env
+Volume={{ autographs_deploy_wallet_path }}:/opt/autographs/wallet:ro
+Volume={{ autographs_deploy_secrets_path }}:/opt/autographs/secrets:ro
+PublishPort=127.0.0.1:3000:3000
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

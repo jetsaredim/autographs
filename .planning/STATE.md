@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 02 implementation complete; Phase 03 ready for planning
-last_updated: "2026-05-14T00:00:00.000Z"
-last_activity: 2026-05-14 -- Phase 02 Oracle and private media core implementation completed with documented live smoke gate
+last_updated: "2026-05-20T00:00:00.000Z"
+last_activity: 2026-05-20 -- Quick task moved production deployment from compose/cloud-init bootstrap to Ansible-managed Podman quadlets
 progress:
   total_phases: 5
   completed_phases: 2
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-04-18)
 
 Phase: 03 (public-gallery-mvp) — READY FOR PLANNING
 Plan: 0 of TBD
-Status: Phase 2 implementation is complete; live Oracle/Object Storage smoke is documented for operator execution when credentials are present
-Last activity: 2026-05-14 -- Phase 02 Oracle and private media core implementation completed with documented live smoke gate
+Status: Phase 2 implementation is complete; production runtime deployment now converges through Ansible-managed Podman quadlets
+Last activity: 2026-05-20 -- Quick task moved production deployment from compose/cloud-init bootstrap to Ansible-managed Podman quadlets
 
 Progress: [██████████] 100% of currently planned execution plans
 
@@ -64,6 +64,8 @@ Recent decisions affecting current work:
 - Phase 2: Prove Oracle and private media seams before building gallery or admin UX on top of them.
 - Phase 2: Keep public image delivery app-mediated through `/api/catalog/{itemId}/images/{imageId}` rather than direct Object Storage URLs.
 - Phase 2: Use token-guarded operator endpoints only as a temporary verification seam until Phase 4 admin auth replaces them.
+- Quick task: Manage both production containers with Podman quadlets on a dedicated Podman network instead of compose/podman-compose.
+- Quick task: Keep runtime VM host configuration in the merge-triggered Ansible deploy rather than cloud-init user data.
 - Phase 4: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
 
 ### Pending Todos
@@ -72,11 +74,17 @@ None yet.
 
 ### Blockers/Concerns
 
-- Live Phase 2 data/media smoke requires real ADB and private Object Storage credentials; run `AUTOGRAPHS_SMOKE_BASE_URL=https://autographs.jetsaredim.net bash scripts/smoke-data-media.sh` when ready to prove the deployed route.
+- Live Phase 2 data/media smoke requires real ADB and private Object Storage credentials; run the manual `Data Smoke` GitHub Actions workflow when ready to prove the deployed route.
 - Single-admin authentication mechanism remains a phase-planning choice, but scope is intentionally one admin only.
 
 ## Session Continuity
 
-Last session: 2026-05-14T00:00:00.000Z
-Stopped at: Phase 02 implementation complete; Phase 03 ready for planning
-Resume file: .planning/phases/02-oracle-and-private-media-core/02-04-SUMMARY.md
+Last session: 2026-05-20T00:00:00.000Z
+Stopped at: Quick task complete; Phase 03 remains ready for planning
+Resume file: .planning/quick/20260520-podman-quadlet-deploy/SUMMARY.md
+
+## Quick Tasks Completed
+
+| Date | Task | Summary |
+|------|------|---------|
+| 2026-05-20 | podman-quadlet-deploy | Replaced compose/cloud-init runtime setup with Ansible-managed Podman quadlets and added manual runtime VM taint support. |

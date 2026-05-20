@@ -1,6 +1,6 @@
 # Deployment Runbook
 
-This runbook gets the app from a clean checkout to an OCI VM running the committed Compose topology with Podman: public `Caddy` in front of a private `Next.js` app container, with Terraform-managed hooks for Oracle Autonomous Database Free and private OCI Object Storage media.
+This runbook gets the app from a clean checkout to an OCI VM running systemd-managed Podman quadlets: public `Caddy` in front of a private `Next.js` app container on a dedicated Podman network, with Terraform-managed hooks for Oracle Autonomous Database Free and private OCI Object Storage media.
 
 ## Preconditions
 
@@ -8,26 +8,30 @@ This runbook gets the app from a clean checkout to an OCI VM running the committ
 - An OCI user or deploy identity has API signing keys for Phase 1.
 - The tenancy bootstrap root has created or imported the project compartment, state bucket, deploy user, groups, and policies.
 - The runtime VM image OCID, availability domain, and SSH public key are known.
-- Podman and `podman-compose` are installed on the target VM image or through the committed VM bootstrap process.
+- The target VM accepts SSH for the deploy user. Podman, firewalld, swap, service masking, secrets, and quadlets are managed by the merge-triggered Ansible deploy.
 - GitHub repo-level GitHub Secrets and GitHub Variables from [configuration-contract.md](configuration-contract.md) are populated.
 - Oracle Autonomous Database and Object Storage creation toggles are set intentionally before enabling Phase 2 data services.
 - Optional GitHub Environments may be configured for approval gates, but they are not required for the baseline path.
 
 ## Local Validation
 
-Run the same validation script used by GitHub Actions:
+Run the same broad checks used by GitHub Actions:
 
 ```bash
-bash scripts/validate-ci.sh
+corepack pnpm install --frozen-lockfile
+corepack pnpm --filter app lint
+corepack pnpm --filter app typecheck
+terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff
 ```
 
-To smoke-test the local runtime topology:
+To validate the committed runtime deployment shape:
 
 ```bash
-bash scripts/validate-runtime.sh
+ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml
+ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/
 ```
 
-That command builds the app image, starts the Compose topology locally with Docker, and checks `http://127.0.0.1:8080/health` through Caddy.
+Those commands run the same Ansible syntax and lint checks used by CI for the quadlet deployment.
 
 ## OCI Bootstrap
 
@@ -97,33 +101,25 @@ Populate repo-level GitHub Variables:
 - `GHCR_IMAGE_REPOSITORY`
 - `GHCR_CLEANUP_RETAIN_TAGGED`
 - `GHCR_CLEANUP_MIN_AGE_DAYS`
+- `GHCR_CLEANUP_PROTECTED_TAGS`
+- `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT`
 - `AUTOGRAPHS_DOMAIN`
 
 `GHCR_IMAGE_REPOSITORY` should be a `ghcr.io` image path such as `ghcr.io/jetsaredim/autographs/app`.
 
-`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_IMAGE_REPOSITORY`, `GHCR_CLEANUP_RETAIN_TAGGED`, `GHCR_CLEANUP_MIN_AGE_DAYS`, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
+`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
-Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, ADMIN password, and runtime connection values are ready. When enabling Phase 2 data services, Terraform provisions the ADB and bucket, while the deploy step passes app runtime coordinates through the VM-local Compose `.env` file.
+Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, ADMIN password, and runtime connection values are ready. When enabling Phase 2 data services, Terraform provisions the ADB and bucket, while the deploy step passes app runtime coordinates through the VM-local quadlet environment file.
 
 For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Also store the wallet download password in `ORACLE_DB_WALLET_PASSWORD` if the Thin driver requires it. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the app container.
 
-The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM`. Terraform uses it from the runner temp directory. Runtime deploy copies it to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounts `${DEPLOY_PATH}/secrets` read-only into the app container, and sets `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. This preserves PEM newlines for the OCI SDK and avoids putting multiline private keys in the Compose `.env` file.
+The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM`. Terraform uses it from the runner temp directory. Runtime deploy copies it to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounts `${DEPLOY_PATH}/secrets` read-only into the app container, and sets `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. This preserves PEM newlines for the OCI SDK and avoids putting multiline private keys in the quadlet environment file.
 
 ## Data and Media Smoke
 
-Basic `/health` remains a proof-of-life check and does not require Oracle or Object Storage secrets. Use the deeper smoke path only when data-service credentials are present:
+Basic `/health` remains a proof-of-life check and does not require Oracle or Object Storage secrets. Use the deeper VM smoke workflow only when data-service credentials are present:
 
-```bash
-bash scripts/smoke-data-media.sh
-```
-
-That command runs migrations, loads representative seed records with generated SVG fixture images, creates a published smoke item, uploads a private smoke image, reads it back through the catalog/media service, and confirms list/detail behavior. It is intentionally not part of CI because it requires live ADB and private Object Storage credentials. Seed records are additive; reset the target schema before rerunning if you need a pristine sample dataset.
-
-To include the deployed app-mediated image route in the smoke proof, set `AUTOGRAPHS_SMOKE_BASE_URL` first:
-
-```bash
-AUTOGRAPHS_SMOKE_BASE_URL=https://autographs.jetsaredim.net bash scripts/smoke-data-media.sh
-```
+Run `.github/workflows/data-smoke.yml` manually from GitHub Actions. The workflow resolves the runtime VM IP, starts the tools image on the VM's Podman network, runs migrations, loads representative seed records with generated SVG fixture images, creates a published smoke item, uploads a private smoke image, reads it back through the catalog/media service, and verifies the deployed app-mediated image route with `AUTOGRAPHS_SMOKE_BASE_URL`. It is intentionally manual because it requires live ADB and private Object Storage credentials. Seed records are additive; reset the target schema before rerunning if you need a pristine sample dataset.
 
 The deployed app also exposes `GET /health/data` for configuration readiness and `GET /health/data?live=1` for guarded live checks. The live check requires `Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}` and verifies both Oracle catalog access and private media bucket readiness.
 
@@ -131,26 +127,30 @@ Published images are served through app-mediated URLs shaped as `/api/catalog/{i
 
 ## Workflow Behavior
 
-Pull requests run `.github/workflows/ci.yml`. The CI workflow installs runtime tooling, runs `bash scripts/validate-ci.sh`, checks the Next.js app, and validates Terraform with `terraform init -backend=false`.
+Pull requests run `.github/workflows/ci.yml`. The CI workflow checks the Next.js app, builds the container images without pushing them, validates Terraform, and runs Ansible syntax/lint checks for the quadlet deployment.
 
 Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 
 1. validates the repository,
 2. publishes a prebuilt app image to `ghcr.io`,
 3. runs `terraform apply`,
-4. waits for SSH readiness when Terraform has created or replaced the OCI VM,
-5. copies the committed compose and Caddy files to the OCI VM,
-6. maintains a 2 GiB `/.swapfile` on the OCI VM,
+4. optionally taints and recreates the runtime VM when manually requested,
+5. connects to the OCI VM over SSH through Ansible,
+6. installs/maintains Podman, firewalld, swap, and masked systemd services,
 7. copies wallet and OCI API key material to protected VM paths,
-8. runs `podman-compose pull` and restarts the runtime,
-9. checks the Caddy-fronted `/health` proof-of-life route,
-10. prunes old GHCR app image versions.
+8. installs systemd quadlets for the dedicated Podman network, app container, and Caddy container,
+9. pulls the published app image and restarts the quadlet services,
+10. checks the Caddy-fronted `/health` proof-of-life route.
 
 The VM pulls the image built by GitHub Actions. The VM does not build application code during deploy.
 
-The VM bootstrap keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because `tsx`, Next.js, and smoke/admin scripts can briefly exceed the VM's physical memory.
+The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because `tsx`, Next.js, and smoke/admin scripts can briefly exceed the VM's physical memory.
 
-The GHCR cleanup step runs only after the VM deploy succeeds. By default it keeps the newest 10 app image versions, keeps the currently deployed commit image, keeps `latest`, and refuses to delete images newer than 7 days. Tune those guardrails with `GHCR_CLEANUP_RETAIN_TAGGED` and `GHCR_CLEANUP_MIN_AGE_DAYS`.
+### Runtime VM Recreation
+
+Terraform no longer embeds the runtime bootstrap state in cloud-init. If a clean VM is needed, manually run the deploy workflow with `recreate_runtime_instance=true`. The workflow taints `module.compute.oci_core_instance.runtime[0]` before `terraform apply`, forcing OCI to recreate the runtime VM and then letting Ansible converge the full production state onto the replacement instance.
+
+Image cleanup runs separately through `.github/workflows/image-cleanup.yml` on a weekly schedule and by manual dispatch. One job prunes old VM-local app/tools images while keeping the active image from `${DEPLOY_PATH}/env/app.env`, `latest`, `GHCR_CLEANUP_PROTECTED_TAGS`, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` matching images per repository. Another job prunes old GHCR package versions while keeping `latest`, protected tags, the newest `GHCR_CLEANUP_RETAIN_TAGGED` versions, and versions newer than `GHCR_CLEANUP_MIN_AGE_DAYS`. Use the manual `dry_run=true` input to preview deletions.
 
 ## Manual Smoke Path
 
@@ -170,9 +170,9 @@ If this fails, check the VM:
 
 ```bash
 ssh opc@"${VM_PUBLIC_IP}"
-cd /opt/autographs/compose
-sudo podman-compose -f compose.prod.yaml ps
-sudo podman-compose -f compose.prod.yaml logs app caddy
+sudo systemctl status autographs-network.service autographs-app.service autographs-caddy.service
+sudo journalctl -u autographs-app.service -u autographs-caddy.service --since "30 minutes ago"
+sudo podman ps
 ```
 
 ## Current Auth Note

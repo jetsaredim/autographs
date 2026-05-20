@@ -1,33 +1,145 @@
+- name: Ensure runtime packages are installed
+  ansible.builtin.package:
+    name: "{{ autographs_deploy_packages }}"
+    state: present
+
+- name: Ensure firewalld is enabled
+  ansible.builtin.systemd:
+    name: firewalld.service
+    state: started
+    enabled: true
+  failed_when: false
+
+- name: Mask unnecessary systemd services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+  loop: "{{ autographs_deploy_masked_services }}"
+  failed_when: false
+
+- name: Check swap file size
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      test -f {{ autographs_deploy_swap_file | quote }}
+      [ "$(du -m {{ autographs_deploy_swap_file | quote }} | awk '{print $1}')" -ge {{ autographs_deploy_swap_size_mib }} ]
+    executable: /bin/bash
+  register: autographs_deploy_swap_size_check
+  changed_when: false
+  failed_when: false
+
+- name: Create swap file
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      if swapon --show=NAME --noheadings | grep -Fxq {{ autographs_deploy_swap_file | quote }}; then
+        swapoff {{ autographs_deploy_swap_file | quote }}
+      fi
+      rm -f {{ autographs_deploy_swap_file | quote }}
+      fallocate -l {{ autographs_deploy_swap_size_mib }}M {{ autographs_deploy_swap_file | quote }}
+      chmod 600 {{ autographs_deploy_swap_file | quote }}
+      mkswap {{ autographs_deploy_swap_file | quote }}
+    executable: /bin/bash
+  when: autographs_deploy_swap_size_check.rc != 0
+  changed_when: true
+
+- name: Check whether swap file is active
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      swapon --show=NAME --noheadings | grep -Fxq {{ autographs_deploy_swap_file | quote }}
+    executable: /bin/bash
+  register: autographs_deploy_swap_active_check
+  changed_when: false
+  failed_when: false
+
+- name: Enable swap file
+  ansible.builtin.command:
+    cmd: "swapon {{ autographs_deploy_swap_file }}"
+  when: autographs_deploy_swap_active_check.rc != 0
+  changed_when: true
+
+- name: Persist swap file in fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^[^#\s]+\s+none\s+swap\s+'
+    line: "{{ autographs_deploy_swap_file }} none swap sw 0 0"
+    create: true
+    mode: "0644"
+
+- name: Configure swap sysctl
+  ansible.posix.sysctl:
+    name: vm.swappiness
+    value: "{{ autographs_deploy_swappiness }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-autographs-swap.conf
+    reload: true
+
+- name: Open HTTP and HTTPS in firewalld
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - http
+    - https
+  failed_when: false
+
 - name: Ensure deployment directories exist
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ item.path }}"
     state: directory
-    owner: "{{ autographs_deploy_user }}"
-    group: "{{ autographs_deploy_user }}"
-    mode: "0755"
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
   loop:
-    - "{{ autographs_deploy_deploy_path }}"
-    - "{{ autographs_deploy_compose_path }}"
-    - "{{ autographs_deploy_wallet_path }}"
-    - "{{ autographs_deploy_secrets_path }}"
-    - "{{ autographs_deploy_caddy_path }}"
+    - path: "{{ autographs_deploy_deploy_path }}"
+      owner: "{{ autographs_deploy_user }}"
+      group: "{{ autographs_deploy_user }}"
+      mode: "0755"
+    - path: "{{ autographs_deploy_env_path }}"
+      owner: "{{ autographs_deploy_user }}"
+      group: "{{ autographs_deploy_user }}"
+      mode: "0700"
+    - path: "{{ autographs_deploy_wallet_path }}"
+      owner: "{{ autographs_deploy_user }}"
+      group: "{{ autographs_deploy_user }}"
+      mode: "0700"
+    - path: "{{ autographs_deploy_secrets_path }}"
+      owner: "{{ autographs_deploy_user }}"
+      group: "{{ autographs_deploy_user }}"
+      mode: "0700"
+    - path: "{{ autographs_deploy_caddy_path }}"
+      owner: "{{ autographs_deploy_user }}"
+      group: "{{ autographs_deploy_user }}"
+      mode: "0755"
+    - path: "{{ autographs_deploy_caddy_data_path }}"
+      owner: "{{ autographs_deploy_user }}"
+      group: "{{ autographs_deploy_user }}"
+      mode: "0755"
+    - path: "{{ autographs_deploy_caddy_config_path }}"
+      owner: "{{ autographs_deploy_user }}"
+      group: "{{ autographs_deploy_user }}"
+      mode: "0755"
+    - path: "{{ autographs_deploy_quadlet_path }}"
+      owner: root
+      group: root
+      mode: "0755"
 
-- name: Write compose env
+- name: Write app environment file
   ansible.builtin.template:
-    src: env.j2
-    dest: "{{ autographs_deploy_compose_path }}/.env"
+    src: app.env.j2
+    dest: "{{ autographs_deploy_env_path }}/app.env"
     owner: "{{ autographs_deploy_user }}"
     group: "{{ autographs_deploy_user }}"
     mode: "0600"
   no_log: true
-
-- name: Copy compose file
-  ansible.builtin.copy:
-    src: compose.prod.yaml
-    dest: "{{ autographs_deploy_compose_path }}/compose.prod.yaml"
-    owner: "{{ autographs_deploy_user }}"
-    group: "{{ autographs_deploy_user }}"
-    mode: "0644"
+  notify:
+    - Restart app container
+    - Restart Caddy container
 
 - name: Copy Caddyfile
   ansible.builtin.copy:
@@ -36,6 +148,7 @@
     owner: "{{ autographs_deploy_user }}"
     group: "{{ autographs_deploy_user }}"
     mode: "0644"
+  notify: Restart Caddy container
 
 - name: Install OCI private key
   ansible.builtin.copy:
@@ -45,6 +158,7 @@
     group: "{{ autographs_deploy_user }}"
     mode: "0600"
   no_log: true
+  notify: Restart app container
 
 - name: Write Oracle DB wallet archive
   ansible.builtin.copy:
@@ -54,21 +168,17 @@
     group: "{{ autographs_deploy_user }}"
     mode: "0600"
   no_log: true
+  register: autographs_deploy_wallet_archive
 
-- name: Check for/install unzip
-  become: true
-  ansible.builtin.package:
-    name: unzip
-    state: present
-
-- name: Decode Oracle DB wallet archive
+- name: Decode Oracle DB wallet archive # noqa: no-handler
   ansible.builtin.shell:
     cmd: "base64 -d wallet.zip.b64 > wallet.zip"
     chdir: "{{ autographs_deploy_wallet_path }}"
   no_log: true
-  changed_when: true
+  changed_when: autographs_deploy_wallet_archive.changed
+  when: autographs_deploy_wallet_archive.changed
 
-- name: Extract Oracle DB wallet archive
+- name: Extract Oracle DB wallet archive # noqa: no-handler
   ansible.builtin.unarchive:
     src: "{{ autographs_deploy_wallet_path }}/wallet.zip"
     dest: "{{ autographs_deploy_wallet_path }}"
@@ -77,6 +187,8 @@
     group: "{{ autographs_deploy_user }}"
     mode: "0600"
   no_log: true
+  when: autographs_wallet_archive.changed
+  notify: Restart app container
 
 - name: Remove temp wallet archives
   ansible.builtin.file:
@@ -87,23 +199,59 @@
     - "{{ autographs_deploy_wallet_path }}/wallet.zip"
   no_log: true
 
-- name: GHCR login
-  become: true
+- name: GHCR login for image pulls
   containers.podman.podman_login:
     username: "{{ lookup('env', 'GITHUB_ACTOR') | default('', true) }}"
     password: "{{ lookup('env', 'GHCR_TOKEN') | default('', true) }}"
     registry: ghcr.io
+  no_log: true
 
-- name: Pull Autograph app image
-  become: true
-  community.docker.docker_compose_v2_pull:
-    project_src: "{{ autographs_deploy_compose_path }}"
-    files:
-      - compose.prod.yaml
-    services:
-      - app
+- name: Pull runtime images
+  ansible.builtin.command:
+    cmd: "podman pull {{ item }}"
+  loop:
+    - "{{ autographs_app_image }}"
+    - "{{ autographs_deploy_caddy_image }}"
+  register: autographs_deploy_image_pull
+  changed_when: >-
+    'Downloaded newer image' in autographs_deploy_image_pull.stdout
+    or 'Copying blob' in autographs_deploy_image_pull.stdout
+    or 'Writing manifest' in autographs_deploy_image_pull.stdout
 
-- name: GHCR logout
-  become: true
+- name: GHCR logout after image pulls
   containers.podman.podman_logout:
     registry: ghcr.io
+  failed_when: false
+
+- name: Install Podman quadlet units
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ autographs_deploy_quadlet_path }}/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - src: autographs.network.j2
+      dest: autographs.network
+    - src: autographs-app.container.j2
+      dest: autographs-app.container
+    - src: autographs-caddy.container.j2
+      dest: autographs-caddy.container
+  notify:
+    - Reload systemd
+    - Restart app container
+    - Restart Caddy container
+
+- name: Flush quadlet handlers before enabling services
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start Podman quadlet services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+  loop:
+    - autographs-network.service
+    - autographs-app.service
+    - autographs-caddy.service
