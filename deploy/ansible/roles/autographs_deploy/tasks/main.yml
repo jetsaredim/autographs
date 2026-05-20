@@ -116,14 +116,6 @@
       owner: "{{ autographs_deploy_user }}"
       group: "{{ autographs_deploy_user }}"
       mode: "0755"
-    - path: "{{ autographs_deploy_caddy_data_path }}"
-      owner: "{{ autographs_deploy_user }}"
-      group: "{{ autographs_deploy_user }}"
-      mode: "0755"
-    - path: "{{ autographs_deploy_caddy_config_path }}"
-      owner: "{{ autographs_deploy_user }}"
-      group: "{{ autographs_deploy_user }}"
-      mode: "0755"
     - path: "{{ autographs_deploy_quadlet_path }}"
       owner: root
       group: root
@@ -237,6 +229,10 @@
       dest: autographs-app.container
     - src: autographs-caddy.container.j2
       dest: autographs-caddy.container
+    - src: autographs-caddy-data.volume.j2
+      dest: autographs-caddy-data.volume
+    - src: autographs-caddy-config.volume.j2
+      dest: autographs-caddy-config.volume
   notify:
     - Reload systemd
     - Restart app container
