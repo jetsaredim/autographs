@@ -32,6 +32,7 @@ jobs:
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: app/Dockerfile
+          verbose: true
 
   app-checks:
     name: App checks
@@ -71,13 +72,13 @@ jobs:
           files: |
             .github/docker-bake.hcl
           push: false
-      
+
   terraform-checks:
     name: Terraform checks
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout 
+      - name: Checkout
         uses: actions/checkout@v6
 
       - name: Setup Terraform
@@ -153,7 +154,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout 
+      - name: Checkout
         uses: actions/checkout@v6
 
       - name: Install Ansible tooling

@@ -112,8 +112,17 @@ jobs:
     outputs:
       app_image: ${{ steps.resolve.outputs.app_image }}
       tools_image: ${{ steps.resolve.outputs.tools_image }}
+      uses_production_images: ${{ steps.resolve.outputs.uses_production_images }}
 
     steps:
+      - name: Log in to ghcr.io for production image checks
+        if: needs.detect-app-image-changes.outputs.build_app_image != 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Resolve deploy image references
         id: resolve
         env:
@@ -138,11 +147,16 @@ jobs:
 
             echo "app_image=${GHCR_IMAGE_REPOSITORY}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
             echo "tools_image=${GHCR_IMAGE_REPOSITORY}-tools:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "uses_production_images=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
+          docker buildx imagetools inspect "${GHCR_IMAGE_REPOSITORY}:production" >/dev/null
+          docker buildx imagetools inspect "${GHCR_IMAGE_REPOSITORY}-tools:production" >/dev/null
+
           echo "app_image=${GHCR_IMAGE_REPOSITORY}:production" >> "$GITHUB_OUTPUT"
           echo "tools_image=${GHCR_IMAGE_REPOSITORY}-tools:production" >> "$GITHUB_OUTPUT"
+          echo "uses_production_images=true" >> "$GITHUB_OUTPUT"
 
   terraform-apply:
     name: Terraform apply
