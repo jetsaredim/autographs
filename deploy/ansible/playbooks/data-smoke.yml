@@ -1,0 +1,5 @@
+- name: Run Autographs data and media smoke
+  hosts: runtime
+  become: true
+  roles:
+    - autographs_data_smoke

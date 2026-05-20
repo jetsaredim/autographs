@@ -46,18 +46,6 @@ variable "ssh_public_keys" {
   type = list(string)
 }
 
-variable "bootstrap_script" {
-  type = string
-}
-
-variable "deploy_user" {
-  type = string
-}
-
-variable "deploy_path" {
-  type = string
-}
-
 variable "assign_public_ip" {
   type = bool
 }

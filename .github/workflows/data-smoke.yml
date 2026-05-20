@@ -60,12 +60,20 @@ jobs:
           echo "VM_PUBLIC_IP=$RESOLVED_VM_PUBLIC_IP" >> "$GITHUB_ENV"
 
       - name: Run data/media smoke on VM
+        uses: dawidd6/action-ansible-playbook@v9
         env:
-          DEPLOY_SSH_USER: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
-          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
-          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-          AUTOGRAPHS_SMOKE_BASE_URL: ${{ vars.AUTOGRAPHS_SMOKE_BASE_URL || 'https://autographs.jetsaredim.net' }}
-          AUTOGRAPHS_TOOLS_IMAGE: ${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}-tools:latest
+          ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
-        run: bash scripts/smoke-data-media-vm.sh
+        with:
+          playbook: playbooks/data-smoke.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            ${{ env.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          requirements: collections/requirements.yml
+          options: |
+            --extra-vars autographs_tools_image=${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}-tools:latest
+            --extra-vars autographs_smoke_base_url=${{ vars.AUTOGRAPHS_SMOKE_BASE_URL || 'https://autographs.jetsaredim.net' }}
+            --extra-vars autographs_data_smoke_deploy_path=${{ vars.DEPLOY_PATH || '/opt/autographs' }}

@@ -1,0 +1,10 @@
+- name: Prune unused Podman images
+  ansible.builtin.command:
+    argv:
+      - podman
+      - image
+      - prune
+      - --all
+      - --force
+  register: autographs_system_cleanup_image_prune
+  changed_when: "'Total reclaimed space: 0B' not in autographs_system_cleanup_image_prune.stdout"

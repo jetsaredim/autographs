@@ -1,0 +1,10 @@
+autographs_data_smoke_deploy_path: /opt/autographs
+autographs_data_smoke_env_path: "{{ autographs_data_smoke_deploy_path }}/env"
+autographs_data_smoke_wallet_path: "{{ autographs_data_smoke_deploy_path }}/wallet"
+autographs_data_smoke_secrets_path: "{{ autographs_data_smoke_deploy_path }}/secrets"
+autographs_data_smoke_network_name: autographs
+autographs_data_smoke_node_options: --max-old-space-size=384
+autographs_data_smoke_commands:
+  - db:migrate
+  - db:seed
+  - data:smoke

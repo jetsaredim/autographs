@@ -1,0 +1,5 @@
+- name: Clean up unused Autographs runtime resources
+  hosts: runtime
+  become: true
+  roles:
+    - autographs_system_cleanup
