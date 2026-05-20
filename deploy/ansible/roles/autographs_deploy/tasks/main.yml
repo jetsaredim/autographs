@@ -187,7 +187,7 @@
     group: "{{ autographs_deploy_user }}"
     mode: "0600"
   no_log: true
-  when: autographs_wallet_archive.changed
+  when: autographs_deploy_wallet_archive.changed
   notify: Restart app container
 
 - name: Remove temp wallet archives
