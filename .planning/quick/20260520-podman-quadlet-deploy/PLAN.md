@@ -16,11 +16,12 @@ Move the production runtime deployment from compose/podman-compose to systemd-ma
 - Keep a dedicated Podman network for app-to-Caddy traffic.
 - Move host setup currently baked into bootstrap bash into idempotent Ansible tasks.
 - Update deployment docs and config language away from compose/podman-compose for the current production path.
-- Move GHCR image cleanup to a scheduled/manual Python workflow.
-- Add a post-health-check deploy cleanup for unused local Podman images.
+- Move GHCR and VM-local image cleanup to a shared scheduled/manual workflow.
+- Preserve active, protected, latest, and newest retained app/tools images during cleanup.
 
 ## Verification
 
 - `ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml deploy/ansible/playbooks/data-smoke.yml deploy/ansible/playbooks/system-cleanup.yml`
 - `python3 -m py_compile scripts/cleanup-ghcr-images.py`
+- `ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/`
 - `git diff --check`

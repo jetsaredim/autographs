@@ -101,11 +101,13 @@ Populate repo-level GitHub Variables:
 - `GHCR_IMAGE_REPOSITORY`
 - `GHCR_CLEANUP_RETAIN_TAGGED`
 - `GHCR_CLEANUP_MIN_AGE_DAYS`
+- `GHCR_CLEANUP_PROTECTED_TAGS`
+- `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT`
 - `AUTOGRAPHS_DOMAIN`
 
 `GHCR_IMAGE_REPOSITORY` should be a `ghcr.io` image path such as `ghcr.io/jetsaredim/autographs/app`.
 
-`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_IMAGE_REPOSITORY`, `GHCR_CLEANUP_RETAIN_TAGGED`, `GHCR_CLEANUP_MIN_AGE_DAYS`, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
+`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
 Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, ADMIN password, and runtime connection values are ready. When enabling Phase 2 data services, Terraform provisions the ADB and bucket, while the deploy step passes app runtime coordinates through the VM-local quadlet environment file.
 
@@ -138,20 +140,17 @@ Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 7. copies wallet and OCI API key material to protected VM paths,
 8. installs systemd quadlets for the dedicated Podman network, app container, and Caddy container,
 9. pulls the published app image and restarts the quadlet services,
-10. checks the Caddy-fronted `/health` proof-of-life route,
-11. prunes unused local Podman images from the runtime VM only after the health check succeeds.
+10. checks the Caddy-fronted `/health` proof-of-life route.
 
 The VM pulls the image built by GitHub Actions. The VM does not build application code during deploy.
 
 The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because `tsx`, Next.js, and smoke/admin scripts can briefly exceed the VM's physical memory.
 
-The post-health cleanup playbook runs `podman image prune --force` on the runtime VM. Podman only removes dangling images that are not used by containers, so the active app and Caddy images remain protected by their running quadlet-managed containers.
-
 ### Runtime VM Recreation
 
 Terraform no longer embeds the runtime bootstrap state in cloud-init. If a clean VM is needed, manually run the deploy workflow with `recreate_runtime_instance=true`. The workflow taints `module.compute.oci_core_instance.runtime[0]` before `terraform apply`, forcing OCI to recreate the runtime VM and then letting Ansible converge the full production state onto the replacement instance.
 
-GHCR cleanup runs separately through `.github/workflows/ghcr-cleanup.yml` on a weekly schedule and by manual dispatch. By default it keeps the newest 10 app image versions, keeps `latest`, and refuses to delete images newer than 7 days. Tune those guardrails with `GHCR_CLEANUP_RETAIN_TAGGED` and `GHCR_CLEANUP_MIN_AGE_DAYS`; use the manual `dry_run=true` input to preview deletions.
+Image cleanup runs separately through `.github/workflows/image-cleanup.yml` on a weekly schedule and by manual dispatch. One job prunes old VM-local app/tools images while keeping the active image from `${DEPLOY_PATH}/env/app.env`, `latest`, `GHCR_CLEANUP_PROTECTED_TAGS`, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` matching images per repository. Another job prunes old GHCR package versions while keeping `latest`, protected tags, the newest `GHCR_CLEANUP_RETAIN_TAGGED` versions, and versions newer than `GHCR_CLEANUP_MIN_AGE_DAYS`. Use the manual `dry_run=true` input to preview deletions.
 
 ## Manual Smoke Path
 

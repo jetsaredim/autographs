@@ -183,6 +183,8 @@ jobs:
             --extra-vars autographs_deploy_https_port=${{ env.AUTOGRAPHS_HTTPS_PORT }}
             --extra-vars oci_media_namespace=${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
             --extra-vars oci_media_bucket_name=${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
+            --extra-vars autographs_deploy_ssh_ready_timeout_seconds=${{ vars.DEPLOY_SSH_READY_TIMEOUT_SECONDS || '900' }}
+            --extra-vars autographs_deploy_ssh_ready_interval_seconds=${{ vars.DEPLOY_SSH_READY_INTERVAL_SECONDS || '10' }}
 
       - name: Verify deployment health
         env:
@@ -198,16 +200,3 @@ jobs:
 
           echo "Deployment did not pass Caddy-fronted HTTPS /health check for ${AUTOGRAPHS_DOMAIN}" >&2
           exit 1
-
-      - name: Clean up unused runtime images
-        uses: dawidd6/action-ansible-playbook@v9
-        env:
-          ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
-        with:
-          playbook: playbooks/system-cleanup.yml
-          directory: deploy/ansible
-          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-          inventory: |
-            [runtime]
-            ${{ needs.terraform-apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
-          requirements: collections/requirements.yml

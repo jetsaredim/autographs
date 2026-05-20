@@ -15,8 +15,8 @@ Moved the production runtime deployment from compose/podman-compose to Ansible-m
 - Moved VM host state into the Ansible role: runtime packages, service masking, swap, firewalld, protected env/secrets/wallet paths, image pulls, and service enablement.
 - Removed Terraform cloud-init user data and the bootstrap script from the compute module so instance configuration is no longer baked into ignored metadata.
 - Added a manual `recreate_runtime_instance` deploy workflow input that taints the runtime instance before `terraform apply`.
-- Converted GHCR cleanup from Node to Python and moved it to a scheduled/manual housekeeping workflow.
-- Added post-health-check runtime cleanup that prunes unused local Podman images on the VM through a separate Ansible playbook.
+- Converted GHCR cleanup from Node to Python and moved it into a shared scheduled/manual image cleanup workflow.
+- Added runtime image cleanup that preserves the active image, protected tags, `latest`, and newest retained app/tools images on the VM.
 - Updated deployment/config docs and smoke helper scripts for the quadlet runtime shape.
 
 ## Validation

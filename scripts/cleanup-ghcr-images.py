@@ -18,6 +18,7 @@ def main() -> int:
     image_repository = require_env("GHCR_IMAGE_REPOSITORY")
     retain_count = parse_positive_int(os.getenv("GHCR_CLEANUP_RETAIN_TAGGED"), 10)
     min_age_days = parse_positive_int(os.getenv("GHCR_CLEANUP_MIN_AGE_DAYS"), 7)
+    protected_tags = parse_csv_set(os.getenv("GHCR_CLEANUP_PROTECTED_TAGS"))
     dry_run = os.getenv("GHCR_CLEANUP_DRY_RUN", "false").lower() == "true"
 
     package_info = parse_ghcr_image_repository(image_repository)
@@ -37,6 +38,10 @@ def main() -> int:
 
         if "latest" in tags:
             keep_reasons.append("latest tag")
+
+        matching_protected_tags = sorted(set(tags) & protected_tags)
+        if matching_protected_tags:
+            keep_reasons.append(f"protected tag {', '.join(matching_protected_tags)}")
 
         if created_at > cutoff_time:
             keep_reasons.append(f"newer than {min_age_days} days")
@@ -71,6 +76,10 @@ def parse_positive_int(value: str | None, fallback: int) -> int:
     except ValueError:
         return fallback
     return parsed if parsed > 0 else fallback
+
+
+def parse_csv_set(value: str | None) -> set[str]:
+    return {item.strip() for item in (value or "").split(",") if item.strip()}
 
 
 def parse_ghcr_image_repository(repository: str) -> dict[str, str]:

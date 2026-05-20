@@ -1,0 +1,123 @@
+name: Image Cleanup
+
+on:
+  schedule:
+    - cron: "17 6 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Show what would be deleted without deleting images"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  GHCR_IMAGE_REPOSITORY: ${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}
+  GHCR_CLEANUP_RETAIN_TAGGED: ${{ vars.GHCR_CLEANUP_RETAIN_TAGGED || '10' }}
+  GHCR_CLEANUP_MIN_AGE_DAYS: ${{ vars.GHCR_CLEANUP_MIN_AGE_DAYS || '7' }}
+  GHCR_CLEANUP_PROTECTED_TAGS: ${{ vars.GHCR_CLEANUP_PROTECTED_TAGS || '' }}
+  GHCR_CLEANUP_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+  AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT: ${{ vars.AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT || '3' }}
+
+jobs:
+  resolve-runtime:
+    name: Resolve runtime VM
+    runs-on: ubuntu-latest
+    outputs:
+      runtime_public_ip: ${{ steps.resolve.outputs.runtime_public_ip }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.2"
+          terraform_wrapper: false
+
+      - name: Write OCI API private key
+        env:
+          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/oci"
+          printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
+          chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
+
+      - name: Resolve runtime VM IP
+        id: resolve
+        working-directory: infra/terraform
+        env:
+          OCI_REGION: us-ashburn-1
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
+          tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
+          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          private_key_path: ${{ runner.temp }}/oci/api_key.pem
+          VM_PUBLIC_IP: ${{ vars.VM_PUBLIC_IP }}
+        run: |
+          terraform init \
+            -backend-config="bucket=autographs-tf-state" \
+            -backend-config="namespace=${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}" \
+            -backend-config="region=us-ashburn-1" \
+            -backend-config="key=envs/prod/terraform.tfstate" \
+            -backend-config="workspace_key_prefix=envs" \
+            -backend-config="auth=APIKey"
+          RESOLVED_VM_PUBLIC_IP="$(terraform output -raw runtime_public_ip 2>/dev/null || true)"
+          if [ -z "$RESOLVED_VM_PUBLIC_IP" ]; then
+            RESOLVED_VM_PUBLIC_IP="$VM_PUBLIC_IP"
+          fi
+          if [ -z "$RESOLVED_VM_PUBLIC_IP" ]; then
+            echo "Unable to resolve runtime VM IP from Terraform state or VM_PUBLIC_IP." >&2
+            exit 1
+          fi
+          echo "runtime_public_ip=$RESOLVED_VM_PUBLIC_IP" >> "$GITHUB_OUTPUT"
+
+  runtime-cleanup:
+    name: Remove old runtime images
+    runs-on: ubuntu-latest
+    needs: resolve-runtime
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Clean up local Podman images
+        uses: dawidd6/action-ansible-playbook@v9
+        env:
+          ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
+        with:
+          playbook: playbooks/system-cleanup.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            ${{ needs.resolve-runtime.outputs.runtime_public_ip }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          requirements: collections/requirements.yml
+          options: |
+            --extra-vars autographs_system_cleanup_image_repository=${{ env.GHCR_IMAGE_REPOSITORY }}
+            --extra-vars autographs_system_cleanup_tools_image_repository=${{ env.GHCR_IMAGE_REPOSITORY }}-tools
+            --extra-vars autographs_system_cleanup_retain_count=${{ env.AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT }}
+            --extra-vars autographs_system_cleanup_protected_tags=${{ env.GHCR_CLEANUP_PROTECTED_TAGS }}
+            --extra-vars autographs_system_cleanup_dry_run=${{ env.GHCR_CLEANUP_DRY_RUN }}
+            --extra-vars autographs_system_cleanup_deploy_path=${{ vars.DEPLOY_PATH || '/opt/autographs' }}
+
+  ghcr-cleanup:
+    name: Remove old GHCR images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Clean up GHCR app images
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/cleanup-ghcr-images.py
