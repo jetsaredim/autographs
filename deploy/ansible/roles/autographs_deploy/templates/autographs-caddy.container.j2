@@ -9,10 +9,10 @@ ContainerName={{ autographs_deploy_caddy_container_name }}
 Image={{ autographs_deploy_caddy_image }}
 Pull=never
 Network=autographs.network
-EnvironmentFile={{ autographs_deploy_env_path }}/app.env
-Volume={{ autographs_deploy_caddy_path }}/Caddyfile:/etc/caddy/Caddyfile:ro
-Volume={{ autographs_deploy_caddy_data_path }}:/data
-Volume={{ autographs_deploy_caddy_config_path }}:/config
+Environment=AUTOGRAPHS_DOMAIN={{ autographs_deploy_domain }}
+Volume={{ autographs_deploy_caddy_path }}/Caddyfile:/etc/caddy/Caddyfile:ro,Z
+Volume=autographs-caddy-data.volume:/data
+Volume=autographs-caddy-config.volume:/config
 PublishPort={{ autographs_deploy_http_port }}:80
 PublishPort={{ autographs_deploy_https_port }}:443
 
