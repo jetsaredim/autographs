@@ -60,6 +60,7 @@ jobs:
             app:
               - "app/**"
               - "package.json"
+              - "pnpm-workspace.yaml"
               - "pnpm-lock.yaml"
               - ".github/docker-bake.hcl"
               - ".github/workflows/deploy.yml"
