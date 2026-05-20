@@ -23,6 +23,7 @@ target "app" {
   target = "runner"
   tags = [
     "${GHCR_IMAGE_REPOSITORY}:${GITHUB_SHA}",
+    "${GHCR_IMAGE_REPOSITORY}:production",
     "${GHCR_IMAGE_REPOSITORY}:latest"
   ]
 }
@@ -32,6 +33,7 @@ target "tools" {
   target = "tools"
   tags = [
     "${GHCR_IMAGE_REPOSITORY}-tools:${GITHUB_SHA}",
+    "${GHCR_IMAGE_REPOSITORY}-tools:production",
     "${GHCR_IMAGE_REPOSITORY}-tools:latest"
   ]
 }

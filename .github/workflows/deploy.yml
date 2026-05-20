@@ -14,6 +14,14 @@ on:
         options:
           - "false"
           - "true"
+      force_app_image_build:
+        description: "Force rebuilding the app and tools images before deploying"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   actions: write
@@ -31,9 +39,43 @@ env:
   AUTOGRAPHS_DOMAIN: ${{ vars.AUTOGRAPHS_DOMAIN || 'autographs.jetsaredim.net' }}
 
 jobs:
+  detect-app-image-changes:
+    name: Detect app image changes
+    runs-on: ubuntu-latest
+
+    outputs:
+      build_app_image: ${{ steps.detect.outputs.build_app_image }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect app image changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            app:
+              - "app/**"
+              - "package.json"
+              - "pnpm-lock.yaml"
+              - ".github/docker-bake.hcl"
+              - ".github/workflows/deploy.yml"
+
+      - name: Resolve app image build decision
+        id: detect
+        env:
+          BUILD_APP_IMAGE: ${{ steps.changes.outputs.app == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force_app_image_build == 'true') }}
+        run: echo "build_app_image=${BUILD_APP_IMAGE}" >> "$GITHUB_OUTPUT"
+
   build-images:
     name: Build and publish images
     runs-on: ubuntu-latest
+    needs: detect-app-image-changes
+    if: needs.detect-app-image-changes.outputs.build_app_image == 'true'
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -57,6 +99,49 @@ jobs:
           files: |
             .github/docker-bake.hcl
           push: true
+
+  resolve-app-images:
+    name: Resolve app images
+    runs-on: ubuntu-latest
+    needs:
+      - detect-app-image-changes
+      - build-images
+    if: always()
+
+    outputs:
+      app_image: ${{ steps.resolve.outputs.app_image }}
+      tools_image: ${{ steps.resolve.outputs.tools_image }}
+
+    steps:
+      - name: Resolve deploy image references
+        id: resolve
+        env:
+          BUILD_APP_IMAGE: ${{ needs.detect-app-image-changes.outputs.build_app_image }}
+          BUILD_IMAGES_RESULT: ${{ needs.build-images.result }}
+          DETECT_APP_IMAGE_CHANGES_RESULT: ${{ needs.detect-app-image-changes.result }}
+          GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "$DETECT_APP_IMAGE_CHANGES_RESULT" != "success" ]; then
+            echo "App image change detection failed with result: $DETECT_APP_IMAGE_CHANGES_RESULT" >&2
+            exit 1
+          fi
+
+          if [ "$BUILD_APP_IMAGE" = "true" ]; then
+            if [ "$BUILD_IMAGES_RESULT" != "success" ]; then
+              echo "App image build was required but build-images finished with result: $BUILD_IMAGES_RESULT" >&2
+              exit 1
+            fi
+
+            echo "app_image=${GHCR_IMAGE_REPOSITORY}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "tools_image=${GHCR_IMAGE_REPOSITORY}-tools:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "app_image=${GHCR_IMAGE_REPOSITORY}:production" >> "$GITHUB_OUTPUT"
+          echo "tools_image=${GHCR_IMAGE_REPOSITORY}-tools:production" >> "$GITHUB_OUTPUT"
 
   terraform-apply:
     name: Terraform apply
@@ -146,7 +231,7 @@ jobs:
     runs-on: ubuntu-latest
 
     needs:
-      - build-images
+      - resolve-app-images
       - terraform-apply
 
     steps:
@@ -176,8 +261,8 @@ jobs:
             ${{ needs.terraform-apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
           requirements: collections/requirements.yml
           options: |
-            --extra-vars autographs_app_image=${{ env.GHCR_IMAGE_REPOSITORY }}:${{ github.sha }}
-            --extra-vars autographs_tools_image=${{ env.GHCR_IMAGE_REPOSITORY }}-tools:${{ github.sha }}
+            --extra-vars autographs_app_image=${{ needs.resolve-app-images.outputs.app_image }}
+            --extra-vars autographs_tools_image=${{ needs.resolve-app-images.outputs.tools_image }}
             --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
             --extra-vars autographs_deploy_http_port=${{ env.AUTOGRAPHS_HTTP_PORT }}
             --extra-vars autographs_deploy_https_port=${{ env.AUTOGRAPHS_HTTPS_PORT }}
