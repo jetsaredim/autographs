@@ -63,7 +63,7 @@ Plans:
   4. Anonymous user can view all published images for an item, with a clear primary presentation.
 **Plans**: 5 plans
 Plans:
-- [ ] 03-01-PLAN.md - Create public-safe view models and approved quote state foundation.
+- [x] 03-01-PLAN.md - Create public-safe view models and approved quote state foundation.
 - [ ] 03-02-PLAN.md - Build the branded landing page, footer, and hidden admin access affordance.
 - [ ] 03-03-PLAN.md - Implement the public collection grid and URL-backed curated filters.
 - [ ] 03-04-PLAN.md - Implement item detail pages and the in-place multi-image viewer.
@@ -115,7 +115,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Delivery Spine and OCI Bootstrap | 4/4 | Complete | 2026-05-14 |
 | 2. Oracle and Private Media Core | 4/4 | Complete | 2026-05-14 |
-| 3. Public Gallery MVP | 0/TBD | Not started | - |
+| 3. Public Gallery MVP | 1/5 | In progress | - |
 | 4. Admin Collection Workflow | 0/TBD | Not started | - |
 | 5. AI-Assisted Ingest | 0/TBD | Not started | - |
 | 6. Public Showcase and Hardening | 0/TBD | Not started | - |
