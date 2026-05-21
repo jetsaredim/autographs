@@ -4,9 +4,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Autographs | Proof of Life",
-  description:
-    "Phase 1 proof-of-life surface for the Autographs application scaffold.",
+  title: "Jared Greenwald's Autograph Gallery",
+  description: "Browse Jared Greenwald's published autograph collection.",
 };
 
 type RootLayoutProps = Readonly<{

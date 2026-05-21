@@ -1,9 +1,9 @@
 :root {
   color-scheme: light;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-  background:
-    radial-gradient(circle at top, #ffffff 0, #f4f4f5 42%, #e5e7eb 100%);
-  color: #111111;
+  letter-spacing: 0;
+  background: #f8f7f4;
+  color: #1f2937;
 }
 
 * {
@@ -18,102 +18,234 @@ body {
 
 body {
   min-height: 100vh;
+  background: #f8f7f4;
 }
 
 a {
   color: inherit;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
 }
 
 a:hover {
-  text-decoration-thickness: 0.16em;
+  text-decoration-thickness: 0.14em;
 }
 
-.proof-shell {
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid #1f6f68;
+  outline-offset: 3px;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.site-shell,
+.architecture-shell {
   min-height: 100vh;
-  padding: 3rem 1.5rem;
+  padding: 24px 16px;
 }
 
-.proof-card {
-  max-width: 48rem;
+.site-shell {
+  display: flex;
+  flex-direction: column;
+}
+
+.public-header,
+.public-footer,
+.landing-hero,
+.landing-preview,
+.architecture-hero,
+.diagram-card,
+.architecture-grid,
+.workflow-card,
+.admin-placeholder {
+  width: min(100%, 72rem);
   margin: 0 auto;
-  padding: 2rem;
-  border: 1px solid #d4d4d8;
-  border-radius: 1.5rem;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08);
+}
+
+.public-header,
+.public-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.public-header {
+  padding: 0 0 24px;
+}
+
+.public-brand {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #1f2937;
+  text-decoration: none;
+}
+
+.public-footer {
+  margin-top: auto;
+  padding: 32px 0 0;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.public-footer a {
+  color: #1f6f68;
+  font-weight: 600;
+}
+
+.landing-hero {
+  display: grid;
+  gap: 32px;
+  align-items: center;
+  padding: 48px 0 32px;
+}
+
+.landing-copy {
+  max-width: 42rem;
 }
 
 .eyebrow {
-  margin: 0 0 0.75rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #52525b;
+  margin: 0 0 8px;
+  color: #1f6f68;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
-.proof-card h1 {
+.landing-copy h1,
+.architecture-hero h1,
+.admin-placeholder h1 {
   margin: 0;
-  font-size: clamp(2.2rem, 5vw, 4rem);
-  line-height: 0.95;
+  color: #1f2937;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.1;
 }
 
 .lede {
-  margin: 1.25rem 0 0;
-  font-size: 1.1rem;
-  line-height: 1.7;
-  color: #3f3f46;
+  margin: 16px 0 0;
+  color: #4b5563;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
-.lede-action {
-  font-weight: 650;
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
 }
 
-.status-grid {
-  display: grid;
-  gap: 1rem;
-  margin-top: 2rem;
+.button-primary,
+.button-secondary {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #1f6f68;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-decoration: none;
 }
 
-.status-tile {
-  padding: 1rem 1.1rem;
-  border-radius: 1rem;
-  background: #f4f4f5;
-  border: 1px solid #d4d4d8;
+.button-primary {
+  background: #1f6f68;
+  color: #ffffff;
 }
 
-.status-tile strong,
-.status-tile span {
+.button-secondary {
+  background: #ffffff;
+  color: #1f6f68;
+}
+
+.button-secondary:disabled {
+  border-color: #d7d2c8;
+  color: #4b5563;
+  cursor: not-allowed;
+}
+
+.public-image-surface,
+.landing-preview,
+.gallery-card,
+.filter-panel,
+.metadata-group,
+.quote-block,
+.admin-placeholder,
+.architecture-hero,
+.diagram-card,
+.workflow-card,
+.architecture-tile {
+  border: 1px solid #d7d2c8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.landing-preview {
+  overflow: hidden;
+}
+
+.public-image-surface {
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: #f1efea;
+}
+
+.public-image-surface img {
   display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.status-tile strong {
-  margin-bottom: 0.35rem;
+.image-fallback {
+  display: grid;
+  min-height: 20rem;
+  place-items: center;
+  padding: 24px;
+  background: #f1efea;
+  color: #4b5563;
+  text-align: center;
 }
 
-.status-tile code {
-  font-size: 0.95rem;
+.admin-unlock {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-placeholder {
+  padding: 32px;
 }
 
 .architecture-shell {
-  min-height: 100vh;
-  padding: 3rem 1.5rem;
+  color: #1f2937;
 }
 
 .architecture-hero,
 .diagram-card,
 .architecture-grid,
 .workflow-card {
-  max-width: 72rem;
-  margin: 0 auto;
+  padding: 24px;
 }
 
-.architecture-hero {
-  padding: 2rem;
-  border: 1px solid #d4d4d8;
-  border-radius: 1.5rem;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08);
+.diagram-card,
+.architecture-grid,
+.workflow-card {
+  margin-top: 24px;
 }
 
 .architecture-hero h1,
@@ -121,51 +253,29 @@ a:hover {
   margin: 0;
 }
 
-.architecture-hero h1 {
-  max-width: 58rem;
-  font-size: clamp(1.8rem, 3vw, 3rem);
-  line-height: 1.05;
-}
-
 .back-link {
   display: inline-flex;
-  margin-bottom: 1.5rem;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #3f3f46;
-}
-
-.diagram-card,
-.architecture-grid,
-.workflow-card {
-  margin-top: 1.5rem;
-  padding: 1.5rem;
-  border: 1px solid #d4d4d8;
-  border-radius: 1.5rem;
-  background: rgba(255, 255, 255, 0.84);
+  margin-bottom: 24px;
+  color: #1f6f68;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .section-heading {
-  margin-bottom: 1.25rem;
+  margin-bottom: 16px;
 }
 
 .section-heading h2 {
-  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .architecture-diagram {
   overflow-x: auto;
-  padding: 1rem;
-  border-radius: 1.25rem;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)),
-    repeating-linear-gradient(
-      45deg,
-      rgba(0, 0, 0, 0.04) 0,
-      rgba(0, 0, 0, 0.04) 1px,
-      transparent 1px,
-      transparent 14px
-    );
+  padding: 16px;
+  border-radius: 8px;
+  background: #f1efea;
 }
 
 .architecture-diagram-image {
@@ -173,25 +283,19 @@ a:hover {
   width: 100%;
   min-width: 60rem;
   height: auto;
-  border: 1px solid #d4d4d8;
-  border-radius: 1rem;
+  border: 1px solid #d7d2c8;
+  border-radius: 8px;
   background: #ffffff;
 }
 
 .architecture-grid {
   display: grid;
-  gap: 1rem;
-}
-
-.architecture-grid .section-heading {
-  margin-bottom: 0.25rem;
+  gap: 16px;
 }
 
 .architecture-tile {
-  padding: 1.1rem;
-  border: 1px solid #d4d4d8;
-  border-radius: 1rem;
-  background: #f4f4f5;
+  padding: 16px;
+  background: #f1efea;
 }
 
 .architecture-tile h3,
@@ -200,13 +304,16 @@ a:hover {
 }
 
 .architecture-tile h3 {
-  font-size: 1.05rem;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .architecture-tile p {
-  margin-top: 0.45rem;
-  line-height: 1.55;
-  color: #3f3f46;
+  margin-top: 8px;
+  color: #4b5563;
+  font-size: 16px;
+  line-height: 1.5;
 }
 
 .workflow-table-wrap {
@@ -218,25 +325,25 @@ a:hover {
   min-width: 46rem;
   border-collapse: collapse;
   overflow: hidden;
-  border: 1px solid #d4d4d8;
-  border-radius: 1rem;
+  border: 1px solid #d7d2c8;
+  border-radius: 8px;
   background: #ffffff;
 }
 
 .workflow-table th,
 .workflow-table td {
-  padding: 0.9rem 1rem;
-  border-bottom: 1px solid #e4e4e7;
+  padding: 16px;
+  border-bottom: 1px solid #d7d2c8;
   text-align: left;
   vertical-align: top;
 }
 
 .workflow-table th {
-  background: #f4f4f5;
-  color: #27272a;
-  font-size: 0.82rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  background: #f1efea;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .workflow-table tr:last-child td {
@@ -249,57 +356,39 @@ a:hover {
 
 .workflow-table td:nth-child(2) {
   width: 16rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .workflow-table td:nth-child(3) {
-  color: #3f3f46;
-  line-height: 1.55;
+  color: #4b5563;
+  line-height: 1.5;
 }
 
 .step-badge {
   display: inline-grid;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 32px;
+  height: 32px;
   place-items: center;
   border-radius: 999px;
-  background: #111111;
+  background: #1f6f68;
   color: #ffffff;
-  font-size: 0.85rem;
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 600;
 }
+
 @media (min-width: 720px) {
-  .proof-shell {
-    padding: 5rem 2rem;
-  }
-
-  .proof-card {
-    padding: 3rem;
-  }
-
-  .status-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
+  .site-shell,
   .architecture-shell {
-    padding: 5rem 2rem;
+    padding: 48px 32px;
   }
 
-  .architecture-hero {
-    padding: 3rem;
-  }
-
-  .diagram-card {
-    padding: 2rem;
-  }
-
-  .workflow-card {
-    padding: 2rem;
+  .landing-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 28rem);
+    padding-top: 64px;
   }
 
   .architecture-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    padding: 2rem;
   }
 
   .architecture-grid .section-heading {
