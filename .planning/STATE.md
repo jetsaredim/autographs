@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 3 context gathered
-last_updated: "2026-05-21T15:16:33.233Z"
+stopped_at: Phase 3 UI-SPEC approved
+last_updated: "2026-05-21T16:06:16.731Z"
 last_activity: 2026-05-21 -- Added Phase 6 public showcase and hardening scope as the fast-follow after AI-assisted ingest
 progress:
   total_phases: 6
@@ -80,9 +80,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-21T15:16:33.216Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-public-gallery-mvp/03-CONTEXT.md
+Last session: 2026-05-21T16:06:16.713Z
+Stopped at: Phase 3 UI-SPEC approved
+Resume file: .planning/phases/03-public-gallery-mvp/03-UI-SPEC.md
 
 ## Quick Tasks Completed
 
