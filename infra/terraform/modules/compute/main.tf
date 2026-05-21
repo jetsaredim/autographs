@@ -34,6 +34,10 @@ resource "oci_core_instance" "runtime" {
   freeform_tags = var.tags
 
   lifecycle {
+    ignore_changes = [
+      source_details[0].source_id,
+    ]
+
     precondition {
       condition     = !var.create_instance || var.availability_domain != ""
       error_message = "availability_domain must be set when create_instance is true."
@@ -46,7 +50,7 @@ resource "oci_core_instance" "runtime" {
 
     precondition {
       condition     = !var.create_instance || var.image_ocid != ""
-      error_message = "Provide runtime_image_ocid or oracle_linux_image_ocids[var.region] before creating the runtime instance."
+      error_message = "Provide runtime_image_ocid or ensure the Oracle Linux image lookup returns an image before creating the runtime instance."
     }
 
     precondition {
