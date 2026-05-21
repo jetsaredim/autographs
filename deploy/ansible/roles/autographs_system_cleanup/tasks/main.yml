@@ -46,6 +46,14 @@
           except ValueError:
               return 0
 
+      def repo_digests(image):
+          value = image.get("RepoDigests") or image.get("Digests") or []
+          if isinstance(value, str):
+              return [value]
+          if isinstance(value, list):
+              return [item for item in value if isinstance(item, str)]
+          return []
+
       candidates = []
       keep_ids = set()
       candidates_by_repository = {repository: [] for repository in repositories}
@@ -59,10 +67,11 @@
               continue
 
           ref = f"{repository}:{tag}"
+          digest_refs = set(repo_digests(image))
           candidates.append(image)
           candidates_by_repository[repository].append(image)
 
-          if ref == current_image or tag == "latest" or tag in protected_tags:
+          if ref == current_image or current_image in digest_refs or tag == "latest" or tag in protected_tags:
               keep_ids.add(image_id)
 
       newest_first = sorted(candidates, key=created_at, reverse=True)
