@@ -45,6 +45,14 @@
 - [ ] **AI-02**: OCR and AI suggestions remain advisory, and the admin can correct or ignore them before final save.
 - [ ] **AI-03**: Upload workflow still succeeds with manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
 
+### Public Showcase and Hardening
+
+- [ ] **SHIP-01**: Project has a final security and attack-vector review covering app routes, admin access, media delivery, secrets handling, infrastructure permissions, CI/CD permissions, container images, and repository settings.
+- [ ] **SHIP-02**: Dependency update automation is revisited and either Dependabot, Renovate, or a documented equivalent is configured for package dependencies, GitHub Actions, container images, Terraform providers/modules, and other maintained surfaces.
+- [ ] **SHIP-03**: Root `README.md` explains the project goals, architecture, local development flow, deployment model, operational notes, and the human+AI collaboration story clearly enough for a public audience.
+- [ ] **SHIP-04**: Repository badges and public metadata reflect current quality signals such as CI, linting, type checking, tests or coverage, image/dependency health, and deployment status where appropriate.
+- [ ] **SHIP-05**: Loose ends, stale docs, planning artifacts, open security findings, operational warnings, and showcase-readiness issues are triaged, fixed, or intentionally tracked before the repository is made public.
+
 ## v2 Requirements
 
 None currently. Future scope should be added only if it directly supports the personal collection goal and is not already represented in v1.
@@ -87,12 +95,17 @@ None currently. Future scope should be added only if it directly supports the pe
 | AI-01 | Phase 5 | Pending |
 | AI-02 | Phase 5 | Pending |
 | AI-03 | Phase 5 | Pending |
+| SHIP-01 | Phase 6 | Pending |
+| SHIP-02 | Phase 6 | Pending |
+| SHIP-03 | Phase 6 | Pending |
+| SHIP-04 | Phase 6 | Pending |
+| SHIP-05 | Phase 6 | Pending |
 
 **Coverage:**
-- v1 requirements: 22 total
-- Mapped to phases: 22
+- v1 requirements: 27 total
+- Mapped to phases: 27
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-05-14 after Phase 2 implementation*
+*Last updated: 2026-05-21 after adding Phase 6 public showcase and hardening scope*
