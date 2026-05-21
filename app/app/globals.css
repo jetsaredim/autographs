@@ -95,6 +95,14 @@ select {
   line-height: 1.35;
 }
 
+.public-footer-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
 .public-footer a {
   color: #1f6f68;
   font-weight: 600;
