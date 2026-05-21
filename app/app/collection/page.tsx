@@ -1,5 +1,6 @@
 import { GalleryFilters } from "../components/GalleryFilters";
 import { GalleryGrid } from "../components/GalleryGrid";
+import { EmptyState } from "../components/EmptyState";
 import { createCatalogService } from "../../src/catalog";
 import { derivePublicFacets, toPublicGalleryItem } from "../../src/catalog/public-view-models";
 
@@ -49,10 +50,7 @@ export default async function CollectionPage({ searchParams }: CollectionPagePro
       {galleryItems.length > 0 ? (
         <GalleryGrid items={galleryItems} />
       ) : (
-        <section className="collection-empty" data-empty-state="collection">
-          <h2>No published autographs match this view yet.</h2>
-          <p>Clear the filters or return to the full collection.</p>
-        </section>
+        <EmptyState variant="no-results" />
       )}
     </main>
   );
