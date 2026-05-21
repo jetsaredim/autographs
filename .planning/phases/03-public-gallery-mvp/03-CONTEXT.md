@@ -8,7 +8,7 @@
 
 Phase 3 delivers the anonymous public gallery experience for Jared Greenwald's autograph collection. It includes a branded landing page, a public collection browsing page, curated public filtering/discovery, public item detail pages, multi-image viewing, and public empty/not-found/media-missing states.
 
-This phase does not deliver admin workflows, public accounts, social/community features, direct Object Storage URLs, app-wide incident handling, advanced search infrastructure, or a collection-page "Surprise Me" feature.
+This phase does not deliver admin workflows, public accounts, social/community features, direct Object Storage URLs, app-wide incident handling, advanced search infrastructure, or a collection-page "Surprise Me" feature. It does include a hidden/non-obvious admin unlock affordance that leads only to a placeholder admin page.
 
 </domain>
 
@@ -61,8 +61,10 @@ This phase does not deliver admin workflows, public accounts, social/community f
 ### Public Footer and Future Admin Access
 - **D-03-47:** Public pages should include a very small footer with an `About` link.
 - **D-03-48:** The `About` link should display the current architecture page for now; that architecture page needs more detail in a later phase or follow-up.
-- **D-03-49:** The public UI should leave room for a future admin entry point, but it should be non-obvious so casual visitors do not click around on it.
-- **D-03-50:** The future admin access affordance can be nearly hidden or unlocked by a keyboard combination. Phase 3 should not build the admin UI, but should avoid blocking that later access pattern.
+- **D-03-49:** Phase 3 should implement the hidden/non-obvious admin unlock affordance now, so the access pattern exists before the real admin workflow is built.
+- **D-03-50:** The admin unlock affordance should lead to a placeholder admin page only.
+- **D-03-51:** The placeholder admin page should clearly communicate that collection management is coming later and should not include login, mutation, upload, edit, publish, or operator workflow behavior.
+- **D-03-52:** The admin affordance should not be a visible public navigation target. A nearly hidden affordance or keyboard combination is acceptable, provided it is discoverable by the operator and does not invite casual visitor clicks.
 
 ### Image Access Friction
 - **D-03-27:** Phase 3 should make casual image extraction structurally difficult while acknowledging that browser-viewable images cannot be made impossible to extract.
@@ -90,7 +92,7 @@ This phase does not deliver admin workflows, public accounts, social/community f
 - Exact curated facet taxonomy for the first implementation, provided it starts with public-facing metadata such as card game, IP/category, and meaningful tags.
 - Exact metadata section names and ordering, provided the image/gallery remains the first focus and supporting metadata is grouped cleanly.
 - Exact quote rotation implementation, provided quotes come from an approved durable list, are short, attributed, stylized, and paired with recovery actions.
-- Exact hidden future-admin affordance, provided it is not a visible public navigation target and does not implement Phase 4 admin behavior.
+- Exact hidden admin unlock affordance, provided it leads only to a placeholder page, is not a visible public navigation target, and does not implement Phase 4 admin behavior.
 
 </decisions>
 
@@ -158,7 +160,7 @@ This phase does not deliver admin workflows, public accounts, social/community f
 - Detail interaction: initial focus is the centered image/gallery; clicking the focused image reduces it slightly and reveals metadata to the right where layout allows.
 - Empty/not-found states: short attributed movie quotes about not finding things, rendered as quote blocks with practical recovery actions. Candidate quotes should be researched, reviewed, approved, and stored in a durable approved list before random display.
 - Footer: very small `About` link to the current architecture page.
-- Future admin access: leave room for a non-obvious/near-hidden affordance or keyboard-unlocked entry point without building admin UI in Phase 3.
+- Future admin access: implement a non-obvious/near-hidden affordance or keyboard-unlocked entry point that leads to a placeholder admin page without login/mutation/upload/edit/publish workflows.
 - Temporary production data entry command shape:
   - `ssh -L <local-port>:127.0.0.1:3000 opc@<runtime-public-ip>`
   - `curl -H "Authorization: Bearer <AUTOGRAPHS_OPERATOR_API_TOKEN>" http://127.0.0.1:<local-port>/api/operator/...`
@@ -172,7 +174,7 @@ This phase does not deliver admin workflows, public accounts, social/community f
 - Replace the temporary SSH-tunnel operator data-entry procedure with the Phase 4 admin workflow.
 - Dedicated lightbox/image route can be reconsidered after MVP if image browsing needs a richer standalone experience.
 - Add more detailed architecture page content after the footer `About` link exposes the current architecture page.
-- Implement the actual admin UI and finalized hidden/admin-entry behavior in Phase 4.
+- Implement the actual admin UI, authentication, and management workflows in Phase 4.
 
 </deferred>
 

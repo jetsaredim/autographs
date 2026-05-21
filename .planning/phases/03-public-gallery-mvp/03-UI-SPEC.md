@@ -136,7 +136,9 @@ No third-party UI registries are approved for Phase 3.
 - `Surprise Me` appears only on `/` and opens one random published item detail page from the full published collection.
 - Do not leave the proof-of-life "Autographs" page or delivery-spine explanation as the public landing experience.
 - Public pages should include a very small footer. The footer contains an `About` link to the current architecture page; architecture-page content can be expanded later.
-- The public UI should reserve a non-obvious future admin entry point. Do not expose a visible `Admin` navigation link in Phase 3; an eventual near-hidden affordance or keyboard-unlock pattern is acceptable future direction.
+- The public UI must include a non-obvious admin unlock affordance in Phase 3. Do not expose a visible `Admin` navigation link.
+- The unlock affordance leads only to a placeholder admin page. The placeholder communicates that collection management is coming later and must not include login, mutation, upload, edit, publish, or operator workflow behavior.
+- Acceptable unlock patterns include a nearly hidden footer/brand affordance or a keyboard combination, provided it is operator-discoverable and does not invite casual visitor clicks.
 
 ### Collection Page
 
@@ -200,11 +202,11 @@ No third-party UI registries are approved for Phase 3.
 
 | Source | Decisions Used |
 |--------|----------------|
-| CONTEXT.md | 50 locked decisions covering brand, landing actions, grid, filters, detail layout, image viewer, quote sourcing, footer/about, future admin access, media privacy, and temporary data-entry boundaries |
+| CONTEXT.md | 52 locked decisions covering brand, landing actions, grid, filters, detail layout, image viewer, quote sourcing, footer/about, hidden admin placeholder access, media privacy, and temporary data-entry boundaries |
 | RESEARCH.md | Next.js App Router, Server Components for initial data, small Client Components for filters/image viewer, native CSS recommendation, app-mediated image route |
 | REQUIREMENTS.md | GALL-01, GALL-02, GALL-03, GALL-04 plus out-of-scope exclusions |
 | Existing UI scan | Native CSS only; IBM Plex Sans; no shadcn, Tailwind, component library, or project skills detected |
-| User input | Additional instruction to lock landing page, grid/filtering, image-first detail interaction, thumbnail swapper, approved movie-quote sourcing, footer/about link, future hidden admin access, image extraction friction, visual assets, restrained cards, robust responsive layout |
+| User input | Additional instruction to lock landing page, grid/filtering, image-first detail interaction, thumbnail swapper, approved movie-quote sourcing, footer/about link, hidden admin unlock plus placeholder page, image extraction friction, visual assets, restrained cards, robust responsive layout |
 
 ---
 
