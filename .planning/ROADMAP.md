@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Delivery Spine and OCI Bootstrap** - Stand up the deployable app foundation, OCI baseline, and GitHub-driven validation/deploy path. Complete; live OCI deploy proof passed from `main`.
 - [x] **Phase 2: Oracle and Private Media Core** - Prove the database and object-storage seams that every collection record depends on. Implementation complete; live Oracle/Object Storage smoke path documented for operator execution with real credentials.
-- [ ] **Phase 3: Public Gallery MVP** - Deliver anonymous browse, filter, and detail views for published autograph items.
+- [x] **Phase 3: Public Gallery MVP** - Deliver anonymous browse, filter, and detail views for published autograph items. Complete; anonymous public gallery, filters, detail pages, image viewer, quote states, and privacy gates are implemented.
 - [ ] **Phase 4: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop.
 - [ ] **Phase 5: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
 - [ ] **Phase 6: Public Showcase and Hardening** - Tie up loose ends, audit security posture, polish documentation, and prepare the repository to be public as a human+AI showcase.
@@ -67,7 +67,7 @@ Plans:
 - [x] 03-02-PLAN.md - Build the branded landing page, footer, and hidden admin access affordance.
 - [x] 03-03-PLAN.md - Implement the public collection grid and URL-backed curated filters.
 - [x] 03-04-PLAN.md - Implement item detail pages and the in-place multi-image viewer.
-- [ ] 03-05-PLAN.md - Document temporary production data entry and run final public gallery gates.
+- [x] 03-05-PLAN.md - Document temporary production data entry and run final public gallery gates.
 **UI hint**: yes
 
 ### Phase 4: Admin Collection Workflow
@@ -115,7 +115,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Delivery Spine and OCI Bootstrap | 4/4 | Complete | 2026-05-14 |
 | 2. Oracle and Private Media Core | 4/4 | Complete | 2026-05-14 |
-| 3. Public Gallery MVP | 4/5 | In progress | - |
+| 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
 | 4. Admin Collection Workflow | 0/TBD | Not started | - |
 | 5. AI-Assisted Ingest | 0/TBD | Not started | - |
 | 6. Public Showcase and Hardening | 0/TBD | Not started | - |
