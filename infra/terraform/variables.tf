@@ -143,15 +143,9 @@ variable "runtime_boot_volume_size_gbs" {
 }
 
 variable "runtime_image_ocid" {
-  description = "Custom image OCID for the runtime VM. Leave empty to use the per-region map."
+  description = "Custom image OCID for the runtime VM. Leave empty to use the latest Oracle Linux 10 image compatible with runtime_shape."
   type        = string
   default     = ""
-}
-
-variable "oracle_linux_image_ocids" {
-  description = "Per-region Oracle Linux image OCIDs used when runtime_image_ocid is empty."
-  type        = map(string)
-  default     = {}
 }
 
 variable "runtime_ssh_public_keys" {

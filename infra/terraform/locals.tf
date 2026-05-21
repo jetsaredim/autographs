@@ -6,5 +6,5 @@ locals {
     owner       = var.owner_email != "" ? var.owner_email : "unset"
   }
 
-  runtime_image_ocid = var.runtime_image_ocid != "" ? var.runtime_image_ocid : lookup(var.oracle_linux_image_ocids, var.region, "")
+  runtime_image_ocid = var.runtime_image_ocid != "" ? var.runtime_image_ocid : try(data.oci_core_images.oracle_linux_10[0].images[0].id, "")
 }

@@ -38,9 +38,6 @@ runtime_ocpus                = 1
 runtime_memory_gbs           = 1
 runtime_boot_volume_size_gbs = 50
 runtime_image_ocid           = ""
-oracle_linux_image_ocids = {
-  "us-ashburn-1" = "ocid1.image.oc1.iad.replace_me"
-}
 runtime_ssh_public_keys = [
   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIreplace_me operator@laptop"
 ]
