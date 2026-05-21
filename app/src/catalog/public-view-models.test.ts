@@ -26,21 +26,24 @@ const image = (overrides: Partial<AutographImage>): AutographImage => ({
   updatedAt: overrides.updatedAt ?? new Date("2026-01-01T00:00:00Z"),
 });
 
+const nullable = <T>(value: T | null | undefined, fallback: T): T | null =>
+  value === undefined ? fallback : value;
+
 const item = (overrides: Partial<AutographItem> = {}): AutographItem => ({
   id: overrides.id ?? "item-1",
   title: overrides.title ?? "Signed Jedi Card",
   signer: overrides.signer ?? "Mark Hamill",
-  description: overrides.description ?? "A signed collectible from the archive.",
+  description: nullable(overrides.description, "A signed collectible from the archive."),
   category: overrides.category ?? "Star Wars CCG",
   tags: overrides.tags ?? ["jedi", "featured", "force", "private-note"],
-  objectReference: overrides.objectReference ?? "Premiere",
-  eventName: overrides.eventName ?? "Celebration",
-  eventLocation: overrides.eventLocation ?? "Chicago",
-  source: overrides.source ?? "Convention signing",
-  inscription: overrides.inscription ?? "To Jared",
-  certificationCompany: overrides.certificationCompany ?? "PSA",
-  certificationId: overrides.certificationId ?? "ABC123",
-  estimatedYear: overrides.estimatedYear ?? 1999,
+  objectReference: nullable(overrides.objectReference, "Premiere"),
+  eventName: nullable(overrides.eventName, "Celebration"),
+  eventLocation: nullable(overrides.eventLocation, "Chicago"),
+  source: nullable(overrides.source, "Convention signing"),
+  inscription: nullable(overrides.inscription, "To Jared"),
+  certificationCompany: nullable(overrides.certificationCompany, "PSA"),
+  certificationId: nullable(overrides.certificationId, "ABC123"),
+  estimatedYear: nullable(overrides.estimatedYear, 1999),
   publicationStatus: overrides.publicationStatus ?? "published",
   createdAt: overrides.createdAt ?? new Date("2026-01-01T00:00:00Z"),
   updatedAt: overrides.updatedAt ?? new Date("2026-01-02T00:00:00Z"),
