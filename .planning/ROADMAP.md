@@ -61,7 +61,13 @@ Plans:
   2. Anonymous user can filter or search the gallery by signer name, category, and tags.
   3. Anonymous user can open a detail page for one autograph item and see its full stored metadata.
   4. Anonymous user can view all published images for an item, with a clear primary presentation.
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 03-01-PLAN.md - Create public-safe view models and approved quote state foundation.
+- [ ] 03-02-PLAN.md - Build the branded landing page, footer, and hidden admin access affordance.
+- [ ] 03-03-PLAN.md - Implement the public collection grid and URL-backed curated filters.
+- [ ] 03-04-PLAN.md - Implement item detail pages and the in-place multi-image viewer.
+- [ ] 03-05-PLAN.md - Document temporary production data entry and run final public gallery gates.
 **UI hint**: yes
 
 ### Phase 4: Admin Collection Workflow
