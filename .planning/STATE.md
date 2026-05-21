@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 02 implementation complete; Phase 03 ready for planning
-last_updated: "2026-05-20T00:00:00.000Z"
-last_activity: 2026-05-20 -- Quick task moved production deployment from compose/cloud-init bootstrap to Ansible-managed Podman quadlets
+status: completed
+stopped_at: Phase 3 context gathered
+last_updated: "2026-05-21T15:16:33.233Z"
+last_activity: 2026-05-21 -- Added Phase 6 public showcase and hardening scope as the fast-follow after AI-assisted ingest
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 2
   total_plans: 8
   completed_plans: 8
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-04-18)
 
 Phase: 03 (public-gallery-mvp) — READY FOR PLANNING
 Plan: 0 of TBD
-Status: Phase 2 implementation is complete; production runtime deployment now converges through Ansible-managed Podman quadlets
-Last activity: 2026-05-20 -- Quick task moved production deployment from compose/cloud-init bootstrap to Ansible-managed Podman quadlets
+Status: Phase 2 implementation is complete; production runtime deployment now converges through Ansible-managed Podman quadlets; Phase 6 has been added as a public showcase and hardening fast-follow after AI-assisted ingest
+Last activity: 2026-05-21 -- Added Phase 6 public showcase and hardening scope as the fast-follow after AI-assisted ingest
 
 Progress: [██████████] 100% of currently planned execution plans
 
@@ -67,6 +67,7 @@ Recent decisions affecting current work:
 - Quick task: Manage both production containers with Podman quadlets on a dedicated Podman network instead of compose/podman-compose.
 - Quick task: Keep runtime VM host configuration in the merge-triggered Ansible deploy rather than cloud-init user data.
 - Phase 4: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
+- Phase 6: Finish with a public-readiness pass covering security hardening, loose-end cleanup, root README polish, repository badges, dependency automation, and showcase framing for the human+AI collaboration.
 
 ### Pending Todos
 
@@ -79,12 +80,13 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-20T00:00:00.000Z
-Stopped at: Quick task complete; Phase 03 remains ready for planning
-Resume file: .planning/quick/20260520-podman-quadlet-deploy/SUMMARY.md
+Last session: 2026-05-21T15:16:33.216Z
+Stopped at: Phase 3 context gathered
+Resume file: .planning/phases/03-public-gallery-mvp/03-CONTEXT.md
 
 ## Quick Tasks Completed
 
 | Date | Task | Summary |
 |------|------|---------|
 | 2026-05-20 | podman-quadlet-deploy | Replaced compose/cloud-init runtime setup with Ansible-managed Podman quadlets and added manual runtime VM taint support. |
+| 2026-05-21 | phase-6-scope | Added Public Showcase and Hardening as Phase 6 after AI-assisted ingest. |

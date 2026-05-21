@@ -2,7 +2,7 @@
 
 ## Overview
 
-Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery, then completes the single-admin collection workflow with multi-image management and edit history, and finally adds advisory AI-assisted ingest.
+Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery, then completes the single-admin collection workflow with multi-image management and edit history, adds advisory AI-assisted ingest, and finishes with a public-readiness pass that hardens, documents, and presents the project as a human+AI showcase.
 
 ## Phases
 
@@ -17,6 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 3: Public Gallery MVP** - Deliver anonymous browse, filter, and detail views for published autograph items.
 - [ ] **Phase 4: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop.
 - [ ] **Phase 5: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
+- [ ] **Phase 6: Public Showcase and Hardening** - Tie up loose ends, audit security posture, polish documentation, and prepare the repository to be public as a human+AI showcase.
 
 ## Phase Details
 
@@ -86,10 +87,23 @@ Plans:
 **Plans**: TBD
 **UI hint**: yes
 
+### Phase 6: Public Showcase and Hardening
+**Goal**: The project is safe, understandable, and polished enough to make public as a showcase of the delivered personal collection system and the human+AI development process behind it.
+**Depends on**: Phase 5
+**Requirements**: SHIP-01, SHIP-02, SHIP-03, SHIP-04, SHIP-05
+**Success Criteria** (what must be TRUE):
+  1. Security, secrets, and attack-vector review has been completed across the app, infrastructure, deployment, and repository configuration, with actionable findings fixed or explicitly tracked.
+  2. Dependency update automation has been revisited and either Dependabot, Renovate, or a documented equivalent has been configured for the repo's package, container, workflow, and Terraform surfaces.
+  3. The root `README.md` clearly explains the project goals, architecture, local development, deployment model, and what makes the project a human+AI collaboration showcase.
+  4. Repository badges and public-facing project metadata accurately reflect CI, linting, type checking, test/coverage posture, deployment or release status, and other useful quality signals.
+  5. Loose-end issues, docs gaps, stale planning artifacts, and operational warnings have been triaged so the public repository tells a coherent story.
+**Plans**: TBD
+**UI hint**: no
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -98,3 +112,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 3. Public Gallery MVP | 0/TBD | Not started | - |
 | 4. Admin Collection Workflow | 0/TBD | Not started | - |
 | 5. AI-Assisted Ingest | 0/TBD | Not started | - |
+| 6. Public Showcase and Hardening | 0/TBD | Not started | - |
