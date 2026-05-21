@@ -115,8 +115,7 @@ jobs:
       uses_production_images: ${{ steps.resolve.outputs.uses_production_images }}
 
     steps:
-      - name: Log in to ghcr.io for production image checks
-        if: needs.detect-app-image-changes.outputs.build_app_image != 'true'
+      - name: Log in to ghcr.io for image resolution
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -145,21 +144,35 @@ jobs:
               exit 1
             fi
 
-            {
-              echo "app_image=${GHCR_IMAGE_REPOSITORY}:${GITHUB_SHA}"
-              echo "tools_image=${GHCR_IMAGE_REPOSITORY}-tools:${GITHUB_SHA}"
-              echo "uses_production_images=false"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
+            app_tag="${GHCR_IMAGE_REPOSITORY}:${GITHUB_SHA}"
+            tools_tag="${GHCR_IMAGE_REPOSITORY}-tools:${GITHUB_SHA}"
+            uses_production_images=false
+          else
+            app_tag="${GHCR_IMAGE_REPOSITORY}:production"
+            tools_tag="${GHCR_IMAGE_REPOSITORY}-tools:production"
+            uses_production_images=true
           fi
 
-          docker buildx imagetools inspect "${GHCR_IMAGE_REPOSITORY}:production" >/dev/null
-          docker buildx imagetools inspect "${GHCR_IMAGE_REPOSITORY}-tools:production" >/dev/null
+          resolve_digest() {
+            local image_tag="$1"
+            local digest
+
+            digest="$(docker buildx imagetools inspect "$image_tag" --format '{{ .Manifest.Digest }}')"
+            if [ -z "$digest" ]; then
+              echo "Could not resolve digest for $image_tag" >&2
+              exit 1
+            fi
+
+            printf '%s' "$digest"
+          }
+
+          app_digest="$(resolve_digest "$app_tag")"
+          tools_digest="$(resolve_digest "$tools_tag")"
 
           {
-            echo "app_image=${GHCR_IMAGE_REPOSITORY}:production"
-            echo "tools_image=${GHCR_IMAGE_REPOSITORY}-tools:production"
-            echo "uses_production_images=true"
+            echo "app_image=${GHCR_IMAGE_REPOSITORY}@${app_digest}"
+            echo "tools_image=${GHCR_IMAGE_REPOSITORY}-tools@${tools_digest}"
+            echo "uses_production_images=${uses_production_images}"
           } >> "$GITHUB_OUTPUT"
 
   terraform-apply:
