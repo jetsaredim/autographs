@@ -38,6 +38,8 @@ This phase does not deliver admin workflows, public accounts, social/community f
 - **D-03-14:** Essential facts should appear near the top. Supporting metadata can be grouped into sections such as provenance, certification, tags, and collection notes.
 - **D-03-15:** Important metadata examples include signer, item/card title, card game/IP/category, rarity when applicable, certification, year, event, and source.
 - **D-03-16:** Exact grouping, labels, and layout may be iterated during implementation once real sample data is visible.
+- **D-03-42:** The image/image gallery should be the main focus and centered on initial detail-page view.
+- **D-03-43:** Clicking the focused image should reduce it slightly and reveal the grouped information to the right of the image where viewport space allows. This interaction can be iterated during implementation.
 
 ### Image Viewing
 - **D-03-17:** If an item has multiple images, show one focused primary image and show all available images as smaller thumbnails below it.
@@ -52,6 +54,15 @@ This phase does not deliver admin workflows, public accounts, social/community f
 - **D-03-24:** Movie quotes should be stylized as quote blocks with proper attribution rendered separately from the quote.
 - **D-03-25:** Quote blocks should be paired with practical recovery actions such as Clear filters, Back to collection, View collection, or Surprise Me where appropriate.
 - **D-03-26:** Keep quote usage short and tasteful; do not build the entire UX around long quoted passages.
+- **D-03-44:** The examples in this context are directional examples only. Development should include researching similar short "not finding things" movie quotes for user review and approval.
+- **D-03-45:** Approved quotes should be stored in the database or another durable approved list, then randomly selected for public empty/not-found/error states.
+- **D-03-46:** State-specific messages should draw from the same approved quote source/list rather than hard-coding separate per-state quotes.
+
+### Public Footer and Future Admin Access
+- **D-03-47:** Public pages should include a very small footer with an `About` link.
+- **D-03-48:** The `About` link should display the current architecture page for now; that architecture page needs more detail in a later phase or follow-up.
+- **D-03-49:** The public UI should leave room for a future admin entry point, but it should be non-obvious so casual visitors do not click around on it.
+- **D-03-50:** The future admin access affordance can be nearly hidden or unlocked by a keyboard combination. Phase 3 should not build the admin UI, but should avoid blocking that later access pattern.
 
 ### Image Access Friction
 - **D-03-27:** Phase 3 should make casual image extraction structurally difficult while acknowledging that browser-viewable images cannot be made impossible to extract.
@@ -77,8 +88,9 @@ This phase does not deliver admin workflows, public accounts, social/community f
 ### the agent's Discretion
 - Exact responsive grid breakpoints and card density, provided the collection remains image-forward and easy to navigate.
 - Exact curated facet taxonomy for the first implementation, provided it starts with public-facing metadata such as card game, IP/category, and meaningful tags.
-- Exact metadata section names and ordering, provided essential facts appear near the top and supporting metadata is grouped cleanly.
-- Exact quote rotation implementation, provided quotes are short, attributed, stylized, and paired with recovery actions.
+- Exact metadata section names and ordering, provided the image/gallery remains the first focus and supporting metadata is grouped cleanly.
+- Exact quote rotation implementation, provided quotes come from an approved durable list, are short, attributed, stylized, and paired with recovery actions.
+- Exact hidden future-admin affordance, provided it is not a visible public navigation target and does not implement Phase 4 admin behavior.
 
 </decisions>
 
@@ -101,6 +113,7 @@ This phase does not deliver admin workflows, public accounts, social/community f
 - `app/app/api/catalog/route.ts` — Public catalog list route with category/signer/tag query filters.
 - `app/app/api/catalog/[id]/route.ts` — Public item detail route.
 - `app/app/api/catalog/[id]/images/[imageId]/route.ts` — App-mediated published image route.
+- `app/app/architecture/page.tsx` — Current architecture page that the public footer `About` link should expose.
 - `app/src/catalog/types.ts` — Catalog item, image, and list option types.
 - `app/src/catalog/service.ts` — Catalog service behavior for item reads, image reads, and image attachment.
 - `app/db/seed/sample-autographs.ts` — Current representative sample metadata and image shape.
@@ -114,6 +127,7 @@ This phase does not deliver admin workflows, public accounts, social/community f
 - `app/app/api/catalog/route.ts`: Existing public list endpoint accepts `category`, `signer`, and `tag`; Phase 3 can build initial filters against this shape and extend only if the curated-facet UX needs it.
 - `app/app/api/catalog/[id]/route.ts`: Existing public detail endpoint returns one published item by id and already hides missing/unpublished records behind 404 behavior.
 - `app/app/api/catalog/[id]/images/[imageId]/route.ts`: Existing image endpoint streams private media through the app and sets cache/security headers. Public UI should use this route for all images.
+- `app/app/architecture/page.tsx`: Existing architecture page can serve as the initial footer `About` destination.
 - `app/src/catalog/types.ts`: The item model already includes publication status, category, tags, signer, title, description, certification, event/source fields, and ordered images.
 - `app/db/seed/sample-autographs.ts`: Current sample records include published and draft items plus primary/supporting images; Phase 3 can use this to shape local gallery fixture expectations.
 
@@ -128,6 +142,7 @@ This phase does not deliver admin workflows, public accounts, social/community f
 - New collection page: likely a new public route such as `app/app/collection/page.tsx`.
 - New detail page: likely a new public route keyed by item id, connected to `GET /api/catalog/{id}`.
 - Image components must build URLs with `/api/catalog/{itemId}/images/{imageId}` and avoid exposing storage metadata.
+- Footer/about integration should link to the current architecture page without turning it into a primary public navigation destination.
 - Temporary production data-entry docs should reference the existing operator API shape without making those endpoints public through Caddy.
 
 </code_context>
@@ -140,7 +155,10 @@ This phase does not deliver admin workflows, public accounts, social/community f
 - Collection page: grid of smaller thumbnails with a dropdown/filterable tag-cloud style menu.
 - Filtering examples: card game, IP/category, and meaningful tags.
 - Detail page: focused primary image, grouped metadata, and thumbnail selector below the primary image.
-- Empty/not-found states: short attributed movie quotes about not finding things, rendered as quote blocks with practical recovery actions.
+- Detail interaction: initial focus is the centered image/gallery; clicking the focused image reduces it slightly and reveals metadata to the right where layout allows.
+- Empty/not-found states: short attributed movie quotes about not finding things, rendered as quote blocks with practical recovery actions. Candidate quotes should be researched, reviewed, approved, and stored in a durable approved list before random display.
+- Footer: very small `About` link to the current architecture page.
+- Future admin access: leave room for a non-obvious/near-hidden affordance or keyboard-unlocked entry point without building admin UI in Phase 3.
 - Temporary production data entry command shape:
   - `ssh -L <local-port>:127.0.0.1:3000 opc@<runtime-public-ip>`
   - `curl -H "Authorization: Bearer <AUTOGRAPHS_OPERATOR_API_TOKEN>" http://127.0.0.1:<local-port>/api/operator/...`
@@ -153,6 +171,8 @@ This phase does not deliver admin workflows, public accounts, social/community f
 - Re-evaluate a hybrid filter model once there is enough real collection data: curated primary facets first, with an "all tags" or deeper-browse area for richer discovery.
 - Replace the temporary SSH-tunnel operator data-entry procedure with the Phase 4 admin workflow.
 - Dedicated lightbox/image route can be reconsidered after MVP if image browsing needs a richer standalone experience.
+- Add more detailed architecture page content after the footer `About` link exposes the current architecture page.
+- Implement the actual admin UI and finalized hidden/admin-entry behavior in Phase 4.
 
 </deferred>
 

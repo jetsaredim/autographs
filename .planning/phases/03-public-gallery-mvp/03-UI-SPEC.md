@@ -87,26 +87,28 @@ Rules:
 |---------|------|
 | Primary CTA | View Collection |
 | Secondary CTA | Surprise Me |
-| Empty state heading | These aren't the droids you're looking for. |
+| Empty state heading | selected from approved quote list |
 | Empty state body | No published autographs match this view yet. Clear the filters or return to the full collection. |
 | Error state | The collection could not be loaded. Refresh the page or return to the collection. |
 | Destructive confirmation | none; Phase 3 public gallery has no destructive actions |
 
 Quote rules:
 - Render movie quotes as quote blocks with quote text and attribution as separate elements.
-- Use short quotes only. Approved examples: "These aren't the droids you're looking for." attributed to `Star Wars`, and "X never, ever marks the spot." attributed to `Indiana Jones and the Last Crusade`.
+- Use short quotes only. Previously discussed examples such as "These aren't the droids you're looking for." and "X never, ever marks the spot." are examples, not the final approved inventory.
+- Phase 3 development must include researching similar short movie quotes about not finding things, presenting candidates for user review/approval, and storing approved quotes in the database or another durable approved list.
+- Random public empty/not-found/error states must draw from the same approved quote source/list.
 - Pair every quote state with practical recovery actions.
 - Do not use long quoted passages.
 
 State-specific recovery actions:
 
-| State | Heading | Action |
-|-------|---------|--------|
-| No published items | These aren't the droids you're looking for. | View Collection disabled or hidden; Surprise Me hidden |
-| Filter no results | These aren't the droids you're looking for. | Clear filters |
-| Missing or unpublished detail page | X never, ever marks the spot. | Back to collection |
-| Media fetch failure | X never, ever marks the spot. | Back to item details or Back to collection |
-| Catalog fallback/error | These aren't the droids you're looking for. | Refresh and View collection |
+| State | Quote Source | Action |
+|-------|--------------|--------|
+| No published items | Random approved quote | View Collection disabled or hidden; Surprise Me hidden |
+| Filter no results | Random approved quote | Clear filters |
+| Missing or unpublished detail page | Random approved quote | Back to collection |
+| Media fetch failure | Random approved quote | Back to item details or Back to collection |
+| Catalog fallback/error | Random approved quote | Refresh and View collection |
 
 ---
 
@@ -133,6 +135,8 @@ No third-party UI registries are approved for Phase 3.
 - `View Collection` navigates to `/collection`.
 - `Surprise Me` appears only on `/` and opens one random published item detail page from the full published collection.
 - Do not leave the proof-of-life "Autographs" page or delivery-spine explanation as the public landing experience.
+- Public pages should include a very small footer. The footer contains an `About` link to the current architecture page; architecture-page content can be expanded later.
+- The public UI should reserve a non-obvious future admin entry point. Do not expose a visible `Admin` navigation link in Phase 3; an eventual near-hidden affordance or keyboard-unlock pattern is acceptable future direction.
 
 ### Collection Page
 
@@ -158,8 +162,9 @@ No third-party UI registries are approved for Phase 3.
 
 - Route: `/collection/{itemId}`.
 - Missing or unpublished records render a warm not-found state.
-- Primary image is the main visual focus.
-- Essential facts appear near the top: signer, item/card title, category/IP, estimated year, and certification when present.
+- The image/image gallery is the main focus and is centered on initial detail-page view.
+- Clicking the focused image reduces it slightly and reveals grouped information to the right of the image where viewport space allows; this can collapse below the image on narrow viewports.
+- Essential facts appear in the revealed information area: signer, item/card title, category/IP, estimated year, and certification when present.
 - Supporting metadata is grouped into these sections in this order: `Provenance`, `Certification`, `Inscription`, `Tags`, `Collection Notes`.
 - Hide empty metadata fields rather than rendering blank rows.
 - Use definition-list style metadata rows with labels at 14px/600 and values at 16px/400.
@@ -195,11 +200,11 @@ No third-party UI registries are approved for Phase 3.
 
 | Source | Decisions Used |
 |--------|----------------|
-| CONTEXT.md | 41 locked decisions covering brand, landing actions, grid, filters, detail layout, image viewer, empty states, media privacy, and temporary data-entry boundaries |
+| CONTEXT.md | 50 locked decisions covering brand, landing actions, grid, filters, detail layout, image viewer, quote sourcing, footer/about, future admin access, media privacy, and temporary data-entry boundaries |
 | RESEARCH.md | Next.js App Router, Server Components for initial data, small Client Components for filters/image viewer, native CSS recommendation, app-mediated image route |
 | REQUIREMENTS.md | GALL-01, GALL-02, GALL-03, GALL-04 plus out-of-scope exclusions |
 | Existing UI scan | Native CSS only; IBM Plex Sans; no shadcn, Tailwind, component library, or project skills detected |
-| User input | Additional instruction to lock landing page, grid/filtering, detail page, thumbnail swapper, movie-quote empty states, image extraction friction, visual assets, restrained cards, robust responsive layout |
+| User input | Additional instruction to lock landing page, grid/filtering, image-first detail interaction, thumbnail swapper, approved movie-quote sourcing, footer/about link, future hidden admin access, image extraction friction, visual assets, restrained cards, robust responsive layout |
 
 ---
 
