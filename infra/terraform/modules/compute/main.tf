@@ -34,6 +34,8 @@ resource "oci_core_instance" "runtime" {
   freeform_tags = var.tags
 
   lifecycle {
+    # Platform image drift should not replace the VM automatically. Recreate
+    # the runtime instance explicitly when intentionally taking a new base image.
     ignore_changes = [
       source_details[0].source_id,
     ]
