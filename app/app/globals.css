@@ -90,22 +90,17 @@ select {
 .public-footer {
   margin-top: auto;
   padding: 32px 0 0;
-  color: #6b6861;
+  color: #8d887f;
   font-size: 14px;
+  font-weight: 400;
+  justify-content: center;
   line-height: 1.35;
 }
 
-.public-footer-links {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 16px;
-}
-
 .public-footer a {
-  color: #6f675c;
-  font-weight: 600;
+  color: #8d887f;
+  font-weight: 400;
+  text-decoration: none;
 }
 
 .landing-hero {

@@ -25,13 +25,17 @@ export default async function HomePage() {
           </p>
           <div className="cta-row" aria-label="Gallery actions">
             <Link className="button-primary" href="/collection">
-              View Collection
+              Browse the Collection
             </Link>
             {surpriseItem ? (
               <Link className="button-secondary" href={`/collection/${surpriseItem.id}`}>
                 Surprise Me
               </Link>
-            ) : null}
+            ) : (
+              <button className="button-secondary" type="button" disabled>
+                Surprise Me
+              </button>
+            )}
           </div>
         </div>
 
@@ -53,14 +57,6 @@ export default async function HomePage() {
             </div>
           )}
         </div>
-      </section>
-
-      <section className="landing-preview-copy" aria-label="Collection summary">
-        <p className="eyebrow">Published collection</p>
-        <p className="lede">
-          Browse by signer, category, and meaningful tags, then open each item
-          for image-forward detail views as the gallery comes online.
-        </p>
       </section>
 
       <PublicFooter />
