@@ -25,7 +25,7 @@ const createExecutorFromConnection = (
       outFormat: oracledb.OUT_FORMAT_OBJECT,
       autoCommit: false,
       fetchInfo: {
-        DESCRIPTION: { type: String },
+        DESCRIPTION: { type: oracledb.STRING },
       }
     });
     return { rows: (result.rows ?? []) as T[] };
@@ -78,7 +78,7 @@ export const createOracleExecutor = (): DatabaseExecutor => {
           outFormat: oracledb.OUT_FORMAT_OBJECT,
           autoCommit: true,
           fetchInfo: {
-            DESCRIPTION: { type: String },
+            DESCRIPTION: { type: oracledb.STRING },
           }
         });
         return { rows: (result.rows ?? []) as T[] };
