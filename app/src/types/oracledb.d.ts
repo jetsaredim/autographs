@@ -1,12 +1,13 @@
 declare module "oracledb" {
   export const OUT_FORMAT_OBJECT: number;
+  export const STRING: number;
 
   export type BindParameters = Record<string, unknown>;
 
   export type ExecuteOptions = {
     outFormat?: number;
     autoCommit?: boolean;
-    fetchInfo?: Record<string, { type: StringConstructor; }>;
+    fetchInfo?: Record<string, { type: number }>;
   };
 
   export type ExecuteManyOptions = {
@@ -45,6 +46,7 @@ declare module "oracledb" {
 
   const oracledb: {
     OUT_FORMAT_OBJECT: typeof OUT_FORMAT_OBJECT;
+    STRING: typeof STRING;
     getConnection: typeof getConnection;
   };
 
