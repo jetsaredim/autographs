@@ -1,4 +1,5 @@
 import { createCatalogService } from "../../../src/catalog";
+import { toPublicGalleryItem } from "../../../src/catalog/public-view-models";
 
 export const dynamic = "force-dynamic";
 
@@ -11,5 +12,5 @@ export async function GET(request: Request) {
     tag: url.searchParams.get("tag") ?? undefined,
   });
 
-  return Response.json({ items });
+  return Response.json({ items: items.map(toPublicGalleryItem) });
 }

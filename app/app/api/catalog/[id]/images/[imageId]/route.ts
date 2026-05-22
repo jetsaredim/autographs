@@ -1,6 +1,7 @@
 import { Readable } from "node:stream";
 
 import { createCatalogService } from "../../../../../../src/catalog";
+import { getMockImageSvg } from "../../../../../../src/catalog/mock-data";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +11,25 @@ type RouteContext = {
 
 export async function GET(_request: Request, context: RouteContext) {
   const { id, imageId } = await context.params;
-  const service = createCatalogService();
-  const image = await service.readPublishedImage(id, imageId);
+  const image = await readPublishedImage(id, imageId).catch((error: unknown) => {
+    if (isMissingLocalDataConfig(error) && process.env.NODE_ENV !== "production") {
+      return null;
+    }
+    throw error;
+  });
 
   if (!image) {
+    const mockSvg = process.env.NODE_ENV !== "production" ? getMockImageSvg(id, imageId) : null;
+    if (mockSvg) {
+      return new Response(mockSvg, {
+        headers: {
+          "Content-Type": "image/svg+xml",
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -29,3 +45,9 @@ export async function GET(_request: Request, context: RouteContext) {
     },
   });
 }
+
+const readPublishedImage = (id: string, imageId: string) =>
+  createCatalogService().readPublishedImage(id, imageId);
+
+const isMissingLocalDataConfig = (error: unknown): boolean =>
+  error instanceof Error && error.message.startsWith("Oracle database configuration is incomplete.");

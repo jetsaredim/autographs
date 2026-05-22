@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
+
+import { Breadcrumbs } from "../components/Breadcrumbs";
 
 export const metadata: Metadata = {
   title: "Autographs | Architecture",
@@ -75,10 +76,7 @@ export default function ArchitecturePage() {
   return (
     <main className="architecture-shell">
       <section className="architecture-hero" aria-labelledby="architecture-title">
-        <Link className="back-link" href="/">
-          ← Proof of life
-        </Link>
-        <p className="eyebrow">System architecture</p>
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "About" }]} />
         <h1 id="architecture-title">Autographs system overview</h1>
         <p className="lede">
           The goal is to serve my autograph collection images on a public
