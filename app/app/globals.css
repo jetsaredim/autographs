@@ -2,8 +2,8 @@
   color-scheme: light;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   letter-spacing: 0;
-  background: #f8f7f4;
-  color: #1f2937;
+  background: #fbfaf7;
+  color: #2f2f2d;
 }
 
 * {
@@ -18,7 +18,7 @@ body {
 
 body {
   min-height: 100vh;
-  background: #f8f7f4;
+  background: #fbfaf7;
 }
 
 a {
@@ -33,7 +33,7 @@ a:hover {
 
 a:focus-visible,
 button:focus-visible {
-  outline: 2px solid #1f6f68;
+  outline: 2px solid #6f675c;
   outline-offset: 3px;
 }
 
@@ -83,14 +83,14 @@ select {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
-  color: #1f2937;
+  color: #2f2f2d;
   text-decoration: none;
 }
 
 .public-footer {
   margin-top: auto;
   padding: 32px 0 0;
-  color: #4b5563;
+  color: #6b6861;
   font-size: 14px;
   line-height: 1.35;
 }
@@ -104,7 +104,7 @@ select {
 }
 
 .public-footer a {
-  color: #1f6f68;
+  color: #6f675c;
   font-weight: 600;
 }
 
@@ -121,7 +121,7 @@ select {
 
 .eyebrow {
   margin: 0 0 8px;
-  color: #1f6f68;
+  color: #6f675c;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
@@ -131,7 +131,7 @@ select {
 .architecture-hero h1,
 .admin-placeholder h1 {
   margin: 0;
-  color: #1f2937;
+  color: #2f2f2d;
   font-size: 32px;
   font-weight: 600;
   line-height: 1.1;
@@ -139,7 +139,7 @@ select {
 
 .lede {
   margin: 16px 0 0;
-  color: #4b5563;
+  color: #6b6861;
   font-size: 16px;
   font-weight: 400;
   line-height: 1.5;
@@ -158,7 +158,7 @@ select {
   min-height: 44px;
   align-items: center;
   justify-content: center;
-  border: 1px solid #1f6f68;
+  border: 1px solid #6f675c;
   border-radius: 8px;
   padding: 8px 16px;
   font-size: 16px;
@@ -168,18 +168,18 @@ select {
 }
 
 .button-primary {
-  background: #1f6f68;
+  background: #6f675c;
   color: #ffffff;
 }
 
 .button-secondary {
   background: #ffffff;
-  color: #1f6f68;
+  color: #6f675c;
 }
 
 .button-secondary:disabled {
-  border-color: #d7d2c8;
-  color: #4b5563;
+  border-color: #dfd8cc;
+  color: #6b6861;
   cursor: not-allowed;
 }
 
@@ -194,7 +194,7 @@ select {
 .diagram-card,
 .workflow-card,
 .architecture-tile {
-  border: 1px solid #d7d2c8;
+  border: 1px solid #dfd8cc;
   border-radius: 8px;
   background: #ffffff;
 }
@@ -206,7 +206,7 @@ select {
 .public-image-surface {
   aspect-ratio: 4 / 5;
   overflow: hidden;
-  background: #f1efea;
+  background: #f4f1ea;
 }
 
 .public-image-surface img {
@@ -221,8 +221,8 @@ select {
   min-height: 20rem;
   place-items: center;
   padding: 24px;
-  background: #f1efea;
-  color: #4b5563;
+  background: #f4f1ea;
+  color: #6b6861;
   text-align: center;
 }
 
@@ -230,7 +230,7 @@ select {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
-  color: #4b5563;
+  color: #6b6861;
   font-size: 14px;
   font-weight: 600;
 }
@@ -251,7 +251,7 @@ select {
 
 .collection-heading h1 {
   margin: 0;
-  color: #1f2937;
+  color: #2f2f2d;
   font-size: 32px;
   font-weight: 600;
   line-height: 1.1;
@@ -263,7 +263,7 @@ select {
   gap: 16px;
   margin: 0 auto;
   padding: 16px;
-  border: 1px solid #d7d2c8;
+  border: 1px solid #dfd8cc;
   border-radius: 8px;
   background: #ffffff;
 }
@@ -276,7 +276,7 @@ select {
 .filter-menu label {
   display: grid;
   gap: 8px;
-  color: #1f2937;
+  color: #2f2f2d;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
@@ -285,11 +285,11 @@ select {
 .filter-menu select {
   min-height: 44px;
   width: 100%;
-  border: 1px solid #d7d2c8;
+  border: 1px solid #dfd8cc;
   border-radius: 8px;
   padding: 8px 16px;
   background: #ffffff;
-  color: #1f2937;
+  color: #2f2f2d;
 }
 
 .selected-filters {
@@ -300,11 +300,11 @@ select {
 
 .filter-chip {
   min-height: 44px;
-  border: 1px solid #1f6f68;
+  border: 1px solid #6f675c;
   border-radius: 999px;
   padding: 8px 16px;
-  background: #f1efea;
-  color: #1f6f68;
+  background: #f4f1ea;
+  color: #6f675c;
   cursor: pointer;
 }
 
@@ -329,8 +329,8 @@ select {
   aspect-ratio: 4 / 5;
   place-items: center;
   overflow: hidden;
-  background: #f1efea;
-  color: #4b5563;
+  background: #f4f1ea;
+  color: #6b6861;
 }
 
 .gallery-card-media img {
@@ -352,20 +352,20 @@ select {
 }
 
 .gallery-card-copy h2 {
-  color: #1f2937;
+  color: #2f2f2d;
   font-size: 20px;
   font-weight: 600;
   line-height: 1.2;
 }
 
 .gallery-card-copy p {
-  color: #4b5563;
+  color: #6b6861;
   font-size: 16px;
   line-height: 1.5;
 }
 
 .gallery-card-category {
-  color: #1f6f68;
+  color: #6f675c;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
@@ -383,8 +383,8 @@ select {
 .gallery-card-tags li {
   border-radius: 999px;
   padding: 4px 8px;
-  background: #f1efea;
-  color: #4b5563;
+  background: #f4f1ea;
+  color: #6b6861;
   font-size: 14px;
   line-height: 1.35;
 }
@@ -393,7 +393,7 @@ select {
   width: min(100%, 72rem);
   margin: 0 auto;
   padding: 24px;
-  border: 1px solid #d7d2c8;
+  border: 1px solid #dfd8cc;
   border-radius: 8px;
   background: #ffffff;
 }
@@ -411,7 +411,7 @@ select {
 
 .collection-empty p {
   margin-top: 8px;
-  color: #4b5563;
+  color: #6b6861;
 }
 
 .detail-shell {
@@ -426,7 +426,7 @@ select {
 
 .detail-heading h1 {
   margin: 0;
-  color: #1f2937;
+  color: #2f2f2d;
   font-size: 32px;
   font-weight: 600;
   line-height: 1.1;
@@ -489,8 +489,8 @@ select {
 }
 
 .thumbnail-button[aria-pressed="true"] {
-  border-color: #1f6f68;
-  outline: 2px solid #1f6f68;
+  border-color: #6f675c;
+  outline: 2px solid #6f675c;
   outline-offset: 2px;
 }
 
@@ -522,8 +522,8 @@ select {
 .detail-facts span {
   border-radius: 999px;
   padding: 4px 8px;
-  background: #f1efea;
-  color: #1f6f68;
+  background: #f4f1ea;
+  color: #6f675c;
   font-size: 14px;
   font-weight: 600;
 }
@@ -550,7 +550,7 @@ select {
 }
 
 .metadata-group dt {
-  color: #4b5563;
+  color: #6b6861;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
@@ -558,7 +558,7 @@ select {
 
 .metadata-group dd {
   margin: 0;
-  color: #1f2937;
+  color: #2f2f2d;
   font-size: 16px;
   line-height: 1.5;
 }
@@ -569,7 +569,7 @@ select {
   gap: 24px;
   margin: 0 auto;
   padding: 24px;
-  border: 1px solid #d7d2c8;
+  border: 1px solid #dfd8cc;
   border-radius: 8px;
   background: #ffffff;
 }
@@ -577,8 +577,8 @@ select {
 .empty-state blockquote {
   margin: 0;
   padding: 16px;
-  border-left: 4px solid #1f6f68;
-  background: #f1efea;
+  border-left: 4px solid #6f675c;
+  background: #f4f1ea;
 }
 
 .empty-state blockquote p,
@@ -589,7 +589,7 @@ select {
 }
 
 .empty-state blockquote p {
-  color: #1f2937;
+  color: #2f2f2d;
   font-size: 20px;
   font-weight: 600;
   line-height: 1.2;
@@ -597,7 +597,7 @@ select {
 
 .empty-state blockquote footer {
   margin-top: 8px;
-  color: #4b5563;
+  color: #6b6861;
   font-size: 14px;
   line-height: 1.35;
 }
@@ -615,7 +615,7 @@ select {
 }
 
 .empty-state-copy p {
-  color: #4b5563;
+  color: #6b6861;
   line-height: 1.5;
 }
 
@@ -629,7 +629,7 @@ select {
 }
 
 .architecture-shell {
-  color: #1f2937;
+  color: #2f2f2d;
 }
 
 .architecture-hero,
@@ -653,7 +653,7 @@ select {
 .back-link {
   display: inline-flex;
   margin-bottom: 24px;
-  color: #1f6f68;
+  color: #6f675c;
   font-size: 14px;
   font-weight: 600;
 }
@@ -672,7 +672,7 @@ select {
   overflow-x: auto;
   padding: 16px;
   border-radius: 8px;
-  background: #f1efea;
+  background: #f4f1ea;
 }
 
 .architecture-diagram-image {
@@ -680,7 +680,7 @@ select {
   width: 100%;
   min-width: 60rem;
   height: auto;
-  border: 1px solid #d7d2c8;
+  border: 1px solid #dfd8cc;
   border-radius: 8px;
   background: #ffffff;
 }
@@ -692,7 +692,7 @@ select {
 
 .architecture-tile {
   padding: 16px;
-  background: #f1efea;
+  background: #f4f1ea;
 }
 
 .architecture-tile h3,
@@ -708,7 +708,7 @@ select {
 
 .architecture-tile p {
   margin-top: 8px;
-  color: #4b5563;
+  color: #6b6861;
   font-size: 16px;
   line-height: 1.5;
 }
@@ -722,7 +722,7 @@ select {
   min-width: 46rem;
   border-collapse: collapse;
   overflow: hidden;
-  border: 1px solid #d7d2c8;
+  border: 1px solid #dfd8cc;
   border-radius: 8px;
   background: #ffffff;
 }
@@ -730,14 +730,14 @@ select {
 .workflow-table th,
 .workflow-table td {
   padding: 16px;
-  border-bottom: 1px solid #d7d2c8;
+  border-bottom: 1px solid #dfd8cc;
   text-align: left;
   vertical-align: top;
 }
 
 .workflow-table th {
-  background: #f1efea;
-  color: #1f2937;
+  background: #f4f1ea;
+  color: #2f2f2d;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
@@ -757,7 +757,7 @@ select {
 }
 
 .workflow-table td:nth-child(3) {
-  color: #4b5563;
+  color: #6b6861;
   line-height: 1.5;
 }
 
@@ -767,7 +767,7 @@ select {
   height: 32px;
   place-items: center;
   border-radius: 999px;
-  background: #1f6f68;
+  background: #6f675c;
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
