@@ -6,6 +6,7 @@ declare module "oracledb" {
   export type ExecuteOptions = {
     outFormat?: number;
     autoCommit?: boolean;
+    fetchInfo?: Record<string, { type: StringConstructor; }>;
   };
 
   export type ExecuteManyOptions = {
