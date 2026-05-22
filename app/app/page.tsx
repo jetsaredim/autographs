@@ -1,6 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
-
 import { PublicFooter } from "./components/PublicFooter";
 import { listPublishedCatalogItems } from "./catalog-data";
 import { toPublicGalleryItem } from "../src/catalog/public-view-models";
@@ -10,7 +8,6 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const items = await listPublishedCatalogItems();
   const galleryItems = items.map(toPublicGalleryItem);
-  const featuredItem = galleryItems.find((item) => item.primaryImage) ?? galleryItems[0];
   const surpriseItem = galleryItems.length > 0 ? pickSurprise(galleryItems) : null;
 
   return (
@@ -36,25 +33,6 @@ export default async function HomePage() {
               </button>
             )}
           </div>
-        </div>
-
-        <div className="landing-preview" aria-label="Featured autograph preview">
-          {featuredItem?.primaryImage ? (
-            <figure className="public-image-surface">
-              <Image
-                src={featuredItem.primaryImage.src}
-                alt={featuredItem.primaryImage.altText}
-                width={640}
-                height={800}
-                priority
-                unoptimized
-              />
-            </figure>
-          ) : (
-            <div className="image-fallback">
-              <span>The next published autograph will take this spot.</span>
-            </div>
-          )}
         </div>
       </section>
 
