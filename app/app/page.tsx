@@ -20,8 +20,8 @@ export default async function HomePage() {
           <p className="eyebrow">Personal autograph archive</p>
           <h1 id="landing-title">Jared Greenwald&apos;s Autograph Gallery</h1>
           <p className="lede">
-            A public window into published signed memorabilia, organized for
-            quiet browsing with the private image storage kept behind the app.
+            A curated inventory of my personal autograph collection, organized
+            for quiet browsing and the occasional happy discovery.
           </p>
           <div className="cta-row" aria-label="Gallery actions">
             <Link className="button-primary" href="/collection">
