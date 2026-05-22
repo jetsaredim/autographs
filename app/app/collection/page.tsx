@@ -1,7 +1,7 @@
 import { GalleryFilters } from "../components/GalleryFilters";
 import { GalleryGrid } from "../components/GalleryGrid";
 import { EmptyState } from "../components/EmptyState";
-import { createCatalogService } from "../../src/catalog";
+import { listPublishedCatalogItems } from "../catalog-data";
 import { derivePublicFacets, toPublicGalleryItem } from "../../src/catalog/public-view-models";
 
 export const dynamic = "force-dynamic";
@@ -21,14 +21,13 @@ export default async function CollectionPage({ searchParams }: CollectionPagePro
     category: params.category,
     tag: params.tag,
   };
-  const service = createCatalogService();
   const [filteredItems, allPublishedItems] = await Promise.all([
-    service.list({
+    listPublishedCatalogItems({
       signer: filters.signer,
       category: filters.category,
       tag: filters.tag,
     }),
-    service.list(),
+    listPublishedCatalogItems(),
   ]);
   const galleryItems = filteredItems.map(toPublicGalleryItem);
   const facetGroups = derivePublicFacets(allPublishedItems);

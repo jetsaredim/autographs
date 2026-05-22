@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { ImageViewer } from "../../components/ImageViewer";
-import { createCatalogService } from "../../../src/catalog";
+import { getPublishedCatalogItem } from "../../catalog-data";
 import { toPublicItemDetail } from "../../../src/catalog/public-view-models";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ const detailSectionOrder = [
 
 export default async function CollectionDetailPage({ params }: DetailPageProps) {
   const { id } = await params;
-  const item = await createCatalogService().getById(id);
+  const item = await getPublishedCatalogItem(id);
   if (!item) {
     notFound();
   }

@@ -2,13 +2,13 @@ import Link from "next/link";
 import Image from "next/image";
 
 import { PublicFooter } from "./components/PublicFooter";
-import { createCatalogService } from "../src/catalog";
+import { listPublishedCatalogItems } from "./catalog-data";
 import { toPublicGalleryItem } from "../src/catalog/public-view-models";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const items = await createCatalogService().list();
+  const items = await listPublishedCatalogItems();
   const galleryItems = items.map(toPublicGalleryItem);
   const featuredItem = galleryItems.find((item) => item.primaryImage) ?? galleryItems[0];
   const surpriseItem = galleryItems.length > 0 ? pickSurprise(galleryItems) : null;
