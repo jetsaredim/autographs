@@ -17,7 +17,6 @@ export default async function HomePage() {
     <main className="site-shell">
       <section className="landing-hero" aria-labelledby="landing-title">
         <div className="landing-copy">
-          <p className="eyebrow">Personal autograph archive</p>
           <h1 id="landing-title">Jared Greenwald&apos;s Autograph Gallery</h1>
           <p className="lede">
             A curated inventory of my personal autograph collection, organized
