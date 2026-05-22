@@ -116,7 +116,13 @@ select {
 }
 
 .landing-copy {
-  max-width: 46rem;
+  max-width: 38rem;
+}
+
+.landing-copy .lede {
+  max-width: 34rem;
+  margin-right: auto;
+  margin-left: auto;
 }
 
 .eyebrow {
@@ -221,6 +227,12 @@ select {
   line-height: 1.35;
 }
 
+.breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .breadcrumbs a {
   color: #6f675c;
   text-decoration: none;
@@ -244,29 +256,67 @@ select {
   line-height: 1.1;
 }
 
-.gallery-filters {
+.collection-panel {
+  position: relative;
   display: grid;
   width: min(100%, 72rem);
-  gap: 16px;
+  gap: 24px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 56px 16px 16px;
   border: 1px solid #dfd8cc;
   border-radius: 8px;
   background: #ffffff;
 }
 
-.filter-menu {
-  display: grid;
-  gap: 16px;
+.filter-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 0;
+  border-bottom: 1px solid #dfd8cc;
+  border-left: 1px solid #dfd8cc;
+  border-radius: 0 8px 0 8px;
+  background: #fbfaf7;
+  color: #6f675c;
+  cursor: pointer;
 }
 
-.filter-menu label {
+.filter-toggle svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.gallery-filters {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1;
   display: grid;
+  gap: 16px;
+  min-height: 44px;
+  padding: 0 60px 0 16px;
+  border-bottom: 1px solid #dfd8cc;
+  border-radius: 8px 8px 0 0;
+  background: #fbfaf7;
+  box-shadow: 0 16px 24px rgba(47, 47, 45, 0.08);
+}
+
+.filter-menu {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  color: #2f2f2d;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.35;
+  align-items: center;
+  min-height: 44px;
 }
 
 .filter-menu select {
@@ -283,6 +333,7 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  padding-bottom: 12px;
 }
 
 .filter-chip {
@@ -297,10 +348,9 @@ select {
 
 .gallery-grid {
   display: grid;
-  width: min(100%, 72rem);
+  width: 100%;
   grid-template-columns: 1fr;
   gap: 16px;
-  margin: 0 auto;
 }
 
 .gallery-card-link {
@@ -312,6 +362,7 @@ select {
 }
 
 .gallery-card-media {
+  position: relative;
   display: grid;
   aspect-ratio: 4 / 5;
   place-items: center;
@@ -327,52 +378,27 @@ select {
   object-fit: cover;
 }
 
-.gallery-card-copy {
+.gallery-card-overlay {
+  position: absolute;
+  inset: auto 0 0;
   display: grid;
-  gap: 8px;
-  padding: 16px;
+  min-height: 40%;
+  align-items: end;
+  padding: 48px 16px 16px;
+  background: linear-gradient(rgba(47, 47, 45, 0), rgba(47, 47, 45, 0.72));
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity 160ms ease;
 }
 
-.gallery-card-copy h2,
-.gallery-card-copy p {
-  margin: 0;
+.gallery-card-link:hover .gallery-card-overlay,
+.gallery-card-link:focus-visible .gallery-card-overlay {
+  opacity: 1;
 }
 
-.gallery-card-copy h2 {
-  color: #2f2f2d;
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.gallery-card-copy p {
-  color: #6b6861;
+.gallery-card-overlay span {
   font-size: 16px;
-  line-height: 1.5;
-}
-
-.gallery-card-category {
-  color: #6f675c;
-  font-size: 14px;
   font-weight: 600;
-  line-height: 1.35;
-}
-
-.gallery-card-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.gallery-card-tags li {
-  border-radius: 999px;
-  padding: 4px 8px;
-  background: #f4f1ea;
-  color: #6b6861;
-  font-size: 14px;
   line-height: 1.35;
 }
 
@@ -553,19 +579,30 @@ select {
 .empty-state {
   display: grid;
   width: min(100%, 72rem);
-  gap: 24px;
+  gap: 32px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 40px 24px;
   border: 1px solid #dfd8cc;
   border-radius: 8px;
   background: #ffffff;
+  text-align: center;
+}
+
+.collection-panel .empty-state {
+  width: 100%;
+  padding: 48px 16px;
+  border: 0;
+  background: transparent;
+}
+
+.empty-state-quote-link {
+  color: inherit;
+  text-decoration: none;
 }
 
 .empty-state blockquote {
   margin: 0;
-  padding: 16px;
-  border-left: 4px solid #6f675c;
-  background: #f4f1ea;
+  padding: 0;
 }
 
 .empty-state blockquote p,
@@ -576,23 +613,36 @@ select {
 }
 
 .empty-state blockquote p {
-  color: #2f2f2d;
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.2;
+  max-width: 42rem;
+  margin: 0 auto;
+  color: #6b6861;
+  font-size: 24px;
+  font-style: italic;
+  font-weight: 300;
+  line-height: 1.35;
+}
+
+.empty-state blockquote p span {
+  color: #8d887f;
+  font-size: 36px;
+  line-height: 0;
 }
 
 .empty-state blockquote footer {
-  margin-top: 8px;
-  color: #6b6861;
+  max-width: 42rem;
+  margin: 12px auto 0;
+  padding-right: 10%;
+  color: #8d887f;
   font-size: 14px;
+  font-weight: 400;
   line-height: 1.35;
+  text-align: right;
 }
 
 .empty-state-copy {
   display: grid;
   gap: 16px;
-  justify-items: start;
+  justify-items: center;
 }
 
 .empty-state-copy h2 {

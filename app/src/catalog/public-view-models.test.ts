@@ -138,7 +138,7 @@ test("public view models derive curated public facets", () => {
     },
     {
       id: "category",
-      label: "Category",
+      label: "Game",
       options: [
         { label: "Posters", value: "Posters" },
         { label: "Star Wars CCG", value: "Star Wars CCG" },
@@ -146,7 +146,7 @@ test("public view models derive curated public facets", () => {
     },
     {
       id: "tag",
-      label: "Tags",
+      label: "IP / Genre",
       options: [
         { label: "featured", value: "featured" },
         { label: "jedi", value: "jedi" },

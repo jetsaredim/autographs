@@ -1,14 +1,11 @@
-import Link from "next/link";
+import { Breadcrumbs } from "../components/Breadcrumbs";
+import { PublicFooter } from "../components/PublicFooter";
 
 export default function AdminPlaceholderPage() {
   return (
     <main className="architecture-shell">
       <section className="admin-placeholder" aria-labelledby="admin-placeholder-title">
-        <nav className="breadcrumbs" aria-label="Breadcrumb">
-          <Link href="/">Home</Link>
-          <span aria-hidden="true">&gt;</span>
-          <span>Collection management</span>
-        </nav>
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Collection management" }]} />
         <h1 id="admin-placeholder-title">Collection management is coming later</h1>
         <p className="lede">
           Phase 4 will add the real single-owner workflow for creating,
@@ -17,6 +14,8 @@ export default function AdminPlaceholderPage() {
           begins.
         </p>
       </section>
+
+      <PublicFooter />
     </main>
   );
 }

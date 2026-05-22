@@ -71,12 +71,12 @@ export const derivePublicFacets = (items: AutographItem[]): PublicFacetGroup[] =
   },
   {
     id: "category",
-    label: "Category",
+    label: "Game",
     options: toOptions(items.map((item) => item.category)),
   },
   {
     id: "tag",
-    label: "Tags",
+    label: "IP / Genre",
     options: toOptions(items.flatMap((item) => item.tags)),
   },
 ];

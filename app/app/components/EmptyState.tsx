@@ -8,13 +8,9 @@ type EmptyStateProps = {
   variant: EmptyStateVariant;
 };
 
-const variantCopy: Record<EmptyStateVariant, { title: string; body: string; action: string; href: string }> = {
-  "no-results": {
-    title: "No published autographs match this view yet.",
-    body: "Clear the filters or return to the full collection.",
-    action: "Clear filters",
-    href: "/collection",
-  },
+type CopyVariant = Exclude<EmptyStateVariant, "no-results">;
+
+const variantCopy: Record<CopyVariant, { title: string; body: string; action: string; href: string }> = {
   "not-found": {
     title: "That autograph is not on the public shelf.",
     body: "It may be unpublished, moved, or waiting for a better lead.",
@@ -37,14 +33,32 @@ const variantCopy: Record<EmptyStateVariant, { title: string; body: string; acti
 
 export function EmptyState({ variant }: EmptyStateProps) {
   const quote = selectApprovedQuote();
+  const quoteBlock = (
+    <blockquote>
+      <p>
+        <span aria-hidden="true">&ldquo;</span>
+        {quote.quote}
+        <span aria-hidden="true">&rdquo;</span>
+      </p>
+      <footer>{quote.attribution}</footer>
+    </blockquote>
+  );
+
+  if (variant === "no-results") {
+    return (
+      <section className="empty-state" data-empty-state={variant}>
+        <Link className="empty-state-quote-link" href="/collection" aria-label="Show the full collection">
+          {quoteBlock}
+        </Link>
+      </section>
+    );
+  }
+
   const copy = variantCopy[variant];
 
   return (
     <section className="empty-state" data-empty-state={variant}>
-      <blockquote>
-        <p>&ldquo;{quote.quote}&rdquo;</p>
-        <footer>{quote.attribution}</footer>
-      </blockquote>
+      {quoteBlock}
       <div className="empty-state-copy">
         <h2>{copy.title}</h2>
         <p>{copy.body}</p>

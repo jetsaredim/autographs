@@ -43,8 +43,11 @@ export function AdminUnlock() {
   }
 
   return (
-    <Link className="admin-unlock" href="/admin">
-      Open collection management placeholder
-    </Link>
+    <>
+      <span aria-hidden="true">•</span>
+      <Link className="admin-unlock" href="/admin">
+        Admin
+      </Link>
+    </>
   );
 }

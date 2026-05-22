@@ -1,5 +1,6 @@
 import { createCatalogService } from "../src/catalog";
 import type { AutographItem, AutographListOptions } from "../src/catalog";
+import { getMockCatalogItem, listMockCatalogItems } from "../src/catalog/mock-data";
 
 const missingOracleConfigMessage = "Oracle database configuration is incomplete.";
 
@@ -10,7 +11,7 @@ export const listPublishedCatalogItems = async (
     return await createCatalogService().list(options);
   } catch (error) {
     if (isMissingLocalDataConfig(error)) {
-      return [];
+      return isLocalMockDataEnabled() ? listMockCatalogItems(options) : [];
     }
     throw error;
   }
@@ -21,7 +22,9 @@ export const getPublishedCatalogItem = async (id: string): Promise<AutographItem
     return await createCatalogService().getById(id);
   } catch (error) {
     if (isMissingLocalDataConfig(error)) {
-      return null;
+      return isLocalMockDataEnabled()
+        ? getMockCatalogItem(id)
+        : null;
     }
     throw error;
   }
@@ -29,3 +32,5 @@ export const getPublishedCatalogItem = async (id: string): Promise<AutographItem
 
 const isMissingLocalDataConfig = (error: unknown): boolean =>
   error instanceof Error && error.message.startsWith(missingOracleConfigMessage);
+
+const isLocalMockDataEnabled = (): boolean => process.env.NODE_ENV !== "production";

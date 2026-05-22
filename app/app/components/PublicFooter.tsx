@@ -5,7 +5,7 @@ import { AdminUnlock } from "./AdminUnlock";
 export function PublicFooter() {
   return (
     <footer className="public-footer">
-      <span>Jared Greenwald&apos;s Autograph Gallery</span>
+      <Link href="/">Jared Greenwald&apos;s Autograph Gallery</Link>
       <span aria-hidden="true">•</span>
       <Link href="/architecture">About</Link>
       <AdminUnlock />

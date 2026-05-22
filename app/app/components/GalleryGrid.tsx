@@ -13,7 +13,12 @@ export function GalleryGrid({ items }: GalleryGridProps) {
   return (
     <section className="gallery-grid" aria-label="Published autograph items">
       {items.map((item) => (
-        <Link className="gallery-card-link" href={`/collection/${item.id}`} key={item.id}>
+        <Link
+          className="gallery-card-link"
+          href={`/collection/${item.id}`}
+          key={item.id}
+          aria-label={`${item.title} signed by ${item.signer}`}
+        >
           <article className="gallery-card">
             <div className="gallery-card-media" onContextMenu={(event) => event.preventDefault()}>
               {item.primaryImage ? (
@@ -28,18 +33,9 @@ export function GalleryGrid({ items }: GalleryGridProps) {
               ) : (
                 <span>No image published yet</span>
               )}
-            </div>
-            <div className="gallery-card-copy">
-              <h2>{item.title}</h2>
-              <p>{item.signer}</p>
-              <span className="gallery-card-category">{item.category}</span>
-              {item.tags.length > 0 ? (
-                <ul className="gallery-card-tags" aria-label={`${item.title} tags`}>
-                  {item.tags.map((tag) => (
-                    <li key={tag}>{tag}</li>
-                  ))}
-                </ul>
-              ) : null}
+              <div className="gallery-card-overlay">
+                <span>{item.signer}</span>
+              </div>
             </div>
           </article>
         </Link>

@@ -16,8 +16,9 @@ export default async function HomePage() {
         <div className="landing-copy">
           <h1 id="landing-title">Jared Greenwald&apos;s Autograph Gallery</h1>
           <p className="lede">
-            A curated inventory of my personal autograph collection, organized
-            for quiet browsing and the occasional happy discovery.
+            A curated inventory of my personal autograph collection.
+            <br />
+            Organized for quiet browsing and the occasional happy discovery.
           </p>
           <div className="cta-row" aria-label="Gallery actions">
             <Link className="button-primary" href="/collection">

@@ -1,4 +1,5 @@
 import { createCatalogService } from "../../../../src/catalog";
+import { toPublicItemDetail } from "../../../../src/catalog/public-view-models";
 
 export const dynamic = "force-dynamic";
 
@@ -15,5 +16,5 @@ export async function GET(_request: Request, context: RouteContext) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  return Response.json({ item });
+  return Response.json({ item: toPublicItemDetail(item) });
 }

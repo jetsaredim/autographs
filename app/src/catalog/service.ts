@@ -5,6 +5,7 @@ import type {
   AutographImageInput,
   AutographItem,
   AutographItemInput,
+  AutographListOptions,
   AutographItemUpdate,
   CatalogRepository,
 } from "./types";
@@ -28,7 +29,7 @@ export type CatalogService = {
   attachImages(id: string, images: CatalogImageUploadInput[]): Promise<AutographItem>;
   readPublishedImage(id: string, imageId: string): Promise<MediaReadResult | null>;
   getById(id: string, options?: { includeUnpublished?: boolean }): Promise<AutographItem | null>;
-  list(options?: Parameters<CatalogRepository["list"]>[0]): Promise<AutographItem[]>;
+  list(options?: AutographListOptions): Promise<AutographItem[]>;
 };
 
 export class DefaultCatalogService implements CatalogService {
@@ -49,7 +50,12 @@ export class DefaultCatalogService implements CatalogService {
   }
 
   async update(id: string, input: AutographItemUpdate): Promise<AutographItem> {
-    return this.repository.update(id, input);
+    const existing = await this.repository.getById(id, { includeUnpublished: true });
+    if (!existing) {
+      throw new Error(`Autograph item ${id} was not found.`);
+    }
+
+    return this.repository.update(id, mergeItemUpdate(existing, input));
   }
 
   async attachImages(id: string, images: CatalogImageUploadInput[]): Promise<AutographItem> {
@@ -118,10 +124,46 @@ export class DefaultCatalogService implements CatalogService {
     });
   }
 
-  async list(options?: Parameters<CatalogRepository["list"]>[0]): Promise<AutographItem[]> {
-    return this.repository.list(options);
+  async list(options?: AutographListOptions): Promise<AutographItem[]> {
+    return this.repository.list(normalizeListOptions(options));
   }
 }
+
+const normalizeListOptions = (options: AutographListOptions = {}): AutographListOptions => ({
+  ...options,
+  signer: normalizeFilterOption(options.signer),
+  category: normalizeFilterOption(options.category),
+  tag: normalizeFilterOption(options.tag),
+});
+
+const normalizeFilterOption = (value: string | undefined): string | undefined =>
+  value && value !== "all" ? value : undefined;
+
+const mergeItemUpdate = (
+  existing: AutographItem,
+  input: AutographItemUpdate,
+): AutographItemUpdate => ({
+  title: input.title ?? existing.title,
+  signer: input.signer ?? existing.signer,
+  description: input.description === undefined ? existing.description : input.description,
+  category: input.category ?? existing.category,
+  tags: input.tags ?? existing.tags,
+  objectReference:
+    input.objectReference === undefined ? existing.objectReference : input.objectReference,
+  eventName: input.eventName === undefined ? existing.eventName : input.eventName,
+  eventLocation: input.eventLocation === undefined ? existing.eventLocation : input.eventLocation,
+  source: input.source === undefined ? existing.source : input.source,
+  inscription: input.inscription === undefined ? existing.inscription : input.inscription,
+  certificationCompany:
+    input.certificationCompany === undefined
+      ? existing.certificationCompany
+      : input.certificationCompany,
+  certificationId:
+    input.certificationId === undefined ? existing.certificationId : input.certificationId,
+  estimatedYear: input.estimatedYear === undefined ? existing.estimatedYear : input.estimatedYear,
+  publicationStatus: input.publicationStatus ?? existing.publicationStatus,
+  images: input.images,
+});
 
 const toImageInput = (image: AutographImage): AutographImageInput => ({
   storageNamespace: image.storageNamespace,

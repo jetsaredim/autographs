@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { Breadcrumbs } from "../../components/Breadcrumbs";
 import { ImageViewer } from "../../components/ImageViewer";
 import { getPublishedCatalogItem } from "../../catalog-data";
 import { toPublicItemDetail } from "../../../src/catalog/public-view-models";
@@ -14,7 +15,6 @@ const detailSectionOrder = [
   "Provenance",
   "Certification",
   "Inscription",
-  "Tags",
   "Collection Notes",
 ];
 
@@ -40,6 +40,9 @@ export default async function CollectionDetailPage({ params }: DetailPageProps) 
           <span>{findField(detail.detailGroups, "Essentials", "Estimated year")}</span>
         ) : null}
         {certification ? <span>{certification}</span> : null}
+        {detail.tags.map((tag) => (
+          <span key={tag}>{tag}</span>
+        ))}
       </div>
 
       {metadataGroups.map((group) => (
@@ -61,7 +64,13 @@ export default async function CollectionDetailPage({ params }: DetailPageProps) 
   return (
     <main className="site-shell detail-shell">
       <header className="detail-heading">
-        <p className="eyebrow">{detail.category}</p>
+        <Breadcrumbs
+          items={[
+            { label: "Home", href: "/" },
+            { label: "Collection", href: "/collection" },
+            { label: detail.title },
+          ]}
+        />
         <h1>{detail.title}</h1>
         <p className="lede">Signed by {detail.signer}</p>
       </header>
