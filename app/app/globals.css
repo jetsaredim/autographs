@@ -238,6 +238,21 @@ select {
   padding: 32px;
 }
 
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  color: #8d887f;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.breadcrumbs a {
+  color: #6f675c;
+  text-decoration: none;
+}
+
 .collection-shell {
   gap: 24px;
 }

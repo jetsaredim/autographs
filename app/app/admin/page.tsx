@@ -4,7 +4,11 @@ export default function AdminPlaceholderPage() {
   return (
     <main className="architecture-shell">
       <section className="admin-placeholder" aria-labelledby="admin-placeholder-title">
-        <p className="eyebrow">Collection management</p>
+        <nav className="breadcrumbs" aria-label="Breadcrumb">
+          <Link href="/">Home</Link>
+          <span aria-hidden="true">&gt;</span>
+          <span>Collection management</span>
+        </nav>
         <h1 id="admin-placeholder-title">Collection management is coming later</h1>
         <p className="lede">
           Phase 4 will add the real single-owner workflow for creating,
@@ -12,11 +16,6 @@ export default function AdminPlaceholderPage() {
           only a placeholder so the access pattern can settle before that work
           begins.
         </p>
-        <div className="cta-row">
-          <Link className="button-secondary" href="/">
-            Back to gallery
-          </Link>
-        </div>
       </section>
     </main>
   );
