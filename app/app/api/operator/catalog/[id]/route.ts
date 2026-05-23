@@ -85,7 +85,7 @@ const parseMultipartPatchRequest = async (
       : undefined;
 
   const altTextValue = formData.get("altText");
-  const altText = 
+  const altText =
     typeof altTextValue === "string" && altTextValue.trim().length > 0
       ? altTextValue
       : undefined;
