@@ -33,8 +33,8 @@ export async function PATCH(request: Request, context: RouteContext) {
   const { id } = await context.params;
   const body = await parsePatchRequest(request);
   const service = createCatalogService();
-  const updated = body.item 
-    ? await service.update(id, body.item) 
+  const updated = body.item
+    ? await service.update(id, body.item)
     : await service.getById(id, { includeUnpublished: true });
 
   if (!updated) {
@@ -85,17 +85,18 @@ const parseMultipartPatchRequest = async (
       : undefined;
 
   const altTextValue = formData.get("altText");
-  const altText = typeof altTextValue === "string" && altTextValue.trim().length > 0
-    ? altTextValue
-    : undefined;
+  const altText = 
+    typeof altTextValue === "string" && altTextValue.trim().length > 0
+      ? altTextValue
+      : undefined;
 
   const files = [...formData.getAll("image"), ...formData.getAll("images")].filter(
-    (value): value is File => value instanceof File && value.size > 0
+    (value): value is File => value instanceof File && value.size > 0,
   );
 
   const imageUploads = await Promise.all(
     files.map(async (file, index): Promise<OperatorImageInput> => ({
-      filename: file.name || `image-${index +1}`,
+      filename: file.name || `image-${index + 1}`,
       contentType: file.type || "application/octet-stream",
       bodyBase64: Buffer.from(await file.arrayBuffer()).toString("base64"),
       byteSize: file.size,
