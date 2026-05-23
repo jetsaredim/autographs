@@ -74,6 +74,15 @@ export class OciObjectStorageMediaStore implements PrivateMediaStore {
     };
   }
 
+  async delete(location: MediaObjectLocation): Promise<void> {
+    this.assertSameBucket(location);
+    await this.client.deleteObject({
+      namespaceName: location.storageNamespace,
+      bucketName: location.bucketName,
+      objectName: location.objectKey,
+    });
+  }
+
   async assertReady(): Promise<void> {
     await this.client.headBucket({
       namespaceName: this.config.namespace,

@@ -32,5 +32,6 @@ export type MediaReadResult = MediaObjectLocation & {
 export type PrivateMediaStore = {
   upload(input: MediaUpload): Promise<MediaUploadResult>;
   read(location: MediaObjectLocation): Promise<MediaReadResult>;
+  delete(location: MediaObjectLocation): Promise<void>;
   assertReady(): Promise<void>;
 };
