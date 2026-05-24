@@ -144,7 +144,7 @@ const toUploadInput = (image: OperatorImageInput) => ({
   altText: image.altText,
 });
 
-const isNotFoundError = (error: unknown): boolean => 
-  error instanceof Error && 
+const isNotFoundError = (error: unknown): boolean =>
+  error instanceof Error &&
   error.message.startsWith("Autograph item ") &&
   error.message.endsWith(" was not found.");
