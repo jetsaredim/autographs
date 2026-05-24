@@ -83,6 +83,10 @@ class FakeRepository implements CatalogRepository {
     return { ...this.existing, ...input, images: this.existing.images };
   }
 
+  async delete(_id: string): Promise<void> {
+    return undefined;
+  }
+
   async getById(): Promise<AutographItem | null> {
     return this.existing;
   }

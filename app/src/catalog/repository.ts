@@ -184,6 +184,14 @@ export class OracleCatalogRepository implements CatalogRepository {
     return updated;
   }
 
+  async delete(id: string): Promise<void> {
+    await this.executor.transaction(async (tx) => {
+      await tx.execute("delete from autograph_item_tags where item_id = :id", { id });
+      await tx.execute("delete from autograph_images where item_id = :id", { id });
+      await tx.execute("delete from autograph_items where id = :id", { id });
+    });
+  }
+
   async getById(
     id: string,
     options: { includeUnpublished?: boolean } = {},

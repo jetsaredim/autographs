@@ -26,6 +26,7 @@ export type CatalogCreateInput = Omit<AutographItemInput, "images"> & {
 export type CatalogService = {
   create(input: CatalogCreateInput): Promise<AutographItem>;
   update(id: string, input: AutographItemUpdate): Promise<AutographItem>;
+  delete(id: string): Promise<AutographItem>;
   deleteImage(id: string, imageId: string): Promise<AutographItem>;
   attachImages(id: string, images: CatalogImageUploadInput[]): Promise<AutographItem>;
   readPublishedImage(id: string, imageId: string): Promise<MediaReadResult | null>;
@@ -98,6 +99,27 @@ export class DefaultCatalogService implements CatalogService {
     ]);
 
     return this.repository.update(id, { images: normalizedImages });
+  }
+
+  async delete(id: string): Promise<AutographItem> {
+    const existing = await this.repository.getById(id, { includeUnpublished: true });
+    if (!existing) {
+      throw new Error(`Autograph item ${id} was not found.`);
+    }
+
+    await this.repository.delete(id);
+
+    await Promise.all(
+      existing.images.map((image) =>
+        this.mediaStore.delete({
+          storageNamespace: image.storageNamespace,
+          bucketName: image.bucketName,
+          objectKey: image.objectKey,
+        }),
+      ),
+    );
+
+    return existing;
   }
 
   async deleteImage(id: string, imageId: string): Promise<AutographItem> {
