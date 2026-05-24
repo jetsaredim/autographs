@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Autographs is a production-lean personal autograph collection website where you can publish your own signed memorabilia for anonymous public browsing. The first release pairs a single self-hosted `Next.js` application with private OCI Object Storage for images and Oracle Autonomous Database Free for metadata, while also establishing the OCI bootstrap, CI/CD, and operator guidance needed to run the collection as a real, durable personal project.
+Autographs is a production-lean personal autograph collection website where you can publish your own signed memorabilia for anonymous public browsing. The current implementation includes a self-hosted `Next.js` application, OCI-backed private image delivery, Oracle Autonomous Database Free metadata storage, GitHub-driven CI/CD, and a deployed public gallery MVP running on OCI infrastructure managed through Terraform, GitHub Actions, Ansible, and Podman quadlets.
 
 ## Core Value
 
@@ -13,11 +13,13 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 ### Validated
 
 - [x] Phase 1 proved the OCI bootstrap and delivery spine: Terraform-managed baseline, explicit configuration contract, GitHub PR validation, GHCR image publishing, and live deploy from `main` to the OCI runtime.
+- [x] Phase 2 proved Oracle-backed catalog persistence, private OCI media storage, app-mediated image delivery, and operator-safe verification seams.
+- [x] Phase 3 delivered the anonymous public gallery MVP with searchable published records, detail pages, mediated image access, and privacy regression coverage.
 
 ### Active
 
 - [x] Deliver a real end-to-end OCI-hosted personal autograph collection foundation with infrastructure, application scaffold, and deployment automation.
-- [ ] Support anonymous public browsing with searchable autograph records, private image delivery mediated by the app, and enough metadata to make the collection useful.
+- [x] Support anonymous public browsing with searchable autograph records, private image delivery mediated by the app, and enough metadata to make the collection useful.
 - [ ] Support a single-admin collection management workflow with AI-assisted metadata suggestions, multiple images per item, and edit history from v1.
 - [ ] Keep the system operable by one developer using OCI Always Free services wherever practical.
 
@@ -32,12 +34,13 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 
 ## Context
 
-- The repository is currently prompt-first: `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` is the authoritative implementation brief, and `.planning/codebase/` documents that there is not yet a runnable product.
-- The desired platform is Oracle Cloud Infrastructure with an Always Free bias, including OCI Object Storage for private images and Oracle Autonomous Database Free as the preferred metadata store.
-- GitHub is the intended source of truth for delivery. Validation on pull requests and auto-deploy on merge to `main` are foundational platform requirements, not later enhancements.
-- The app should stay simple enough for a solo developer to operate, with clear tenancy bootstrap guidance, least-privilege IAM, narrow network exposure, and explicit secret contracts.
-- The prompt already narrows the product direction significantly: anonymous public browsing, one admin, containerized deployment, app-mediated image access, and AI-assisted metadata extraction with human review.
-- The intended product is a personal collection site rather than a reusable platform, so roadmap choices should prefer collection quality, manageability, and presentation over multi-user extensibility.
+- The repository now contains a runnable OCI-hosted implementation with completed delivery-spine, data/media-core, and public-gallery phases.
+- The deployed platform uses Oracle Cloud Infrastructure with an Always Free bias, including OCI Object Storage for private images and Oracle Autonomous Database Free for metadata.
+- GitHub remains the source of truth for delivery, with pull-request validation, GHCR image publishing, and automated deployment on merge to `main`.
+- Runtime deployment uses Podman quadlets managed through Ansible rather than compose-style orchestration.
+- Public image access remains app-mediated through `/api/catalog/{itemId}/images/{imageId}` routes instead of direct Object Storage URLs.
+- Temporary operator-only mutation routes remain intentionally token-guarded and excluded from public ingress until the dedicated Phase 4 admin workflow replaces them.
+- The intended product remains a personal collection site rather than a reusable platform, so roadmap choices continue to prioritize collection quality, manageability, and presentation over multi-user extensibility.
 
 ## Constraints
 
@@ -54,11 +57,16 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Use `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` as the canonical product brief | The repo has no implementation yet, and the prompt already captures concrete scope, architecture direction, and verification expectations | — Pending |
-| Treat the project as greenfield despite existing planning artifacts | There is no runtime app, infra, or test code to preserve; the committed assets are planning inputs | — Pending |
+| Use `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` as the canonical product brief | The prompt captured concrete scope, architecture direction, and verification expectations before implementation work started | Validated through Phases 1-3 |
+| Treat the project as greenfield despite existing planning artifacts | There was no runtime app, infra, or test code to preserve at project start | Validated in implementation |
 | Start with GitHub-driven OCI bootstrap and deployment as first-class work | The prompt makes CI/CD and tenancy bootstrap foundational, so later phases should build on that instead of bolting it on | Validated in Phase 1 |
-| Bias toward OCI Always Free-compatible primitives and a single `Next.js` app | This matches the product brief and keeps the first release operable for one developer | — Pending |
-| Optimize for a personal collection rather than a general user platform | The site is meant to present and manage your own autograph collection, so features like multi-image support and edit history matter more than user systems or social capabilities | — Pending |
+| Bias toward OCI Always Free-compatible primitives and a single `Next.js` app | This matches the product brief and keeps the first release operable for one developer | Validated through deployed runtime |
+| Optimize for a personal collection rather than a general user platform | The site is meant to present and manage your own autograph collection, so features like multi-image support and edit history matter more than user systems or social capabilities | Ongoing guiding principle |
+| Keep public image delivery app-mediated instead of exposing direct Object Storage URLs | Preserves private-media boundaries and centralized access control | Validated in Phases 2-3 |
+| Use token-guarded operator endpoints only as a temporary verification seam | Phase 2 needed safe mutation verification before the Phase 4 admin workflow existed | Temporary bridge until Phase 4 |
+| Manage runtime services with Podman quadlets through Ansible | Simplifies long-lived runtime operations compared to compose-style orchestration on the OCI VM | Adopted in runtime deployment |
+| Treat multi-image support and edit history as v1 capabilities | These directly improve personal collection quality and manageability | Phase 4 requirement baseline |
+| Finish with a public-readiness hardening and showcase phase | Public release quality requires explicit cleanup, security review, dependency hygiene, and presentation work | Captured as Phase 6 |
 
 ## Evolution
 
@@ -78,4 +86,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-14 after Phase 1 deploy proof*
+*Last updated: 2026-05-24 after Phase 3 completion and Phase 4 transition readiness review*
