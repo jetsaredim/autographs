@@ -27,10 +27,10 @@
 
 ### Public Gallery
 
-- [ ] **GALL-01**: Anonymous user can browse a public gallery of published autograph items.
-- [ ] **GALL-02**: Anonymous user can filter or search the gallery by signer name, category, and tags.
-- [ ] **GALL-03**: Anonymous user can open a detail page for a single autograph item and view its full stored metadata.
-- [ ] **GALL-04**: Anonymous user can view all published images attached to an autograph item, including a clear primary presentation.
+- [x] **GALL-01**: Anonymous user can browse a public gallery of published autograph items.
+- [x] **GALL-02**: Anonymous user can filter or search the gallery by signer name, category, and tags.
+- [x] **GALL-03**: Anonymous user can open a detail page for a single autograph item and view its full stored metadata.
+- [x] **GALL-04**: Anonymous user can view all published images attached to an autograph item, including a clear primary presentation.
 
 ### Admin Workflow
 
@@ -84,10 +84,10 @@ None currently. Future scope should be added only if it directly supports the pe
 | MEDIA-02 | Phase 2 | Complete |
 | MEDIA-03 | Phase 2 | Complete |
 | MEDIA-04 | Phase 4 | Pending |
-| GALL-01 | Phase 3 | Pending |
-| GALL-02 | Phase 3 | Pending |
-| GALL-03 | Phase 3 | Pending |
-| GALL-04 | Phase 3 | Pending |
+| GALL-01 | Phase 3 | Complete |
+| GALL-02 | Phase 3 | Complete |
+| GALL-03 | Phase 3 | Complete |
+| GALL-04 | Phase 3 | Complete |
 | ADMIN-01 | Phase 4 | Pending |
 | ADMIN-02 | Phase 4 | Pending |
 | ADMIN-03 | Phase 4 | Pending |
@@ -108,4 +108,4 @@ None currently. Future scope should be added only if it directly supports the pe
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-05-21 after adding Phase 6 public showcase and hardening scope*
+*Last updated: 2026-05-24 after syncing completed public gallery requirements with Phase 3 state*
