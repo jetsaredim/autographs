@@ -104,7 +104,7 @@ class FakeMediaStore implements PrivateMediaStore {
   async delete(_input: MediaObjectLocation): Promise<void> {
     throw new Error("delete is not used in this test.");
   }
-  
+
   async assertReady(): Promise<void> {
     return undefined;
   }
