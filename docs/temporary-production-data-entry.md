@@ -36,6 +36,8 @@ Metadata updates and image attachments go to `PATCH /api/operator/catalog/{id}`.
 
 Image deletion goes to `DELETE /api/operator/catalog/{id}/images/{imageId}`.
 
+Full item deletion goes to `DELETE /api/operator/catalog/{id}`.
+
 For a normal operator session, set these shell variables once:
 
 ```bash
@@ -224,7 +226,35 @@ cat /tmp/autographs-delete-image.body | jq '.item.id, .item.images'
 
 If the deleted image was the only image, the item remains published but has no public image until another image is attached.
 
-There is no full item delete endpoint yet. To remove an item from the public collection without deleting it, update `publicationStatus` to `draft` or `archived`.
+## Delete An Item
+
+Use `DELETE /api/operator/catalog/{id}` to remove a catalog item and delete its backing private media objects.
+
+```bash
+export AUTOGRAPH_ITEM_ID="<item-id>"
+
+curl -sS -D /tmp/autographs-delete-item.headers \
+  -o /tmp/autographs-delete-item.body \
+  -w '\nHTTP %{http_code}\nContent-Type: %{content_type}\nDownloaded: %{size_download} bytes\n' \
+  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}" \
+  -X DELETE \
+  "${AUTOGRAPHS_OPERATOR_BASE_URL}/api/operator/catalog/${AUTOGRAPH_ITEM_ID}"
+
+cat /tmp/autographs-delete-item.body | jq .
+```
+
+A successful delete response is shaped like:
+
+```json
+{
+  "deleted": {
+    "id": "<item-id>",
+    "imageCount": 2
+  }
+}
+```
+
+If you only want to remove an item from the public collection without deleting its metadata or media, update `publicationStatus` to `draft` or `archived` instead.
 
 ## Verify Public Read Paths
 
@@ -245,7 +275,7 @@ Images should load through app-mediated URLs shaped like `/api/catalog/{itemId}/
 
 Use the operator API so the deployed app writes Oracle metadata and private Object Storage images through the same catalog service used by the rest of the system. Published public pages should then read records through the public catalog service and display images only through `/api/catalog/{itemId}/images/{imageId}`.
 
-Delete images through the operator API as well so metadata and Object Storage cleanup stay connected.
+Delete images and full catalog items through the operator API as well so metadata and Object Storage cleanup stay connected.
 
 ## What Not To Do
 
