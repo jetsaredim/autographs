@@ -49,6 +49,27 @@ export async function PATCH(request: Request, context: RouteContext) {
   return Response.json({ item });
 }
 
+export async function DELETE(request: Request, context: RouteContext) {
+  const authResponse = authorizeOperator(request);
+  if (authResponse) {
+    return authResponse;
+  }
+
+  const { id } = await context.params;
+  const service = createCatalogService();
+
+  try {
+    const item = await service.delete(id);
+    return Response.json({ deleted: { id: item.id, imageCount: item.images.length } });
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
+
+    throw error;
+  }
+}
+
 const authorizeOperator = (request: Request): Response | null => {
   const token = process.env.AUTOGRAPHS_OPERATOR_API_TOKEN;
   if (!token) {
@@ -122,3 +143,8 @@ const toUploadInput = (image: OperatorImageInput) => ({
   sortOrder: image.sortOrder,
   altText: image.altText,
 });
+
+const isNotFoundError = (error: unknown): boolean => 
+  error instanceof Error && 
+  error.message.startsWith("Autograph item ") &&
+  error.message.endsWith(" was not found.");

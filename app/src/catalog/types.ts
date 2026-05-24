@@ -57,6 +57,7 @@ export type AutographListOptions = {
 export type CatalogRepository = {
   create(input: AutographItemInput): Promise<AutographItem>;
   update(id: string, input: AutographItemUpdate): Promise<AutographItem>;
+  delete(id: string): Promise<void>;
   getById(id: string, options?: { includeUnpublished?: boolean }): Promise<AutographItem | null>;
   list(options?: AutographListOptions): Promise<AutographItem[]>;
 };
