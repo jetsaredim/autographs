@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Phase 3 keeps production data entry intentionally procedural until the Phase 4 admin workflow exists. The temporary path lets the operator create and update catalog records through the deployed app's existing operator API while keeping private media and Oracle metadata connected through the catalog service.
+Phase 3 keeps production data entry intentionally procedural until the Phase 4 admin workflow exists. The temporary path lets the operator create, update, attach image media to, and remove image media from catalog records through the deployed app's operator API while keeping private media and Oracle metadata connected through the catalog service.
 
 ## Security Boundary
 
@@ -27,11 +27,14 @@ Send temporary data-entry requests through the forwarded local port and include 
 ```bash
 curl \
   -H "Authorization: Bearer <AUTOGRAPHS_OPERATOR_API_TOKEN>" \
-  -H "Content-Type: application/json" \
   http://127.0.0.1:<forwarded-port>/api/operator/...
 ```
 
-Create requests go to `POST /api/operator/catalog`. Update and image-attachment requests go to `PATCH /api/operator/catalog/{id}`. Image bodies are base64 encoded in the existing operator API request shape.
+Create requests go to `POST /api/operator/catalog`.
+
+Metadata updates and image attachments go to `PATCH /api/operator/catalog/{id}`.
+
+Image deletion goes to `DELETE /api/operator/catalog/{id}/images/{imageId}`.
 
 For a normal operator session, set these shell variables once:
 
@@ -42,20 +45,17 @@ export AUTOGRAPHS_OPERATOR_BASE_URL="http://127.0.0.1:<forwarded-port>"
 
 Do not commit a file containing the real token.
 
-## Prepare Image Payloads
+## Create A Published Item
 
-The temporary API accepts image bytes as base64 inside JSON. From the operator workstation, prepare one or more local image variables:
+Use `POST /api/operator/catalog` to create the metadata record. The API returns the created item, including its generated `id`.
 
-```bash
-export FRONT_IMAGE_BASE64="$(base64 -w 0 ./front.jpg)"
-export BACK_IMAGE_BASE64="$(base64 -w 0 ./back.jpg)"
-```
+The recommended temporary workflow is:
 
-Use the matching `contentType` for the file you are uploading, such as `image/jpeg`, `image/png`, or `image/webp`.
+1. Create the item metadata with JSON.
+2. Save the returned item `id`.
+3. Attach one or more images with the multipart upload workflow.
 
-## Create A Published Item With Images
-
-Use `POST /api/operator/catalog` to create the metadata record and upload initial images in one call. The API returns the created item, including its generated `id`.
+This avoids giant base64 JSON payloads during normal operator work.
 
 ```bash
 curl -sS \
@@ -63,7 +63,7 @@ curl -sS \
   -H "Content-Type: application/json" \
   -X POST \
   "${AUTOGRAPHS_OPERATOR_BASE_URL}/api/operator/catalog" \
-  --data @- <<JSON
+  --data-binary @- <<JSON
 {
   "title": "Signed Example Card",
   "signer": "Example Signer",
@@ -78,27 +78,15 @@ curl -sS \
   "certificationCompany": "PSA",
   "certificationId": "EXAMPLE123",
   "estimatedYear": 2026,
-  "publicationStatus": "published",
-  "imageUploads": [
-    {
-      "filename": "front.jpg",
-      "contentType": "image/jpeg",
-      "bodyBase64": "${FRONT_IMAGE_BASE64}",
-      "isPrimary": true,
-      "sortOrder": 0,
-      "altText": "Signed Example Card front"
-    },
-    {
-      "filename": "back.jpg",
-      "contentType": "image/jpeg",
-      "bodyBase64": "${BACK_IMAGE_BASE64}",
-      "isPrimary": false,
-      "sortOrder": 1,
-      "altText": "Signed Example Card back"
-    }
-  ]
+  "publicationStatus": "published"
 }
 JSON
+```
+
+Capture the returned item id:
+
+```bash
+export AUTOGRAPH_ITEM_ID="<id-returned-from-create>"
 ```
 
 Recommended fields for the first few real uploads:
@@ -126,7 +114,7 @@ curl -sS \
   -H "Content-Type: application/json" \
   -X PATCH \
   "${AUTOGRAPHS_OPERATOR_BASE_URL}/api/operator/catalog/${AUTOGRAPH_ITEM_ID}" \
-  --data @- <<JSON
+  --data-binary @- <<JSON
 {
   "item": {
     "description": "Updated public description.",
@@ -137,41 +125,113 @@ curl -sS \
 JSON
 ```
 
-## Attach More Images
-
-Use the same `PATCH` endpoint with `imageUploads` to attach additional images to an existing item.
+Use the response body to confirm the saved fields:
 
 ```bash
-export EXTRA_IMAGE_BASE64="$(base64 -w 0 ./detail.jpg)"
+curl -sS \
+  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -X PATCH \
+  "${AUTOGRAPHS_OPERATOR_BASE_URL}/api/operator/catalog/${AUTOGRAPH_ITEM_ID}" \
+  --data-binary @update-metadata.json \
+  | jq '.item | {id,title,description,category,tags,objectReference,eventName,eventLocation,source,estimatedYear,images}'
+```
+
+## Attach Images With Multipart Upload
+
+Use `PATCH /api/operator/catalog/{id}` with multipart form data to attach one or more images to an existing item. This is the recommended manual operator path because it avoids base64-in-JSON payloads.
+
+Do not include a manual `Content-Type` header for multipart uploads. Let `curl -F` set the multipart boundary.
+
+```bash
+export AUTOGRAPH_ITEM_ID="<id-returned-from-create>"
+
+curl -sS -D /tmp/autographs-upload.headers \
+  -o /tmp/autographs-upload.body \
+  -w '\nHTTP %{http_code}\nContent-Type: %{content_type}\nDownloaded: %{size_download} bytes\nUploaded: %{size_upload} bytes\n' \
+  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}" \
+  -X PATCH \
+  "${AUTOGRAPHS_OPERATOR_BASE_URL}/api/operator/catalog/${AUTOGRAPH_ITEM_ID}" \
+  -F "image=@./front.jpg;type=image/jpeg" \
+  -F "altText=Signed Example Card front"
+
+cat /tmp/autographs-upload.body | jq '.item.id, .item.images'
+```
+
+The route accepts either `image` or `images` as the file field name. Use the matching MIME type for the file, such as `image/jpeg`, `image/png`, or `image/webp`.
+
+To attach multiple files in one request:
+
+```bash
+curl -sS \
+  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}" \
+  -X PATCH \
+  "${AUTOGRAPHS_OPERATOR_BASE_URL}/api/operator/catalog/${AUTOGRAPH_ITEM_ID}" \
+  -F "images=@./front.jpg;type=image/jpeg" \
+  -F "images=@./back.jpg;type=image/jpeg" \
+  | jq '.item.images'
+```
+
+If an attached image should become the primary collection-grid image, attach that image last or use the legacy JSON/base64 `imageUploads` path with `"isPrimary": true`. The service normalizes primary image selection so only one image remains primary.
+
+## Legacy JSON/Base64 Image Uploads
+
+The create and patch endpoints still accept image bytes as base64 inside JSON. This is useful for scripts, but it is not recommended for manual shell use because large base64 strings are hard to inspect and easy to quote incorrectly.
+
+If you use this path, build the JSON dynamically. Do not put literal shell variables such as `${FRONT_IMAGE_BASE64}` into a static JSON file and expect `curl --data @file.json` to expand them.
+
+```bash
+export FRONT_IMAGE_BASE64="$(base64 -w 0 ./front.jpg)"
 
 curl -sS \
   -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}" \
   -H "Content-Type: application/json" \
   -X PATCH \
   "${AUTOGRAPHS_OPERATOR_BASE_URL}/api/operator/catalog/${AUTOGRAPH_ITEM_ID}" \
-  --data @- <<JSON
+  --data-binary @- <<JSON
 {
   "imageUploads": [
     {
-      "filename": "detail.jpg",
+      "filename": "front.jpg",
       "contentType": "image/jpeg",
-      "bodyBase64": "${EXTRA_IMAGE_BASE64}",
-      "sortOrder": 2,
-      "altText": "Signed Example Card inscription detail"
+      "bodyBase64": "${FRONT_IMAGE_BASE64}",
+      "isPrimary": true,
+      "sortOrder": 0,
+      "altText": "Signed Example Card front"
     }
   ]
 }
 JSON
 ```
 
-If an attached image should become the primary collection-grid image, include `"isPrimary": true`. The service normalizes primary image selection so only one image remains primary.
+## Delete An Image
 
-## Verify The Upload
-
-After a create or update, verify through the public read path, not by inspecting Oracle or Object Storage directly:
+Use `DELETE /api/operator/catalog/{id}/images/{imageId}` to remove a single image from an item and delete the backing private media object.
 
 ```bash
-curl -sS "${AUTOGRAPHS_OPERATOR_BASE_URL}/api/catalog/${AUTOGRAPH_ITEM_ID}"
+export AUTOGRAPH_ITEM_ID="<item-id>"
+export AUTOGRAPH_IMAGE_ID="<image-id>"
+
+curl -sS -D /tmp/autographs-delete-image.headers \
+  -o /tmp/autographs-delete-image.body \
+  -w '\nHTTP %{http_code}\nContent-Type: %{content_type}\nDownloaded: %{size_download} bytes\n' \
+  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}" \
+  -X DELETE \
+  "${AUTOGRAPHS_OPERATOR_BASE_URL}/api/operator/catalog/${AUTOGRAPH_ITEM_ID}/images/${AUTOGRAPH_IMAGE_ID}"
+
+cat /tmp/autographs-delete-image.body | jq '.item.id, .item.images'
+```
+
+If the deleted image was the only image, the item remains published but has no public image until another image is attached.
+
+There is no full item delete endpoint yet. To remove an item from the public collection without deleting it, update `publicationStatus` to `draft` or `archived`.
+
+## Verify Public Read Paths
+
+After a create, update, attach, or delete operation, verify through the public read path, not by inspecting Oracle or Object Storage directly:
+
+```bash
+curl -sS "${AUTOGRAPHS_OPERATOR_BASE_URL}/api/catalog/${AUTOGRAPH_ITEM_ID}" | jq .
 ```
 
 Then open the public pages through the deployed site:
@@ -185,6 +245,8 @@ Images should load through app-mediated URLs shaped like `/api/catalog/{itemId}/
 
 Use the operator API so the deployed app writes Oracle metadata and private Object Storage images through the same catalog service used by the rest of the system. Published public pages should then read records through the public catalog service and display images only through `/api/catalog/{itemId}/images/{imageId}`.
 
+Delete images through the operator API as well so metadata and Object Storage cleanup stay connected.
+
 ## What Not To Do
 
 - Do not hand-edit Oracle rows.
@@ -192,6 +254,7 @@ Use the operator API so the deployed app writes Oracle metadata and private Obje
 - Do not expose operator endpoints through public Caddy routes.
 - Do not bypass the catalog service with ad hoc scripts that leave image objects and metadata disconnected.
 - Do not store the real bearer token in committed examples.
+- Do not include a manual `Content-Type: application/json` header on multipart `curl -F` requests.
 
 ## Retirement Path
 

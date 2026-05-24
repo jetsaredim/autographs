@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import { Readable } from "node:stream";
 
@@ -62,6 +62,11 @@ export class LocalMediaStore implements PrivateMediaStore {
       etag: null,
       body: createReadStream(this.getObjectPath(location.objectKey)),
     };
+  }
+
+  async delete(location: MediaObjectLocation): Promise<void> {
+    this.assertSameBucket(location);
+    await rm(this.getObjectPath(location.objectKey), { force: true });
   }
 
   async assertReady(): Promise<void> {

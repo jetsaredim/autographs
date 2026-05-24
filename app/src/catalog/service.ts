@@ -26,6 +26,7 @@ export type CatalogCreateInput = Omit<AutographItemInput, "images"> & {
 export type CatalogService = {
   create(input: CatalogCreateInput): Promise<AutographItem>;
   update(id: string, input: AutographItemUpdate): Promise<AutographItem>;
+  deleteImage(id: string, imageId: string): Promise<AutographItem>;
   attachImages(id: string, images: CatalogImageUploadInput[]): Promise<AutographItem>;
   readPublishedImage(id: string, imageId: string): Promise<MediaReadResult | null>;
   getById(id: string, options?: { includeUnpublished?: boolean }): Promise<AutographItem | null>;
@@ -97,6 +98,34 @@ export class DefaultCatalogService implements CatalogService {
     ]);
 
     return this.repository.update(id, { images: normalizedImages });
+  }
+
+  async deleteImage(id: string, imageId: string): Promise<AutographItem> {
+    const existing = await this.repository.getById(id, { includeUnpublished: true });
+    if (!existing) {
+      throw new Error(`Autograph item ${id} was not found.`);
+    }
+
+    const imageToDelete = existing.images.find((image) => image.id === imageId);
+    if (!imageToDelete) {
+      throw new Error(`Autograph image ${imageId} was not found.`);
+    }
+
+    const remainingImages = normalizePrimary(
+      existing.images
+        .filter((image) => image.id !== imageId)
+        .map(toImageInput),
+    );
+
+    const updated = await this.repository.update(id, { images: remainingImages });
+
+    await this.mediaStore.delete({
+      storageNamespace: imageToDelete.storageNamespace,
+      bucketName: imageToDelete.bucketName,
+      objectKey: imageToDelete.objectKey,
+    });
+
+    return updated;
   }
 
   async getById(
