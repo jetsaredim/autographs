@@ -24,7 +24,6 @@ on:
           - "true"
 
 permissions:
-  actions: write
   contents: read
   packages: write
 

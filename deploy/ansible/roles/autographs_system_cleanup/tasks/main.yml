@@ -38,6 +38,7 @@
     argv:
       - podman
       - rmi
+      - --force
       - "{{ item }}"
   loop: "{{ autographs_system_cleanup_removable_images.stdout_lines }}"
   when:
