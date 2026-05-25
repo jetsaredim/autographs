@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Delivery Spine and OCI Bootstrap** - Stand up the deployable app foundation, OCI baseline, and GitHub-driven validation/deploy path. Complete; live OCI deploy proof passed from `main`.
 - [x] **Phase 2: Oracle and Private Media Core** - Prove the database and object-storage seams that every collection record depends on. Implementation complete; live Oracle/Object Storage smoke path documented for operator execution with real credentials.
 - [x] **Phase 3: Public Gallery MVP** - Deliver anonymous browse, filter, and detail views for published autograph items. Complete; anonymous public gallery, filters, detail pages, image viewer, quote states, and privacy gates are implemented.
-- [ ] **Phase 4: Public Showcase and Hardening** - Tie up loose ends, audit the current security posture, polish documentation, and prepare the current repository state to be public as a human+AI showcase.
+- [x] **Phase 4: Public Showcase and Hardening** - Tie up loose ends, audit the current security posture, polish documentation, and prepare the current repository state to be public as a human+AI showcase. (completed 2026-05-25)
 - [ ] **Phase 5: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop.
 - [ ] **Phase 6: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
 
@@ -87,7 +87,7 @@ Plans:
 - [x] 04-02-PLAN.md - Configure Renovate and document dependency/supply-chain review expectations.
 - [x] 04-03-PLAN.md - Refresh the root README, public metadata, and quality signal badges.
 - [x] 04-04-PLAN.md - Reconcile stale docs, diagrams, and codebase maps after the phase reorder.
-- [ ] 04-05-PLAN.md - Run final public-readiness gates and record any tracked exceptions.
+- [x] 04-05-PLAN.md - Run final public-readiness gates and record any tracked exceptions.
 **UI hint**: no
 
 ### Phase 5: Admin Collection Workflow
@@ -125,6 +125,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Delivery Spine and OCI Bootstrap | 4/4 | Complete | 2026-05-14 |
 | 2. Oracle and Private Media Core | 4/4 | Complete | 2026-05-14 |
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
-| 4. Public Showcase and Hardening | 4/5 | In Progress | - |
+| 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
 | 5. Admin Collection Workflow | 0/TBD | Not started | - |
 | 6. AI-Assisted Ingest | 0/TBD | Not started | - |
