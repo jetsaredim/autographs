@@ -31,7 +31,7 @@
         <mxCell id="end-user" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#52525b;arcSize=18;fontSize=16;" value="&lt;b&gt;End user&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 13px;&quot;&gt;public browser&lt;/font&gt;" vertex="1">
           <mxGeometry height="72" width="168" x="300" y="636" as="geometry" />
         </mxCell>
-        <mxCell id="oci-zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f4f5;strokeColor=#a1a1aa;fontStyle=1;fontSize=22;align=left;verticalAlign=top;spacingLeft=32;spacingTop=26;arcSize=10;" value="Oracle Cloud Infrastructure&lt;br&gt;&lt;font style=&quot;font-size: 13px; font-weight: 400;&quot;&gt;Runtime network, VM containers, ADB, Object Storage, and AI metadata processing&lt;/font&gt;" vertex="1">
+        <mxCell id="oci-zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4f4f5;strokeColor=#a1a1aa;fontStyle=1;fontSize=22;align=left;verticalAlign=top;spacingLeft=32;spacingTop=26;arcSize=10;" value="Oracle Cloud Infrastructure&lt;br&gt;&lt;font style=&quot;font-size: 13px; font-weight: 400;&quot;&gt;Runtime network, VM containers, ADB, and private Object Storage&lt;/font&gt;" vertex="1">
           <mxGeometry height="570" width="576" x="650" y="116" as="geometry" />
         </mxCell>
         <mxCell id="vcn" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d4d4d8;arcSize=12;fontSize=16;align=left;verticalAlign=top;spacingLeft=32;spacingTop=28;" value="&lt;b&gt;VCN&lt;/b&gt;" vertex="1">

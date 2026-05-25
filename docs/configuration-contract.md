@@ -29,7 +29,7 @@ These are repo-level GitHub Secrets for the deployment baseline and Phase 2 data
 | `ORACLE_DB_PASSWORD` | deploy workflow / app runtime | Runtime database password passed to the Next.js container |
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / app runtime | Base64-encoded ADB wallet zip used for mTLS connections |
 | `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / app runtime | Optional wallet password for node-oracledb Thin mode mTLS connections |
-| `AUTOGRAPHS_OPERATOR_API_TOKEN` | app runtime | Temporary Phase 2 operator token for guarded smoke/mutation endpoints until Phase 4 auth lands |
+| `AUTOGRAPHS_OPERATOR_API_TOKEN` | app runtime | Temporary operator token for guarded smoke/mutation endpoints until Phase 5 admin auth replaces the bridge |
 
 The current Phase 1 OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the image build, Terraform, or VM deployment steps.
 

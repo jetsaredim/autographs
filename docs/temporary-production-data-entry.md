@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Phase 3 keeps production data entry intentionally procedural until the Phase 4 admin workflow exists. The temporary path lets the operator create, update, attach image media to, and remove image media from catalog records through the deployed app's operator API while keeping private media and Oracle metadata connected through the catalog service.
+Production data entry remains intentionally procedural until the Phase 5 admin workflow exists. The temporary path lets the operator create, update, attach image media to, and remove image media from catalog records through the deployed app's operator API while keeping private media and Oracle metadata connected through the catalog service.
 
 ## Security Boundary
 
-Operator endpoints must not be exposed through public Caddy routes in Phase 3. Treat this as an operator-only bridge reached from your workstation through an SSH tunnel to the app container listener on the runtime VM.
+Operator endpoints must not be exposed through public Caddy routes. Treat this as an operator-only bridge reached from your workstation through an SSH tunnel to the app container listener on the runtime VM.
 
 Keep `AUTOGRAPHS_OPERATOR_API_TOKEN` in the operator shell or secret manager. Do not paste it into browser-visible pages, public docs with real values, chat logs, or repository files.
 
@@ -288,4 +288,4 @@ Delete images and full catalog items through the operator API as well so metadat
 
 ## Retirement Path
 
-Phase 4 replaces this bridge with the real single-admin collection workflow. When that workflow exists, retire the SSH-tunnel data-entry path or keep it only as a documented break-glass operator procedure.
+Phase 5 replaces this bridge with the real single-admin collection workflow. When that workflow exists, retire the SSH-tunnel data-entry path or keep it only as a documented break-glass operator procedure.

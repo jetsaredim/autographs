@@ -125,7 +125,7 @@ The deployed app also exposes `GET /health/data` for configuration readiness and
 
 Published images are served through app-mediated URLs shaped as `/api/catalog/{itemId}/images/{imageId}`. The URL contains app-level catalog identifiers only; it does not expose Object Storage bucket credentials, signed direct URLs, or raw object keys as the public access contract.
 
-Temporary production data entry for Phase 3 is operator-only and documented in [temporary-production-data-entry.md](temporary-production-data-entry.md). Use that tunneled, token-guarded path until the Phase 4 admin workflow replaces it.
+Temporary production data entry is operator-only and documented in [temporary-production-data-entry.md](temporary-production-data-entry.md). Use that tunneled, token-guarded path until the Phase 5 admin workflow replaces it.
 
 ## Workflow Behavior
 

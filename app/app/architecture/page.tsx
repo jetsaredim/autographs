@@ -56,7 +56,7 @@ const workflowSteps = [
     number: 8,
     name: "Read and write private data",
     description:
-      "The Next.js app uses controlled server-side paths to access Autonomous Database metadata, private Object Storage images, and AI metadata suggestions.",
+      "The Next.js app uses controlled server-side paths to access Autonomous Database metadata and private Object Storage images.",
   },
   {
     number: 9,
@@ -68,7 +68,7 @@ const workflowSteps = [
     number: 10,
     name: "Manage collection content",
     description:
-      "The admin user uploads new autograph images and collection data through Caddy into the app, which stores media in Object Storage and uses AI processing to suggest metadata before saving curated records in Autonomous Database.",
+      "Temporary operator procedures use a token-guarded SSH tunnel into the app until Phase 5 adds the real admin workflow; Phase 6 later adds advisory AI metadata suggestions.",
   },
 ];
 
@@ -100,7 +100,7 @@ export default function ArchitecturePage() {
             width={1280}
             height={760}
             priority
-            alt="Autographs architecture diagram showing GitHub repository changes flowing through pull request CI, deploy workflow, GHCR image publishing, Terraform-managed OCI resources, an OCI runtime VM, Caddy, the internal Next.js app, Autonomous Database, private Object Storage, AI metadata processing, Let's Encrypt, public browser traffic, and admin collection management."
+            alt="Autographs architecture diagram showing GitHub repository changes flowing through pull request CI, deploy workflow, GHCR image publishing, Terraform-managed OCI resources, an OCI runtime VM, Caddy, the internal Next.js app, Autonomous Database, private Object Storage, Let's Encrypt, public browser traffic, and temporary operator collection management."
           />
         </div>
       </section>

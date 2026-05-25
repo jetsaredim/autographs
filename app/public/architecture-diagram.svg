@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
   <title id="title">Autographs architecture diagram</title>
-  <desc id="desc">End-to-end system diagram showing GitHub CI/CD, OCI runtime resources, private storage, database, AI metadata suggestions, Let's Encrypt certificates, and user workflows.</desc>
+  <desc id="desc">End-to-end system diagram showing GitHub CI/CD, OCI runtime resources, private storage, database, Let's Encrypt certificates, and current user workflows.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#27272a" />
@@ -24,7 +24,7 @@
     </style>
   </defs>
   <text class="page-title" x="52" y="53" text-anchor="start">Autographs architecture</text>
-  <text class="subtitle" x="52" y="79" text-anchor="start">GitHub builds and deploys; OCI runs the application, metadata database, private image storage, and AI-assisted metadata workflow.</text>
+  <text class="subtitle" x="52" y="79" text-anchor="start">GitHub builds and deploys; OCI runs the application, metadata database, private image storage, and current public gallery.</text>
   <rect class="zone" x="54" y="112" width="458" height="360" rx="18" />
   <rect class="zone" x="650" y="116" width="576" height="570" rx="18" />
   <rect class="zone" x="682" y="708" width="248" height="44" rx="14" />
@@ -34,7 +34,7 @@
   <text class="zone-title" x="86" y="151" text-anchor="start">GitHub</text>
   <text class="zone-small" x="86" y="173" text-anchor="start">Source, CI/CD, and container image publishing</text>
   <text class="zone-title" x="682" y="155" text-anchor="start">Oracle Cloud Infrastructure</text>
-  <text class="zone-small" x="682" y="177" text-anchor="start">Runtime network, VM containers, ADB, Object Storage, and AI metadata processing</text>
+  <text class="zone-small" x="682" y="177" text-anchor="start">Runtime network, VM containers, ADB, and private Object Storage</text>
   <text class="label" x="716" y="289" text-anchor="start">VCN</text>
   <text class="label" x="754" y="358" text-anchor="start">Public subnet</text>
   <text class="label" x="790" y="448" text-anchor="start">Runtime VM</text>
