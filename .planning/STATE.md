@@ -92,3 +92,4 @@ Resume file: .planning/phases/03-public-gallery-mvp/03-05-SUMMARY.md
 | 2026-05-20 | podman-quadlet-deploy | Replaced compose/cloud-init runtime setup with Ansible-managed Podman quadlets and added manual runtime VM taint support. |
 | 2026-05-21 | phase-6-scope | Added Public Showcase and Hardening as Phase 6 after AI-assisted ingest. |
 | 2026-05-25 | reconcile-docs-and-workflow-guardrails | Refreshed stale codebase maps after out-of-GSD implementation progress and prepared workflow guardrail updates. |
+| 2026-05-25 | add-protected-branch-commit-guardrails | Added project and global GSD guardrails to prevent direct commits to `main` or `master`. |
