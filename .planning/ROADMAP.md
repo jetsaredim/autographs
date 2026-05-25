@@ -85,7 +85,7 @@ Plans:
 Plans:
 - [x] 04-01-PLAN.md - Harden the current public-gallery and deployment attack surface.
 - [x] 04-02-PLAN.md - Configure Renovate and document dependency/supply-chain review expectations.
-- [ ] 04-03-PLAN.md - Refresh the root README, public metadata, and quality signal badges.
+- [x] 04-03-PLAN.md - Refresh the root README, public metadata, and quality signal badges.
 - [ ] 04-04-PLAN.md - Reconcile stale docs, diagrams, and codebase maps after the phase reorder.
 - [ ] 04-05-PLAN.md - Run final public-readiness gates and record any tracked exceptions.
 **UI hint**: no
@@ -125,6 +125,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Delivery Spine and OCI Bootstrap | 4/4 | Complete | 2026-05-14 |
 | 2. Oracle and Private Media Core | 4/4 | Complete | 2026-05-14 |
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
-| 4. Public Showcase and Hardening | 2/5 | In Progress | - |
+| 4. Public Showcase and Hardening | 3/5 | In Progress | - |
 | 5. Admin Collection Workflow | 0/TBD | Not started | - |
 | 6. AI-Assisted Ingest | 0/TBD | Not started | - |
