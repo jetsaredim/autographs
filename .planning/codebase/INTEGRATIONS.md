@@ -23,6 +23,7 @@
 - CI/deploy workflows live in `.github/workflows/`.
 - App images are built/published to GHCR and deployed by digest.
 - Data smoke and image cleanup have dedicated workflows.
+- Workflow permissions have been reviewed for least-privilege current usage; dependency automation is configured through `renovate.json`.
 
 **Local Development Modes**
 - Local filesystem media mode supports development and tests without requiring live OCI media credentials.
@@ -51,7 +52,9 @@
 **Operator Docs**
 - `docs/configuration-contract.md`
 - `docs/deployment-runbook.md`
+- `docs/dependency-updates.md`
 - `docs/oci-bootstrap.md`
+- `docs/security-review.md`
 - `docs/terraform-state.md`
 - `docs/terraform-tenancy-split.md`
 - `docs/temporary-production-data-entry.md`

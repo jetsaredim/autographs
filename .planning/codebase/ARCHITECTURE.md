@@ -41,6 +41,10 @@ Autographs is now an implemented single-application system, not a planning-only 
 - Locations: `infra/terraform/`, `deploy/ansible/`, `.github/workflows/`
 - Purpose: OCI infrastructure, runtime VM configuration, Podman quadlets, PR validation, image publishing, deploy, data smoke, and image cleanup.
 
+**Public Showcase and Hardening Layer**
+- Locations: `README.md`, `renovate.json`, `docs/security-review.md`, `docs/dependency-updates.md`, `docs/architecture.drawio`, `app/public/architecture-diagram.svg`
+- Purpose: Public repository framing, dependency-update policy, current-surface security review, architecture presentation, and hardening documentation.
+
 **Planning and Operator Documentation**
 - Locations: `.planning/`, `docs/`, `.prompts/`
 - Purpose: GSD state, roadmap, phase artifacts, codebase intelligence, bootstrap/runbook docs, and original product prompt.
@@ -64,14 +68,14 @@ Autographs is now an implemented single-application system, not a planning-only 
 
 ## Current Phase Boundary
 
-Phases 1-3 are complete. Phase 4 should harden, document, and present the current public-gallery/deployment surface. Phase 5 should build the admin workflow on the existing catalog service, media abstraction, public gallery, and operator bridge. It should not re-scaffold the application or replace the delivery spine.
+Phases 1-3 are complete. Phase 4 is in progress: public-surface security headers, production health-detail redaction, Caddy/operator-route regression coverage, Renovate configuration, dependency-update docs, cleanup-job hardening, root README showcase content, and architecture/doc reconciliation have landed. Final Phase 4 readiness packaging remains pending. Phase 5 should build the admin workflow on the existing catalog service, media abstraction, public gallery, and operator bridge. It should not re-scaffold the application or replace the delivery spine.
 
 ## Notable Absences
 
 - Real single-admin authentication and admin UX are not implemented yet.
 - Edit history persistence/rendering is not implemented yet.
 - AI-assisted metadata suggestions are not implemented yet.
-- Current-surface public-readiness hardening, repository badges, and README polish remain Phase 4 work.
+- Final public-readiness checklist/signoff remains Phase 4 work.
 
 ---
 

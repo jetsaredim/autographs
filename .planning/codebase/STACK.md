@@ -36,12 +36,14 @@
 **Testing and Validation:**
 - App lint, typecheck, test, and build commands are part of the current validation contract.
 - Public-surface privacy regression tests protect against leaking storage identifiers, direct Object Storage URLs, and premature admin workflow exposure.
+- Phase 4 added public security-header, production health redaction, and Caddy operator-route regression coverage.
 
 **Infrastructure and Deployment:**
 - Terraform under `infra/terraform/` for OCI baseline resources and state guidance.
 - GitHub Actions for PR validation, image build/publish, deployment, and data smoke workflows.
 - Ansible under `deploy/ansible/` for VM runtime configuration.
 - Podman quadlets for long-lived app and Caddy containers on the runtime VM.
+- Renovate under `renovate.json` tracks package, workflow, Docker/Corepack, Terraform, and runtime image update surfaces with manual review.
 
 ## Key Dependencies and Integrations
 
@@ -84,13 +86,13 @@
 
 **Current State:**
 - Phases 1-3 are complete: delivery spine, OCI bootstrap, Oracle/private media core, and public gallery MVP.
-- Phase 4 public showcase and hardening is next for planning.
+- Phase 4 public showcase and hardening is in progress: security headers, production health redaction, current-surface security review, Renovate configuration, dependency-update docs, cleanup-job hardening, and README showcase content have landed; final readiness packaging remains.
 - The repository is no longer planning-only; it contains application, infrastructure, deployment, testing, and operator documentation artifacts.
 
 **Practical Guidance:**
 - Treat `.planning/STATE.md`, `.planning/ROADMAP.md`, and `.planning/PROJECT.md` as the current high-level planning sources of truth.
 - Treat `.planning/codebase/*` as a current-state codebase map, not as historical prompt intent.
-- Do not re-scaffold the app or infra. Phase 4 should harden and document the current public-gallery/deployment surface, while Phase 5 builds admin workflow on the existing service boundaries and temporary operator bridge.
+- Do not re-scaffold the app or infra. Finish the Phase 4 readiness pass on the current public-gallery/deployment surface, while Phase 5 builds admin workflow on the existing service boundaries and temporary operator bridge.
 
 ---
 

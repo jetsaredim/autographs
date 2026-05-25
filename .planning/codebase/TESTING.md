@@ -28,6 +28,9 @@ These commands are used as the baseline verification contract during Phase 3 com
 - Multi-image public presentation behavior.
 - App-mediated image route protections.
 - Public-surface privacy regression coverage.
+- Public security-header coverage.
+- Production `/health/data` detail-redaction coverage.
+- Caddy public operator-route block coverage.
 
 ### Infrastructure and Deployment Validation
 
@@ -37,6 +40,8 @@ These commands are used as the baseline verification contract during Phase 3 com
 - Environment contract verification.
 - Runtime container deployment behavior.
 - Schema and migration drift checks where applicable.
+- Ansible image-cleanup playbook syntax validation.
+- Renovate configuration JSON validation.
 
 ## Current Testing Strategy
 
@@ -77,14 +82,17 @@ These commands are used as the baseline verification contract during Phase 3 com
 
 ## Coverage Gaps
 
-### Pending Phase 4 Areas
+### Phase 4 Coverage Status
 
-The following capabilities are not yet fully implemented or covered because Phase 4 has not started:
+The following Phase 4 coverage has landed:
 
-- Current-surface security and attack-vector review coverage.
-- Dependency automation validation for package, workflow, container, and Terraform surfaces.
-- Public showcase/readiness checks for root README, badges, metadata, and stale-doc cleanup.
-- Operational warning triage for the current public-gallery/deployment surface.
+- Current-surface security and attack-vector review notes in `docs/security-review.md`.
+- Header, production health redaction, and Caddy operator-route regression tests in `app/src/gallery/public-surface.test.ts`.
+- Renovate config validation for package, workflow, container/Corepack, Terraform, and runtime image update surfaces.
+- Cleanup workflow hardening verified through the Ansible cleanup playbook syntax check.
+- Public README/showcase and architecture-doc reconciliation checks.
+
+Remaining Phase 4 work is final readiness checklist/signoff, including a concise record of which local validations were run and what still depends on GitHub Actions or live OCI secrets.
 
 ### Pending Phase 5 Areas
 

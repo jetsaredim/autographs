@@ -15,6 +15,7 @@ autographs/
 ├── docs/                        # Operator runbooks and configuration docs
 ├── infra/terraform/             # OCI infrastructure as code
 ├── .github/workflows/           # CI, deploy, data smoke, and image cleanup workflows
+├── renovate.json                # Conservative dependency automation policy
 ├── .planning/                   # GSD project state, roadmap, phases, and codebase maps
 ├── .prompts/                    # Original implementation prompt artifacts
 ├── package.json                 # Root pnpm workspace commands
@@ -50,7 +51,9 @@ autographs/
 - `.planning/PROJECT.md`, `.planning/ROADMAP.md`, `.planning/REQUIREMENTS.md`, `.planning/STATE.md`: high-level GSD truth.
 - `.planning/phases/01-*`, `02-*`, `03-*`: completed phase plans/summaries.
 - `.planning/codebase/*.md`: current codebase maps for future agents.
-- `docs/`: operator-facing setup, deploy, DNS, Terraform, and temporary data-entry runbooks.
+- `README.md`: public showcase, status, architecture, local-development, operations, security, and human+AI/GSD framing.
+- `docs/`: operator-facing setup, deploy, DNS, Terraform, dependency-update, security-review, and temporary data-entry runbooks.
+- `docs/architecture.drawio` and `app/public/architecture-diagram.svg`: current public architecture diagram sources.
 
 ## Test Organization
 
@@ -60,7 +63,7 @@ autographs/
 ## Where to Add New Code
 
 **Phase 4 Public Showcase and Hardening**
-- Root README, badges, public metadata, dependency automation, security review notes, and public-facing docs should stay in repository docs/configuration surfaces rather than changing app architecture.
+- Root README, badges, public metadata, dependency automation, security review notes, and public-facing docs now live in repository docs/configuration surfaces rather than changing app architecture.
 - Current-surface hardening should preserve the existing public gallery, deployment, media, and operator-route boundaries.
 
 **Phase 5 Admin Workflow**
@@ -81,7 +84,7 @@ autographs/
 
 - Do not re-scaffold the app, pnpm workspace, workflows, or Terraform baseline.
 - Treat `.prompts/001-autograph-gallery-bootstrap-do/` as historical product intent, not the current implementation map.
-- Treat Phase 4 as current-surface showcase and hardening work on top of the completed public/data/media foundation.
+- Treat Phase 4 as current-surface showcase and hardening work on top of the completed public/data/media foundation; final readiness packaging is the remaining Phase 4 slice.
 - Treat Phase 5 as additive admin workflow work on top of the same foundation.
 
 ---
