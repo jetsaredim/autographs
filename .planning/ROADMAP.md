@@ -81,7 +81,13 @@ Plans:
   4. Repository badges and public-facing project metadata accurately reflect CI, linting, type checking, test/coverage posture, deployment or release status, and other useful quality signals.
   5. Loose-end issues, docs gaps, stale planning artifacts, and operational warnings for the current system have been triaged so the public repository tells a coherent story.
 **Boundary Note**: This phase hardens and presents the current public-gallery/deployment surface before admin and AI are added. Phase 5 and Phase 6 must still include their own security and documentation updates for the new admin and AI surfaces they introduce.
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 04-01-PLAN.md - Harden the current public-gallery and deployment attack surface.
+- [ ] 04-02-PLAN.md - Configure Renovate and document dependency/supply-chain review expectations.
+- [ ] 04-03-PLAN.md - Refresh the root README, public metadata, and quality signal badges.
+- [ ] 04-04-PLAN.md - Reconcile stale docs, diagrams, and codebase maps after the phase reorder.
+- [ ] 04-05-PLAN.md - Run final public-readiness gates and record any tracked exceptions.
 **UI hint**: no
 
 ### Phase 5: Admin Collection Workflow

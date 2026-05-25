@@ -299,11 +299,11 @@ Nyquist validation is disabled in `.planning/config.json`, so no separate Nyquis
 | V6 Cryptography | yes via platform secrets | Do not hand-roll; keep OCI keys/wallets in GitHub/VM secret stores. [VERIFIED: deploy/docs] |
 | V14 Configuration | yes | Add public-readiness checklist for headers, secrets, CI permissions, ignored state. [VERIFIED: repo audit] |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. Should `/health/data` remain publicly callable for non-live config readiness, or should Phase 4 require the operator token for all data-readiness output?
-2. Should dependency automation use Dependabot only, or Renovate if Ansible/Caddy/custom image-variable coverage is required?
-3. Should the public README include deployment hostname/status, or avoid a live URL until the repo is actually public?
+1. **RESOLVED:** Phase 4 should minimize the current public/security surface. The planner should treat `/health/data` public behavior as part of the hardening pass: reduce public detail, token-gate sensitive readiness output, or otherwise ensure anonymous callers cannot learn sensitive configuration state. This is a must-fix class issue if the current output would look unsafe or careless in a public review.
+2. **RESOLVED:** Use Renovate, conservatively scoped, per D-04-09 through D-04-11. It should cover package, workflow, container, Terraform, Ansible collection, and pinned tooling/version surfaces where Renovate can reliably detect them. It is dependency automation, not a general security scanner.
+3. **RESOLVED:** The public README should present the project as a portfolio-quality showcase with project constraints, current architecture, lifecycle/security posture, and the human+AI/GSD build story. It may mention deployment status and validation signals, but should avoid publishing a live hostname unless that is intentionally safe for the public repo at implementation time.
 
 ## Assumptions Log
 
