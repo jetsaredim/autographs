@@ -87,23 +87,25 @@ Plans:
 ### Phase 5: Admin Collection Workflow
 **Goal**: The collection owner can securely manage the catalog end to end, including creating, editing, publishing, multi-image maintenance, and reviewing edit history.
 **Depends on**: Phase 4
-**Requirements**: DATA-03, MEDIA-04, ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04
+**Requirements**: DATA-03, MEDIA-04, ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04, ADMIN-05
 **Success Criteria** (what must be TRUE):
   1. Exactly one admin authentication path exists for collection management, with no public account system required.
   2. Admin can create a new autograph item by uploading images, reviewing metadata, and saving the item before publication.
   3. Admin can edit an existing autograph item's metadata and associated images, and can review an edit history showing what changed over time.
   4. Admin can publish changes so items become visible in the public gallery without leaving orphaned metadata references or image files in normal operation.
+  5. Admin routes, secrets, edit-history behavior, media cleanup, and operator-bridge retirement are reviewed for security and documented before Phase 5 is marked complete.
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 6: AI-Assisted Ingest
 **Goal**: The admin workflow gains advisory OCR/AI metadata suggestions that speed up cataloging without blocking manual control.
 **Depends on**: Phase 5
-**Requirements**: AI-01, AI-02, AI-03
+**Requirements**: AI-01, AI-02, AI-03, AI-04
 **Success Criteria** (what must be TRUE):
   1. Upload workflow can generate AI-assisted metadata suggestions for relevant autograph fields such as signer, item type, tags, or inscription text.
   2. Admin can review, correct, or ignore OCR and AI suggestions before saving the item.
   3. Upload workflow still succeeds with fully manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
+  4. AI/OCR providers, prompts, failure modes, privacy boundaries, and configuration/secrets are reviewed for security and documented before Phase 6 is marked complete.
 **Plans**: TBD
 **UI hint**: yes
 

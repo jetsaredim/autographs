@@ -38,12 +38,14 @@
 - [ ] **ADMIN-02**: Admin can create a new autograph item by uploading images and reviewing/editing metadata in one workflow before publish.
 - [ ] **ADMIN-03**: Admin can edit an existing autograph item, including metadata and associated images.
 - [ ] **ADMIN-04**: Admin can save reviewed metadata and publish the item so it becomes visible in the public gallery.
+- [ ] **ADMIN-05**: Admin routes, secrets, edit-history behavior, media cleanup, and operator-bridge retirement are reviewed for security and documented before the admin workflow is considered complete.
 
 ### AI-Assisted Ingest
 
 - [ ] **AI-01**: Upload workflow can generate AI-assisted metadata suggestions for fields such as signer, item type, tags, or inscription text.
 - [ ] **AI-02**: OCR and AI suggestions remain advisory, and the admin can correct or ignore them before final save.
 - [ ] **AI-03**: Upload workflow still succeeds with manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
+- [ ] **AI-04**: AI/OCR providers, prompts, failure modes, privacy boundaries, and configuration/secrets are reviewed for security and documented before AI-assisted ingest is considered complete.
 
 ### Public Showcase and Hardening
 
@@ -92,9 +94,11 @@ None currently. Future scope should be added only if it directly supports the pe
 | ADMIN-02 | Phase 5 | Pending |
 | ADMIN-03 | Phase 5 | Pending |
 | ADMIN-04 | Phase 5 | Pending |
+| ADMIN-05 | Phase 5 | Pending |
 | AI-01 | Phase 6 | Pending |
 | AI-02 | Phase 6 | Pending |
 | AI-03 | Phase 6 | Pending |
+| AI-04 | Phase 6 | Pending |
 | SHIP-01 | Phase 4 | Pending |
 | SHIP-02 | Phase 4 | Pending |
 | SHIP-03 | Phase 4 | Pending |
@@ -102,8 +106,8 @@ None currently. Future scope should be added only if it directly supports the pe
 | SHIP-05 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 27 total
-- Mapped to phases: 27
+- v1 requirements: 29 total
+- Mapped to phases: 29
 - Unmapped: 0
 
 ---

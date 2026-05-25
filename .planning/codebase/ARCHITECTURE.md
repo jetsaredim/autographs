@@ -4,7 +4,7 @@
 
 ## Pattern Overview
 
-Autographs is now an implemented single-application system, not a planning-only repository. The current architecture is a full-stack `Next.js` App Router application under `app/`, backed by Oracle Autonomous Database for catalog metadata and private OCI Object Storage for autograph images. Public visitors browse only published items, while temporary operator-only mutation routes remain token-guarded and blocked at the public Caddy edge until Phase 4 replaces them with the real single-admin workflow.
+Autographs is now an implemented single-application system, not a planning-only repository. The current architecture is a full-stack `Next.js` App Router application under `app/`, backed by Oracle Autonomous Database for catalog metadata and private OCI Object Storage for autograph images. Public visitors browse only published items, while temporary operator-only mutation routes remain token-guarded and blocked at the public Caddy edge until Phase 5 replaces them with the real single-admin workflow.
 
 ## Layers
 
@@ -20,7 +20,7 @@ Autographs is now an implemented single-application system, not a planning-only 
 
 **Temporary Operator API Layer**
 - Location: `app/app/api/operator/catalog/`
-- Purpose: Transitional token-guarded create, update, image attach, image delete, and item delete workflows for production data entry before Phase 4.
+- Purpose: Transitional token-guarded create, update, image attach, image delete, and item delete workflows for production data entry before Phase 5.
 - Boundary: Must remain operator-only by deployment/routing procedure and bearer token; it is not the v1 admin UX.
 
 **Catalog Service Layer**
@@ -60,18 +60,18 @@ Autographs is now an implemented single-application system, not a planning-only 
 - `CatalogRepository`: Persists catalog records, tags, and image metadata through Oracle.
 - `PrivateMediaStore`: Abstracts OCI Object Storage and local media modes.
 - Public view models: Strip private storage fields and build app-mediated image routes.
-- Operator API bridge: Temporary mutation surface used until Phase 4 admin workflow exists.
+- Operator API bridge: Temporary mutation surface used until Phase 5 admin workflow exists.
 
 ## Current Phase Boundary
 
-Phases 1-3 are complete. Phase 4 should build on the existing catalog service, media abstraction, public gallery, and operator bridge. It should not re-scaffold the application or replace the delivery spine.
+Phases 1-3 are complete. Phase 4 should harden, document, and present the current public-gallery/deployment surface. Phase 5 should build the admin workflow on the existing catalog service, media abstraction, public gallery, and operator bridge. It should not re-scaffold the application or replace the delivery spine.
 
 ## Notable Absences
 
 - Real single-admin authentication and admin UX are not implemented yet.
 - Edit history persistence/rendering is not implemented yet.
 - AI-assisted metadata suggestions are not implemented yet.
-- Final public-readiness hardening, repository badges, and README polish remain Phase 6 work.
+- Current-surface public-readiness hardening, repository badges, and README polish remain Phase 4 work.
 
 ---
 

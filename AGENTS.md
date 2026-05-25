@@ -60,9 +60,9 @@ Autographs is a production-lean personal autograph collection website where you 
 - Production targets OCI tenancy resources, Oracle Autonomous Database Free, private OCI Object Storage, and an OCI VM runtime capable of Podman, Caddy, the app container, and configured swap.
 ## Project Maturity
 - Phases 1-3 are complete: delivery spine, OCI bootstrap, Oracle/private media core, and public gallery MVP.
-- Phase 4 admin collection workflow is next for planning.
+- Phase 4 public showcase and hardening is next for planning.
 - The repository is no longer planning-only; it contains application, infrastructure, deployment, testing, and operator documentation artifacts.
-- Do not re-scaffold the app or infra; Phase 4 should build on the existing service boundaries, public gallery, and temporary operator bridge.
+- Do not re-scaffold the app or infra. Phase 4 should harden and document the current public-gallery/deployment surface, while Phase 5 builds admin workflow on the existing service boundaries and temporary operator bridge.
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
@@ -82,14 +82,14 @@ Autographs is a production-lean personal autograph collection website where you 
 - The app uses native CSS in `app/app/globals.css`; Phase 3 explicitly avoided Tailwind, shadcn, decorative gradients, and icon libraries.
 - Use existing service/repository/media boundaries rather than placing persistence details directly in route components.
 - Keep public DTOs free of private storage identifiers.
-- Keep admin/operator terminology precise: current operator APIs are temporary, token-guarded, and blocked by the public Caddy route; Phase 4 admin UX is not implemented yet.
+- Keep admin/operator terminology precise: current operator APIs are temporary, token-guarded, and blocked by the public Caddy route; Phase 5 admin UX is not implemented yet.
 ## Import Organization
 - Prefer relative imports within the app package unless a local alias is introduced intentionally.
 - Use type-only imports for TypeScript-only contracts where possible.
 - Keep framework route/page files thin and delegate behavior to `app/src/*` modules.
 ## Error Handling
 - Public routes should avoid leaking internal storage, OCI, or database details.
-- Operator routes may return operational errors, but must remain token-guarded and accessible only through the documented tunnel/procedure until Phase 4.
+- Operator routes may return operational errors, but must remain token-guarded and accessible only through the documented tunnel/procedure until Phase 5.
 - Service-layer methods throw explicit not-found errors for missing catalog items/images; API routes translate expected not-found cases to HTTP responses.
 ## Logging
 - No project-specific logging abstraction exists yet.
@@ -107,7 +107,7 @@ Autographs is a production-lean personal autograph collection website where you 
 - Keep operator docs procedural and explicit about manual prerequisites, secret handling, and tunnel-only temporary routes.
 - Update `.planning/codebase/*` after substantial codebase drift so future agents do not resurrect planning-only assumptions.
 ## Current Guidance
-- Phase 4 should add admin authentication, create/edit/publish workflows, edit history, and media cleanup guarantees on top of the existing catalog/media service boundaries.
+- Phase 4 should harden and document the current public-gallery/deployment surface; Phase 5 should add admin authentication, create/edit/publish workflows, edit history, and media cleanup guarantees on top of the existing catalog/media service boundaries.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage URLs, or a split frontend/backend service architecture for v1.
 <!-- GSD:conventions-end -->
 
@@ -118,11 +118,11 @@ Autographs is a production-lean personal autograph collection website where you 
 - Autographs is an implemented single-application system, not a planning-only repository.
 - The current architecture is a full-stack `Next.js` App Router application under `app/`, backed by Oracle Autonomous Database for catalog metadata and private OCI Object Storage for autograph images.
 - Public visitors browse only published items.
-- Temporary operator-only mutation routes remain token-guarded and blocked at the public Caddy edge until Phase 4 replaces them with the real single-admin workflow.
+- Temporary operator-only mutation routes remain token-guarded and blocked at the public Caddy edge until Phase 5 replaces them with the real single-admin workflow.
 ## Layers
 - Public web layer: `app/app/` contains anonymous landing, collection, detail, image viewer, architecture, not-found, and shared component surfaces.
 - Public API layer: `app/app/api/catalog/` provides published-only catalog list/detail access and app-mediated image delivery.
-- Temporary operator API layer: `app/app/api/operator/catalog/` provides transitional token-guarded create, update, image attach, image delete, and item delete workflows for production data entry before Phase 4. It is not the v1 admin UX.
+- Temporary operator API layer: `app/app/api/operator/catalog/` provides transitional token-guarded create, update, image attach, image delete, and item delete workflows for production data entry before Phase 5. It is not the v1 admin UX.
 - Catalog service layer: `app/src/catalog/` contains domain types, Oracle repository, catalog service orchestration, public-safe view models, and tests.
 - Media layer: `app/src/media/` abstracts OCI Object Storage and local filesystem-backed media modes.
 - Database layer: `app/src/db/`, `app/db/migrations/`, and `app/scripts/` handle Oracle configuration, schema, migrations, seed data, and data smoke helpers.
@@ -140,16 +140,17 @@ Autographs is a production-lean personal autograph collection website where you 
 - `CatalogRepository`: Persists catalog records, tags, and image metadata through Oracle.
 - `PrivateMediaStore`: Abstracts OCI Object Storage and local media modes.
 - Public view models: Strip private storage fields and build app-mediated image routes.
-- Operator API bridge: Temporary mutation surface used until Phase 4 admin workflow exists.
+- Operator API bridge: Temporary mutation surface used until Phase 5 admin workflow exists.
 ## Current Phase Boundary
 - Phases 1-3 are complete.
-- Phase 4 should build on the existing catalog service, media abstraction, public gallery, and operator bridge.
+- Phase 4 should harden, document, and present the current public-gallery/deployment surface.
+- Phase 5 should build the admin workflow on the existing catalog service, media abstraction, public gallery, and operator bridge.
 - Do not re-scaffold the application or replace the delivery spine.
 ## Notable Absences
 - Real single-admin authentication and admin UX are not implemented yet.
 - Edit history persistence/rendering is not implemented yet.
 - AI-assisted metadata suggestions are not implemented yet.
-- Final public-readiness hardening, repository badges, and README polish remain Phase 6 work.
+- Current-surface public-readiness hardening, repository badges, and README polish remain Phase 4 work.
 <!-- GSD:architecture-end -->
 
 <!-- GSD:skills-start source:skills/ -->

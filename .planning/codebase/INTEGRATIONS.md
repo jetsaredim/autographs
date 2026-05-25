@@ -33,10 +33,10 @@
 **Current**
 - Public gallery is anonymous.
 - Temporary operator mutation routes require `AUTOGRAPHS_OPERATOR_API_TOKEN`.
-- Operator routes are documented as SSH-tunnel/procedure-only until Phase 4, with public Caddy routing blocking `/api/operator/*`.
+- Operator routes are documented as SSH-tunnel/procedure-only until Phase 5, with public Caddy routing blocking `/api/operator/*`.
 
 **Pending**
-- Real single-admin authentication is Phase 4 scope.
+- Real single-admin authentication is Phase 5 scope.
 - There is intentionally no public account system, multi-admin role hierarchy, or social identity flow for v1.
 
 ## CI/CD and Deployment
@@ -69,7 +69,7 @@
 
 ## AI Integrations
 
-No OCR or AI-assisted metadata suggestion integration is implemented yet. That remains Phase 5 scope and should be advisory, with manual entry remaining fully functional.
+No OCR or AI-assisted metadata suggestion integration is implemented yet. That remains Phase 6 scope and should be advisory, with manual entry remaining fully functional.
 
 ## Practical Interpretation
 

@@ -81,18 +81,26 @@ These commands are used as the baseline verification contract during Phase 3 com
 
 The following capabilities are not yet fully implemented or covered because Phase 4 has not started:
 
+- Current-surface security and attack-vector review coverage.
+- Dependency automation validation for package, workflow, container, and Terraform surfaces.
+- Public showcase/readiness checks for root README, badges, metadata, and stale-doc cleanup.
+- Operational warning triage for the current public-gallery/deployment surface.
+
+### Pending Phase 5 Areas
+
+The following capabilities are not yet fully implemented or covered because Phase 5 has not started:
+
 - Real admin authentication flow.
 - End-to-end admin create/edit workflow.
 - Edit history persistence and rendering.
 - Media replacement/orphan cleanup guarantees.
-- Final admin/public boundary hardening.
+- Admin/public boundary hardening.
+- Admin route, secret, operator-bridge retirement, and edit-history documentation checks.
 
-### Pending Phase 5/6 Areas
+### Pending Phase 6 Areas
 
 - OCR/AI-assisted ingest validation.
-- Final public showcase hardening.
-- Dependency automation validation.
-- Final public-readiness security review.
+- AI/OCR provider, prompt, failure-mode, privacy-boundary, and configuration/secret review.
 
 ## Practical Guidance
 
@@ -106,4 +114,4 @@ The following capabilities are not yet fully implemented or covered because Phas
 
 ---
 
-*Testing analysis refreshed: 2026-05-24 after Phase 3 completion*
+*Testing analysis refreshed: 2026-05-25 after phase reorder review*
