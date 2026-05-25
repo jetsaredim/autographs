@@ -125,6 +125,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Delivery Spine and OCI Bootstrap | 4/4 | Complete | 2026-05-14 |
 | 2. Oracle and Private Media Core | 4/4 | Complete | 2026-05-14 |
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
-| 4. Public Showcase and Hardening | 0/TBD | Not started | - |
+| 4. Public Showcase and Hardening | 0/5 | Not started | - |
 | 5. Admin Collection Workflow | 0/TBD | Not started | - |
 | 6. AI-Assisted Ingest | 0/TBD | Not started | - |

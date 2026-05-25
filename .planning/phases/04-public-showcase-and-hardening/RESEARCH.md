@@ -48,7 +48,7 @@ The highest-value planning work is to close public-readiness gaps: add HTTP secu
 | ID | Description | Research Support |
 |----|-------------|------------------|
 | SHIP-01 | Security and attack-vector review for current app, operator, media, secrets, infra, CI/CD, containers, repo settings | Attack-surface map and hardening findings below. [VERIFIED: .planning/REQUIREMENTS.md] |
-| SHIP-02 | Dependency update automation for packages, actions, containers, Terraform, maintained surfaces | Dependabot recommended, Renovate noted as fallback if GHCR/Caddy/Ansible coverage needs regex managers. [CITED: GitHub/Renovate docs] |
+| SHIP-02 | Dependency update automation for packages, actions, containers, Terraform, maintained surfaces | Renovate selected to cover standard managers plus Ansible/Caddy/custom maintained version surfaces where reliably detectable. [CITED: Renovate docs] |
 | SHIP-03 | Root README explains goals, architecture, local dev, deployment, ops, human+AI collaboration | README is currently placeholder only. [VERIFIED: README.md] |
 | SHIP-04 | Badges/public metadata reflect quality signals | CI/deploy/data-smoke/image-cleanup workflows exist and can supply badge targets. [VERIFIED: .github/workflows/*.yml] |
 | SHIP-05 | Loose ends, stale docs, planning artifacts, warnings are triaged/fixed/tracked | Stale docs include Phase 4/admin wording and architecture diagram AI claims. [VERIFIED: docs/] |
@@ -68,11 +68,9 @@ The highest-value planning work is to close public-readiness gaps: add HTTP secu
 
 ### Dependency Automation Recommendation
 
-Use Dependabot first for Phase 4 because it is native to GitHub and supports the repo's main ecosystems: npm/pnpm via `package-ecosystem: npm`, GitHub Actions, Docker, and Terraform. [CITED: https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories]
+Use Renovate for Phase 4 because the resolved phase decision prioritizes conservative coverage across npm/pnpm, GitHub Actions, Docker/container references, Terraform, Ansible collections, and custom maintained values such as pinned tooling or Caddy image variables where Renovate can reliably detect them. Renovate documents managers for npm, dockerfile, github-actions, terraform, and ansible/ansible-galaxy, with custom managers available for repo-specific version strings. [CITED: https://docs.renovatebot.com/modules/manager/]
 
-Use Renovate only if planning needs better coverage for Ansible collections, Caddy image variables, or custom regex-managed values; Renovate documents managers for npm, dockerfile, github-actions, terraform, and ansible/ansible-galaxy. [CITED: https://docs.renovatebot.com/modules/manager/]
-
-**Installation:** No runtime package installation is required for Phase 4 dependency automation; add `.github/dependabot.yml` or `renovate.json`. [ASSUMED]
+**Installation:** No runtime package installation is required for Phase 4 dependency automation; add `renovate.json`. [ASSUMED]
 
 ## Package Legitimacy Audit
 
@@ -124,8 +122,8 @@ Operator workstation
 
 ```text
 .github/
-├── dependabot.yml          # Phase 4 dependency automation if using Dependabot
 ├── workflows/              # Existing CI/deploy/readiness signals
+renovate.json               # Phase 4 dependency automation
 README.md                   # Public showcase entry point
 docs/
 ├── deployment-runbook.md   # Fix phase numbering and readiness gates
@@ -161,7 +159,7 @@ app/
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Dependency update PR generation | Custom update scripts | Dependabot first; Renovate if broader manager coverage is required | Native tooling already covers most repo surfaces. [CITED: GitHub/Renovate docs] |
+| Dependency update PR generation | Custom update scripts | Renovate with standard managers and conservative custom managers | Native automation covers the repo surfaces without bespoke update logic. [CITED: Renovate docs] |
 | Secret detection | Ad hoc grep-only review | Add a documented secret-scan command/tool in plan; keep grep as supplementary | Secrets can appear in multiple formats; grep misses entropy-based leaks. [ASSUMED] |
 | HTTP security header framework | Middleware from scratch | `next.config.ts` `headers()` and/or Caddy header directives | Existing stack supports response headers. [CITED: Next.js docs] |
 | Admin authentication | Temporary operator token upgrades | Defer to Phase 5 | Phase 4 boundary explicitly excludes admin workflow design. [VERIFIED: user prompt] |
@@ -218,32 +216,21 @@ const nextConfig: NextConfig = {
 };
 ```
 
-### Dependabot Skeleton
+### Renovate Skeleton
 
-```yaml
-# Source: https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories
-version: 2
-updates:
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: weekly
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-  - package-ecosystem: docker
-    directory: /app
-    schedule:
-      interval: weekly
-  - package-ecosystem: terraform
-    directory: /infra/terraform
-    schedule:
-      interval: weekly
-  - package-ecosystem: terraform
-    directory: /infra/terraform/tenancy
-    schedule:
-      interval: weekly
+```json
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "dependencyDashboard": true,
+  "schedule": ["before 5am on monday"],
+  "packageRules": [
+    {
+      "matchManagers": ["npm", "github-actions", "dockerfile", "terraform", "ansible-galaxy"],
+      "groupName": "routine dependency updates"
+    }
+  ]
+}
 ```
 
 ## Plan Split Recommendation
@@ -251,7 +238,7 @@ updates:
 | Plan | Goal | Key Tasks | Verification |
 |------|------|-----------|--------------|
 | 04-01 Security and attack-surface hardening | Close current public/operator/media/readiness risks | Add headers; review `/health/data`; add operator/Caddy static regression; document attack-surface decisions | App tests, build, header curl check, Caddy route check |
-| 04-02 Dependency automation and supply-chain hygiene | Configure update automation and review CI permissions | Add Dependabot or Renovate; group schedules; document update policy; review third-party actions and workflow permissions | Automation config validates; actionlint CI; docs updated |
+| 04-02 Dependency automation and supply-chain hygiene | Configure update automation and review CI permissions | Add Renovate; group schedules; document update policy; review third-party actions and workflow permissions | Automation config validates; actionlint CI; docs updated |
 | 04-03 README, badges, public metadata | Turn repo root into showcase entry point | Rewrite README; add badges for CI/deploy/data smoke/manual where appropriate; add architecture/current status; add human+AI collaboration story | Markdown review; links/badges resolve |
 | 04-04 Stale docs and planning cleanup | Make docs coherent after phase reorder | Fix Phase 4/5 wording; remove AI-as-current diagram claims; update codebase maps; capture open follow-ups | `rg` stale-term audit; docs reviewed |
 | 04-05 Readiness gate and final public-readiness audit | Prove repo is ready to make public or track exceptions | Run local validation, secret/repo hygiene scan, deploy/readiness checklist, open issue list if needed | Checklist complete; no untracked committed-risk files; manual smoke status documented |
@@ -327,7 +314,6 @@ Nyquist validation is disabled in `.planning/config.json`, so no separate Nyquis
 ### Official Docs
 
 - Next.js `headers` config: https://nextjs.org/docs/app/api-reference/config/next-config-js/headers
-- GitHub Dependabot supported ecosystems: https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories
 - GitHub `GITHUB_TOKEN` and permissions: https://docs.github.com/en/actions/concepts/security/github_token and https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
 - Renovate managers: https://docs.renovatebot.com/modules/manager/
 
@@ -335,7 +321,7 @@ Nyquist validation is disabled in `.planning/config.json`, so no separate Nyquis
 
 **Confidence breakdown:**
 - Security/current attack surface: HIGH - verified against route, service, workflow, Caddy, and Ansible files.
-- Dependency automation: MEDIUM - official docs verify coverage, but final Dependabot vs Renovate choice depends on desired Caddy/Ansible custom update breadth.
+- Dependency automation: MEDIUM - official docs verify Renovate manager coverage, but implementation still needs conservative custom-manager choices for repo-specific pinned values.
 - README/docs cleanup: HIGH - placeholder README and stale docs were verified directly.
 - Plan split: HIGH - maps directly to SHIP-01 through SHIP-05.
 
