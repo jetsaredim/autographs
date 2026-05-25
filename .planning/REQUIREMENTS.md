@@ -47,7 +47,7 @@
 
 ### Public Showcase and Hardening
 
-- [ ] **SHIP-01**: Project has a final security and attack-vector review covering app routes, admin access, media delivery, secrets handling, infrastructure permissions, CI/CD permissions, container images, and repository settings.
+- [ ] **SHIP-01**: Project has a security and attack-vector review covering the current app routes, temporary operator access, media delivery, secrets handling, infrastructure permissions, CI/CD permissions, container images, and repository settings, with later admin and AI phases responsible for follow-up reviews of their new surfaces.
 - [ ] **SHIP-02**: Dependency update automation is revisited and either Dependabot, Renovate, or a documented equivalent is configured for package dependencies, GitHub Actions, container images, Terraform providers/modules, and other maintained surfaces.
 - [ ] **SHIP-03**: Root `README.md` explains the project goals, architecture, local development flow, deployment model, operational notes, and the human+AI collaboration story clearly enough for a public audience.
 - [ ] **SHIP-04**: Repository badges and public metadata reflect current quality signals such as CI, linting, type checking, tests or coverage, image/dependency health, and deployment status where appropriate.
@@ -78,28 +78,28 @@ None currently. Future scope should be added only if it directly supports the pe
 | PLAT-03 | Phase 1 | Complete |
 | DATA-01 | Phase 2 | Complete |
 | DATA-02 | Phase 2 | Complete |
-| DATA-03 | Phase 4 | Pending |
+| DATA-03 | Phase 5 | Pending |
 | DATA-04 | Phase 2 | Complete |
 | MEDIA-01 | Phase 2 | Complete |
 | MEDIA-02 | Phase 2 | Complete |
 | MEDIA-03 | Phase 2 | Complete |
-| MEDIA-04 | Phase 4 | Pending |
+| MEDIA-04 | Phase 5 | Pending |
 | GALL-01 | Phase 3 | Complete |
 | GALL-02 | Phase 3 | Complete |
 | GALL-03 | Phase 3 | Complete |
 | GALL-04 | Phase 3 | Complete |
-| ADMIN-01 | Phase 4 | Pending |
-| ADMIN-02 | Phase 4 | Pending |
-| ADMIN-03 | Phase 4 | Pending |
-| ADMIN-04 | Phase 4 | Pending |
-| AI-01 | Phase 5 | Pending |
-| AI-02 | Phase 5 | Pending |
-| AI-03 | Phase 5 | Pending |
-| SHIP-01 | Phase 6 | Pending |
-| SHIP-02 | Phase 6 | Pending |
-| SHIP-03 | Phase 6 | Pending |
-| SHIP-04 | Phase 6 | Pending |
-| SHIP-05 | Phase 6 | Pending |
+| ADMIN-01 | Phase 5 | Pending |
+| ADMIN-02 | Phase 5 | Pending |
+| ADMIN-03 | Phase 5 | Pending |
+| ADMIN-04 | Phase 5 | Pending |
+| AI-01 | Phase 6 | Pending |
+| AI-02 | Phase 6 | Pending |
+| AI-03 | Phase 6 | Pending |
+| SHIP-01 | Phase 4 | Pending |
+| SHIP-02 | Phase 4 | Pending |
+| SHIP-03 | Phase 4 | Pending |
+| SHIP-04 | Phase 4 | Pending |
+| SHIP-05 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 27 total
@@ -108,4 +108,4 @@ None currently. Future scope should be added only if it directly supports the pe
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-05-24 after syncing completed public gallery requirements with Phase 3 state*
+*Last updated: 2026-05-25 after moving public showcase and hardening to Phase 4*
