@@ -39,7 +39,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - GitHub remains the source of truth for delivery, with pull-request validation, GHCR image publishing, and automated deployment on merge to `main`.
 - Runtime deployment uses Podman quadlets managed through Ansible rather than compose-style orchestration.
 - Public image access remains app-mediated through `/api/catalog/{itemId}/images/{imageId}` routes instead of direct Object Storage URLs.
-- Temporary operator-only mutation routes remain intentionally token-guarded and excluded from public ingress until the dedicated Phase 4 admin workflow replaces them.
+- Temporary operator-only mutation routes remain intentionally token-guarded and excluded from public ingress until the dedicated Phase 5 admin workflow replaces them.
 - The intended product remains a personal collection site rather than a reusable platform, so roadmap choices continue to prioritize collection quality, manageability, and presentation over multi-user extensibility.
 
 ## Constraints
@@ -63,10 +63,11 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 | Bias toward OCI Always Free-compatible primitives and a single `Next.js` app | This matches the product brief and keeps the first release operable for one developer | Validated through deployed runtime |
 | Optimize for a personal collection rather than a general user platform | The site is meant to present and manage your own autograph collection, so features like multi-image support and edit history matter more than user systems or social capabilities | Ongoing guiding principle |
 | Keep public image delivery app-mediated instead of exposing direct Object Storage URLs | Preserves private-media boundaries and centralized access control | Validated in Phases 2-3 |
-| Use token-guarded operator endpoints only as a temporary verification seam | Phase 2 needed safe mutation verification before the Phase 4 admin workflow existed | Temporary bridge until Phase 4 |
+| Use token-guarded operator endpoints only as a temporary verification seam | Phase 2 needed safe mutation verification before the admin workflow existed | Temporary bridge until Phase 5 |
 | Manage runtime services with Podman quadlets through Ansible | Simplifies long-lived runtime operations compared to compose-style orchestration on the OCI VM | Adopted in runtime deployment |
-| Treat multi-image support and edit history as v1 capabilities | These directly improve personal collection quality and manageability | Phase 4 requirement baseline |
-| Finish with a public-readiness hardening and showcase phase | Public release quality requires explicit cleanup, security review, dependency hygiene, and presentation work | Captured as Phase 6 |
+| Move public-readiness hardening before admin and AI | The current gallery/deployment system can be made safe and presentable before adding larger private mutation and AI surfaces | Phase 4 focus as of 2026-05-25 |
+| Treat multi-image support and edit history as v1 capabilities | These directly improve personal collection quality and manageability | Phase 5 requirement baseline |
+| Add AI-assisted ingest after admin workflow | AI suggestions should enhance a proven manual admin flow rather than define it | Captured as Phase 6 |
 
 ## Evolution
 
@@ -86,4 +87,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-24 after Phase 3 completion and Phase 4 transition readiness review*
+*Last updated: 2026-05-25 after moving public showcase and hardening before admin workflow*
