@@ -1,107 +1,84 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-04-18
+**Analysis Date:** 2026-05-25
 
 ## Directory Layout
 
 ```text
 autographs/
-├── .planning/                         # Generated repository intelligence and planning artifacts
-│   └── codebase/                     # Current-state mapping documents
-├── .prompts/                         # Reusable execution prompts and summaries
-│   └── 001-autograph-gallery-bootstrap-do/
-│       ├── 001-autograph-gallery-bootstrap-do.md   # Primary build prompt
-│       ├── SUMMARY.md                             # Prompt summary
-│       └── completed/                            # Marker/output directory for prompt workflow
-└── README.md                          # Minimal repository identifier
+├── app/                         # Full-stack Next.js application package
+│   ├── app/                     # App Router pages, layouts, API routes, components
+│   ├── db/                      # SQL migrations and seed fixtures
+│   ├── scripts/                 # Migration, seed, and smoke scripts
+│   └── src/                     # Catalog, database, media, and test modules
+├── deploy/ansible/              # OCI runtime VM configuration and Podman quadlets
+├── docs/                        # Operator runbooks and configuration docs
+├── infra/terraform/             # OCI infrastructure as code
+├── .github/workflows/           # CI, deploy, data smoke, and image cleanup workflows
+├── .planning/                   # GSD project state, roadmap, phases, and codebase maps
+├── .prompts/                    # Original implementation prompt artifacts
+├── package.json                 # Root pnpm workspace commands
+└── pnpm-workspace.yaml          # Workspace definition
 ```
-
-## Directory Purposes
-
-**`.planning/`:**
-- Purpose: Hold generated planning and analysis outputs.
-- Contains: Markdown reference documents under `.planning/codebase/`.
-- Key files: `.planning/codebase/ARCHITECTURE.md`, `.planning/codebase/STRUCTURE.md`
-
-**`.planning/codebase/`:**
-- Purpose: Store codebase mapping documents consumed by later planning/execution flows.
-- Contains: Repository analysis in uppercase Markdown files.
-- Key files: `.planning/codebase/ARCHITECTURE.md`, `.planning/codebase/STRUCTURE.md`
-
-**`.prompts/`:**
-- Purpose: Hold reusable prompts that describe future implementation work.
-- Contains: Numbered prompt directories.
-- Key files: `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`
-
-**`.prompts/001-autograph-gallery-bootstrap-do/`:**
-- Purpose: Serve as the main source of product and implementation intent for the repository's planned autograph-gallery build.
-- Contains: The authoritative project prompt, `SUMMARY.md`, and a `completed/` subdirectory.
-- Key files: `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`, `.prompts/001-autograph-gallery-bootstrap-do/SUMMARY.md`
 
 ## Key File Locations
 
-**Entry Points:**
-- `README.md`: Minimal repository landing file.
-- `.prompts/001-autograph-gallery-bootstrap-do/`: Main source of project intent in the current repository.
-- `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`: Primary actionable artifact in the current repository.
-- `.prompts/001-autograph-gallery-bootstrap-do/SUMMARY.md`: Quick-reference summary for the prompt.
+**Application Entry Points**
+- `app/app/layout.tsx`: root metadata/layout.
+- `app/app/page.tsx`: public landing page.
+- `app/app/collection/page.tsx`: public collection grid and URL-backed filters.
+- `app/app/collection/[id]/page.tsx`: published item detail page.
+- `app/app/admin/page.tsx`: placeholder only; Phase 4 owns real admin workflow.
 
-**Configuration:**
-- Not detected. No package manager, framework, lint, test, container, or infrastructure configuration files are present at the repository root.
+**API Routes**
+- `app/app/api/catalog/`: public published-only catalog and app-mediated images.
+- `app/app/api/operator/catalog/`: temporary token-guarded operator mutation bridge.
+- `app/app/health/`: runtime health endpoints.
 
-**Core Logic:**
-- Not detected. The repository contains no runtime implementation files.
+**Domain Logic**
+- `app/src/catalog/`: catalog types, service, Oracle repository, public view models, tests.
+- `app/src/media/`: private media store abstraction and OCI/local implementations.
+- `app/src/db/`: Oracle connection/config/migration helpers.
 
-**Testing:**
-- Not detected. No test directories, test files, or test runner configuration files are present.
+**Infrastructure and Runtime**
+- `infra/terraform/`: OCI networking, compute, ADB, Object Storage, DNS, and supporting resources.
+- `infra/terraform/tenancy/`: tenancy-level/manual-bootstrap guidance and examples.
+- `deploy/ansible/`: VM runtime setup, app/Caddy quadlets, deployment roles.
+- `.github/workflows/`: repository validation, deployment, smoke, and cleanup workflows.
 
-## Naming Conventions
+**Planning and Documentation**
+- `.planning/PROJECT.md`, `.planning/ROADMAP.md`, `.planning/REQUIREMENTS.md`, `.planning/STATE.md`: high-level GSD truth.
+- `.planning/phases/01-*`, `02-*`, `03-*`: completed phase plans/summaries.
+- `.planning/codebase/*.md`: current codebase maps for future agents.
+- `docs/`: operator-facing setup, deploy, DNS, Terraform, and temporary data-entry runbooks.
 
-**Files:**
-- Prompt files use numeric prefixes plus descriptive kebab-case names, for example `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`.
-- Summary files use uppercase `SUMMARY.md`.
-- Codebase mapping files use uppercase names, for example `.planning/codebase/ARCHITECTURE.md` and `.planning/codebase/STRUCTURE.md`.
+## Test Organization
 
-**Directories:**
-- Workflow/prompt directories use numeric prefixes with kebab-case identifiers, for example `.prompts/001-autograph-gallery-bootstrap-do/`.
-- Planning output is grouped by concern under `.planning/codebase/`.
+- `app/src/**/*.test.ts`: Node test runner coverage for service logic, public view models, approved quote inventory, and public-surface privacy regressions.
+- Primary commands are run through pnpm workspace filters: `corepack pnpm --filter app test`, `lint`, `typecheck`, and `build`.
 
 ## Where to Add New Code
 
-**New Feature:**
-- Primary code: Not established yet. The prompt in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` suggests a future `app/` or framework-standard Next.js layout, but that structure does not exist yet.
-- Tests: Not established yet. Add a test location only after the runtime stack is created.
+**Phase 4 Admin Workflow**
+- Admin pages/components: `app/app/admin/` and `app/app/components/` as needed.
+- Admin API/server actions: prefer existing service boundaries in `app/src/catalog/` and `app/src/media/`; avoid duplicating persistence logic in UI routes.
+- Auth/session helpers: add under a focused `app/src/admin/` or `app/src/auth/` module once the mechanism is chosen.
+- Edit history: extend `app/db/migrations/` and `app/src/catalog/` rather than creating a parallel audit store.
 
-**New Component/Module:**
-- Implementation: Follow the selected framework's default layout once the first implementation pass creates it. Do not infer an existing convention from the current repo because none is present.
+**Public Gallery Changes**
+- Keep public DTOs in `app/src/catalog/public-view-models.ts`.
+- Keep public privacy regressions in `app/src/gallery/public-surface.test.ts`.
 
-**Utilities:**
-- Shared helpers: Not established. No shared utility directory exists today.
-
-## Special Directories
-
-**`.prompts/`:**
-- Purpose: Stores prompt artifacts that describe work to be done.
-- Generated: No
-- Committed: Yes
-
-**`.planning/`:**
-- Purpose: Stores generated analysis/planning documents for agent workflows.
-- Generated: Yes
-- Committed: Yes
-
-**`.prompts/001-autograph-gallery-bootstrap-do/completed/`:**
-- Purpose: Workflow support directory associated with the prompt artifact.
-- Generated: Likely yes
-- Committed: Yes
+**Infrastructure Changes**
+- Use `infra/terraform/` for app infrastructure and `infra/terraform/tenancy/` only for tenancy-level bootstrap concerns.
+- Keep runtime VM behavior in `deploy/ansible/` unless a Terraform resource boundary truly belongs in infrastructure.
 
 ## Current Layout Guidance
 
-- Treat the repository as planning-first until real implementation directories are added.
-- Treat `.prompts/001-autograph-gallery-bootstrap-do/` as the main source of product and implementation intent until runtime code exists.
-- Use `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` as the authoritative source for the intended first runtime layout, but document newly created directories only after they actually exist.
-- Avoid assuming conventions such as `src/`, `app/`, `infra/`, `.github/workflows/`, or `db/` until those paths are introduced by implementation work.
+- Do not re-scaffold the app, pnpm workspace, workflows, or Terraform baseline.
+- Treat `.prompts/001-autograph-gallery-bootstrap-do/` as historical product intent, not the current implementation map.
+- Treat Phase 4 as additive admin workflow work on top of the completed public/data/media foundation.
 
 ---
 
-*Structure analysis: 2026-04-18*
+*Structure analysis refreshed: 2026-05-25 after repo-state reconciliation*

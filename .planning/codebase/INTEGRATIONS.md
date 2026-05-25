@@ -1,77 +1,80 @@
 # External Integrations
 
-**Analysis Date:** 2026-04-18
+**Analysis Date:** 2026-05-25
 
-## APIs & External Services
+## APIs and External Services
 
-**Current Repository State:**
-- None implemented - No application code, client libraries, or deployment configuration exist in the repository files that were inspected.
+**Oracle Cloud Infrastructure**
+- Terraform provisions and manages OCI app infrastructure under `infra/terraform/`.
+- Tenancy/root bootstrap guidance lives under `infra/terraform/tenancy/` and docs.
+- Runtime deploys target an OCI VM using Ansible-managed Podman quadlets.
 
-**Planned In Prompt Only:**
-- Oracle Cloud Infrastructure - Described as the target hosting platform in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`, but no OCI SDK usage, Terraform provider configuration, or deployment scripts exist yet.
-- GitHub Actions - Required by the prompt in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`, but no workflow files exist under `.github/workflows/`.
-- AI-assisted metadata extraction - Mentioned as a future upload feature in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`, but no AI provider integration is implemented.
+**Oracle Autonomous Database**
+- Catalog metadata is stored in Oracle Autonomous Database Free.
+- Schema lives in `app/db/migrations/001_catalog_core.sql`.
+- Data access is implemented through `app/src/db/*` and `app/src/catalog/repository.ts`.
 
-## Data Storage
+**OCI Object Storage**
+- Autograph images are stored in a private Object Storage bucket.
+- Media access is abstracted through `app/src/media/`.
+- Public visitors receive images only through app-mediated routes, not direct object URLs.
 
-**Databases:**
-- None implemented.
-- Oracle Autonomous Database Free is specified as a preferred future database in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`, but there is no schema, client, migration tool, or connection configuration in the repository.
+**GitHub Actions and GHCR**
+- CI/deploy workflows live in `.github/workflows/`.
+- App images are built/published to GHCR and deployed by digest.
+- Data smoke and image cleanup have dedicated workflows.
 
-**File Storage:**
-- Local repository files only.
-- OCI Object Storage is mentioned as a planned image store in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`, but no storage client code or bucket configuration exists.
+**Local Development Modes**
+- Local filesystem media mode supports development and tests without requiring live OCI media credentials.
+- Seed/smoke scripts live in `app/scripts/`.
 
-**Caching:**
-- None detected.
+## Authentication and Identity
 
-## Authentication & Identity
+**Current**
+- Public gallery is anonymous.
+- Temporary operator mutation routes require `AUTOGRAPHS_OPERATOR_API_TOKEN`.
+- Operator routes are documented as SSH-tunnel/procedure-only until Phase 4, with public Caddy routing blocking `/api/operator/*`.
 
-**Auth Provider:**
-- None implemented.
-- The prompt specifies exactly one future admin authentication path in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`, but no auth code, identity provider config, or secret contract exists.
+**Pending**
+- Real single-admin authentication is Phase 4 scope.
+- There is intentionally no public account system, multi-admin role hierarchy, or social identity flow for v1.
 
-## Monitoring & Observability
+## CI/CD and Deployment
 
-**Error Tracking:**
-- None detected.
+**Implemented**
+- Pull-request validation through GitHub Actions.
+- Merge-to-main deployment path.
+- GHCR image publishing.
+- OCI runtime configuration through Ansible.
+- Podman quadlets for app and Caddy services.
 
-**Logs:**
-- None detected beyond whatever future tooling may be added.
-
-## CI/CD & Deployment
-
-**Hosting:**
-- None implemented.
-- OCI Compute A1 Flex is described as a preferred future target in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`.
-
-**CI Pipeline:**
-- None implemented.
-- No `.github/workflows/` files were found in the repository scan.
+**Operator Docs**
+- `docs/configuration-contract.md`
+- `docs/deployment-runbook.md`
+- `docs/oci-bootstrap.md`
+- `docs/terraform-state.md`
+- `docs/terraform-tenancy-split.md`
+- `docs/temporary-production-data-entry.md`
 
 ## Environment Configuration
 
-**Required env vars:**
-- Not defined in code.
-- Future secret handling is described generically in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` as GitHub Secrets for OCI credentials and deployment inputs, but no concrete variable names are committed yet.
+**Committed Contracts**
+- `.env.example` for local/runtime app variables.
+- `.github/.env.github.example` for GitHub Actions secrets and variables.
+- `docs/configuration-contract.md` for human-readable configuration guidance.
 
-**Secrets location:**
-- Not detected in repository files.
-- No `.env.example` or secret contract document exists.
+**Secret Handling**
+- Real OCI identifiers, API keys, Oracle wallet material, ADB password, GHCR token, and operator token must stay in environment/GitHub/operator secret stores.
+- Terraform state and override files are ignored by `.gitignore`; do not commit live state or real tfvars.
 
-## Webhooks & Callbacks
+## AI Integrations
 
-**Incoming:**
-- None implemented.
-
-**Outgoing:**
-- None implemented.
+No OCR or AI-assisted metadata suggestion integration is implemented yet. That remains Phase 5 scope and should be advisory, with manual entry remaining fully functional.
 
 ## Practical Interpretation
 
-- `INTEGRATIONS.md` should be read as an audit of current implementation, not the desired platform described in prompt files.
-- The only reliable evidence today is the planning text in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` and `.prompts/001-autograph-gallery-bootstrap-do/SUMMARY.md`; no third-party integration has been wired into executable code.
+The repo now contains real app, infrastructure, delivery, and operator integration surfaces. Future work should extend these boundaries rather than treating OCI, Oracle, Object Storage, or GitHub Actions as prompt-only intent.
 
 ---
 
-*Integration audit: 2026-04-18*
+*Integration audit refreshed: 2026-05-25 after repo-state reconciliation*
