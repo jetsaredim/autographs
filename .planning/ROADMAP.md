@@ -87,7 +87,7 @@ Plans:
 ### Phase 5: Admin Collection Workflow
 **Goal**: The collection owner can securely manage the catalog end to end, including creating, editing, publishing, multi-image maintenance, and reviewing edit history.
 **Depends on**: Phase 4
-**Requirements**: DATA-03, MEDIA-04, ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04
+**Requirements**: DATA-03, MEDIA-04, ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04, ADMIN-05
 **Success Criteria** (what must be TRUE):
   1. Exactly one admin authentication path exists for collection management, with no public account system required.
   2. Admin can create a new autograph item by uploading images, reviewing metadata, and saving the item before publication.
@@ -100,7 +100,7 @@ Plans:
 ### Phase 6: AI-Assisted Ingest
 **Goal**: The admin workflow gains advisory OCR/AI metadata suggestions that speed up cataloging without blocking manual control.
 **Depends on**: Phase 5
-**Requirements**: AI-01, AI-02, AI-03
+**Requirements**: AI-01, AI-02, AI-03, AI-04
 **Success Criteria** (what must be TRUE):
   1. Upload workflow can generate AI-assisted metadata suggestions for relevant autograph fields such as signer, item type, tags, or inscription text.
   2. Admin can review, correct, or ignore OCR and AI suggestions before saving the item.
