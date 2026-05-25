@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import test from "node:test";
+import nextConfig from "../../next.config";
 
 const appRoot = new URL("../../app", import.meta.url);
 const publicSurfaceRoot = appRoot.pathname;
+const repoRoot = new URL("../../..", import.meta.url).pathname;
 const publicDenyList = [
   "storageNamespace",
   "bucketName",
@@ -70,6 +72,28 @@ test("admin placeholder files do not implement privileged workflows", async () =
       assert.equal(source.includes(denied), false, `${relative(publicSurfaceRoot, file)} contains ${denied}`);
     }
   }
+});
+
+test("next config applies baseline public security headers", async () => {
+  assert.equal(typeof nextConfig.headers, "function");
+
+  const headerRules = await nextConfig.headers();
+  const allHeaders = new Map(headerRules.flatMap((rule) => rule.headers.map((header) => [header.key, header.value])));
+
+  assert.equal(allHeaders.get("X-Content-Type-Options"), "nosniff");
+  assert.equal(allHeaders.get("Referrer-Policy"), "strict-origin-when-cross-origin");
+  assert.match(allHeaders.get("Permissions-Policy") ?? "", /camera=\(\), microphone=\(\), geolocation=\(\)/u);
+  assert.match(allHeaders.get("Content-Security-Policy") ?? "", /frame-ancestors 'none'/u);
+});
+
+test("public caddy edge blocks temporary operator routes", async () => {
+  const caddyfile = await readFile(
+    join(repoRoot, "deploy/ansible/roles/autographs_deploy/files/Caddyfile"),
+    "utf8",
+  );
+
+  assert.match(caddyfile, /@operator\s+path\s+\/api\/operator\s+\/api\/operator\/\*/u);
+  assert.match(caddyfile, /respond\s+@operator\s+404/u);
 });
 
 const listSourceFiles = async (directory: string): Promise<string[]> => {
