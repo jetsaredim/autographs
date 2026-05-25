@@ -12,7 +12,7 @@
 **Temporary operator API must not become accidental admin UX**
 - Issue: `/api/operator/catalog/*` supports real mutation workflows for production data entry before Phase 4.
 - Impact: If exposed through public routing or copied into UI, it could bypass the intended single-admin design.
-- Mitigation: Keep routes token-guarded, tunnel/procedure-only, and covered by public-surface tests until Phase 4 replaces the bridge.
+- Mitigation: Keep routes token-guarded, blocked at the public Caddy edge, tunnel/procedure-only for production use, and covered by public-surface tests until Phase 4 replaces the bridge.
 
 **Phase 4 owns durable admin guarantees**
 - Issue: Multi-image upload/delete support exists through service/operator paths, but real admin auth, edit history, and end-to-end create/edit/publish UX remain pending.

@@ -33,7 +33,7 @@
 **Current**
 - Public gallery is anonymous.
 - Temporary operator mutation routes require `AUTOGRAPHS_OPERATOR_API_TOKEN`.
-- Operator routes are documented as SSH-tunnel/procedure-only until Phase 4.
+- Operator routes are documented as SSH-tunnel/procedure-only until Phase 4, with public Caddy routing blocking `/api/operator/*`.
 
 **Pending**
 - Real single-admin authentication is Phase 4 scope.
