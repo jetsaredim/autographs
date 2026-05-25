@@ -20,7 +20,8 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 
 - [x] Deliver a real end-to-end OCI-hosted personal autograph collection foundation with infrastructure, application scaffold, and deployment automation.
 - [x] Support anonymous public browsing with searchable autograph records, private image delivery mediated by the app, and enough metadata to make the collection useful.
-- [ ] Support a single-admin collection management workflow with AI-assisted metadata suggestions, multiple images per item, and edit history from v1.
+- [ ] Support a single-admin collection management workflow with multiple images per item and edit history from v1.
+- [ ] Add advisory AI-assisted metadata suggestions after the manual admin workflow exists, without making cataloging depend on AI.
 - [ ] Keep the system operable by one developer using OCI Always Free services wherever practical.
 
 ### Out of Scope

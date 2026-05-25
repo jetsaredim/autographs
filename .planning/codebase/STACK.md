@@ -84,14 +84,14 @@
 
 **Current State:**
 - Phases 1-3 are complete: delivery spine, OCI bootstrap, Oracle/private media core, and public gallery MVP.
-- Phase 4 admin collection workflow is next for planning.
+- Phase 4 public showcase and hardening is next for planning.
 - The repository is no longer planning-only; it contains application, infrastructure, deployment, testing, and operator documentation artifacts.
 
 **Practical Guidance:**
 - Treat `.planning/STATE.md`, `.planning/ROADMAP.md`, and `.planning/PROJECT.md` as the current high-level planning sources of truth.
 - Treat `.planning/codebase/*` as a current-state codebase map, not as historical prompt intent.
-- Do not re-scaffold the app or infra; Phase 4 should build on the existing service boundaries, public gallery, and temporary operator bridge.
+- Do not re-scaffold the app or infra. Phase 4 should harden and document the current public-gallery/deployment surface, while Phase 5 builds admin workflow on the existing service boundaries and temporary operator bridge.
 
 ---
 
-*Stack analysis: 2026-05-24 after Phase 3 completion*
+*Stack analysis refreshed: 2026-05-25 after phase reorder review*

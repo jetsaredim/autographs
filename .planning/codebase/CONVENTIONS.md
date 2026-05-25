@@ -24,7 +24,7 @@
 - The app uses native CSS in `app/app/globals.css`; Phase 3 explicitly avoided Tailwind, shadcn, decorative gradients, and icon libraries.
 - Use existing service/repository/media boundaries rather than placing persistence details directly in route components.
 - Keep public DTOs free of private storage identifiers.
-- Keep admin/operator terminology precise: current operator APIs are temporary, token-guarded, and blocked by the public Caddy route; Phase 4 admin UX is not implemented yet.
+- Keep admin/operator terminology precise: current operator APIs are temporary, token-guarded, and blocked by the public Caddy route; Phase 5 admin UX is not implemented yet.
 
 ## Import Organization
 
@@ -35,7 +35,7 @@
 ## Error Handling
 
 - Public routes should avoid leaking internal storage, OCI, or database details.
-- Operator routes may return operational errors, but must remain token-guarded and accessible only through the documented tunnel/procedure until Phase 4.
+- Operator routes may return operational errors, but must remain token-guarded and accessible only through the documented tunnel/procedure until Phase 5.
 - Service-layer methods throw explicit not-found errors for missing catalog items/images; API routes translate expected not-found cases to HTTP responses.
 
 ## Testing Habits
@@ -53,7 +53,7 @@
 
 ## Current Guidance
 
-- Phase 4 should add admin authentication, create/edit/publish workflows, edit history, and media cleanup guarantees on top of the existing catalog/media service boundaries.
+- Phase 4 should harden and document the current public-gallery/deployment surface; Phase 5 should add admin authentication, create/edit/publish workflows, edit history, and media cleanup guarantees on top of the existing catalog/media service boundaries.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage URLs, or a split frontend/backend service architecture for v1.
 
 ---

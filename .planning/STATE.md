@@ -5,7 +5,7 @@ milestone_name: milestone
 status: completed
 stopped_at: Phase 3 complete
 last_updated: "2026-05-25T06:30:00Z"
-last_activity: 2026-05-25 -- Reordered roadmap so public showcase and hardening runs before admin workflow
+last_activity: 2026-05-25 -- Reconciled post-merge phase reorder review warnings
 progress:
   total_phases: 6
   completed_phases: 3
@@ -18,7 +18,7 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-24)
+See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
 **Current focus:** Phase 04 — public-showcase-and-hardening planning readiness
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-05-24)
 
 Phase: 03 (public-gallery-mvp) — COMPLETE
 Plan: 5 of 5 complete
-Status: Phase 3 public gallery MVP is complete; Phase 4 public showcase and hardening is next for planning. Admin collection workflow is now Phase 5, and AI-assisted ingest is Phase 6. Codebase maps and AGENTS generated sections describe the implemented app, infra, CI/CD, and operator bridge. Public Caddy routing blocks temporary operator API paths so the documented tunnel-only procedure remains true.
-Last activity: 2026-05-25 -- Reordered roadmap so public showcase and hardening runs before admin workflow
+Status: Phase 3 public gallery MVP is complete; Phase 4 public showcase and hardening is next for planning. Admin collection workflow is now Phase 5, and AI-assisted ingest is Phase 6. Public Caddy routing blocks temporary operator API paths so the documented tunnel-only procedure remains true.
+Last activity: 2026-05-25 -- Reconciled post-merge phase reorder review warnings
 
 Progress: [██████████] 100% of currently planned execution plans
 
@@ -71,6 +71,7 @@ Recent decisions affecting current work:
 - Phase 4: Run public-readiness and hardening before adding admin and AI surfaces, focused on the current public-gallery/deployment system.
 - Phase 5: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
 - Phase 6: Add advisory AI-assisted ingest after the admin workflow exists, without making manual entry dependent on AI.
+- Review follow-up: Phase 5 and Phase 6 now carry explicit security/documentation completion criteria for the new admin and AI surfaces they introduce.
 
 ### Pending Todos
 
@@ -92,8 +93,9 @@ Resume file: .planning/phases/03-public-gallery-mvp/03-05-SUMMARY.md
 | Date | Task | Summary |
 |------|------|---------|
 | 2026-05-20 | podman-quadlet-deploy | Replaced compose/cloud-init runtime setup with Ansible-managed Podman quadlets and added manual runtime VM taint support. |
-| 2026-05-21 | phase-6-scope | Added Public Showcase and Hardening as Phase 6 after AI-assisted ingest. |
+| 2026-05-21 | phase-6-scope | Originally added Public Showcase and Hardening after AI-assisted ingest; later reordered to Phase 4. |
 | 2026-05-25 | reconcile-docs-and-workflow-guardrails | Refreshed stale codebase maps after out-of-GSD implementation progress and prepared workflow guardrail updates. |
 | 2026-05-25 | add-protected-branch-commit-guardrails | Added project and global GSD guardrails to prevent direct commits to `main` or `master`. |
 | 2026-05-25 | address-pr-review-findings | Refreshed stale `AGENTS.md` generated sections and made public Caddy routing block temporary operator API paths. |
 | 2026-05-25 | reorder-showcase-before-admin | Moved Public Showcase and Hardening ahead of Admin Collection Workflow so hardening/docs polish run next. |
+| 2026-05-25 | reconcile-phase-reorder-review | Addressed post-merge review warnings from PR #65 by aligning phase criteria and generated docs. |
