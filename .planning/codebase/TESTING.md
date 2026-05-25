@@ -1,143 +1,109 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-04-18
+**Analysis Date:** 2026-05-24
 
-## Test Framework
+## Validation Contract
 
-**Runner:**
-- Not detected
-- Config: Not detected. No `jest.config.*`, `vitest.config.*`, `playwright.config.*`, or `cypress.config.*` files exist.
+The repository now has an implemented validation surface for the application and deployment flow.
 
-**Assertion Library:**
-- Not detected
+### Primary Commands
 
-**Run Commands:**
 ```bash
-# No test command exists yet.
-# No watch-mode command exists yet.
-# No coverage command exists yet.
+corepack pnpm --filter app lint
+corepack pnpm --filter app typecheck
+corepack pnpm --filter app test
+corepack pnpm --filter app build
 ```
 
-## Test File Organization
+These commands are used as the baseline verification contract during Phase 3 completion and deployment validation.
 
-**Location:**
-- Not detected. There are no `tests/`, `__tests__/`, `src/`, `app/`, or co-located test files in the repository.
+## Test Scope
 
-**Naming:**
-- Not detected. No `*.test.*` or `*.spec.*` files are present.
+### Application Tests
 
-**Structure:**
-```text
-Current tracked files:
-- README.md
-- .prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md
-- .prompts/001-autograph-gallery-bootstrap-do/SUMMARY.md
-```
+**Covered Areas:**
+- Catalog data access and transformation paths.
+- Public gallery listing and filtering behavior.
+- Item detail metadata rendering.
+- Multi-image public presentation behavior.
+- App-mediated image route protections.
+- Public-surface privacy regression coverage.
 
-## Test Structure
+### Infrastructure and Deployment Validation
 
-**Suite Organization:**
-```typescript
-// Not applicable: no test files exist yet.
-```
+**Covered Areas:**
+- GitHub Actions workflow validation.
+- OCI deployment pipeline validation.
+- Environment contract verification.
+- Runtime container deployment behavior.
+- Schema and migration drift checks where applicable.
 
-**Patterns:**
-- Setup pattern: Not detected
-- Teardown pattern: Not detected
-- Assertion pattern: Not detected
+## Current Testing Strategy
 
-## Mocking
+### Unit and Service-Level Validation
 
-**Framework:** Not detected
+- Service-layer logic is tested independently from live OCI integrations where possible.
+- Local-mode and representative data paths are used to reduce dependency on live cloud credentials during routine development.
 
-**Patterns:**
-```typescript
-// Not applicable: no mocking code exists yet.
-```
+### Integration Validation
 
-**What to Mock:**
-- No repository-specific rule exists yet.
+- OCI-backed smoke verification exists for real database and media integration paths.
+- Public gallery validation includes regression checks to ensure Object Storage details and operator-only surfaces are not leaked publicly.
 
-**What NOT to Mock:**
-- No repository-specific rule exists yet.
+### Deployment Validation
 
-## Fixtures and Factories
+- PR validation is GitHub-driven.
+- Merge-to-main deployment is part of the intended operational workflow.
+- Runtime deployment validation includes container startup and app accessibility checks.
 
-**Test Data:**
-```typescript
-// Not applicable: no fixtures or factories exist yet.
-```
+## Test Organization
 
-**Location:**
-- Not detected
+**Patterns Observed:**
+- Validation is currently centered around app-level commands rather than a large multi-package matrix.
+- The project favors end-to-end operational verification over isolated micro-unit coverage.
+- Deployment and runtime validation are treated as first-class quality gates.
 
-## Coverage
+## Mocking and Fixtures
 
-**Requirements:** None enforced
+### Mocking Strategy
 
-**View Coverage:**
-```bash
-# No coverage tooling is configured.
-```
+- OCI integrations are abstracted so local and CI paths can avoid requiring live tenancy access for every test run.
+- Media workflows support local-mode validation where Object Storage is unavailable.
 
-## Test Types
+### Fixtures
 
-**Unit Tests:**
-- Not used yet
+- Representative sample data exists for local development and validation.
+- Media/image test assets are used for upload and rendering verification.
 
-**Integration Tests:**
-- Not used yet
+## Coverage Gaps
 
-**E2E Tests:**
-- Not used
+### Pending Phase 4 Areas
 
-## Current Coverage State
+The following capabilities are not yet fully implemented or covered because Phase 4 has not started:
 
-- Effective code coverage is `0%` because no application or infrastructure code is present in the repository.
-- Validation coverage is also absent: there are no CI workflows in `.github/workflows/`, no lint setup, and no scripted verification commands.
-- The only quality signals currently available are the project-defining prompt artifacts in `.prompts/001-autograph-gallery-bootstrap-do/`.
-- `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` is the main source of product and implementation intent for determining what the future test strategy needs to cover.
+- Real admin authentication flow.
+- End-to-end admin create/edit workflow.
+- Edit history persistence and rendering.
+- Media replacement/orphan cleanup guarantees.
+- Final admin/public boundary hardening.
 
-## Recommended Next Test Surface
+### Pending Phase 5/6 Areas
 
-- First priority: add repository-level validation for the first executable stack that lands.
-- If the first delivered code follows the prompt in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`, the earliest high-value test surfaces should be:
-- Configuration smoke checks for whichever package manager, runtime, and framework are added.
-- Lint and type-check commands wired into CI before feature work expands.
-- Unit tests around metadata extraction helpers and input validation once those modules exist.
-- Integration tests for upload persistence and gallery read paths once database and object storage adapters exist.
-- Workflow validation for any GitHub Actions files added under `.github/workflows/`.
-- Because the repository is currently blank, these are recommendations based on documented intent, not observed testing practice.
-- That documented intent should be taken from `.prompts/001-autograph-gallery-bootstrap-do/`, not from `README.md`, because the prompt directory is the authoritative implementation brief in the current repo state.
+- OCR/AI-assisted ingest validation.
+- Final public showcase hardening.
+- Dependency automation validation.
+- Final public-readiness security review.
 
-## Suggested Baseline Once Code Exists
+## Practical Guidance
 
-- Choose one primary test runner and document it here after it is committed.
-- Keep tests close to the code or in a single top-level `tests/` tree, but standardize quickly once the first module is added.
-- Add at least one happy-path integration test for the first end-to-end slice that reaches the repository.
-- Make CI fail on lint or type errors before depending on broader functional coverage.
-
-## Common Patterns
-
-**Async Testing:**
-```typescript
-// Not established yet.
-```
-
-**Error Testing:**
-```typescript
-// Not established yet.
-```
-
-## Gaps
-
-- No test runner, assertions library, or browser automation framework is configured.
-- No fixture strategy exists.
-- No local or CI command contract exists for validation.
-- No test data, sample images, or database seed harness exists, despite those being implied future needs by `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`.
-- No documented boundary exists yet between unit, integration, and live-cloud verification.
-- The desired verification scope is specified only in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`, so future testing work should map directly back to that prompt until code-level test conventions emerge.
+- Treat public-surface privacy regression tests as mandatory gates before exposing new routes.
+- Treat app-mediated media delivery as a sensitive path requiring both correctness and security validation.
+- Maintain a distinction between:
+  - local-mode developer validation,
+  - CI validation,
+  - live OCI smoke validation.
+- Keep deployment validation tied to real runtime behavior rather than static-only checks.
 
 ---
 
-*Testing analysis: 2026-04-18*
+*Testing analysis refreshed: 2026-05-24 after Phase 3 completion*

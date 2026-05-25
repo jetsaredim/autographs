@@ -1,72 +1,97 @@
 # Technology Stack
 
-**Analysis Date:** 2026-04-18
+**Analysis Date:** 2026-05-24
 
 ## Languages
 
 **Primary:**
-- Markdown - The only implementation-adjacent content present is documentation and prompt text in `README.md`, `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`, and `.prompts/001-autograph-gallery-bootstrap-do/SUMMARY.md`.
+- TypeScript for the `Next.js` application, service layer, scripts, and tests.
+- Markdown for planning, operator runbooks, and repository documentation.
+- HCL for Terraform infrastructure.
+- YAML for GitHub Actions and Ansible deployment automation.
 
 **Secondary:**
-- Not detected - No application source files, infrastructure source files, or test files are present under the repository root.
+- Shell scripts for deployment and validation helpers.
+- CSS for global application styling.
+- Jinja templates for Ansible-managed runtime files and Podman quadlets.
 
 ## Runtime
 
-**Environment:**
-- Not detected - No runtime declaration files such as `package.json`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, or `go.mod` are present in the repository root scan.
+**Application Runtime:**
+- Single full-stack `Next.js` application under `app/`.
+- Node.js runtime managed through Corepack and pnpm.
+- Containerized app image published through GitHub/GHCR and deployed to OCI.
 
 **Package Manager:**
-- Not detected - No package manager manifest or lockfile was found.
-- Lockfile: missing
+- pnpm via Corepack.
+- Root workspace plus app package commands are executed with `corepack pnpm --filter app ...`.
 
-## Frameworks
+## Frameworks and Tooling
 
 **Core:**
-- Not detected - No framework configuration or source tree exists today.
+- `Next.js` App Router for public pages and API routes.
+- React components for the public gallery, detail pages, image viewer, and supporting UI.
+- Oracle-backed catalog service with app-mediated private media delivery.
 
-**Testing:**
-- Not detected - No test runner configuration or test files were found.
+**Testing and Validation:**
+- App lint, typecheck, test, and build commands are part of the current validation contract.
+- Public-surface privacy regression tests protect against leaking storage identifiers, direct Object Storage URLs, and premature admin workflow exposure.
 
-**Build/Dev:**
-- Not detected - No build tool configuration files such as `tsconfig.json`, `next.config.*`, Dockerfiles, Terraform files, or workflow files are present.
+**Infrastructure and Deployment:**
+- Terraform under `infra/terraform/` for OCI baseline resources and state guidance.
+- GitHub Actions for PR validation, image build/publish, deployment, and data smoke workflows.
+- Ansible under `deploy/ansible/` for VM runtime configuration.
+- Podman quadlets for long-lived app and Caddy containers on the runtime VM.
 
-## Key Dependencies
+## Key Dependencies and Integrations
 
-**Critical:**
-- Not detected - No dependency manifest exists.
+**Application:**
+- Oracle Autonomous Database Free for catalog metadata.
+- OCI Object Storage for private autograph media.
+- Local filesystem media mode for local/CI smoke paths without live OCI credentials.
 
-**Infrastructure:**
-- Not detected - No infrastructure-as-code dependencies or cloud SDKs are present in tracked repository files.
+**Runtime:**
+- Caddy as the public HTTP(S) edge in front of the app container.
+- Podman as the container runtime on the OCI VM.
+- GHCR as the container image registry.
 
 ## Configuration
 
-**Environment:**
-- No `.env` files were detected in the repository scan.
-- No environment contract file such as `.env.example` exists.
+**Environment Contract:**
+- `.env.example` documents local/runtime variables.
+- `.github/.env.github.example` documents GitHub Actions environment/secret expectations.
+- `docs/configuration-contract.md` documents the committed configuration and secret contract.
+- Ansible renders the deployed app environment file from `deploy/ansible/roles/autographs_deploy/templates/app.env.j2`.
 
-**Build:**
-- No build configuration files were detected.
+**Secrets:**
+- Oracle DB password, wallet material, OCI private key, OCI identifiers, GHCR token, and operator token are supplied through GitHub/environment secrets rather than committed values.
+- Production Object Storage credentials are mounted/read through runtime environment and secret files.
 
 ## Platform Requirements
 
 **Development:**
-- A Markdown-capable editor is sufficient for the current repository state because the repo contains only `README.md` and prompt artifacts.
+- Node.js/Corepack/pnpm for local app work.
+- Terraform CLI for infrastructure work.
+- Access to representative env files or local-mode settings for data/media smoke paths.
 
 **Production:**
-- Not applicable in the current state. The intended production target is described only as a future plan in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`.
+- OCI tenancy and Always Free-compatible resources where feasible.
+- Oracle Autonomous Database Free.
+- OCI Object Storage private bucket.
+- OCI VM runtime capable of Podman, Caddy, app container, and configured swap.
 
 ## Project Maturity
 
 **Current State:**
-- Stub / planning-only repository.
-- Evidence: `README.md` contains only the heading `# autographs`.
-- Evidence: `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` is an implementation prompt describing a desired OCI, Next.js, Terraform, and GitHub Actions stack, but those technologies are not implemented in the repository.
-- Evidence: `.prompts/001-autograph-gallery-bootstrap-do/SUMMARY.md` summarizes the prompt artifact rather than shipped code.
+- Phases 1-3 are complete: delivery spine, OCI bootstrap, Oracle/private media core, and public gallery MVP.
+- Phase 4 admin collection workflow is next for planning.
+- The repository is no longer planning-only; it contains application, infrastructure, deployment, testing, and operator documentation artifacts.
 
 **Practical Guidance:**
-- Treat the OCI, Next.js, Oracle Autonomous Database, Object Storage, Docker, Terraform, and GitHub Actions references in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` as planned architecture, not current stack.
-- Add the first real stack documentation only after manifests and source files land, so `STACK.md` can be updated from observed code rather than prompt intent.
+- Treat `.planning/STATE.md`, `.planning/ROADMAP.md`, and `.planning/PROJECT.md` as the current high-level planning sources of truth.
+- Treat `.planning/codebase/*` as a current-state codebase map, not as historical prompt intent.
+- Do not re-scaffold the app or infra; Phase 4 should build on the existing service boundaries, public gallery, and temporary operator bridge.
 
 ---
 
-*Stack analysis: 2026-04-18*
+*Stack analysis: 2026-05-24 after Phase 3 completion*
