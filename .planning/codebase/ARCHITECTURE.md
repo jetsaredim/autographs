@@ -1,136 +1,78 @@
 # Architecture
 
-**Analysis Date:** 2026-04-18
+**Analysis Date:** 2026-05-25
 
 ## Pattern Overview
 
-**Overall:** Prompt-defined project repository with no implemented runtime application.
-
-**Key Characteristics:**
-- The repository is centered on `.prompts/001-autograph-gallery-bootstrap-do/`, which is the main source of product scope and implementation intent.
-- The primary architectural artifact is `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`, not application source code.
-- The checked-in codebase currently documents a target system rather than containing that system's source code.
-- There are no application, infrastructure, database, or test entry points present beyond documentation artifacts such as `README.md` and `.prompts/.../SUMMARY.md`.
+Autographs is now an implemented single-application system, not a planning-only repository. The current architecture is a full-stack `Next.js` App Router application under `app/`, backed by Oracle Autonomous Database for catalog metadata and private OCI Object Storage for autograph images. Public visitors browse only published items, while temporary operator-only mutation routes remain token-guarded until Phase 4 replaces them with the real single-admin workflow.
 
 ## Layers
 
-**Repository Metadata Layer:**
-- Purpose: Identify the project at the top level.
-- Location: `README.md`
-- Contains: Minimal repository title only.
-- Depends on: Nothing in-repo.
-- Used by: Humans and future automation reading the repo root.
+**Public Web Layer**
+- Location: `app/app/`
+- Purpose: Anonymous landing page, collection grid, detail pages, image viewer, architecture page, not-found states, and shared public components.
+- Key files: `app/app/page.tsx`, `app/app/collection/page.tsx`, `app/app/collection/[id]/page.tsx`, `app/app/components/*`.
 
-**Prompt Specification Layer:**
-- Purpose: Define the intended product, delivery model, target stack, and verification expectations for a future implementation pass.
-- Location: `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`
-- Contains: The authoritative project prompt for the repository, including objective, requirements, implementation guidance, output expectations, and success criteria.
-- Depends on: `README.md` as referenced context.
-- Used by: A future coding run that will scaffold the actual platform.
+**Public API Layer**
+- Location: `app/app/api/catalog/`
+- Purpose: Published-only catalog list/detail access and app-mediated image delivery.
+- Key files: `app/app/api/catalog/route.ts`, `app/app/api/catalog/[id]/route.ts`, `app/app/api/catalog/[id]/images/[imageId]/route.ts`.
 
-**Prompt Intent Package Layer:**
-- Purpose: Group the repository's main product-definition artifacts in one place.
-- Location: `.prompts/001-autograph-gallery-bootstrap-do/`
-- Contains: The main execution prompt, `SUMMARY.md`, and workflow support directory `completed/`.
-- Depends on: Repository-level planning context.
-- Used by: Humans and agents to understand what this repository is intended to become.
+**Temporary Operator API Layer**
+- Location: `app/app/api/operator/catalog/`
+- Purpose: Transitional token-guarded create, update, image attach, image delete, and item delete workflows for production data entry before Phase 4.
+- Boundary: Must remain operator-only by deployment/routing procedure and bearer token; it is not the v1 admin UX.
 
-**Prompt Summary Layer:**
-- Purpose: Summarize what the prompt artifact is for and what it decided.
-- Location: `.prompts/001-autograph-gallery-bootstrap-do/SUMMARY.md`
-- Contains: One-line summary, findings, files created, blockers, and next step.
-- Depends on: `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`
-- Used by: Humans reviewing prompt intent without reading the full prompt.
+**Catalog Service Layer**
+- Location: `app/src/catalog/`
+- Purpose: Domain types, Oracle repository, catalog service orchestration, public-safe view models, and tests.
+- Key files: `service.ts`, `repository.ts`, `public-view-models.ts`, `types.ts`.
 
-**Planning Output Layer:**
-- Purpose: Store generated repository analysis for later planning/execution commands.
-- Location: `.planning/codebase/`
-- Contains: Architecture and structure documents such as `.planning/codebase/ARCHITECTURE.md` and `.planning/codebase/STRUCTURE.md`.
-- Depends on: Observed repository state.
-- Used by: Follow-on planning and execution tooling.
+**Media Layer**
+- Location: `app/src/media/`
+- Purpose: Private media abstraction with OCI Object Storage and local filesystem-backed modes.
+- Key files: `oci-store.ts`, `local-store.ts`, `config.ts`.
+
+**Database Layer**
+- Location: `app/src/db/`, `app/db/migrations/`, `app/scripts/`
+- Purpose: Oracle configuration, migration execution, schema, seed data, and data smoke helpers.
+
+**Infrastructure and Delivery Layer**
+- Locations: `infra/terraform/`, `deploy/ansible/`, `.github/workflows/`
+- Purpose: OCI infrastructure, runtime VM configuration, Podman quadlets, PR validation, image publishing, deploy, data smoke, and image cleanup.
+
+**Planning and Operator Documentation**
+- Locations: `.planning/`, `docs/`, `.prompts/`
+- Purpose: GSD state, roadmap, phase artifacts, codebase intelligence, bootstrap/runbook docs, and original product prompt.
 
 ## Data Flow
 
-**Current Repository Flow:**
-
-1. `README.md` establishes the repository identity.
-2. `.prompts/001-autograph-gallery-bootstrap-do/` serves as the repository's main source of product and implementation intent.
-3. `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` defines the desired end-state architecture and delivery process for a future build.
-4. `.prompts/001-autograph-gallery-bootstrap-do/SUMMARY.md` condenses that prompt into a quicker operator-facing summary.
-5. `.planning/codebase/*.md` records what is actually present in the repository so future agents do not assume implementation exists.
-
-**State Management:**
-- State is document-based and file-backed. There is no runtime state, persisted application data model, or request lifecycle implemented in the repository.
+1. Anonymous visitors request `/`, `/collection`, or `/collection/{id}`.
+2. Public pages call the catalog service, which lists/reads only `published` records by default.
+3. Public view models convert private catalog records into public-safe DTOs and route image access through `/api/catalog/{itemId}/images/{imageId}`.
+4. Image API routes resolve the published item and stream bytes from the configured private media store without exposing Object Storage URLs or object identifiers in the public UI.
+5. Temporary operator API calls use `AUTOGRAPHS_OPERATOR_API_TOKEN`, then create/update Oracle rows and upload/delete private media through the same service layer.
+6. GitHub Actions validates changes and deploys the containerized app/runtime changes to OCI on the documented path.
 
 ## Key Abstractions
 
-**Execution Prompt:**
-- Purpose: Acts as the primary architectural artifact for the intended system.
-- Examples: `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`
-- Pattern: Structured prompt sections using XML-like headings such as `<objective>`, `<requirements>`, and `<verification>`.
+- `CatalogService`: Coordinates metadata and media operations.
+- `CatalogRepository`: Persists catalog records, tags, and image metadata through Oracle.
+- `PrivateMediaStore`: Abstracts OCI Object Storage and local media modes.
+- Public view models: Strip private storage fields and build app-mediated image routes.
+- Operator API bridge: Temporary mutation surface used until Phase 4 admin workflow exists.
 
-**Prompt Directory as Intent Boundary:**
-- Purpose: Establishes a package-level boundary around the repository's current source of truth for what should be built.
-- Examples: `.prompts/001-autograph-gallery-bootstrap-do/`
-- Pattern: Numbered directory containing the full prompt plus a companion summary.
+## Current Phase Boundary
 
-**Prompt Summary:**
-- Purpose: Provides a lightweight derivative view of the execution prompt.
-- Examples: `.prompts/001-autograph-gallery-bootstrap-do/SUMMARY.md`
-- Pattern: Markdown summary with fixed headings for findings, blockers, and next step.
-
-**Codebase Mapping Docs:**
-- Purpose: Capture current-state repository intelligence in a reusable format.
-- Examples: `.planning/codebase/ARCHITECTURE.md`, `.planning/codebase/STRUCTURE.md`
-- Pattern: Markdown reference documents consumed by later planning workflows.
-
-## Entry Points
-
-**Human Readme Entry Point:**
-- Location: `README.md`
-- Triggers: Opening the repository root.
-- Responsibilities: Present the repository name only.
-
-**Primary Build/Execution Entry Point:**
-- Location: `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`
-- Triggers: A future implementation run using the prompt.
-- Responsibilities: Specify the desired OCI, Next.js, database, CI/CD, and admin/public gallery architecture to be created.
-
-**Primary Intent Boundary:**
-- Location: `.prompts/001-autograph-gallery-bootstrap-do/`
-- Triggers: Any review of current repository intent or startup planning.
-- Responsibilities: Serve as the main source of product definition and implementation direction for the repo in its current state.
-
-**Prompt Review Entry Point:**
-- Location: `.prompts/001-autograph-gallery-bootstrap-do/SUMMARY.md`
-- Triggers: Quick review of prompt scope.
-- Responsibilities: Summarize the prompt artifact and recommended next action.
-
-## Error Handling
-
-**Strategy:** No runtime error-handling strategy is implemented because no executable application code is present.
-
-**Patterns:**
-- Requirements and constraints are expressed declaratively in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md` rather than enforced by code.
-- Any validation described today is aspirational and belongs to the future implementation, not the current repository state.
-
-## Cross-Cutting Concerns
-
-**Logging:** Not implemented. No application or infrastructure code exists to emit logs.
-
-**Validation:** Documentation-only. Validation requirements are listed in `.prompts/001-autograph-gallery-bootstrap-do/001-autograph-gallery-bootstrap-do.md`.
-
-**Authentication:** Not implemented. The prompt specifies a future single-admin path, but there is no auth code, config, or credential flow checked in.
+Phases 1-3 are complete. Phase 4 should build on the existing catalog service, media abstraction, public gallery, and operator bridge. It should not re-scaffold the application or replace the delivery spine.
 
 ## Notable Absences
 
-- No `app/`, `src/`, `pages/`, or `components/` directory exists for a web application.
-- No `.github/workflows/` directory exists for CI/CD workflows.
-- No `infra/`, `terraform/`, or equivalent infrastructure-as-code directory exists.
-- No `db/`, schema, migration, or seed files exist.
-- No package manifest such as `package.json`, `pyproject.toml`, `go.mod`, or `Cargo.toml` exists.
-- No runtime configuration, container definitions, or deployment scripts are present.
+- Real single-admin authentication and admin UX are not implemented yet.
+- Edit history persistence/rendering is not implemented yet.
+- AI-assisted metadata suggestions are not implemented yet.
+- Final public-readiness hardening, repository badges, and README polish remain Phase 6 work.
 
 ---
 
-*Architecture analysis: 2026-04-18*
+*Architecture analysis refreshed: 2026-05-25 after repo-state reconciliation*
