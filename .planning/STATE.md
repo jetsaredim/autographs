@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 3 complete
-last_updated: "2026-05-25T06:30:00Z"
-last_activity: 2026-05-25 -- Reconciled post-merge phase reorder review warnings
+status: planning
+stopped_at: Phase 4 planned
+last_updated: "2026-05-25T14:30:00.000Z"
+last_activity: 2026-05-25 -- Created and reviewed Phase 4 public-showcase and hardening plans
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 13
+  total_plans: 18
   completed_plans: 13
-  percent: 100
+  percent: 72
 ---
 
 # Project State
@@ -25,18 +25,18 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 
 ## Current Position
 
-Phase: 03 (public-gallery-mvp) — COMPLETE
-Plan: 5 of 5 complete
-Status: Phase 3 public gallery MVP is complete; Phase 4 public showcase and hardening is next for planning. Admin collection workflow is now Phase 5, and AI-assisted ingest is Phase 6. Public Caddy routing blocks temporary operator API paths so the documented tunnel-only procedure remains true.
-Last activity: 2026-05-25 -- Reconciled post-merge phase reorder review warnings
+Phase: 04 (public-showcase-and-hardening) — PLANNED
+Plan: 0 of 5 complete
+Status: Phase 4 public showcase and hardening has five reviewed execution plans ready to run. Admin collection workflow remains Phase 5, and AI-assisted ingest remains Phase 6.
+Last activity: 2026-05-25 -- Created and reviewed Phase 4 public-showcase and hardening plans
 
-Progress: [██████████] 100% of currently planned execution plans
+Progress: [███████---] 72% of planned execution plans
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 13
+- Total plans completed: 13 of 18
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -46,6 +46,8 @@ Progress: [██████████] 100% of currently planned execution p
 |-------|-------|-------|----------|
 | 01 | 4 | 118 min | 29 min |
 | 02 | 4 | - | - |
+| 03 | 5 | - | - |
+| 04 | 0/5 | planned | - |
 
 **Recent Trend:**
 
@@ -84,9 +86,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-21T16:06:16.713Z
-Stopped at: Phase 3 complete
-Resume file: .planning/phases/03-public-gallery-mvp/03-05-SUMMARY.md
+Last session: 2026-05-25T14:30:00.000Z
+Stopped at: Phase 4 planned
+Resume file: .planning/phases/04-public-showcase-and-hardening/04-01-PLAN.md
 
 ## Quick Tasks Completed
 
