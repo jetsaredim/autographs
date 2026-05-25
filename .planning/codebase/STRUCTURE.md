@@ -28,7 +28,7 @@ autographs/
 - `app/app/page.tsx`: public landing page.
 - `app/app/collection/page.tsx`: public collection grid and URL-backed filters.
 - `app/app/collection/[id]/page.tsx`: published item detail page.
-- `app/app/admin/page.tsx`: placeholder only; Phase 4 owns real admin workflow.
+- `app/app/admin/page.tsx`: placeholder only; Phase 5 owns real admin workflow.
 
 **API Routes**
 - `app/app/api/catalog/`: public published-only catalog and app-mediated images.
@@ -59,7 +59,11 @@ autographs/
 
 ## Where to Add New Code
 
-**Phase 4 Admin Workflow**
+**Phase 4 Public Showcase and Hardening**
+- Root README, badges, public metadata, dependency automation, security review notes, and public-facing docs should stay in repository docs/configuration surfaces rather than changing app architecture.
+- Current-surface hardening should preserve the existing public gallery, deployment, media, and operator-route boundaries.
+
+**Phase 5 Admin Workflow**
 - Admin pages/components: `app/app/admin/` and `app/app/components/` as needed.
 - Admin API/server actions: prefer existing service boundaries in `app/src/catalog/` and `app/src/media/`; avoid duplicating persistence logic in UI routes.
 - Auth/session helpers: add under a focused `app/src/admin/` or `app/src/auth/` module once the mechanism is chosen.
@@ -77,8 +81,9 @@ autographs/
 
 - Do not re-scaffold the app, pnpm workspace, workflows, or Terraform baseline.
 - Treat `.prompts/001-autograph-gallery-bootstrap-do/` as historical product intent, not the current implementation map.
-- Treat Phase 4 as additive admin workflow work on top of the completed public/data/media foundation.
+- Treat Phase 4 as current-surface showcase and hardening work on top of the completed public/data/media foundation.
+- Treat Phase 5 as additive admin workflow work on top of the same foundation.
 
 ---
 
-*Structure analysis refreshed: 2026-05-25 after repo-state reconciliation*
+*Structure analysis refreshed: 2026-05-25 after phase reorder review*
