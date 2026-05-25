@@ -1,0 +1,95 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "timezone": "America/New_York",
+  "schedule": [
+    "before 5am on monday"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "rangeStrategy": "bump",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 5am on monday"
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "Group routine non-major application and tooling updates",
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "matchManagers": [
+        "npm",
+        "github-actions",
+        "dockerfile",
+        "terraform",
+        "ansible-galaxy"
+      ],
+      "groupName": "routine dependency updates"
+    },
+    {
+      "description": "Keep majors separate for manual review",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Do not automerge production dependency updates",
+      "matchManagers": [
+        "npm",
+        "github-actions",
+        "dockerfile",
+        "terraform",
+        "ansible-galaxy",
+        "custom.regex"
+      ],
+      "automerge": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update Terraform versions pinned in GitHub workflows",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "terraform_version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "hashicorp/terraform",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Update Corepack pnpm versions pinned in Dockerfile build stages",
+      "managerFilePatterns": [
+        "/^app/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "corepack prepare pnpm@(?<currentValue>[^\\s]+) --activate"
+      ],
+      "depNameTemplate": "pnpm",
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "Update the Caddy runtime image default used by Ansible",
+      "managerFilePatterns": [
+        "/^deploy/ansible/roles/autographs_deploy/defaults/main\\.yml$/"
+      ],
+      "matchStrings": [
+        "autographs_deploy_caddy_image:\\s*(?<depName>docker\\.io/library/caddy):(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ]
+}
