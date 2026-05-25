@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import test from "node:test";
+import { GET as dataHealthGET } from "../../app/health/data/route";
 import nextConfig from "../../next.config";
 
 const appRoot = new URL("../../app", import.meta.url);
@@ -76,8 +77,12 @@ test("admin placeholder files do not implement privileged workflows", async () =
 
 test("next config applies baseline public security headers", async () => {
   assert.equal(typeof nextConfig.headers, "function");
+  const headers = nextConfig.headers;
+  if (!headers) {
+    throw new Error("nextConfig.headers is required for public security headers");
+  }
 
-  const headerRules = await nextConfig.headers();
+  const headerRules = await headers();
   const allHeaders = new Map(headerRules.flatMap((rule) => rule.headers.map((header) => [header.key, header.value])));
 
   assert.equal(allHeaders.get("X-Content-Type-Options"), "nosniff");
@@ -94,6 +99,29 @@ test("public caddy edge blocks temporary operator routes", async () => {
 
   assert.match(caddyfile, /@operator\s+path\s+\/api\/operator\s+\/api\/operator\/\*/u);
   assert.match(caddyfile, /respond\s+@operator\s+404/u);
+});
+
+test("production data health hides anonymous configuration details", async () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalProvider = process.env.AUTOGRAPHS_MEDIA_STORAGE_PROVIDER;
+
+  try {
+    Object.assign(process.env, { NODE_ENV: "production" });
+    process.env.AUTOGRAPHS_MEDIA_STORAGE_PROVIDER = "oci";
+
+    const response = await dataHealthGET(new Request("https://example.test/health/data"));
+    const body = (await response.json()) as Record<string, unknown>;
+
+    assert.equal(response.status, 503);
+    assert.equal(body.ok, false);
+    assert.equal(body.service, "autographs");
+    assert.equal(body.scope, "data-config");
+    assert.equal("checks" in body, false);
+    assert.equal("error" in body, false);
+  } finally {
+    Object.assign(process.env, { NODE_ENV: originalNodeEnv });
+    process.env.AUTOGRAPHS_MEDIA_STORAGE_PROVIDER = originalProvider;
+  }
 });
 
 const listSourceFiles = async (directory: string): Promise<string[]> => {

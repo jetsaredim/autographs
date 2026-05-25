@@ -14,12 +14,7 @@ export async function GET(request: Request) {
   };
 
   if (!live) {
-    return Response.json({
-      ok: checks.oracleConfig.ok && checks.mediaConfig.ok,
-      service: "autographs",
-      scope: "data-config",
-      checks,
-    });
+    return dataConfigResponse(checks);
   }
 
   const authResponse = authorizeOperator(request);
@@ -50,6 +45,24 @@ export async function GET(request: Request) {
   }
 }
 
+const dataConfigResponse = (checks: DataHealthChecks): Response => {
+  const ok = checks.oracleConfig.ok && checks.mediaConfig.ok;
+  const body = {
+    ok,
+    service: "autographs",
+    scope: "data-config",
+  };
+
+  if (process.env.NODE_ENV === "production") {
+    return Response.json(body, { status: ok ? 200 : 503 });
+  }
+
+  return Response.json({
+    ...body,
+    checks,
+  });
+};
+
 const check = (work: () => unknown): { ok: true } | { ok: false; error: string } => {
   try {
     work();
@@ -60,6 +73,11 @@ const check = (work: () => unknown): { ok: true } | { ok: false; error: string }
       error: error instanceof Error ? error.message : "Unknown configuration error",
     };
   }
+};
+
+type DataHealthChecks = {
+  oracleConfig: ReturnType<typeof check>;
+  mediaConfig: ReturnType<typeof check>;
 };
 
 const authorizeOperator = (request: Request): Response | null => {
