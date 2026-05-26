@@ -5,7 +5,7 @@
   "engines": {
     "node": ">=22.13.0"
   },
-  "packageManager": "pnpm@11.2.2",
+  "packageManager": "pnpm@11.3.0",
   "scripts": {
     "lint": "corepack pnpm --filter app lint",
     "typecheck": "corepack pnpm --filter app typecheck"
