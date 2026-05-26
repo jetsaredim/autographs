@@ -41,7 +41,7 @@ EXPOSE 3000
 
 CMD ["node", "app/server.js"]
 
-FROM builder as tools
+FROM builder AS tools
 
 WORKDIR /workspace
 
