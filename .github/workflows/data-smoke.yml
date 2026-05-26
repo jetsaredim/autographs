@@ -2,6 +2,11 @@ name: Data Smoke
 
 on:
   workflow_dispatch:
+    inputs:
+      tools_image_tag:
+        description: "Tools image tag to smoke test"
+        required: false
+        default: "production"
 
 permissions:
   contents: read
@@ -74,6 +79,6 @@ jobs:
             ${{ env.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
           requirements: collections/requirements.yml
           options: |
-            --extra-vars autographs_tools_image=${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}-tools:latest
+            --extra-vars autographs_tools_image=${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}-tools:${{ inputs.tools_image_tag || 'production' }}
             --extra-vars autographs_smoke_base_url=${{ vars.AUTOGRAPHS_SMOKE_BASE_URL || 'https://autographs.jetsaredim.net' }}
             --extra-vars autographs_data_smoke_deploy_path=${{ vars.DEPLOY_PATH || '/opt/autographs' }}
