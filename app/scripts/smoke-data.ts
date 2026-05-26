@@ -1,6 +1,7 @@
 import { createCatalogRepository } from "../src/catalog";
 import { createCatalogService } from "../src/catalog";
 import { createPrivateMediaStore } from "../src/media";
+import type { MediaObjectLocation, MediaReadResult } from "../src/media";
 
 const main = async (): Promise<void> => {
   const mediaStore = createPrivateMediaStore();
@@ -10,6 +11,7 @@ const main = async (): Promise<void> => {
   const service = createCatalogService();
   let itemId: string | null = null;
   let imageId: string | null = null;
+  let mediaLocation: MediaObjectLocation | null = null;
 
   try {
     const fixture = Buffer.from(
@@ -52,6 +54,11 @@ const main = async (): Promise<void> => {
     if (!mediaRead) {
       throw new Error("Smoke image could not be read through the app-mediated service path.");
     }
+    mediaLocation = {
+      storageNamespace: mediaRead.storageNamespace,
+      bucketName: mediaRead.bucketName,
+      objectKey: mediaRead.objectKey,
+    };
 
     const baseUrl = process.env.AUTOGRAPHS_SMOKE_BASE_URL;
     if (baseUrl) {
@@ -81,6 +88,9 @@ const main = async (): Promise<void> => {
       if (readAfterDelete) {
         throw new Error(`Smoke item ${itemId} still exists after cleanup.`);
       }
+      if (mediaLocation) {
+        await assertMediaObjectDeleted(mediaStore, mediaLocation);
+      }
 
       console.log(
         JSON.stringify({
@@ -92,6 +102,38 @@ const main = async (): Promise<void> => {
         }),
       );
     }
+  }
+};
+
+const assertMediaObjectDeleted = async (
+  mediaStore: ReturnType<typeof createPrivateMediaStore>,
+  location: MediaObjectLocation,
+): Promise<void> => {
+  try {
+    const result = await mediaStore.read(location);
+    await drainBody(result.body);
+  } catch {
+    return;
+  }
+
+  throw new Error(`Smoke media object ${location.objectKey} still exists after cleanup.`);
+};
+
+const drainBody = async (body: MediaReadResult["body"]): Promise<void> => {
+  if ("getReader" in body) {
+    const reader = body.getReader();
+    try {
+      while (!(await reader.read()).done) {
+        // Drain the stream so missing local files surface as read errors.
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    return;
+  }
+
+  for await (const _chunk of body) {
+    // Drain the stream so missing local files surface as read errors.
   }
 };
 
