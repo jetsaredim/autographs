@@ -190,7 +190,7 @@ test("catalog service removes earlier uploads when a later image upload fails", 
   ]);
 });
 
-test("catalog service deletes media before deleting item metadata", async () => {
+test("catalog service deletes item metadata before removing private media", async () => {
   const events: string[] = [];
   const existing = item({ images: [image()] });
   const repository = new FakeRepository(existing, events);
@@ -199,10 +199,10 @@ test("catalog service deletes media before deleting item metadata", async () => 
 
   await service.delete(existing.id);
 
-  assert.deepEqual(events, ["media.delete:autographs/item-1/image-1.svg", "repository.delete"]);
+  assert.deepEqual(events, ["repository.delete", "media.delete:autographs/item-1/image-1.svg"]);
 });
 
-test("catalog service deletes media before removing one image reference", async () => {
+test("catalog service removes one image reference before deleting private media", async () => {
   const events: string[] = [];
   const existing = item({
     images: [
@@ -221,7 +221,7 @@ test("catalog service deletes media before removing one image reference", async 
 
   await service.deleteImage(existing.id, "image-1");
 
-  assert.deepEqual(events, ["media.delete:autographs/item-1/image-1.svg", "repository.update"]);
+  assert.deepEqual(events, ["repository.update", "media.delete:autographs/item-1/image-1.svg"]);
 });
 
 class FakeRepository implements CatalogRepository {

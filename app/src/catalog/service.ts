@@ -117,13 +117,9 @@ export class DefaultCatalogService implements CatalogService {
       throw new Error(`Autograph item ${id} was not found.`);
     }
 
-    await Promise.all(
-      existing.images.map((image) =>
-        this.mediaStore.delete(toMediaObjectLocation(image)),
-      ),
-    );
-
     await this.repository.delete(id);
+
+    await deleteMediaObjects(this.mediaStore, existing.images);
 
     return existing;
   }
@@ -139,15 +135,17 @@ export class DefaultCatalogService implements CatalogService {
       throw new Error(`Autograph image ${imageId} was not found.`);
     }
 
-    await this.mediaStore.delete(toMediaObjectLocation(imageToDelete));
-
-    return this.repository.update(id, {
+    const updated = await this.repository.update(id, {
       images: normalizePrimary(
         existing.images
           .filter((image) => image.id !== imageId)
           .map(toImageInput),
       ),
     });
+
+    await this.mediaStore.delete(toMediaObjectLocation(imageToDelete));
+
+    return updated;
   }
 
   async getById(
