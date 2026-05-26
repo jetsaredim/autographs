@@ -49,11 +49,11 @@
 
 ### Public Showcase and Hardening
 
-- [ ] **SHIP-01**: Project has a security and attack-vector review covering the current app routes, temporary operator access, media delivery, secrets handling, infrastructure permissions, CI/CD permissions, container images, and repository settings, with later admin and AI phases responsible for follow-up reviews of their new surfaces.
-- [ ] **SHIP-02**: Dependency update automation is revisited and either Dependabot, Renovate, or a documented equivalent is configured for package dependencies, GitHub Actions, container images, Terraform providers/modules, and other maintained surfaces.
-- [ ] **SHIP-03**: Root `README.md` explains the project goals, architecture, local development flow, deployment model, operational notes, and the human+AI collaboration story clearly enough for a public audience.
-- [ ] **SHIP-04**: Repository badges and public metadata reflect current quality signals such as CI, linting, type checking, tests or coverage, image/dependency health, and deployment status where appropriate.
-- [ ] **SHIP-05**: Loose ends, stale docs, planning artifacts, open security findings, operational warnings, and showcase-readiness issues are triaged, fixed, or intentionally tracked before the repository is made public.
+- [x] **SHIP-01**: Project has a security and attack-vector review covering the current app routes, temporary operator access, media delivery, secrets handling, infrastructure permissions, CI/CD permissions, container images, and repository settings, with later admin and AI phases responsible for follow-up reviews of their new surfaces.
+- [x] **SHIP-02**: Dependency update automation is revisited and either Dependabot, Renovate, or a documented equivalent is configured for package dependencies, GitHub Actions, container images, Terraform providers/modules, and other maintained surfaces.
+- [x] **SHIP-03**: Root `README.md` explains the project goals, architecture, local development flow, deployment model, operational notes, and the human+AI collaboration story clearly enough for a public audience.
+- [x] **SHIP-04**: Repository badges and public metadata reflect current quality signals such as CI, linting, type checking, tests or coverage, image/dependency health, and deployment status where appropriate.
+- [x] **SHIP-05**: Loose ends, stale docs, planning artifacts, open security findings, operational warnings, and showcase-readiness issues are triaged, fixed, or intentionally tracked before the repository is made public.
 
 ## v2 Requirements
 
@@ -99,11 +99,11 @@ None currently. Future scope should be added only if it directly supports the pe
 | AI-02 | Phase 6 | Pending |
 | AI-03 | Phase 6 | Pending |
 | AI-04 | Phase 6 | Pending |
-| SHIP-01 | Phase 4 | Pending |
-| SHIP-02 | Phase 4 | Pending |
-| SHIP-03 | Phase 4 | Pending |
-| SHIP-04 | Phase 4 | Pending |
-| SHIP-05 | Phase 4 | Pending |
+| SHIP-01 | Phase 4 | Complete |
+| SHIP-02 | Phase 4 | Complete |
+| SHIP-03 | Phase 4 | Complete |
+| SHIP-04 | Phase 4 | Complete |
+| SHIP-05 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 29 total
@@ -112,4 +112,4 @@ None currently. Future scope should be added only if it directly supports the pe
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-05-25 after moving public showcase and hardening to Phase 4*
+*Last updated: 2026-05-26 after reconciling Phase 4 completion state*
