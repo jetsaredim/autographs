@@ -27,24 +27,8 @@
   failed_when: false
 
 - name: Run data and media smoke commands
-  ansible.builtin.command:
-    argv:
-      - podman
-      - run
-      - --rm
-      - --network
-      - "{{ autographs_data_smoke_network_name }}"
-      - --env-file
-      - "{{ autographs_data_smoke_env_path }}/app.env"
-      - --env
-      - "AUTOGRAPHS_SMOKE_BASE_URL={{ autographs_smoke_base_url }}"
-      - -v
-      - "{{ autographs_data_smoke_wallet_path }}:/opt/autographs/wallet:ro"
-      - -v
-      - "{{ autographs_data_smoke_secrets_path }}:/opt/autographs/secrets:ro"
-      - "{{ autographs_tools_image }}"
-      - sh
-      - -lc
-      - "NODE_OPTIONS={{ autographs_data_smoke_node_options | quote }} pnpm --filter app {{ item }}"
+  ansible.builtin.include_tasks: run-smoke-command.yml
   loop: "{{ autographs_data_smoke_commands }}"
-  changed_when: false
+  loop_control:
+    loop_var: autographs_data_smoke_command
+    label: "{{ autographs_data_smoke_command.name }} ({{ autographs_data_smoke_command.command }})"
