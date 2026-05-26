@@ -2,6 +2,19 @@
 
 Phase 4 selected Renovate as the repository dependency automation path. The goal is conservative visibility and review, not unattended production change.
 
+## Renovate Dashboard
+
+Renovate is enabled through the hosted GitHub app. The recurring Dependency Dashboard lives as repository issue [#69](https://github.com/jetsaredim/autographs/issues/69), not as a GitHub Project item or workflow run.
+
+Use issue #69 as the dependency update inbox:
+
+- Review available updates and grouped PR status.
+- Approve major updates before Renovate opens their PRs.
+- Retry or reopen Renovate work when an update was closed or blocked.
+- Confirm Renovate findings are tracked without granting automerge to `main`.
+
+Renovate does not run from a repository workflow in this setup. If the hosted app is removed, updates will stop until either the app is re-enabled or a self-hosted Renovate workflow is added.
+
 ## Workflow Permission Review
 
 | Workflow | Permissions | Review |
@@ -25,7 +38,7 @@ Tracked by Renovate:
 Accepted current posture:
 
 - Third-party actions are pinned to stable tags instead of immutable SHAs for readability and maintainability in this personal project.
-- Major dependency updates require manual review through the Renovate dependency dashboard.
+- Major dependency updates require manual review through the Renovate Dependency Dashboard issue.
 - Production deploy and cleanup changes must be reviewed with the same care as app code because they can affect the live VM and GHCR packages.
 
 ## Cleanup Reliability

@@ -11,7 +11,7 @@ Use this checklist before making the repository public, before merging a hardeni
 - Confirm repository badges in `README.md` map to real workflows or clearly documented static signals.
 - Confirm `README.md` separates current implementation from Phase 5 admin and Phase 6 AI plans.
 - Confirm `docs/security-review.md` records current-surface security findings as fixed, accepted, deferred, or tracked.
-- Confirm `docs/dependency-updates.md` explains Renovate scope, review expectations, and manual verification before merging dependency updates.
+- Confirm `docs/dependency-updates.md` explains Renovate scope, the Dependency Dashboard issue, review expectations, and manual verification before merging dependency updates.
 - Confirm `renovate.json` is present and configured for package, workflow, Docker/Corepack, Terraform, and runtime image update surfaces.
 - Confirm temporary operator routes remain token-guarded, blocked at the public Caddy edge, and documented as tunnel/procedure-only until Phase 5.
 - Confirm public image delivery remains app-mediated and does not expose direct Object Storage URLs, bucket names, namespaces, object keys, signed URLs, or credentials.
