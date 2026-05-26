@@ -1,0 +1,39 @@
+- name: Run data smoke command {{ autographs_data_smoke_command.name }}
+  ansible.builtin.command:
+    argv:
+      - podman
+      - run
+      - --rm
+      - --network
+      - "{{ autographs_data_smoke_network_name }}"
+      - --env-file
+      - "{{ autographs_data_smoke_env_path }}/app.env"
+      - --env
+      - "AUTOGRAPHS_SMOKE_BASE_URL={{ autographs_smoke_base_url }}"
+      - -v
+      - "{{ autographs_data_smoke_wallet_path }}:/opt/autographs/wallet:ro"
+      - -v
+      - "{{ autographs_data_smoke_secrets_path }}:/opt/autographs/secrets:ro"
+      - "{{ autographs_tools_image }}"
+      - sh
+      - -lc
+      - >-
+        NODE_OPTIONS={{ autographs_data_smoke_node_options | quote }}
+        timeout --kill-after={{ autographs_data_smoke_command_kill_after_seconds }}s
+        {{ autographs_data_smoke_command.timeout_seconds }}s
+        pnpm --filter app {{ autographs_data_smoke_command.command }}
+  register: autographs_data_smoke_command_result
+  changed_when: false
+  failed_when: >-
+    autographs_data_smoke_command_result.rc != 0
+    and autographs_data_smoke_command_result.rc not in [0, 124, 137]
+
+- name: Fail clearly when data smoke command times out
+  ansible.builtin.fail:
+    msg: >-
+      Data smoke command '{{ autographs_data_smoke_command.name }}'
+      (pnpm --filter app {{ autographs_data_smoke_command.command }})
+      timed out after {{ autographs_data_smoke_command.timeout_seconds }} seconds;
+      timeout sent a kill signal after an additional
+      {{ autographs_data_smoke_command_kill_after_seconds }} seconds.
+  when: autographs_data_smoke_command_result.rc in [124, 137]
