@@ -112,11 +112,35 @@ const assertMediaObjectDeleted = async (
   try {
     const result = await mediaStore.read(location);
     await drainBody(result.body);
-  } catch {
-    return;
+  } catch (error) {
+    if (isMissingMediaObjectError(error)) {
+      return;
+    }
+    throw error;
   }
 
   throw new Error(`Smoke media object ${location.objectKey} still exists after cleanup.`);
+};
+
+const isMissingMediaObjectError = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as {
+    code?: unknown;
+    status?: unknown;
+    statusCode?: unknown;
+    serviceCode?: unknown;
+  };
+
+  return (
+    candidate.code === "ENOENT" ||
+    candidate.status === 404 ||
+    candidate.statusCode === 404 ||
+    candidate.serviceCode === "ObjectNotFound" ||
+    candidate.serviceCode === "NotFound"
+  );
 };
 
 const drainBody = async (body: MediaReadResult["body"]): Promise<void> => {

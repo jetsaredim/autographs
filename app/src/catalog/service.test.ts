@@ -117,6 +117,45 @@ test("catalog service removes uploaded media when image attach persistence fails
   ]);
 });
 
+test("catalog service removes created metadata when image attachment fails during create", async () => {
+  const existing = item();
+  const repository = new FakeRepository(existing);
+  repository.updateError = new Error("repository update failed");
+  const mediaStore = new FakeMediaStore();
+  const service = new DefaultCatalogService(repository, mediaStore);
+
+  await assert.rejects(
+    service.create({
+      title: existing.title,
+      signer: existing.signer,
+      description: existing.description,
+      category: existing.category,
+      tags: existing.tags,
+      publicationStatus: existing.publicationStatus,
+      imageUploads: [
+        {
+          filename: "front.svg",
+          contentType: "image/svg+xml",
+          body: Buffer.from("<svg />"),
+          byteSize: 7,
+          isPrimary: true,
+        },
+      ],
+    }),
+    /repository update failed/,
+  );
+
+  assert.deepEqual(repository.deletedIds, [existing.id]);
+  assert.equal(mediaStore.uploaded.length, 1);
+  assert.deepEqual(mediaStore.deleted, [
+    {
+      storageNamespace: "namespace",
+      bucketName: "bucket",
+      objectKey: mediaStore.uploaded[0]?.objectKey,
+    },
+  ]);
+});
+
 test("catalog service removes earlier uploads when a later image upload fails", async () => {
   const existing = item();
   const mediaStore = new FakeMediaStore({ failUploadAt: 1 });
@@ -188,6 +227,7 @@ test("catalog service deletes media before removing one image reference", async 
 class FakeRepository implements CatalogRepository {
   lastUpdate: AutographItemUpdate | null = null;
   updateError: Error | null = null;
+  readonly deletedIds: string[] = [];
 
   constructor(
     private readonly existing: AutographItem,
@@ -207,7 +247,8 @@ class FakeRepository implements CatalogRepository {
     return { ...this.existing, ...input, images: this.existing.images };
   }
 
-  async delete(_id: string): Promise<void> {
+  async delete(id: string): Promise<void> {
+    this.deletedIds.push(id);
     this.events.push("repository.delete");
     return undefined;
   }

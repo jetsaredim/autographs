@@ -48,7 +48,12 @@ export class DefaultCatalogService implements CatalogService {
       return item;
     }
 
-    return this.attachImages(item.id, imageUploads);
+    try {
+      return await this.attachImages(item.id, imageUploads);
+    } catch (error) {
+      await this.repository.delete(item.id);
+      throw error;
+    }
   }
 
   async update(id: string, input: AutographItemUpdate): Promise<AutographItem> {
