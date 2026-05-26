@@ -66,11 +66,17 @@ autographs/
 - Root README, badges, public metadata, dependency automation, security review notes, and public-facing docs now live in repository docs/configuration surfaces rather than changing app architecture.
 - Current-surface hardening should preserve the existing public gallery, deployment, media, and operator-route boundaries.
 
+**Next Phase Static Runtime Pivot**
+- Treat the researched static-runtime direction as planning context, not implemented architecture: static public catalog, static admin shell, and a thin private admin/publisher API.
+- Start with the public static artifact contract and publisher preview before replacing the current public Next.js runtime.
+- Keep private OCI Object Storage identifiers, Oracle data, image UUIDs, and object URLs inside the OCI/runtime boundary; do not move catalog content generation into GitHub-hosted workflows.
+- Caddy and Ansible are likely retained, but Caddy would shift from reverse-proxying all public traffic to serving generated public files plus a private admin/API boundary.
+
 **Phase 5 Admin Workflow**
-- Admin pages/components: `app/app/admin/` and `app/app/components/` as needed.
-- Admin API/server actions: prefer existing service boundaries in `app/src/catalog/` and `app/src/media/`; avoid duplicating persistence logic in UI routes.
-- Auth/session helpers: add under a focused `app/src/admin/` or `app/src/auth/` module once the mechanism is chosen.
-- Edit history: extend `app/db/migrations/` and `app/src/catalog/` rather than creating a parallel audit store.
+- Replan before adding significant code: Phase 5 may become a static publishing foundation rather than direct expansion of `app/app/admin/`.
+- If the pivot is accepted, admin pages should become a static shell served by Caddy and privileged mutations should move behind a thin private API.
+- Reuse the existing catalog/media field model and public DTO contracts where practical, but avoid recreating the current dynamic public app under a different language runtime.
+- Edit history remains a Phase 5 requirement, but its storage/API shape should be decided during the static-runtime planning pass.
 
 **Public Gallery Changes**
 - Keep public DTOs in `app/src/catalog/public-view-models.ts`.
@@ -84,9 +90,9 @@ autographs/
 
 - Do not re-scaffold the app, pnpm workspace, workflows, or Terraform baseline.
 - Treat `.prompts/001-autograph-gallery-bootstrap-do/` as historical product intent, not the current implementation map.
-- Treat Phase 4 as current-surface showcase and hardening work on top of the completed public/data/media foundation; final readiness packaging is the remaining Phase 4 slice.
-- Treat Phase 5 as additive admin workflow work on top of the same foundation.
+- Treat Phase 4 as complete current-surface showcase and hardening work on top of the completed public/data/media foundation.
+- Treat Phase 5 as the next planning decision point: either continue the original admin workflow plan or insert the static runtime migration foundation before full admin CRUD.
 
 ---
 
-*Structure analysis refreshed: 2026-05-25 after phase reorder review*
+*Structure analysis refreshed: 2026-05-26 after Phase 4 completion reconciliation*

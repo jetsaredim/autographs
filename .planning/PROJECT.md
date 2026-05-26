@@ -23,6 +23,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - [ ] Support a single-admin collection management workflow with multiple images per item and edit history from v1.
 - [ ] Add advisory AI-assisted metadata suggestions after the manual admin workflow exists, without making cataloging depend on AI.
 - [ ] Keep the system operable by one developer using OCI Always Free services wherever practical.
+- [ ] Evaluate the static-runtime pivot before Phase 5 implementation: static public catalog, static admin shell, and a thin private admin/publisher API that generates content inside the OCI boundary.
 
 ### Out of Scope
 
@@ -41,6 +42,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - Runtime deployment uses Podman quadlets managed through Ansible rather than compose-style orchestration.
 - Public image access remains app-mediated through `/api/catalog/{itemId}/images/{imageId}` routes instead of direct Object Storage URLs.
 - Temporary operator-only mutation routes remain intentionally token-guarded and excluded from public ingress until the dedicated Phase 5 admin workflow replaces them.
+- Current pivot research favors moving anonymous public browsing to generated static output while keeping private image originals and metadata management behind an OCI-local admin/publisher boundary.
 - The intended product remains a personal collection site rather than a reusable platform, so roadmap choices continue to prioritize collection quality, manageability, and presentation over multi-user extensibility.
 
 ## Constraints
@@ -67,6 +69,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 | Use token-guarded operator endpoints only as a temporary verification seam | Phase 2 needed safe mutation verification before the admin workflow existed | Temporary bridge until Phase 5 |
 | Manage runtime services with Podman quadlets through Ansible | Simplifies long-lived runtime operations compared to compose-style orchestration on the OCI VM | Adopted in runtime deployment |
 | Move public-readiness hardening before admin and AI | The current gallery/deployment system can be made safe and presentable before adding larger private mutation and AI surfaces | Phase 4 focus as of 2026-05-25 |
+| Evaluate static public runtime before building admin CRUD | Smoke-test and runtime complexity suggest anonymous browsing may be better served as static generated output, while admin/publish work stays private and thin | Candidate Phase 5 pivot as of 2026-05-26 |
 | Treat multi-image support and edit history as v1 capabilities | These directly improve personal collection quality and manageability | Phase 5 requirement baseline |
 | Add AI-assisted ingest after admin workflow | AI suggestions should enhance a proven manual admin flow rather than define it | Captured as Phase 6 |
 
@@ -88,4 +91,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-25 after moving public showcase and hardening before admin workflow*
+*Last updated: 2026-05-26 after reconciling Phase 4 completion and static-runtime pivot research*

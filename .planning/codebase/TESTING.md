@@ -84,26 +84,26 @@ These commands are used as the baseline verification contract during Phase 3 com
 
 ### Phase 4 Coverage Status
 
-The following Phase 4 coverage has landed:
+Phase 4 coverage is complete for the current public-gallery/deployment surface:
 
 - Current-surface security and attack-vector review notes in `docs/security-review.md`.
 - Header, production health redaction, and Caddy operator-route regression tests in `app/src/gallery/public-surface.test.ts`.
 - Renovate config validation for package, workflow, container/Corepack, Terraform, and runtime image update surfaces.
 - Cleanup workflow hardening verified through the Ansible cleanup playbook syntax check.
 - Public README/showcase and architecture-doc reconciliation checks.
-
-Remaining Phase 4 work is final readiness checklist/signoff, including a concise record of which local validations were run and what still depends on GitHub Actions or live OCI secrets.
+- Final public-readiness signoff captured in `.planning/phases/04-public-showcase-and-hardening/04-05-SUMMARY.md` and `docs/public-readiness.md`.
 
 ### Pending Phase 5 Areas
 
-The following capabilities are not yet fully implemented or covered because Phase 5 has not started:
+The following capabilities are not yet fully implemented or covered because Phase 5 has not started. Static-runtime pivot research may change the exact validation shape:
 
-- Real admin authentication flow.
-- End-to-end admin create/edit workflow.
+- Real admin authentication or private admin access flow.
+- End-to-end admin create/edit/publish workflow.
 - Edit history persistence and rendering.
 - Media replacement/orphan cleanup guarantees.
 - Admin/public boundary hardening.
 - Admin route, secret, operator-bridge retirement, and edit-history documentation checks.
+- Static publisher validation, if the pivot is accepted: leak checks, generated asset completeness, atomic publish/rollback, and Caddy static-preview checks.
 
 ### Pending Phase 6 Areas
 
@@ -118,8 +118,8 @@ The following capabilities are not yet fully implemented or covered because Phas
   - local-mode developer validation,
   - CI validation,
   - live OCI smoke validation.
-- Keep deployment validation tied to real runtime behavior rather than static-only checks.
+- Keep deployment validation tied to the actual runtime model. If the project pivots to static generation, replace live-app data smoke checks with publisher, static-output, and private-admin-API validation.
 
 ---
 
-*Testing analysis refreshed: 2026-05-25 after phase reorder review*
+*Testing analysis refreshed: 2026-05-26 after Phase 4 completion reconciliation*

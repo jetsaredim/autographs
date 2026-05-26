@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
+status: planning
 stopped_at: Completed Phase 04
-last_updated: "2026-05-25T20:32:27.200Z"
-last_activity: 2026-05-25
+last_updated: "2026-05-26T22:20:06.046Z"
+last_activity: 2026-05-26
 progress:
   total_phases: 6
   completed_phases: 4
@@ -18,17 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-25)
+See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 04 — public-showcase-and-hardening
+**Current focus:** Next phase planning after Phase 04 completion
 
 ## Current Position
 
-Phase: 04 (public-showcase-and-hardening) — EXECUTING
+Phase: 04 (public-showcase-and-hardening) — COMPLETE
 Plan: 5 of 5
-Status: Phase complete — ready for verification
-Last activity: 2026-05-25
+Status: Ready to replan Phase 05 around the static-runtime migration pivot
+Last activity: 2026-05-26
 
 Progress: [██████████] 100%
 
@@ -36,7 +36,7 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 13 of 18
+- Total plans completed: 18 of 18
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -47,11 +47,11 @@ Progress: [██████████] 100%
 | 01 | 4 | 118 min | 29 min |
 | 02 | 4 | - | - |
 | 03 | 5 | - | - |
-| 04 | 0/5 | planned | - |
+| 04 | 5/5 | 54 min | 11 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 03-01, 03-02, 03-03, 03-04, 03-05
+- Last 5 plans: 04-01, 04-02, 04-03, 04-04, 04-05
 - Trend: Positive
 
 | Phase 04 P01 | 38 min | 3 tasks | 4 files |
@@ -80,6 +80,9 @@ Recent decisions affecting current work:
 - Phase 5: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
 - Phase 6: Add advisory AI-assisted ingest after the admin workflow exists, without making manual entry dependent on AI.
 - Review follow-up: Phase 5 and Phase 6 now carry explicit security/documentation completion criteria for the new admin and AI surfaces they introduce.
+- Pivot research: The current live Next.js public runtime and data-smoke path may be replaced by a static public catalog, static admin shell, and thin private admin/publisher API that generates content inside the OCI boundary.
+- Static-runtime boundary: GitHub Actions should build and deploy code artifacts only; catalog content generation should not expose private OCI object identifiers, URLs, Oracle data, or image UUIDs through GitHub-hosted workflows.
+- Planning guidance: Insert or revise the next phase to prove the static publishing contract and side-by-side Caddy preview before building full admin CRUD in a new API.
 
 ### Pending Todos
 
@@ -87,12 +90,13 @@ None yet.
 
 ### Blockers/Concerns
 
-- Live Phase 2 data/media smoke requires real ADB and private Object Storage credentials; run the manual `Data Smoke` GitHub Actions workflow when ready to prove the deployed route.
-- Single-admin authentication mechanism remains a phase-planning choice, but scope is intentionally one admin only.
+- The open smoke-test fix PR targets the current live-app data smoke path; it can be abandoned if the next phase pivots away from that production smoke model.
+- Single-admin authentication mechanism remains a phase-planning choice, but the preferred direction is a static admin shell backed by a private thin API.
+- The static-runtime pivot still needs a formal GSD phase plan before implementation starts.
 
 ## Session Continuity
 
-Last session: 2026-05-25T20:32:27.087Z
+Last session: 2026-05-26T22:20:06.046Z
 Stopped at: Completed Phase 04
 Resume file: .planning/ROADMAP.md
 
@@ -107,3 +111,4 @@ Resume file: .planning/ROADMAP.md
 | 2026-05-25 | address-pr-review-findings | Refreshed stale `AGENTS.md` generated sections and made public Caddy routing block temporary operator API paths. |
 | 2026-05-25 | reorder-showcase-before-admin | Moved Public Showcase and Hardening ahead of Admin Collection Workflow so hardening/docs polish run next. |
 | 2026-05-25 | reconcile-phase-reorder-review | Addressed post-merge review warnings from PR #65 by aligning phase criteria and generated docs. |
+| 2026-05-26 | reconcile-planning-state-after-phase-4-c | Marked Phase 4 requirements complete and captured static-runtime pivot research as next-phase planning context. |
