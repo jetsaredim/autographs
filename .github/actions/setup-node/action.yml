@@ -13,7 +13,7 @@ runs:
       shell: bash
       run: |
         corepack enable
-        corepack prepare pnpm@11.2.2 --activate
+        corepack prepare pnpm@11.3.0 --activate
 
     - name: Configure pnpm store
       shell: bash

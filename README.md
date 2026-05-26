@@ -62,7 +62,7 @@ Useful docs:
 Requirements:
 
 - Node.js 22 or newer
-- Corepack with pnpm 11.2.2
+- Corepack with pnpm 11.3.0
 
 Common commands:
 
