@@ -19,7 +19,7 @@
       - -lc
       - >-
         NODE_OPTIONS={{ autographs_data_smoke_node_options | quote }}
-        timeout --kill-after={{ autographs_data_smoke_command_kill_after_seconds }}s
+        timeout -k {{ autographs_data_smoke_command_kill_after_seconds }}s
         {{ autographs_data_smoke_command.timeout_seconds }}s
         pnpm --filter app {{ autographs_data_smoke_command.command }}
   register: autographs_data_smoke_command_result
