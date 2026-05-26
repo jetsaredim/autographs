@@ -48,7 +48,12 @@ export class DefaultCatalogService implements CatalogService {
       return item;
     }
 
-    return this.attachImages(item.id, imageUploads);
+    try {
+      return await this.attachImages(item.id, imageUploads);
+    } catch (error) {
+      await this.repository.delete(item.id);
+      throw error;
+    }
   }
 
   async update(id: string, input: AutographItemUpdate): Promise<AutographItem> {
@@ -74,8 +79,10 @@ export class DefaultCatalogService implements CatalogService {
       throw new Error(`Autograph item ${id} was not found.`);
     }
 
-    const uploadedImages = await Promise.all(
-      images.map(async (image, index) => {
+    const uploadedImages: AutographImageInput[] = [];
+
+    try {
+      for (const [index, image] of images.entries()) {
         const upload = await this.mediaStore.upload({
           objectKey: buildObjectKey(id, image.filename),
           contentType: image.contentType,
@@ -84,21 +91,24 @@ export class DefaultCatalogService implements CatalogService {
           metadata: image.metadata,
         });
 
-        return {
+        uploadedImages.push({
           ...upload,
           isPrimary: image.isPrimary ?? (existing.images.length === 0 && index === 0),
           sortOrder: image.sortOrder ?? existing.images.length + index,
           altText: image.altText ?? null,
-        };
-      }),
-    );
+        });
+      }
 
-    const normalizedImages = normalizePrimary([
-      ...existing.images.map(toImageInput),
-      ...uploadedImages,
-    ]);
+      const normalizedImages = normalizePrimary([
+        ...existing.images.map(toImageInput),
+        ...uploadedImages,
+      ]);
 
-    return this.repository.update(id, { images: normalizedImages });
+      return await this.repository.update(id, { images: normalizedImages });
+    } catch (error) {
+      await deleteMediaObjects(this.mediaStore, uploadedImages);
+      throw error;
+    }
   }
 
   async delete(id: string): Promise<AutographItem> {
@@ -109,15 +119,7 @@ export class DefaultCatalogService implements CatalogService {
 
     await this.repository.delete(id);
 
-    await Promise.all(
-      existing.images.map((image) =>
-        this.mediaStore.delete({
-          storageNamespace: image.storageNamespace,
-          bucketName: image.bucketName,
-          objectKey: image.objectKey,
-        }),
-      ),
-    );
+    await deleteMediaObjects(this.mediaStore, existing.images);
 
     return existing;
   }
@@ -133,19 +135,15 @@ export class DefaultCatalogService implements CatalogService {
       throw new Error(`Autograph image ${imageId} was not found.`);
     }
 
-    const remainingImages = normalizePrimary(
-      existing.images
-        .filter((image) => image.id !== imageId)
-        .map(toImageInput),
-    );
-
-    const updated = await this.repository.update(id, { images: remainingImages });
-
-    await this.mediaStore.delete({
-      storageNamespace: imageToDelete.storageNamespace,
-      bucketName: imageToDelete.bucketName,
-      objectKey: imageToDelete.objectKey,
+    const updated = await this.repository.update(id, {
+      images: normalizePrimary(
+        existing.images
+          .filter((image) => image.id !== imageId)
+          .map(toImageInput),
+      ),
     });
+
+    await this.mediaStore.delete(toMediaObjectLocation(imageToDelete));
 
     return updated;
   }
@@ -228,6 +226,19 @@ const toImageInput = (image: AutographImage): AutographImageInput => ({
   sortOrder: image.sortOrder,
   altText: image.altText,
 });
+
+const toMediaObjectLocation = (image: AutographImageInput) => ({
+  storageNamespace: image.storageNamespace,
+  bucketName: image.bucketName,
+  objectKey: image.objectKey,
+});
+
+const deleteMediaObjects = async (
+  mediaStore: PrivateMediaStore,
+  images: AutographImageInput[],
+): Promise<void> => {
+  await Promise.all(images.map((image) => mediaStore.delete(toMediaObjectLocation(image))));
+};
 
 const normalizePrimary = (images: AutographImageInput[]): AutographImageInput[] => {
   const primaryIndex = images.findLastIndex((image) => image.isPrimary);
