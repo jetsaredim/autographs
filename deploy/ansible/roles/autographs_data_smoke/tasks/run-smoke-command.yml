@@ -22,11 +22,11 @@
         timeout -k {{ autographs_data_smoke_command_kill_after_seconds }}s
         {{ autographs_data_smoke_command.timeout_seconds }}s
         pnpm --filter app {{ autographs_data_smoke_command.command }}
+  async: "{{ autographs_data_smoke_command.timeout_seconds + autographs_data_smoke_command_kill_after_seconds + 60 }}"
+  poll: 15
   register: autographs_data_smoke_command_result
   changed_when: false
-  failed_when: >-
-    autographs_data_smoke_command_result.rc != 0
-    and autographs_data_smoke_command_result.rc not in [0, 124, 137]
+  failed_when: autographs_data_smoke_command_result.rc not in [0, 124, 137]
 
 - name: Fail clearly when data smoke command times out
   ansible.builtin.fail:
