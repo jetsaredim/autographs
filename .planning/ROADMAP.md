@@ -2,7 +2,7 @@
 
 ## Overview
 
-Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery. Before adding the larger admin and AI surfaces, the roadmap now runs a public-showcase and hardening pass to make the current system safe, understandable, and presentable. It then completes the single-admin collection workflow with multi-image management and edit history, and finally adds advisory AI-assisted ingest.
+Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery. Before adding the larger admin and AI surfaces, the roadmap now runs a public-showcase and hardening pass to make the current system safe, understandable, and presentable. It then proves a static public runtime and private publishing foundation, completes the single-admin collection workflow with multi-image management and edit history, and finally adds advisory AI-assisted ingest.
 
 ## Phases
 
@@ -16,8 +16,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Oracle and Private Media Core** - Prove the database and object-storage seams that every collection record depends on. Implementation complete; live Oracle/Object Storage smoke path documented for operator execution with real credentials.
 - [x] **Phase 3: Public Gallery MVP** - Deliver anonymous browse, filter, and detail views for published autograph items. Complete; anonymous public gallery, filters, detail pages, image viewer, quote states, and privacy gates are implemented.
 - [x] **Phase 4: Public Showcase and Hardening** - Tie up loose ends, audit the current security posture, polish documentation, and prepare the current repository state to be public as a human+AI showcase. (completed 2026-05-25)
-- [ ] **Phase 5: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop.
-- [ ] **Phase 6: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
+- [ ] **Phase 5: Static Runtime Migration Foundation** - Prove a static public catalog and minimal private seed/publish path inside the OCI boundary, served side-by-side by Caddy, before replacing the public Next.js runtime.
+- [ ] **Phase 6: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop on top of the private publisher foundation.
+- [ ] **Phase 7: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
 
 ## Phase Details
 
@@ -80,7 +81,7 @@ Plans:
   3. The root `README.md` clearly explains the project goals, current architecture, local development, deployment model, and what makes the project a human+AI collaboration showcase.
   4. Repository badges and public-facing project metadata accurately reflect CI, linting, type checking, test/coverage posture, deployment or release status, and other useful quality signals.
   5. Loose-end issues, docs gaps, stale planning artifacts, and operational warnings for the current system have been triaged so the public repository tells a coherent story.
-**Boundary Note**: This phase hardens and presents the current public-gallery/deployment surface before admin and AI are added. Phase 5 and Phase 6 must still include their own security and documentation updates for the new admin and AI surfaces they introduce.
+**Boundary Note**: This phase hardens and presents the current public-gallery/deployment surface before static-runtime, admin, and AI changes are added. Phase 5, Phase 6, and Phase 7 must still include their own security and documentation updates for the new runtime, admin, and AI surfaces they introduce.
 **Plans**: 5 plans
 Plans:
 - [x] 04-01-PLAN.md - Harden the current public-gallery and deployment attack surface.
@@ -90,35 +91,50 @@ Plans:
 - [x] 04-05-PLAN.md - Run final public-readiness gates and record any tracked exceptions.
 **UI hint**: no
 
-### Phase 5: Admin Collection Workflow
-**Goal**: The collection owner can securely manage the catalog end to end, including creating, editing, publishing, multi-image maintenance, and reviewing edit history.
+### Phase 5: Static Runtime Migration Foundation
+**Goal**: Prove a static public catalog generated inside the OCI boundary, served side-by-side by Caddy, with a minimal static admin seed shell and private publisher/API path before replacing the current public Next.js runtime.
 **Depends on**: Phase 4
+**Requirements**: STATIC-01, STATIC-02, STATIC-03, STATIC-04, STATIC-05, STATIC-06, STATIC-07
+**Success Criteria** (what must be TRUE):
+  1. Public-safe static artifact contracts are defined for gallery, detail, search/facet data, generated media paths, and publish manifests.
+  2. A minimal private content seed path can write at least one autograph record and one private original image into the Oracle/Object Storage source of truth through the new static admin shell/API boundary.
+  3. A publisher can generate complete static public output inside the OCI/runtime boundary without exposing private Object Storage identifiers, Oracle data, image UUIDs, or object URLs through GitHub-hosted workflows.
+  4. Published image derivatives are sanitized, complete, and referenced only through public-safe generated paths.
+  5. Caddy can serve generated static output and the static admin shell side-by-side with the current runtime for preview validation before cutover.
+  6. A thin private admin/publisher API foundation can report health, enforce the chosen private access boundary, accept minimal seed content, and trigger or report publish jobs without implementing full edit-history or full CRUD polish yet.
+  7. Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, old data smoke path, and temporary operator bridge.
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 6: Admin Collection Workflow
+**Goal**: The collection owner can securely manage the catalog end to end, including polished create/edit forms, publishing controls, multi-image maintenance, and reviewing edit history.
+**Depends on**: Phase 5
 **Requirements**: DATA-03, MEDIA-04, ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04, ADMIN-05
 **Success Criteria** (what must be TRUE):
   1. Exactly one admin authentication path exists for collection management, with no public account system required.
-  2. Admin can create a new autograph item by uploading images, reviewing metadata, and saving the item before publication.
+  2. Admin can create a new autograph item through the polished admin workflow by uploading images, reviewing metadata, and saving the item before publication.
   3. Admin can edit an existing autograph item's metadata and associated images, and can review an edit history showing what changed over time.
   4. Admin can publish changes so items become visible in the public gallery without leaving orphaned metadata references or image files in normal operation.
-  5. Admin routes, secrets, edit-history behavior, media cleanup, and operator-bridge retirement are reviewed for security and documented before Phase 5 is marked complete.
+  5. Admin routes, secrets, edit-history behavior, media cleanup, and operator-bridge retirement are reviewed for security and documented before Phase 6 is marked complete.
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 6: AI-Assisted Ingest
+### Phase 7: AI-Assisted Ingest
 **Goal**: The admin workflow gains advisory OCR/AI metadata suggestions that speed up cataloging without blocking manual control.
-**Depends on**: Phase 5
+**Depends on**: Phase 6
 **Requirements**: AI-01, AI-02, AI-03, AI-04
 **Success Criteria** (what must be TRUE):
   1. Upload workflow can generate AI-assisted metadata suggestions for relevant autograph fields such as signer, item type, tags, or inscription text.
   2. Admin can review, correct, or ignore OCR and AI suggestions before saving the item.
   3. Upload workflow still succeeds with fully manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
-  4. AI/OCR providers, prompts, failure modes, privacy boundaries, and configuration/secrets are reviewed for security and documented before Phase 6 is marked complete.
+  4. AI/OCR providers, prompts, failure modes, privacy boundaries, and configuration/secrets are reviewed for security and documented before Phase 7 is marked complete.
 **Plans**: TBD
 **UI hint**: yes
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -126,5 +142,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Oracle and Private Media Core | 4/4 | Complete | 2026-05-14 |
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
-| 5. Admin Collection Workflow | 0/TBD | Not started | - |
-| 6. AI-Assisted Ingest | 0/TBD | Not started | - |
+| 5. Static Runtime Migration Foundation | 0/TBD | Not started | - |
+| 6. Admin Collection Workflow | 0/TBD | Not started | - |
+| 7. AI-Assisted Ingest | 0/TBD | Not started | - |

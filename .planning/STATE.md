@@ -7,11 +7,11 @@ stopped_at: Completed Phase 04
 last_updated: "2026-05-26T22:20:06.046Z"
 last_activity: 2026-05-26
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 4
   total_plans: 18
   completed_plans: 18
-  percent: 67
+  percent: 57
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 
 Phase: 04 (public-showcase-and-hardening) — COMPLETE
 Plan: 5 of 5
-Status: Ready to replan Phase 05 around the static-runtime migration pivot
+Status: Ready to discuss and plan Phase 05 Static Runtime Migration Foundation
 Last activity: 2026-05-26
 
 Progress: [██████████] 100%
@@ -71,18 +71,19 @@ Recent decisions affecting current work:
 - Phase 1: Live GitHub-to-OCI deploy proof passed on 2026-05-14.
 - Phase 2: Prove Oracle and private media seams before building gallery or admin UX on top of them.
 - Phase 2: Keep public image delivery app-mediated through `/api/catalog/{itemId}/images/{imageId}` rather than direct Object Storage URLs.
-- Phase 2: Use token-guarded operator endpoints only as a temporary verification seam until Phase 5 admin auth replaces them.
+- Phase 2: Use token-guarded operator endpoints only as a temporary verification seam until the Phase 6 admin workflow replaces them.
 - Quick task: Manage both production containers with Podman quadlets on a dedicated Podman network instead of compose/podman-compose.
 - Quick task: Keep runtime VM host configuration in the merge-triggered Ansible deploy rather than cloud-init user data.
 - Quick task: Reconciled `.planning/codebase/*` docs so they describe the implemented Phase 1-3 app instead of the original planning-only repo.
 - Quick task: Updated generated `AGENTS.md` codebase sections and public Caddy operator-route blocking after PR review.
 - Phase 4: Run public-readiness and hardening before adding admin and AI surfaces, focused on the current public-gallery/deployment system.
-- Phase 5: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
-- Phase 6: Add advisory AI-assisted ingest after the admin workflow exists, without making manual entry dependent on AI.
-- Review follow-up: Phase 5 and Phase 6 now carry explicit security/documentation completion criteria for the new admin and AI surfaces they introduce.
+- Phase 5: Prove the static public runtime plus a minimal private seed/publish path into Oracle/Object Storage before expanding admin CRUD.
+- Phase 6: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
+- Phase 7: Add advisory AI-assisted ingest after the admin workflow exists, without making manual entry dependent on AI.
+- Review follow-up: Phase 6 and Phase 7 now carry explicit security/documentation completion criteria for the new admin and AI surfaces they introduce.
 - Pivot research: The current live Next.js public runtime and data-smoke path may be replaced by a static public catalog, static admin shell, and thin private admin/publisher API that generates content inside the OCI boundary.
 - Static-runtime boundary: GitHub Actions should build and deploy code artifacts only; catalog content generation should not expose private OCI object identifiers, URLs, Oracle data, or image UUIDs through GitHub-hosted workflows.
-- Planning guidance: Insert or revise the next phase to prove the static publishing contract and side-by-side Caddy preview before building full admin CRUD in a new API.
+- Planning guidance: Discuss and plan Phase 5 to prove the static publishing contract and side-by-side Caddy preview before building full admin CRUD in a new API.
 
 ### Pending Todos
 
@@ -92,7 +93,11 @@ None yet.
 
 - The open smoke-test fix PR targets the current live-app data smoke path; it can be abandoned if the next phase pivots away from that production smoke model.
 - Single-admin authentication mechanism remains a phase-planning choice, but the preferred direction is a static admin shell backed by a private thin API.
-- The static-runtime pivot still needs a formal GSD phase plan before implementation starts.
+- Phase 5 still needs formal discussion and planning before implementation starts.
+
+### Roadmap Evolution
+
+- Phase 5 inserted: Static Runtime Migration Foundation; former Admin Collection Workflow moved to Phase 6 and AI-Assisted Ingest moved to Phase 7.
 
 ## Session Continuity
 
