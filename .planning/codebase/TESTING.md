@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-05-24
+**Analysis Date:** 2026-05-28
 
 ## Validation Contract
 
@@ -107,12 +107,12 @@ The following capabilities are not yet implemented or covered because Phase 5 ha
 
 ### Pending Phase 6 Areas
 
-- Real admin authentication or private admin access flow.
+- Polished admin session UX and hardening beyond the Phase 5 minimal single-admin/private controller foundation.
 - Polished end-to-end admin create/edit/publish workflow.
 - Edit history persistence and rendering.
 - Media replacement/orphan cleanup guarantees.
 - Admin/public boundary hardening.
-- Admin route, secret, operator-bridge retirement, and edit-history documentation checks.
+- Admin route, secret, and edit-history documentation checks.
 
 ### Pending Phase 7 Areas
 
@@ -131,4 +131,4 @@ The following capabilities are not yet implemented or covered because Phase 5 ha
 
 ---
 
-*Testing analysis refreshed: 2026-05-26 after inserting Static Runtime Migration Foundation as Phase 5*
+*Testing analysis refreshed: 2026-05-28 after Phase 5 static-runtime context gathering*

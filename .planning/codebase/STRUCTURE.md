@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-05-25
+**Analysis Date:** 2026-05-28
 
 ## Directory Layout
 
@@ -29,7 +29,7 @@ autographs/
 - `app/app/page.tsx`: public landing page.
 - `app/app/collection/page.tsx`: public collection grid and URL-backed filters.
 - `app/app/collection/[id]/page.tsx`: published item detail page.
-- `app/app/admin/page.tsx`: placeholder only; Phase 6 owns the real admin workflow after the Phase 5 static-runtime foundation.
+- `app/app/admin/page.tsx`: placeholder only; Phase 5 may replace this with a minimal static admin seed/publish shell, while Phase 6 owns the polished admin workflow.
 
 **API Routes**
 - `app/app/api/catalog/`: public published-only catalog and app-mediated images.
@@ -49,7 +49,7 @@ autographs/
 
 **Planning and Documentation**
 - `.planning/PROJECT.md`, `.planning/ROADMAP.md`, `.planning/REQUIREMENTS.md`, `.planning/STATE.md`: high-level GSD truth.
-- `.planning/phases/01-*`, `02-*`, `03-*`: completed phase plans/summaries.
+- `.planning/phases/01-*`, `02-*`, `03-*`, `04-*`: completed phase plans/summaries.
 - `.planning/codebase/*.md`: current codebase maps for future agents.
 - `README.md`: public showcase, status, architecture, local-development, operations, security, and human+AI/GSD framing.
 - `docs/`: operator-facing setup, deploy, DNS, Terraform, dependency-update, security-review, and temporary data-entry runbooks.
@@ -62,10 +62,7 @@ autographs/
 
 ## Where to Add New Code
 
-**Phase 4 Public Showcase and Hardening**
-- Root README, badges, public metadata, dependency automation, security review notes, and public-facing docs now live in repository docs/configuration surfaces rather than changing app architecture.
-- Current-surface hardening should preserve the existing public gallery, deployment, media, and operator-route boundaries.
-
+**Phase 5 Static Runtime Migration Foundation**
 - Treat the researched static-runtime direction as the next planned phase, not implemented architecture: static public catalog, static admin seed shell, and a thin private admin/publisher API.
 - Start with the public static artifact contract and publisher preview before replacing the current public Next.js runtime.
 - Include a minimal content seed path that can write representative metadata and a private original image into Oracle/Object Storage, so the publisher has real source data to generate.
@@ -93,7 +90,8 @@ autographs/
 - Treat Phase 4 as complete current-surface showcase and hardening work on top of the completed public/data/media foundation.
 - Treat Phase 5 as the static runtime migration foundation before full admin CRUD.
 - Treat Phase 6 as the full admin collection workflow on top of the private seed/publisher/API foundation.
+- Treat Phase 7 as advisory AI-assisted ingest.
 
 ---
 
-*Structure analysis refreshed: 2026-05-26 after inserting Static Runtime Migration Foundation as Phase 5*
+*Structure analysis refreshed: 2026-05-28 after Phase 5 static-runtime context gathering*

@@ -1,6 +1,6 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-05-25
+**Analysis Date:** 2026-05-28
 
 ## Naming Patterns
 
@@ -24,7 +24,7 @@
 - The app uses native CSS in `app/app/globals.css`; Phase 3 explicitly avoided Tailwind, shadcn, decorative gradients, and icon libraries.
 - Use existing service/repository/media boundaries rather than placing persistence details directly in route components.
 - Keep public DTOs free of private storage identifiers.
-- Keep admin/operator terminology precise: current operator APIs are temporary, token-guarded, and blocked by the public Caddy route; Phase 5 admin UX is not implemented yet.
+- Keep admin/operator terminology precise: current operator APIs are temporary, token-guarded, and blocked by the public Caddy route; Phase 5 owns the Rust private controller and minimal static admin seed/publish path, while Phase 6 owns polished admin UX.
 
 ## Import Organization
 
@@ -35,7 +35,7 @@
 ## Error Handling
 
 - Public routes should avoid leaking internal storage, OCI, or database details.
-- Operator routes may return operational errors, but must remain token-guarded and accessible only through the documented tunnel/procedure until Phase 5.
+- Operator routes may return operational errors, but must remain token-guarded and accessible only through the documented tunnel/procedure until Phase 5 replaces or retires them.
 - Service-layer methods throw explicit not-found errors for missing catalog items/images; API routes translate expected not-found cases to HTTP responses.
 
 ## Testing Habits
@@ -53,9 +53,9 @@
 
 ## Current Guidance
 
-- Phase 4 should harden and document the current public-gallery/deployment surface; Phase 5 should add admin authentication, create/edit/publish workflows, edit history, and media cleanup guarantees on top of the existing catalog/media service boundaries.
+- Phase 5 should prove the static runtime migration foundation with a Rust private controller, minimal static admin seed/publish path, generated public artifacts, and operator-bridge retirement. Phase 6 should add the polished admin collection workflow, edit history, and media cleanup ergonomics on that foundation. Phase 7 should add advisory AI-assisted ingest.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage URLs, or a split frontend/backend service architecture for v1.
 
 ---
 
-*Conventions refreshed: 2026-05-25 after repo-state reconciliation*
+*Conventions refreshed: 2026-05-28 after Phase 5 static-runtime context gathering*

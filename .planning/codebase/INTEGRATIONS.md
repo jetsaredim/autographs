@@ -1,6 +1,6 @@
 # External Integrations
 
-**Analysis Date:** 2026-05-25
+**Analysis Date:** 2026-05-28
 
 ## APIs and External Services
 
@@ -34,10 +34,11 @@
 **Current**
 - Public gallery is anonymous.
 - Temporary operator mutation routes require `AUTOGRAPHS_OPERATOR_API_TOKEN`.
-- Operator routes are documented as SSH-tunnel/procedure-only until Phase 5, with public Caddy routing blocking `/api/operator/*`.
+- Operator routes are documented as SSH-tunnel/procedure-only until Phase 5 replaces or retires them with the Rust private controller and minimal static admin seed/publish path, with public Caddy routing blocking `/api/operator/*`.
 
 **Pending**
-- Real single-admin authentication is Phase 5 scope.
+- Minimal single-admin/private controller access is Phase 5 scope.
+- Polished admin collection workflow is Phase 6 scope.
 - There is intentionally no public account system, multi-admin role hierarchy, or social identity flow for v1.
 
 ## CI/CD and Deployment
@@ -72,7 +73,7 @@
 
 ## AI Integrations
 
-No OCR or AI-assisted metadata suggestion integration is implemented yet. That remains Phase 6 scope and should be advisory, with manual entry remaining fully functional.
+No OCR or AI-assisted metadata suggestion integration is implemented yet. That remains Phase 7 scope and should be advisory, with manual entry remaining fully functional.
 
 ## Practical Interpretation
 
@@ -80,4 +81,4 @@ The repo now contains real app, infrastructure, delivery, and operator integrati
 
 ---
 
-*Integration audit refreshed: 2026-05-25 after repo-state reconciliation*
+*Integration audit refreshed: 2026-05-28 after Phase 5 static-runtime context gathering*
