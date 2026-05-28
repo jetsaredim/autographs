@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan Phase 05 Static Runtime Migration Foundation
-stopped_at: Phase 05 context gathered
-last_updated: "2026-05-28T12:27:14-04:00"
+status: Ready to execute Phase 05 Static Runtime Migration Foundation
+stopped_at: Phase 05 planned
+last_updated: "2026-05-28T15:45:00-04:00"
 last_activity: 2026-05-28
 progress:
   total_phases: 7
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Formal Phase 05 planning after context gathering
+**Current focus:** Phase 05 execution after formal planning
 
 ## Current Position
 
 Phase: 04 (public-showcase-and-hardening) — COMPLETE
 Plan: 5 of 5
-Status: Ready to plan Phase 05 Static Runtime Migration Foundation
+Status: Ready to execute Phase 05 Static Runtime Migration Foundation
 Last activity: 2026-05-28
 
 Progress: [██████████] 100%
@@ -93,7 +93,7 @@ None yet.
 
 - The open smoke-test fix PR targets the current live-app data smoke path; it can be abandoned if the next phase pivots away from that production smoke model.
 - Minimal single-admin/private controller access remains a Phase 5 planning choice, with the preferred direction being a static admin shell backed by a private thin API.
-- Phase 5 context is gathered in `05-CONTEXT.md` and `05-DISCUSSION-LOG.md`; it still needs formal GSD phase planning before implementation starts.
+- Phase 5 is formally planned with six execution plans covering static artifact contracts, Rust controller/auth, private seed/upload, publisher/derivatives, minimal static admin shell, and Caddy/deploy/cutover.
 
 ### Roadmap Evolution
 
@@ -102,8 +102,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-28T16:13:30.360Z
-Stopped at: Phase 05 context gathered
-Resume file: .planning/phases/05-static-runtime-migration-foundation/05-CONTEXT.md
+Stopped at: Phase 05 planned
+Resume file: .planning/phases/05-static-runtime-migration-foundation/05-01-PLAN.md
 
 ## Quick Tasks Completed
 
