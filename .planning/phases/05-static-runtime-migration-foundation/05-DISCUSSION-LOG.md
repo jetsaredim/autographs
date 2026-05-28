@@ -65,12 +65,10 @@
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Preview path | Rejected: serve static output under a public preview path while Next.js remains primary. | |
-| Preview subdomain | Rejected: serve static output on a separate public host/subdomain. | |
-| Short migration cutover | Selected: validate candidate output privately, then switch routes/runtime during planned downtime. | ✓ |
+| Candidate validation and planned cutover | Validate candidate output through filesystem checks and local/private Caddy, then switch routes/runtime during planned downtime. | ✓ |
 
 **User's choice:** Use a short migration cutover with downtime allowed.
-**Notes:** The user explicitly prefers roll-forward only and is comfortable with VM rebuild if needed. Public side-by-side preview is not required. Candidate output should be validated through local/private checks before cutover; no rollback mechanism is required beyond preflight validation and fix-forward behavior.
+**Notes:** The user explicitly prefers roll-forward only and is comfortable with VM rebuild if needed. The selected model is candidate validation through local/private checks before planned cutover; no rollback mechanism is required beyond preflight validation and fix-forward behavior.
 
 ---
 
