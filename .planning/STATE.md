@@ -83,7 +83,7 @@ Recent decisions affecting current work:
 - Review follow-up: Phase 6 and Phase 7 now carry explicit security/documentation completion criteria for the new admin and AI surfaces they introduce.
 - Pivot research: The current live Next.js public runtime and data-smoke path may be replaced by a static public catalog, static admin shell, and thin private admin/publisher API that generates content inside the OCI boundary.
 - Static-runtime boundary: GitHub Actions should build and deploy code artifacts only; catalog content generation should not expose private OCI object identifiers, URLs, Oracle data, or image UUIDs through GitHub-hosted workflows.
-- Planning guidance: Formally plan Phase 5 to prove the static publishing contract, Rust private controller, minimal static admin seed/publish path, and side-by-side Caddy preview before Phase 6 admin polish.
+- Planning guidance: Formally plan Phase 5 to prove the static publishing contract, Rust private controller, minimal static admin seed/publish path, and local/private Caddy candidate validation before Phase 6 admin polish.
 
 ### Pending Todos
 

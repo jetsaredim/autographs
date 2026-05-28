@@ -100,7 +100,7 @@ The following capabilities are not yet implemented or covered because Phase 5 ha
 - Static publisher contract tests for gallery, detail, search/facet data, generated media paths, and publish manifests.
 - Leak checks ensuring generated output does not expose private OCI object identifiers, bucket names, namespaces, object keys, Oracle details, private URLs, image UUIDs, or unpublished records.
 - Published image derivative validation, including metadata stripping, completeness checks, and public-safe path generation.
-- Caddy side-by-side static preview checks before public cutover.
+- Local/private Caddy candidate validation checks before planned public cutover.
 - Thin private admin/publisher API foundation checks for health, private access enforcement, minimal content seeding into Oracle/Object Storage, and publish trigger/status behavior.
 - End-to-end seeded content smoke: submit minimal metadata and one image through the private admin/API boundary, persist to Oracle/Object Storage, generate static output, and verify the generated public page plus derivative image.
 - Cutover and retirement validation for the public Next.js runtime, public catalog APIs, app-mediated image streaming, data smoke path, and temporary operator bridge.

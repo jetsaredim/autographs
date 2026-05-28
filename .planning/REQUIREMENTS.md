@@ -45,7 +45,7 @@
 - [ ] **STATIC-01**: Public static artifact contracts are defined for gallery pages, item detail pages, search/facet data, generated media paths, and publish manifests.
 - [ ] **STATIC-02**: Static catalog generation runs inside the OCI/runtime boundary and does not require GitHub-hosted workflows to read catalog data, private image identifiers, Object Storage object keys, bucket details, or Oracle content.
 - [ ] **STATIC-03**: Published image derivatives are generated from private originals with sanitized filenames, stripped private metadata, and no leaked Object Storage URLs, UUIDs, namespaces, bucket names, or object keys.
-- [ ] **STATIC-04**: Caddy can serve generated static output side-by-side with the current runtime for preview validation before public cutover.
+- [ ] **STATIC-04**: Caddy can serve generated static output through a local/private candidate validation path before planned public cutover.
 - [ ] **STATIC-05**: A static admin shell and thin private admin/publisher API foundation exist for health, private access enforcement, minimal content seeding into Oracle/Object Storage, and publish trigger/status behavior without implementing the full polished admin workflow yet.
 - [ ] **STATIC-06**: Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, current data smoke path, and temporary operator bridge.
 - [ ] **STATIC-07**: The static publishing path can prove an end-to-end seeded content loop: submit minimal metadata and an image through the private admin/API boundary, persist them to Oracle/Object Storage, generate static output, and verify the generated public page and derivative image.
