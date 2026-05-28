@@ -60,6 +60,7 @@ Manual smoke review is required when an update touches deployment behavior, Terr
 
 ## Lifecycle Notes
 
-- Phase 5 must update this policy when real admin authentication, edit history, media cleanup, and operator-bridge retirement add new dependencies or validation gates.
-- Phase 6 must update this policy when OCR/AI providers, prompt tooling, model SDKs, or image/text extraction dependencies are introduced.
+- Phase 5 must update this policy when the static publisher, Rust private controller, generated derivatives, and operator-bridge replacement add new dependencies or validation gates.
+- Phase 6 must update this policy when polished admin authentication, edit history, media cleanup, and admin workflow ergonomics add new dependencies or validation gates.
+- Phase 7 must update this policy when OCR/AI providers, prompt tooling, model SDKs, or image/text extraction dependencies are introduced.
 - Major updates should stay separate and should not be merged only because automated checks pass.

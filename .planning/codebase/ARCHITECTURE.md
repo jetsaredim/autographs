@@ -1,10 +1,10 @@
 # Architecture
 
-**Analysis Date:** 2026-05-25
+**Analysis Date:** 2026-05-28
 
 ## Pattern Overview
 
-Autographs is now an implemented single-application system, not a planning-only repository. The current architecture is a full-stack `Next.js` App Router application under `app/`, backed by Oracle Autonomous Database for catalog metadata and private OCI Object Storage for autograph images. Public visitors browse only published items, while temporary operator-only mutation routes remain token-guarded and blocked at the public Caddy edge until Phase 5 replaces them with the real single-admin workflow.
+Autographs is now an implemented single-application system, not a planning-only repository. The current architecture is a full-stack `Next.js` App Router application under `app/`, backed by Oracle Autonomous Database for catalog metadata and private OCI Object Storage for autograph images. Public visitors browse only published items, while temporary operator-only mutation routes remain token-guarded and blocked at the public Caddy edge until Phase 5 replaces or retires them with the Rust private controller and minimal static admin seed/publish path.
 
 ## Layers
 
@@ -20,7 +20,7 @@ Autographs is now an implemented single-application system, not a planning-only 
 
 **Temporary Operator API Layer**
 - Location: `app/app/api/operator/catalog/`
-- Purpose: Transitional token-guarded create, update, image attach, image delete, and item delete workflows for production data entry before Phase 5.
+- Purpose: Transitional token-guarded create, update, image attach, image delete, and item delete workflows for production data entry before the Phase 5 static-runtime/private-controller foundation.
 - Boundary: Must remain operator-only by deployment/routing procedure and bearer token; it is not the v1 admin UX.
 
 **Catalog Service Layer**
@@ -64,19 +64,19 @@ Autographs is now an implemented single-application system, not a planning-only 
 - `CatalogRepository`: Persists catalog records, tags, and image metadata through Oracle.
 - `PrivateMediaStore`: Abstracts OCI Object Storage and local media modes.
 - Public view models: Strip private storage fields and build app-mediated image routes.
-- Operator API bridge: Temporary mutation surface used until Phase 5 admin workflow exists.
+- Operator API bridge: Temporary mutation surface used until Phase 5 replaces or retires it with the Rust private controller and minimal static admin seed/publish path.
 
 ## Current Phase Boundary
 
-Phases 1-3 are complete. Phase 4 is in progress: public-surface security headers, production health-detail redaction, Caddy/operator-route regression coverage, Renovate configuration, dependency-update docs, cleanup-job hardening, root README showcase content, and architecture/doc reconciliation have landed. Final Phase 4 readiness packaging remains pending. Phase 5 should build the admin workflow on the existing catalog service, media abstraction, public gallery, and operator bridge. It should not re-scaffold the application or replace the delivery spine.
+Phases 1-4 are complete. Phase 5 context is gathered and needs formal GSD phase planning before implementation. Phase 5 should prove the static runtime migration foundation: static public artifacts, public-safe JSON, generated derivatives, a Rust private admin/controller container, a minimal static admin seed/publish UI, publish validation, Caddy/runtime cutover, and retirement or replacement of the temporary Node operator bridge. Phase 6 should polish the daily-use admin collection workflow on that foundation. Phase 7 should add advisory AI-assisted ingest. Do not re-scaffold the existing delivery spine.
 
 ## Notable Absences
 
-- Real single-admin authentication and admin UX are not implemented yet.
+- Phase 5 Rust private controller, static publisher, and minimal static admin seed/publish path are not implemented yet.
+- Polished Phase 6 admin collection workflow is not implemented yet.
 - Edit history persistence/rendering is not implemented yet.
 - AI-assisted metadata suggestions are not implemented yet.
-- Final public-readiness checklist/signoff remains Phase 4 work.
 
 ---
 
-*Architecture analysis refreshed: 2026-05-25 after repo-state reconciliation*
+*Architecture analysis refreshed: 2026-05-28 after Phase 5 static-runtime context gathering*

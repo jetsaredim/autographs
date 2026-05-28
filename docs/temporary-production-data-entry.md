@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Production data entry remains intentionally procedural until the Phase 5 admin workflow exists. The temporary path lets the operator create, update, attach image media to, and remove image media from catalog records through the deployed app's operator API while keeping private media and Oracle metadata connected through the catalog service.
+Production data entry remains intentionally procedural until the Phase 5 static runtime/private controller foundation replaces it. The temporary path lets the operator create, update, attach image media to, and remove image media from catalog records through the deployed app's operator API while keeping private media and Oracle metadata connected through the catalog service.
 
 ## Security Boundary
 
@@ -288,4 +288,4 @@ Delete images and full catalog items through the operator API as well so metadat
 
 ## Retirement Path
 
-Phase 5 replaces this bridge with the real single-admin collection workflow. When that workflow exists, retire the SSH-tunnel data-entry path or keep it only as a documented break-glass operator procedure.
+Phase 5 replaces or retires this bridge with the Rust private controller and minimal static admin seed/publish path. Phase 6 turns that foundation into the polished single-admin collection workflow. After the Phase 5 path exists, retire the SSH-tunnel data-entry path or keep it only as a documented break-glass operator procedure.

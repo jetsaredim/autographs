@@ -68,7 +68,7 @@ const workflowSteps = [
     number: 10,
     name: "Manage collection content",
     description:
-      "Temporary operator procedures use a token-guarded SSH tunnel into the app until Phase 5 adds the real admin workflow; Phase 6 later adds advisory AI metadata suggestions.",
+      "Temporary operator procedures use a token-guarded SSH tunnel into the app until Phase 5 replaces them with the Rust private controller and minimal static admin seed/publish path; Phase 6 polishes the admin workflow, and Phase 7 later adds advisory AI metadata suggestions.",
   },
 ];
 

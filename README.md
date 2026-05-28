@@ -23,8 +23,9 @@ Implemented:
 
 Planned, not current:
 
-- Phase 5: single-admin create/edit/publish workflow, real admin authentication, edit history, media cleanup UX, and retirement of the temporary operator bridge.
-- Phase 6: advisory OCR/AI metadata suggestions that speed up cataloging while preserving manual control.
+- Phase 5: static runtime migration foundation with generated public artifacts, a Rust private admin/controller, a minimal static admin seed/publish path, generated media derivatives, and retirement of the temporary operator bridge.
+- Phase 6: polished single-admin collection workflow, edit history, richer media cleanup UX, and daily-use admin ergonomics.
+- Phase 7: advisory OCR/AI metadata suggestions that speed up cataloging while preserving manual control.
 
 Out of scope for v1:
 
@@ -92,7 +93,7 @@ Operational checks:
 
 The public gallery is intentionally read-only. Public catalog responses use published-safe view models, and public image routes stream media through the app rather than exposing Object Storage URLs or object keys.
 
-Temporary operator APIs exist only as a pre-admin bridge. They require a bearer token in the app and are blocked at the public Caddy edge. Use the documented SSH tunnel procedure until Phase 5 replaces this path with the real admin workflow.
+Temporary operator APIs exist only as a pre-admin bridge. They require a bearer token in the app and are blocked at the public Caddy edge. Use the documented SSH tunnel procedure until Phase 5 replaces or retires this path with the Rust private controller and minimal static admin seed/publish path.
 
 See [Security review](docs/security-review.md) for the current fixed, accepted, and deferred findings.
 
@@ -100,4 +101,4 @@ See [Security review](docs/security-review.md) for the current fixed, accepted, 
 
 This project is being built with a human+AI workflow using GSD: discussion, phase planning, execution plans, review, validation, and PR-based merge discipline. The point is not to hide the planning process; it is to make the repository legible as a real product lifecycle with constraints, tradeoffs, and follow-through.
 
-The current Phase 4 focus is making the repository safe and clear enough to review publicly before expanding the surface area with admin and AI features.
+The current focus is formal Phase 5 planning for the static runtime migration foundation before expanding into the polished Phase 6 admin workflow and Phase 7 AI-assisted ingest.

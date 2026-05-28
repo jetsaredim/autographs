@@ -9,7 +9,7 @@ Use this checklist before making the repository public, before merging a hardeni
 - Let GitHub Actions validate the PR. Treat CI as the authoritative validation gate for lint, typecheck, tests, build, workflow checks, and any configured repository scans.
 - Confirm the PR review feedback is written back to the PR as GitHub comments.
 - Confirm repository badges in `README.md` map to real workflows or clearly documented static signals.
-- Confirm `README.md` separates current implementation from Phase 5 admin and Phase 6 AI plans.
+- Confirm `README.md` separates current implementation from Phase 5 static-runtime foundation, Phase 6 admin, and Phase 7 AI plans.
 - Confirm `docs/security-review.md` records current-surface security findings as fixed, accepted, deferred, or tracked.
 - Confirm `docs/dependency-updates.md` explains Renovate scope, the Dependency Dashboard issue, review expectations, and manual verification before merging dependency updates.
 - Confirm `renovate.json` is present and configured for package, workflow, Docker/Corepack, Terraform, and runtime image update surfaces.
@@ -22,8 +22,9 @@ Use this checklist before making the repository public, before merging a hardeni
 
 ## Deferred Scope Rules
 
-- Phase 5 may defer only admin-workflow items: real single-admin auth, create/edit/publish UI, edit history, media replacement/orphan cleanup, and retirement of the temporary operator bridge.
-- Phase 6 may defer only advisory OCR/AI ingest items: provider selection, prompts, metadata suggestions, privacy review, and failure-mode handling.
+- Phase 5 may defer only static-runtime/private-controller foundation items: generated public artifacts, Rust controller access, minimal static admin seed/publish path, generated derivatives, Caddy cutover, and retirement of the temporary operator bridge.
+- Phase 6 may defer only polished admin-workflow items: full daily-use admin UX, edit history, richer media cleanup ergonomics, and admin workflow hardening beyond the Phase 5 foundation.
+- Phase 7 may defer only advisory OCR/AI ingest items: provider selection, prompts, metadata suggestions, privacy review, and failure-mode handling.
 - Do not defer a current public-gallery, media-delivery, repository-secret, workflow-permission, or operator-exposure issue into Phase 5 or Phase 6. Track or fix it before public release.
 
 ## Manual Checks

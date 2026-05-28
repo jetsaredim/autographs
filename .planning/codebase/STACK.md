@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Analysis Date:** 2026-05-24
+**Analysis Date:** 2026-05-28
 
 ## Languages
 
@@ -9,6 +9,7 @@
 - Markdown for planning, operator runbooks, and repository documentation.
 - HCL for Terraform infrastructure.
 - YAML for GitHub Actions and Ansible deployment automation.
+- Rust is planned for the Phase 5 private admin/controller and publisher foundation, but is not implemented yet.
 
 **Secondary:**
 - Shell scripts for deployment and validation helpers.
@@ -85,15 +86,15 @@
 ## Project Maturity
 
 **Current State:**
-- Phases 1-3 are complete: delivery spine, OCI bootstrap, Oracle/private media core, and public gallery MVP.
-- Phase 4 public showcase and hardening is in progress: security headers, production health redaction, current-surface security review, Renovate configuration, dependency-update docs, cleanup-job hardening, and README showcase content have landed; final readiness packaging remains.
+- Phases 1-4 are complete: delivery spine, OCI bootstrap, Oracle/private media core, public gallery MVP, and public showcase/hardening.
+- Phase 5 context is gathered and needs formal GSD phase planning for the static runtime migration foundation.
 - The repository is no longer planning-only; it contains application, infrastructure, deployment, testing, and operator documentation artifacts.
 
 **Practical Guidance:**
 - Treat `.planning/STATE.md`, `.planning/ROADMAP.md`, and `.planning/PROJECT.md` as the current high-level planning sources of truth.
 - Treat `.planning/codebase/*` as a current-state codebase map, not as historical prompt intent.
-- Do not re-scaffold the app or infra. Finish the Phase 4 readiness pass on the current public-gallery/deployment surface, while Phase 5 builds admin workflow on the existing service boundaries and temporary operator bridge.
+- Do not re-scaffold the app or infra. Phase 5 should prove the static public runtime, Rust private controller, minimal static admin seed/publish path, and operator-bridge replacement. Phase 6 owns polished admin workflow; Phase 7 owns advisory AI-assisted ingest.
 
 ---
 
-*Stack analysis refreshed: 2026-05-25 after phase reorder review*
+*Stack analysis refreshed: 2026-05-28 after Phase 5 static-runtime context gathering*

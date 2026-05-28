@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-05-24
+**Analysis Date:** 2026-05-28
 
 ## Validation Contract
 
@@ -95,17 +95,26 @@ Phase 4 coverage is complete for the current public-gallery/deployment surface:
 
 ### Pending Phase 5 Areas
 
-The following capabilities are not yet fully implemented or covered because Phase 5 has not started. Static-runtime pivot research may change the exact validation shape:
+The following capabilities are not yet implemented or covered because Phase 5 has not started:
 
-- Real admin authentication or private admin access flow.
-- End-to-end admin create/edit/publish workflow.
+- Static publisher contract tests for gallery, detail, search/facet data, generated media paths, and publish manifests.
+- Leak checks ensuring generated output does not expose private OCI object identifiers, bucket names, namespaces, object keys, Oracle details, private URLs, image UUIDs, or unpublished records.
+- Published image derivative validation, including metadata stripping, completeness checks, and public-safe path generation.
+- Local/private Caddy candidate validation checks before planned public cutover.
+- Thin private admin/publisher API foundation checks for health, private access enforcement, minimal content seeding into Oracle/Object Storage, and publish trigger/status behavior.
+- End-to-end seeded content smoke: submit minimal metadata and one image through the private admin/API boundary, persist to Oracle/Object Storage, generate static output, and verify the generated public page plus derivative image.
+- Cutover and retirement validation for the public Next.js runtime, public catalog APIs, app-mediated image streaming, data smoke path, and temporary operator bridge.
+
+### Pending Phase 6 Areas
+
+- Polished admin session UX and hardening beyond the Phase 5 minimal single-admin/private controller foundation.
+- Polished end-to-end admin create/edit/publish workflow.
 - Edit history persistence and rendering.
 - Media replacement/orphan cleanup guarantees.
 - Admin/public boundary hardening.
-- Admin route, secret, operator-bridge retirement, and edit-history documentation checks.
-- Static publisher validation, if the pivot is accepted: leak checks, generated asset completeness, atomic publish/rollback, and Caddy static-preview checks.
+- Admin route, secret, and edit-history documentation checks.
 
-### Pending Phase 6 Areas
+### Pending Phase 7 Areas
 
 - OCR/AI-assisted ingest validation.
 - AI/OCR provider, prompt, failure-mode, privacy-boundary, and configuration/secret review.
@@ -122,4 +131,4 @@ The following capabilities are not yet fully implemented or covered because Phas
 
 ---
 
-*Testing analysis refreshed: 2026-05-26 after Phase 4 completion reconciliation*
+*Testing analysis refreshed: 2026-05-28 after Phase 5 static-runtime context gathering*

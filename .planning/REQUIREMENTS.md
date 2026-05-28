@@ -40,6 +40,16 @@
 - [ ] **ADMIN-04**: Admin can save reviewed metadata and publish the item so it becomes visible in the public gallery.
 - [ ] **ADMIN-05**: Admin routes, secrets, edit-history behavior, media cleanup, and operator-bridge retirement are reviewed for security and documented before the admin workflow is considered complete.
 
+### Static Runtime Migration
+
+- [ ] **STATIC-01**: Public static artifact contracts are defined for gallery pages, item detail pages, search/facet data, generated media paths, and publish manifests.
+- [ ] **STATIC-02**: Static catalog generation runs inside the OCI/runtime boundary and does not require GitHub-hosted workflows to read catalog data, private image identifiers, Object Storage object keys, bucket details, or Oracle content.
+- [ ] **STATIC-03**: Published image derivatives are generated from private originals with sanitized filenames, stripped private metadata, and no leaked Object Storage URLs, UUIDs, namespaces, bucket names, or object keys.
+- [ ] **STATIC-04**: Caddy can serve generated static output through a local/private candidate validation path before planned public cutover.
+- [ ] **STATIC-05**: A static admin shell and thin private admin/publisher API foundation exist for health, private access enforcement, minimal content seeding into Oracle/Object Storage, and publish trigger/status behavior without implementing the full polished admin workflow yet.
+- [ ] **STATIC-06**: Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, current data smoke path, and temporary operator bridge.
+- [ ] **STATIC-07**: The static publishing path can prove an end-to-end seeded content loop: submit minimal metadata and an image through the private admin/API boundary, persist them to Oracle/Object Storage, generate static output, and verify the generated public page and derivative image.
+
 ### AI-Assisted Ingest
 
 - [ ] **AI-01**: Upload workflow can generate AI-assisted metadata suggestions for fields such as signer, item type, tags, or inscription text.
@@ -80,25 +90,32 @@ None currently. Future scope should be added only if it directly supports the pe
 | PLAT-03 | Phase 1 | Complete |
 | DATA-01 | Phase 2 | Complete |
 | DATA-02 | Phase 2 | Complete |
-| DATA-03 | Phase 5 | Pending |
+| DATA-03 | Phase 6 | Pending |
 | DATA-04 | Phase 2 | Complete |
 | MEDIA-01 | Phase 2 | Complete |
 | MEDIA-02 | Phase 2 | Complete |
 | MEDIA-03 | Phase 2 | Complete |
-| MEDIA-04 | Phase 5 | Pending |
+| MEDIA-04 | Phase 6 | Pending |
 | GALL-01 | Phase 3 | Complete |
 | GALL-02 | Phase 3 | Complete |
 | GALL-03 | Phase 3 | Complete |
 | GALL-04 | Phase 3 | Complete |
-| ADMIN-01 | Phase 5 | Pending |
-| ADMIN-02 | Phase 5 | Pending |
-| ADMIN-03 | Phase 5 | Pending |
-| ADMIN-04 | Phase 5 | Pending |
-| ADMIN-05 | Phase 5 | Pending |
-| AI-01 | Phase 6 | Pending |
-| AI-02 | Phase 6 | Pending |
-| AI-03 | Phase 6 | Pending |
-| AI-04 | Phase 6 | Pending |
+| ADMIN-01 | Phase 6 | Pending |
+| ADMIN-02 | Phase 6 | Pending |
+| ADMIN-03 | Phase 6 | Pending |
+| ADMIN-04 | Phase 6 | Pending |
+| ADMIN-05 | Phase 6 | Pending |
+| STATIC-01 | Phase 5 | Pending |
+| STATIC-02 | Phase 5 | Pending |
+| STATIC-03 | Phase 5 | Pending |
+| STATIC-04 | Phase 5 | Pending |
+| STATIC-05 | Phase 5 | Pending |
+| STATIC-06 | Phase 5 | Pending |
+| STATIC-07 | Phase 5 | Pending |
+| AI-01 | Phase 7 | Pending |
+| AI-02 | Phase 7 | Pending |
+| AI-03 | Phase 7 | Pending |
+| AI-04 | Phase 7 | Pending |
 | SHIP-01 | Phase 4 | Complete |
 | SHIP-02 | Phase 4 | Complete |
 | SHIP-03 | Phase 4 | Complete |
@@ -106,10 +123,10 @@ None currently. Future scope should be added only if it directly supports the pe
 | SHIP-05 | Phase 4 | Complete |
 
 **Coverage:**
-- v1 requirements: 29 total
-- Mapped to phases: 29
+- v1 requirements: 36 total
+- Mapped to phases: 36
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-05-26 after reconciling Phase 4 completion state*
+*Last updated: 2026-05-26 after inserting Static Runtime Migration Foundation as Phase 5*
