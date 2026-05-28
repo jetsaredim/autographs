@@ -5,7 +5,7 @@
 
 **Date:** 2026-05-28
 **Phase:** 05-Static Runtime Migration Foundation
-**Areas discussed:** Static Artifact Shape, Private Publish Boundary, Image Derivative Rules, Side-by-Side Runtime Preview, Seed Shell Minimalism, Rust Controller Access Model, Migration Strategy, Static Publish Validation, Admin UI Shape
+**Areas discussed:** Static Artifact Shape, Private Publish Boundary, Image Derivative Rules, Candidate Validation and Cutover, Seed Shell Minimalism, Rust Controller Access Model, Migration Strategy, Static Publish Validation, Admin UI Shape
 
 ---
 
@@ -61,16 +61,16 @@
 
 ---
 
-## Side-by-Side Runtime Preview
+## Candidate Validation and Cutover
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Preview path | Serve static output under a preview path while Next.js remains primary. | |
-| Preview subdomain | Serve static output on a separate host/subdomain. | |
-| Short migration cutover | Validate privately, then switch routes/runtime during planned downtime. | ✓ |
+| Preview path | Rejected: serve static output under a public preview path while Next.js remains primary. | |
+| Preview subdomain | Rejected: serve static output on a separate public host/subdomain. | |
+| Short migration cutover | Selected: validate candidate output privately, then switch routes/runtime during planned downtime. | ✓ |
 
 **User's choice:** Use a short migration cutover with downtime allowed.
-**Notes:** The user explicitly prefers roll-forward only and is comfortable with VM rebuild if needed. No rollback mechanism is required beyond preflight validation and fix-forward behavior.
+**Notes:** The user explicitly prefers roll-forward only and is comfortable with VM rebuild if needed. Public side-by-side preview is not required. Candidate output should be validated through local/private checks before cutover; no rollback mechanism is required beyond preflight validation and fix-forward behavior.
 
 ---
 
