@@ -105,7 +105,7 @@ Plans:
   7. Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, old data smoke path, and temporary operator bridge.
 **Plans**: 6 plans
 Plans:
-- [ ] 05-01-PLAN.md - Define and test the static public artifact contract.
+- [x] 05-01-PLAN.md - Define and test the static public artifact contract.
 - [ ] 05-02-PLAN.md - Build the minimal Rust private controller, health, and auth foundation.
 - [ ] 05-03-PLAN.md - Implement the minimal private content seed path into Oracle/Object Storage.
 - [ ] 05-04-PLAN.md - Build the static publisher, derivative generator, candidate validation, and promotion mechanism.
@@ -149,6 +149,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Oracle and Private Media Core | 4/4 | Complete | 2026-05-14 |
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
-| 5. Static Runtime Migration Foundation | 0/6 | Planned | - |
+| 5. Static Runtime Migration Foundation | 1/6 | In Progress|  |
 | 6. Admin Collection Workflow | 0/TBD | Not started | - |
 | 7. AI-Assisted Ingest | 0/TBD | Not started | - |
