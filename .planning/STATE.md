@@ -9,9 +9,9 @@ last_activity: 2026-05-28
 progress:
   total_phases: 7
   completed_phases: 4
-  total_plans: 24
+  total_plans: 25
   completed_plans: 18
-  percent: 75
+  percent: 72
 ---
 
 # Project State
@@ -30,13 +30,13 @@ Plan: 5 of 5
 Status: Ready to execute Phase 05 Static Runtime Migration Foundation
 Last activity: 2026-05-28
 
-Progress: [████████░░] 75%
+Progress: [███████░░░] 72%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 18 of 24
+- Total plans completed: 18 of 25
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -48,7 +48,7 @@ Progress: [████████░░] 75%
 | 02 | 4 | - | - |
 | 03 | 5 | - | - |
 | 04 | 5/5 | 54 min | 11 min |
-| 05 | 0/6 | - | - |
+| 05 | 0/7 | - | - |
 
 **Recent Trend:**
 
@@ -94,7 +94,7 @@ None yet.
 
 - The open smoke-test fix PR targets the current live-app data smoke path; it can be abandoned if the next phase pivots away from that production smoke model.
 - Minimal single-admin/private controller access remains a Phase 5 planning choice, with the preferred direction being a static admin shell backed by a private thin API.
-- Phase 5 is formally planned with six execution plans covering static artifact contracts, Rust controller/auth, private seed/upload, publisher/derivatives, minimal static admin shell, and Caddy/deploy/cutover.
+- Phase 5 is formally planned with seven execution plans covering static artifact contracts, Rust controller/auth, private seed/upload, publisher/derivatives, minimal static admin shell, Caddy/deploy wiring, and live cutover verification/docs.
 
 ### Roadmap Evolution
 
