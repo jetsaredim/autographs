@@ -55,7 +55,7 @@ Secret credentials through the operator environment, then run:
 ```bash
 AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE=true \
   cargo test --manifest-path controller/Cargo.toml \
-  live_persistence_smoke -- --ignored --nocapture
+  --features live-persistence live_persistence_smoke -- --ignored --nocapture
 ```
 
 The smoke must create one draft item, upload one private original with a
@@ -63,3 +63,8 @@ UUID-only object key, read both records back, and clean up the smoke item and
 object. Do not mark Phase 5 verified until this command has passed against the
 live OCI tenancy.
 
+The pure-Rust Oracle probe requires `AUTOGRAPHS_ORACLE_HOST`,
+`AUTOGRAPHS_ORACLE_PORT`, and `AUTOGRAPHS_ORACLE_SERVICE_NAME` alongside the
+existing wallet, user, and password variables. OCI S3 compatibility requires
+`OCI_S3_ENDPOINT`, `OCI_S3_ACCESS_KEY`, `OCI_S3_SECRET_KEY`,
+`OCI_MEDIA_NAMESPACE`, and `OCI_MEDIA_BUCKET_NAME`.
