@@ -1,5 +1,8 @@
 pub mod auth;
+pub mod catalog;
 pub mod config;
 pub mod contracts;
+pub mod media;
 pub mod publisher;
 pub mod routes;
+pub mod storage_keys;
