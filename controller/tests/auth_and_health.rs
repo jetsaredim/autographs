@@ -110,7 +110,7 @@ async fn auth_and_health_login_issues_strict_secure_cookie_and_cookie_mutations_
     let cross_origin = app
         .clone()
         .oneshot(
-            Request::post("/admin/api/items")
+            Request::post("/admin/api/test-mutation")
                 .header(header::COOKIE, cookie)
                 .header(header::ORIGIN, "https://attacker.example")
                 .body(Body::empty())
@@ -123,7 +123,7 @@ async fn auth_and_health_login_issues_strict_secure_cookie_and_cookie_mutations_
     let same_origin = app
         .clone()
         .oneshot(
-            Request::post("/admin/api/items")
+            Request::post("/admin/api/test-mutation")
                 .header(header::COOKIE, cookie)
                 .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())

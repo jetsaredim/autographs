@@ -1,13 +1,25 @@
+use std::sync::Arc;
+
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-use crate::{auth::AuthState, config::ControllerConfig};
+use crate::{
+    auth::AuthState,
+    catalog::{
+        AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
+        MemoryCatalogRepository, PublicationStatus,
+    },
+    config::ControllerConfig,
+    media::{LocalMediaStore, PrivateMediaStore},
+    storage_keys::build_original_object_key,
+};
 
 const SESSION_COOKIE: &str = "autographs_admin_session";
 
@@ -15,6 +27,8 @@ const SESSION_COOKIE: &str = "autographs_admin_session";
 pub struct AppState {
     config: ControllerConfig,
     auth: AuthState,
+    repository: Arc<dyn CatalogRepository>,
+    media: Arc<dyn PrivateMediaStore>,
 }
 
 #[derive(Serialize)]
@@ -39,12 +53,29 @@ struct LoginRequest {
 }
 
 pub fn router(config: ControllerConfig) -> Router {
+    router_with_stores(
+        config,
+        Arc::new(MemoryCatalogRepository::default()),
+        Arc::new(LocalMediaStore::new("/tmp/autographs-controller-media")),
+    )
+}
+
+pub fn router_with_stores(
+    config: ControllerConfig,
+    repository: Arc<dyn CatalogRepository>,
+    media: Arc<dyn PrivateMediaStore>,
+) -> Router {
     let auth = AuthState::new(
         config.admin_password.clone(),
         config.admin_password_hash.clone(),
         config.operator_token.clone(),
     );
-    let state = AppState { config, auth };
+    let state = AppState {
+        config,
+        auth,
+        repository,
+        media,
+    };
 
     Router::new()
         .route("/health", get(health))
@@ -52,7 +83,12 @@ pub fn router(config: ControllerConfig) -> Router {
         .route("/admin/api/login", post(login))
         .route("/admin/api/logout", post(logout))
         .route("/admin/api/protected", get(protected))
-        .route("/admin/api/items", post(protected_mutation))
+        .route("/admin/api/test-mutation", post(protected_mutation))
+        .route("/admin/api/items", post(create_item))
+        .route("/admin/api/items/{id}", axum::routing::patch(update_item))
+        .route("/admin/api/items/{id}/images", post(upload_image))
+        .route("/admin/api/items/{id}/publication", post(set_publication))
+        .layer(DefaultBodyLimit::max(25 * 1024 * 1024))
         .with_state(state)
 }
 
@@ -128,6 +164,192 @@ async fn protected_mutation(
         StatusCode::NO_CONTENT
     } else {
         StatusCode::FORBIDDEN
+    }
+}
+
+async fn create_item(
+    State(state): State<AppState>,
+    method: Method,
+    headers: HeaderMap,
+    Json(input): Json<AutographItemInput>,
+) -> Response {
+    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        return status.into_response();
+    }
+
+    match state.repository.create(input).await {
+        Ok(item) => (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response(),
+        Err(_) => StatusCode::BAD_REQUEST.into_response(),
+    }
+}
+
+async fn update_item(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    method: Method,
+    headers: HeaderMap,
+    Json(input): Json<AutographItemUpdate>,
+) -> Response {
+    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        return status.into_response();
+    }
+    let Ok(id) = Uuid::parse_str(&id) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+
+    match state.repository.update(id, input).await {
+        Ok(item) => Json(ItemResponse::from(item)).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn upload_image(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    method: Method,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> Response {
+    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        return status.into_response();
+    }
+    let Ok(item_id) = Uuid::parse_str(&id) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+
+    let mut filename = None;
+    let mut content_type = None;
+    let mut body = None;
+    while let Ok(Some(field)) = multipart.next_field().await {
+        if field.name() == Some("image") {
+            filename = field.file_name().map(str::to_owned);
+            content_type = field.content_type().map(str::to_owned);
+            body = field.bytes().await.ok();
+        }
+    }
+    let Some(body) = body else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_owned());
+    if !matches!(
+        content_type.as_str(),
+        "image/jpeg" | "image/png" | "image/webp"
+    ) || body.len() > 20 * 1024 * 1024
+    {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+
+    let image_id = Uuid::new_v4();
+    let object_key = build_original_object_key(item_id, image_id);
+    if state.media.write(&object_key, &body).await.is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    let image = AutographImage {
+        id: image_id,
+        object_key,
+        original_filename: filename.unwrap_or_else(|| "upload".to_owned()),
+        content_type,
+        byte_size: body.len(),
+        is_primary: true,
+        sort_order: 0,
+    };
+    match state.repository.attach_image(item_id, image).await {
+        Ok(item) => (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn set_publication(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    method: Method,
+    headers: HeaderMap,
+    Json(input): Json<PublicationRequest>,
+) -> Response {
+    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        return status.into_response();
+    }
+    let Ok(id) = Uuid::parse_str(&id) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    match state
+        .repository
+        .update(
+            id,
+            AutographItemUpdate {
+                publication_status: Some(input.publication_status),
+                ..Default::default()
+            },
+        )
+        .await
+    {
+        Ok(item) => Json(ItemResponse::from(item)).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+fn authorize_mutation(
+    state: &AppState,
+    method: &Method,
+    headers: &HeaderMap,
+) -> Result<AuthKind, StatusCode> {
+    let auth = authenticate(state, headers).ok_or(StatusCode::UNAUTHORIZED)?;
+    csrf_allowed(state, method, headers, &auth)
+        .then_some(auth)
+        .ok_or(StatusCode::FORBIDDEN)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicationRequest {
+    publication_status: PublicationStatus,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ItemResponse {
+    id: Uuid,
+    title: String,
+    signer: String,
+    description: Option<String>,
+    category: String,
+    tags: Vec<String>,
+    publication_status: PublicationStatus,
+    images: Vec<ImageResponse>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageResponse {
+    id: Uuid,
+    content_type: String,
+    byte_size: usize,
+    is_primary: bool,
+    sort_order: i32,
+}
+
+impl From<AutographItem> for ItemResponse {
+    fn from(item: AutographItem) -> Self {
+        Self {
+            id: item.id,
+            title: item.title,
+            signer: item.signer,
+            description: item.description,
+            category: item.category,
+            tags: item.tags,
+            publication_status: item.publication_status,
+            images: item
+                .images
+                .into_iter()
+                .map(|image| ImageResponse {
+                    id: image.id,
+                    content_type: image.content_type,
+                    byte_size: image.byte_size,
+                    is_primary: image.is_primary,
+                    sort_order: image.sort_order,
+                })
+                .collect(),
+        }
     }
 }
 
