@@ -9,7 +9,7 @@ last_activity: 2026-06-01
 progress:
   total_phases: 7
   completed_phases: 4
-  total_plans: 24
+  total_plans: 25
   completed_plans: 20
   percent: 57
 ---
@@ -96,7 +96,7 @@ None yet.
 
 - The open smoke-test fix PR targets the current live-app data smoke path; it can be abandoned if the next phase pivots away from that production smoke model.
 - Minimal single-admin/private controller access remains a Phase 5 planning choice, with the preferred direction being a static admin shell backed by a private thin API.
-- Phase 5 is formally planned with six execution plans covering static artifact contracts, Rust controller/auth, private seed/upload, publisher/derivatives, minimal static admin shell, and Caddy/deploy/cutover.
+- Phase 5 is formally planned with seven execution plans covering static artifact contracts, Rust controller/auth, private seed/upload, publisher/derivatives, minimal static admin shell, Caddy/deploy wiring, and live cutover verification/docs.
 
 ### Roadmap Evolution
 

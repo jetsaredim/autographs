@@ -103,14 +103,15 @@ Plans:
   5. Caddy can serve generated static output and the static admin shell through a local/private candidate validation path before planned cutover.
   6. A thin private admin/publisher API foundation can report health, enforce the chosen private access boundary, accept minimal seed content, and trigger or report publish jobs without implementing full edit-history or full CRUD polish yet.
   7. Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, old data smoke path, and temporary operator bridge.
-**Plans**: 6 plans
+**Plans**: 7 plans
 Plans:
 - [x] 05-01-PLAN.md - Define and test the static public artifact contract.
 - [x] 05-02-PLAN.md - Build the minimal Rust private controller, health, and auth foundation.
 - [ ] 05-03-PLAN.md - Implement the minimal private content seed path into Oracle/Object Storage.
 - [ ] 05-04-PLAN.md - Build the static publisher, derivative generator, candidate validation, and promotion mechanism.
 - [ ] 05-05-PLAN.md - Add the minimal static admin seed/publish shell.
-- [ ] 05-06-PLAN.md - Wire deployment, Caddy private validation, CI, and cutover/retirement docs.
+- [ ] 05-06-PLAN.md - Wire deployment, Caddy private validation, and CI.
+- [ ] 05-07-PLAN.md - Prove the live static path and document cutover/retirement.
 **UI hint**: no
 
 ### Phase 6: Admin Collection Workflow
