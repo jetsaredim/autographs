@@ -109,3 +109,40 @@ GitHub Environments may be added later for manual approval, deployment history, 
 Deployments publish a prebuilt app image to `ghcr.io` and set `AUTOGRAPHS_APP_IMAGE` on the VM. The VM does not build the application. Ansible pulls the exact image published by GitHub Actions, installs systemd quadlets for both the app and Caddy containers on a dedicated Podman network, restarts the affected services, and checks the Caddy-fronted `/health` route before the workflow succeeds. Scheduled/manual image cleanup handles old GHCR versions and unused VM-local Podman images while preserving `latest`, protected tags, and the configured newest image count.
 
 The Ansible deploy role also maintains a 2 GiB `/.swapfile` with `vm.swappiness=20`, installs runtime packages, opens HTTP/HTTPS, and masks unnecessary systemd services. This gives the Always Free VM enough headroom for deploy churn and one-off smoke/admin scripts without changing the compute shape.
+
+## Phase 5 Private Controller Contract
+
+The Rust controller is a private runtime service. GitHub-hosted workflows build
+and deploy controller code or images, but they do not receive catalog content
+generation credentials and never publish Oracle/Object Storage content.
+
+Runtime controller settings:
+
+| Variable | Classification | Purpose |
+|----------|----------------|---------|
+| `AUTOGRAPHS_CONTROLLER_BIND_ADDR` | runtime coordinate | Controller listener; defaults to `0.0.0.0:8080` |
+| `AUTOGRAPHS_PUBLIC_ORIGIN` | runtime coordinate | Canonical HTTPS origin used for browser mutation checks |
+| `AUTOGRAPHS_ADMIN_SECURE_COOKIES` | runtime coordinate | Keep `true` in deployment; `false` is an explicit local HTTP exception |
+| `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | runtime secret | Argon2 single-admin password hash |
+| `AUTOGRAPHS_ADMIN_PASSWORD` | local-development secret only | Optional local plaintext shortcut; never deploy it |
+| `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime/operator secret | CLI-friendly bearer token for tunnel and maintenance calls |
+| `AUTOGRAPHS_STATIC_RELEASE_ROOT` | runtime coordinate | Candidate static release directory |
+| `AUTOGRAPHS_STATIC_CURRENT_LINK` | runtime coordinate | Active static release pointer |
+| `AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT` | runtime coordinate | Number of failed candidates retained for diagnostics |
+| `AUTOGRAPHS_PUBLISH_MODE` | runtime coordinate | Defaults to incremental publishing |
+
+Public-safe derivative publishing may use OCI Object Storage S3 compatibility.
+Create OCI Customer Secret credentials for the runtime controller and supply
+them through the operator secret store:
+
+| Variable | Classification | Purpose |
+|----------|----------------|---------|
+| `OCI_S3_ENDPOINT` | runtime coordinate | OCI S3 compatibility endpoint |
+| `OCI_S3_ACCESS_KEY` | runtime secret | Customer Secret access key |
+| `OCI_S3_SECRET_KEY` | runtime secret | Customer Secret secret key |
+
+The static release root and current pointer live on the runtime VM. Public
+artifacts are generated inside the OCI boundary from Oracle metadata and
+private originals. GitHub-hosted jobs must not receive the admin hash, operator
+token, Customer Secret keys, Oracle runtime password, private media
+coordinates, or generated static release content.
