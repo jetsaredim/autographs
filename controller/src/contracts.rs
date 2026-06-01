@@ -123,6 +123,22 @@ pub struct PublicFacetGroup {
     pub options: Vec<PublicFacetOption>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicFacets {
+    pub schema_version: u32,
+    pub groups: Vec<PublicFacetGroup>,
+}
+
+impl PublicFacets {
+    pub fn new(groups: Vec<PublicFacetGroup>) -> Self {
+        Self {
+            schema_version: PUBLIC_SCHEMA_VERSION,
+            groups,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum FacetId {
@@ -203,4 +219,3 @@ mod tests {
         assert!(json.contains("/media/signed-jedi-card/front-thumbnail.webp"));
     }
 }
-
