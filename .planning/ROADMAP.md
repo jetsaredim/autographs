@@ -150,6 +150,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Oracle and Private Media Core | 4/4 | Complete | 2026-05-14 |
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
-| 5. Static Runtime Migration Foundation | 0/6 | Planned | - |
+| 5. Static Runtime Migration Foundation | 0/7 | Planned | - |
 | 6. Admin Collection Workflow | 0/TBD | Not started | - |
 | 7. AI-Assisted Ingest | 0/TBD | Not started | - |
