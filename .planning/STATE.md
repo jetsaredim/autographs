@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-04-PLAN.md
-last_updated: "2026-06-02T12:24:24.305Z"
+stopped_at: Completed 05-05-PLAN.md
+last_updated: "2026-06-02T12:30:30.256Z"
 last_activity: 2026-06-02
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 25
-  completed_plans: 22
-  percent: 88
+  completed_plans: 23
+  percent: 92
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 ## Current Position
 
 Phase: 05 (static-runtime-migration-foundation) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-06-02
 
-Progress: [█████████░] 88%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 22 of 25
+- Total plans completed: 23 of 25
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -48,7 +48,7 @@ Progress: [█████████░] 88%
 | 02 | 4 | - | - |
 | 03 | 5 | - | - |
 | 04 | 5/5 | 54 min | 11 min |
-| 05 | 4/7 | - | - |
+| 05 | 5/7 | - | - |
 
 **Recent Trend:**
 
@@ -88,6 +88,7 @@ Recent decisions affecting current work:
 - Static-runtime boundary: GitHub Actions should build and deploy code artifacts only; catalog content generation should not expose private OCI object identifiers, URLs, Oracle data, or image UUIDs through GitHub-hosted workflows.
 - Planning guidance: Formally plan Phase 5 to prove the static publishing contract, Rust private controller, minimal static admin seed/publish path, and local/private Caddy candidate validation before Phase 6 admin polish.
 - Phase 5 publisher: Generate static candidates and sanitized WebP derivatives locally, validate the complete public inventory and privacy boundary, then atomically promote the `current` symlink.
+- Phase 5 static admin: Keep the minimal browser shell framework-free and browser-storage-free, backed by the HTTP-only cookie and same-origin `/admin/api/*` calls.
 
 ### Pending Todos
 
@@ -96,7 +97,7 @@ None yet.
 ### Blockers/Concerns
 
 - The open smoke-test fix PR targets the current live-app data smoke path; it can be abandoned if the next phase pivots away from that production smoke model.
-- Minimal static admin shell implementation remains the next Phase 5 step on top of the private thin API and publisher endpoints.
+- Runtime packaging, Caddy route wiring, and CI/deploy integration remain the next Phase 5 step.
 - Phase 5 is formally planned with seven execution plans covering static artifact contracts, Rust controller/auth, private seed/upload, publisher/derivatives, minimal static admin shell, Caddy/deploy wiring, and live cutover verification/docs.
 
 ### Roadmap Evolution
@@ -106,8 +107,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-06-01T16:36:05.609Z
-Stopped at: Completed 05-04-PLAN.md
-Resume file: .planning/phases/05-static-runtime-migration-foundation/05-05-PLAN.md
+Stopped at: Completed 05-05-PLAN.md
+Resume file: .planning/phases/05-static-runtime-migration-foundation/05-06-PLAN.md
 
 ## Quick Tasks Completed
 
