@@ -17,10 +17,10 @@ Phase 5 uses split collection data plus per-item detail JSON:
 | Artifact | Path | Purpose |
 |----------|------|---------|
 | Collection page | `/collection/index.html` | Static gallery shell |
-| Collection data | `/collection.json` | Gallery cards and primary image variants |
-| Facets | `/facets.json` | Signer, category, and tag filtering values |
+| Collection data | `/data/collection.json` | Gallery cards and primary image variants |
+| Facets | `/data/facets.json` | Signer, category, and tag filtering values |
 | Item page | `/items/{item-slug}/index.html` | Static item detail shell |
-| Item detail data | `/items/{item-slug}.json` | Full public-safe item detail DTO |
+| Item detail data | `/data/items/{item-slug}.json` | Full public-safe item detail DTO |
 | Publish manifest | `/manifest.json` | Release ID, generation timestamp, artifact paths, and byte sizes |
 | Generated media | `/media/{item-slug}/{image-slug}-{variant}.{ext}` | Public thumbnail and detail derivatives |
 
@@ -104,4 +104,3 @@ artifact presence and privacy, and promoted only after validation passes.
 GitHub Actions may build and deploy controller code or container images. It
 must not connect to Oracle, inspect private Object Storage originals, receive
 private bucket details, or publish catalog content.
-

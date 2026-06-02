@@ -158,3 +158,17 @@ artifacts are generated inside the OCI boundary from Oracle metadata and
 private originals. GitHub-hosted jobs must not receive the admin hash, operator
 token, Customer Secret keys, Oracle runtime password, private media
 coordinates, or generated static release content.
+
+The operator-run live static publish smoke also uses these VM-local values:
+
+| Variable | Classification | Purpose |
+|----------|----------------|---------|
+| `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE` | operator gate | Must be exactly `true` before the credential-gated smoke mutates live data |
+| `AUTOGRAPHS_CONTROLLER_BASE_URL` | private runtime coordinate | Controller URL reachable from the one-shot smoke container |
+| `AUTOGRAPHS_STATIC_PREVIEW_BASE_URL` | private runtime coordinate | Caddy preview prefix, normally `http://autographs-caddy:8081/current` |
+
+Until the public static cutover passes, the Next.js app, `/api/catalog/*`,
+app-mediated image streaming, the Node `/api/operator/*` bridge, and the old
+data smoke remain current runtime paths. Retire them together through the
+checklist in [static-runtime-runbook.md](static-runtime-runbook.md), not as
+independent ad hoc removals.
