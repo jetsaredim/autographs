@@ -34,6 +34,7 @@ mod live {
         let connection =
             Connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
                 .expect("connect to Oracle Autonomous Database");
+        assert_static_runtime_schema(&connection);
         let credentials =
             Credentials::new(Some(&s3_access_key), Some(&s3_secret_key), None, None, None)
                 .expect("configure OCI Customer Secret credentials");
@@ -54,6 +55,8 @@ mod live {
         let source_filename = "live secret source.jpg";
         assert!(!object_key.contains(source_filename));
         assert!(!object_key.contains(".jpg"));
+        println!("live smoke item id: {item_id}");
+        println!("live smoke object key: {object_key}");
 
         let item_id = item_id.to_string();
         let image_id = image_id.to_string();
@@ -126,6 +129,19 @@ mod live {
     fn required(name: &str) -> String {
         env::var(name)
             .unwrap_or_else(|_| panic!("{name} is required for the live persistence smoke"))
+    }
+
+    fn assert_static_runtime_schema(connection: &Connection) {
+        let count: i64 = connection
+            .query_row_as(
+                "select count(*) from user_tab_columns where table_name = 'AUTOGRAPH_IMAGES' and column_name = 'ORIGINAL_FILENAME'",
+                &[],
+            )
+            .expect("inspect static runtime schema");
+        assert_eq!(
+            count, 1,
+            "static runtime schema is missing ORIGINAL_FILENAME; run app db:migrate before the live persistence smoke"
+        );
     }
 }
 

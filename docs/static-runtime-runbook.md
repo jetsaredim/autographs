@@ -63,6 +63,10 @@ UUID-only object key, read both records back, and clean up the smoke item and
 object. Do not mark Phase 5 verified until this command has passed against the
 live OCI tenancy.
 
+Apply the committed app migrations before running the smoke. The probe performs
+a read-only schema preflight and stops before inserting an item or uploading an
+object when `002_static_runtime_foundation.sql` has not been applied.
+
 The native Oracle probe uses Oracle Instant Client and the same wallet alias as
 the deployed app. It requires `ORACLE_DB_CONNECT_STRING`, `ORACLE_DB_USER`, and
 `ORACLE_DB_PASSWORD`; the smoke container sets `TNS_ADMIN` to the mounted wallet
