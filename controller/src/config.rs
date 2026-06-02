@@ -1,4 +1,4 @@
-use std::{env, net::SocketAddr};
+use std::{env, net::SocketAddr, path::PathBuf};
 
 #[derive(Clone, Debug)]
 pub struct ControllerConfig {
@@ -11,6 +11,7 @@ pub struct ControllerConfig {
     pub oracle_configured: bool,
     pub media_configured: bool,
     pub static_release_configured: bool,
+    pub static_release_root: PathBuf,
 }
 
 impl ControllerConfig {
@@ -39,6 +40,9 @@ impl ControllerConfig {
             ]),
             media_configured: all_present(&["OCI_MEDIA_BUCKET_NAME", "OCI_MEDIA_NAMESPACE"]),
             static_release_configured: env::var("AUTOGRAPHS_STATIC_RELEASE_ROOT").is_ok(),
+            static_release_root: env::var("AUTOGRAPHS_STATIC_RELEASE_ROOT")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| PathBuf::from("/tmp/autographs-static")),
         })
     }
 
@@ -53,6 +57,7 @@ impl ControllerConfig {
             oracle_configured: false,
             media_configured: false,
             static_release_configured: false,
+            static_release_root: PathBuf::from("/tmp/autographs-static"),
         }
     }
 }

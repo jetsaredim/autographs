@@ -126,7 +126,7 @@ Runtime controller settings:
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | runtime secret | Argon2 single-admin password hash |
 | `AUTOGRAPHS_ADMIN_PASSWORD` | local-development secret only | Optional local plaintext shortcut; never deploy it |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime/operator secret | CLI-friendly bearer token for tunnel and maintenance calls |
-| `AUTOGRAPHS_STATIC_RELEASE_ROOT` | runtime coordinate | Candidate static release directory |
+| `AUTOGRAPHS_STATIC_RELEASE_ROOT` | runtime coordinate | Static root containing `releases/`, `failed/`, and the active `current` pointer |
 | `AUTOGRAPHS_STATIC_CURRENT_LINK` | runtime coordinate | Active static release pointer |
 | `AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT` | runtime coordinate | Number of failed candidates retained for diagnostics |
 | `AUTOGRAPHS_PUBLISH_MODE` | runtime coordinate | Defaults to incremental publishing |

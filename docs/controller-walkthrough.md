@@ -67,6 +67,9 @@ API:
 | `PATCH /admin/api/items/{id}` | Update metadata |
 | `POST /admin/api/items/{id}/images` | Upload private original |
 | `POST /admin/api/items/{id}/publication` | Change draft or published status |
+| `POST /admin/api/publish/incremental` | Build and promote an incremental static release |
+| `POST /admin/api/publish/full` | Build and promote a full static release |
+| `GET /admin/api/publish/status` | Read the last redacted publish result |
 
 Browser mutations require a valid cookie plus a matching `Origin` or `Referer`.
 Bearer-token calls bypass CSRF checks because tokens are explicit credentials
@@ -154,24 +157,25 @@ Public media paths look like:
 ```
 
 [`controller/src/publisher.rs`](../controller/src/publisher.rs) currently
-generates fixture artifacts to prove the contract and privacy boundary. It
-creates collection JSON, facets, item JSON, item HTML, and a manifest.
+contains both the fixture contract profiler and the local-mode runtime
+publisher. The runtime publisher creates a candidate release, generates
+sanitized WebP derivatives, validates the complete public surface, and
+atomically promotes a valid release to `current`.
 
 ## Current Boundary
 
-The current publisher is a contract prototype, not the final runtime publisher.
-It does not yet:
+The local-mode publisher foundation is implemented. It now:
 
-- Read real Oracle catalog data
-- Generate actual derivative image bytes
-- Create candidate release directories
-- Promote a release atomically to `current`
-- Implement incremental rebuilds
-- Remove stale files after unpublish
-- Expose publish endpoints
-- Generate the final static filtering UI
+- Builds complete static candidates from the catalog repository boundary
+- Generates sanitized thumbnail and detail WebP derivatives
+- Validates JSON, manifest entries, derivatives, byte accounting, and privacy
+- Promotes valid candidates atomically through the `current` pointer
+- Seeds incremental candidates from `current` and removes stale public output
+- Exposes authenticated full, incremental, and status publish endpoints
+- Generates minimal static category and tag filtering
 
-Those belong to Plan `05-04`.
+The production Oracle-backed repository and runtime deployment cutover remain
+separate Phase 5 work.
 
 ## Tests
 
@@ -184,6 +188,9 @@ The current tests cover:
   [`controller/tests/seed_content.rs`](../controller/tests/seed_content.rs)
 - 500-item artifact profiling and public privacy scans:
   [`controller/tests/static_contract.rs`](../controller/tests/static_contract.rs)
+- Candidate generation, derivative validation, stale cleanup, promotion, and
+  publish status:
+  [`controller/tests/publisher.rs`](../controller/tests/publisher.rs)
 - Real Oracle plus OCI S3-compatible create, read, upload, and cleanup smoke:
   [`controller/tests/live_persistence_smoke.rs`](../controller/tests/live_persistence_smoke.rs)
 
@@ -212,4 +219,3 @@ credentials exported securely before running the actual proof.
 - `05-05`: Minimal browser admin shell
 - `05-06`: Ansible, Caddy, and CI/deploy wiring
 - `05-07`: Live static end-to-end proof and cutover documentation
-

@@ -2,6 +2,7 @@ pub mod auth;
 pub mod catalog;
 pub mod config;
 pub mod contracts;
+pub mod derivatives;
 pub mod media;
 pub mod publisher;
 pub mod routes;

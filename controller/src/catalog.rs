@@ -67,6 +67,7 @@ pub trait CatalogRepository: Send + Sync {
     async fn create(&self, input: AutographItemInput) -> Result<AutographItem, String>;
     async fn update(&self, id: Uuid, input: AutographItemUpdate) -> Result<AutographItem, String>;
     async fn get(&self, id: Uuid) -> Result<Option<AutographItem>, String>;
+    async fn list(&self) -> Result<Vec<AutographItem>, String>;
     async fn attach_image(
         &self,
         item_id: Uuid,
@@ -138,6 +139,16 @@ impl CatalogRepository for MemoryCatalogRepository {
             .expect("catalog state lock")
             .get(&id)
             .cloned())
+    }
+
+    async fn list(&self) -> Result<Vec<AutographItem>, String> {
+        Ok(self
+            .items
+            .lock()
+            .expect("catalog state lock")
+            .values()
+            .cloned()
+            .collect())
     }
 
     async fn attach_image(

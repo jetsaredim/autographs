@@ -183,6 +183,10 @@ impl PublishManifest {
 pub struct PublishManifestEntry {
     pub path: String,
     pub byte_size: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variant: Option<ImageVariantName>,
 }
 
 #[cfg(test)]

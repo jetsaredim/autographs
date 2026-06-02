@@ -18,6 +18,7 @@ use crate::{
     },
     config::ControllerConfig,
     media::{LocalMediaStore, PrivateMediaStore},
+    publisher::{LocalPublisher, PublishMode},
     storage_keys::build_original_object_key,
 };
 
@@ -29,6 +30,7 @@ pub struct AppState {
     auth: AuthState,
     repository: Arc<dyn CatalogRepository>,
     media: Arc<dyn PrivateMediaStore>,
+    publisher: Arc<LocalPublisher>,
 }
 
 #[derive(Serialize)]
@@ -65,6 +67,21 @@ pub fn router_with_stores(
     repository: Arc<dyn CatalogRepository>,
     media: Arc<dyn PrivateMediaStore>,
 ) -> Router {
+    let static_release_root = config.static_release_root.clone();
+    router_with_services(
+        config,
+        repository,
+        media,
+        Arc::new(LocalPublisher::new(static_release_root)),
+    )
+}
+
+pub fn router_with_services(
+    config: ControllerConfig,
+    repository: Arc<dyn CatalogRepository>,
+    media: Arc<dyn PrivateMediaStore>,
+    publisher: Arc<LocalPublisher>,
+) -> Router {
     let auth = AuthState::new(
         config.admin_password.clone(),
         config.admin_password_hash.clone(),
@@ -75,6 +92,7 @@ pub fn router_with_stores(
         auth,
         repository,
         media,
+        publisher,
     };
 
     Router::new()
@@ -88,6 +106,9 @@ pub fn router_with_stores(
         .route("/admin/api/items/{id}", axum::routing::patch(update_item))
         .route("/admin/api/items/{id}/images", post(upload_image))
         .route("/admin/api/items/{id}/publication", post(set_publication))
+        .route("/admin/api/publish/incremental", post(publish_incremental))
+        .route("/admin/api/publish/full", post(publish_full))
+        .route("/admin/api/publish/status", get(publish_status))
         .layer(DefaultBodyLimit::max(25 * 1024 * 1024))
         .with_state(state)
 }
@@ -286,6 +307,53 @@ async fn set_publication(
         Ok(item) => Json(ItemResponse::from(item)).into_response(),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+async fn publish_incremental(
+    State(state): State<AppState>,
+    method: Method,
+    headers: HeaderMap,
+) -> Response {
+    publish(state, method, headers, PublishMode::Incremental).await
+}
+
+async fn publish_full(
+    State(state): State<AppState>,
+    method: Method,
+    headers: HeaderMap,
+) -> Response {
+    publish(state, method, headers, PublishMode::Full).await
+}
+
+async fn publish(
+    state: AppState,
+    method: Method,
+    headers: HeaderMap,
+    mode: PublishMode,
+) -> Response {
+    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        return status.into_response();
+    }
+
+    match state
+        .publisher
+        .publish(state.repository.as_ref(), state.media.as_ref(), mode)
+        .await
+    {
+        Ok(status) => (StatusCode::CREATED, Json(status)).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(state.publisher.status()),
+        )
+            .into_response(),
+    }
+}
+
+async fn publish_status(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if authenticate(&state, &headers).is_none() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    Json(state.publisher.status()).into_response()
 }
 
 fn authorize_mutation(

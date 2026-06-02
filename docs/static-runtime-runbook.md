@@ -37,6 +37,22 @@ curl -fsS "http://127.0.0.1:8080/admin/api/items/${ITEM_ID}/publication" \
   --data '{"publicationStatus":"published"}'
 ```
 
+Publish and inspect the generated static release:
+
+```bash
+curl -fsS http://127.0.0.1:8080/admin/api/publish/incremental \
+  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}" \
+  --request POST
+
+curl -fsS http://127.0.0.1:8080/admin/api/publish/status \
+  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}"
+```
+
+Use `POST /admin/api/publish/full` for an explicit full rebuild. Successful
+publishes write candidates under `${AUTOGRAPHS_STATIC_RELEASE_ROOT}/releases/`
+and atomically update `${AUTOGRAPHS_STATIC_RELEASE_ROOT}/current` only after
+validation passes.
+
 Responses expose item IDs and public-safe status only. They do not return
 Object Storage namespace, bucket name, original object key, or direct Object
 Storage URLs. Private original keys are generated as:
