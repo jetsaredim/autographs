@@ -3,7 +3,7 @@ mod live {
     use std::env;
 
     use autographs_controller::storage_keys::build_original_object_key;
-    use oracle_rs::{Config, Connection, Value};
+    use oracle::Connection;
     use s3::{Bucket, creds::Credentials, region::Region};
     use uuid::Uuid;
 
@@ -21,13 +21,9 @@ mod live {
             .install_default()
             .expect("install rustls aws-lc-rs crypto provider");
 
-        let oracle_host = required("AUTOGRAPHS_ORACLE_HOST");
-        let oracle_port = required("AUTOGRAPHS_ORACLE_PORT").parse().unwrap();
-        let oracle_service = required("AUTOGRAPHS_ORACLE_SERVICE_NAME");
         let oracle_user = required("ORACLE_DB_USER");
         let oracle_password = required("ORACLE_DB_PASSWORD");
-        let wallet_dir = required("ORACLE_DB_WALLET_DIR");
-        let wallet_password = env::var("ORACLE_DB_WALLET_PASSWORD").ok();
+        let oracle_connect_string = required("ORACLE_DB_CONNECT_STRING");
         let s3_endpoint = required("OCI_S3_ENDPOINT");
         let s3_region = env::var("OCI_REGION").unwrap_or_else(|_| "us-ashburn-1".to_owned());
         let s3_access_key = required("OCI_S3_ACCESS_KEY");
@@ -35,18 +31,9 @@ mod live {
         let storage_namespace = required("OCI_MEDIA_NAMESPACE");
         let bucket_name = required("OCI_MEDIA_BUCKET_NAME");
 
-        let config = Config::new(
-            oracle_host,
-            oracle_port,
-            oracle_service,
-            oracle_user,
-            oracle_password,
-        )
-        .with_wallet(wallet_dir, wallet_password.as_deref())
-        .expect("configure Oracle wallet");
-        let connection = Connection::connect_with_config(config)
-            .await
-            .expect("connect to Oracle Autonomous Database");
+        let connection =
+            Connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
+                .expect("connect to Oracle Autonomous Database");
         let credentials =
             Credentials::new(Some(&s3_access_key), Some(&s3_secret_key), None, None, None)
                 .expect("configure OCI Customer Secret credentials");
@@ -68,90 +55,72 @@ mod live {
         assert!(!object_key.contains(source_filename));
         assert!(!object_key.contains(".jpg"));
 
-        let insert_params: Vec<Value> = vec![
-            item_id.to_string().into(),
-            "Live Smoke Signed Item".into(),
-            "Live Smoke Signer".into(),
-            "Smoke".into(),
-            "draft".into(),
-        ];
+        let item_id = item_id.to_string();
+        let image_id = image_id.to_string();
         connection
             .execute(
                 "insert into autograph_items (id, title, signer, category, publication_status) values (:1, :2, :3, :4, :5)",
-                &insert_params,
+                &[&item_id, &"Live Smoke Signed Item", &"Live Smoke Signer", &"Smoke", &"draft"],
             )
-            .await
             .expect("insert live smoke item");
-        connection.commit().await.expect("commit smoke item");
+        connection.commit().expect("commit smoke item");
 
         bucket
             .put_object_with_content_type(&object_key, b"live-smoke-private-original", "image/jpeg")
             .await
             .expect("upload private original to OCI Object Storage");
-        let image_params: Vec<Value> = vec![
-            image_id.to_string().into(),
-            item_id.to_string().into(),
-            storage_namespace.into(),
-            bucket_name.clone().into(),
-            object_key.clone().into(),
-            "image/jpeg".into(),
-            27_i64.into(),
-            source_filename.into(),
-        ];
         connection
             .execute(
                 "insert into autograph_images (id, item_id, storage_namespace, bucket_name, object_key, content_type, byte_size, original_filename, is_primary) values (:1, :2, :3, :4, :5, :6, :7, :8, 'Y')",
-                &image_params,
+                &[&image_id, &item_id, &storage_namespace, &bucket_name, &object_key, &"image/jpeg", &27_i64, &source_filename],
             )
-            .await
             .expect("insert live smoke image metadata");
-        connection
-            .commit()
-            .await
-            .expect("commit smoke image metadata");
+        connection.commit().expect("commit smoke image metadata");
         let downloaded = bucket
             .get_object(&object_key)
             .await
             .expect("read private original from OCI Object Storage");
         assert_eq!(downloaded.bytes().as_ref(), b"live-smoke-private-original");
 
-        let query_params: Vec<Value> = vec![item_id.to_string().into()];
-        let result = connection
+        let mut rows = connection
             .query(
                 "select title from autograph_items where id = :1",
-                &query_params,
+                &[&item_id],
             )
-            .await
             .expect("read live smoke item");
-        assert_eq!(result.rows.len(), 1);
+        let title: String = rows
+            .next()
+            .expect("read live smoke item row")
+            .expect("read live smoke item row values")
+            .get(0)
+            .expect("read live smoke item title");
+        assert_eq!(title, "Live Smoke Signed Item");
+        assert!(rows.next().is_none());
 
-        let image_query_params: Vec<Value> = vec![image_id.to_string().into()];
-        let image_result = connection
+        let mut image_rows = connection
             .query(
                 "select object_key, original_filename from autograph_images where id = :1",
-                &image_query_params,
+                &[&image_id],
             )
-            .await
             .expect("read live smoke image metadata");
-        assert_eq!(image_result.rows.len(), 1);
-        assert_eq!(
-            image_result.rows[0].get_string(0),
-            Some(object_key.as_str())
-        );
-        assert_eq!(
-            image_result.rows[0].get_string(1),
-            Some("live secret source.jpg")
-        );
+        let image_row = image_rows
+            .next()
+            .expect("read live smoke image metadata row")
+            .expect("read live smoke image metadata row values");
+        let stored_object_key: String = image_row.get(0).expect("read stored object key");
+        let stored_filename: String = image_row.get(1).expect("read stored original filename");
+        assert_eq!(stored_object_key, object_key);
+        assert_eq!(stored_filename, "live secret source.jpg");
+        assert!(image_rows.next().is_none());
 
         bucket
             .delete_object(&object_key)
             .await
             .expect("delete live smoke original");
         connection
-            .execute("delete from autograph_items where id = :1", &query_params)
-            .await
+            .execute("delete from autograph_items where id = :1", &[&item_id])
             .expect("delete live smoke item");
-        connection.commit().await.expect("commit smoke cleanup");
+        connection.commit().expect("commit smoke cleanup");
     }
 
     fn required(name: &str) -> String {

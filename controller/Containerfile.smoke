@@ -11,11 +11,13 @@ RUN cargo test --release --features live-persistence --test live_persistence_smo
     && test -n "$smoke_binary" \
     && cp "$smoke_binary" /tmp/live-persistence-smoke
 
-FROM debian:bookworm-slim
+FROM oraclelinux:9-slim
 
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN microdnf install -y oracle-instantclient-release-23ai-el9 \
+    && microdnf install -y ca-certificates oracle-instantclient-basic \
+    && microdnf clean all
+
+ENV TNS_ADMIN=/opt/autographs/wallet
 
 COPY --from=builder /tmp/live-persistence-smoke /usr/local/bin/live-persistence-smoke
 

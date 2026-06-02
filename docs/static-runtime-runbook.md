@@ -63,11 +63,12 @@ UUID-only object key, read both records back, and clean up the smoke item and
 object. Do not mark Phase 5 verified until this command has passed against the
 live OCI tenancy.
 
-The pure-Rust Oracle probe requires `AUTOGRAPHS_ORACLE_HOST`,
-`AUTOGRAPHS_ORACLE_PORT`, and `AUTOGRAPHS_ORACLE_SERVICE_NAME` alongside the
-existing wallet, user, and password variables. OCI S3 compatibility requires
-`OCI_S3_ENDPOINT`, `OCI_S3_ACCESS_KEY`, `OCI_S3_SECRET_KEY`,
-`OCI_MEDIA_NAMESPACE`, and `OCI_MEDIA_BUCKET_NAME`.
+The native Oracle probe uses Oracle Instant Client and the same wallet alias as
+the deployed app. It requires `ORACLE_DB_CONNECT_STRING`, `ORACLE_DB_USER`, and
+`ORACLE_DB_PASSWORD`; the smoke container sets `TNS_ADMIN` to the mounted wallet
+directory. OCI S3 compatibility requires `OCI_S3_ENDPOINT`,
+`OCI_S3_ACCESS_KEY`, `OCI_S3_SECRET_KEY`, `OCI_MEDIA_NAMESPACE`, and
+`OCI_MEDIA_BUCKET_NAME`.
 
 ### Run the Smoke as a Temporary VM Container
 
@@ -93,13 +94,10 @@ mode `0600`. Do not commit this file. It must contain:
 
 ```text
 AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE=true
-AUTOGRAPHS_ORACLE_HOST=replace-with-adb-host
-AUTOGRAPHS_ORACLE_PORT=1522
-AUTOGRAPHS_ORACLE_SERVICE_NAME=replace-with-adb-service-name
 ORACLE_DB_USER=ADMIN
 ORACLE_DB_PASSWORD=replace-with-runtime-db-password
+ORACLE_DB_CONNECT_STRING=autographsdb_medium
 ORACLE_DB_WALLET_DIR=/opt/autographs/wallet
-ORACLE_DB_WALLET_PASSWORD=replace-if-required
 OCI_REGION=us-ashburn-1
 OCI_S3_ENDPOINT=https://replace-with-namespace.compat.objectstorage.us-ashburn-1.oraclecloud.com
 OCI_S3_ACCESS_KEY=replace-with-customer-secret-access-key
@@ -121,6 +119,6 @@ podman run --rm \
   localhost/autographs-live-persistence-smoke:phase-05
 ```
 
-The image contains the compiled smoke-test executable and CA certificates only.
-It does not contain the Oracle wallet, database password, or OCI Customer Secret
-credentials.
+The image contains the compiled smoke-test executable, CA certificates, and
+Oracle Instant Client. It does not contain the Oracle wallet, database password,
+or OCI Customer Secret credentials.
