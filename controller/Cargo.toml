@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-live-persistence = ["dep:oracle-rs", "dep:rust-s3"]
+live-persistence = ["dep:oracle-rs", "dep:rust-s3", "dep:rustls"]
 
 [dependencies]
 argon2 = "0.5"
@@ -17,6 +17,7 @@ tokio = { version = "1.0", features = ["fs", "macros", "net", "rt-multi-thread"]
 uuid = { version = "1.0", features = ["serde", "v4"] }
 oracle-rs = { version = "0.1.7", optional = true }
 rust-s3 = { version = "0.37.2", default-features = false, features = ["tokio-rustls-tls"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs"], optional = true }
 
 [dev-dependencies]
 tempfile = "3.0"

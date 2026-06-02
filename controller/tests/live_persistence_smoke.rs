@@ -17,6 +17,10 @@ mod live {
             return;
         }
 
+        rustls::crypto::aws_lc_rs::default_provider()
+            .install_default()
+            .expect("install rustls aws-lc-rs crypto provider");
+
         let oracle_host = required("AUTOGRAPHS_ORACLE_HOST");
         let oracle_port = required("AUTOGRAPHS_ORACLE_PORT").parse().unwrap();
         let oracle_service = required("AUTOGRAPHS_ORACLE_SERVICE_NAME");
