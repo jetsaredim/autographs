@@ -301,6 +301,14 @@ async fn fixture() -> Fixture {
             description: Some("A public description.".to_owned()),
             category: "Cards".to_owned(),
             tags: vec!["jedi".to_owned(), "star-wars".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
             publication_status: PublicationStatus::Published,
         })
         .await
@@ -312,6 +320,14 @@ async fn fixture() -> Fixture {
             description: None,
             category: "Cards".to_owned(),
             tags: vec!["private".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
             publication_status: PublicationStatus::Draft,
         })
         .await
@@ -332,6 +348,7 @@ async fn fixture() -> Fixture {
                 byte_size: bytes.len(),
                 is_primary: true,
                 sort_order: 0,
+                alt_text: None,
             },
         )
         .await

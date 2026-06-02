@@ -2,8 +2,9 @@
 
 The Rust controller is the private admin and publishing service for the static
 runtime migration. It currently proves the foundation: authentication, local
-catalog writes, private upload handling, static artifact contracts, and a live
-OCI persistence smoke harness.
+catalog writes, private upload handling, static artifact contracts, validated
+publishing, a minimal browser admin shell, and a live OCI persistence smoke
+harness.
 
 It is not yet the complete production controller. The sections below distinguish
 implemented behavior from work planned for later Phase 5 plans.
@@ -177,6 +178,14 @@ The local-mode publisher foundation is implemented. It now:
 The production Oracle-backed repository and runtime deployment cutover remain
 separate Phase 5 work.
 
+## Static Admin Shell
+
+[`controller/static-admin/`](../controller/static-admin/) contains the minimal
+Phase 5 browser shell. It logs in through the HTTP-only cookie flow, creates or
+updates metadata, uploads one original with alt text, changes publication
+status, triggers incremental or full publishing, and displays redacted publish
+status. Phase 6 still owns polished daily-use workflow and media ergonomics.
+
 ## Tests
 
 The current tests cover:
@@ -191,17 +200,15 @@ The current tests cover:
 - Candidate generation, derivative validation, stale cleanup, promotion, and
   publish status:
   [`controller/tests/publisher.rs`](../controller/tests/publisher.rs)
+- Static admin endpoint references and source privacy:
+  [`controller/tests/static_admin.rs`](../controller/tests/static_admin.rs)
 - Real Oracle plus OCI S3-compatible create, read, upload, and cleanup smoke:
   [`controller/tests/live_persistence_smoke.rs`](../controller/tests/live_persistence_smoke.rs)
 
-One small gap remains in implemented tests: logout code invalidates sessions,
-but the integration suite does not yet assert that the old cookie receives
-`401` after logout. The revised plan explicitly requires that regression test.
-
 ## Current Checkpoint
 
-Plan `05-03` cannot be marked complete until its live persistence smoke passes
-against the real Oracle Autonomous Database and OCI Object Storage environment:
+The Plan `05-03` live persistence smoke passed against Oracle Autonomous
+Database and OCI Object Storage on 2026-06-02:
 
 ```bash
 AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE=true \
@@ -209,13 +216,7 @@ cargo test --manifest-path controller/Cargo.toml \
   --features live-persistence live_persistence_smoke -- --ignored --nocapture
 ```
 
-The harness already compiles and passes its local skip path. It still needs real
-credentials exported securely before running the actual proof.
-
 ## Remaining Phase 5 Work
 
-- `05-04`: Static publisher, derivatives, filtering parity, incremental
-  rebuilds, and stale-artifact cleanup
-- `05-05`: Minimal browser admin shell
 - `05-06`: Ansible, Caddy, and CI/deploy wiring
 - `05-07`: Live static end-to-end proof and cutover documentation

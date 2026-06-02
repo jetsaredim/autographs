@@ -568,7 +568,10 @@ async fn build_public_items(
                 });
             }
             images.push(PublicImage {
-                alt_text: format!("{} signed by {}", item.title, item.signer),
+                alt_text: image
+                    .alt_text
+                    .clone()
+                    .unwrap_or_else(|| format!("{} signed by {}", item.title, item.signer)),
                 variants,
             });
         }

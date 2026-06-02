@@ -132,6 +132,30 @@ async fn auth_and_health_login_issues_strict_secure_cookie_and_cookie_mutations_
         .await
         .unwrap();
     assert_eq!(same_origin.status(), StatusCode::NO_CONTENT);
+
+    let logout = app
+        .clone()
+        .oneshot(
+            Request::post("/admin/api/logout")
+                .header(header::COOKIE, cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(logout.status(), StatusCode::NO_CONTENT);
+
+    let expired = app
+        .oneshot(
+            Request::get("/admin/api/protected")
+                .header(header::COOKIE, cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(expired.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]

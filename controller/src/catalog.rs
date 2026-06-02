@@ -24,6 +24,14 @@ pub struct AutographItemInput {
     pub category: String,
     #[serde(default)]
     pub tags: Vec<String>,
+    pub object_reference: Option<String>,
+    pub event_name: Option<String>,
+    pub event_location: Option<String>,
+    pub source: Option<String>,
+    pub inscription: Option<String>,
+    pub certification_company: Option<String>,
+    pub certification_id: Option<String>,
+    pub estimated_year: Option<i32>,
     #[serde(default = "draft")]
     pub publication_status: PublicationStatus,
 }
@@ -36,6 +44,14 @@ pub struct AutographItemUpdate {
     pub description: Option<String>,
     pub category: Option<String>,
     pub tags: Option<Vec<String>>,
+    pub object_reference: Option<String>,
+    pub event_name: Option<String>,
+    pub event_location: Option<String>,
+    pub source: Option<String>,
+    pub inscription: Option<String>,
+    pub certification_company: Option<String>,
+    pub certification_id: Option<String>,
+    pub estimated_year: Option<i32>,
     pub publication_status: Option<PublicationStatus>,
 }
 
@@ -47,6 +63,14 @@ pub struct AutographItem {
     pub description: Option<String>,
     pub category: String,
     pub tags: Vec<String>,
+    pub object_reference: Option<String>,
+    pub event_name: Option<String>,
+    pub event_location: Option<String>,
+    pub source: Option<String>,
+    pub inscription: Option<String>,
+    pub certification_company: Option<String>,
+    pub certification_id: Option<String>,
+    pub estimated_year: Option<i32>,
     pub publication_status: PublicationStatus,
     pub images: Vec<AutographImage>,
 }
@@ -60,6 +84,7 @@ pub struct AutographImage {
     pub byte_size: usize,
     pub is_primary: bool,
     pub sort_order: i32,
+    pub alt_text: Option<String>,
 }
 
 #[async_trait]
@@ -96,6 +121,14 @@ impl CatalogRepository for MemoryCatalogRepository {
             description: input.description,
             category: input.category,
             tags: input.tags,
+            object_reference: input.object_reference,
+            event_name: input.event_name,
+            event_location: input.event_location,
+            source: input.source,
+            inscription: input.inscription,
+            certification_company: input.certification_company,
+            certification_id: input.certification_id,
+            estimated_year: input.estimated_year,
             publication_status: input.publication_status,
             images: Vec::new(),
         };
@@ -125,6 +158,30 @@ impl CatalogRepository for MemoryCatalogRepository {
         }
         if let Some(tags) = input.tags {
             item.tags = tags;
+        }
+        if let Some(object_reference) = input.object_reference {
+            item.object_reference = Some(object_reference);
+        }
+        if let Some(event_name) = input.event_name {
+            item.event_name = Some(event_name);
+        }
+        if let Some(event_location) = input.event_location {
+            item.event_location = Some(event_location);
+        }
+        if let Some(source) = input.source {
+            item.source = Some(source);
+        }
+        if let Some(inscription) = input.inscription {
+            item.inscription = Some(inscription);
+        }
+        if let Some(certification_company) = input.certification_company {
+            item.certification_company = Some(certification_company);
+        }
+        if let Some(certification_id) = input.certification_id {
+            item.certification_id = Some(certification_id);
+        }
+        if let Some(estimated_year) = input.estimated_year {
+            item.estimated_year = Some(estimated_year);
         }
         if let Some(status) = input.publication_status {
             item.publication_status = status;

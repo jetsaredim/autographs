@@ -241,11 +241,14 @@ async fn upload_image(
     let mut filename = None;
     let mut content_type = None;
     let mut body = None;
+    let mut alt_text = None;
     while let Ok(Some(field)) = multipart.next_field().await {
         if field.name() == Some("image") {
             filename = field.file_name().map(str::to_owned);
             content_type = field.content_type().map(str::to_owned);
             body = field.bytes().await.ok();
+        } else if field.name() == Some("altText") {
+            alt_text = field.text().await.ok();
         }
     }
     let Some(body) = body else {
@@ -273,6 +276,7 @@ async fn upload_image(
         byte_size: body.len(),
         is_primary: true,
         sort_order: 0,
+        alt_text,
     };
     match state.repository.attach_image(item_id, image).await {
         Ok(item) => (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response(),
@@ -382,6 +386,14 @@ struct ItemResponse {
     description: Option<String>,
     category: String,
     tags: Vec<String>,
+    object_reference: Option<String>,
+    event_name: Option<String>,
+    event_location: Option<String>,
+    source: Option<String>,
+    inscription: Option<String>,
+    certification_company: Option<String>,
+    certification_id: Option<String>,
+    estimated_year: Option<i32>,
     publication_status: PublicationStatus,
     images: Vec<ImageResponse>,
 }
@@ -405,6 +417,14 @@ impl From<AutographItem> for ItemResponse {
             description: item.description,
             category: item.category,
             tags: item.tags,
+            object_reference: item.object_reference,
+            event_name: item.event_name,
+            event_location: item.event_location,
+            source: item.source,
+            inscription: item.inscription,
+            certification_company: item.certification_company,
+            certification_id: item.certification_id,
+            estimated_year: item.estimated_year,
             publication_status: item.publication_status,
             images: item
                 .images

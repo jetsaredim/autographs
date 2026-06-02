@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Autographs Admin Seed Shell</title>
+    <link rel="stylesheet" href="/admin/admin.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Private controller</p>
+        <h1>Autographs admin seed shell</h1>
+        <p>This is the minimal Phase 5 seed and publish path. The polished collection workflow belongs to Phase 6.</p>
+      </header>
+
+      <section>
+        <h2>Session</h2>
+        <form id="login-form">
+          <label>Admin password <input name="password" type="password" autocomplete="current-password" required></label>
+          <button type="submit">Log in</button>
+        </form>
+        <button id="logout" type="button">Log out</button>
+        <p id="session-message" class="message" role="status"></p>
+      </section>
+
+      <section>
+        <h2>Publish status</h2>
+        <div class="actions">
+          <button id="refresh-status" type="button">Refresh status</button>
+          <button id="publish-incremental" type="button">Publish incremental</button>
+          <button id="publish-full" type="button">Full rebuild</button>
+        </div>
+        <pre id="publish-status">Not loaded.</pre>
+      </section>
+
+      <section>
+        <h2>Seed or edit one item</h2>
+        <p>Leave the item ID empty to create a draft. Paste an existing item ID to update basic metadata.</p>
+        <form id="item-form">
+          <label>Item ID for edit <input name="itemId" autocomplete="off"></label>
+          <label>Title <input name="title" required></label>
+          <label>Signer <input name="signer" required></label>
+          <label>Description <textarea name="description"></textarea></label>
+          <label>Category <input name="category" required></label>
+          <label>Tags, comma separated <input name="tags"></label>
+          <label>Object reference <input name="objectReference"></label>
+          <label>Event <input name="eventName"></label>
+          <label>Event location <input name="eventLocation"></label>
+          <label>Source <input name="source"></label>
+          <label>Inscription <textarea name="inscription"></textarea></label>
+          <label>Certification company <input name="certificationCompany"></label>
+          <label>Certification ID <input name="certificationId"></label>
+          <label>Estimated year <input name="estimatedYear" type="number" min="1000" max="9999"></label>
+          <label>Publication
+            <select name="publicationStatus">
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+            </select>
+          </label>
+          <label>Primary image <input name="image" type="file" accept="image/jpeg,image/png,image/webp"></label>
+          <label>Image alt text <input name="altText"></label>
+          <div class="actions">
+            <button type="submit">Save item</button>
+            <button id="publish-item" type="button">Publish item</button>
+            <button id="unpublish-item" type="button">Unpublish item</button>
+          </div>
+        </form>
+        <p id="item-message" class="message" role="status"></p>
+      </section>
+    </main>
+    <script src="/admin/admin.js"></script>
+  </body>
+</html>

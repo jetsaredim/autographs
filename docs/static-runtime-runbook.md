@@ -2,6 +2,12 @@
 
 ## Local Controller Seed Path
 
+The Phase 5 static admin shell is served at `/admin` by the private controller
+routing path once Caddy wiring is deployed. It is a minimal seed/publish tool,
+not the polished Phase 6 admin workflow. Keep `/admin` and `/admin/api/*`
+behind the authenticated private-controller boundary; the browser shell relies
+on the HTTP-only session cookie and same-origin mutation checks.
+
 Start the controller with local-only values:
 
 ```bash

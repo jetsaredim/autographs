@@ -31,6 +31,14 @@ async fn seed_content_local_repository_and_media_use_filename_free_keys() {
             description: None,
             category: "Cards".to_owned(),
             tags: vec!["jedi".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
             publication_status: PublicationStatus::Draft,
         })
         .await
@@ -58,6 +66,7 @@ async fn seed_content_local_repository_and_media_use_filename_free_keys() {
                 byte_size: 22,
                 is_primary: true,
                 sort_order: 0,
+                alt_text: None,
             },
         )
         .await
@@ -85,7 +94,7 @@ async fn seed_content_private_api_persists_redacted_item_and_image_response() {
                 .header(header::AUTHORIZATION, token)
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
-                    r#"{"title":"Signed Jedi Card","signer":"Mark Hamill","category":"Cards","tags":["jedi"]}"#,
+                    r#"{"title":"Signed Jedi Card","signer":"Mark Hamill","category":"Cards","tags":["jedi"],"eventName":"Example Convention","source":"Private collection","estimatedYear":2024}"#,
                 ))
                 .unwrap(),
         )
@@ -94,6 +103,8 @@ async fn seed_content_private_api_persists_redacted_item_and_image_response() {
     assert_eq!(create.status(), StatusCode::CREATED);
     let body = response_json(create).await;
     let item_id = Uuid::parse_str(body["id"].as_str().unwrap()).unwrap();
+    assert_eq!(body["eventName"], "Example Convention");
+    assert_eq!(body["estimatedYear"], 2024);
 
     let unauthenticated_upload = app
         .clone()
@@ -127,6 +138,10 @@ async fn seed_content_private_api_persists_redacted_item_and_image_response() {
 
     let stored = repository.get(item_id).await.unwrap().unwrap();
     assert_eq!(stored.images.len(), 1);
+    assert_eq!(
+        stored.images[0].alt_text.as_deref(),
+        Some("Signed card front")
+    );
     assert!(
         !stored.images[0]
             .object_key
@@ -158,7 +173,7 @@ async fn seed_content_private_api_persists_redacted_item_and_image_response() {
 fn upload_request(item_id: Uuid, authorization: Option<&str>) -> Request<Body> {
     let boundary = "autographs-test-boundary";
     let body = format!(
-        "--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"secret bucket photo.jpg\"\r\nContent-Type: image/jpeg\r\n\r\nprivate-original-bytes\r\n--{boundary}--\r\n"
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"altText\"\r\n\r\nSigned card front\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"secret bucket photo.jpg\"\r\nContent-Type: image/jpeg\r\n\r\nprivate-original-bytes\r\n--{boundary}--\r\n"
     );
     let mut request = Request::post(format!("/admin/api/items/{item_id}/images"))
         .header(
