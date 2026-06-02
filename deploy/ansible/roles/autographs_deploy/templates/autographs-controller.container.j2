@@ -1,0 +1,24 @@
+[Unit]
+Description=Autographs Rust private controller container
+After=network-online.target autographs-network.service
+Wants=network-online.target
+Requires=autographs-network.service
+
+[Container]
+ContainerName={{ autographs_deploy_controller_container_name }}
+Image={{ autographs_controller_image }}
+Pull=never
+Network=autographs.network
+EnvironmentFile={{ autographs_deploy_env_path }}/app.env
+EnvironmentFile={{ autographs_deploy_env_path }}/controller.env
+Volume={{ autographs_deploy_wallet_path }}:/opt/autographs/wallet:ro
+Volume={{ autographs_deploy_secrets_path }}:/opt/autographs/secrets:ro
+Volume=autographs-static.volume:/opt/autographs/static
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

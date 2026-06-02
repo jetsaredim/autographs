@@ -116,6 +116,14 @@
       owner: "{{ autographs_deploy_user }}"
       group: "{{ autographs_deploy_user }}"
       mode: "0755"
+    - path: "{{ autographs_deploy_static_path }}"
+      owner: "{{ autographs_deploy_user }}"
+      group: "{{ autographs_deploy_user }}"
+      mode: "0755"
+    - path: "{{ autographs_deploy_static_admin_path }}"
+      owner: "{{ autographs_deploy_user }}"
+      group: "{{ autographs_deploy_user }}"
+      mode: "0755"
     - path: "{{ autographs_deploy_quadlet_path }}"
       owner: root
       group: root
@@ -131,7 +139,27 @@
   no_log: true
   notify:
     - Restart app container
+    - Restart controller container
     - Restart Caddy container
+
+- name: Copy static admin shell
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../../controller/static-admin/"
+    dest: "{{ autographs_deploy_static_admin_path }}/"
+    owner: "{{ autographs_deploy_user }}"
+    group: "{{ autographs_deploy_user }}"
+    directory_mode: "0755"
+    mode: "0644"
+  notify: Restart Caddy container
+
+- name: Write staged controller environment file
+  ansible.builtin.template:
+    src: controller.env.j2
+    dest: "{{ autographs_deploy_env_path }}/controller.env"
+    owner: "{{ autographs_deploy_user }}"
+    group: "{{ autographs_deploy_user }}"
+    mode: "0600"
+  notify: Restart controller container
 
 - name: Copy Caddyfile
   ansible.builtin.copy:
@@ -150,7 +178,9 @@
     group: "{{ autographs_deploy_user }}"
     mode: "0600"
   no_log: true
-  notify: Restart app container
+  notify:
+    - Restart app container
+    - Restart controller container
 
 - name: Write Oracle DB wallet archive
   ansible.builtin.copy:
@@ -180,7 +210,9 @@
     mode: "0600"
   no_log: true
   when: autographs_deploy_wallet_archive.changed
-  notify: Restart app container
+  notify:
+    - Restart app container
+    - Restart controller container
 
 - name: Remove temp wallet archives
   ansible.builtin.file:
@@ -203,6 +235,7 @@
     cmd: "podman pull {{ item }}"
   loop:
     - "{{ autographs_app_image }}"
+    - "{{ autographs_controller_image }}"
     - "{{ autographs_deploy_caddy_image }}"
   register: autographs_deploy_image_pull
   changed_when: >-
@@ -227,8 +260,12 @@
       dest: autographs.network
     - src: autographs-app.container.j2
       dest: autographs-app.container
+    - src: autographs-controller.container.j2
+      dest: autographs-controller.container
     - src: autographs-caddy.container.j2
       dest: autographs-caddy.container
+    - src: autographs-static.volume.j2
+      dest: autographs-static.volume
     - src: autographs-caddy-data.volume.j2
       dest: autographs-caddy-data.volume
     - src: autographs-caddy-config.volume.j2
@@ -236,6 +273,7 @@
   notify:
     - Reload systemd
     - Restart app container
+    - Restart controller container
     - Restart Caddy container
 
 - name: Flush quadlet handlers before enabling services
@@ -250,4 +288,5 @@
   loop:
     - autographs-network.service
     - autographs-app.service
+    - autographs-controller.service
     - autographs-caddy.service

@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-live-persistence = ["dep:oracle", "dep:rust-s3", "dep:rustls"]
+production-persistence = ["dep:oracle", "dep:rust-s3", "dep:rustls"]
+live-persistence = ["production-persistence"]
 
 [dependencies]
 argon2 = "0.5"

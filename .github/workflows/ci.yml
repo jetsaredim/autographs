@@ -34,6 +34,12 @@ jobs:
           dockerfile: app/Dockerfile
           verbose: true
 
+      - name: Lint controller Containerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: controller/Containerfile
+          verbose: true
+
   app-checks:
     name: App checks
     runs-on: ubuntu-latest
@@ -52,6 +58,30 @@ jobs:
 
       - name: Typecheck
         run: pnpm --filter app typecheck
+
+  controller-checks:
+    name: Controller checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --manifest-path controller/Cargo.toml --check
+
+      - name: Run tests
+        run: cargo test --manifest-path controller/Cargo.toml
+
+      - name: Check production persistence adapters
+        run: cargo check --manifest-path controller/Cargo.toml --features production-persistence
+
+      - name: Run Clippy
+        run: cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
 
   image-build:
     name: Build images

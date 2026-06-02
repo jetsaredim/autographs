@@ -125,8 +125,17 @@ The implemented default router currently uses:
 - `MemoryCatalogRepository`
 - `LocalMediaStore`
 
-This means the running controller is still local-mode by default. Oracle and
-OCI-backed implementations have not yet replaced those defaults.
+This keeps tests and the staged 05-06 deployment local-mode by default.
+Production-persistence builds also include:
+
+- `OracleCatalogRepository`, using the native `oracle` crate and Oracle Instant
+  Client
+- `OciS3MediaStore`, using OCI S3 compatibility Customer Secret credentials
+
+The runtime selects them with `AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and
+`AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3`. The 05-07 live proof
+owns switching the protected VM-local controller env file and validating the
+full path before public cutover.
 
 ## Database Migration
 
@@ -175,8 +184,8 @@ The local-mode publisher foundation is implemented. It now:
 - Exposes authenticated full, incremental, and status publish endpoints
 - Generates minimal static category and tag filtering
 
-The production Oracle-backed repository and runtime deployment cutover remain
-separate Phase 5 work.
+The production adapter live proof and runtime cutover remain separate Phase 5
+work.
 
 ## Static Admin Shell
 

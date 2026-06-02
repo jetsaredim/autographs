@@ -105,6 +105,7 @@ jobs:
           options: |
             --extra-vars autographs_system_cleanup_image_repository=${{ env.GHCR_IMAGE_REPOSITORY }}
             --extra-vars autographs_system_cleanup_tools_image_repository=${{ env.GHCR_IMAGE_REPOSITORY }}-tools
+            --extra-vars autographs_system_cleanup_controller_image_repository=${{ env.GHCR_IMAGE_REPOSITORY }}-controller
             --extra-vars autographs_system_cleanup_retain_count=${{ env.AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT }}
             --extra-vars autographs_system_cleanup_protected_tags=${{ env.GHCR_CLEANUP_PROTECTED_TAGS }}
             --extra-vars autographs_system_cleanup_dry_run=${{ env.GHCR_CLEANUP_DRY_RUN }}
@@ -117,7 +118,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Clean up GHCR app images
+      - name: Clean up GHCR runtime images
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 scripts/cleanup-ghcr-images.py
+        run: |
+          python3 scripts/cleanup-ghcr-images.py
+          GHCR_IMAGE_REPOSITORY="${GHCR_IMAGE_REPOSITORY}-tools" python3 scripts/cleanup-ghcr-images.py
+          GHCR_IMAGE_REPOSITORY="${GHCR_IMAGE_REPOSITORY}-controller" python3 scripts/cleanup-ghcr-images.py

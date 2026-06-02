@@ -1,8 +1,8 @@
 [Unit]
 Description=Autographs Caddy reverse proxy container
-After=network-online.target autographs-network.service autographs-app.service
+After=network-online.target autographs-network.service autographs-app.service autographs-controller.service
 Wants=network-online.target
-Requires=autographs-network.service autographs-app.service
+Requires=autographs-network.service autographs-app.service autographs-controller.service
 
 [Container]
 ContainerName={{ autographs_deploy_caddy_container_name }}
@@ -11,10 +11,13 @@ Pull=never
 Network=autographs.network
 Environment=AUTOGRAPHS_DOMAIN={{ autographs_deploy_domain }}
 Volume={{ autographs_deploy_caddy_path }}/Caddyfile:/etc/caddy/Caddyfile:ro,Z
+Volume=autographs-static.volume:/srv/autographs/static:ro
+Volume={{ autographs_deploy_static_admin_path }}:/srv/autographs/admin:ro,Z
 Volume=autographs-caddy-data.volume:/data
 Volume=autographs-caddy-config.volume:/config
 PublishPort={{ autographs_deploy_http_port }}:80
 PublishPort={{ autographs_deploy_https_port }}:443
+PublishPort=127.0.0.1:{{ autographs_deploy_candidate_preview_port }}:8081
 
 [Service]
 Restart=always

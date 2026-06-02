@@ -1,9 +1,9 @@
-- name: Read deployed app image
+- name: Read deployed runtime images
   ansible.builtin.command:
     argv:
       - awk
       - -F=
-      - /^AUTOGRAPHS_APP_IMAGE=/{print $2}
+      - /^AUTOGRAPHS_(APP|TOOLS|CONTROLLER)_IMAGE=/{print $2}
       - "{{ autographs_system_cleanup_env_path }}/app.env"
   register: autographs_system_cleanup_current_image
   changed_when: false
@@ -27,13 +27,14 @@
     RETAIN_COUNT: "{{ autographs_system_cleanup_retain_count }}"
     IMAGE_REPOSITORY: "{{ autographs_system_cleanup_image_repository }}"
     TOOLS_IMAGE_REPOSITORY: "{{ autographs_system_cleanup_tools_image_repository }}"
-    CURRENT_IMAGE: "{{ autographs_system_cleanup_current_image.stdout | trim }}"
+    CONTROLLER_IMAGE_REPOSITORY: "{{ autographs_system_cleanup_controller_image_repository }}"
+    CURRENT_IMAGES: "{{ autographs_system_cleanup_current_image.stdout }}"
     PROTECTED_TAGS: "{{ autographs_system_cleanup_protected_tags }}"
     IMAGES_JSON: "{{ autographs_system_cleanup_images.stdout }}"
   register: autographs_system_cleanup_removable_images
   changed_when: false
 
-- name: Remove old local app and tools images
+- name: Remove old local runtime images
   ansible.builtin.command:
     argv:
       - podman
@@ -46,7 +47,7 @@
     - autographs_system_cleanup_removable_images.stdout_lines | length > 0
   changed_when: true
 
-- name: Report old local app and tools images dry run
+- name: Report old local runtime images dry run
   ansible.builtin.debug:
     msg: "Would remove local Podman image {{ item }}"
   loop: "{{ autographs_system_cleanup_removable_images.stdout_lines }}"

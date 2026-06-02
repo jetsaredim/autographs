@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
 use axum::{
     Json, Router,
@@ -60,6 +60,84 @@ pub fn router(config: ControllerConfig) -> Router {
         Arc::new(MemoryCatalogRepository::default()),
         Arc::new(LocalMediaStore::new("/tmp/autographs-controller-media")),
     )
+}
+
+pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
+    let repository: Arc<dyn CatalogRepository> =
+        match provider("AUTOGRAPHS_CONTROLLER_DB_PROVIDER").as_str() {
+            "local" => Arc::new(MemoryCatalogRepository::default()),
+            "oracle" => production_repository()?,
+            provider => {
+                return Err(format!(
+                    "AUTOGRAPHS_CONTROLLER_DB_PROVIDER must be local or oracle, got {provider}"
+                ));
+            }
+        };
+    let media: Arc<dyn PrivateMediaStore> = match provider(
+        "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER",
+    )
+    .as_str()
+    {
+        "local" => Arc::new(LocalMediaStore::new(
+            env::var("AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT")
+                .unwrap_or_else(|_| "/tmp/autographs-controller-media".to_owned()),
+        )),
+        "oci-s3" => production_media_store()?,
+        provider => {
+            return Err(format!(
+                "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER must be local or oci-s3, got {provider}"
+            ));
+        }
+    };
+    Ok(router_with_stores(config, repository, media))
+}
+
+fn provider(name: &str) -> String {
+    env::var(name).unwrap_or_else(|_| "local".to_owned())
+}
+
+#[cfg(feature = "production-persistence")]
+fn production_repository() -> Result<Arc<dyn CatalogRepository>, String> {
+    use crate::oracle_catalog::OracleCatalogRepository;
+
+    Ok(Arc::new(OracleCatalogRepository::new(
+        required_env("ORACLE_DB_USER")?,
+        required_env("ORACLE_DB_PASSWORD")?,
+        required_env("ORACLE_DB_CONNECT_STRING")?,
+        required_env("OCI_MEDIA_NAMESPACE")?,
+        required_env("OCI_MEDIA_BUCKET_NAME")?,
+    )))
+}
+
+#[cfg(not(feature = "production-persistence"))]
+fn production_repository() -> Result<Arc<dyn CatalogRepository>, String> {
+    Err("Oracle controller persistence requires the production-persistence feature".to_owned())
+}
+
+#[cfg(feature = "production-persistence")]
+fn production_media_store() -> Result<Arc<dyn PrivateMediaStore>, String> {
+    use crate::oci_media::OciS3MediaStore;
+
+    Ok(Arc::new(OciS3MediaStore::new(
+        required_env("OCI_MEDIA_BUCKET_NAME")?,
+        env::var("OCI_REGION").unwrap_or_else(|_| "us-ashburn-1".to_owned()),
+        required_env("OCI_S3_ENDPOINT")?,
+        required_env("OCI_S3_ACCESS_KEY")?,
+        required_env("OCI_S3_SECRET_KEY")?,
+    )?))
+}
+
+#[cfg(not(feature = "production-persistence"))]
+fn production_media_store() -> Result<Arc<dyn PrivateMediaStore>, String> {
+    Err("OCI S3 controller persistence requires the production-persistence feature".to_owned())
+}
+
+#[cfg(feature = "production-persistence")]
+fn required_env(name: &str) -> Result<String, String> {
+    env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("{name} is required"))
 }
 
 pub fn router_with_stores(

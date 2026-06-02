@@ -4,6 +4,10 @@ pub mod config;
 pub mod contracts;
 pub mod derivatives;
 pub mod media;
+#[cfg(feature = "production-persistence")]
+pub mod oci_media;
+#[cfg(feature = "production-persistence")]
+pub mod oracle_catalog;
 pub mod publisher;
 pub mod routes;
 pub mod storage_keys;

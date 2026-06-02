@@ -1,6 +1,10 @@
 # Deployment Runbook
 
-This runbook gets the app from a clean checkout to an OCI VM running systemd-managed Podman quadlets: public `Caddy` in front of a private `Next.js` app container on a dedicated Podman network, with Terraform-managed hooks for Oracle Autonomous Database Free and private OCI Object Storage media.
+This runbook gets the app from a clean checkout to an OCI VM running
+systemd-managed Podman quadlets: public `Caddy` in front of the current private
+`Next.js` app plus the staged Rust private controller and shared static release
+tree on a dedicated Podman network, with Terraform-managed hooks for Oracle
+Autonomous Database Free and private OCI Object Storage media.
 
 ## Preconditions
 
@@ -21,6 +25,8 @@ Run the same broad checks used by GitHub Actions:
 corepack pnpm install --frozen-lockfile
 corepack pnpm --filter app lint
 corepack pnpm --filter app typecheck
+cargo test --manifest-path controller/Cargo.toml
+cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
 terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff
 ```
 
@@ -72,6 +78,7 @@ Populate repo-level GitHub Secrets:
 - `ORACLE_DB_WALLET_ZIP_BASE64` when using an mTLS wallet
 - `ORACLE_DB_WALLET_PASSWORD` when the node-oracledb Thin connection needs the downloaded wallet password
 - `AUTOGRAPHS_OPERATOR_API_TOKEN`
+- `AUTOGRAPHS_ADMIN_PASSWORD_HASH`
 
 Populate repo-level GitHub Variables:
 
@@ -131,22 +138,47 @@ Temporary production data entry is operator-only and documented in [temporary-pr
 
 ## Workflow Behavior
 
-Pull requests run `.github/workflows/ci.yml`. The CI workflow checks the Next.js app, builds the container images without pushing them, validates Terraform, and runs Ansible syntax/lint checks for the quadlet deployment.
+Pull requests run `.github/workflows/ci.yml`. The CI workflow checks the
+Next.js app and Rust controller, builds the container images without pushing
+them, validates Terraform, and runs Ansible syntax/lint checks for the quadlet
+deployment.
 
 Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 
 1. validates the repository,
-2. publishes a prebuilt app image to `ghcr.io`,
+2. publishes prebuilt app, tools, and Rust controller images to `ghcr.io`,
 3. runs `terraform apply`,
 4. optionally taints and recreates the runtime VM when manually requested,
 5. connects to the OCI VM over SSH through Ansible,
 6. installs/maintains Podman, firewalld, swap, and masked systemd services,
 7. copies wallet and OCI API key material to protected VM paths,
-8. installs systemd quadlets for the dedicated Podman network, app container, and Caddy container,
-9. pulls the published app image and restarts the quadlet services,
+8. installs systemd quadlets for the dedicated Podman network, app container, private controller, shared static volume, and Caddy container,
+9. pulls the published runtime images and restarts the quadlet services,
 10. checks the Caddy-fronted `/health` proof-of-life route.
 
-The VM pulls the image built by GitHub Actions. The VM does not build application code during deploy.
+The VM pulls images built by GitHub Actions. The VM does not build application
+code or generate catalog content during deploy.
+
+### Staged Static Preview
+
+Plan 05-06 deploys the private controller and static route shape without
+switching anonymous public traffic away from the current Next.js app. On the
+VM, Caddy exposes generated candidates only through a localhost-bound preview:
+
+```bash
+curl --fail --silent http://127.0.0.1:8081/releases/<release-id>/collection/
+```
+
+The `/admin` shell and `/admin/api/*` controller proxy are available through
+the normal hostname. Plan 05-07 owns the explicit public static cutover after a
+candidate release passes local validation.
+
+The Ansible-managed `/opt/autographs/env/controller.env` intentionally starts
+with `local` controller persistence adapters so 05-06 can prove packaging and
+routing without changing live catalog data. Before the 05-07 live static smoke,
+the operator switches that protected VM-local file to `oracle` and `oci-s3`
+and supplies the OCI S3 compatibility Customer Secret coordinates described in
+[static-runtime-runbook.md](static-runtime-runbook.md).
 
 The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because `tsx`, Next.js, and smoke/admin scripts can briefly exceed the VM's physical memory.
 
@@ -174,8 +206,8 @@ If this fails, check the VM:
 
 ```bash
 ssh opc@"${VM_PUBLIC_IP}"
-sudo systemctl status autographs-network.service autographs-app.service autographs-caddy.service
-sudo journalctl -u autographs-app.service -u autographs-caddy.service --since "30 minutes ago"
+sudo systemctl status autographs-network.service autographs-app.service autographs-controller.service autographs-caddy.service
+sudo journalctl -u autographs-app.service -u autographs-controller.service -u autographs-caddy.service --since "30 minutes ago"
 sudo podman ps
 ```
 

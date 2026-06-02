@@ -8,6 +8,21 @@ not the polished Phase 6 admin workflow. Keep `/admin` and `/admin/api/*`
 behind the authenticated private-controller boundary; the browser shell relies
 on the HTTP-only session cookie and same-origin mutation checks.
 
+The staged deploy starts the controller with local persistence adapters in
+`/opt/autographs/env/controller.env`. For the live static publish proof, update
+that protected VM-local file to:
+
+```text
+AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle
+AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3
+OCI_S3_ENDPOINT=https://replace-with-namespace.compat.objectstorage.us-ashburn-1.oraclecloud.com
+OCI_S3_ACCESS_KEY=replace-with-customer-secret-access-key
+OCI_S3_SECRET_KEY=replace-with-customer-secret-secret-key
+```
+
+Then restart `autographs-controller.service`. Keep the Customer Secret values
+on the VM/operator secret path; do not add them to GitHub-hosted workflows.
+
 Start the controller with local-only values:
 
 ```bash
@@ -58,6 +73,14 @@ Use `POST /admin/api/publish/full` for an explicit full rebuild. Successful
 publishes write candidates under `${AUTOGRAPHS_STATIC_RELEASE_ROOT}/releases/`
 and atomically update `${AUTOGRAPHS_STATIC_RELEASE_ROOT}/current` only after
 validation passes.
+
+Before the public static cutover, validate a promoted release from the runtime
+VM through Caddy's localhost-only preview listener:
+
+```bash
+curl --fail --silent \
+  "http://127.0.0.1:8081/releases/${RELEASE_ID}/collection/"
+```
 
 Responses expose item IDs and public-safe status only. They do not return
 Object Storage namespace, bucket name, original object key, or direct Object

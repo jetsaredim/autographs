@@ -1,4 +1,4 @@
-use autographs_controller::{config::ControllerConfig, routes::router};
+use autographs_controller::{config::ControllerConfig, routes::runtime_router};
 
 #[tokio::main]
 async fn main() {
@@ -8,7 +8,10 @@ async fn main() {
         .await
         .expect("bind controller listener");
 
-    axum::serve(listener, router(config))
-        .await
-        .expect("serve controller routes");
+    axum::serve(
+        listener,
+        runtime_router(config).expect("configure controller persistence"),
+    )
+    .await
+    .expect("serve controller routes");
 }

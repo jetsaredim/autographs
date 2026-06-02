@@ -15,7 +15,7 @@ on:
           - "false"
           - "true"
       force_app_image_build:
-        description: "Force rebuilding the app and tools images before deploying"
+        description: "Force rebuilding the app, tools, and controller images before deploying"
         required: false
         default: "false"
         type: choice
@@ -58,6 +58,7 @@ jobs:
           filters: |
             app:
               - "app/**"
+              - "controller/**"
               - "package.json"
               - "pnpm-workspace.yaml"
               - "pnpm-lock.yaml"
@@ -111,6 +112,7 @@ jobs:
     outputs:
       app_image: ${{ steps.resolve.outputs.app_image }}
       tools_image: ${{ steps.resolve.outputs.tools_image }}
+      controller_image: ${{ steps.resolve.outputs.controller_image }}
       uses_production_images: ${{ steps.resolve.outputs.uses_production_images }}
 
     steps:
@@ -145,10 +147,12 @@ jobs:
 
             app_tag="${GHCR_IMAGE_REPOSITORY}:${GITHUB_SHA}"
             tools_tag="${GHCR_IMAGE_REPOSITORY}-tools:${GITHUB_SHA}"
+            controller_tag="${GHCR_IMAGE_REPOSITORY}-controller:${GITHUB_SHA}"
             uses_production_images=false
           else
             app_tag="${GHCR_IMAGE_REPOSITORY}:production"
             tools_tag="${GHCR_IMAGE_REPOSITORY}-tools:production"
+            controller_tag="${GHCR_IMAGE_REPOSITORY}-controller:production"
             uses_production_images=true
           fi
 
@@ -167,10 +171,12 @@ jobs:
 
           app_digest="$(resolve_digest "$app_tag")"
           tools_digest="$(resolve_digest "$tools_tag")"
+          controller_digest="$(resolve_digest "$controller_tag")"
 
           {
             echo "app_image=${GHCR_IMAGE_REPOSITORY}@${app_digest}"
             echo "tools_image=${GHCR_IMAGE_REPOSITORY}-tools@${tools_digest}"
+            echo "controller_image=${GHCR_IMAGE_REPOSITORY}-controller@${controller_digest}"
             echo "uses_production_images=${uses_production_images}"
           } >> "$GITHUB_OUTPUT"
 
@@ -274,6 +280,7 @@ jobs:
         env:
           ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
           AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
+          AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
           GITHUB_ACTOR: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
@@ -294,6 +301,7 @@ jobs:
           options: |
             --extra-vars autographs_app_image=${{ needs.resolve-app-images.outputs.app_image }}
             --extra-vars autographs_tools_image=${{ needs.resolve-app-images.outputs.tools_image }}
+            --extra-vars autographs_controller_image=${{ needs.resolve-app-images.outputs.controller_image }}
             --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
             --extra-vars autographs_deploy_http_port=${{ env.AUTOGRAPHS_HTTP_PORT }}
             --extra-vars autographs_deploy_https_port=${{ env.AUTOGRAPHS_HTTPS_PORT }}

@@ -10,8 +10,13 @@ def main() -> int:
     repositories = {
         os.environ["IMAGE_REPOSITORY"],
         os.environ["TOOLS_IMAGE_REPOSITORY"],
+        os.environ["CONTROLLER_IMAGE_REPOSITORY"],
     }
-    current_image = os.environ["CURRENT_IMAGE"]
+    current_images = {
+        image.strip()
+        for image in os.environ.get("CURRENT_IMAGES", "").splitlines()
+        if image.strip()
+    }
     protected_tags = {
         tag.strip()
         for tag in os.environ.get("PROTECTED_TAGS", "").split(",")
@@ -41,8 +46,8 @@ def main() -> int:
             candidates_by_repository[repository][image_id] = image
 
         if (
-            current_image in refs
-            or current_image in digest_refs
+            current_images & set(refs)
+            or current_images & digest_refs
             or any(tag in protected_tags or tag == "latest" for tag in tags(refs))
         ):
             keep_ids.add(image_id)

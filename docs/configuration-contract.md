@@ -30,6 +30,7 @@ These are repo-level GitHub Secrets for the deployment baseline and Phase 2 data
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / app runtime | Base64-encoded ADB wallet zip used for mTLS connections |
 | `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / app runtime | Optional wallet password for node-oracledb Thin mode mTLS connections |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | app runtime | Temporary operator token for guarded smoke/mutation endpoints until Phase 5 Rust private controller/static admin seed path replaces or retires the bridge |
+| `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | Rust controller runtime | Argon2 hash for the single-admin browser login |
 
 The current Phase 1 OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the image build, Terraform, or VM deployment steps.
 
@@ -106,7 +107,15 @@ GitHub Environments may be added later for manual approval, deployment history, 
 
 ## Runtime Image Contract
 
-Deployments publish a prebuilt app image to `ghcr.io` and set `AUTOGRAPHS_APP_IMAGE` on the VM. The VM does not build the application. Ansible pulls the exact image published by GitHub Actions, installs systemd quadlets for both the app and Caddy containers on a dedicated Podman network, restarts the affected services, and checks the Caddy-fronted `/health` route before the workflow succeeds. Scheduled/manual image cleanup handles old GHCR versions and unused VM-local Podman images while preserving `latest`, protected tags, and the configured newest image count.
+Deployments publish prebuilt app, tools, and Rust controller images to `ghcr.io`
+and set their immutable digest references on the VM. The VM does not build
+application code. Ansible pulls the exact images published by GitHub Actions,
+installs systemd quadlets for the app, private controller, shared static volume,
+and Caddy containers on a dedicated Podman network, restarts affected services,
+and checks the Caddy-fronted `/health` route before the workflow succeeds.
+Scheduled/manual image cleanup handles old GHCR versions and unused VM-local
+Podman images while preserving `latest`, protected tags, and the configured
+newest image count.
 
 The Ansible deploy role also maintains a 2 GiB `/.swapfile` with `vm.swappiness=20`, installs runtime packages, opens HTTP/HTTPS, and masks unnecessary systemd services. This gives the Always Free VM enough headroom for deploy churn and one-off smoke/admin scripts without changing the compute shape.
 
@@ -121,6 +130,9 @@ Runtime controller settings:
 | Variable | Classification | Purpose |
 |----------|----------------|---------|
 | `AUTOGRAPHS_CONTROLLER_BIND_ADDR` | runtime coordinate | Controller listener; defaults to `0.0.0.0:8080` |
+| `AUTOGRAPHS_CONTROLLER_DB_PROVIDER` | runtime coordinate | `local` for staged validation; switch to `oracle` for live persistence |
+| `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER` | runtime coordinate | `local` for staged validation; switch to `oci-s3` for live private originals |
+| `AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT` | local/staged coordinate | Local private-media path used only when the controller media provider is `local` |
 | `AUTOGRAPHS_PUBLIC_ORIGIN` | runtime coordinate | Canonical HTTPS origin used for browser mutation checks |
 | `AUTOGRAPHS_ADMIN_SECURE_COOKIES` | runtime coordinate | Keep `true` in deployment; `false` is an explicit local HTTP exception |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | runtime secret | Argon2 single-admin password hash |
