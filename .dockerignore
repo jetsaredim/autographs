@@ -1,0 +1,7 @@
+.git
+.codex
+.planning
+.tools
+controller/target
+infra
+node_modules

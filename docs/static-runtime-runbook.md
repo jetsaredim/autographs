@@ -68,3 +68,59 @@ The pure-Rust Oracle probe requires `AUTOGRAPHS_ORACLE_HOST`,
 existing wallet, user, and password variables. OCI S3 compatibility requires
 `OCI_S3_ENDPOINT`, `OCI_S3_ACCESS_KEY`, `OCI_S3_SECRET_KEY`,
 `OCI_MEDIA_NAMESPACE`, and `OCI_MEDIA_BUCKET_NAME`.
+
+### Run the Smoke as a Temporary VM Container
+
+To prove the runtime VM network path without installing Rust on the VM, build
+and export the one-shot smoke image on a trusted Linux `amd64` workstation:
+
+```bash
+docker build \
+  --file controller/Containerfile.smoke \
+  --tag localhost/autographs-live-persistence-smoke:phase-05 \
+  .
+
+docker save \
+  --output /tmp/autographs-live-persistence-smoke.tar \
+  localhost/autographs-live-persistence-smoke:phase-05
+
+scp /tmp/autographs-live-persistence-smoke.tar \
+  opc@"${VM_PUBLIC_IP}":/tmp/autographs-live-persistence-smoke.tar
+```
+
+On the runtime VM, create `/opt/autographs/env/live-persistence-smoke.env` with
+mode `0600`. Do not commit this file. It must contain:
+
+```text
+AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE=true
+AUTOGRAPHS_ORACLE_HOST=replace-with-adb-host
+AUTOGRAPHS_ORACLE_PORT=1522
+AUTOGRAPHS_ORACLE_SERVICE_NAME=replace-with-adb-service-name
+ORACLE_DB_USER=ADMIN
+ORACLE_DB_PASSWORD=replace-with-runtime-db-password
+ORACLE_DB_WALLET_DIR=/opt/autographs/wallet
+ORACLE_DB_WALLET_PASSWORD=replace-if-required
+OCI_REGION=us-ashburn-1
+OCI_S3_ENDPOINT=https://replace-with-namespace.compat.objectstorage.us-ashburn-1.oraclecloud.com
+OCI_S3_ACCESS_KEY=replace-with-customer-secret-access-key
+OCI_S3_SECRET_KEY=replace-with-customer-secret-secret-key
+OCI_MEDIA_NAMESPACE=replace-with-object-storage-namespace
+OCI_MEDIA_BUCKET_NAME=autographs-media-prod
+```
+
+Load and run the image with Podman:
+
+```bash
+sudo install -d -m 0700 -o opc -g opc /opt/autographs/env
+chmod 0600 /opt/autographs/env/live-persistence-smoke.env
+
+podman load --input /tmp/autographs-live-persistence-smoke.tar
+podman run --rm \
+  --env-file /opt/autographs/env/live-persistence-smoke.env \
+  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro \
+  localhost/autographs-live-persistence-smoke:phase-05
+```
+
+The image contains the compiled smoke-test executable and CA certificates only.
+It does not contain the Oracle wallet, database password, or OCI Customer Secret
+credentials.
