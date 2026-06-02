@@ -39,4 +39,3 @@ create index autograph_publish_jobs_status_idx
 
 create index autograph_public_derivatives_release_idx
   on autograph_public_derivatives(release_id)
-
