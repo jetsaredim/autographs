@@ -179,6 +179,24 @@ or OCI Customer Secret credentials.
 
 ## Live Static Publish Smoke
 
+### Prerequisite: Deploy the Staged Controller and Caddy Wiring
+
+This smoke does not deploy the Rust controller. It assumes the Phase 5 runtime
+wiring from PR 94 has already been deployed to the VM. That deployment installs:
+
+- `autographs-controller.service`, running the Rust controller on the private
+  `autographs` Podman network.
+- Caddy `/admin/api/*` reverse proxying to `autographs-controller:8080`.
+- Caddy `/admin/*` serving the static admin shell.
+- Caddy `127.0.0.1:8081` host binding for the generated static preview.
+- The shared `autographs-static.volume` mounted into the controller and Caddy.
+
+Until that staged deployment is present, the smoke cannot reach
+`http://autographs-controller:8080` or `http://autographs-caddy:8081/current`.
+Deploy PR 94 through the normal deployment workflow, or manually install the
+same controller quadlet, Caddyfile, static volume, and admin-shell files on the
+VM before running this checkpoint.
+
 The final Phase 5 checkpoint is a second credential-gated smoke that exercises
 the deployed controller and Caddy preview as black boxes. It creates a uniquely
 named draft through `/admin/api/*`, uploads a valid private image, verifies the

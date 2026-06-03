@@ -177,6 +177,17 @@ The `/admin` shell and `/admin/api/*` controller proxy are available through
 the normal hostname. Plan 05-07 owns the explicit public static cutover after a
 candidate release passes local validation.
 
+The Caddy update required before the live static publish smoke is the staged
+route shape, not the final public cutover:
+
+- `/admin/api/*` reverse-proxies to `autographs-controller:8080` on the private
+  Podman network.
+- `/admin/*` serves the static admin shell from `/srv/autographs/admin`.
+- `/api/operator/*` continues to return `404`.
+- Anonymous public traffic still reverse-proxies to `autographs-app:3000`.
+- `127.0.0.1:8081` on the VM maps to Caddy's static preview listener and serves
+  `/srv/autographs/static`.
+
 The Ansible-managed `/opt/autographs/env/controller.env` intentionally starts
 with `local` controller persistence adapters so 05-06 can prove packaging and
 routing without changing live catalog data. Before the 05-07 live static smoke,
