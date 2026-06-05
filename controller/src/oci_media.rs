@@ -65,4 +65,19 @@ impl PrivateMediaStore for OciS3MediaStore {
         }
         Ok(response.bytes().to_vec())
     }
+
+    async fn delete(&self, object_key: &str) -> Result<(), String> {
+        let response = self
+            .bucket
+            .delete_object(object_key)
+            .await
+            .map_err(|error| format!("delete OCI private media object: {error}"))?;
+        if !(200..300).contains(&response.status_code()) && response.status_code() != 404 {
+            return Err(format!(
+                "delete OCI private media object returned status {}",
+                response.status_code()
+            ));
+        }
+        Ok(())
+    }
 }

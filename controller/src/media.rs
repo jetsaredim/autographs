@@ -10,6 +10,7 @@ use tokio::fs;
 pub trait PrivateMediaStore: Send + Sync {
     async fn write(&self, object_key: &str, body: &[u8]) -> Result<(), String>;
     async fn read(&self, object_key: &str) -> Result<Vec<u8>, String>;
+    async fn delete(&self, object_key: &str) -> Result<(), String>;
 }
 
 #[derive(Clone)]
@@ -55,5 +56,13 @@ impl PrivateMediaStore for LocalMediaStore {
         fs::read(self.path_for(object_key)?)
             .await
             .map_err(|error| format!("read media object: {error}"))
+    }
+
+    async fn delete(&self, object_key: &str) -> Result<(), String> {
+        match fs::remove_file(self.path_for(object_key)?).await {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(format!("delete media object: {error}")),
+        }
     }
 }

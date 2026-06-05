@@ -30,9 +30,9 @@ impl ControllerConfig {
             bind_addr,
             public_origin,
             secure_cookies,
-            admin_password: env::var("AUTOGRAPHS_ADMIN_PASSWORD").ok(),
-            admin_password_hash: env::var("AUTOGRAPHS_ADMIN_PASSWORD_HASH").ok(),
-            operator_token: env::var("AUTOGRAPHS_OPERATOR_API_TOKEN").ok(),
+            admin_password: non_blank_env("AUTOGRAPHS_ADMIN_PASSWORD"),
+            admin_password_hash: non_blank_env("AUTOGRAPHS_ADMIN_PASSWORD_HASH"),
+            operator_token: non_blank_env("AUTOGRAPHS_OPERATOR_API_TOKEN"),
             oracle_configured: all_present(&[
                 "ORACLE_DB_USER",
                 "ORACLE_DB_PASSWORD",
@@ -60,6 +60,19 @@ impl ControllerConfig {
             static_release_root: PathBuf::from("/tmp/autographs-static"),
         }
     }
+
+    pub fn validate_runtime_auth(&self) -> Result<(), String> {
+        if self.admin_password.is_none()
+            && self.admin_password_hash.is_none()
+            && self.operator_token.is_none()
+        {
+            return Err(
+                "configure a non-empty AUTOGRAPHS_ADMIN_PASSWORD, AUTOGRAPHS_ADMIN_PASSWORD_HASH, or AUTOGRAPHS_OPERATOR_API_TOKEN"
+                    .to_owned(),
+            );
+        }
+        Ok(())
+    }
 }
 
 fn all_present(names: &[&str]) -> bool {
@@ -68,4 +81,39 @@ fn all_present(names: &[&str]) -> bool {
             .map(|value| !value.trim().is_empty())
             .unwrap_or(false)
     })
+}
+
+fn non_blank_env(name: &str) -> Option<String> {
+    env::var(name).ok().and_then(non_blank)
+}
+
+pub(crate) fn non_blank(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blank_auth_values_are_ignored_for_runtime_validation() {
+        let mut config = ControllerConfig::for_test(true);
+        config.admin_password = Some("   ".to_owned()).and_then(non_blank);
+        config.admin_password_hash = None;
+        config.operator_token = Some("\t\n".to_owned()).and_then(non_blank);
+
+        assert!(config.validate_runtime_auth().is_err());
+    }
+
+    #[test]
+    fn non_empty_auth_value_satisfies_runtime_validation() {
+        let mut config = ControllerConfig::for_test(true);
+        config.admin_password = None;
+        config.admin_password_hash = Some(" hash ".to_owned()).and_then(non_blank);
+        config.operator_token = None;
+
+        assert!(config.validate_runtime_auth().is_ok());
+        assert_eq!(config.admin_password_hash.as_deref(), Some("hash"));
+    }
 }

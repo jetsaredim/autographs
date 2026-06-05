@@ -191,9 +191,13 @@ route shape, not the final public cutover:
 The Ansible-managed `/opt/autographs/env/controller.env` intentionally starts
 with `local` controller persistence adapters so 05-06 can prove packaging and
 routing without changing live catalog data. Before the 05-07 live static smoke,
-the operator switches that protected VM-local file to `oracle` and `oci-s3`
-and supplies the OCI S3 compatibility Customer Secret coordinates described in
-[static-runtime-runbook.md](static-runtime-runbook.md).
+run the Ansible deploy from a trusted operator shell with
+`AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and
+`AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3`, plus the OCI S3
+compatibility Customer Secret coordinates described in
+[static-runtime-runbook.md](static-runtime-runbook.md). Do not rely on a manual
+edit to `controller.env`; Ansible owns that file on each deploy. Keep those S3
+Customer Secret values out of GitHub-hosted workflows.
 
 Run the mandatory live static publish smoke from
 [static-runtime-runbook.md](static-runtime-runbook.md) before changing the

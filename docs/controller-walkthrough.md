@@ -134,8 +134,8 @@ Production-persistence builds also include:
 
 The runtime selects them with `AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and
 `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3`. The 05-07 live proof
-owns switching the protected VM-local controller env file and validating the
-full path before public cutover.
+owns deploying those provider values and validating the full path before public
+cutover.
 
 ## Database Migration
 

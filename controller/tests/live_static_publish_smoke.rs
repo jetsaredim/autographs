@@ -103,6 +103,12 @@ mod live {
         )
         .expect("parse uploaded image id");
         let object_key = build_original_object_key(item_id, image_id);
+        let _cleanup = LiveStaticSmokeCleanup {
+            connection: &connection,
+            bucket: &bucket,
+            item_id: item_id.to_string(),
+            object_key: object_key.clone(),
+        };
         println!("live static smoke item id: {item_id}");
         println!("live static smoke object key: {object_key}");
 
@@ -211,20 +217,42 @@ mod live {
         ] {
             assert_eq!(status(&url), 404, "stale public artifact remained: {url}");
         }
+    }
 
-        bucket
-            .delete_object(&object_key)
-            .await
-            .expect("delete live static smoke original");
-        connection
-            .execute(
+    struct LiveStaticSmokeCleanup<'a> {
+        connection: &'a Connection,
+        bucket: &'a Bucket,
+        item_id: String,
+        object_key: String,
+    }
+
+    impl Drop for LiveStaticSmokeCleanup<'_> {
+        fn drop(&mut self) {
+            std::thread::scope(|scope| {
+                let bucket = self.bucket;
+                let object_key = self.object_key.clone();
+                let _ = scope
+                    .spawn(move || {
+                        let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                            .enable_all()
+                            .build()
+                        else {
+                            return;
+                        };
+                        let _ = runtime.block_on(bucket.delete_object(&object_key));
+                    })
+                    .join();
+            });
+            let _ = self.connection.execute(
+                "delete from autograph_images where item_id = :1",
+                &[&self.item_id],
+            );
+            let _ = self.connection.execute(
                 "delete from autograph_items where id = :1",
-                &[&item_id.to_string()],
-            )
-            .expect("delete live static smoke item");
-        connection
-            .commit()
-            .expect("commit live static smoke cleanup");
+                &[&self.item_id],
+            );
+            let _ = self.connection.commit();
+        }
     }
 
     fn json_request(method: &str, url: &str, token: &str, body: Option<&str>) -> Value {

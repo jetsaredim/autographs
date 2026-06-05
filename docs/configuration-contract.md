@@ -145,7 +145,9 @@ Runtime controller settings:
 
 Public-safe derivative publishing may use OCI Object Storage S3 compatibility.
 Create OCI Customer Secret credentials for the runtime controller and supply
-them through the operator secret store:
+them through the operator secret store. The staged GitHub deploy does not
+receive these Customer Secret values; use a trusted operator-run Ansible deploy
+or equivalent VM-local secret path for the live static proof.
 
 | Variable | Classification | Purpose |
 |----------|----------------|---------|

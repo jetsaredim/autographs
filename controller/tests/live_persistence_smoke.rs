@@ -60,6 +60,12 @@ mod live {
 
         let item_id = item_id.to_string();
         let image_id = image_id.to_string();
+        let _cleanup = LivePersistenceSmokeCleanup {
+            connection: &connection,
+            bucket: &bucket,
+            item_id: item_id.clone(),
+            object_key: object_key.clone(),
+        };
         connection
             .execute(
                 "insert into autograph_items (id, title, signer, category, publication_status) values (:1, :2, :3, :4, :5)",
@@ -115,15 +121,42 @@ mod live {
         assert_eq!(stored_object_key, object_key);
         assert_eq!(stored_filename, "live secret source.jpg");
         assert!(image_rows.next().is_none());
+    }
 
-        bucket
-            .delete_object(&object_key)
-            .await
-            .expect("delete live smoke original");
-        connection
-            .execute("delete from autograph_items where id = :1", &[&item_id])
-            .expect("delete live smoke item");
-        connection.commit().expect("commit smoke cleanup");
+    struct LivePersistenceSmokeCleanup<'a> {
+        connection: &'a Connection,
+        bucket: &'a Bucket,
+        item_id: String,
+        object_key: String,
+    }
+
+    impl Drop for LivePersistenceSmokeCleanup<'_> {
+        fn drop(&mut self) {
+            std::thread::scope(|scope| {
+                let bucket = self.bucket;
+                let object_key = self.object_key.clone();
+                let _ = scope
+                    .spawn(move || {
+                        let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                            .enable_all()
+                            .build()
+                        else {
+                            return;
+                        };
+                        let _ = runtime.block_on(bucket.delete_object(&object_key));
+                    })
+                    .join();
+            });
+            let _ = self.connection.execute(
+                "delete from autograph_images where item_id = :1",
+                &[&self.item_id],
+            );
+            let _ = self.connection.execute(
+                "delete from autograph_items where id = :1",
+                &[&self.item_id],
+            );
+            let _ = self.connection.commit();
+        }
     }
 
     fn required(name: &str) -> String {

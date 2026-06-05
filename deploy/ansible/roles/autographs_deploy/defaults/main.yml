@@ -22,6 +22,10 @@ autographs_deploy_https_port: 443
 autographs_deploy_candidate_preview_port: 8081
 autographs_deploy_controller_port: 8080
 autographs_deploy_domain: autographs.jetsaredim.net
+autographs_deploy_controller_db_provider: "{{ lookup('env', 'AUTOGRAPHS_CONTROLLER_DB_PROVIDER') | default('local', true) }}"
+autographs_deploy_controller_media_storage_provider: "{{ lookup('env', 'AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER') | default('local', true) }}"
+autographs_deploy_controller_local_media_root: >-
+  {{ lookup('env', 'AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT') | default('/tmp/autographs-controller-media', true) }}
 
 autographs_deploy_packages:
   - podman

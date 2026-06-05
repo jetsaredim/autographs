@@ -172,6 +172,25 @@ async fn auth_and_health_insecure_cookie_mode_is_explicit_for_local_development(
     assert!(!set_cookie.contains("Secure"));
 }
 
+#[tokio::test]
+async fn blank_operator_token_configuration_does_not_authorize_bearer_requests() {
+    let mut config = ControllerConfig::for_test(true);
+    config.operator_token = Some("   ".to_owned());
+    let app = router(config);
+
+    let blank_bearer = app
+        .oneshot(
+            Request::get("/admin/api/protected")
+                .header(header::AUTHORIZATION, "Bearer ")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(blank_bearer.status(), StatusCode::UNAUTHORIZED);
+}
+
 async fn login(app: &axum::Router, password: &str) -> axum::response::Response {
     app.clone()
         .oneshot(

@@ -155,6 +155,66 @@ async fn publisher_validation_rejects_missing_derivatives_and_private_terms() {
 }
 
 #[tokio::test]
+async fn publisher_public_browse_surfaces_do_not_execute_operator_markup() {
+    let root = tempdir().unwrap();
+    let media_root = tempdir().unwrap();
+    let repository = MemoryCatalogRepository::default();
+    let media = LocalMediaStore::new(media_root.path());
+    let title = r#"<img src=x onerror=alert("title")>"#;
+    let signer = r#"<script>alert("signer")</script>"#;
+    let tag = r#"<svg onload=alert("tag")>"#;
+    let item = repository
+        .create(AutographItemInput {
+            title: title.to_owned(),
+            signer: signer.to_owned(),
+            description: None,
+            category: "Cards".to_owned(),
+            tags: vec![tag.to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+
+    LocalPublisher::new(root.path())
+        .publish(&repository, &media, PublishMode::Full)
+        .await
+        .unwrap();
+
+    let current = root.path().join("current");
+    let collection_html = fs::read_to_string(current.join("collection/index.html")).unwrap();
+    let detail_html = fs::read_to_string(
+        current
+            .join("items")
+            .join(slug_for_test(&item.title))
+            .join("index.html"),
+    )
+    .unwrap();
+    let browse_js = fs::read_to_string(current.join("assets/browse.js")).unwrap();
+
+    assert!(!collection_html.contains(title));
+    assert!(!collection_html.contains(signer));
+    assert!(!collection_html.contains(tag));
+    assert!(!detail_html.contains(title));
+    assert!(!detail_html.contains(signer));
+    assert!(detail_html.contains("&lt;img src=x onerror=alert(&quot;title&quot;)&gt;"));
+    assert!(detail_html.contains("&lt;script&gt;alert(&quot;signer&quot;)&lt;/script&gt;"));
+    assert!(!browse_js.contains("innerHTML"));
+    assert!(!browse_js.contains(title));
+    assert!(!browse_js.contains(signer));
+    assert!(!browse_js.contains(tag));
+    assert!(browse_js.contains("textContent"));
+    assert!(browse_js.contains("replaceChildren"));
+}
+
+#[tokio::test]
 async fn publisher_incremental_removes_unpublished_and_stale_artifacts() {
     let fixture = fixture().await;
     let publisher = LocalPublisher::new(fixture.root.path());
@@ -389,4 +449,21 @@ fn read_tree(root: &Path) -> String {
 
 fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> T {
     serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
+}
+
+fn slug_for_test(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .split('-')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
 }

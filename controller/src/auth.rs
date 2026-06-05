@@ -10,6 +10,8 @@ use argon2::{
 };
 use uuid::Uuid;
 
+use crate::config::non_blank;
+
 const MAX_FAILED_LOGINS: u32 = 5;
 const LOCKOUT: Duration = Duration::from_secs(60);
 
@@ -42,9 +44,9 @@ impl AuthState {
     ) -> Self {
         Self {
             inner: Arc::new(Mutex::new(AuthInner::default())),
-            admin_password,
-            admin_password_hash,
-            operator_token,
+            admin_password: admin_password.and_then(non_blank),
+            admin_password_hash: admin_password_hash.and_then(non_blank),
+            operator_token: operator_token.and_then(non_blank),
         }
     }
 
@@ -89,7 +91,7 @@ impl AuthState {
     }
 
     pub fn has_operator_token(&self, token: &str) -> bool {
-        self.operator_token.as_deref() == Some(token)
+        !token.trim().is_empty() && self.operator_token.as_deref() == Some(token)
     }
 
     fn verify_password(&self, password: &str) -> bool {
@@ -130,5 +132,13 @@ mod tests {
         }
 
         assert_eq!(auth.login("correct"), Err(LoginError::Locked));
+    }
+
+    #[test]
+    fn blank_operator_token_is_not_accepted() {
+        let auth = AuthState::new(None, None, Some("   ".to_owned()));
+
+        assert!(!auth.has_operator_token(""));
+        assert!(!auth.has_operator_token("   "));
     }
 }

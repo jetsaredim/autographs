@@ -1,9 +1,10 @@
-use std::sync::Arc;
+use std::{fs, path::Path, sync::Arc};
 
+use async_trait::async_trait;
 use autographs_controller::{
     catalog::{
-        AutographImage, AutographItemInput, CatalogRepository, MemoryCatalogRepository,
-        PublicationStatus,
+        AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
+        MemoryCatalogRepository, PublicationStatus,
     },
     config::ControllerConfig,
     media::{LocalMediaStore, PrivateMediaStore},
@@ -170,6 +171,40 @@ async fn seed_content_private_api_persists_redacted_item_and_image_response() {
     );
 }
 
+#[tokio::test]
+async fn seed_content_upload_does_not_leave_orphan_media_when_attachment_fails() {
+    let root = tempdir().unwrap();
+    let item = AutographItem {
+        id: Uuid::new_v4(),
+        title: "Signed Jedi Card".to_owned(),
+        signer: "Mark Hamill".to_owned(),
+        description: None,
+        category: "Cards".to_owned(),
+        tags: vec!["jedi".to_owned()],
+        object_reference: None,
+        event_name: None,
+        event_location: None,
+        source: None,
+        inscription: None,
+        certification_company: None,
+        certification_id: None,
+        estimated_year: None,
+        publication_status: PublicationStatus::Draft,
+        images: Vec::new(),
+    };
+    let repository = Arc::new(FailingAttachRepository { item: item.clone() });
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    let app = router_with_stores(ControllerConfig::for_test(true), repository, media);
+
+    let uploaded = app
+        .oneshot(upload_request(item.id, Some("Bearer operator-test-token")))
+        .await
+        .unwrap();
+
+    assert_eq!(uploaded.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(file_count(root.path()), 0);
+}
+
 fn upload_request(item_id: Uuid, authorization: Option<&str>) -> Request<Body> {
     let boundary = "autographs-test-boundary";
     let body = format!(
@@ -193,4 +228,55 @@ fn upload_request(item_id: Uuid, authorization: Option<&str>) -> Request<Body> {
 
 async fn response_json(response: axum::response::Response) -> Value {
     serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap()
+}
+
+fn file_count(root: &Path) -> usize {
+    let mut count = 0;
+    let mut paths = vec![root.to_path_buf()];
+    while let Some(path) = paths.pop() {
+        for entry in fs::read_dir(path).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                paths.push(path);
+            } else {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+struct FailingAttachRepository {
+    item: AutographItem,
+}
+
+#[async_trait]
+impl CatalogRepository for FailingAttachRepository {
+    async fn create(&self, _input: AutographItemInput) -> Result<AutographItem, String> {
+        Err("not used".to_owned())
+    }
+
+    async fn update(
+        &self,
+        _id: Uuid,
+        _input: AutographItemUpdate,
+    ) -> Result<AutographItem, String> {
+        Err("not used".to_owned())
+    }
+
+    async fn get(&self, id: Uuid) -> Result<Option<AutographItem>, String> {
+        Ok((id == self.item.id).then(|| self.item.clone()))
+    }
+
+    async fn list(&self) -> Result<Vec<AutographItem>, String> {
+        Ok(vec![self.item.clone()])
+    }
+
+    async fn attach_image(
+        &self,
+        _item_id: Uuid,
+        _image: AutographImage,
+    ) -> Result<AutographItem, String> {
+        Err("forced attachment failure".to_owned())
+    }
 }

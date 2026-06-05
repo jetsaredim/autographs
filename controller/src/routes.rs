@@ -63,6 +63,7 @@ pub fn router(config: ControllerConfig) -> Router {
 }
 
 pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
+    config.validate_runtime_auth()?;
     let repository: Arc<dyn CatalogRepository> =
         match provider("AUTOGRAPHS_CONTROLLER_DB_PROVIDER").as_str() {
             "local" => Arc::new(MemoryCatalogRepository::default()),
@@ -315,6 +316,11 @@ async fn upload_image(
     let Ok(item_id) = Uuid::parse_str(&id) else {
         return StatusCode::BAD_REQUEST.into_response();
     };
+    match state.repository.get(item_id).await {
+        Ok(Some(_)) => {}
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
 
     let mut filename = None;
     let mut content_type = None;
@@ -348,7 +354,7 @@ async fn upload_image(
     }
     let image = AutographImage {
         id: image_id,
-        object_key,
+        object_key: object_key.clone(),
         original_filename: filename.unwrap_or_else(|| "upload".to_owned()),
         content_type,
         byte_size: body.len(),
@@ -358,7 +364,10 @@ async fn upload_image(
     };
     match state.repository.attach_image(item_id, image).await {
         Ok(item) => (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response(),
-        Err(_) => StatusCode::NOT_FOUND.into_response(),
+        Err(_) => {
+            let _ = state.media.delete(&object_key).await;
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 

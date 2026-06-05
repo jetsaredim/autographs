@@ -8,9 +8,12 @@ not the polished Phase 6 admin workflow. Keep `/admin` and `/admin/api/*`
 behind the authenticated private-controller boundary; the browser shell relies
 on the HTTP-only session cookie and same-origin mutation checks.
 
-The staged deploy starts the controller with local persistence adapters in
-`/opt/autographs/env/controller.env`. For the live static publish proof, update
-that protected VM-local file to:
+The staged GitHub deploy starts the controller with local persistence adapters
+by default and does not receive OCI S3 Customer Secret values. For the live
+static publish proof, run the Ansible deploy from a trusted operator shell, or
+an equivalent VM-local secret-management path, with explicit controller
+provider values so Ansible renders `/opt/autographs/env/controller.env`
+intentionally:
 
 ```text
 AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle
@@ -20,8 +23,11 @@ OCI_S3_ACCESS_KEY=replace-with-customer-secret-access-key
 OCI_S3_SECRET_KEY=replace-with-customer-secret-secret-key
 ```
 
-Then restart `autographs-controller.service`. Keep the Customer Secret values
-on the VM/operator secret path; do not add them to GitHub-hosted workflows.
+Then restart or redeploy `autographs-controller.service`. Keep the Customer
+Secret values on the VM/operator secret path; do not add them to GitHub-hosted
+workflows. Do not hand-edit `controller.env` as the durable live switch; the
+next Ansible deploy owns that file and will render values from deploy
+variables.
 
 Start the controller with local-only values:
 
@@ -286,8 +292,8 @@ events do not exist yet.
 Planned downtime is acceptable for the first static-runtime cutover. Before
 editing Caddy's public root:
 
-1. Deploy the controller/static-volume shape and switch the protected
-   `controller.env` file to Oracle plus `oci-s3`.
+1. Deploy the controller/static-volume shape with the controller provider
+   variables set to Oracle plus `oci-s3`.
 2. Run the live persistence smoke and live static publish smoke.
 3. Run an explicit full rebuild and inspect `/current/` through port `8081`.
 4. Update Caddy so the public root serves `/srv/autographs/static/current`.

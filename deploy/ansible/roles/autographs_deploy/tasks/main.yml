@@ -129,6 +129,37 @@
       group: root
       mode: "0755"
 
+- name: Validate controller provider configuration
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_controller_db_provider in ['local', 'oracle']
+      - autographs_deploy_controller_media_storage_provider in ['local', 'oci-s3']
+      - >-
+        autographs_deploy_controller_media_storage_provider != 'oci-s3'
+        or (
+          lookup('env', 'OCI_S3_ENDPOINT') | default('', true) | trim | length > 0
+          and lookup('env', 'OCI_S3_ACCESS_KEY') | default('', true) | trim | length > 0
+          and lookup('env', 'OCI_S3_SECRET_KEY') | default('', true) | trim | length > 0
+        )
+    fail_msg: "Controller providers must be explicit: db provider is local/oracle and media provider is local/oci-s3."
+  no_log: true
+
+- name: Validate deployed admin authentication secret
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          autographs_admin_password | default(lookup('env', 'AUTOGRAPHS_ADMIN_PASSWORD') | default('', true), true) | trim | length
+        ) > 0
+        or (
+          autographs_admin_password_hash | default(lookup('env', 'AUTOGRAPHS_ADMIN_PASSWORD_HASH') | default('', true), true) | trim | length
+        ) > 0
+        or (
+          autographs_operator_api_token | default(lookup('env', 'AUTOGRAPHS_OPERATOR_API_TOKEN') | default('', true), true) | trim | length
+        ) > 0
+    fail_msg: "Set a non-empty autographs_admin_password, autographs_admin_password_hash, or autographs_operator_api_token for deployed admin routes."
+  no_log: true
+
 - name: Write app environment file
   ansible.builtin.template:
     src: app.env.j2
