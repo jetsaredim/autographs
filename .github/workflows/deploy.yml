@@ -314,13 +314,21 @@ jobs:
         env:
           AUTOGRAPHS_DOMAIN: ${{ env.AUTOGRAPHS_DOMAIN }}
         run: |
-          for _ in $(seq 1 30); do
-            if curl --fail --silent "https://${AUTOGRAPHS_DOMAIN}/health" >/dev/null; then
-              curl --fail --silent "https://${AUTOGRAPHS_DOMAIN}/health"
-              exit 0
-            fi
-            sleep 5
-          done
+          check_https_health() {
+            local path="$1"
+            local label="$2"
 
-          echo "Deployment did not pass Caddy-fronted HTTPS /health check for ${AUTOGRAPHS_DOMAIN}" >&2
-          exit 1
+            for _ in $(seq 1 30); do
+              if curl --fail --silent "https://${AUTOGRAPHS_DOMAIN}${path}" >/dev/null; then
+                curl --fail --silent "https://${AUTOGRAPHS_DOMAIN}${path}"
+                return 0
+              fi
+              sleep 5
+            done
+
+            echo "Deployment did not pass Caddy-fronted HTTPS ${label} check at ${path} for ${AUTOGRAPHS_DOMAIN}" >&2
+            return 1
+          }
+
+          check_https_health "/health" "Next.js app"
+          check_https_health "/admin/api/health" "Rust controller admin API"
