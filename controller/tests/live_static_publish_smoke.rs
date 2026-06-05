@@ -108,6 +108,8 @@ mod live {
             bucket: &bucket,
             item_id: item_id.to_string(),
             object_key: object_key.clone(),
+            controller: controller.clone(),
+            operator_token: operator_token.clone(),
         };
         println!("live static smoke item id: {item_id}");
         println!("live static smoke object key: {object_key}");
@@ -224,10 +226,27 @@ mod live {
         bucket: &'a Bucket,
         item_id: String,
         object_key: String,
+        controller: String,
+        operator_token: String,
     }
 
     impl Drop for LiveStaticSmokeCleanup<'_> {
         fn drop(&mut self) {
+            best_effort_json_request(
+                "POST",
+                &format!(
+                    "{}/admin/api/items/{}/publication",
+                    self.controller, self.item_id
+                ),
+                &self.operator_token,
+                Some(r#"{"publicationStatus":"draft"}"#),
+            );
+            best_effort_json_request(
+                "POST",
+                &format!("{}/admin/api/publish/incremental", self.controller),
+                &self.operator_token,
+                None,
+            );
             std::thread::scope(|scope| {
                 let bucket = self.bucket;
                 let object_key = self.object_key.clone();
@@ -256,6 +275,18 @@ mod live {
     }
 
     fn json_request(method: &str, url: &str, token: &str, body: Option<&str>) -> Value {
+        let args = json_request_args(method, url, token, body);
+        curl_json(args, &format!("{method} {url}"))
+    }
+
+    fn best_effort_json_request(method: &str, url: &str, token: &str, body: Option<&str>) {
+        let _ = Command::new("curl")
+            .args(["--fail-with-body", "--silent", "--show-error"])
+            .args(json_request_args(method, url, token, body))
+            .output();
+    }
+
+    fn json_request_args(method: &str, url: &str, token: &str, body: Option<&str>) -> Vec<String> {
         let mut args = vec![
             "--request".to_owned(),
             method.to_owned(),
@@ -271,7 +302,7 @@ mod live {
             ]);
         }
         args.push(url.to_owned());
-        curl_json(args, &format!("{method} {url}"))
+        args
     }
 
     fn curl_json(args: Vec<String>, context: &str) -> Value {
