@@ -322,14 +322,12 @@
     - autographs-controller.service
     - autographs-caddy.service
 
-- name: Verify local static preview listener
+- name: Verify staged static preview listener before generated release exists
   ansible.builtin.uri:
-    url: "http://127.0.0.1:{{ autographs_deploy_candidate_preview_port }}/current/"
+    url: "http://127.0.0.1:{{ autographs_deploy_candidate_preview_port }}/"
     method: GET
     status_code:
       - 200
-      - 301
-      - 302
       - 403
       - 404
     return_content: false

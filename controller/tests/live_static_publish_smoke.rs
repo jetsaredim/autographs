@@ -232,7 +232,7 @@ mod live {
 
     impl Drop for LiveStaticSmokeCleanup<'_> {
         fn drop(&mut self) {
-            best_effort_json_request(
+            if best_effort_json_request(
                 "POST",
                 &format!(
                     "{}/admin/api/items/{}/publication",
@@ -240,13 +240,22 @@ mod live {
                 ),
                 &self.operator_token,
                 Some(r#"{"publicationStatus":"draft"}"#),
-            );
-            best_effort_json_request(
+            )
+            .is_none()
+            {
+                return;
+            }
+            let Some(unpublished) = best_effort_json_request(
                 "POST",
                 &format!("{}/admin/api/publish/incremental", self.controller),
                 &self.operator_token,
                 None,
-            );
+            ) else {
+                return;
+            };
+            if unpublished["state"] != "succeeded" {
+                return;
+            }
             std::thread::scope(|scope| {
                 let bucket = self.bucket;
                 let object_key = self.object_key.clone();
@@ -279,11 +288,21 @@ mod live {
         curl_json(args, &format!("{method} {url}"))
     }
 
-    fn best_effort_json_request(method: &str, url: &str, token: &str, body: Option<&str>) {
-        let _ = Command::new("curl")
+    fn best_effort_json_request(
+        method: &str,
+        url: &str,
+        token: &str,
+        body: Option<&str>,
+    ) -> Option<Value> {
+        let output = Command::new("curl")
             .args(["--fail-with-body", "--silent", "--show-error"])
             .args(json_request_args(method, url, token, body))
-            .output();
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        serde_json::from_slice(&output.stdout).ok()
     }
 
     fn json_request_args(method: &str, url: &str, token: &str, body: Option<&str>) -> Vec<String> {
