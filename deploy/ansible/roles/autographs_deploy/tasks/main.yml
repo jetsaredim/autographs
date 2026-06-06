@@ -134,6 +134,8 @@
     that:
       - autographs_deploy_controller_db_provider in ['local', 'oracle']
       - autographs_deploy_controller_media_storage_provider in ['local', 'oci-s3']
+      - autographs_deploy_controller_db_provider == 'oracle'
+      - autographs_deploy_controller_media_storage_provider == 'oci-s3'
       - >-
         autographs_deploy_controller_media_storage_provider != 'oci-s3'
         or (
@@ -141,7 +143,7 @@
           and lookup('env', 'OCI_S3_ACCESS_KEY') | default('', true) | trim | length > 0
           and lookup('env', 'OCI_S3_SECRET_KEY') | default('', true) | trim | length > 0
         )
-    fail_msg: "Controller providers must be explicit: db provider is local/oracle and media provider is local/oci-s3."
+    fail_msg: "Deployed controller providers must be persistent: AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle and AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3 with OCI S3 credentials."
   no_log: true
 
 - name: Validate deployed admin authentication secret

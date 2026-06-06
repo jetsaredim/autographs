@@ -11,7 +11,7 @@ use autographs_controller::{
         MemoryCatalogRepository, PublicationStatus,
     },
     config::ControllerConfig,
-    contracts::{ImageVariantName, PublicCatalog, PublishManifest},
+    contracts::{ImageVariantName, PublicCatalog, PublicItemDetail, PublishManifest},
     media::{LocalMediaStore, PrivateMediaStore},
     publisher::{
         LocalPublisher, PublishChange, PublishMode, artifact_impact_for, validate_candidate,
@@ -212,6 +212,100 @@ async fn publisher_public_browse_surfaces_do_not_execute_operator_markup() {
     assert!(!browse_js.contains(tag));
     assert!(browse_js.contains("textContent"));
     assert!(browse_js.contains("replaceChildren"));
+}
+
+#[tokio::test]
+async fn publisher_uses_primary_image_first_for_gallery_and_derivatives() {
+    let root = tempdir().unwrap();
+    let media_root = tempdir().unwrap();
+    let repository = MemoryCatalogRepository::default();
+    let media = LocalMediaStore::new(media_root.path());
+    let item = repository
+        .create(AutographItemInput {
+            title: "Primary Selection Card".to_owned(),
+            signer: "Example Signer".to_owned(),
+            description: None,
+            category: "Cards".to_owned(),
+            tags: vec!["primary".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+
+    let supporting_id = Uuid::new_v4();
+    let supporting_key = build_original_object_key(item.id, supporting_id);
+    let supporting_bytes = png_bytes();
+    media
+        .write(&supporting_key, &supporting_bytes)
+        .await
+        .unwrap();
+    repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: supporting_id,
+                object_key: supporting_key,
+                original_filename: "supporting.png".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: supporting_bytes.len(),
+                is_primary: false,
+                sort_order: 0,
+                alt_text: Some("Supporting image".to_owned()),
+            },
+        )
+        .await
+        .unwrap();
+
+    let primary_id = Uuid::new_v4();
+    let primary_key = build_original_object_key(item.id, primary_id);
+    let primary_bytes = png_bytes();
+    media.write(&primary_key, &primary_bytes).await.unwrap();
+    repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: primary_id,
+                object_key: primary_key,
+                original_filename: "primary.png".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: primary_bytes.len(),
+                is_primary: true,
+                sort_order: 1,
+                alt_text: Some("Primary image".to_owned()),
+            },
+        )
+        .await
+        .unwrap();
+
+    LocalPublisher::new(root.path())
+        .publish(&repository, &media, PublishMode::Full)
+        .await
+        .unwrap();
+
+    let current = root.path().join("current");
+    let catalog: PublicCatalog = read_json(&current.join("data/collection.json"));
+    let detail: PublicItemDetail =
+        read_json(&current.join("data/items/primary-selection-card.json"));
+
+    assert_eq!(
+        catalog.items[0].primary_image.as_ref().unwrap().alt_text,
+        "Primary image"
+    );
+    assert_eq!(detail.images[0].alt_text, "Primary image");
+    assert_eq!(detail.images[1].alt_text, "Supporting image");
+    assert!(
+        current
+            .join("media/primary-selection-card/image-1-thumbnail.webp")
+            .is_file()
+    );
 }
 
 #[tokio::test]

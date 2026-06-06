@@ -188,16 +188,15 @@ route shape, not the final public cutover:
 - `127.0.0.1:8081` on the VM maps to Caddy's static preview listener and serves
   `/srv/autographs/static`.
 
-The Ansible-managed `/opt/autographs/env/controller.env` intentionally starts
-with `local` controller persistence adapters so 05-06 can prove packaging and
-routing without changing live catalog data. Before the 05-07 live static smoke,
-run the Ansible deploy from a trusted operator shell with
+The Ansible-managed `/opt/autographs/env/controller.env` intentionally uses
+persistent controller providers in deployment:
 `AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and
 `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3`, plus the OCI S3
 compatibility Customer Secret coordinates described in
 [static-runtime-runbook.md](static-runtime-runbook.md). Do not rely on a manual
-edit to `controller.env`; Ansible owns that file on each deploy. Keep those S3
-Customer Secret values out of GitHub-hosted workflows.
+edit to `controller.env`; Ansible owns that file on each deploy. The deploy
+workflow verifies `/admin/api/health` reports those active provider modes
+before it succeeds.
 
 Run the mandatory live static publish smoke from
 [static-runtime-runbook.md](static-runtime-runbook.md) before changing the

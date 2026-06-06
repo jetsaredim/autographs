@@ -45,6 +45,8 @@ struct HealthResponse {
 struct AdminHealthResponse {
     ok: bool,
     service: &'static str,
+    controller_db_provider: String,
+    controller_media_storage_provider: String,
     oracle_configured: bool,
     media_configured: bool,
     static_release_configured: bool,
@@ -204,6 +206,8 @@ async fn admin_health(State(state): State<AppState>) -> Json<AdminHealthResponse
     Json(AdminHealthResponse {
         ok: true,
         service: "autographs-controller",
+        controller_db_provider: provider("AUTOGRAPHS_CONTROLLER_DB_PROVIDER"),
+        controller_media_storage_provider: provider("AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER"),
         oracle_configured: state.config.oracle_configured,
         media_configured: state.config.media_configured,
         static_release_configured: state.config.static_release_configured,

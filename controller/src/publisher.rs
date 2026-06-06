@@ -10,7 +10,7 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 use crate::{
-    catalog::{AutographItem, CatalogRepository, PublicationStatus},
+    catalog::{AutographImage, AutographItem, CatalogRepository, PublicationStatus},
     contracts::{
         FacetId, ImageVariantName, PUBLIC_SCHEMA_VERSION, PublicCatalog, PublicDetailField,
         PublicDetailGroup, PublicFacetGroup, PublicFacetOption, PublicFacets, PublicGalleryItem,
@@ -545,7 +545,7 @@ async fn build_public_items(
     for item in items {
         let slug = unique_slug(&item.title, &mut used_slugs);
         let mut images = Vec::new();
-        for (index, image) in item.images.iter().enumerate() {
+        for (index, image) in primary_first_images(&item.images).into_iter().enumerate() {
             let image_slug = format!("image-{}", index + 1);
             let source = media.read(&image.object_key).await?;
             let mut variants = Vec::new();
@@ -610,6 +610,18 @@ async fn build_public_items(
         public_items.push(PublicSourceItem { gallery, detail });
     }
     Ok(public_items)
+}
+
+fn primary_first_images(images: &[AutographImage]) -> Vec<&AutographImage> {
+    let mut ordered = images.iter().collect::<Vec<_>>();
+    ordered.sort_by(|left, right| {
+        right
+            .is_primary
+            .cmp(&left.is_primary)
+            .then_with(|| left.sort_order.cmp(&right.sort_order))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    ordered
 }
 
 fn write_release(

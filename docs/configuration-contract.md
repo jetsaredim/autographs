@@ -121,17 +121,18 @@ The Ansible deploy role also maintains a 2 GiB `/.swapfile` with `vm.swappiness=
 
 ## Phase 5 Private Controller Contract
 
-The Rust controller is a private runtime service. GitHub-hosted workflows build
-and deploy controller code or images, but they do not receive catalog content
-generation credentials and never publish Oracle/Object Storage content.
+The Rust controller is a private runtime service. GitHub-hosted deploys build
+and deploy controller images, render the controller-only runtime environment,
+and verify the deployed controller reports persistent Oracle and OCI S3
+providers before the workflow succeeds.
 
 Runtime controller settings:
 
 | Variable | Classification | Purpose |
 |----------|----------------|---------|
 | `AUTOGRAPHS_CONTROLLER_BIND_ADDR` | runtime coordinate | Controller listener; defaults to `0.0.0.0:8080` |
-| `AUTOGRAPHS_CONTROLLER_DB_PROVIDER` | runtime coordinate | `local` for staged validation; switch to `oracle` for live persistence |
-| `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER` | runtime coordinate | `local` for staged validation; switch to `oci-s3` for live private originals |
+| `AUTOGRAPHS_CONTROLLER_DB_PROVIDER` | runtime coordinate | Deploy-time value must be `oracle`; `local` is only for direct local controller runs |
+| `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER` | runtime coordinate | Deploy-time value must be `oci-s3`; `local` is only for direct local controller runs |
 | `AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT` | local/staged coordinate | Local private-media path used only when the controller media provider is `local` |
 | `AUTOGRAPHS_PUBLIC_ORIGIN` | runtime coordinate | Canonical HTTPS origin used for browser mutation checks |
 | `AUTOGRAPHS_ADMIN_SECURE_COOKIES` | runtime coordinate | Keep `true` in deployment; `false` is an explicit local HTTP exception |
@@ -145,9 +146,9 @@ Runtime controller settings:
 
 Public-safe derivative publishing may use OCI Object Storage S3 compatibility.
 Create OCI Customer Secret credentials for the runtime controller and supply
-them through the operator secret store. The staged GitHub deploy does not
-receive these Customer Secret values; use a trusted operator-run Ansible deploy
-or equivalent VM-local secret path for the live static proof.
+them as GitHub deploy secrets so Ansible can render
+`/opt/autographs/env/controller.env`. These values are mounted only into the
+private controller container, not the public static artifacts.
 
 | Variable | Classification | Purpose |
 |----------|----------------|---------|
@@ -157,9 +158,9 @@ or equivalent VM-local secret path for the live static proof.
 
 The static release root and current pointer live on the runtime VM. Public
 artifacts are generated inside the OCI boundary from Oracle metadata and
-private originals. GitHub-hosted jobs must not receive the admin hash, operator
-token, Customer Secret keys, Oracle runtime password, private media
-coordinates, or generated static release content.
+private originals. GitHub-hosted jobs may receive deploy secrets needed to
+render the private controller environment, but must not publish generated
+static release content outside the VM.
 
 The operator-run live static publish smoke also uses these VM-local values:
 

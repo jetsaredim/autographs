@@ -232,7 +232,7 @@ mod live {
 
     impl Drop for LiveStaticSmokeCleanup<'_> {
         fn drop(&mut self) {
-            if best_effort_json_request(
+            let publication_drafted = best_effort_json_request(
                 "POST",
                 &format!(
                     "{}/admin/api/items/{}/publication",
@@ -241,20 +241,23 @@ mod live {
                 &self.operator_token,
                 Some(r#"{"publicationStatus":"draft"}"#),
             )
-            .is_none()
-            {
-                return;
-            }
-            let Some(unpublished) = best_effort_json_request(
-                "POST",
-                &format!("{}/admin/api/publish/incremental", self.controller),
-                &self.operator_token,
-                None,
-            ) else {
-                return;
+            .is_some();
+            let static_cleanup_succeeded = if publication_drafted {
+                best_effort_json_request(
+                    "POST",
+                    &format!("{}/admin/api/publish/incremental", self.controller),
+                    &self.operator_token,
+                    None,
+                )
+                .is_some_and(|unpublished| unpublished["state"] == "succeeded")
+            } else {
+                false
             };
-            if unpublished["state"] != "succeeded" {
-                return;
+            if !static_cleanup_succeeded {
+                eprintln!(
+                    "live static smoke could not confirm stale public artifact cleanup for item {}",
+                    self.item_id
+                );
             }
             std::thread::scope(|scope| {
                 let bucket = self.bucket;

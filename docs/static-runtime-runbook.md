@@ -8,12 +8,9 @@ not the polished Phase 6 admin workflow. Keep `/admin` and `/admin/api/*`
 behind the authenticated private-controller boundary; the browser shell relies
 on the HTTP-only session cookie and same-origin mutation checks.
 
-The staged GitHub deploy starts the controller with local persistence adapters
-by default and does not receive OCI S3 Customer Secret values. For the live
-static publish proof, run the Ansible deploy from a trusted operator shell, or
-an equivalent VM-local secret-management path, with explicit controller
-provider values so Ansible renders `/opt/autographs/env/controller.env`
-intentionally:
+The GitHub production deploy starts the controller with persistent Oracle and
+OCI S3 adapters. Configure these repo-level values before deploying so Ansible
+renders `/opt/autographs/env/controller.env` intentionally:
 
 ```text
 AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle
@@ -24,10 +21,9 @@ OCI_S3_SECRET_KEY=replace-with-customer-secret-secret-key
 ```
 
 Then restart or redeploy `autographs-controller.service`. Keep the Customer
-Secret values on the VM/operator secret path; do not add them to GitHub-hosted
-workflows. Do not hand-edit `controller.env` as the durable live switch; the
-next Ansible deploy owns that file and will render values from deploy
-variables.
+Secret values scoped to the private controller deploy path. Do not hand-edit
+`controller.env` as the durable live switch; the next Ansible deploy owns that
+file and will render values from deploy variables.
 
 Start the controller with local-only values:
 
