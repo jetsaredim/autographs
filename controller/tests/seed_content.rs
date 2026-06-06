@@ -15,7 +15,9 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
+use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 use serde_json::Value;
+use std::io::Cursor;
 use tempfile::tempdir;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -150,7 +152,7 @@ async fn seed_content_private_api_persists_redacted_item_and_image_response() {
     );
     assert_eq!(
         media.read(&stored.images[0].object_key).await.unwrap(),
-        b"private-original-bytes"
+        png_fixture()
     );
 
     let published = app
@@ -205,11 +207,80 @@ async fn seed_content_upload_does_not_leave_orphan_media_when_attachment_fails()
     assert_eq!(file_count(root.path()), 0);
 }
 
-fn upload_request(item_id: Uuid, authorization: Option<&str>) -> Request<Body> {
-    let boundary = "autographs-test-boundary";
-    let body = format!(
-        "--{boundary}\r\nContent-Disposition: form-data; name=\"altText\"\r\n\r\nSigned card front\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"secret bucket photo.jpg\"\r\nContent-Type: image/jpeg\r\n\r\nprivate-original-bytes\r\n--{boundary}--\r\n"
+#[tokio::test]
+async fn seed_content_upload_rejects_spoofed_image_bytes_before_media_write() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
     );
+    let item = repository
+        .create(AutographItemInput {
+            title: "Signed Jedi Card".to_owned(),
+            signer: "Mark Hamill".to_owned(),
+            description: None,
+            category: "Cards".to_owned(),
+            tags: vec!["jedi".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Draft,
+        })
+        .await
+        .unwrap();
+
+    let uploaded = app
+        .oneshot(upload_request_with_body(
+            item.id,
+            Some("Bearer operator-test-token"),
+            "image/jpeg",
+            b"not-an-image",
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(uploaded.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(file_count(root.path()), 0);
+    assert!(
+        repository
+            .get(item.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .images
+            .is_empty()
+    );
+}
+
+fn upload_request(item_id: Uuid, authorization: Option<&str>) -> Request<Body> {
+    let fixture = png_fixture();
+    upload_request_with_body(item_id, authorization, "image/png", &fixture)
+}
+
+fn upload_request_with_body(
+    item_id: Uuid,
+    authorization: Option<&str>,
+    content_type: &str,
+    image_body: &[u8],
+) -> Request<Body> {
+    let boundary = "autographs-test-boundary";
+    let mut body = Vec::new();
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"altText\"\r\n\r\nSigned card front\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"secret bucket photo.jpg\"\r\nContent-Type: {content_type}\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(image_body);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
     let mut request = Request::post(format!("/admin/api/items/{item_id}/images"))
         .header(
             header::CONTENT_TYPE,
@@ -224,6 +295,14 @@ fn upload_request(item_id: Uuid, authorization: Option<&str>) -> Request<Body> {
         );
     }
     request
+}
+
+fn png_fixture() -> Vec<u8> {
+    let mut body = Cursor::new(Vec::new());
+    DynamicImage::ImageRgb8(RgbImage::from_pixel(16, 16, Rgb([21, 92, 126])))
+        .write_to(&mut body, ImageFormat::Png)
+        .expect("encode test PNG");
+    body.into_inner()
 }
 
 async fn response_json(response: axum::response::Response) -> Value {

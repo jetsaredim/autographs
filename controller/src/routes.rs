@@ -7,6 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use image::ImageFormat;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -346,6 +347,9 @@ async fn upload_image(
     {
         return StatusCode::BAD_REQUEST.into_response();
     }
+    if !valid_image_upload(&content_type, &body) {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
 
     let image_id = Uuid::new_v4();
     let object_key = build_original_object_key(item_id, image_id);
@@ -369,6 +373,17 @@ async fn upload_image(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+fn valid_image_upload(content_type: &str, body: &[u8]) -> bool {
+    let expected = match content_type {
+        "image/jpeg" => ImageFormat::Jpeg,
+        "image/png" => ImageFormat::Png,
+        "image/webp" => ImageFormat::WebP,
+        _ => return false,
+    };
+    image::guess_format(body).is_ok_and(|actual| actual == expected)
+        && image::load_from_memory_with_format(body, expected).is_ok()
 }
 
 async fn set_publication(
