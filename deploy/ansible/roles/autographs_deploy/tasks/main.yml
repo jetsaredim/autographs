@@ -143,7 +143,11 @@
           and lookup('env', 'OCI_S3_ACCESS_KEY') | default('', true) | trim | length > 0
           and lookup('env', 'OCI_S3_SECRET_KEY') | default('', true) | trim | length > 0
         )
-    fail_msg: "Deployed controller providers must be persistent: AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle and AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3 with OCI S3 credentials."
+    fail_msg: >-
+      Deployed controller providers must be persistent:
+      AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle and
+      AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3 with OCI S3
+      credentials.
   no_log: true
 
 - name: Validate deployed admin authentication secret
