@@ -1,0 +1,25 @@
+FROM rust:1.96-bookworm AS builder
+
+WORKDIR /workspace
+
+COPY controller/Cargo.toml controller/Cargo.lock ./
+COPY controller/src ./src
+COPY controller/tests ./tests
+
+RUN cargo test --release --features live-persistence --test live_persistence_smoke --no-run \
+    && smoke_binary="$(find target/release/deps -maxdepth 1 -type f -name 'live_persistence_smoke-*' -perm -111 | head -n 1)" \
+    && test -n "$smoke_binary" \
+    && cp "$smoke_binary" /tmp/live-persistence-smoke
+
+FROM oraclelinux:9-slim
+
+RUN microdnf install -y oracle-instantclient-release-23ai-el9 \
+    && microdnf install -y ca-certificates oracle-instantclient-basic \
+    && microdnf clean all
+
+ENV TNS_ADMIN=/opt/autographs/wallet
+
+COPY --from=builder /tmp/live-persistence-smoke /usr/local/bin/live-persistence-smoke
+
+ENTRYPOINT ["/usr/local/bin/live-persistence-smoke"]
+CMD ["--ignored", "--nocapture"]

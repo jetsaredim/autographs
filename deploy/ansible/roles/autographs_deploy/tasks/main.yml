@@ -116,10 +116,55 @@
       owner: "{{ autographs_deploy_user }}"
       group: "{{ autographs_deploy_user }}"
       mode: "0755"
+    - path: "{{ autographs_deploy_static_path }}"
+      owner: "{{ autographs_deploy_user }}"
+      group: "{{ autographs_deploy_user }}"
+      mode: "0755"
+    - path: "{{ autographs_deploy_static_admin_path }}"
+      owner: "{{ autographs_deploy_user }}"
+      group: "{{ autographs_deploy_user }}"
+      mode: "0755"
     - path: "{{ autographs_deploy_quadlet_path }}"
       owner: root
       group: root
       mode: "0755"
+
+- name: Validate controller provider configuration
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_controller_db_provider in ['local', 'oracle']
+      - autographs_deploy_controller_media_storage_provider in ['local', 'oci-s3']
+      - autographs_deploy_controller_db_provider == 'oracle'
+      - autographs_deploy_controller_media_storage_provider == 'oci-s3'
+      - >-
+        autographs_deploy_controller_media_storage_provider != 'oci-s3'
+        or (
+          lookup('env', 'OCI_S3_ENDPOINT') | default('', true) | trim | length > 0
+          and lookup('env', 'OCI_S3_ACCESS_KEY') | default('', true) | trim | length > 0
+          and lookup('env', 'OCI_S3_SECRET_KEY') | default('', true) | trim | length > 0
+        )
+    fail_msg: >-
+      Deployed controller providers must be persistent:
+      AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle and
+      AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3 with OCI S3
+      credentials.
+  no_log: true
+
+- name: Validate deployed admin authentication secret
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          autographs_admin_password | default(lookup('env', 'AUTOGRAPHS_ADMIN_PASSWORD') | default('', true), true) | trim | length
+        ) > 0
+        or (
+          autographs_admin_password_hash | default(lookup('env', 'AUTOGRAPHS_ADMIN_PASSWORD_HASH') | default('', true), true) | trim | length
+        ) > 0
+        or (
+          autographs_operator_api_token | default(lookup('env', 'AUTOGRAPHS_OPERATOR_API_TOKEN') | default('', true), true) | trim | length
+        ) > 0
+    fail_msg: "Set a non-empty autographs_admin_password, autographs_admin_password_hash, or autographs_operator_api_token for deployed admin routes."
+  no_log: true
 
 - name: Write app environment file
   ansible.builtin.template:
@@ -131,7 +176,27 @@
   no_log: true
   notify:
     - Restart app container
+    - Restart controller container
     - Restart Caddy container
+
+- name: Copy static admin shell
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../../controller/static-admin/"
+    dest: "{{ autographs_deploy_static_admin_path }}/"
+    owner: "{{ autographs_deploy_user }}"
+    group: "{{ autographs_deploy_user }}"
+    directory_mode: "0755"
+    mode: "0644"
+  notify: Restart Caddy container
+
+- name: Write staged controller environment file
+  ansible.builtin.template:
+    src: controller.env.j2
+    dest: "{{ autographs_deploy_env_path }}/controller.env"
+    owner: "{{ autographs_deploy_user }}"
+    group: "{{ autographs_deploy_user }}"
+    mode: "0600"
+  notify: Restart controller container
 
 - name: Copy Caddyfile
   ansible.builtin.copy:
@@ -150,7 +215,9 @@
     group: "{{ autographs_deploy_user }}"
     mode: "0600"
   no_log: true
-  notify: Restart app container
+  notify:
+    - Restart app container
+    - Restart controller container
 
 - name: Write Oracle DB wallet archive
   ansible.builtin.copy:
@@ -180,7 +247,9 @@
     mode: "0600"
   no_log: true
   when: autographs_deploy_wallet_archive.changed
-  notify: Restart app container
+  notify:
+    - Restart app container
+    - Restart controller container
 
 - name: Remove temp wallet archives
   ansible.builtin.file:
@@ -203,6 +272,7 @@
     cmd: "podman pull {{ item }}"
   loop:
     - "{{ autographs_app_image }}"
+    - "{{ autographs_controller_image }}"
     - "{{ autographs_deploy_caddy_image }}"
   register: autographs_deploy_image_pull
   changed_when: >-
@@ -227,8 +297,12 @@
       dest: autographs.network
     - src: autographs-app.container.j2
       dest: autographs-app.container
+    - src: autographs-controller.container.j2
+      dest: autographs-controller.container
     - src: autographs-caddy.container.j2
       dest: autographs-caddy.container
+    - src: autographs-static.volume.j2
+      dest: autographs-static.volume
     - src: autographs-caddy-data.volume.j2
       dest: autographs-caddy-data.volume
     - src: autographs-caddy-config.volume.j2
@@ -236,6 +310,7 @@
   notify:
     - Reload systemd
     - Restart app container
+    - Restart controller container
     - Restart Caddy container
 
 - name: Flush quadlet handlers before enabling services
@@ -250,4 +325,19 @@
   loop:
     - autographs-network.service
     - autographs-app.service
+    - autographs-controller.service
     - autographs-caddy.service
+
+- name: Verify staged static preview listener before generated release exists
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ autographs_deploy_candidate_preview_port }}/"
+    method: GET
+    status_code:
+      - 200
+      - 403
+      - 404
+    return_content: false
+  register: autographs_deploy_static_preview_check
+  retries: 12
+  delay: 5
+  until: autographs_deploy_static_preview_check.status is defined

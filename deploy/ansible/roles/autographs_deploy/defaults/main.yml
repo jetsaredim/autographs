@@ -5,17 +5,27 @@ autographs_deploy_env_path: "{{ autographs_deploy_deploy_path }}/env"
 autographs_deploy_wallet_path: "{{ autographs_deploy_deploy_path }}/wallet"
 autographs_deploy_secrets_path: "{{ autographs_deploy_deploy_path }}/secrets"
 autographs_deploy_caddy_path: "{{ autographs_deploy_deploy_path }}/caddy"
+autographs_deploy_static_path: "{{ autographs_deploy_deploy_path }}/static"
+autographs_deploy_static_admin_path: "{{ autographs_deploy_deploy_path }}/static-admin"
 
 autographs_deploy_quadlet_path: /etc/containers/systemd
 autographs_deploy_network_name: autographs
 autographs_deploy_app_container_name: autographs-app
+autographs_deploy_controller_container_name: autographs-controller
 autographs_deploy_caddy_container_name: autographs-caddy
+autographs_deploy_static_vol_name: autographs-static
 autographs_deploy_caddy_data_vol_name: autographs-caddy-data
 autographs_deploy_caddy_config_vol_name: autographs-caddy-config
 autographs_deploy_caddy_image: docker.io/library/caddy:2-alpine
 autographs_deploy_http_port: 80
 autographs_deploy_https_port: 443
+autographs_deploy_candidate_preview_port: 8081
+autographs_deploy_controller_port: 8080
 autographs_deploy_domain: autographs.jetsaredim.net
+autographs_deploy_controller_db_provider: "{{ lookup('env', 'AUTOGRAPHS_CONTROLLER_DB_PROVIDER') | default('oracle', true) }}"
+autographs_deploy_controller_media_storage_provider: "{{ lookup('env', 'AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER') | default('oci-s3', true) }}"
+autographs_deploy_controller_local_media_root: >-
+  {{ lookup('env', 'AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT') | default('/tmp/autographs-controller-media', true) }}
 
 autographs_deploy_packages:
   - podman

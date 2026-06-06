@@ -1,0 +1,19 @@
+{
+  "itemCount": 500,
+  "imagesPerItem": 3,
+  "categories": [
+    "Cards",
+    "Posters",
+    "Photographs",
+    "Props"
+  ],
+  "tags": [
+    "featured",
+    "film",
+    "television",
+    "sports",
+    "science-fiction",
+    "fantasy",
+    "music"
+  ]
+}

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute Phase 05 Static Runtime Migration Foundation
-stopped_at: Phase 05 planned
-last_updated: "2026-05-28T16:21:27-04:00"
-last_activity: 2026-05-28
+status: executing
+stopped_at: Completed 05-06-PLAN.md
+last_updated: "2026-06-02T12:51:48Z"
+last_activity: 2026-06-02
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 25
-  completed_plans: 18
-  percent: 72
+  completed_plans: 24
+  percent: 96
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 05 execution after formal planning
+**Current focus:** Phase 05 — static-runtime-migration-foundation
 
 ## Current Position
 
-Phase: 04 (public-showcase-and-hardening) — COMPLETE
-Plan: 5 of 5
-Status: Ready to execute Phase 05 Static Runtime Migration Foundation
-Last activity: 2026-05-28
+Phase: 05 (static-runtime-migration-foundation) — EXECUTING
+Plan: 7 of 7
+Status: Ready to execute
+Last activity: 2026-06-02
 
-Progress: [███████░░░] 72%
+Progress: [██████████] 96%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 18 of 25
+- Total plans completed: 24 of 25
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -48,7 +48,7 @@ Progress: [███████░░░] 72%
 | 02 | 4 | - | - |
 | 03 | 5 | - | - |
 | 04 | 5/5 | 54 min | 11 min |
-| 05 | 0/7 | - | - |
+| 05 | 6/7 | - | - |
 
 **Recent Trend:**
 
@@ -60,6 +60,8 @@ Progress: [███████░░░] 72%
 | Phase 04 P03 | 3 min | 3 tasks | 3 files |
 | Phase 04 P04 | 5 min | 3 tasks | 12 files |
 | Phase 04 P05 | 4 min | 3 tasks | 3 files |
+| Phase 05 P01 | 7 min | 3 tasks | 10 files |
+| Phase 05 P02 | 12 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -85,6 +87,10 @@ Recent decisions affecting current work:
 - Pivot research: The current live Next.js public runtime and data-smoke path may be replaced by a static public catalog, static admin shell, and thin private admin/publisher API that generates content inside the OCI boundary.
 - Static-runtime boundary: GitHub Actions should build and deploy code artifacts only; catalog content generation should not expose private OCI object identifiers, URLs, Oracle data, or image UUIDs through GitHub-hosted workflows.
 - Planning guidance: Formally plan Phase 5 to prove the static publishing contract, Rust private controller, minimal static admin seed/publish path, and local/private Caddy candidate validation before Phase 6 admin polish.
+- Phase 5 publisher: Generate static candidates and sanitized WebP derivatives locally, validate the complete public inventory and privacy boundary, then atomically promote the `current` symlink.
+- Phase 5 static admin: Keep the minimal browser shell framework-free and browser-storage-free, backed by the HTTP-only cookie and same-origin `/admin/api/*` calls.
+- Phase 5 deployment: Keep the public hostname on Next.js until the explicit live cutover checkpoint; stage localhost-only generated-release preview and private `/admin/api/*` controller routing first.
+- Phase 5 controller persistence: Keep Oracle and OCI S3-compatible credentials in the VM-local protected controller environment; GitHub Actions deploys artifacts without generating catalog content.
 
 ### Pending Todos
 
@@ -93,7 +99,7 @@ None yet.
 ### Blockers/Concerns
 
 - The open smoke-test fix PR targets the current live-app data smoke path; it can be abandoned if the next phase pivots away from that production smoke model.
-- Minimal single-admin/private controller access remains a Phase 5 planning choice, with the preferred direction being a static admin shell backed by a private thin API.
+- Live VM static publish proof, cutover criteria, and legacy-runtime retirement guidance remain the final Phase 5 step.
 - Phase 5 is formally planned with seven execution plans covering static artifact contracts, Rust controller/auth, private seed/upload, publisher/derivatives, minimal static admin shell, Caddy/deploy wiring, and live cutover verification/docs.
 
 ### Roadmap Evolution
@@ -102,9 +108,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-28T16:13:30.360Z
-Stopped at: Phase 05 planned
-Resume file: .planning/phases/05-static-runtime-migration-foundation/05-01-PLAN.md
+Last session: 2026-06-01T16:36:05.609Z
+Stopped at: Completed 05-06-PLAN.md
+Resume file: .planning/phases/05-static-runtime-migration-foundation/05-07-PLAN.md
 
 ## Quick Tasks Completed
 

@@ -1,0 +1,26 @@
+[package]
+name = "autographs-controller"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+production-persistence = ["dep:oracle", "dep:rust-s3", "dep:rustls"]
+live-persistence = ["production-persistence"]
+
+[dependencies]
+argon2 = "0.5"
+async-trait = "0.1"
+axum = { version = "0.8", features = ["multipart"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+time = { version = "0.3", features = ["formatting", "serde"] }
+tokio = { version = "1.0", features = ["fs", "macros", "net", "rt-multi-thread"] }
+uuid = { version = "1.0", features = ["serde", "v4"] }
+oracle = { version = "0.6", optional = true }
+rust-s3 = { version = "0.37.2", default-features = false, features = ["tokio-rustls-tls"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs"], optional = true }
+
+[dev-dependencies]
+tempfile = "3.0"
+tower = { version = "0.5", features = ["util"] }

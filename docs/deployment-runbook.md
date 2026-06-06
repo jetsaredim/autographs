@@ -1,6 +1,10 @@
 # Deployment Runbook
 
-This runbook gets the app from a clean checkout to an OCI VM running systemd-managed Podman quadlets: public `Caddy` in front of a private `Next.js` app container on a dedicated Podman network, with Terraform-managed hooks for Oracle Autonomous Database Free and private OCI Object Storage media.
+This runbook gets the app from a clean checkout to an OCI VM running
+systemd-managed Podman quadlets: public `Caddy` in front of the current private
+`Next.js` app plus the staged Rust private controller and shared static release
+tree on a dedicated Podman network, with Terraform-managed hooks for Oracle
+Autonomous Database Free and private OCI Object Storage media.
 
 ## Preconditions
 
@@ -21,6 +25,8 @@ Run the same broad checks used by GitHub Actions:
 corepack pnpm install --frozen-lockfile
 corepack pnpm --filter app lint
 corepack pnpm --filter app typecheck
+cargo test --manifest-path controller/Cargo.toml
+cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
 terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff
 ```
 
@@ -72,6 +78,7 @@ Populate repo-level GitHub Secrets:
 - `ORACLE_DB_WALLET_ZIP_BASE64` when using an mTLS wallet
 - `ORACLE_DB_WALLET_PASSWORD` when the node-oracledb Thin connection needs the downloaded wallet password
 - `AUTOGRAPHS_OPERATOR_API_TOKEN`
+- `AUTOGRAPHS_ADMIN_PASSWORD_HASH`
 
 Populate repo-level GitHub Variables:
 
@@ -117,6 +124,10 @@ The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM`. Ter
 
 ## Data and Media Smoke
 
+This is the current-until-cutover Node runtime smoke. Retire it only after the
+Phase 5 live static publish smoke passes against the deployed Rust controller,
+generated release tree, and local/private Caddy preview.
+
 Basic `/health` remains a proof-of-life check and does not require Oracle or Object Storage secrets. Use the deeper VM smoke workflow only when data-service credentials are present:
 
 Run `.github/workflows/data-smoke.yml` manually from GitHub Actions. The workflow resolves the runtime VM IP, starts the `production` tools image on the VM's Podman network by default, runs migrations, loads representative seed records with generated SVG fixture images, creates a published smoke item, uploads a private smoke image, reads it back through the catalog/media service, and verifies the deployed app-mediated image route with `AUTOGRAPHS_SMOKE_BASE_URL`. It is intentionally manual because it requires live ADB and private Object Storage credentials. Each Ansible smoke command has its own timeout: migrations and seed each default to 600 seconds, and `data:smoke` defaults to 1800 seconds with a 30-second forced-kill grace period. If a timeout names one of these commands, check Oracle ADB connectivity, Object Storage connectivity, and the cleanup notes below before rerunning.
@@ -127,26 +138,77 @@ The deployed app also exposes `GET /health/data` for configuration readiness and
 
 Published images are served through app-mediated URLs shaped as `/api/catalog/{itemId}/images/{imageId}`. The URL contains app-level catalog identifiers only; it does not expose Object Storage bucket credentials, signed direct URLs, or raw object keys as the public access contract.
 
-Temporary production data entry is operator-only and documented in [temporary-production-data-entry.md](temporary-production-data-entry.md). Use that tunneled, token-guarded path until Phase 5 replaces or retires it with the Rust private controller and minimal static admin seed/publish path.
+Temporary production data entry is operator-only and documented in [temporary-production-data-entry.md](temporary-production-data-entry.md). It is current only until the Rust private controller and minimal static admin seed/publish path pass the Phase 5 live cutover checkpoint.
 
 ## Workflow Behavior
 
-Pull requests run `.github/workflows/ci.yml`. The CI workflow checks the Next.js app, builds the container images without pushing them, validates Terraform, and runs Ansible syntax/lint checks for the quadlet deployment.
+Pull requests run `.github/workflows/ci.yml`. The CI workflow checks the
+Next.js app and Rust controller, builds the container images without pushing
+them, validates Terraform, and runs Ansible syntax/lint checks for the quadlet
+deployment.
 
 Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 
 1. validates the repository,
-2. publishes a prebuilt app image to `ghcr.io`,
+2. publishes prebuilt app, tools, and Rust controller images to `ghcr.io`,
 3. runs `terraform apply`,
 4. optionally taints and recreates the runtime VM when manually requested,
 5. connects to the OCI VM over SSH through Ansible,
 6. installs/maintains Podman, firewalld, swap, and masked systemd services,
 7. copies wallet and OCI API key material to protected VM paths,
-8. installs systemd quadlets for the dedicated Podman network, app container, and Caddy container,
-9. pulls the published app image and restarts the quadlet services,
+8. installs systemd quadlets for the dedicated Podman network, app container, private controller, shared static volume, and Caddy container,
+9. pulls the published runtime images and restarts the quadlet services,
 10. checks the Caddy-fronted `/health` proof-of-life route.
 
-The VM pulls the image built by GitHub Actions. The VM does not build application code during deploy.
+The VM pulls images built by GitHub Actions. The VM does not build application
+code or generate catalog content during deploy.
+
+### Staged Static Preview
+
+Plan 05-06 deploys the private controller and static route shape without
+switching anonymous public traffic away from the current Next.js app. On the
+VM, Caddy exposes generated candidates only through a localhost-bound preview:
+
+```bash
+curl --fail --silent http://127.0.0.1:8081/releases/<release-id>/collection/
+```
+
+The `/admin` shell and `/admin/api/*` controller proxy are available through
+the normal hostname. Plan 05-07 owns the explicit public static cutover after a
+candidate release passes local validation.
+
+The Caddy update required before the live static publish smoke is the staged
+route shape, not the final public cutover:
+
+- `/admin/api/*` reverse-proxies to `autographs-controller:8080` on the private
+  Podman network.
+- `/admin/*` serves the static admin shell from `/srv/autographs/admin`.
+- `/api/operator/*` continues to return `404`.
+- Anonymous public traffic still reverse-proxies to `autographs-app:3000`.
+- `127.0.0.1:8081` on the VM maps to Caddy's static preview listener and serves
+  `/srv/autographs/static`.
+
+The Ansible-managed `/opt/autographs/env/controller.env` intentionally uses
+persistent controller providers in deployment:
+`AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and
+`AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3`, plus the OCI S3
+compatibility Customer Secret coordinates described in
+[static-runtime-runbook.md](static-runtime-runbook.md). Do not rely on a manual
+edit to `controller.env`; Ansible owns that file on each deploy. The deploy
+workflow verifies `/admin/api/health` reports those active provider modes
+before it succeeds.
+
+Run the mandatory live static publish smoke from
+[static-runtime-runbook.md](static-runtime-runbook.md) before changing the
+public hostname. Planned downtime is acceptable for the first switch. Recovery
+is roll-forward oriented: correct the source or controller, run a full rebuild,
+validate through the localhost candidate listener, and promote the repaired
+release.
+
+After public static verification passes, retire `/api/catalog/*`,
+app-mediated image streaming, `/api/operator/*`, the old Node data smoke, and
+the public Next.js reverse proxy using the checklist in the static runtime
+runbook.
 
 The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because `tsx`, Next.js, and smoke/admin scripts can briefly exceed the VM's physical memory.
 
@@ -174,8 +236,8 @@ If this fails, check the VM:
 
 ```bash
 ssh opc@"${VM_PUBLIC_IP}"
-sudo systemctl status autographs-network.service autographs-app.service autographs-caddy.service
-sudo journalctl -u autographs-app.service -u autographs-caddy.service --since "30 minutes ago"
+sudo systemctl status autographs-network.service autographs-app.service autographs-controller.service autographs-caddy.service
+sudo journalctl -u autographs-app.service -u autographs-controller.service -u autographs-caddy.service --since "30 minutes ago"
 sudo podman ps
 ```
 
