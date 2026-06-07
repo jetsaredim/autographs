@@ -85,7 +85,10 @@ locals {
     "Allow ${local.deploy_group} to manage volume-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.deploy_group} to manage autonomous-database-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.deploy_group} to manage buckets in compartment id ${local.compartment_ocid}",
-    "Allow ${local.deploy_group} to manage objects in compartment id ${local.compartment_ocid}"
+    "Allow ${local.deploy_group} to manage objects in compartment id ${local.compartment_ocid}",
+    "Allow ${local.deploy_group} to manage vaults in compartment id ${local.compartment_ocid}",
+    "Allow ${local.deploy_group} to manage keys in compartment id ${local.compartment_ocid}",
+    "Allow ${local.deploy_group} to manage secret-family in compartment id ${local.compartment_ocid}"
   ]
 
   operator_policy_statements = [
@@ -97,7 +100,11 @@ locals {
     "Allow ${local.operator_group} to manage volume-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.operator_group} to manage autonomous-database-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.operator_group} to manage buckets in compartment id ${local.compartment_ocid}",
-    "Allow ${local.operator_group} to manage objects in compartment id ${local.compartment_ocid}"
+    "Allow ${local.operator_group} to manage objects in compartment id ${local.compartment_ocid}",
+    "Allow ${local.operator_group} to read vaults in compartment id ${local.compartment_ocid}",
+    "Allow ${local.operator_group} to read keys in compartment id ${local.compartment_ocid}",
+    "Allow ${local.operator_group} to use keys in compartment id ${local.compartment_ocid}",
+    "Allow ${local.operator_group} to manage secret-family in compartment id ${local.compartment_ocid}"
   ]
 
   runtime_dynamic_group = "dynamic-group id ${oci_identity_dynamic_group.runtime_instances.id}"
