@@ -124,6 +124,12 @@ variable "create_deploy_user" {
   default     = true
 }
 
+variable "runtime_dynamic_group_name" {
+  description = "OCI dynamic group name used by Autographs runtime VM instance principals."
+  type        = string
+  default     = "autographs-runtime-instances"
+}
+
 variable "deploy_user_name" {
   description = "Name of the OCI user used by GitHub deployment automation."
   type        = string

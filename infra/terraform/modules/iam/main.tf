@@ -48,6 +48,23 @@ resource "oci_identity_user_group_membership" "deploy" {
   user_id        = oci_identity_user.deploy[0].id
 }
 
+resource "oci_identity_dynamic_group" "runtime_instances" {
+  provider       = oci.home
+  compartment_id = var.tenancy_ocid
+  name           = var.runtime_dynamic_group_name
+  description    = "Autographs runtime VM instances allowed to use instance principal authentication."
+  matching_rule  = "ALL {instance.compartment.id = '${local.compartment_ocid}'}"
+
+  freeform_tags = var.tags
+
+  lifecycle {
+    precondition {
+      condition     = local.compartment_ocid != ""
+      error_message = "Set existing_compartment_ocid when create_compartment is false, or keep create_compartment true so Terraform can manage the project compartment."
+    }
+  }
+}
+
 resource "oci_identity_api_key" "deploy" {
   provider  = oci.home
   count     = var.create_deploy_user && var.deploy_user_api_public_key != "" ? 1 : 0
@@ -82,6 +99,8 @@ locals {
     "Allow ${local.operator_group} to manage buckets in compartment id ${local.compartment_ocid}",
     "Allow ${local.operator_group} to manage objects in compartment id ${local.compartment_ocid}"
   ]
+
+  runtime_dynamic_group = "dynamic-group id ${oci_identity_dynamic_group.runtime_instances.id}"
 }
 
 resource "oci_identity_policy" "deploy" {
@@ -107,6 +126,25 @@ resource "oci_identity_policy" "operator" {
   name           = "${var.name_prefix}-operator-policy"
   description    = "Operator policy seam for human break-glass and day-two management."
   statements     = local.operator_policy_statements
+
+  freeform_tags = var.tags
+
+  lifecycle {
+    precondition {
+      condition     = local.compartment_ocid != ""
+      error_message = "Set existing_compartment_ocid when create_compartment is false, or keep create_compartment true so Terraform can manage the project compartment."
+    }
+  }
+}
+
+resource "oci_identity_policy" "runtime_secret_reader" {
+  provider       = oci.home
+  compartment_id = var.parent_compartment_ocid
+  name           = "${var.name_prefix}-runtime-secret-reader-policy"
+  description    = "Allows Autographs runtime instance principals to read Vault secret bundles."
+  statements = [
+    "Allow ${local.runtime_dynamic_group} to read secret-bundles in compartment id ${local.compartment_ocid}"
+  ]
 
   freeform_tags = var.tags
 

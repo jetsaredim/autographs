@@ -6,6 +6,10 @@ variable "parent_compartment_ocid" {
   type = string
 }
 
+variable "tenancy_ocid" {
+  type = string
+}
+
 variable "create_compartment" {
   type = bool
 }
@@ -36,6 +40,10 @@ variable "create_operator_group" {
 
 variable "create_deploy_user" {
   type = bool
+}
+
+variable "runtime_dynamic_group_name" {
+  type = string
 }
 
 variable "deploy_user_name" {

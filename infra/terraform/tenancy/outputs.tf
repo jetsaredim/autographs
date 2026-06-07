@@ -13,6 +13,11 @@ output "operator_policy_name" {
   value       = module.iam.operator_policy_name
 }
 
+output "runtime_secret_reader_policy_name" {
+  description = "OCI policy name allowing runtime instance principals to read Vault secret bundles."
+  value       = module.iam.runtime_secret_reader_policy_name
+}
+
 output "deploy_group_id" {
   description = "OCI group OCID for GitHub deployment automation when created by this root."
   value       = module.iam.deploy_group_id
@@ -26,6 +31,16 @@ output "operator_group_id" {
 output "deploy_user_id" {
   description = "OCI user OCID for GitHub deployment automation when created by this root."
   value       = module.iam.deploy_user_id
+}
+
+output "runtime_dynamic_group_id" {
+  description = "OCI dynamic group OCID for Autographs runtime VM instance principals."
+  value       = module.iam.runtime_dynamic_group_id
+}
+
+output "runtime_dynamic_group_name" {
+  description = "OCI dynamic group name for Autographs runtime VM instance principals."
+  value       = module.iam.runtime_dynamic_group_name
 }
 
 output "deploy_api_key_fingerprint" {

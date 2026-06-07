@@ -34,6 +34,8 @@ deploy_group_name     = "autographs-deployers"
 create_operator_group = true
 operator_group_name   = "autographs-operators"
 
+runtime_dynamic_group_name = "autographs-runtime-instances"
+
 create_deploy_user      = true
 deploy_user_name        = "autographs-github-deploy"
 deploy_user_description = "GitHub Actions deployment user for Autographs."
