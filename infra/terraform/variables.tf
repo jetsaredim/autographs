@@ -271,6 +271,41 @@ variable "media_bucket_versioning" {
   }
 }
 
+variable "controller_vault_name" {
+  description = "Display name for the OCI Vault used by the private controller."
+  type        = string
+  default     = "autographs-controller-vault"
+}
+
+variable "controller_vault_type" {
+  description = "OCI Vault type for controller runtime secrets."
+  type        = string
+  default     = "DEFAULT"
+
+  validation {
+    condition     = contains(["DEFAULT", "VIRTUAL_PRIVATE"], var.controller_vault_type)
+    error_message = "controller_vault_type must be DEFAULT or VIRTUAL_PRIVATE."
+  }
+}
+
+variable "controller_vault_key_name" {
+  description = "Display name for the OCI Vault key used to encrypt controller runtime secrets."
+  type        = string
+  default     = "autographs-controller-secrets-key"
+}
+
+variable "controller_s3_access_key_secret_name" {
+  description = "OCI Vault secret name for the controller OCI S3 access key."
+  type        = string
+  default     = "autographs-controller-s3-access-key"
+}
+
+variable "controller_s3_secret_key_secret_name" {
+  description = "OCI Vault secret name for the controller OCI S3 secret key."
+  type        = string
+  default     = "autographs-controller-s3-secret-key"
+}
+
 variable "porkbun_api_key" {
   description = "Porkbun API key used to manage DNS records."
   type        = string

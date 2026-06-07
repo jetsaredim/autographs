@@ -38,3 +38,63 @@ resource "oci_objectstorage_bucket" "media" {
     }
   }
 }
+
+resource "oci_kms_vault" "controller" {
+  compartment_id = var.compartment_id
+  display_name   = var.controller_vault_name
+  vault_type     = var.controller_vault_type
+  freeform_tags  = var.tags
+}
+
+resource "oci_kms_key" "controller" {
+  compartment_id      = var.compartment_id
+  display_name        = var.controller_vault_key_name
+  management_endpoint = oci_kms_vault.controller.management_endpoint
+  protection_mode     = "SOFTWARE"
+  freeform_tags       = var.tags
+
+  key_shape {
+    algorithm = "AES"
+    length    = 32
+  }
+}
+
+resource "oci_vault_secret" "controller_s3_access_key" {
+  compartment_id = var.compartment_id
+  key_id         = oci_kms_key.controller.id
+  secret_name    = var.controller_s3_access_key_secret_name
+  vault_id       = oci_kms_vault.controller.id
+  description    = "Controller OCI S3 access key. Real value is operator-managed in OCI Vault."
+  freeform_tags  = var.tags
+
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode("replace-with-operator-managed-controller-s3-access-key")
+    name         = "terraform-placeholder"
+    stage        = "CURRENT"
+  }
+
+  lifecycle {
+    ignore_changes = [secret_content]
+  }
+}
+
+resource "oci_vault_secret" "controller_s3_secret_key" {
+  compartment_id = var.compartment_id
+  key_id         = oci_kms_key.controller.id
+  secret_name    = var.controller_s3_secret_key_secret_name
+  vault_id       = oci_kms_vault.controller.id
+  description    = "Controller OCI S3 secret key. Real value is operator-managed in OCI Vault."
+  freeform_tags  = var.tags
+
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode("replace-with-operator-managed-controller-s3-secret-key")
+    name         = "terraform-placeholder"
+    stage        = "CURRENT"
+  }
+
+  lifecycle {
+    ignore_changes = [secret_content]
+  }
+}

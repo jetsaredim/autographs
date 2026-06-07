@@ -94,7 +94,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+- Future Terraform cleanup: review Terraform modules during a planning/cleanup stage and remove unnecessary create/enable boolean variables where resources are intended to be end-state managed by Terraform state. The runtime Vault secret-reader IAM change deliberately removed this pattern for the dynamic group and policy; look for similar avoidable toggles elsewhere before adding more.
 
 ### Blockers/Concerns
 

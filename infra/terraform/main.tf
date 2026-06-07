@@ -47,6 +47,11 @@ module "data_services" {
   media_bucket_namespace                          = var.media_bucket_namespace
   media_bucket_name                               = var.media_bucket_name
   media_bucket_versioning                         = var.media_bucket_versioning
+  controller_vault_name                           = var.controller_vault_name
+  controller_vault_type                           = var.controller_vault_type
+  controller_vault_key_name                       = var.controller_vault_key_name
+  controller_s3_access_key_secret_name            = var.controller_s3_access_key_secret_name
+  controller_s3_secret_key_secret_name            = var.controller_s3_secret_key_secret_name
   compartment_id                                  = var.compartment_ocid
   tags                                            = local.tags
 }

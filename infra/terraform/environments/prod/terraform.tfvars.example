@@ -61,3 +61,9 @@ create_media_bucket     = false
 media_bucket_namespace  = "replace-with-your-object-storage-namespace"
 media_bucket_name       = "autographs-media-prod"
 media_bucket_versioning = "Enabled"
+
+controller_vault_name                = "autographs-controller-vault"
+controller_vault_type                = "DEFAULT"
+controller_vault_key_name            = "autographs-controller-secrets-key"
+controller_s3_access_key_secret_name = "autographs-controller-s3-access-key"
+controller_s3_secret_key_secret_name = "autographs-controller-s3-secret-key"
