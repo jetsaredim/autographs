@@ -159,11 +159,11 @@ Store the same values in the runtime Terraform Vault secrets named
 placeholder secret versions that Terraform creates. These values are mounted
 only into the private controller container, not the public static artifacts.
 
-The runtime dynamic-group policy currently grants secret-bundle reads at the
-project compartment level because the IAM policy is owned by the tenancy
-Terraform root while the two Vault secret OCIDs are produced by the runtime
-Terraform root. Narrow that policy to the two admin credential secret OCIDs once
-the roots have a stable handoff for those IDs.
+The runtime dynamic-group policy scopes secret-bundle reads to those two admin
+credential Vault secret names. Keep the tenancy-root
+`admin_access_key_secret_name` and `admin_secret_key_secret_name` values aligned
+with the runtime Terraform root so adding other Vault secrets in the project
+compartment does not implicitly grant the runtime VM access to them.
 
 | Variable | Classification | Purpose |
 |----------|----------------|---------|

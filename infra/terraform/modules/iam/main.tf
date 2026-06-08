@@ -144,6 +144,11 @@ locals {
   ]
 
   runtime_dynamic_group = "dynamic-group id ${oci_identity_dynamic_group.runtime_instances.id}"
+
+  runtime_secret_reader_policy_statements = [
+    "Allow ${local.runtime_dynamic_group} to read secret-bundles in compartment id ${local.compartment_ocid} where target.secret.name = '${var.admin_access_key_secret_name}'",
+    "Allow ${local.runtime_dynamic_group} to read secret-bundles in compartment id ${local.compartment_ocid} where target.secret.name = '${var.admin_secret_key_secret_name}'"
+  ]
 }
 
 resource "oci_identity_policy" "deploy" {
@@ -185,9 +190,7 @@ resource "oci_identity_policy" "runtime_secret_reader" {
   compartment_id = var.parent_compartment_ocid
   name           = "${var.name_prefix}-runtime-secret-reader-policy"
   description    = "Allows Autographs runtime instance principals to read Vault secret bundles."
-  statements = [
-    "Allow ${local.runtime_dynamic_group} to read secret-bundles in compartment id ${local.compartment_ocid}"
-  ]
+  statements     = local.runtime_secret_reader_policy_statements
 
   freeform_tags = var.tags
 
@@ -195,6 +198,10 @@ resource "oci_identity_policy" "runtime_secret_reader" {
     precondition {
       condition     = local.compartment_ocid != ""
       error_message = "Set existing_compartment_ocid when create_compartment is false, or keep create_compartment true so Terraform can manage the project compartment."
+    }
+    precondition {
+      condition     = var.admin_access_key_secret_name != "" && var.admin_secret_key_secret_name != ""
+      error_message = "Admin credential Vault secret names are required so runtime secret-bundle reads stay scoped to the intended secrets."
     }
   }
 }

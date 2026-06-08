@@ -160,6 +160,18 @@ variable "admin_runtime_user_email" {
   default     = ""
 }
 
+variable "admin_access_key_secret_name" {
+  description = "OCI Vault secret name for the admin access key that the runtime VM may read."
+  type        = string
+  default     = "autographs-admin-access-key"
+}
+
+variable "admin_secret_key_secret_name" {
+  description = "OCI Vault secret name for the admin secret key that the runtime VM may read."
+  type        = string
+  default     = "autographs-admin-secret-key"
+}
+
 variable "deploy_user_name" {
   description = "Name of the OCI user used by GitHub deployment automation."
   type        = string

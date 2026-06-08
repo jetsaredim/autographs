@@ -26,6 +26,8 @@ module "iam" {
   admin_runtime_user_name        = var.admin_runtime_user_name
   admin_runtime_user_description = var.admin_runtime_user_description
   admin_runtime_user_email       = var.admin_runtime_user_email
+  admin_access_key_secret_name   = var.admin_access_key_secret_name
+  admin_secret_key_secret_name   = var.admin_secret_key_secret_name
   deploy_user_name               = var.deploy_user_name
   deploy_user_description        = var.deploy_user_description
   deploy_user_email              = var.deploy_user_email

@@ -66,6 +66,14 @@ variable "admin_runtime_user_email" {
   type = string
 }
 
+variable "admin_access_key_secret_name" {
+  type = string
+}
+
+variable "admin_secret_key_secret_name" {
+  type = string
+}
+
 variable "deploy_user_name" {
   type = string
 }

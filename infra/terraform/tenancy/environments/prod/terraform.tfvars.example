@@ -43,6 +43,8 @@ admin_runtime_group_name       = "autographs-admin-runtime-media"
 admin_runtime_user_name        = "autographs-admin-runtime"
 admin_runtime_user_description = "Runtime IAM user for Autographs private admin media access."
 admin_runtime_user_email       = ""
+admin_access_key_secret_name   = "autographs-admin-access-key"
+admin_secret_key_secret_name   = "autographs-admin-secret-key"
 
 create_deploy_user      = true
 deploy_user_name        = "autographs-github-deploy"
