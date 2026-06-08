@@ -46,6 +46,10 @@ variable "runtime_dynamic_group_name" {
   type = string
 }
 
+variable "runtime_instance_ocid" {
+  type = string
+}
+
 variable "admin_runtime_group_name" {
   type = string
 }

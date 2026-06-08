@@ -21,6 +21,7 @@ module "iam" {
   create_operator_group          = var.create_operator_group
   create_deploy_user             = var.create_deploy_user
   runtime_dynamic_group_name     = var.runtime_dynamic_group_name
+  runtime_instance_ocid          = var.runtime_instance_ocid
   admin_runtime_group_name       = var.admin_runtime_group_name
   admin_runtime_user_name        = var.admin_runtime_user_name
   admin_runtime_user_description = var.admin_runtime_user_description

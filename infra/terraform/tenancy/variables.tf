@@ -130,6 +130,12 @@ variable "runtime_dynamic_group_name" {
   default     = "autographs-runtime-instances"
 }
 
+variable "runtime_instance_ocid" {
+  description = "OCI instance OCID for the runtime VM allowed to use instance principal authentication."
+  type        = string
+  default     = ""
+}
+
 variable "admin_runtime_group_name" {
   description = "OCI group name granting the private admin runtime IAM user media object access."
   type        = string

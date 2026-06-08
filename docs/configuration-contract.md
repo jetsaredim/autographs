@@ -88,6 +88,9 @@ Local Terraform uses:
 - `fingerprint`
 - `private_key_path`
 - bootstrap parent compartment and deploy identity inputs in the tenancy root
+- runtime VM OCID in the tenancy root, populated from the runtime root output
+  `runtime_instance_id`, so the instance-principal dynamic group matches only
+  the intended Autographs VM
 - `compartment_ocid` in the runtime/app root
 - runtime VM image, availability domain, and SSH public keys
 - Autonomous Database and private media bucket toggles, names, and Object Storage namespace

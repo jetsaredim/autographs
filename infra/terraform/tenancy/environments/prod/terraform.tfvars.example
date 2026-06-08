@@ -35,6 +35,9 @@ create_operator_group = true
 operator_group_name   = "autographs-operators"
 
 runtime_dynamic_group_name = "autographs-runtime-instances"
+# Use the runtime Terraform output:
+# terraform -chdir=infra/terraform output -raw runtime_instance_id
+runtime_instance_ocid = "ocid1.instance.oc1..replace_me"
 
 admin_runtime_group_name       = "autographs-admin-runtime-media"
 admin_runtime_user_name        = "autographs-admin-runtime"
