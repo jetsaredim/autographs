@@ -29,6 +29,15 @@ resource "oci_identity_group" "operator" {
   freeform_tags = var.tags
 }
 
+resource "oci_identity_group" "admin_runtime" {
+  provider       = oci.home
+  compartment_id = var.parent_compartment_ocid
+  name           = var.admin_runtime_group_name
+  description    = "Group granting the Autographs private admin runtime user media object access."
+
+  freeform_tags = var.tags
+}
+
 resource "oci_identity_user" "deploy" {
   provider       = oci.home
   count          = var.create_deploy_user ? 1 : 0
@@ -58,6 +67,13 @@ resource "oci_identity_user" "admin_runtime" {
   freeform_tags = var.tags
 }
 
+resource "oci_identity_user_group_membership" "admin_runtime" {
+  provider       = oci.home
+  compartment_id = var.parent_compartment_ocid
+  group_id       = oci_identity_group.admin_runtime.id
+  user_id        = oci_identity_user.admin_runtime.id
+}
+
 resource "oci_identity_dynamic_group" "runtime_instances" {
   provider       = oci.home
   compartment_id = var.tenancy_ocid
@@ -83,9 +99,10 @@ resource "oci_identity_api_key" "deploy" {
 }
 
 locals {
-  compartment_ocid = var.create_compartment ? oci_identity_compartment.project[0].id : var.existing_compartment_ocid
-  deploy_group     = var.create_deploy_group ? "group id ${oci_identity_group.deploy[0].id}" : "group ${var.deploy_group_name}"
-  operator_group   = var.create_operator_group ? "group id ${oci_identity_group.operator[0].id}" : "group ${var.operator_group_name}"
+  compartment_ocid    = var.create_compartment ? oci_identity_compartment.project[0].id : var.existing_compartment_ocid
+  deploy_group        = var.create_deploy_group ? "group id ${oci_identity_group.deploy[0].id}" : "group ${var.deploy_group_name}"
+  operator_group      = var.create_operator_group ? "group id ${oci_identity_group.operator[0].id}" : "group ${var.operator_group_name}"
+  admin_runtime_group = "group id ${oci_identity_group.admin_runtime.id}"
 
   deploy_policy_statements = [
     "Allow ${local.deploy_group} to inspect compartments in tenancy",
@@ -118,8 +135,8 @@ locals {
   ]
 
   admin_runtime_policy_statements = [
-    "Allow user ${oci_identity_user.admin_runtime.name} to read objectstorage-namespaces in tenancy",
-    "Allow user ${oci_identity_user.admin_runtime.name} to manage objects in compartment id ${local.compartment_ocid}"
+    "Allow ${local.admin_runtime_group} to read objectstorage-namespaces in tenancy",
+    "Allow ${local.admin_runtime_group} to manage objects in compartment id ${local.compartment_ocid} where target.bucket.name = '${var.media_bucket_name}'"
   ]
 
   runtime_dynamic_group = "dynamic-group id ${oci_identity_dynamic_group.runtime_instances.id}"

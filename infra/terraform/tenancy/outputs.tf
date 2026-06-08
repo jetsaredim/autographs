@@ -33,6 +33,11 @@ output "operator_group_id" {
   value       = module.iam.operator_group_id
 }
 
+output "admin_runtime_group_id" {
+  description = "OCI group OCID granting the private admin runtime IAM user media object access."
+  value       = module.iam.admin_runtime_group_id
+}
+
 output "deploy_user_id" {
   description = "OCI user OCID for GitHub deployment automation when created by this root."
   value       = module.iam.deploy_user_id

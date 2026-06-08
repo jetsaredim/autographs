@@ -36,6 +36,7 @@ operator_group_name   = "autographs-operators"
 
 runtime_dynamic_group_name = "autographs-runtime-instances"
 
+admin_runtime_group_name       = "autographs-admin-runtime-media"
 admin_runtime_user_name        = "autographs-admin-runtime"
 admin_runtime_user_description = "Runtime IAM user for Autographs private admin media access."
 admin_runtime_user_email       = ""
@@ -52,6 +53,8 @@ deploy_user_api_public_key = <<EOT
 replace_me
 -----END PUBLIC KEY-----
 EOT
+
+media_bucket_name = "autographs-media-prod"
 
 create_state_bucket       = true
 state_bucket_name         = "autographs-tf-state"

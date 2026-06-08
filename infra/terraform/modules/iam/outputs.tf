@@ -26,6 +26,10 @@ output "operator_group_id" {
   value = var.create_operator_group ? oci_identity_group.operator[0].id : null
 }
 
+output "admin_runtime_group_id" {
+  value = oci_identity_group.admin_runtime.id
+}
+
 output "deploy_user_id" {
   value = var.create_deploy_user ? oci_identity_user.deploy[0].id : null
 }

@@ -21,6 +21,7 @@ module "iam" {
   create_operator_group          = var.create_operator_group
   create_deploy_user             = var.create_deploy_user
   runtime_dynamic_group_name     = var.runtime_dynamic_group_name
+  admin_runtime_group_name       = var.admin_runtime_group_name
   admin_runtime_user_name        = var.admin_runtime_user_name
   admin_runtime_user_description = var.admin_runtime_user_description
   admin_runtime_user_email       = var.admin_runtime_user_email
@@ -28,6 +29,7 @@ module "iam" {
   deploy_user_description        = var.deploy_user_description
   deploy_user_email              = var.deploy_user_email
   deploy_user_api_public_key     = var.deploy_user_api_public_key
+  media_bucket_name              = var.media_bucket_name
   tags                           = local.tags
 }
 
