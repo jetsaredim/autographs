@@ -79,7 +79,7 @@ resource "oci_identity_dynamic_group" "runtime_instances" {
   compartment_id = var.tenancy_ocid
   name           = var.runtime_dynamic_group_name
   description    = "Autographs runtime VM instances allowed to use instance principal authentication."
-  matching_rule  = "ALL {instance.id = '${var.runtime_instance_ocid}', instance.compartment.id = '${local.compartment_ocid}'}"
+  matching_rule  = "ALL {instance.compartment.id = '${local.compartment_ocid}'}"
 
   freeform_tags = var.tags
 
@@ -87,10 +87,6 @@ resource "oci_identity_dynamic_group" "runtime_instances" {
     precondition {
       condition     = local.compartment_ocid != ""
       error_message = "Set existing_compartment_ocid when create_compartment is false, or keep create_compartment true so Terraform can manage the project compartment."
-    }
-    precondition {
-      condition     = var.runtime_instance_ocid != ""
-      error_message = "runtime_instance_ocid is required so the Vault-reading dynamic group matches only the intended runtime VM."
     }
   }
 }

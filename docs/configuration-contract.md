@@ -88,9 +88,6 @@ Local Terraform uses:
 - `fingerprint`
 - `private_key_path`
 - bootstrap parent compartment and deploy identity inputs in the tenancy root
-- runtime VM OCID in the tenancy root, populated from the runtime root output
-  `runtime_instance_id`, so the instance-principal dynamic group matches only
-  the intended Autographs VM
 - `compartment_ocid` in the runtime/app root
 - runtime VM image, availability domain, and SSH public keys
 - Autonomous Database and private media bucket toggles, names, and Object Storage namespace
@@ -159,11 +156,13 @@ Store the same values in the runtime Terraform Vault secrets named
 placeholder secret versions that Terraform creates. These values are mounted
 only into the private controller container, not the public static artifacts.
 
-The runtime dynamic-group policy scopes secret-bundle reads to those two admin
-credential Vault secret names. Keep the tenancy-root
-`admin_access_key_secret_name` and `admin_secret_key_secret_name` values aligned
-with the runtime Terraform root so adding other Vault secrets in the project
-compartment does not implicitly grant the runtime VM access to them.
+The runtime dynamic group matches compute instances in the project compartment,
+which keeps tenancy bootstrap independent of runtime instance IDs. Its policy
+scopes secret-bundle reads to the two admin credential Vault secret names. Keep
+the tenancy-root `admin_access_key_secret_name` and
+`admin_secret_key_secret_name` values aligned with the runtime Terraform root so
+adding other Vault secrets in the project compartment does not implicitly grant
+the runtime VM access to them.
 
 | Variable | Classification | Purpose |
 |----------|----------------|---------|
