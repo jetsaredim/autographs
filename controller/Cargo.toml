@@ -23,4 +23,4 @@ rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs"],
 
 [dev-dependencies]
 tempfile = "3.0"
-tower = { version = "0.5", features = ["util"] }
+tower = { version = "0.5.3", features = ["util"] }
