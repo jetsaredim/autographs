@@ -22,5 +22,5 @@ rust-s3 = { version = "0.37.2", default-features = false, features = ["tokio-rus
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs"], optional = true }
 
 [dev-dependencies]
-tempfile = "3.0"
+tempfile = "3.27.0"
 tower = { version = "0.5", features = ["util"] }
