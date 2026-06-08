@@ -271,39 +271,39 @@ variable "media_bucket_versioning" {
   }
 }
 
-variable "controller_vault_name" {
-  description = "Display name for the OCI Vault used by the private controller."
+variable "admin_vault_name" {
+  description = "Display name for the OCI Vault used by the private admin."
   type        = string
-  default     = "autographs-controller-vault"
+  default     = "autographs-admin-vault"
 }
 
-variable "controller_vault_type" {
-  description = "OCI Vault type for controller runtime secrets."
+variable "admin_vault_type" {
+  description = "OCI Vault type for admin runtime secrets."
   type        = string
   default     = "DEFAULT"
 
   validation {
-    condition     = contains(["DEFAULT", "VIRTUAL_PRIVATE"], var.controller_vault_type)
-    error_message = "controller_vault_type must be DEFAULT or VIRTUAL_PRIVATE."
+    condition     = contains(["DEFAULT", "VIRTUAL_PRIVATE"], var.admin_vault_type)
+    error_message = "admin_vault_type must be DEFAULT or VIRTUAL_PRIVATE."
   }
 }
 
-variable "controller_vault_key_name" {
-  description = "Display name for the OCI Vault key used to encrypt controller runtime secrets."
+variable "admin_vault_key_name" {
+  description = "Display name for the OCI Vault key used to encrypt admin runtime secrets."
   type        = string
-  default     = "autographs-controller-secrets-key"
+  default     = "autographs-admin-secrets-key"
 }
 
-variable "controller_s3_access_key_secret_name" {
-  description = "OCI Vault secret name for the controller OCI S3 access key."
+variable "admin_access_key_secret_name" {
+  description = "OCI Vault secret name for the admin access key."
   type        = string
-  default     = "autographs-controller-s3-access-key"
+  default     = "autographs-admin-access-key"
 }
 
-variable "controller_s3_secret_key_secret_name" {
-  description = "OCI Vault secret name for the controller OCI S3 secret key."
+variable "admin_secret_key_secret_name" {
+  description = "OCI Vault secret name for the admin secret key."
   type        = string
-  default     = "autographs-controller-s3-secret-key"
+  default     = "autographs-admin-secret-key"
 }
 
 variable "porkbun_api_key" {

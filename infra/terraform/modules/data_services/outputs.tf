@@ -18,22 +18,22 @@ output "media_bucket_namespace" {
   value       = var.media_bucket_namespace
 }
 
-output "controller_vault_id" {
-  description = "OCI Vault OCID used by the private controller for runtime secrets."
-  value       = oci_kms_vault.controller.id
+output "admin_vault_id" {
+  description = "OCI Vault OCID used by the private admin for runtime secrets."
+  value       = oci_kms_vault.admin.id
 }
 
-output "controller_vault_key_id" {
-  description = "OCI Vault key OCID used to encrypt private controller runtime secrets."
-  value       = oci_kms_key.controller.id
+output "admin_vault_key_id" {
+  description = "OCI Vault key OCID used to encrypt private admin runtime secrets."
+  value       = oci_kms_key.admin.id
 }
 
-output "controller_s3_access_key_secret_name" {
-  description = "OCI Vault secret name for the controller OCI S3 access key."
-  value       = oci_vault_secret.controller_s3_access_key.secret_name
+output "admin_access_key_secret_name" {
+  description = "OCI Vault secret name for the admin access key."
+  value       = oci_vault_secret.admin_access_key.secret_name
 }
 
-output "controller_s3_secret_key_secret_name" {
-  description = "OCI Vault secret name for the controller OCI S3 secret key."
-  value       = oci_vault_secret.controller_s3_secret_key.secret_name
+output "admin_secret_key_secret_name" {
+  description = "OCI Vault secret name for the admin secret key."
+  value       = oci_vault_secret.admin_secret_key.secret_name
 }

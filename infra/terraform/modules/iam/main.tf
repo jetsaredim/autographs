@@ -48,6 +48,16 @@ resource "oci_identity_user_group_membership" "deploy" {
   user_id        = oci_identity_user.deploy[0].id
 }
 
+resource "oci_identity_user" "admin_runtime" {
+  provider       = oci.home
+  compartment_id = var.parent_compartment_ocid
+  name           = var.admin_runtime_user_name
+  description    = var.admin_runtime_user_description
+  email          = var.admin_runtime_user_email != "" ? var.admin_runtime_user_email : null
+
+  freeform_tags = var.tags
+}
+
 resource "oci_identity_dynamic_group" "runtime_instances" {
   provider       = oci.home
   compartment_id = var.tenancy_ocid
@@ -107,6 +117,11 @@ locals {
     "Allow ${local.operator_group} to manage secret-family in compartment id ${local.compartment_ocid}"
   ]
 
+  admin_runtime_policy_statements = [
+    "Allow user ${oci_identity_user.admin_runtime.name} to read objectstorage-namespaces in tenancy",
+    "Allow user ${oci_identity_user.admin_runtime.name} to manage objects in compartment id ${local.compartment_ocid}"
+  ]
+
   runtime_dynamic_group = "dynamic-group id ${oci_identity_dynamic_group.runtime_instances.id}"
 }
 
@@ -152,6 +167,23 @@ resource "oci_identity_policy" "runtime_secret_reader" {
   statements = [
     "Allow ${local.runtime_dynamic_group} to read secret-bundles in compartment id ${local.compartment_ocid}"
   ]
+
+  freeform_tags = var.tags
+
+  lifecycle {
+    precondition {
+      condition     = local.compartment_ocid != ""
+      error_message = "Set existing_compartment_ocid when create_compartment is false, or keep create_compartment true so Terraform can manage the project compartment."
+    }
+  }
+}
+
+resource "oci_identity_policy" "admin_runtime_object_access" {
+  provider       = oci.home
+  compartment_id = var.parent_compartment_ocid
+  name           = "${var.name_prefix}-admin-runtime-object-access-policy"
+  description    = "Allows the Autographs admin runtime IAM user to access private media objects."
+  statements     = local.admin_runtime_policy_statements
 
   freeform_tags = var.tags
 

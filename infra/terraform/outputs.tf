@@ -53,24 +53,24 @@ output "media_bucket_namespace" {
   value       = module.data_services.media_bucket_namespace
 }
 
-output "controller_vault_id" {
-  description = "OCI Vault OCID used by the private controller for runtime secrets."
-  value       = module.data_services.controller_vault_id
+output "admin_vault_id" {
+  description = "OCI Vault OCID used by the private admin for runtime secrets."
+  value       = module.data_services.admin_vault_id
 }
 
-output "controller_vault_key_id" {
-  description = "OCI Vault key OCID used to encrypt private controller runtime secrets."
-  value       = module.data_services.controller_vault_key_id
+output "admin_vault_key_id" {
+  description = "OCI Vault key OCID used to encrypt private admin runtime secrets."
+  value       = module.data_services.admin_vault_key_id
 }
 
-output "controller_s3_access_key_secret_name" {
-  description = "OCI Vault secret name for the controller OCI S3 access key."
-  value       = module.data_services.controller_s3_access_key_secret_name
+output "admin_access_key_secret_name" {
+  description = "OCI Vault secret name for the admin access key."
+  value       = module.data_services.admin_access_key_secret_name
 }
 
-output "controller_s3_secret_key_secret_name" {
-  description = "OCI Vault secret name for the controller OCI S3 secret key."
-  value       = module.data_services.controller_s3_secret_key_secret_name
+output "admin_secret_key_secret_name" {
+  description = "OCI Vault secret name for the admin secret key."
+  value       = module.data_services.admin_secret_key_secret_name
 }
 
 output "autographs_dns_fqdn" {

@@ -46,6 +46,18 @@ variable "runtime_dynamic_group_name" {
   type = string
 }
 
+variable "admin_runtime_user_name" {
+  type = string
+}
+
+variable "admin_runtime_user_description" {
+  type = string
+}
+
+variable "admin_runtime_user_email" {
+  type = string
+}
+
 variable "deploy_user_name" {
   type = string
 }

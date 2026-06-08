@@ -39,17 +39,17 @@ resource "oci_objectstorage_bucket" "media" {
   }
 }
 
-resource "oci_kms_vault" "controller" {
+resource "oci_kms_vault" "admin" {
   compartment_id = var.compartment_id
-  display_name   = var.controller_vault_name
-  vault_type     = var.controller_vault_type
+  display_name   = var.admin_vault_name
+  vault_type     = var.admin_vault_type
   freeform_tags  = var.tags
 }
 
-resource "oci_kms_key" "controller" {
+resource "oci_kms_key" "admin" {
   compartment_id      = var.compartment_id
-  display_name        = var.controller_vault_key_name
-  management_endpoint = oci_kms_vault.controller.management_endpoint
+  display_name        = var.admin_vault_key_name
+  management_endpoint = oci_kms_vault.admin.management_endpoint
   protection_mode     = "SOFTWARE"
   freeform_tags       = var.tags
 
@@ -59,17 +59,17 @@ resource "oci_kms_key" "controller" {
   }
 }
 
-resource "oci_vault_secret" "controller_s3_access_key" {
+resource "oci_vault_secret" "admin_access_key" {
   compartment_id = var.compartment_id
-  key_id         = oci_kms_key.controller.id
-  secret_name    = var.controller_s3_access_key_secret_name
-  vault_id       = oci_kms_vault.controller.id
-  description    = "Controller OCI S3 access key. Real value is operator-managed in OCI Vault."
+  key_id         = oci_kms_key.admin.id
+  secret_name    = var.admin_access_key_secret_name
+  vault_id       = oci_kms_vault.admin.id
+  description    = "Admin access key. Real value is operator-managed in OCI Vault."
   freeform_tags  = var.tags
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode("replace-with-operator-managed-controller-s3-access-key")
+    content      = base64encode("replace-with-operator-managed-admin-access-key")
     name         = "terraform-placeholder"
     stage        = "CURRENT"
   }
@@ -79,17 +79,17 @@ resource "oci_vault_secret" "controller_s3_access_key" {
   }
 }
 
-resource "oci_vault_secret" "controller_s3_secret_key" {
+resource "oci_vault_secret" "admin_secret_key" {
   compartment_id = var.compartment_id
-  key_id         = oci_kms_key.controller.id
-  secret_name    = var.controller_s3_secret_key_secret_name
-  vault_id       = oci_kms_vault.controller.id
-  description    = "Controller OCI S3 secret key. Real value is operator-managed in OCI Vault."
+  key_id         = oci_kms_key.admin.id
+  secret_name    = var.admin_secret_key_secret_name
+  vault_id       = oci_kms_vault.admin.id
+  description    = "Admin secret key. Real value is operator-managed in OCI Vault."
   freeform_tags  = var.tags
 
   secret_content {
     content_type = "BASE64"
-    content      = base64encode("replace-with-operator-managed-controller-s3-secret-key")
+    content      = base64encode("replace-with-operator-managed-admin-secret-key")
     name         = "terraform-placeholder"
     stage        = "CURRENT"
   }

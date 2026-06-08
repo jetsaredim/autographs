@@ -9,23 +9,26 @@ module "iam" {
     oci.home = oci.home
   }
 
-  name_prefix                = var.name_prefix
-  parent_compartment_ocid    = var.parent_compartment_ocid
-  tenancy_ocid               = var.tenancy_ocid
-  create_compartment         = var.create_compartment
-  existing_compartment_ocid  = var.existing_compartment_ocid
-  compartment_description    = var.compartment_description
-  deploy_group_name          = var.deploy_group_name
-  create_deploy_group        = var.create_deploy_group
-  operator_group_name        = var.operator_group_name
-  create_operator_group      = var.create_operator_group
-  create_deploy_user         = var.create_deploy_user
-  runtime_dynamic_group_name = var.runtime_dynamic_group_name
-  deploy_user_name           = var.deploy_user_name
-  deploy_user_description    = var.deploy_user_description
-  deploy_user_email          = var.deploy_user_email
-  deploy_user_api_public_key = var.deploy_user_api_public_key
-  tags                       = local.tags
+  name_prefix                    = var.name_prefix
+  parent_compartment_ocid        = var.parent_compartment_ocid
+  tenancy_ocid                   = var.tenancy_ocid
+  create_compartment             = var.create_compartment
+  existing_compartment_ocid      = var.existing_compartment_ocid
+  compartment_description        = var.compartment_description
+  deploy_group_name              = var.deploy_group_name
+  create_deploy_group            = var.create_deploy_group
+  operator_group_name            = var.operator_group_name
+  create_operator_group          = var.create_operator_group
+  create_deploy_user             = var.create_deploy_user
+  runtime_dynamic_group_name     = var.runtime_dynamic_group_name
+  admin_runtime_user_name        = var.admin_runtime_user_name
+  admin_runtime_user_description = var.admin_runtime_user_description
+  admin_runtime_user_email       = var.admin_runtime_user_email
+  deploy_user_name               = var.deploy_user_name
+  deploy_user_description        = var.deploy_user_description
+  deploy_user_email              = var.deploy_user_email
+  deploy_user_api_public_key     = var.deploy_user_api_public_key
+  tags                           = local.tags
 }
 
 module "state_bucket" {

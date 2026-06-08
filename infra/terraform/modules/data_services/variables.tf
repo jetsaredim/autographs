@@ -69,28 +69,28 @@ variable "media_bucket_versioning" {
   type        = string
 }
 
-variable "controller_vault_name" {
-  description = "Display name for the OCI Vault used by the private controller."
+variable "admin_vault_name" {
+  description = "Display name for the OCI Vault used by the private admin."
   type        = string
 }
 
-variable "controller_vault_type" {
-  description = "OCI Vault type for controller runtime secrets."
+variable "admin_vault_type" {
+  description = "OCI Vault type for admin runtime secrets."
   type        = string
 }
 
-variable "controller_vault_key_name" {
-  description = "Display name for the OCI Vault key used to encrypt controller runtime secrets."
+variable "admin_vault_key_name" {
+  description = "Display name for the OCI Vault key used to encrypt admin runtime secrets."
   type        = string
 }
 
-variable "controller_s3_access_key_secret_name" {
-  description = "OCI Vault secret name for the controller OCI S3 access key."
+variable "admin_access_key_secret_name" {
+  description = "OCI Vault secret name for the admin access key."
   type        = string
 }
 
-variable "controller_s3_secret_key_secret_name" {
-  description = "OCI Vault secret name for the controller OCI S3 secret key."
+variable "admin_secret_key_secret_name" {
+  description = "OCI Vault secret name for the admin secret key."
   type        = string
 }
 

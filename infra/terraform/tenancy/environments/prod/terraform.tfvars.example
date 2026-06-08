@@ -36,6 +36,10 @@ operator_group_name   = "autographs-operators"
 
 runtime_dynamic_group_name = "autographs-runtime-instances"
 
+admin_runtime_user_name        = "autographs-admin-runtime"
+admin_runtime_user_description = "Runtime IAM user for Autographs private admin media access."
+admin_runtime_user_email       = ""
+
 create_deploy_user      = true
 deploy_user_name        = "autographs-github-deploy"
 deploy_user_description = "GitHub Actions deployment user for Autographs."

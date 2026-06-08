@@ -130,6 +130,24 @@ variable "runtime_dynamic_group_name" {
   default     = "autographs-runtime-instances"
 }
 
+variable "admin_runtime_user_name" {
+  description = "OCI IAM user name whose Customer Secret credentials are used by the private admin runtime."
+  type        = string
+  default     = "autographs-admin-runtime"
+}
+
+variable "admin_runtime_user_description" {
+  description = "Description for the OCI IAM user used by the private admin runtime."
+  type        = string
+  default     = "Runtime IAM user for Autographs private admin media access."
+}
+
+variable "admin_runtime_user_email" {
+  description = "Optional email address for the OCI IAM user used by the private admin runtime."
+  type        = string
+  default     = ""
+}
+
 variable "deploy_user_name" {
   description = "Name of the OCI user used by GitHub deployment automation."
   type        = string
