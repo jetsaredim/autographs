@@ -6,7 +6,7 @@ use ring::{
     rand::SystemRandom,
     signature::{RSA_PKCS1_SHA256, RsaKeyPair},
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use time::{Month, OffsetDateTime, Weekday};
 
@@ -23,14 +23,6 @@ pub struct OciVaultConfig {
     region: String,
     vault_id: String,
     auth: OciApiKeyAuth,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct GetByNameRequest<'a> {
-    secret_name: &'a str,
-    vault_id: &'a str,
-    stage: &'static str,
 }
 
 #[derive(Deserialize)]
@@ -77,19 +69,20 @@ impl OciVaultConfig {
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
         let endpoint = format!("https://secrets.vaults.{}.oci.oraclecloud.com", self.region);
         let request_target = "/20190301/secretbundles/actions/getByName";
-        let url = format!("{endpoint}{request_target}");
+        let request_query = format!(
+            "secretName={}&vaultId={}&stage=CURRENT",
+            percent_encode(secret_name),
+            percent_encode(&self.vault_id)
+        );
+        let signed_target = format!("{request_target}?{request_query}");
+        let url = format!("{endpoint}{signed_target}");
         let host = format!("secrets.vaults.{}.oci.oraclecloud.com", self.region);
-        let body = serde_json::to_string(&GetByNameRequest {
-            secret_name,
-            vault_id: &self.vault_id,
-            stage: "CURRENT",
-        })
-        .map_err(|error| format!("serialize OCI Vault request: {error}"))?;
+        let body = "";
         let date = http_date();
         let content_sha256 = STANDARD.encode(Sha256::digest(body.as_bytes()));
         let content_length = body.len().to_string();
         let signing_string = format!(
-            "date: {date}\n(request-target): post {request_target}\nhost: {host}\nx-content-sha256: {content_sha256}\ncontent-type: application/json\ncontent-length: {content_length}"
+            "date: {date}\n(request-target): post {signed_target}\nhost: {host}\nx-content-sha256: {content_sha256}\ncontent-type: application/json\ncontent-length: {content_length}"
         );
         let signature = self.auth.sign(&signing_string)?;
         let authorization = format!(
@@ -105,7 +98,7 @@ impl OciVaultConfig {
             .header("content-type", "application/json")
             .header("content-length", content_length)
             .header("authorization", authorization)
-            .body(body)
+            .body(body.to_owned())
             .send()
             .map_err(|error| format!("fetch OCI Vault secret {secret_name}: {error}"))?;
         let status = response.status();
@@ -172,6 +165,18 @@ fn optional_env(name: &str) -> Option<String> {
         .ok()
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
+}
+
+fn percent_encode(value: &str) -> String {
+    value
+        .bytes()
+        .flat_map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                vec![byte as char]
+            }
+            _ => format!("%{byte:02X}").chars().collect(),
+        })
+        .collect()
 }
 
 fn http_date() -> String {

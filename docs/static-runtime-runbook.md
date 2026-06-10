@@ -21,7 +21,8 @@ OCI_S3_ENDPOINT=https://replace-with-namespace.compat.objectstorage.us-ashburn-1
 Then restart or redeploy `autographs-controller.service`. The deploy workflow
 passes the Terraform-created admin Vault OCID to the controller as
 `OCI_ADMIN_VAULT_ID`; the controller reads `autographs-admin-access-key` and
-`autographs-admin-secret-key` from Vault at startup. Do not hand-edit
+`autographs-admin-secret-key` from Vault at startup using the secret-name
+outputs from the runtime Terraform root. Do not hand-edit
 `controller.env` as the durable live switch; the next Ansible deploy owns that
 file and will render values from deploy variables.
 

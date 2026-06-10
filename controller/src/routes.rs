@@ -140,18 +140,9 @@ struct OciS3Credentials {
 
 #[cfg(feature = "production-persistence")]
 fn production_media_credentials() -> Result<OciS3Credentials, String> {
-    let direct_access_key = optional_env("OCI_S3_ACCESS_KEY");
-    let direct_secret_key = optional_env("OCI_S3_SECRET_KEY");
-    if let (Some(access_key), Some(secret_key)) = (direct_access_key, direct_secret_key) {
-        return Ok(OciS3Credentials {
-            access_key,
-            secret_key,
-        });
-    }
-
     let Some(vault) = crate::vault::OciVaultConfig::from_env()? else {
         return Err(
-            "OCI S3 credentials require OCI_S3_ACCESS_KEY/OCI_S3_SECRET_KEY or OCI_ADMIN_VAULT_ID with OCI API signing configuration"
+            "OCI S3 credentials require OCI_ADMIN_VAULT_ID with OCI API signing configuration"
                 .to_owned(),
         );
     };

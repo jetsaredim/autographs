@@ -140,25 +140,19 @@
         autographs_deploy_controller_media_storage_provider != 'oci-s3'
         or (
           lookup('env', 'OCI_S3_ENDPOINT') | default('', true) | trim | length > 0
-          and (
-            (
-              lookup('env', 'OCI_S3_ACCESS_KEY') | default('', true) | trim | length > 0
-              and lookup('env', 'OCI_S3_SECRET_KEY') | default('', true) | trim | length > 0
-            )
-            or (
-              lookup('env', 'OCI_ADMIN_VAULT_ID') | default('', true) | trim | length > 0
-              and lookup('env', 'OCI_TENANCY_OCID') | default('', true) | trim | length > 0
-              and lookup('env', 'OCI_CLI_USER_OCID') | default('', true) | trim | length > 0
-              and lookup('env', 'OCI_FINGERPRINT') | default('', true) | trim | length > 0
-              and lookup('env', 'OCI_PRIVATE_KEY_PEM') | default('', true) | trim | length > 0
-            )
-          )
+          and lookup('env', 'OCI_ADMIN_VAULT_ID') | default('', true) | trim | length > 0
+          and lookup('env', 'OCI_ADMIN_ACCESS_KEY_SECRET_NAME') | default('', true) | trim | length > 0
+          and lookup('env', 'OCI_ADMIN_SECRET_KEY_SECRET_NAME') | default('', true) | trim | length > 0
+          and lookup('env', 'OCI_TENANCY_OCID') | default('', true) | trim | length > 0
+          and lookup('env', 'OCI_CLI_USER_OCID') | default('', true) | trim | length > 0
+          and lookup('env', 'OCI_FINGERPRINT') | default('', true) | trim | length > 0
+          and lookup('env', 'OCI_PRIVATE_KEY_PEM') | default('', true) | trim | length > 0
         )
     fail_msg: >-
       Deployed controller providers must be persistent:
       AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle and
-      AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3 with either direct
-      OCI S3 credentials or OCI Vault coordinates for admin runtime credentials.
+      AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3 with OCI Vault
+      coordinates for admin runtime credentials.
   no_log: true
 
 - name: Validate deployed admin authentication secret

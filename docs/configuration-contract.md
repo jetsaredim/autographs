@@ -169,10 +169,8 @@ the runtime VM access to them.
 |----------|----------------|---------|
 | `OCI_S3_ENDPOINT` | runtime coordinate | OCI S3 compatibility endpoint |
 | `OCI_ADMIN_VAULT_ID` | runtime coordinate | OCI Vault OCID containing admin runtime Customer Secret values |
-| `OCI_ADMIN_ACCESS_KEY_SECRET_NAME` | runtime coordinate | Vault secret name for the admin access key; defaults to `autographs-admin-access-key` |
-| `OCI_ADMIN_SECRET_KEY_SECRET_NAME` | runtime coordinate | Vault secret name for the admin secret key; defaults to `autographs-admin-secret-key` |
-| `OCI_S3_ACCESS_KEY` | local/operator fallback secret | Optional direct Customer Secret access key for smoke or local runs |
-| `OCI_S3_SECRET_KEY` | local/operator fallback secret | Optional direct Customer Secret secret key for smoke or local runs |
+| `OCI_ADMIN_ACCESS_KEY_SECRET_NAME` | runtime coordinate | Vault secret name for the admin access key, passed from Terraform output |
+| `OCI_ADMIN_SECRET_KEY_SECRET_NAME` | runtime coordinate | Vault secret name for the admin secret key, passed from Terraform output |
 
 The static release root and current pointer live on the runtime VM. Public
 artifacts are generated inside the OCI boundary from Oracle metadata and
