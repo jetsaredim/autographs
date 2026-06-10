@@ -271,6 +271,41 @@ variable "media_bucket_versioning" {
   }
 }
 
+variable "admin_vault_name" {
+  description = "Display name for the OCI Vault used by the private admin."
+  type        = string
+  default     = "autographs-admin-vault"
+}
+
+variable "admin_vault_type" {
+  description = "OCI Vault type for admin runtime secrets."
+  type        = string
+  default     = "DEFAULT"
+
+  validation {
+    condition     = contains(["DEFAULT", "VIRTUAL_PRIVATE"], var.admin_vault_type)
+    error_message = "admin_vault_type must be DEFAULT or VIRTUAL_PRIVATE."
+  }
+}
+
+variable "admin_vault_key_name" {
+  description = "Display name for the OCI Vault key used to encrypt admin runtime secrets."
+  type        = string
+  default     = "autographs-admin-secrets-key"
+}
+
+variable "admin_access_key_secret_name" {
+  description = "OCI Vault secret name for the admin access key."
+  type        = string
+  default     = "autographs-admin-access-key"
+}
+
+variable "admin_secret_key_secret_name" {
+  description = "OCI Vault secret name for the admin secret key."
+  type        = string
+  default     = "autographs-admin-secret-key"
+}
+
 variable "porkbun_api_key" {
   description = "Porkbun API key used to manage DNS records."
   type        = string

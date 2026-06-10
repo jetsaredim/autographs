@@ -10,6 +10,14 @@ output "operator_policy_name" {
   value = oci_identity_policy.operator.name
 }
 
+output "runtime_secret_reader_policy_name" {
+  value = oci_identity_policy.runtime_secret_reader.name
+}
+
+output "admin_runtime_object_access_policy_name" {
+  value = oci_identity_policy.admin_runtime_object_access.name
+}
+
 output "deploy_group_id" {
   value = var.create_deploy_group ? oci_identity_group.deploy[0].id : null
 }
@@ -18,8 +26,28 @@ output "operator_group_id" {
   value = var.create_operator_group ? oci_identity_group.operator[0].id : null
 }
 
+output "admin_runtime_group_id" {
+  value = oci_identity_group.admin_runtime.id
+}
+
 output "deploy_user_id" {
   value = var.create_deploy_user ? oci_identity_user.deploy[0].id : null
+}
+
+output "admin_runtime_user_id" {
+  value = oci_identity_user.admin_runtime.id
+}
+
+output "admin_runtime_user_name" {
+  value = oci_identity_user.admin_runtime.name
+}
+
+output "runtime_dynamic_group_id" {
+  value = oci_identity_dynamic_group.runtime_instances.id
+}
+
+output "runtime_dynamic_group_name" {
+  value = var.runtime_dynamic_group_name
 }
 
 output "deploy_api_key_fingerprint" {

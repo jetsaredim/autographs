@@ -145,10 +145,24 @@ Runtime controller settings:
 | `AUTOGRAPHS_PUBLISH_MODE` | runtime coordinate | Defaults to incremental publishing |
 
 Public-safe derivative publishing may use OCI Object Storage S3 compatibility.
-Create OCI Customer Secret credentials for the runtime controller and supply
-them as GitHub deploy secrets so Ansible can render
-`/opt/autographs/env/controller.env`. These values are mounted only into the
-private controller container, not the public static artifacts.
+Create OCI Customer Secret credentials for the `autographs-admin-runtime` IAM
+user and supply them as GitHub deploy secrets so Ansible can render
+`/opt/autographs/env/controller.env`. These credentials are created manually by
+a tenancy administrator or Security Administrator after the tenancy Terraform
+root creates the admin runtime user and group; routine deploy/operator
+permissions intentionally do not include broad IAM credential administration.
+Store the same values in the runtime Terraform Vault secrets named
+`autographs-admin-access-key` and `autographs-admin-secret-key`, replacing the
+placeholder secret versions that Terraform creates. These values are mounted
+only into the private controller container, not the public static artifacts.
+
+The runtime dynamic group matches compute instances in the project compartment,
+which keeps tenancy bootstrap independent of runtime instance IDs. Its policy
+scopes secret-bundle reads to the two admin credential Vault secret names. Keep
+the tenancy-root `admin_access_key_secret_name` and
+`admin_secret_key_secret_name` values aligned with the runtime Terraform root so
+adding other Vault secrets in the project compartment does not implicitly grant
+the runtime VM access to them.
 
 | Variable | Classification | Purpose |
 |----------|----------------|---------|

@@ -94,7 +94,8 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+- Future naming/config refinement: after the admin rename and Vault-backed runtime credential path settle, review service names, env vars, Terraform variables, IAM identities, and deploy resources for over-wording or stale terminology. Include unnecessary create/enable Terraform booleans where resources are intended to be end-state managed by Terraform state; the runtime Vault secret-reader IAM change deliberately removed that pattern for the dynamic group and policy.
+- Future IAM refinement: review deploy-user permissions after the dedicated admin runtime identity exists, but do not assume permissions should be removed. The deploy user runs Terraform for much of the infrastructure, so broad permissions may remain justified when they are needed for provisioning even if runtime access moves to narrower identities.
 
 ### Blockers/Concerns
 

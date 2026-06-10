@@ -162,6 +162,16 @@ OCI_MEDIA_NAMESPACE=replace-with-object-storage-namespace
 OCI_MEDIA_BUCKET_NAME=autographs-media-prod
 ```
 
+The OCI S3 credentials must belong to the `autographs-admin-runtime` IAM user.
+The tenancy Terraform root creates that user, a dedicated
+`autographs-admin-runtime-media` group, membership, and a media-bucket-scoped
+object policy, but it does not create Customer Secret Keys. A tenancy
+administrator or Security Administrator must create the Customer Secret Key pair
+for `autographs-admin-runtime`, copy the access key and secret key into the
+runtime Terraform Vault secrets `autographs-admin-access-key` and
+`autographs-admin-secret-key`, and then provide those same values through the
+approved deploy secret path until the controller reads them directly from Vault.
+
 Load and run the image with Podman:
 
 ```bash
