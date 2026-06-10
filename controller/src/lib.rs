@@ -11,3 +11,5 @@ pub mod oracle_catalog;
 pub mod publisher;
 pub mod routes;
 pub mod storage_keys;
+#[cfg(feature = "production-persistence")]
+pub mod vault;

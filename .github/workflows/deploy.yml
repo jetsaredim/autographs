@@ -188,6 +188,7 @@ jobs:
 
     outputs:
       runtime_public_ip: ${{ steps.terraform_apply.outputs.runtime_public_ip }}
+      admin_vault_id: ${{ steps.terraform_apply.outputs.admin_vault_id }}
 
     steps:
       - name: Checkout
@@ -264,11 +265,11 @@ jobs:
           fi
           terraform apply -auto-approve
           echo "runtime_public_ip=$(terraform output -raw runtime_public_ip)" >> "$GITHUB_OUTPUT"
+          echo "admin_vault_id=$(terraform output -raw admin_vault_id)" >> "$GITHUB_OUTPUT"
 
   deploy-runtime:
     name: Deploy runtime to VM
     runs-on: ubuntu-latest
-    if: always() && needs.resolve-app-images.result == 'success' && needs.terraform-apply.result == 'success'
 
     needs:
       - resolve-app-images
@@ -287,6 +288,7 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_ADMIN_VAULT_ID: ${{ needs.terraform-apply.outputs.admin_vault_id }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
           OCI_S3_ACCESS_KEY: ${{ secrets.OCI_S3_ACCESS_KEY }}

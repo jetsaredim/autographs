@@ -146,15 +146,16 @@ Runtime controller settings:
 
 Public-safe derivative publishing may use OCI Object Storage S3 compatibility.
 Create OCI Customer Secret credentials for the `autographs-admin-runtime` IAM
-user and supply them as GitHub deploy secrets so Ansible can render
-`/opt/autographs/env/controller.env`. These credentials are created manually by
-a tenancy administrator or Security Administrator after the tenancy Terraform
-root creates the admin runtime user and group; routine deploy/operator
-permissions intentionally do not include broad IAM credential administration.
-Store the same values in the runtime Terraform Vault secrets named
+user. These credentials are created manually by a tenancy administrator or
+Security Administrator after the tenancy Terraform root creates the admin
+runtime user and group; routine deploy/operator permissions intentionally do
+not include broad IAM credential administration. Store the values in the runtime
+Terraform Vault secrets named
 `autographs-admin-access-key` and `autographs-admin-secret-key`, replacing the
-placeholder secret versions that Terraform creates. These values are mounted
-only into the private controller container, not the public static artifacts.
+placeholder secret versions that Terraform creates. Deploy passes the Vault OCID
+and secret names to the controller, and the controller fetches the values from
+Vault at startup. These values are used only by the private controller
+container, not the public static artifacts.
 
 The runtime dynamic group matches compute instances in the project compartment,
 which keeps tenancy bootstrap independent of runtime instance IDs. Its policy
@@ -167,8 +168,11 @@ the runtime VM access to them.
 | Variable | Classification | Purpose |
 |----------|----------------|---------|
 | `OCI_S3_ENDPOINT` | runtime coordinate | OCI S3 compatibility endpoint |
-| `OCI_S3_ACCESS_KEY` | runtime secret | Customer Secret access key |
-| `OCI_S3_SECRET_KEY` | runtime secret | Customer Secret secret key |
+| `OCI_ADMIN_VAULT_ID` | runtime coordinate | OCI Vault OCID containing admin runtime Customer Secret values |
+| `OCI_ADMIN_ACCESS_KEY_SECRET_NAME` | runtime coordinate | Vault secret name for the admin access key; defaults to `autographs-admin-access-key` |
+| `OCI_ADMIN_SECRET_KEY_SECRET_NAME` | runtime coordinate | Vault secret name for the admin secret key; defaults to `autographs-admin-secret-key` |
+| `OCI_S3_ACCESS_KEY` | local/operator fallback secret | Optional direct Customer Secret access key for smoke or local runs |
+| `OCI_S3_SECRET_KEY` | local/operator fallback secret | Optional direct Customer Secret secret key for smoke or local runs |
 
 The static release root and current pointer live on the runtime VM. Public
 artifacts are generated inside the OCI boundary from Oracle metadata and

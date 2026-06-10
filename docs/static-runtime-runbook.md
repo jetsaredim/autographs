@@ -16,12 +16,12 @@ renders `/opt/autographs/env/controller.env` intentionally:
 AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle
 AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3
 OCI_S3_ENDPOINT=https://replace-with-namespace.compat.objectstorage.us-ashburn-1.oraclecloud.com
-OCI_S3_ACCESS_KEY=replace-with-customer-secret-access-key
-OCI_S3_SECRET_KEY=replace-with-customer-secret-secret-key
 ```
 
-Then restart or redeploy `autographs-controller.service`. Keep the Customer
-Secret values scoped to the private controller deploy path. Do not hand-edit
+Then restart or redeploy `autographs-controller.service`. The deploy workflow
+passes the Terraform-created admin Vault OCID to the controller as
+`OCI_ADMIN_VAULT_ID`; the controller reads `autographs-admin-access-key` and
+`autographs-admin-secret-key` from Vault at startup. Do not hand-edit
 `controller.env` as the durable live switch; the next Ansible deploy owns that
 file and will render values from deploy variables.
 
@@ -169,8 +169,8 @@ object policy, but it does not create Customer Secret Keys. A tenancy
 administrator or Security Administrator must create the Customer Secret Key pair
 for `autographs-admin-runtime`, copy the access key and secret key into the
 runtime Terraform Vault secrets `autographs-admin-access-key` and
-`autographs-admin-secret-key`, and then provide those same values through the
-approved deploy secret path until the controller reads them directly from Vault.
+`autographs-admin-secret-key`, then redeploy so the controller can fetch those
+Vault values.
 
 Load and run the image with Podman:
 

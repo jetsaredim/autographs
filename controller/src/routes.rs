@@ -122,13 +122,47 @@ fn production_repository() -> Result<Arc<dyn CatalogRepository>, String> {
 fn production_media_store() -> Result<Arc<dyn PrivateMediaStore>, String> {
     use crate::oci_media::OciS3MediaStore;
 
+    let credentials = production_media_credentials()?;
     Ok(Arc::new(OciS3MediaStore::new(
         required_env("OCI_MEDIA_BUCKET_NAME")?,
         env::var("OCI_REGION").unwrap_or_else(|_| "us-ashburn-1".to_owned()),
         required_env("OCI_S3_ENDPOINT")?,
-        required_env("OCI_S3_ACCESS_KEY")?,
-        required_env("OCI_S3_SECRET_KEY")?,
+        credentials.access_key,
+        credentials.secret_key,
     )?))
+}
+
+#[cfg(feature = "production-persistence")]
+struct OciS3Credentials {
+    access_key: String,
+    secret_key: String,
+}
+
+#[cfg(feature = "production-persistence")]
+fn production_media_credentials() -> Result<OciS3Credentials, String> {
+    let direct_access_key = optional_env("OCI_S3_ACCESS_KEY");
+    let direct_secret_key = optional_env("OCI_S3_SECRET_KEY");
+    if let (Some(access_key), Some(secret_key)) = (direct_access_key, direct_secret_key) {
+        return Ok(OciS3Credentials {
+            access_key,
+            secret_key,
+        });
+    }
+
+    let Some(vault) = crate::vault::OciVaultConfig::from_env()? else {
+        return Err(
+            "OCI S3 credentials require OCI_S3_ACCESS_KEY/OCI_S3_SECRET_KEY or OCI_ADMIN_VAULT_ID with OCI API signing configuration"
+                .to_owned(),
+        );
+    };
+    let access_key_secret_name = env::var("OCI_ADMIN_ACCESS_KEY_SECRET_NAME")
+        .unwrap_or_else(|_| "autographs-admin-access-key".to_owned());
+    let secret_key_secret_name = env::var("OCI_ADMIN_SECRET_KEY_SECRET_NAME")
+        .unwrap_or_else(|_| "autographs-admin-secret-key".to_owned());
+    Ok(OciS3Credentials {
+        access_key: vault.get_secret_by_name(&access_key_secret_name)?,
+        secret_key: vault.get_secret_by_name(&secret_key_secret_name)?,
+    })
 }
 
 #[cfg(not(feature = "production-persistence"))]
@@ -138,10 +172,15 @@ fn production_media_store() -> Result<Arc<dyn PrivateMediaStore>, String> {
 
 #[cfg(feature = "production-persistence")]
 fn required_env(name: &str) -> Result<String, String> {
+    optional_env(name).ok_or_else(|| format!("{name} is required"))
+}
+
+#[cfg(feature = "production-persistence")]
+fn optional_env(name: &str) -> Option<String> {
     env::var(name)
         .ok()
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| format!("{name} is required"))
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
 }
 
 pub fn router_with_stores(
