@@ -1,4 +1,4 @@
-FROM node:22-alpine AS deps
+FROM node:24.16.0-alpine AS deps
 
 WORKDIR /workspace
 
@@ -6,7 +6,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY app/package.json app/package.json
 RUN corepack enable && corepack prepare pnpm@11.3.0 --activate && pnpm install --frozen-lockfile --filter app...
 
-FROM node:22-alpine AS builder
+FROM node:24.16.0-alpine AS builder
 
 WORKDIR /workspace
 
@@ -26,7 +26,7 @@ COPY app/public app/public
 
 RUN corepack enable && corepack prepare pnpm@11.3.0 --activate && pnpm --filter app build
 
-FROM node:22-alpine AS runner
+FROM node:24.16.0-alpine AS runner
 
 WORKDIR /workspace/app
 ENV NODE_ENV=production

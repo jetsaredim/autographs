@@ -3,7 +3,7 @@
   "private": true,
   "description": "Production-lean personal autograph collection site built with Next.js, Oracle, OCI Object Storage, and GitHub Actions.",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24.16.0"
   },
   "packageManager": "pnpm@11.3.0",
   "scripts": {
