@@ -151,18 +151,14 @@ user and supply them as GitHub deploy secrets so Ansible can render
 a tenancy administrator or Security Administrator after the tenancy Terraform
 root creates the admin runtime user and group; routine deploy/operator
 permissions intentionally do not include broad IAM credential administration.
-Store the same values in the runtime Terraform Vault secrets named
-`autographs-admin-access-key` and `autographs-admin-secret-key`, replacing the
-placeholder secret versions that Terraform creates. These values are mounted
-only into the private controller container, not the public static artifacts.
+These values are mounted only into the private controller container, not the
+public static artifacts.
 
 The runtime dynamic group matches compute instances in the project compartment,
-which keeps tenancy bootstrap independent of runtime instance IDs. Its policy
-scopes secret-bundle reads to the two admin credential Vault secret names. Keep
-the tenancy-root `admin_access_key_secret_name` and
-`admin_secret_key_secret_name` values aligned with the runtime Terraform root so
-adding other Vault secrets in the project compartment does not implicitly grant
-the runtime VM access to them.
+which keeps tenancy bootstrap independent of runtime instance IDs. Follow-up
+instance-principal work will move controller media access from S3 Customer
+Secret credentials to bucket-scoped Object Storage permissions on that dynamic
+group.
 
 | Variable | Classification | Purpose |
 |----------|----------------|---------|

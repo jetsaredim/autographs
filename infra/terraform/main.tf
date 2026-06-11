@@ -47,11 +47,6 @@ module "data_services" {
   media_bucket_namespace                          = var.media_bucket_namespace
   media_bucket_name                               = var.media_bucket_name
   media_bucket_versioning                         = var.media_bucket_versioning
-  admin_vault_name                                = var.admin_vault_name
-  admin_vault_type                                = var.admin_vault_type
-  admin_vault_key_name                            = var.admin_vault_key_name
-  admin_access_key_secret_name                    = var.admin_access_key_secret_name
-  admin_secret_key_secret_name                    = var.admin_secret_key_secret_name
   compartment_id                                  = var.compartment_ocid
   tags                                            = local.tags
 }

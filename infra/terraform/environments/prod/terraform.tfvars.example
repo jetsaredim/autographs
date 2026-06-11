@@ -61,9 +61,3 @@ create_media_bucket     = false
 media_bucket_namespace  = "replace-with-your-object-storage-namespace"
 media_bucket_name       = "autographs-media-prod"
 media_bucket_versioning = "Enabled"
-
-admin_vault_name                = "autographs-admin-vault"
-admin_vault_type                = "DEFAULT"
-admin_vault_key_name            = "autographs-admin-secrets-key"
-admin_access_key_secret_name = "autographs-admin-access-key"
-admin_secret_key_secret_name = "autographs-admin-secret-key"
