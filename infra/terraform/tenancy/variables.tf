@@ -125,7 +125,7 @@ variable "deploy_user_api_public_key" {
 }
 
 variable "media_bucket_name" {
-  description = "Private Object Storage bucket name that the admin runtime IAM user can access."
+  description = "Private Object Storage bucket name that runtime instance principals can access."
   type        = string
   default     = "autographs-media-prod"
 }

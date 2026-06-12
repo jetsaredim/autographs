@@ -119,7 +119,7 @@ locals {
 
   runtime_object_access_policy_statements = [
     "Allow ${local.runtime_dynamic_group} to read objectstorage-namespaces in tenancy",
-    "Allow ${local.runtime_dynamic_group} to read buckets in compartment id ${local.compartment_ocid}",
+    "Allow ${local.runtime_dynamic_group} to read buckets in compartment id ${local.compartment_ocid} where target.bucket.name = '${var.media_bucket_name}'",
     "Allow ${local.runtime_dynamic_group} to manage objects in compartment id ${local.compartment_ocid} where target.bucket.name = '${var.media_bucket_name}'"
   ]
 }

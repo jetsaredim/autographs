@@ -26,6 +26,8 @@ Updated tenancy IAM for the instance-principal Object Storage direction:
   why PR CI validates tenancy Terraform without running a live tenancy plan.
 - Documented the intentional compartment-scoped runtime dynamic group decision
   and added missing import examples for unconditional tenancy resources.
+- Scoped runtime dynamic-group bucket reads to the private media bucket and
+  updated stale tenancy variable wording for instance-principal access.
 
 Verification:
 
