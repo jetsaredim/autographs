@@ -167,10 +167,9 @@ The tenancy Terraform root creates that user, a dedicated
 `autographs-admin-runtime-media` group, membership, and a media-bucket-scoped
 object policy, but it does not create Customer Secret Keys. A tenancy
 administrator or Security Administrator must create the Customer Secret Key pair
-for `autographs-admin-runtime`, copy the access key and secret key into the
-runtime Terraform Vault secrets `autographs-admin-access-key` and
-`autographs-admin-secret-key`, and then provide those same values through the
-approved deploy secret path until the controller reads them directly from Vault.
+for `autographs-admin-runtime`, then provide those values through the approved
+deploy secret path until the controller moves to OCI instance-principal Object
+Storage access.
 
 Load and run the image with Podman:
 

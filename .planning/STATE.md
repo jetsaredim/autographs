@@ -125,3 +125,4 @@ Resume file: .planning/phases/05-static-runtime-migration-foundation/05-07-PLAN.
 | 2026-05-25 | reorder-showcase-before-admin | Moved Public Showcase and Hardening ahead of Admin Collection Workflow so hardening/docs polish run next. |
 | 2026-05-25 | reconcile-phase-reorder-review | Addressed post-merge review warnings from PR #65 by aligning phase criteria and generated docs. |
 | 2026-05-26 | reconcile-planning-state-after-phase-4-c | Marked Phase 4 requirements complete and captured static-runtime pivot research as next-phase planning context. |
+| 2026-06-11 | remove-obsolete-runtime-vault-s3-credent | Removed runtime Terraform Vault/KMS/secret resources that are no longer needed for the instance-principal Object Storage direction. |
