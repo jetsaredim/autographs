@@ -26,20 +26,8 @@ variable "deploy_group_name" {
   type = string
 }
 
-variable "create_deploy_group" {
-  type = bool
-}
-
 variable "operator_group_name" {
   type = string
-}
-
-variable "create_operator_group" {
-  type = bool
-}
-
-variable "create_deploy_user" {
-  type = bool
 }
 
 variable "runtime_dynamic_group_name" {

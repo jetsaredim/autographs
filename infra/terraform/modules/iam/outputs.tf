@@ -15,15 +15,15 @@ output "runtime_object_access_policy_name" {
 }
 
 output "deploy_group_id" {
-  value = var.create_deploy_group ? oci_identity_group.deploy[0].id : null
+  value = oci_identity_group.deploy.id
 }
 
 output "operator_group_id" {
-  value = var.create_operator_group ? oci_identity_group.operator[0].id : null
+  value = oci_identity_group.operator.id
 }
 
 output "deploy_user_id" {
-  value = var.create_deploy_user ? oci_identity_user.deploy[0].id : null
+  value = oci_identity_user.deploy.id
 }
 
 output "runtime_dynamic_group_id" {
@@ -35,5 +35,5 @@ output "runtime_dynamic_group_name" {
 }
 
 output "deploy_api_key_fingerprint" {
-  value = var.create_deploy_user && var.deploy_user_api_public_key != "" ? oci_identity_api_key.deploy[0].fingerprint : null
+  value = var.deploy_user_api_public_key != "" ? oci_identity_api_key.deploy[0].fingerprint : null
 }

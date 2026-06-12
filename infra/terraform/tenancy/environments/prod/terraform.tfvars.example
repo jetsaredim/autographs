@@ -29,14 +29,11 @@ compartment_description  = "Autographs production resources"
 
 owner_email = "collector@example.com"
 
-create_deploy_group   = true
-deploy_group_name     = "autographs-deployers"
-create_operator_group = true
-operator_group_name   = "autographs-operators"
+deploy_group_name   = "autographs-deployers"
+operator_group_name = "autographs-operators"
 
 runtime_dynamic_group_name = "autographs-runtime-instances"
 
-create_deploy_user      = true
 deploy_user_name        = "autographs-github-deploy"
 deploy_user_description = "GitHub Actions deployment user for Autographs."
 deploy_user_email       = ""

@@ -91,6 +91,9 @@ The baseline is intentionally compartment-scoped:
 Terraform creates the `autographs-operators` group and policy boundary, but it
 does not create or assign human operator users. Add your human or federated OCI
 identity to that group manually through the tenancy's normal identity process.
+The deploy group, operator group, and GitHub deploy user are end-state managed
+by Terraform; import existing resources before applying if they were created
+manually.
 
 If you need broader tenancy admin access during day zero, keep it outside the
 steady-state deploy identity and remove it from normal operations once bootstrap

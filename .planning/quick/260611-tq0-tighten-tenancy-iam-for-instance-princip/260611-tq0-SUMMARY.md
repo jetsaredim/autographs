@@ -16,6 +16,8 @@ Updated tenancy IAM for the instance-principal Object Storage direction:
 - Scoped operator object access to the private media bucket while preserving the operator group.
 - Added CI tenancy Terraform validation with backend disabled so PRs catch syntax
   and provider-schema issues in `infra/terraform/tenancy`.
+- Removed no-longer-useful create toggles for deploy/operator groups and the
+  deploy user; those identities are now end-state managed by the tenancy root.
 
 Verification:
 

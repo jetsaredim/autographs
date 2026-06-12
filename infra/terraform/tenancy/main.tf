@@ -16,10 +16,7 @@ module "iam" {
   existing_compartment_ocid  = var.existing_compartment_ocid
   compartment_description    = var.compartment_description
   deploy_group_name          = var.deploy_group_name
-  create_deploy_group        = var.create_deploy_group
   operator_group_name        = var.operator_group_name
-  create_operator_group      = var.create_operator_group
-  create_deploy_user         = var.create_deploy_user
   runtime_dynamic_group_name = var.runtime_dynamic_group_name
   deploy_user_name           = var.deploy_user_name
   deploy_user_description    = var.deploy_user_description

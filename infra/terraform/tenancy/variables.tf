@@ -100,28 +100,10 @@ variable "deploy_group_name" {
   default     = "autographs-deployers"
 }
 
-variable "create_deploy_group" {
-  description = "Whether the tenancy root should create the deploy group."
-  type        = bool
-  default     = true
-}
-
 variable "operator_group_name" {
   description = "OCI group name used by the human operator."
   type        = string
   default     = "autographs-operators"
-}
-
-variable "create_operator_group" {
-  description = "Whether the tenancy root should create the operator group."
-  type        = bool
-  default     = true
-}
-
-variable "create_deploy_user" {
-  description = "Whether the tenancy root should create the GitHub deployment user."
-  type        = bool
-  default     = true
 }
 
 variable "runtime_dynamic_group_name" {

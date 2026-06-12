@@ -1,3 +1,23 @@
+moved {
+  from = oci_identity_group.deploy[0]
+  to   = oci_identity_group.deploy
+}
+
+moved {
+  from = oci_identity_group.operator[0]
+  to   = oci_identity_group.operator
+}
+
+moved {
+  from = oci_identity_user.deploy[0]
+  to   = oci_identity_user.deploy
+}
+
+moved {
+  from = oci_identity_user_group_membership.deploy[0]
+  to   = oci_identity_user_group_membership.deploy
+}
+
 resource "oci_identity_compartment" "project" {
   provider       = oci.home
   count          = var.create_compartment ? 1 : 0
@@ -11,7 +31,6 @@ resource "oci_identity_compartment" "project" {
 
 resource "oci_identity_group" "deploy" {
   provider       = oci.home
-  count          = var.create_deploy_group ? 1 : 0
   compartment_id = var.parent_compartment_ocid
   name           = var.deploy_group_name
   description    = "Least-privilege deployment automation group for Autographs."
@@ -21,7 +40,6 @@ resource "oci_identity_group" "deploy" {
 
 resource "oci_identity_group" "operator" {
   provider       = oci.home
-  count          = var.create_operator_group ? 1 : 0
   compartment_id = var.parent_compartment_ocid
   name           = var.operator_group_name
   description    = "Human operator group for Autographs day-two management."
@@ -31,7 +49,6 @@ resource "oci_identity_group" "operator" {
 
 resource "oci_identity_user" "deploy" {
   provider       = oci.home
-  count          = var.create_deploy_user ? 1 : 0
   compartment_id = var.parent_compartment_ocid
   name           = var.deploy_user_name
   description    = var.deploy_user_description
@@ -42,10 +59,9 @@ resource "oci_identity_user" "deploy" {
 
 resource "oci_identity_user_group_membership" "deploy" {
   provider       = oci.home
-  count          = var.create_deploy_user && var.create_deploy_group ? 1 : 0
   compartment_id = var.parent_compartment_ocid
-  group_id       = oci_identity_group.deploy[0].id
-  user_id        = oci_identity_user.deploy[0].id
+  group_id       = oci_identity_group.deploy.id
+  user_id        = oci_identity_user.deploy.id
 }
 
 resource "oci_identity_dynamic_group" "runtime_instances" {
@@ -67,15 +83,15 @@ resource "oci_identity_dynamic_group" "runtime_instances" {
 
 resource "oci_identity_api_key" "deploy" {
   provider  = oci.home
-  count     = var.create_deploy_user && var.deploy_user_api_public_key != "" ? 1 : 0
-  user_id   = oci_identity_user.deploy[0].id
+  count     = var.deploy_user_api_public_key != "" ? 1 : 0
+  user_id   = oci_identity_user.deploy.id
   key_value = var.deploy_user_api_public_key
 }
 
 locals {
   compartment_ocid      = var.create_compartment ? oci_identity_compartment.project[0].id : var.existing_compartment_ocid
-  deploy_group          = var.create_deploy_group ? "group id ${oci_identity_group.deploy[0].id}" : "group ${var.deploy_group_name}"
-  operator_group        = var.create_operator_group ? "group id ${oci_identity_group.operator[0].id}" : "group ${var.operator_group_name}"
+  deploy_group          = "group id ${oci_identity_group.deploy.id}"
+  operator_group        = "group id ${oci_identity_group.operator.id}"
   runtime_dynamic_group = "dynamic-group id ${oci_identity_dynamic_group.runtime_instances.id}"
 
   deploy_policy_statements = [
