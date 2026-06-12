@@ -43,26 +43,32 @@ cp infra/terraform/tenancy/environments/prod/terraform.tfvars.example \
   infra/terraform/tenancy/environments/prod/terraform.tfvars
 ```
 
-2. Start the tenancy root with local state so Terraform can create the remote
+2. Start the tenancy root with local state.
+
+```bash
+.tools/terraform/terraform -chdir=infra/terraform/tenancy init -backend=false
+```
+
+3. If the bucket, compartment, deploy identity, or policy resources had to be
+   created manually first, import them before the first plan/apply. Follow
+   [imports.md](../infra/terraform/bootstrap/imports.md).
+
+4. Plan and apply the tenancy root so Terraform creates or updates the remote
    backend bucket, project compartment, deploy/operator identities, and IAM
    policy baseline.
 
 ```bash
-.tools/terraform/terraform -chdir=infra/terraform/tenancy init -backend=false
 .tools/terraform/terraform -chdir=infra/terraform/tenancy plan \
   -var-file=environments/prod/terraform.tfvars
 .tools/terraform/terraform -chdir=infra/terraform/tenancy apply \
   -var-file=environments/prod/terraform.tfvars
 ```
 
-3. If the bucket or compartment had to be created manually first, import it
-   before migrating state. Follow [imports.md](../infra/terraform/bootstrap/imports.md).
-
-4. Create a local `infra/terraform/bootstrap/backend.hcl` from the example
+5. Create a local `infra/terraform/bootstrap/backend.hcl` from the example
    file. Keep sensitive credentials out of that file when possible and prefer
    environment variables or interactive entry.
 
-5. Migrate the existing tenancy local state into OCI Object Storage. The
+6. Migrate the existing tenancy local state into OCI Object Storage. The
    tenancy state must use the `envs/prod/tenancy-bootstrap.tfstate` key.
 
 ```bash
@@ -72,7 +78,7 @@ cp infra/terraform/tenancy/environments/prod/terraform.tfvars.example \
   -backend-config=key=envs/prod/tenancy-bootstrap.tfstate
 ```
 
-6. Re-run the tenancy plan after migration. From this point on, treat the
+7. Re-run the tenancy plan after migration. From this point on, treat the
    remote OCI backend as the source of truth.
 
 ```bash
@@ -80,7 +86,7 @@ cp infra/terraform/tenancy/environments/prod/terraform.tfvars.example \
   -var-file=environments/prod/terraform.tfvars
 ```
 
-7. After the tenancy root is applied, configure and run the runtime application
+8. After the tenancy root is applied, configure and run the runtime application
    root in `infra/terraform/`. Its remote backend should continue to use the
    runtime state key, `envs/prod/terraform.tfstate`.
 

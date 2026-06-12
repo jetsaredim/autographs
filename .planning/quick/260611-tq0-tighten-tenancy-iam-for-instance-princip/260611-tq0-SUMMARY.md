@@ -22,6 +22,8 @@ Updated tenancy IAM for the instance-principal Object Storage direction:
   bucket, with Terraform moved blocks to preserve state addresses.
 - Updated the OCI bootstrap runbook to apply the tenancy root before the
   runtime root and to use the tenancy state backend key.
+- Reordered bootstrap import guidance before tenancy plan/apply and documented
+  why PR CI validates tenancy Terraform without running a live tenancy plan.
 
 Verification:
 
