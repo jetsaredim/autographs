@@ -44,6 +44,11 @@ terraform -chdir=infra/terraform/tenancy import \
   -var-file=environments/prod/terraform.tfvars \
   module.iam.oci_identity_policy.operator \
   'ocid1.policy.oc1..replace_me'
+
+terraform -chdir=infra/terraform/tenancy import \
+  -var-file=environments/prod/terraform.tfvars \
+  module.iam.oci_identity_policy.runtime_object_access \
+  'ocid1.policy.oc1..replace_me'
 ```
 
 ### State bucket created manually to break the backend bootstrap paradox
@@ -57,7 +62,7 @@ terraform -chdir=infra/terraform/tenancy import \
   'n/<namespace>/b/<bucket_name>'
 ```
 
-### Deploy group, deploy user, and API key created manually
+### Groups, dynamic group, deploy user, and API key created manually
 
 ```bash
 terraform -chdir=infra/terraform/tenancy import \
@@ -67,8 +72,23 @@ terraform -chdir=infra/terraform/tenancy import \
 
 terraform -chdir=infra/terraform/tenancy import \
   -var-file=environments/prod/terraform.tfvars \
+  module.iam.oci_identity_group.operator \
+  'ocid1.group.oc1..replace_me'
+
+terraform -chdir=infra/terraform/tenancy import \
+  -var-file=environments/prod/terraform.tfvars \
   module.iam.oci_identity_user.deploy \
   'ocid1.user.oc1..replace_me'
+
+terraform -chdir=infra/terraform/tenancy import \
+  -var-file=environments/prod/terraform.tfvars \
+  module.iam.oci_identity_user_group_membership.deploy \
+  'ocid1.groupmembership.oc1..replace_me'
+
+terraform -chdir=infra/terraform/tenancy import \
+  -var-file=environments/prod/terraform.tfvars \
+  module.iam.oci_identity_dynamic_group.runtime_instances \
+  'ocid1.dynamicgroup.oc1..replace_me'
 
 terraform -chdir=infra/terraform/tenancy import \
   -var-file=environments/prod/terraform.tfvars \

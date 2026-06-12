@@ -24,6 +24,8 @@ Updated tenancy IAM for the instance-principal Object Storage direction:
   runtime root and to use the tenancy state backend key.
 - Reordered bootstrap import guidance before tenancy plan/apply and documented
   why PR CI validates tenancy Terraform without running a live tenancy plan.
+- Documented the intentional compartment-scoped runtime dynamic group decision
+  and added missing import examples for unconditional tenancy resources.
 
 Verification:
 

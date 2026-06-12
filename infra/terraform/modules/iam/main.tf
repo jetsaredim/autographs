@@ -73,7 +73,9 @@ resource "oci_identity_dynamic_group" "runtime_instances" {
   compartment_id = var.tenancy_ocid
   name           = var.runtime_dynamic_group_name
   description    = "Autographs runtime VM instances allowed to use instance principal authentication."
-  matching_rule  = "ALL {instance.compartment.id = '${local.compartment_ocid}'}"
+  # Keep this scoped to the project compartment to avoid a circular dependency
+  # between tenancy IAM and the runtime instance created by the deployment root.
+  matching_rule = "ALL {instance.compartment.id = '${local.compartment_ocid}'}"
 
   freeform_tags = var.tags
 }

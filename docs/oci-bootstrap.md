@@ -113,6 +113,13 @@ The baseline is intentionally compartment-scoped:
   access through OCI instance principals.
 - Routine deployment should not need tenancy-wide `manage all-resources`.
 
+The runtime dynamic group intentionally matches instances in the single-purpose
+project compartment rather than a specific runtime instance OCID. That avoids a
+circular dependency between tenancy IAM and the runtime instance created by the
+deployment root. Do not place unrelated VMs in the Autographs project
+compartment without first splitting the dynamic-group selector or compartment
+model.
+
 Terraform creates the `autographs-operators` group and policy boundary, but it
 does not create or assign human operator users. Add your human or federated OCI
 identity to that group manually through the tenancy's normal identity process.
