@@ -84,11 +84,11 @@ terraform -chdir=infra/terraform/tenancy init -backend=false
 
 terraform -chdir=infra/terraform/tenancy import \
   -var-file=environments/prod/terraform.tfvars \
-  'module.iam.oci_identity_group.deploy[0]' '<deploy-group-ocid>'
+  module.iam.oci_identity_group.deploy '<deploy-group-ocid>'
 
 terraform -chdir=infra/terraform/tenancy import \
   -var-file=environments/prod/terraform.tfvars \
-  'module.iam.oci_identity_user.deploy[0]' '<deploy-user-ocid>'
+  module.iam.oci_identity_user.deploy '<deploy-user-ocid>'
 ```
 
 Repeat for any manually created operator group, membership, or API key that

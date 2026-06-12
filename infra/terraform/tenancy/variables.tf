@@ -70,18 +70,6 @@ variable "parent_compartment_ocid" {
   type        = string
 }
 
-variable "existing_compartment_ocid" {
-  description = "Existing project compartment OCID to use when create_compartment is false."
-  type        = string
-  default     = ""
-}
-
-variable "create_compartment" {
-  description = "Whether Terraform should create the project compartment."
-  type        = bool
-  default     = true
-}
-
 variable "compartment_description" {
   description = "Description for the project compartment."
   type        = string
@@ -140,12 +128,6 @@ variable "media_bucket_name" {
   description = "Private Object Storage bucket name that the admin runtime IAM user can access."
   type        = string
   default     = "autographs-media-prod"
-}
-
-variable "create_state_bucket" {
-  description = "Whether Terraform should create the remote state bucket."
-  type        = bool
-  default     = true
 }
 
 variable "state_bucket_name" {

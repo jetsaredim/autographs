@@ -18,9 +18,13 @@ moved {
   to   = oci_identity_user_group_membership.deploy
 }
 
+moved {
+  from = oci_identity_compartment.project[0]
+  to   = oci_identity_compartment.project
+}
+
 resource "oci_identity_compartment" "project" {
   provider       = oci.home
-  count          = var.create_compartment ? 1 : 0
   compartment_id = var.parent_compartment_ocid
   name           = "${var.name_prefix}-cmp"
   description    = var.compartment_description
@@ -72,13 +76,6 @@ resource "oci_identity_dynamic_group" "runtime_instances" {
   matching_rule  = "ALL {instance.compartment.id = '${local.compartment_ocid}'}"
 
   freeform_tags = var.tags
-
-  lifecycle {
-    precondition {
-      condition     = local.compartment_ocid != ""
-      error_message = "Set existing_compartment_ocid when create_compartment is false, or keep create_compartment true so Terraform can manage the project compartment."
-    }
-  }
 }
 
 resource "oci_identity_api_key" "deploy" {
@@ -89,7 +86,7 @@ resource "oci_identity_api_key" "deploy" {
 }
 
 locals {
-  compartment_ocid      = var.create_compartment ? oci_identity_compartment.project[0].id : var.existing_compartment_ocid
+  compartment_ocid      = oci_identity_compartment.project.id
   deploy_group          = "group id ${oci_identity_group.deploy.id}"
   operator_group        = "group id ${oci_identity_group.operator.id}"
   runtime_dynamic_group = "dynamic-group id ${oci_identity_dynamic_group.runtime_instances.id}"
@@ -133,13 +130,6 @@ resource "oci_identity_policy" "deploy" {
   statements     = local.deploy_policy_statements
 
   freeform_tags = var.tags
-
-  lifecycle {
-    precondition {
-      condition     = local.compartment_ocid != ""
-      error_message = "Set existing_compartment_ocid when create_compartment is false, or keep create_compartment true so Terraform can manage the project compartment."
-    }
-  }
 }
 
 resource "oci_identity_policy" "operator" {
@@ -150,13 +140,6 @@ resource "oci_identity_policy" "operator" {
   statements     = local.operator_policy_statements
 
   freeform_tags = var.tags
-
-  lifecycle {
-    precondition {
-      condition     = local.compartment_ocid != ""
-      error_message = "Set existing_compartment_ocid when create_compartment is false, or keep create_compartment true so Terraform can manage the project compartment."
-    }
-  }
 }
 
 resource "oci_identity_policy" "runtime_object_access" {
@@ -167,11 +150,4 @@ resource "oci_identity_policy" "runtime_object_access" {
   statements     = local.runtime_object_access_policy_statements
 
   freeform_tags = var.tags
-
-  lifecycle {
-    precondition {
-      condition     = local.compartment_ocid != ""
-      error_message = "Set existing_compartment_ocid when create_compartment is false, or keep create_compartment true so Terraform can manage the project compartment."
-    }
-  }
 }

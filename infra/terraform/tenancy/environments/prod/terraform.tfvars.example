@@ -21,11 +21,8 @@ region      = "us-ashburn-1"
 # Use the tenancy OCID when attaching the project compartment directly under the
 # tenancy root. Use another parent compartment OCID if you already organize OCI
 # under a broader shared hierarchy.
-parent_compartment_ocid = "ocid1.tenancy.oc1..replace_me"
-
-create_compartment       = true
-existing_compartment_ocid = ""
-compartment_description  = "Autographs production resources"
+parent_compartment_ocid   = "ocid1.tenancy.oc1..replace_me"
+compartment_description   = "Autographs production resources"
 
 owner_email = "collector@example.com"
 
@@ -46,8 +43,6 @@ replace_me
 -----END PUBLIC KEY-----
 EOT
 
-media_bucket_name = "autographs-media-prod"
-
-create_state_bucket       = true
+media_bucket_name         = "autographs-media-prod"
 state_bucket_name         = "autographs-tf-state"
 state_bucket_storage_tier = "Standard"

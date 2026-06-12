@@ -12,8 +12,6 @@ module "iam" {
   name_prefix                = var.name_prefix
   parent_compartment_ocid    = var.parent_compartment_ocid
   tenancy_ocid               = var.tenancy_ocid
-  create_compartment         = var.create_compartment
-  existing_compartment_ocid  = var.existing_compartment_ocid
   compartment_description    = var.compartment_description
   deploy_group_name          = var.deploy_group_name
   operator_group_name        = var.operator_group_name
@@ -30,7 +28,6 @@ module "iam" {
 module "state_bucket" {
   source = "../modules/state_bucket"
 
-  create_bucket  = var.create_state_bucket
   compartment_id = module.iam.compartment_ocid
   namespace      = data.oci_objectstorage_namespace.ns.namespace
   bucket_name    = var.state_bucket_name
