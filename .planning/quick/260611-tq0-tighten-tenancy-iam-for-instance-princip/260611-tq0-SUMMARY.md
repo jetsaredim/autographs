@@ -14,10 +14,12 @@ Updated tenancy IAM for the instance-principal Object Storage direction:
 - Added runtime dynamic-group Object Storage access for the private media bucket.
 - Scoped deploy object access to the Terraform state bucket and removed deploy Vault/key/secret permissions.
 - Scoped operator object access to the private media bucket while preserving the operator group.
+- Added CI tenancy Terraform validation with backend disabled so PRs catch syntax
+  and provider-schema issues in `infra/terraform/tenancy`.
 
 Verification:
 
 - `terraform -chdir=infra/terraform/tenancy fmt -recursive`
 - `terraform -chdir=infra/terraform/modules/iam fmt`
 - `git diff --check`
-- `terraform -chdir=infra/terraform/tenancy validate` attempted but blocked by local OCI provider plugin startup failure; leave full validation to PR checks/operator apply.
+- `terraform -chdir=infra/terraform/tenancy validate` attempted locally but blocked by local OCI provider plugin startup failure; CI now runs tenancy validation from a fresh runner.

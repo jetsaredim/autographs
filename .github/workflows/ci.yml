@@ -120,6 +120,12 @@ jobs:
       - name: Terraform fmt
         run: terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff
 
+      - name: Terraform tenancy validate
+        working-directory: infra/terraform/tenancy
+        run: |
+          terraform init -backend=false
+          terraform validate
+
       - name: Write OCI API private key
         env:
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
