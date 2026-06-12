@@ -20,6 +20,8 @@ Updated tenancy IAM for the instance-principal Object Storage direction:
   deploy user; those identities are now end-state managed by the tenancy root.
 - Removed the remaining create toggles for the project compartment and state
   bucket, with Terraform moved blocks to preserve state addresses.
+- Updated the OCI bootstrap runbook to apply the tenancy root before the
+  runtime root and to use the tenancy state backend key.
 
 Verification:
 

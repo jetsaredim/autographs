@@ -1,7 +1,8 @@
 # OCI Bootstrap Runbook
 
 This phase keeps OCI setup manual only where Terraform cannot bootstrap itself.
-The long-term owner is still the Terraform root in `infra/terraform/`.
+The long-term tenancy owner is the Terraform root in `infra/terraform/tenancy/`;
+the runtime application root remains `infra/terraform/`.
 
 ## Manual-Once Boundary
 
@@ -20,7 +21,8 @@ manual bootstrap resources imported immediately afterward.
 - Terraform CLI v1.12.0 or greater; use the repo-local binary at
   `.tools/terraform/terraform` when available.
 - Optional but helpful: OCI CLI for discovering OCIDs and validating identity.
-- A local copy of `infra/terraform/environments/prod/terraform.tfvars`.
+- A local copy of
+  `infra/terraform/tenancy/environments/prod/terraform.tfvars`.
 - A local backend config file derived from
   `infra/terraform/bootstrap/backend.hcl.example`.
 
@@ -28,28 +30,28 @@ manual bootstrap resources imported immediately afterward.
 
 - `home_region`: the OCI home region for IAM resources such as compartments and
   policies.
-- `region`: the runtime region for the VCN, subnet, VM, and usually the
-  Terraform state bucket.
+- `region`: the region for the Terraform state bucket and runtime resources.
 
 Do not guess these values. Set them explicitly in `terraform.tfvars`.
 
 ## Bootstrap Flow
 
-1. Copy the example variables file and fill in real values locally.
+1. Copy the tenancy example variables file and fill in real values locally.
 
 ```bash
-cp infra/terraform/environments/prod/terraform.tfvars.example \
-  infra/terraform/environments/prod/terraform.tfvars
+cp infra/terraform/tenancy/environments/prod/terraform.tfvars.example \
+  infra/terraform/tenancy/environments/prod/terraform.tfvars
 ```
 
-2. Start with local state so Terraform can create the remote backend bucket and
-   the compartment-scoped baseline.
+2. Start the tenancy root with local state so Terraform can create the remote
+   backend bucket, project compartment, deploy/operator identities, and IAM
+   policy baseline.
 
 ```bash
-.tools/terraform/terraform -chdir=infra/terraform init -backend=false
-.tools/terraform/terraform -chdir=infra/terraform plan \
+.tools/terraform/terraform -chdir=infra/terraform/tenancy init -backend=false
+.tools/terraform/terraform -chdir=infra/terraform/tenancy plan \
   -var-file=environments/prod/terraform.tfvars
-.tools/terraform/terraform -chdir=infra/terraform apply \
+.tools/terraform/terraform -chdir=infra/terraform/tenancy apply \
   -var-file=environments/prod/terraform.tfvars
 ```
 
@@ -60,18 +62,35 @@ cp infra/terraform/environments/prod/terraform.tfvars.example \
    file. Keep sensitive credentials out of that file when possible and prefer
    environment variables or interactive entry.
 
-5. Migrate the existing local state into OCI Object Storage.
+5. Migrate the existing tenancy local state into OCI Object Storage. The
+   tenancy state must use the `envs/prod/tenancy-bootstrap.tfstate` key.
 
 ```bash
-.tools/terraform/terraform -chdir=infra/terraform init \
+.tools/terraform/terraform -chdir=infra/terraform/tenancy init \
   -migrate-state \
-  -backend-config=bootstrap/backend.hcl
+  -backend-config=../bootstrap/backend.hcl \
+  -backend-config=key=envs/prod/tenancy-bootstrap.tfstate
 ```
 
-6. Re-run plan/apply after migration. From this point on, treat the remote OCI
-   backend as the source of truth.
+6. Re-run the tenancy plan after migration. From this point on, treat the
+   remote OCI backend as the source of truth.
 
 ```bash
+.tools/terraform/terraform -chdir=infra/terraform/tenancy plan \
+  -var-file=environments/prod/terraform.tfvars
+```
+
+7. After the tenancy root is applied, configure and run the runtime application
+   root in `infra/terraform/`. Its remote backend should continue to use the
+   runtime state key, `envs/prod/terraform.tfstate`.
+
+```bash
+cp infra/terraform/environments/prod/terraform.tfvars.example \
+  infra/terraform/environments/prod/terraform.tfvars
+
+.tools/terraform/terraform -chdir=infra/terraform init \
+  -backend-config=bootstrap/backend.hcl \
+  -backend-config=key=envs/prod/terraform.tfstate
 .tools/terraform/terraform -chdir=infra/terraform plan \
   -var-file=environments/prod/terraform.tfvars
 ```
