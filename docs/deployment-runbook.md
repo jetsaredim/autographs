@@ -191,12 +191,14 @@ route shape, not the final public cutover:
 The Ansible-managed `/opt/autographs/env/controller.env` intentionally uses
 persistent controller providers in deployment:
 `AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and
-`AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3`, plus the OCI S3
-compatibility Customer Secret coordinates described in
-[static-runtime-runbook.md](static-runtime-runbook.md). Do not rely on a manual
-edit to `controller.env`; Ansible owns that file on each deploy. The deploy
-workflow verifies `/admin/api/health` reports those active provider modes
-before it succeeds.
+`AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3`, plus transitional
+operator-supplied OCI S3 compatibility values described in
+[static-runtime-runbook.md](static-runtime-runbook.md). These values are
+temporary until the controller media adapter uses OCI instance principals and
+the runtime dynamic group's Object Storage policy. Do not rely on a manual edit
+to `controller.env`; Ansible owns that file on each deploy. The deploy workflow
+verifies `/admin/api/health` reports those active provider modes before it
+succeeds.
 
 Run the mandatory live static publish smoke from
 [static-runtime-runbook.md](static-runtime-runbook.md) before changing the

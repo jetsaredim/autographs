@@ -81,9 +81,16 @@ cp infra/terraform/environments/prod/terraform.tfvars.example \
 The baseline is intentionally compartment-scoped:
 
 - Deploy automation gets a dedicated policy seam for routine changes inside the
-  project compartment.
+  project compartment, including state-bucket object access but not direct media
+  object access.
 - The human operator gets a separate policy seam for day-two management.
+- Runtime instances get a dynamic-group policy for private media bucket object
+  access through OCI instance principals.
 - Routine deployment should not need tenancy-wide `manage all-resources`.
+
+Terraform creates the `autographs-operators` group and policy boundary, but it
+does not create or assign human operator users. Add your human or federated OCI
+identity to that group manually through the tenancy's normal identity process.
 
 If you need broader tenancy admin access during day zero, keep it outside the
 steady-state deploy identity and remove it from normal operations once bootstrap

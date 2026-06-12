@@ -13,14 +13,9 @@ output "operator_policy_name" {
   value       = module.iam.operator_policy_name
 }
 
-output "runtime_secret_reader_policy_name" {
-  description = "OCI policy name allowing runtime instance principals to read Vault secret bundles."
-  value       = module.iam.runtime_secret_reader_policy_name
-}
-
-output "admin_runtime_object_access_policy_name" {
-  description = "OCI policy name allowing the admin runtime IAM user to access private media objects."
-  value       = module.iam.admin_runtime_object_access_policy_name
+output "runtime_object_access_policy_name" {
+  description = "OCI policy name allowing runtime instance principals to access private media objects."
+  value       = module.iam.runtime_object_access_policy_name
 }
 
 output "deploy_group_id" {
@@ -33,24 +28,9 @@ output "operator_group_id" {
   value       = module.iam.operator_group_id
 }
 
-output "admin_runtime_group_id" {
-  description = "OCI group OCID granting the private admin runtime IAM user media object access."
-  value       = module.iam.admin_runtime_group_id
-}
-
 output "deploy_user_id" {
   description = "OCI user OCID for GitHub deployment automation when created by this root."
   value       = module.iam.deploy_user_id
-}
-
-output "admin_runtime_user_id" {
-  description = "OCI IAM user OCID whose Customer Secret credentials are used by the private admin runtime."
-  value       = module.iam.admin_runtime_user_id
-}
-
-output "admin_runtime_user_name" {
-  description = "OCI IAM user name whose Customer Secret credentials are used by the private admin runtime."
-  value       = module.iam.admin_runtime_user_name
 }
 
 output "runtime_dynamic_group_id" {

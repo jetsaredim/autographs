@@ -46,30 +46,6 @@ variable "runtime_dynamic_group_name" {
   type = string
 }
 
-variable "admin_runtime_group_name" {
-  type = string
-}
-
-variable "admin_runtime_user_name" {
-  type = string
-}
-
-variable "admin_runtime_user_description" {
-  type = string
-}
-
-variable "admin_runtime_user_email" {
-  type = string
-}
-
-variable "admin_access_key_secret_name" {
-  type = string
-}
-
-variable "admin_secret_key_secret_name" {
-  type = string
-}
-
 variable "deploy_user_name" {
   type = string
 }
@@ -87,6 +63,10 @@ variable "deploy_user_api_public_key" {
 }
 
 variable "media_bucket_name" {
+  type = string
+}
+
+variable "state_bucket_name" {
   type = string
 }
 
