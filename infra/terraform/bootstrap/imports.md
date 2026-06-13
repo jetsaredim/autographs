@@ -2,14 +2,14 @@
 
 Use import only for resources that had to be created manually before Terraform
 could take over. The intended steady state is still "managed by Terraform," so
-leave the corresponding `create_*` flag enabled when you plan to import the
-resource into state.
+import manually created resources into the managed resource addresses before
+applying.
 
 ## Before You Import
 
 1. Update `infra/terraform/tenancy/environments/prod/terraform.tfvars` so
-   names, OCIDs, and regions match the already-existing OCI bootstrap
-   resources.
+   names, regions, and the parent compartment OCID match the already-existing
+   OCI bootstrap resources.
 2. Run a local-state init first:
 
 ```bash
@@ -23,13 +23,12 @@ terraform -chdir=infra/terraform/tenancy init -backend=false
 
 ### Project compartment created manually
 
-Keep `create_compartment = true`, then import the existing compartment into the
-managed resource address:
+Import the existing compartment into the managed resource address:
 
 ```bash
 terraform -chdir=infra/terraform/tenancy import \
   -var-file=environments/prod/terraform.tfvars \
-  'module.iam.oci_identity_compartment.project[0]' \
+  module.iam.oci_identity_compartment.project \
   'ocid1.compartment.oc1..replace_me'
 ```
 
@@ -45,32 +44,51 @@ terraform -chdir=infra/terraform/tenancy import \
   -var-file=environments/prod/terraform.tfvars \
   module.iam.oci_identity_policy.operator \
   'ocid1.policy.oc1..replace_me'
+
+terraform -chdir=infra/terraform/tenancy import \
+  -var-file=environments/prod/terraform.tfvars \
+  module.iam.oci_identity_policy.runtime_object_access \
+  'ocid1.policy.oc1..replace_me'
 ```
 
 ### State bucket created manually to break the backend bootstrap paradox
 
-Keep `create_state_bucket = true`, then import the bucket using the OCI Object
-Storage import ID format:
+Import the bucket using the OCI Object Storage import ID format:
 
 ```bash
 terraform -chdir=infra/terraform/tenancy import \
   -var-file=environments/prod/terraform.tfvars \
-  'module.state_bucket.oci_objectstorage_bucket.this[0]' \
+  module.state_bucket.oci_objectstorage_bucket.this \
   'n/<namespace>/b/<bucket_name>'
 ```
 
-### Deploy group, deploy user, and API key created manually
+### Groups, dynamic group, deploy user, and API key created manually
 
 ```bash
 terraform -chdir=infra/terraform/tenancy import \
   -var-file=environments/prod/terraform.tfvars \
-  'module.iam.oci_identity_group.deploy[0]' \
+  module.iam.oci_identity_group.deploy \
   'ocid1.group.oc1..replace_me'
 
 terraform -chdir=infra/terraform/tenancy import \
   -var-file=environments/prod/terraform.tfvars \
-  'module.iam.oci_identity_user.deploy[0]' \
+  module.iam.oci_identity_group.operator \
+  'ocid1.group.oc1..replace_me'
+
+terraform -chdir=infra/terraform/tenancy import \
+  -var-file=environments/prod/terraform.tfvars \
+  module.iam.oci_identity_user.deploy \
   'ocid1.user.oc1..replace_me'
+
+terraform -chdir=infra/terraform/tenancy import \
+  -var-file=environments/prod/terraform.tfvars \
+  module.iam.oci_identity_user_group_membership.deploy \
+  'ocid1.groupmembership.oc1..replace_me'
+
+terraform -chdir=infra/terraform/tenancy import \
+  -var-file=environments/prod/terraform.tfvars \
+  module.iam.oci_identity_dynamic_group.runtime_instances \
+  'ocid1.dynamicgroup.oc1..replace_me'
 
 terraform -chdir=infra/terraform/tenancy import \
   -var-file=environments/prod/terraform.tfvars \

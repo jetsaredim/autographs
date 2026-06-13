@@ -144,27 +144,23 @@ Runtime controller settings:
 | `AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT` | runtime coordinate | Number of failed candidates retained for diagnostics |
 | `AUTOGRAPHS_PUBLISH_MODE` | runtime coordinate | Defaults to incremental publishing |
 
-Public-safe derivative publishing may use OCI Object Storage S3 compatibility.
-Create OCI Customer Secret credentials for the `autographs-admin-runtime` IAM
-user and supply them as GitHub deploy secrets so Ansible can render
-`/opt/autographs/env/controller.env`. These credentials are created manually by
-a tenancy administrator or Security Administrator after the tenancy Terraform
-root creates the admin runtime user and group; routine deploy/operator
-permissions intentionally do not include broad IAM credential administration.
-These values are mounted only into the private controller container, not the
-public static artifacts.
-
 The runtime dynamic group matches compute instances in the project compartment,
-which keeps tenancy bootstrap independent of runtime instance IDs. Follow-up
-instance-principal work will move controller media access from S3 Customer
-Secret credentials to bucket-scoped Object Storage permissions on that dynamic
-group.
+which keeps tenancy bootstrap independent of runtime instance IDs. Its IAM
+policy grants bucket discovery and media-bucket-scoped object access so the
+private controller can use OCI instance principals for Object Storage without
+long-lived S3 Customer Secret credentials.
+
+The committed controller still has a transitional OCI S3 compatibility provider
+until the instance-principal media adapter lands. Do not create new
+Terraform-managed IAM users or Vault secrets for that path; any temporary S3
+values must remain operator-supplied and should be removed once the native OCI
+Object Storage adapter is deployed.
 
 | Variable | Classification | Purpose |
 |----------|----------------|---------|
-| `OCI_S3_ENDPOINT` | runtime coordinate | OCI S3 compatibility endpoint |
-| `OCI_S3_ACCESS_KEY` | runtime secret | Customer Secret access key |
-| `OCI_S3_SECRET_KEY` | runtime secret | Customer Secret secret key |
+| `OCI_S3_ENDPOINT` | transitional runtime coordinate | OCI S3 compatibility endpoint until instance-principal media lands |
+| `OCI_S3_ACCESS_KEY` | transitional runtime secret | Temporary Customer Secret access key until instance-principal media lands |
+| `OCI_S3_SECRET_KEY` | transitional runtime secret | Temporary Customer Secret secret key until instance-principal media lands |
 
 The static release root and current pointer live on the runtime VM. Public
 artifacts are generated inside the OCI boundary from Oracle metadata and

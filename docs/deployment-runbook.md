@@ -46,9 +46,8 @@ Those commands run the same Ansible syntax and lint checks used by CI for the qu
 3. Run the tenancy bootstrap root locally with an administrative/operator identity.
 4. The deploy workflow codifies the Terraform state bucket as `autographs-tf-state` and the runtime state object key as `envs/prod/terraform.tfstate`.
 5. If resources were created manually, import them using [imports.md](../infra/terraform/bootstrap/imports.md).
-6. Migrate existing state with [terraform-tenancy-split.md](terraform-tenancy-split.md) if this is an existing environment.
-7. Run runtime Terraform locally once if needed to prove the baseline and obtain outputs.
-8. Follow [dns-runbook.md](dns-runbook.md) when enabling the public app hostname through Porkbun.
+6. Run runtime Terraform locally once if needed to prove the baseline and obtain outputs.
+7. Follow [dns-runbook.md](dns-runbook.md) when enabling the public app hostname through Porkbun.
 
 Important operator inputs:
 
@@ -191,12 +190,14 @@ route shape, not the final public cutover:
 The Ansible-managed `/opt/autographs/env/controller.env` intentionally uses
 persistent controller providers in deployment:
 `AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and
-`AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3`, plus the OCI S3
-compatibility Customer Secret coordinates described in
-[static-runtime-runbook.md](static-runtime-runbook.md). Do not rely on a manual
-edit to `controller.env`; Ansible owns that file on each deploy. The deploy
-workflow verifies `/admin/api/health` reports those active provider modes
-before it succeeds.
+`AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3`, plus transitional
+operator-supplied OCI S3 compatibility values described in
+[static-runtime-runbook.md](static-runtime-runbook.md). These values are
+temporary until the controller media adapter uses OCI instance principals and
+the runtime dynamic group's Object Storage policy. Do not rely on a manual edit
+to `controller.env`; Ansible owns that file on each deploy. The deploy workflow
+verifies `/admin/api/health` reports those active provider modes before it
+succeeds.
 
 Run the mandatory live static publish smoke from
 [static-runtime-runbook.md](static-runtime-runbook.md) before changing the

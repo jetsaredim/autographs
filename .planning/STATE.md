@@ -94,7 +94,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- Future naming/config refinement: after the admin rename and Vault-backed runtime credential path settle, review service names, env vars, Terraform variables, IAM identities, and deploy resources for over-wording or stale terminology. Include unnecessary create/enable Terraform booleans where resources are intended to be end-state managed by Terraform state; the runtime Vault secret-reader IAM change deliberately removed that pattern for the dynamic group and policy.
+- Future naming/config refinement: after the admin rename and instance-principal Object Storage path settle, review service names, env vars, Terraform variables, IAM identities, and deploy resources for over-wording or stale terminology. Include unnecessary create/enable Terraform booleans where resources are intended to be end-state managed by Terraform state.
 - Future IAM refinement: review deploy-user permissions after the dedicated admin runtime identity exists, but do not assume permissions should be removed. The deploy user runs Terraform for much of the infrastructure, so broad permissions may remain justified when they are needed for provisioning even if runtime access moves to narrower identities.
 
 ### Blockers/Concerns
@@ -126,3 +126,5 @@ Resume file: .planning/phases/05-static-runtime-migration-foundation/05-07-PLAN.
 | 2026-05-25 | reconcile-phase-reorder-review | Addressed post-merge review warnings from PR #65 by aligning phase criteria and generated docs. |
 | 2026-05-26 | reconcile-planning-state-after-phase-4-c | Marked Phase 4 requirements complete and captured static-runtime pivot research as next-phase planning context. |
 | 2026-06-11 | remove-obsolete-runtime-vault-s3-credent | Removed runtime Terraform Vault/KMS/secret resources that are no longer needed for the instance-principal Object Storage direction. |
+| 2026-06-12 | tighten-tenancy-iam-for-instance-princip | Replaced the admin-runtime/Vault IAM path with runtime dynamic-group media object access and state-bucket-scoped deploy object access. |
+| 2026-06-13 | remove-obsolete-tenancy-split-doc | Removed the historical Terraform tenancy split migration runbook from active operator docs. |

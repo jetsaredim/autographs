@@ -21,29 +21,16 @@ region      = "us-ashburn-1"
 # Use the tenancy OCID when attaching the project compartment directly under the
 # tenancy root. Use another parent compartment OCID if you already organize OCI
 # under a broader shared hierarchy.
-parent_compartment_ocid = "ocid1.tenancy.oc1..replace_me"
-
-create_compartment       = true
-existing_compartment_ocid = ""
-compartment_description  = "Autographs production resources"
+parent_compartment_ocid   = "ocid1.tenancy.oc1..replace_me"
+compartment_description   = "Autographs production resources"
 
 owner_email = "collector@example.com"
 
-create_deploy_group   = true
-deploy_group_name     = "autographs-deployers"
-create_operator_group = true
-operator_group_name   = "autographs-operators"
+deploy_group_name   = "autographs-deployers"
+operator_group_name = "autographs-operators"
 
 runtime_dynamic_group_name = "autographs-runtime-instances"
 
-admin_runtime_group_name       = "autographs-admin-runtime-media"
-admin_runtime_user_name        = "autographs-admin-runtime"
-admin_runtime_user_description = "Runtime IAM user for Autographs private admin media access."
-admin_runtime_user_email       = ""
-admin_access_key_secret_name   = "autographs-admin-access-key"
-admin_secret_key_secret_name   = "autographs-admin-secret-key"
-
-create_deploy_user      = true
 deploy_user_name        = "autographs-github-deploy"
 deploy_user_description = "GitHub Actions deployment user for Autographs."
 deploy_user_email       = ""
@@ -56,8 +43,6 @@ replace_me
 -----END PUBLIC KEY-----
 EOT
 
-media_bucket_name = "autographs-media-prod"
-
-create_state_bucket       = true
+media_bucket_name         = "autographs-media-prod"
 state_bucket_name         = "autographs-tf-state"
 state_bucket_storage_tier = "Standard"

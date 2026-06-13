@@ -1,7 +1,3 @@
-variable "create_bucket" {
-  type = bool
-}
-
 variable "compartment_id" {
   type = string
 }
