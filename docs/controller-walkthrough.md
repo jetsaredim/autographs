@@ -227,5 +227,4 @@ cargo test --manifest-path controller/Cargo.toml \
 
 ## Remaining Phase 5 Work
 
-- `05-06`: Ansible, Caddy, and CI/deploy wiring
 - `05-07`: Live static end-to-end proof and cutover documentation

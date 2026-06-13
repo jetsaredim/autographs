@@ -75,9 +75,9 @@ Then import it with the instructions in
 [imports.md](../infra/terraform/bootstrap/imports.md)
 before running `terraform init -migrate-state`.
 
-For an existing single-state deployment, use
-[terraform-tenancy-split.md](terraform-tenancy-split.md) before applying either
-root from GitHub Actions.
+The historical single-state-to-split-state migration for this project has
+already been completed. Current operators should initialize the tenancy and
+runtime roots independently with the state keys above.
 
 ## Operator Checklist
 

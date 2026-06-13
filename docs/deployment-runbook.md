@@ -46,9 +46,8 @@ Those commands run the same Ansible syntax and lint checks used by CI for the qu
 3. Run the tenancy bootstrap root locally with an administrative/operator identity.
 4. The deploy workflow codifies the Terraform state bucket as `autographs-tf-state` and the runtime state object key as `envs/prod/terraform.tfstate`.
 5. If resources were created manually, import them using [imports.md](../infra/terraform/bootstrap/imports.md).
-6. Migrate existing state with [terraform-tenancy-split.md](terraform-tenancy-split.md) if this is an existing environment.
-7. Run runtime Terraform locally once if needed to prove the baseline and obtain outputs.
-8. Follow [dns-runbook.md](dns-runbook.md) when enabling the public app hostname through Porkbun.
+6. Run runtime Terraform locally once if needed to prove the baseline and obtain outputs.
+7. Follow [dns-runbook.md](dns-runbook.md) when enabling the public app hostname through Porkbun.
 
 Important operator inputs:
 
