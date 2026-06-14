@@ -133,21 +133,20 @@
   ansible.builtin.assert:
     that:
       - autographs_deploy_controller_db_provider in ['local', 'oracle']
-      - autographs_deploy_controller_media_storage_provider in ['local', 'oci-s3']
+      - autographs_deploy_controller_media_storage_provider in ['local', 'oci-instance-principal']
       - autographs_deploy_controller_db_provider == 'oracle'
-      - autographs_deploy_controller_media_storage_provider == 'oci-s3'
+      - autographs_deploy_controller_media_storage_provider == 'oci-instance-principal'
       - >-
-        autographs_deploy_controller_media_storage_provider != 'oci-s3'
+        autographs_deploy_controller_media_storage_provider != 'oci-instance-principal'
         or (
-          lookup('env', 'OCI_S3_ENDPOINT') | default('', true) | trim | length > 0
-          and lookup('env', 'OCI_S3_ACCESS_KEY') | default('', true) | trim | length > 0
-          and lookup('env', 'OCI_S3_SECRET_KEY') | default('', true) | trim | length > 0
+          oci_media_namespace | default(lookup('env', 'OCI_MEDIA_NAMESPACE') | default('', true), true) | trim | length > 0
+          and oci_media_bucket_name | default('autographs-media-prod', true) | trim | length > 0
         )
     fail_msg: >-
       Deployed controller providers must be persistent:
       AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle and
-      AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3 with OCI S3
-      credentials.
+      AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-instance-principal
+      with OCI_MEDIA_NAMESPACE and OCI_MEDIA_BUCKET_NAME.
   no_log: true
 
 - name: Validate deployed admin authentication secret

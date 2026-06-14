@@ -123,7 +123,7 @@ The Ansible deploy role also maintains a 2 GiB `/.swapfile` with `vm.swappiness=
 
 The Rust controller is a private runtime service. GitHub-hosted deploys build
 and deploy controller images, render the controller-only runtime environment,
-and verify the deployed controller reports persistent Oracle and OCI S3
+and verify the deployed controller reports persistent Oracle and OCI instance-principal
 providers before the workflow succeeds.
 
 Runtime controller settings:
@@ -132,7 +132,7 @@ Runtime controller settings:
 |----------|----------------|---------|
 | `AUTOGRAPHS_CONTROLLER_BIND_ADDR` | runtime coordinate | Controller listener; defaults to `0.0.0.0:8080` |
 | `AUTOGRAPHS_CONTROLLER_DB_PROVIDER` | runtime coordinate | Deploy-time value must be `oracle`; `local` is only for direct local controller runs |
-| `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER` | runtime coordinate | Deploy-time value must be `oci-s3`; `local` is only for direct local controller runs |
+| `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER` | runtime coordinate | Deploy-time value must be `oci-instance-principal`; `local` is only for direct local controller runs |
 | `AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT` | local/staged coordinate | Local private-media path used only when the controller media provider is `local` |
 | `AUTOGRAPHS_PUBLIC_ORIGIN` | runtime coordinate | Canonical HTTPS origin used for browser mutation checks |
 | `AUTOGRAPHS_ADMIN_SECURE_COOKIES` | runtime coordinate | Keep `true` in deployment; `false` is an explicit local HTTP exception |
@@ -143,6 +143,9 @@ Runtime controller settings:
 | `AUTOGRAPHS_STATIC_CURRENT_LINK` | runtime coordinate | Active static release pointer |
 | `AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT` | runtime coordinate | Number of failed candidates retained for diagnostics |
 | `AUTOGRAPHS_PUBLISH_MODE` | runtime coordinate | Defaults to incremental publishing |
+| `OCI_AUTH_MODE` | runtime coordinate | Controller value must be `instance_principal` when media provider is `oci-instance-principal` |
+| `OCI_MEDIA_NAMESPACE` | runtime coordinate | Object Storage namespace containing the private media bucket |
+| `OCI_MEDIA_BUCKET_NAME` | runtime coordinate | Private media bucket name |
 
 The runtime dynamic group matches compute instances in the project compartment,
 which keeps tenancy bootstrap independent of runtime instance IDs. Its IAM
@@ -150,17 +153,9 @@ policy grants bucket discovery and media-bucket-scoped object access so the
 private controller can use OCI instance principals for Object Storage without
 long-lived S3 Customer Secret credentials.
 
-The committed controller still has a transitional OCI S3 compatibility provider
-until the instance-principal media adapter lands. Do not create new
-Terraform-managed IAM users or Vault secrets for that path; any temporary S3
-values must remain operator-supplied and should be removed once the native OCI
-Object Storage adapter is deployed.
-
-| Variable | Classification | Purpose |
-|----------|----------------|---------|
-| `OCI_S3_ENDPOINT` | transitional runtime coordinate | OCI S3 compatibility endpoint until instance-principal media lands |
-| `OCI_S3_ACCESS_KEY` | transitional runtime secret | Temporary Customer Secret access key until instance-principal media lands |
-| `OCI_S3_SECRET_KEY` | transitional runtime secret | Temporary Customer Secret secret key until instance-principal media lands |
+The controller media adapter uses native OCI Object Storage requests signed with
+runtime instance-principal credentials. Do not create new Terraform-managed IAM
+users, Vault secrets, or Customer Secret keys for controller media access.
 
 The static release root and current pointer live on the runtime VM. Public
 artifacts are generated inside the OCI boundary from Oracle metadata and

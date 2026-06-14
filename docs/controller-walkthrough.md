@@ -130,12 +130,12 @@ Production-persistence builds also include:
 
 - `OracleCatalogRepository`, using the native `oracle` crate and Oracle Instant
   Client
-- `OciS3MediaStore`, using OCI S3 compatibility Customer Secret credentials
+- `OciInstancePrincipalMediaStore`, using native OCI Object Storage requests
+  signed with runtime instance-principal credentials
 
 The runtime selects them with `AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and
-`AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3`. The 05-07 live proof
-owns deploying those provider values and validating the full path before public
-cutover.
+`AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-instance-principal`. The
+05-07 live proof validates the full path before public cutover.
 
 ## Database Migration
 
@@ -211,7 +211,8 @@ The current tests cover:
   [`controller/tests/publisher.rs`](../controller/tests/publisher.rs)
 - Static admin endpoint references and source privacy:
   [`controller/tests/static_admin.rs`](../controller/tests/static_admin.rs)
-- Real Oracle plus OCI S3-compatible create, read, upload, and cleanup smoke:
+- Real Oracle plus OCI instance-principal binary media create, read, upload,
+  and cleanup smoke:
   [`controller/tests/live_persistence_smoke.rs`](../controller/tests/live_persistence_smoke.rs)
 
 ## Current Checkpoint

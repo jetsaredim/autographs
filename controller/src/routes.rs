@@ -86,10 +86,10 @@ pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
             env::var("AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT")
                 .unwrap_or_else(|_| "/tmp/autographs-controller-media".to_owned()),
         )),
-        "oci-s3" => production_media_store()?,
+        "oci-instance-principal" => production_media_store()?,
         provider => {
             return Err(format!(
-                "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER must be local or oci-s3, got {provider}"
+                "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER must be local or oci-instance-principal, got {provider}"
             ));
         }
     };
@@ -120,20 +120,20 @@ fn production_repository() -> Result<Arc<dyn CatalogRepository>, String> {
 
 #[cfg(feature = "production-persistence")]
 fn production_media_store() -> Result<Arc<dyn PrivateMediaStore>, String> {
-    use crate::oci_media::OciS3MediaStore;
+    use crate::oci_media::OciInstancePrincipalMediaStore;
 
-    Ok(Arc::new(OciS3MediaStore::new(
+    Ok(Arc::new(OciInstancePrincipalMediaStore::new(
+        required_env("OCI_MEDIA_NAMESPACE")?,
         required_env("OCI_MEDIA_BUCKET_NAME")?,
-        env::var("OCI_REGION").unwrap_or_else(|_| "us-ashburn-1".to_owned()),
-        required_env("OCI_S3_ENDPOINT")?,
-        required_env("OCI_S3_ACCESS_KEY")?,
-        required_env("OCI_S3_SECRET_KEY")?,
     )?))
 }
 
 #[cfg(not(feature = "production-persistence"))]
 fn production_media_store() -> Result<Arc<dyn PrivateMediaStore>, String> {
-    Err("OCI S3 controller persistence requires the production-persistence feature".to_owned())
+    Err(
+        "OCI instance-principal controller persistence requires the production-persistence feature"
+            .to_owned(),
+    )
 }
 
 #[cfg(feature = "production-persistence")]

@@ -90,12 +90,13 @@ Recent decisions affecting current work:
 - Phase 5 publisher: Generate static candidates and sanitized WebP derivatives locally, validate the complete public inventory and privacy boundary, then atomically promote the `current` symlink.
 - Phase 5 static admin: Keep the minimal browser shell framework-free and browser-storage-free, backed by the HTTP-only cookie and same-origin `/admin/api/*` calls.
 - Phase 5 deployment: Keep the public hostname on Next.js until the explicit live cutover checkpoint; stage localhost-only generated-release preview and private `/admin/api/*` controller routing first.
-- Phase 5 controller persistence: Keep Oracle and OCI S3-compatible credentials in the VM-local protected controller environment; GitHub Actions deploys artifacts without generating catalog content.
+- Phase 5 controller persistence: Use Rust `oci_api` instance-principal auth for native OCI Object Storage access from the runtime instance. A dev-node binary smoke on 2026-06-14 proved non-UTF-8 media bytes can be PUT, read back, and deleted from `autographs-media-prod` with instance principals; do not revive the OCI S3 Customer Secret path for controller media.
 
 ### Pending Todos
 
 - Future naming/config refinement: after the admin rename and instance-principal Object Storage path settle, review service names, env vars, Terraform variables, IAM identities, and deploy resources for over-wording or stale terminology. Include unnecessary create/enable Terraform booleans where resources are intended to be end-state managed by Terraform state.
 - Future IAM refinement: review deploy-user permissions after the dedicated admin runtime identity exists, but do not assume permissions should be removed. The deploy user runs Terraform for much of the infrastructure, so broad permissions may remain justified when they are needed for provisioning even if runtime access moves to narrower identities.
+- Future `oci_api` contribution: propose an upstream patch adding binary-safe request signing/Object Storage APIs, including byte-body `PUT`, byte-returning `GET`, object `DELETE`, and rustls-friendly TLS configuration. The local controller adapter can then collapse back onto the crate instead of carrying its own binary Object Storage request path.
 
 ### Blockers/Concerns
 

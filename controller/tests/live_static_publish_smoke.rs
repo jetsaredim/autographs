@@ -4,17 +4,18 @@ mod live {
 
     use autographs_controller::{
         contracts::{PublicCatalog, PublicFacets, PublicItemDetail},
+        media::PrivateMediaStore,
+        oci_media::OciInstancePrincipalMediaStore,
         storage_keys::build_original_object_key,
     };
     use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
     use oracle::Connection;
-    use s3::{Bucket, creds::Credentials, region::Region};
     use serde_json::{Value, json};
     use tempfile::NamedTempFile;
     use uuid::Uuid;
 
     #[tokio::test]
-    #[ignore = "requires deployed controller, Caddy preview, Oracle wallet, and OCI S3-compatible credentials"]
+    #[ignore = "requires deployed controller, Caddy preview, Oracle wallet, and OCI instance-principal media access"]
     async fn live_static_publish_smoke_proves_seed_to_static_runtime() {
         if env::var("AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE").as_deref() != Ok("true") {
             println!(
@@ -23,10 +24,6 @@ mod live {
             return;
         }
 
-        rustls::crypto::aws_lc_rs::default_provider()
-            .install_default()
-            .expect("install rustls aws-lc-rs crypto provider");
-
         let controller = required("AUTOGRAPHS_CONTROLLER_BASE_URL");
         let preview = required("AUTOGRAPHS_STATIC_PREVIEW_BASE_URL");
         let operator_token = required("AUTOGRAPHS_OPERATOR_API_TOKEN");
@@ -34,28 +31,14 @@ mod live {
         let oracle_user = required("ORACLE_DB_USER");
         let oracle_password = required("ORACLE_DB_PASSWORD");
         let oracle_connect_string = required("ORACLE_DB_CONNECT_STRING");
-        let s3_endpoint = required("OCI_S3_ENDPOINT");
-        let s3_region = env::var("OCI_REGION").unwrap_or_else(|_| "us-ashburn-1".to_owned());
-        let s3_access_key = required("OCI_S3_ACCESS_KEY");
-        let s3_secret_key = required("OCI_S3_SECRET_KEY");
+        let storage_namespace = required("OCI_MEDIA_NAMESPACE");
         let bucket_name = required("OCI_MEDIA_BUCKET_NAME");
 
         let connection =
             Connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
                 .expect("connect to Oracle Autonomous Database");
-        let credentials =
-            Credentials::new(Some(&s3_access_key), Some(&s3_secret_key), None, None, None)
-                .expect("configure OCI Customer Secret credentials");
-        let bucket = Bucket::new(
-            &bucket_name,
-            Region::Custom {
-                region: s3_region,
-                endpoint: s3_endpoint,
-            },
-            credentials,
-        )
-        .expect("configure OCI S3-compatible bucket")
-        .with_path_style();
+        let media = OciInstancePrincipalMediaStore::new(storage_namespace, bucket_name)
+            .expect("configure OCI instance-principal media store");
 
         let marker = Uuid::new_v4().simple().to_string();
         let title = format!("Live Static Smoke {marker}");
@@ -105,7 +88,7 @@ mod live {
         let object_key = build_original_object_key(item_id, image_id);
         let _cleanup = LiveStaticSmokeCleanup {
             connection: &connection,
-            bucket: &bucket,
+            media: media.clone(),
             item_id: item_id.to_string(),
             object_key: object_key.clone(),
             controller: controller.clone(),
@@ -115,11 +98,11 @@ mod live {
         println!("live static smoke object key: {object_key}");
 
         assert_oracle_image(&connection, item_id, image_id, &object_key);
-        let stored = bucket
-            .get_object(&object_key)
+        let stored = media
+            .read(&object_key)
             .await
             .expect("read live static smoke original from OCI Object Storage");
-        assert_eq!(stored.bytes().as_ref(), image_body);
+        assert_eq!(stored, image_body);
 
         json_request(
             "POST",
@@ -223,7 +206,7 @@ mod live {
 
     struct LiveStaticSmokeCleanup<'a> {
         connection: &'a Connection,
-        bucket: &'a Bucket,
+        media: OciInstancePrincipalMediaStore,
         item_id: String,
         object_key: String,
         controller: String,
@@ -260,7 +243,7 @@ mod live {
                 );
             }
             std::thread::scope(|scope| {
-                let bucket = self.bucket;
+                let media = self.media.clone();
                 let object_key = self.object_key.clone();
                 let _ = scope
                     .spawn(move || {
@@ -270,7 +253,7 @@ mod live {
                         else {
                             return;
                         };
-                        let _ = runtime.block_on(bucket.delete_object(&object_key));
+                        let _ = runtime.block_on(media.delete(&object_key));
                     })
                     .join();
             });

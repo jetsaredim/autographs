@@ -4,23 +4,37 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-production-persistence = ["dep:oracle", "dep:rust-s3", "dep:rustls"]
+production-persistence = [
+  "dep:base64",
+  "dep:httpdate",
+  "dep:oracle",
+  "dep:reqwest",
+  "dep:rsa",
+  "dep:sha1",
+  "dep:sha2",
+  "dep:x509-parser",
+]
 live-persistence = ["production-persistence"]
 
 [dependencies]
-argon2 = "0.5"
-async-trait = "0.1"
-axum = { version = "0.8", features = ["multipart"] }
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-time = { version = "0.3", features = ["formatting", "serde"] }
-tokio = { version = "1.0", features = ["fs", "macros", "net", "rt-multi-thread"] }
-uuid = { version = "1.0", features = ["serde", "v4"] }
-oracle = { version = "0.6", optional = true }
-rust-s3 = { version = "0.37.2", default-features = false, features = ["tokio-rustls-tls"], optional = true }
-rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs"], optional = true }
+argon2 = "0.5.3"
+async-trait = "0.1.89"
+axum = { version = "0.8.9", features = ["multipart"] }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+base64 = { version = "0.22", optional = true }
+httpdate = { version = "1", optional = true }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+time = { version = "0.3.49", features = ["formatting", "serde"] }
+tokio = { version = "1.52.3", features = ["fs", "macros", "net", "rt-multi-thread", "sync"] }
+uuid = { version = "1.23.3", features = ["serde", "v4"] }
+oracle = { version = "0.6.3", optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
+rsa = { version = "0.9", features = ["sha2"], optional = true }
+sha1 = { version = "0.10", optional = true }
+sha2 = { version = "0.10", optional = true }
+x509-parser = { version = "0.16", optional = true }
 
 [dev-dependencies]
-tempfile = "3.0"
-tower = { version = "0.5", features = ["util"] }
+tempfile = "3.27.0"
+tower = { version = "0.5.3", features = ["util"] }
