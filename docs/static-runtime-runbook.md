@@ -233,7 +233,7 @@ On the VM, extend the protected smoke environment file with:
 AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true
 AUTOGRAPHS_CONTROLLER_BASE_URL=http://autographs-controller:8080
 AUTOGRAPHS_STATIC_PREVIEW_BASE_URL=http://autographs-caddy:8081/current
-AUTOGRAPHS_STATIC_RELEASE_ROOT=/opt/autographs/static
+AUTOGRAPHS_STATIC_RELEASE_ROOT=/var/lib/autographs/static
 AUTOGRAPHS_OPERATOR_API_TOKEN=replace-with-runtime-operator-token
 ```
 
@@ -267,7 +267,7 @@ curl --fail --silent http://127.0.0.1:8081/current/data/collection.json
 curl --fail --silent http://127.0.0.1:8081/current/data/facets.json
 ```
 
-Check `/opt/autographs/static/failed/` when a candidate fails. The publisher
+Check `/var/lib/autographs/static/failed/` inside the controller container when a candidate fails. The publisher
 retains only the latest failed candidate for diagnosis and leaves `current`
 pointing at the last validated release.
 
