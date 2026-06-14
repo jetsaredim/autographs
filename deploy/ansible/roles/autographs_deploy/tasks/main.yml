@@ -252,9 +252,7 @@
 
 - name: Normalize Oracle DB wallet location for native clients
   ansible.builtin.copy:
-    content: |
-      WALLET_LOCATION = (SOURCE = (METHOD = file) (METHOD_DATA = (DIRECTORY=/opt/autographs/wallet)))
-      SSL_SERVER_DN_MATCH=yes
+    src: sqlnet.ora
     dest: "{{ autographs_deploy_wallet_path }}/sqlnet.ora"
     owner: "{{ autographs_deploy_user }}"
     group: "{{ autographs_deploy_user }}"
