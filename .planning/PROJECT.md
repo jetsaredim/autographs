@@ -71,6 +71,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 | Manage runtime services with Podman quadlets through Ansible | Simplifies long-lived runtime operations compared to compose-style orchestration on the OCI VM | Adopted in runtime deployment |
 | Move public-readiness hardening before admin and AI | The current gallery/deployment system can be made safe and presentable before adding larger private mutation and AI surfaces | Phase 4 focus as of 2026-05-25 |
 | Insert Static Runtime Migration Foundation before admin CRUD | Smoke-test and runtime complexity suggest anonymous browsing may be better served as static generated output, while admin/publish work stays private and thin | Phase 5 as of 2026-05-26 |
+| Use native OCI instance-principal signing for controller Object Storage access | The dev-node smoke proved OCI instance principal auth plus native Object Storage binary PUT/GET/DELETE against the private media bucket, avoiding S3 Customer Secret credentials, Python SDK drift, and long-lived runtime object credentials | Phase 5 controller media adapter direction as of 2026-06-14 |
 | Treat multi-image support and edit history as v1 capabilities | These directly improve personal collection quality and manageability | Phase 6 requirement baseline |
 | Add AI-assisted ingest after admin workflow | AI suggestions should enhance a proven manual admin flow rather than define it | Captured as Phase 7 |
 
@@ -92,4 +93,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-26 after inserting Static Runtime Migration Foundation as Phase 5*
+*Last updated: 2026-06-14 after confirming native OCI instance-principal Object Storage direction*

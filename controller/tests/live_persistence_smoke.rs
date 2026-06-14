@@ -2,13 +2,15 @@
 mod live {
     use std::env;
 
-    use autographs_controller::storage_keys::build_original_object_key;
+    use autographs_controller::{
+        media::PrivateMediaStore, oci_media::OciInstancePrincipalMediaStore,
+        storage_keys::build_original_object_key,
+    };
     use oracle::Connection;
-    use s3::{Bucket, creds::Credentials, region::Region};
     use uuid::Uuid;
 
     #[tokio::test]
-    #[ignore = "requires live Oracle wallet and OCI S3-compatible credentials"]
+    #[ignore = "requires live Oracle wallet and OCI instance-principal media access"]
     async fn live_persistence_smoke_persists_oracle_item_and_oci_original() {
         if env::var("AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE").as_deref() != Ok("true") {
             println!(
@@ -17,17 +19,9 @@ mod live {
             return;
         }
 
-        rustls::crypto::aws_lc_rs::default_provider()
-            .install_default()
-            .expect("install rustls aws-lc-rs crypto provider");
-
         let oracle_user = required("ORACLE_DB_USER");
         let oracle_password = required("ORACLE_DB_PASSWORD");
         let oracle_connect_string = required("ORACLE_DB_CONNECT_STRING");
-        let s3_endpoint = required("OCI_S3_ENDPOINT");
-        let s3_region = env::var("OCI_REGION").unwrap_or_else(|_| "us-ashburn-1".to_owned());
-        let s3_access_key = required("OCI_S3_ACCESS_KEY");
-        let s3_secret_key = required("OCI_S3_SECRET_KEY");
         let storage_namespace = required("OCI_MEDIA_NAMESPACE");
         let bucket_name = required("OCI_MEDIA_BUCKET_NAME");
 
@@ -35,19 +29,9 @@ mod live {
             Connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
                 .expect("connect to Oracle Autonomous Database");
         assert_static_runtime_schema(&connection);
-        let credentials =
-            Credentials::new(Some(&s3_access_key), Some(&s3_secret_key), None, None, None)
-                .expect("configure OCI Customer Secret credentials");
-        let bucket = Bucket::new(
-            &bucket_name,
-            Region::Custom {
-                region: s3_region,
-                endpoint: s3_endpoint,
-            },
-            credentials,
-        )
-        .expect("configure OCI S3-compatible bucket")
-        .with_path_style();
+        let media =
+            OciInstancePrincipalMediaStore::new(storage_namespace.clone(), bucket_name.clone())
+                .expect("configure OCI instance-principal media store");
 
         let item_id = Uuid::new_v4();
         let image_id = Uuid::new_v4();
@@ -62,7 +46,7 @@ mod live {
         let image_id = image_id.to_string();
         let _cleanup = LivePersistenceSmokeCleanup {
             connection: &connection,
-            bucket: &bucket,
+            media: media.clone(),
             item_id: item_id.clone(),
             object_key: object_key.clone(),
         };
@@ -74,22 +58,26 @@ mod live {
             .expect("insert live smoke item");
         connection.commit().expect("commit smoke item");
 
-        bucket
-            .put_object_with_content_type(&object_key, b"live-smoke-private-original", "image/jpeg")
+        let body = vec![
+            0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe, 0xfd, 0x80, 0x81,
+            0x82, 0x83,
+        ];
+        media
+            .write(&object_key, &body)
             .await
             .expect("upload private original to OCI Object Storage");
         connection
             .execute(
                 "insert into autograph_images (id, item_id, storage_namespace, bucket_name, object_key, content_type, byte_size, original_filename, is_primary) values (:1, :2, :3, :4, :5, :6, :7, :8, 'Y')",
-                &[&image_id, &item_id, &storage_namespace, &bucket_name, &object_key, &"image/jpeg", &27_i64, &source_filename],
+                &[&image_id, &item_id, &storage_namespace, &bucket_name, &object_key, &"application/octet-stream", &(body.len() as i64), &source_filename],
             )
             .expect("insert live smoke image metadata");
         connection.commit().expect("commit smoke image metadata");
-        let downloaded = bucket
-            .get_object(&object_key)
+        let downloaded = media
+            .read(&object_key)
             .await
             .expect("read private original from OCI Object Storage");
-        assert_eq!(downloaded.bytes().as_ref(), b"live-smoke-private-original");
+        assert_eq!(downloaded, body);
 
         let mut rows = connection
             .query(
@@ -125,7 +113,7 @@ mod live {
 
     struct LivePersistenceSmokeCleanup<'a> {
         connection: &'a Connection,
-        bucket: &'a Bucket,
+        media: OciInstancePrincipalMediaStore,
         item_id: String,
         object_key: String,
     }
@@ -133,7 +121,7 @@ mod live {
     impl Drop for LivePersistenceSmokeCleanup<'_> {
         fn drop(&mut self) {
             std::thread::scope(|scope| {
-                let bucket = self.bucket;
+                let media = self.media.clone();
                 let object_key = self.object_key.clone();
                 let _ = scope
                     .spawn(move || {
@@ -143,7 +131,7 @@ mod live {
                         else {
                             return;
                         };
-                        let _ = runtime.block_on(bucket.delete_object(&object_key));
+                        let _ = runtime.block_on(media.delete(&object_key));
                     })
                     .join();
             });

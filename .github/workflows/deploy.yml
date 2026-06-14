@@ -37,7 +37,7 @@ env:
   AUTOGRAPHS_HTTPS_PORT: "443"
   AUTOGRAPHS_DOMAIN: ${{ vars.AUTOGRAPHS_DOMAIN || 'autographs.jetsaredim.net' }}
   AUTOGRAPHS_CONTROLLER_DB_PROVIDER: ${{ vars.AUTOGRAPHS_CONTROLLER_DB_PROVIDER || 'oracle' }}
-  AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER: ${{ vars.AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER || 'oci-s3' }}
+  AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER: ${{ vars.AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER || 'oci-instance-principal' }}
 
 jobs:
   detect-app-image-changes:
@@ -288,9 +288,6 @@ jobs:
           OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-          OCI_S3_ACCESS_KEY: ${{ secrets.OCI_S3_ACCESS_KEY }}
-          OCI_S3_ENDPOINT: ${{ vars.OCI_S3_ENDPOINT }}
-          OCI_S3_SECRET_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           ORACLE_DB_PASSWORD: ${{ secrets.ORACLE_DB_PASSWORD }}
           ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}

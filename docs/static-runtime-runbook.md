@@ -9,21 +9,22 @@ behind the authenticated private-controller boundary; the browser shell relies
 on the HTTP-only session cookie and same-origin mutation checks.
 
 The GitHub production deploy starts the controller with persistent Oracle and
-OCI S3 adapters. Configure these repo-level values before deploying so Ansible
-renders `/opt/autographs/env/controller.env` intentionally:
+OCI instance-principal media adapters. Configure these repo-level values before
+deploying so Ansible renders `/opt/autographs/env/controller.env`
+intentionally:
 
 ```text
 AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle
-AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-s3
-OCI_S3_ENDPOINT=https://replace-with-namespace.compat.objectstorage.us-ashburn-1.oraclecloud.com
-OCI_S3_ACCESS_KEY=replace-with-customer-secret-access-key
-OCI_S3_SECRET_KEY=replace-with-customer-secret-secret-key
+AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-instance-principal
+OCI_MEDIA_NAMESPACE=replace-with-object-storage-namespace
+OCI_MEDIA_BUCKET_NAME=autographs-media-prod
 ```
 
-Then restart or redeploy `autographs-controller.service`. Keep the Customer
-Secret values scoped to the private controller deploy path. Do not hand-edit
+Then restart or redeploy `autographs-controller.service`. Do not hand-edit
 `controller.env` as the durable live switch; the next Ansible deploy owns that
-file and will render values from deploy variables.
+file and will render values from deploy variables. The controller-specific file
+sets `OCI_AUTH_MODE=instance_principal`, and the runtime dynamic group grants
+media-bucket-scoped Object Storage access.
 
 Start the controller with local-only values:
 
@@ -101,8 +102,8 @@ originals/{item-uuid}/{image-uuid}
 
 The Oracle Autonomous Database and OCI Object Storage persistence smoke is
 mandatory before Phase 5 verification passes, even though ordinary CI skips it.
-Supply the runtime wallet/connect variables and OCI S3 compatibility Customer
-Secret credentials through the operator environment, then run:
+Supply the runtime wallet/connect variables and instance-principal media
+coordinates through the operator environment, then run:
 
 ```bash
 AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE=true \
@@ -122,9 +123,9 @@ object when `002_static_runtime_foundation.sql` has not been applied.
 The native Oracle probe uses Oracle Instant Client and the same wallet alias as
 the deployed app. It requires `ORACLE_DB_CONNECT_STRING`, `ORACLE_DB_USER`, and
 `ORACLE_DB_PASSWORD`; the smoke container sets `TNS_ADMIN` to the mounted wallet
-directory. OCI S3 compatibility requires `OCI_S3_ENDPOINT`,
-`OCI_S3_ACCESS_KEY`, `OCI_S3_SECRET_KEY`, `OCI_MEDIA_NAMESPACE`, and
-`OCI_MEDIA_BUCKET_NAME`.
+directory. Instance-principal media access requires `OCI_AUTH_MODE`,
+`OCI_MEDIA_NAMESPACE`, `OCI_MEDIA_BUCKET_NAME`, and the runtime dynamic-group
+policy for the media bucket.
 
 ### Run the Smoke as a Temporary VM Container
 
@@ -155,18 +156,14 @@ ORACLE_DB_PASSWORD=replace-with-runtime-db-password
 ORACLE_DB_CONNECT_STRING=autographsdb_medium
 ORACLE_DB_WALLET_DIR=/opt/autographs/wallet
 OCI_REGION=us-ashburn-1
-OCI_S3_ENDPOINT=https://replace-with-namespace.compat.objectstorage.us-ashburn-1.oraclecloud.com
-OCI_S3_ACCESS_KEY=replace-with-customer-secret-access-key
-OCI_S3_SECRET_KEY=replace-with-customer-secret-secret-key
+OCI_AUTH_MODE=instance_principal
 OCI_MEDIA_NAMESPACE=replace-with-object-storage-namespace
 OCI_MEDIA_BUCKET_NAME=autographs-media-prod
 ```
 
-The OCI S3 values are transitional and should not be backed by new
-Terraform-managed IAM users or Vault secrets. The target runtime path is OCI
-instance-principal Object Storage access through the runtime dynamic group; keep
-any temporary Customer Secret values operator-supplied and remove them after the
-native media adapter lands.
+The smoke must run on an OCI instance that can reach the instance metadata
+service and belongs to the runtime dynamic group with media-bucket object
+permissions.
 
 Load and run the image with Podman:
 
@@ -183,7 +180,7 @@ sudo podman run --rm \
 
 The image contains the compiled smoke-test executable, CA certificates, and
 Oracle Instant Client. It does not contain the Oracle wallet, database password,
-or OCI Customer Secret credentials.
+or Object Storage credentials.
 
 ## Live Static Publish Smoke
 
@@ -240,9 +237,9 @@ AUTOGRAPHS_STATIC_RELEASE_ROOT=/opt/autographs/static
 AUTOGRAPHS_OPERATOR_API_TOKEN=replace-with-runtime-operator-token
 ```
 
-Keep the Oracle and OCI S3 compatibility values from the live persistence smoke
-in the same protected file. Load and run the one-shot image on the private
-Podman network:
+Keep the Oracle and instance-principal media values from the live persistence
+smoke in the same protected file. Load and run the one-shot image on the
+private Podman network:
 
 ```bash
 sudo podman load --input /tmp/autographs-live-static-publish-smoke.tar
@@ -295,7 +292,7 @@ Planned downtime is acceptable for the first static-runtime cutover. Before
 editing Caddy's public root:
 
 1. Deploy the controller/static-volume shape with the controller provider
-   variables set to Oracle plus `oci-s3`.
+   variables set to Oracle plus `oci-instance-principal`.
 2. Run the live persistence smoke and live static publish smoke.
 3. Run an explicit full rebuild and inspect `/current/` through port `8081`.
 4. Update Caddy so the public root serves `/srv/autographs/static/current`.
@@ -320,5 +317,5 @@ After public static cutover verification passes:
 - Remove the public Next.js runtime from Caddy and later from deploy wiring only
   after static browse, detail, filtering, generated media, publish, and
   unpublish checks pass on the public hostname.
-- Revoke temporary OCI S3 Customer Secret credentials after the checkpoint and
-  replace them with the intended runtime secret handling before routine use.
+- Confirm no controller deploy path still depends on OCI S3 Customer Secret
+  credentials before routine static publishing use.
