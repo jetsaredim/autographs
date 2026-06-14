@@ -1,8 +1,8 @@
 [Unit]
 Description=Autographs Caddy reverse proxy container
-After=network-online.target autographs-network.service autographs-app.service autographs-controller.service
+After=network-online.target autographs-network.service autographs-controller.service
 Wants=network-online.target
-Requires=autographs-network.service autographs-app.service autographs-controller.service
+Requires=autographs-network.service autographs-controller.service
 
 [Container]
 ContainerName={{ autographs_deploy_caddy_container_name }}

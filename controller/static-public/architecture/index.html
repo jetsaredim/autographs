@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Autographs | Architecture</title>
+    <meta name="description" content="End-to-end architecture for the Autographs deployment path from GitHub through OCI and Caddy.">
+    <link rel="stylesheet" href="/assets/site.css">
+  </head>
+  <body>
+    <main class="architecture-shell">
+      <section class="architecture-hero" aria-labelledby="architecture-title">
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+          <span class="breadcrumb-item"><a href="/">Home</a></span>
+          <span class="breadcrumb-item"><span aria-hidden="true">&gt;</span><span>About</span></span>
+        </nav>
+        <h1 id="architecture-title">Autographs system overview</h1>
+        <p class="lede">The goal is to serve my autograph collection images on a public website using only OCI Free Tier resources and GitHub CI/CD automation for management. This page documents the full target solution: GitHub owns source control, validation, image publishing, and deployment automation; OCI runs the Caddy-served static public site, Rust private controller, Autonomous Database metadata, and private Object Storage media.</p>
+      </section>
+
+      <section class="diagram-card" aria-labelledby="diagram-title">
+        <div class="section-heading">
+          <h2 id="diagram-title">System diagram</h2>
+        </div>
+        <div class="architecture-diagram">
+          <img class="architecture-diagram-image" src="./architecture-diagram.svg" width="1280" height="760" alt="Autographs architecture diagram showing GitHub repository changes flowing through pull request CI, deploy workflow, GHCR image publishing, Terraform-managed OCI resources, an OCI runtime VM, Caddy, the generated static public site, the Rust private controller, Autonomous Database, private Object Storage, Let's Encrypt, public browser traffic, and collection management.">
+        </div>
+      </section>
+
+      <section class="workflow-card" aria-labelledby="workflow-title">
+        <div class="section-heading">
+          <p class="eyebrow">Numbered flows</p>
+          <h2 id="workflow-title">Workflow step definitions</h2>
+        </div>
+        <div class="workflow-table-wrap">
+          <table class="workflow-table">
+            <thead>
+              <tr>
+                <th scope="col">Step</th>
+                <th scope="col">Workflow</th>
+                <th scope="col">Definition</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="step-badge">1</span></td><td>Bootstrap tenancy with Terraform</td><td>The admin user runs the manual Terraform bootstrap that creates the compartment, deploy identity, policies, and state bucket.</td></tr>
+              <tr><td><span class="step-badge">2</span></td><td>Push code to GitHub</td><td>The admin/developer pushes application, infrastructure, and deployment changes to the GitHub repository.</td></tr>
+              <tr><td><span class="step-badge">3</span></td><td>Validate pull requests</td><td>Repository changes run the PR validation workflow before merge, including app and infrastructure checks.</td></tr>
+              <tr><td><span class="step-badge">4</span></td><td>Deploy from main</td><td>A merge to main starts the deploy workflow that builds the app and prepares the runtime update.</td></tr>
+              <tr><td><span class="step-badge">5</span></td><td>Provision OCI runtime with Terraform</td><td>GitHub Actions uses Terraform and the deploy identity to provision or update OCI resources, including the VCN, public subnet, runtime NSG, and VM.</td></tr>
+              <tr><td><span class="step-badge">6</span></td><td>Publish the app image</td><td>The deploy workflow publishes a Git-SHA-tagged container image to GHCR for the VM to pull.</td></tr>
+              <tr><td><span class="step-badge">7</span></td><td>Serve public traffic</td><td>End users reach Caddy over HTTPS through the public subnet and runtime NSG; Caddy serves the generated static release from the shared static volume.</td></tr>
+              <tr><td><span class="step-badge">8</span></td><td>Read and write private data</td><td>The Rust private controller uses controlled server-side paths to access Autonomous Database metadata and private Object Storage images while publishing public-safe static artifacts.</td></tr>
+              <tr><td><span class="step-badge">9</span></td><td>Manage TLS certificates</td><td>Caddy uses Let's Encrypt to obtain and renew the public HTTPS certificate for the Autographs domain.</td></tr>
+              <tr><td><span class="step-badge">10</span></td><td>Manage collection content</td><td>The Rust private controller and minimal static admin seed/publish path replace the temporary operator bridge; Phase 6 polishes the admin workflow, and Phase 7 later adds advisory AI metadata suggestions.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -57,8 +57,11 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     assert!(status.finished_at_epoch_seconds.is_some());
     for path in [
         "index.html",
+        "architecture/index.html",
+        "architecture/architecture-diagram.svg",
         "collection/index.html",
         "assets/browse.js",
+        "assets/site.css",
         "data/collection.json",
         "data/facets.json",
         "data/items/signed-jedi-card.json",
@@ -103,6 +106,18 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     assert!(script.contains("/data/collection.json"));
     assert!(script.contains("/data/facets.json"));
     assert!(!script.contains("/api/"));
+
+    let landing = fs::read_to_string(current.join("index.html")).unwrap();
+    let collection = fs::read_to_string(current.join("collection/index.html")).unwrap();
+    let detail = fs::read_to_string(current.join("items/signed-jedi-card/index.html")).unwrap();
+    let architecture = fs::read_to_string(current.join("architecture/index.html")).unwrap();
+    let site_css = fs::read_to_string(current.join("assets/site.css")).unwrap();
+    assert!(landing.contains("landing-hero"));
+    assert!(collection.contains("collection-panel"));
+    assert!(detail.contains("image-viewer is-revealed"));
+    assert!(architecture.contains("Autographs system overview"));
+    assert!(architecture.contains("./architecture-diagram.svg"));
+    assert!(site_css.contains(".gallery-card"));
 }
 
 #[tokio::test]
@@ -301,9 +316,21 @@ async fn publisher_uses_primary_image_first_for_gallery_and_derivatives() {
     );
     assert_eq!(detail.images[0].alt_text, "Primary image");
     assert_eq!(detail.images[1].alt_text, "Supporting image");
+    let detail_html =
+        fs::read_to_string(current.join("items/primary-selection-card/index.html")).unwrap();
+    assert!(detail_html.contains("Primary image"));
+    assert!(detail_html.contains("Supporting image"));
+    assert!(detail_html.contains("image-1-detail.webp"));
+    assert!(detail_html.contains("image-2-detail.webp"));
+    assert!(detail_html.contains("image-thumbnails"));
     assert!(
         current
             .join("media/primary-selection-card/image-1-thumbnail.webp")
+            .is_file()
+    );
+    assert!(
+        current
+            .join("media/primary-selection-card/image-2-thumbnail.webp")
             .is_file()
     );
 }
@@ -317,6 +344,8 @@ async fn publisher_incremental_removes_unpublished_and_stale_artifacts() {
         .await
         .unwrap();
     let current = fixture.root.path().join("current");
+    fs::create_dir_all(current.join("api/catalog")).unwrap();
+    fs::write(current.join("api/catalog/index.html"), b"stale api").unwrap();
     fs::write(current.join("media/stale.webp"), b"stale").unwrap();
 
     fixture
@@ -344,11 +373,15 @@ async fn publisher_incremental_removes_unpublished_and_stale_artifacts() {
     assert!(!current.join("items/signed-jedi-card/index.html").exists());
     assert!(!current.join("media/signed-jedi-card").exists());
     assert!(!current.join("media/stale.webp").exists());
+    assert!(!current.join("api/catalog/index.html").exists());
     let manifest: PublishManifest = read_json(&current.join("manifest.json"));
     assert!(
-        !manifest.artifacts.iter().any(
-            |entry| entry.path.contains("signed-jedi-card") || entry.path == "media/stale.webp"
-        )
+        !manifest
+            .artifacts
+            .iter()
+            .any(|entry| entry.path.contains("signed-jedi-card")
+                || entry.path == "media/stale.webp"
+                || entry.path.starts_with("api/"))
     );
 
     assert!(artifact_impact_for(PublishChange::PublicationStatus).derivatives);

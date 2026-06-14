@@ -20,6 +20,11 @@ use crate::{
     media::PrivateMediaStore,
 };
 
+const SITE_CSS: &str = include_str!("../static-public/site.css");
+const ARCHITECTURE_HTML: &str = include_str!("../static-public/architecture/index.html");
+const ARCHITECTURE_DIAGRAM_SVG: &[u8] =
+    include_bytes!("../static-public/architecture/architecture-diagram.svg");
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FixtureRecipe {
@@ -491,9 +496,6 @@ impl LocalPublisher {
             fs::remove_dir_all(candidate).map_err(|error| format!("reset candidate: {error}"))?;
         }
         if mode == PublishMode::Incremental {
-            if let Some(current) = current_release(&self.root)? {
-                copy_tree(&current, candidate)?;
-            }
             // Phase 5 uses the explicit map conservatively: without persisted
             // change events, a publish rebuilds the union of impacted surfaces.
             let _impact = [
@@ -638,6 +640,17 @@ fn write_release(
         collection_html().as_bytes(),
     )?;
     write_bytes(candidate, "assets/browse.js", browse_script().as_bytes())?;
+    write_bytes(candidate, "assets/site.css", SITE_CSS.as_bytes())?;
+    write_bytes(
+        candidate,
+        "architecture/index.html",
+        ARCHITECTURE_HTML.as_bytes(),
+    )?;
+    write_bytes(
+        candidate,
+        "architecture/architecture-diagram.svg",
+        ARCHITECTURE_DIAGRAM_SVG,
+    )?;
     write_json(candidate, "data/collection.json", &catalog)?;
     write_json(candidate, "data/facets.json", &facets)?;
     for item in items {
@@ -659,8 +672,11 @@ fn write_release(
 pub fn validate_candidate(candidate: &Path) -> Result<PublishManifest, String> {
     for required in [
         "index.html",
+        "architecture/index.html",
+        "architecture/architecture-diagram.svg",
         "collection/index.html",
         "assets/browse.js",
+        "assets/site.css",
         "data/collection.json",
         "data/facets.json",
         "manifest.json",
@@ -858,6 +874,7 @@ fn clear_generated_surface(candidate: &Path) -> Result<(), String> {
     for path in [
         "index.html",
         "collection",
+        "architecture",
         "items",
         "data",
         "media",
@@ -891,16 +908,6 @@ fn promote_candidate(root: &Path, release_id: &str) -> Result<(), String> {
     fs::rename(next, current).map_err(|error| format!("promote current pointer: {error}"))
 }
 
-fn current_release(root: &Path) -> Result<Option<PathBuf>, String> {
-    let current = root.join("current");
-    if !current.exists() {
-        return Ok(None);
-    }
-    Ok(Some(fs::canonicalize(current).map_err(|error| {
-        format!("resolve current release: {error}")
-    })?))
-}
-
 fn retain_latest_failed_candidate(root: &Path, candidate: &Path) -> Result<(), String> {
     let failed_root = root.join("failed");
     fs::create_dir_all(&failed_root)
@@ -919,22 +926,6 @@ fn retain_latest_failed_candidate(root: &Path, candidate: &Path) -> Result<(), S
         let name = candidate.file_name().expect("candidate release id");
         fs::rename(candidate, failed_root.join(name))
             .map_err(|error| format!("retain failed candidate: {error}"))?;
-    }
-    Ok(())
-}
-
-fn copy_tree(source: &Path, destination: &Path) -> Result<(), String> {
-    fs::create_dir_all(destination)
-        .map_err(|error| format!("create incremental candidate: {error}"))?;
-    for entry in fs::read_dir(source).map_err(|error| format!("read current release: {error}"))? {
-        let entry = entry.map_err(|error| format!("read current entry: {error}"))?;
-        let target = destination.join(entry.file_name());
-        if entry.path().is_dir() {
-            copy_tree(&entry.path(), &target)?;
-        } else {
-            fs::copy(entry.path(), target)
-                .map_err(|error| format!("copy current artifact: {error}"))?;
-        }
     }
     Ok(())
 }
@@ -1066,25 +1057,162 @@ fn slugify(value: &str) -> String {
     }
 }
 
-fn landing_html() -> &'static str {
-    "<!doctype html><title>Autographs</title><main><h1>Autographs</h1><a href=\"/collection/\">Browse collection</a></main>"
+fn page(title: &str, body: &str) -> String {
+    format!(
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>{}</title><meta name=\"description\" content=\"Browse a published autograph collection.\"><link rel=\"stylesheet\" href=\"/assets/site.css\"></head><body>{}</body></html>",
+        escape_html(title),
+        body
+    )
 }
 
-fn collection_html() -> &'static str {
-    "<!doctype html><title>Autograph Collection</title><main><h1>Collection</h1><label>Category <select id=\"category\"></select></label><label>Tag <select id=\"tag\"></select></label><div id=\"collection\"></div><script src=\"/assets/browse.js\"></script></main>"
+fn landing_html() -> String {
+    page(
+        "Autographs | Jared Greenwald's Collection",
+        r#"<main class="site-shell">
+  <section class="landing-hero" aria-labelledby="landing-title">
+    <div class="landing-copy">
+      <h1 id="landing-title">Jared Greenwald's Autograph Gallery</h1>
+      <p class="lede">A curated inventory of my personal autograph collection.<br>Organized for quiet browsing and the occasional happy discovery.</p>
+      <div class="cta-row" aria-label="Gallery actions">
+        <a class="button-primary" href="/collection/">Browse the Collection</a>
+        <a class="button-secondary" href="/collection/">Surprise Me</a>
+      </div>
+    </div>
+  </section>
+  <footer class="public-footer"><a href="/">Jared Greenwald's Autograph Gallery</a><span aria-hidden="true">•</span><a href="/architecture/">About</a></footer>
+</main>"#,
+    )
+}
+
+fn collection_html() -> String {
+    page(
+        "Autographs | Collection",
+        r#"<main class="site-shell collection-shell">
+  <section class="collection-heading" aria-labelledby="collection-title">
+    <nav class="breadcrumbs" aria-label="Breadcrumb"><span class="breadcrumb-item"><a href="/">Home</a></span><span class="breadcrumb-item"><span aria-hidden="true">&gt;</span><span>Collection</span></span></nav>
+    <h1 id="collection-title">Collection</h1>
+    <p class="lede" id="collection-count">Published autographs</p>
+  </section>
+  <section class="collection-panel" aria-label="Collection items">
+    <button class="filter-toggle" type="button" aria-expanded="false" aria-controls="collection-filters" aria-label="Open filters"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16l-6.5 7.5V19l-3 1.5v-7z"></path></svg></button>
+    <section class="gallery-filters" id="collection-filters" aria-label="Collection filters" hidden><div class="filter-menu"></div><div class="selected-filters" aria-label="Selected filters"></div></section>
+    <section class="gallery-grid" id="collection" aria-label="Published autograph items"></section>
+  </section>
+  <footer class="public-footer"><a href="/">Jared Greenwald's Autograph Gallery</a><span aria-hidden="true">•</span><a href="/architecture/">About</a></footer>
+  <script src="/assets/browse.js"></script>
+</main>"#,
+    )
 }
 
 fn browse_script() -> &'static str {
-    r#"Promise.all([fetch('/data/collection.json').then(r=>r.json()),fetch('/data/facets.json').then(r=>r.json())]).then(([catalog,facets])=>{const root=document.querySelector('#collection');const category=document.querySelector('#category');const tag=document.querySelector('#tag');const options=(id)=>(facets.groups.find(g=>g.id===id)||{options:[]}).options;const option=(value,label)=>{const node=document.createElement('option');node.value=value;node.textContent=label;return node};const fill=(node,values)=>{node.replaceChildren(option('','All'),...values.map(v=>option(v.value,v.value)))};fill(category,options('category'));fill(tag,options('tag'));const itemNode=(item)=>{const article=document.createElement('article');const link=document.createElement('a');link.href=`/items/${encodeURIComponent(item.slug)}/`;link.textContent=item.title;const signer=document.createElement('p');signer.textContent=item.signer;article.append(link,signer);return article};const render=()=>{root.replaceChildren(...catalog.items.filter(i=>(!category.value||i.category===category.value)&&(!tag.value||i.tags.includes(tag.value))).map(itemNode))};category.onchange=render;tag.onchange=render;render()})"#
+    r#"Promise.all([fetch('/data/collection.json').then(r=>r.json()),fetch('/data/facets.json').then(r=>r.json())]).then(([catalog,facets])=>{const root=document.querySelector('#collection');const count=document.querySelector('#collection-count');const panel=document.querySelector('#collection-filters');const menu=document.querySelector('.filter-menu');const chips=document.querySelector('.selected-filters');const toggle=document.querySelector('.filter-toggle');const state={signer:'',category:'',tag:''};const text=(node,value)=>{node.textContent=value;return node};const option=(value,label)=>text(Object.assign(document.createElement('option'),{value}),label);const facet=(id)=>(facets.groups.find(g=>g.id===id)||{label:id,options:[]});const select=(group)=>{const node=document.createElement('select');node.setAttribute('aria-label',group.label);node.replaceChildren(option('',group.label),...group.options.map(o=>option(o.value,o.label)));node.onchange=()=>{state[group.id]=node.value;render()};return node};menu.replaceChildren(select(facet('signer')),select(facet('category')),select(facet('tag')));toggle.onclick=()=>{const open=panel.hasAttribute('hidden');panel.toggleAttribute('hidden',!open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'Close filters':'Open filters')};const variant=(item,name)=>item.primaryImage?.variants?.find(v=>v.name===name)||item.primaryImage?.variants?.[0];const card=(item)=>{const link=Object.assign(document.createElement('a'),{className:'gallery-card-link',href:`/items/${encodeURIComponent(item.slug)}/`});link.setAttribute('aria-label',`${item.title} signed by ${item.signer}`);const article=Object.assign(document.createElement('article'),{className:'gallery-card'});const media=Object.assign(document.createElement('div'),{className:'gallery-card-media'});const image=variant(item,'thumbnail');if(image){const img=Object.assign(document.createElement('img'),{src:image.path,alt:item.primaryImage.altText,width:image.width,height:image.height,draggable:false});media.append(img)}else{media.append(text(document.createElement('span'),'No image published yet'))}const overlay=Object.assign(document.createElement('div'),{className:'gallery-card-overlay'});overlay.append(text(document.createElement('span'),item.signer));media.append(overlay);article.append(media);link.append(article);return link};const render=()=>{const filtered=catalog.items.filter(i=>(!state.signer||i.signer===state.signer)&&(!state.category||i.category===state.category)&&(!state.tag||i.tags.includes(state.tag)));count.textContent=filtered.length===1?'1 published autograph':`${filtered.length} published autographs`;chips.replaceChildren(...Object.entries(state).filter(([,value])=>value).map(([id,value])=>{const group=facet(id);const label=(group.options.find(o=>o.value===value)||{label:value}).label;const chip=Object.assign(document.createElement('button'),{className:'filter-chip',type:'button'});chip.textContent=`${group.label}: ${label}`;chip.onclick=()=>{state[id]='';menu.querySelectorAll('select').forEach(s=>{if(s.getAttribute('aria-label')===group.label)s.value=''});render()};return chip}));root.replaceChildren(...filtered.map(card))};render()})"#
 }
 
 fn detail_html(item: &PublicItemDetail) -> String {
-    format!(
-        "<!doctype html><title>{}</title><main><a href=\"/collection/\">Collection</a><h1>{}</h1><p>Signed by {}</p></main>",
-        escape_html(&item.title),
-        escape_html(&item.title),
-        escape_html(&item.signer)
+    let facts = detail_facts(item);
+    let groups = detail_groups(item);
+    let images = image_viewer(item);
+    page(
+        &format!("Autographs | {}", item.title),
+        &format!(
+            "<main class=\"site-shell detail-shell\"><header class=\"detail-heading\"><nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\"><span class=\"breadcrumb-item\"><a href=\"/\">Home</a></span><span class=\"breadcrumb-item\"><span aria-hidden=\"true\">&gt;</span><a href=\"/collection/\">Collection</a></span><span class=\"breadcrumb-item\"><span aria-hidden=\"true\">&gt;</span><span>{}</span></span></nav><h1>{}</h1><p class=\"lede\">Signed by {}</p></header><section class=\"image-viewer is-revealed\"><div class=\"image-viewer-gallery\">{}</div><div class=\"detail-metadata-panel is-revealed\"><div class=\"detail-metadata\"><div class=\"detail-facts\">{}</div>{}</div></div></section></main>",
+            escape_html(&item.title),
+            escape_html(&item.title),
+            escape_html(&item.signer),
+            images,
+            facts,
+            groups
+        ),
     )
+}
+
+fn image_viewer(item: &PublicItemDetail) -> String {
+    let Some(image) = item.images.first() else {
+        return format!(
+            "<div class=\"image-viewer-fallback\">No public image is available for {}.</div>",
+            escape_html(&item.title)
+        );
+    };
+    let Some(variant) = image_variant(image, ImageVariantName::Detail) else {
+        return String::new();
+    };
+    let thumbnails = if item.images.len() > 1 {
+        let buttons = item
+            .images
+            .iter()
+            .enumerate()
+            .filter_map(|(index, image)| {
+                let thumbnail = image_variant(image, ImageVariantName::Thumbnail)?;
+                let detail = image_variant(image, ImageVariantName::Detail).unwrap_or(thumbnail);
+                Some(format!(
+                    "<a class=\"thumbnail-button\" href=\"{}\" aria-label=\"View image {}\" aria-current=\"{}\"><img src=\"{}\" alt=\"{}\" width=\"{}\" height=\"{}\" draggable=\"false\"></a>",
+                    escape_html(&detail.path),
+                    index + 1,
+                    if index == 0 { "true" } else { "false" },
+                    escape_html(&thumbnail.path),
+                    escape_html(&image.alt_text),
+                    thumbnail.width,
+                    thumbnail.height
+                ))
+            })
+            .collect::<String>();
+        format!(
+            "<div class=\"image-thumbnails\" aria-label=\"{} images\">{}</div>",
+            escape_html(&item.title),
+            buttons
+        )
+    } else {
+        String::new()
+    };
+    format!(
+        "<div class=\"focused-image-button\"><img src=\"{}\" alt=\"{}\" width=\"{}\" height=\"{}\" draggable=\"false\"></div>{}",
+        escape_html(&variant.path),
+        escape_html(&image.alt_text),
+        variant.width,
+        variant.height,
+        thumbnails
+    )
+}
+
+fn image_variant(image: &PublicImage, name: ImageVariantName) -> Option<&PublicImageVariant> {
+    image
+        .variants
+        .iter()
+        .find(|variant| variant.name == name)
+        .or_else(|| image.variants.first())
+}
+
+fn detail_facts(item: &PublicItemDetail) -> String {
+    let mut facts = vec![item.signer.clone(), item.category.clone()];
+    facts.extend(item.tags.clone());
+    facts
+        .into_iter()
+        .map(|fact| format!("<span>{}</span>", escape_html(&fact)))
+        .collect::<String>()
+}
+
+fn detail_groups(item: &PublicItemDetail) -> String {
+    item.detail_groups
+        .iter()
+        .map(|group| {
+            let fields = group
+                .fields
+                .iter()
+                .map(|field| {
+                    format!(
+                        "<div><dt>{}</dt><dd>{}</dd></div>",
+                        escape_html(&field.label),
+                        escape_html(&field.value)
+                    )
+                })
+                .collect::<String>();
+            format!(
+                "<section class=\"metadata-group\"><h2>{}</h2><dl>{}</dl></section>",
+                escape_html(&group.label),
+                fields
+            )
+        })
+        .collect::<String>()
 }
 
 fn escape_html(value: &str) -> String {

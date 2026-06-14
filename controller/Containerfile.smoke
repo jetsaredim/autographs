@@ -5,6 +5,7 @@ WORKDIR /workspace
 COPY controller/Cargo.toml controller/Cargo.lock ./
 COPY controller/src ./src
 COPY controller/tests ./tests
+COPY controller/static-public ./static-public
 
 RUN cargo test --release --features live-persistence --test live_persistence_smoke --no-run \
     && smoke_binary="$(find target/release/deps -maxdepth 1 -type f -name 'live_persistence_smoke-*' -perm -111 | head -n 1)" \
