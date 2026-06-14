@@ -250,6 +250,20 @@
     - Restart app container
     - Restart controller container
 
+- name: Normalize Oracle DB wallet location for native clients
+  ansible.builtin.copy:
+    content: |
+      WALLET_LOCATION = (SOURCE = (METHOD = file) (METHOD_DATA = (DIRECTORY=/opt/autographs/wallet)))
+      SSL_SERVER_DN_MATCH=yes
+    dest: "{{ autographs_deploy_wallet_path }}/sqlnet.ora"
+    owner: "{{ autographs_deploy_user }}"
+    group: "{{ autographs_deploy_user }}"
+    mode: "0600"
+  no_log: true
+  notify:
+    - Restart app container
+    - Restart controller container
+
 - name: Remove temp wallet archives
   ansible.builtin.file:
     path: "{{ item }}"
