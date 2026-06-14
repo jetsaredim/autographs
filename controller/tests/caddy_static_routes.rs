@@ -34,7 +34,9 @@ fn controller_quadlet_keeps_private_api_off_host_ports() {
     );
 
     assert!(controller_quadlet.contains("Network=autographs.network"));
-    assert!(controller_quadlet.contains("Volume=autographs-static.volume:/opt/autographs/static"));
+    assert!(
+        controller_quadlet.contains("Volume=autographs-static.volume:/var/lib/autographs/static")
+    );
     assert!(!controller_quadlet.contains("PublishPort="));
 }
 
