@@ -197,6 +197,34 @@
     mode: "0600"
   notify: Restart controller container
 
+- name: Inspect generated static release volume
+  ansible.builtin.command:
+    cmd: >-
+      podman volume inspect {{ autographs_deploy_static_vol_name }}
+      --format {% raw %}'{{ .Mountpoint }}'{% endraw %}
+  register: autographs_deploy_static_volume
+  changed_when: false
+  failed_when: false
+
+- name: Check promoted static release manifest
+  ansible.builtin.stat:
+    path: "{{ autographs_deploy_static_volume.stdout }}/current/manifest.json"
+  register: autographs_deploy_static_manifest
+  when: autographs_deploy_static_volume.rc == 0
+
+- name: Require promoted static release before Caddy cutover
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_static_volume.rc == 0
+      - autographs_deploy_static_manifest.stat.exists | default(false)
+      - autographs_deploy_static_manifest.stat.isreg | default(false)
+    fail_msg: >-
+      Caddy is configured to serve the generated static public site from
+      /srv/autographs/static/current, but the {{ autographs_deploy_static_vol_name }}
+      Podman volume does not contain current/manifest.json. Run a successful
+      full static publish and verify the promoted release before deploying this
+      Caddy cutover.
+
 - name: Copy Caddyfile
   ansible.builtin.copy:
     src: Caddyfile
@@ -339,14 +367,12 @@
     - autographs-controller.service
     - autographs-caddy.service
 
-- name: Verify staged static preview listener before generated release exists
+- name: Verify current static release listener
   ansible.builtin.uri:
-    url: "http://127.0.0.1:{{ autographs_deploy_candidate_preview_port }}/"
+    url: "http://127.0.0.1:{{ autographs_deploy_candidate_preview_port }}/manifest.json"
     method: GET
     status_code:
       - 200
-      - 403
-      - 404
     return_content: false
   register: autographs_deploy_static_preview_check
   retries: 12

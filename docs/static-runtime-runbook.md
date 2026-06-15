@@ -77,17 +77,13 @@ publishes write candidates under `${AUTOGRAPHS_STATIC_RELEASE_ROOT}/releases/`
 and atomically update `${AUTOGRAPHS_STATIC_RELEASE_ROOT}/current` only after
 validation passes.
 
-Before the public static cutover, validate a promoted release from the runtime
-VM through Caddy's localhost-only preview listener. Use `/current/` to inspect
-the promoted candidate or `/releases/${RELEASE_ID}/` to inspect a specific
-release:
+Validate a promoted release from the runtime VM through Caddy's localhost-only
+static listener. The listener serves `${AUTOGRAPHS_STATIC_RELEASE_ROOT}/current`
+as its web root so these checks use the same paths as the public hostname:
 
 ```bash
 curl --fail --silent \
-  "http://127.0.0.1:8081/current/collection/"
-
-curl --fail --silent \
-  "http://127.0.0.1:8081/releases/${RELEASE_ID}/collection/"
+  "http://127.0.0.1:8081/collection/"
 ```
 
 Responses expose item IDs and public-safe status only. They do not return
@@ -193,11 +189,11 @@ wiring from PR 94 has already been deployed to the VM. That deployment installs:
   `autographs` Podman network.
 - Caddy `/admin/api/*` reverse proxying to `autographs-controller:8080`.
 - Caddy `/admin/*` serving the static admin shell.
-- Caddy `127.0.0.1:8081` host binding for the generated static preview.
+- Caddy `127.0.0.1:8081` host binding for the generated `current` static root.
 - The shared `autographs-static.volume` mounted into the controller and Caddy.
 
 Until that staged deployment is present, the smoke cannot reach
-`http://autographs-controller:8080` or `http://autographs-caddy:8081/current`.
+`http://autographs-controller:8080` or `http://autographs-caddy:8081`.
 Deploy PR 94 through the normal deployment workflow, or manually install the
 same controller quadlet, Caddyfile, static volume, and admin-shell files on the
 VM before running this checkpoint.
@@ -232,7 +228,7 @@ On the VM, extend the protected smoke environment file with:
 ```text
 AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true
 AUTOGRAPHS_CONTROLLER_BASE_URL=http://autographs-controller:8080
-AUTOGRAPHS_STATIC_PREVIEW_BASE_URL=http://autographs-caddy:8081/current
+AUTOGRAPHS_STATIC_PREVIEW_BASE_URL=http://autographs-caddy:8081
 AUTOGRAPHS_STATIC_RELEASE_ROOT=/var/lib/autographs/static
 AUTOGRAPHS_OPERATOR_API_TOKEN=replace-with-runtime-operator-token
 ```
@@ -262,9 +258,9 @@ After any seed or metadata change, trigger an incremental publish and inspect
 the promoted candidate privately:
 
 ```bash
-curl --fail --silent http://127.0.0.1:8081/current/collection/
-curl --fail --silent http://127.0.0.1:8081/current/data/collection.json
-curl --fail --silent http://127.0.0.1:8081/current/data/facets.json
+curl --fail --silent http://127.0.0.1:8081/collection/
+curl --fail --silent http://127.0.0.1:8081/data/collection.json
+curl --fail --silent http://127.0.0.1:8081/data/facets.json
 ```
 
 Check `/var/lib/autographs/static/failed/` inside the controller container when a candidate fails. The publisher
@@ -289,13 +285,14 @@ events do not exist yet.
 ## Cutover
 
 Planned downtime is acceptable for the first static-runtime cutover. Before
-editing Caddy's public root:
+merging the public Caddy root change:
 
 1. Deploy the controller/static-volume shape with the controller provider
    variables set to Oracle plus `oci-instance-principal`.
 2. Run the live persistence smoke and live static publish smoke.
-3. Run an explicit full rebuild and inspect `/current/` through port `8081`.
-4. Update Caddy so the public root serves `/srv/autographs/static/current`.
+3. Run an explicit full rebuild and inspect `/` and `/collection/` through port
+   `8081`.
+4. Deploy Caddy so the public root serves `/srv/autographs/static/current`.
 5. Verify `/`, `/collection/`, one `/items/{slug}/` page, JSON, facets, and
    generated media from the public hostname.
 
@@ -314,8 +311,8 @@ After public static cutover verification passes:
   the temporary Node operator bridge.
 - Retire `.github/workflows/data-smoke.yml` only after the live static publish
   smoke is the documented production verification path.
-- Remove the public Next.js runtime from Caddy and later from deploy wiring only
-  after static browse, detail, filtering, generated media, publish, and
-  unpublish checks pass on the public hostname.
+- Remove the remaining Next.js deploy wiring only after static browse, detail,
+  filtering, generated media, publish, and unpublish checks pass on the public
+  hostname.
 - Confirm no controller deploy path still depends on OCI S3 Customer Secret
   credentials before routine static publishing use.

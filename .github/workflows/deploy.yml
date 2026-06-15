@@ -336,7 +336,7 @@ jobs:
             return 1
           }
 
-          check_https_health "/health" "Next.js app"
+          check_https_health "/manifest.json" "static public release"
           controller_health="$(check_https_health "/admin/api/health" "Rust controller admin API")"
           if ! printf '%s' "$controller_health" | grep -q "\"controllerDbProvider\":\"${AUTOGRAPHS_CONTROLLER_DB_PROVIDER}\""; then
             echo "Rust controller health did not report expected DB provider ${AUTOGRAPHS_CONTROLLER_DB_PROVIDER}: ${controller_health}" >&2

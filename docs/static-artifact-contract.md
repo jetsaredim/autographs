@@ -17,6 +17,9 @@ Phase 5 uses split collection data plus per-item detail JSON:
 | Artifact | Path | Purpose |
 |----------|------|---------|
 | Collection page | `/collection/index.html` | Static gallery shell |
+| Shared stylesheet | `/assets/site.css` | Static copy of the public visual system |
+| Architecture page | `/architecture/index.html` | Static copy of the public architecture/about route |
+| Architecture diagram | `/architecture/architecture-diagram.svg` | Static architecture diagram asset |
 | Collection data | `/data/collection.json` | Gallery cards and primary image variants |
 | Facets | `/data/facets.json` | Signer, category, and tag filtering values |
 | Item page | `/items/{item-slug}/index.html` | Static item detail shell |

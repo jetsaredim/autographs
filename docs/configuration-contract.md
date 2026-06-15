@@ -169,10 +169,10 @@ The operator-run live static publish smoke also uses these VM-local values:
 |----------|----------------|---------|
 | `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE` | operator gate | Must be exactly `true` before the credential-gated smoke mutates live data |
 | `AUTOGRAPHS_CONTROLLER_BASE_URL` | private runtime coordinate | Controller URL reachable from the one-shot smoke container |
-| `AUTOGRAPHS_STATIC_PREVIEW_BASE_URL` | private runtime coordinate | Caddy preview prefix, normally `http://autographs-caddy:8081/current` |
+| `AUTOGRAPHS_STATIC_PREVIEW_BASE_URL` | private runtime coordinate | Caddy static root, normally `http://autographs-caddy:8081` |
 
-Until the public static cutover passes, the Next.js app, `/api/catalog/*`,
-app-mediated image streaming, the Node `/api/operator/*` bridge, and the old
-data smoke remain current runtime paths. Retire them together through the
-checklist in [static-runtime-runbook.md](static-runtime-runbook.md), not as
-independent ad hoc removals.
+After the public static cutover, the generated static release replaces the
+Next.js public routes, `/api/catalog/*`, and app-mediated image streaming.
+Retire the remaining Node deploy wiring and old data smoke through the checklist
+in [static-runtime-runbook.md](static-runtime-runbook.md), not as independent ad
+hoc removals.
