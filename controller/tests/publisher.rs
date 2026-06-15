@@ -127,6 +127,17 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     assert!(architecture.contains("public-footer"));
     assert!(architecture.contains("./architecture-diagram.svg"));
     assert!(site_css.contains(".gallery-card"));
+    for (label, html) in [
+        ("landing", landing),
+        ("collection", collection),
+        ("detail", detail),
+        ("architecture", architecture),
+    ] {
+        assert!(
+            !html.contains("{{"),
+            "{label} contains unresolved template token"
+        );
+    }
 }
 
 #[tokio::test]
