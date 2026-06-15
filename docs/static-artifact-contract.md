@@ -18,6 +18,8 @@ Phase 5 uses split collection data plus per-item detail JSON:
 |----------|------|---------|
 | Collection page | `/collection/index.html` | Static gallery shell |
 | Shared stylesheet | `/assets/site.css` | Static copy of the public visual system |
+| Favicon | `/favicon.ico` | Browser tab icon copied from the original app |
+| App icon | `/icon.png` | PNG icon used by modern browsers and touch icons |
 | Architecture page | `/architecture/index.html` | Static copy of the public architecture/about route |
 | Architecture diagram | `/architecture/architecture-diagram.svg` | Static architecture diagram asset |
 | Collection data | `/data/collection.json` | Gallery cards and primary image variants |

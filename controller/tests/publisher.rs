@@ -57,6 +57,8 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     assert!(status.finished_at_epoch_seconds.is_some());
     for path in [
         "index.html",
+        "favicon.ico",
+        "icon.png",
         "architecture/index.html",
         "architecture/architecture-diagram.svg",
         "collection/index.html",
@@ -113,9 +115,16 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     let architecture = fs::read_to_string(current.join("architecture/index.html")).unwrap();
     let site_css = fs::read_to_string(current.join("assets/site.css")).unwrap();
     assert!(landing.contains("landing-hero"));
+    assert!(landing.contains(r#"<link rel="icon" href="/favicon.ico" sizes="any">"#));
+    assert!(landing.contains(r#"<link rel="apple-touch-icon" href="/icon.png">"#));
+    assert!(landing.contains("public-footer"));
     assert!(collection.contains("collection-panel"));
+    assert!(collection.contains("public-footer"));
     assert!(detail.contains("image-viewer is-revealed"));
+    assert!(detail.contains("public-footer"));
     assert!(architecture.contains("Autographs system overview"));
+    assert!(architecture.contains(r#"<link rel="icon" href="/favicon.ico" sizes="any">"#));
+    assert!(architecture.contains("public-footer"));
     assert!(architecture.contains("./architecture-diagram.svg"));
     assert!(site_css.contains(".gallery-card"));
 }
