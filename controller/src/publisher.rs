@@ -21,6 +21,8 @@ use crate::{
 };
 
 const SITE_CSS: &str = include_str!("../static-public/site.css");
+const FAVICON_ICO: &[u8] = include_bytes!("../static-public/favicon.ico");
+const APP_ICON_PNG: &[u8] = include_bytes!("../static-public/icon.png");
 const ARCHITECTURE_HTML: &str = include_str!("../static-public/architecture/index.html");
 const ARCHITECTURE_DIAGRAM_SVG: &[u8] =
     include_bytes!("../static-public/architecture/architecture-diagram.svg");
@@ -634,6 +636,8 @@ fn write_release(
     let catalog = PublicCatalog::new(items.iter().map(|item| item.gallery.clone()).collect());
     let facets = public_facets(items);
     write_bytes(candidate, "index.html", landing_html().as_bytes())?;
+    write_bytes(candidate, "favicon.ico", FAVICON_ICO)?;
+    write_bytes(candidate, "icon.png", APP_ICON_PNG)?;
     write_bytes(
         candidate,
         "collection/index.html",
@@ -672,6 +676,8 @@ fn write_release(
 pub fn validate_candidate(candidate: &Path) -> Result<PublishManifest, String> {
     for required in [
         "index.html",
+        "favicon.ico",
+        "icon.png",
         "architecture/index.html",
         "architecture/architecture-diagram.svg",
         "collection/index.html",
@@ -879,6 +885,8 @@ fn clear_generated_surface(candidate: &Path) -> Result<(), String> {
         "data",
         "media",
         "assets",
+        "favicon.ico",
+        "icon.png",
         "manifest.json",
     ] {
         let path = candidate.join(path);
@@ -1059,7 +1067,7 @@ fn slugify(value: &str) -> String {
 
 fn page(title: &str, body: &str) -> String {
     format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>{}</title><meta name=\"description\" content=\"Browse a published autograph collection.\"><link rel=\"stylesheet\" href=\"/assets/site.css\"></head><body>{}</body></html>",
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>{}</title><meta name=\"description\" content=\"Browse a published autograph collection.\"><link rel=\"icon\" href=\"/favicon.ico\" sizes=\"any\"><link rel=\"icon\" href=\"/icon.png\" type=\"image/png\"><link rel=\"apple-touch-icon\" href=\"/icon.png\"><link rel=\"stylesheet\" href=\"/assets/site.css\"></head><body>{}</body></html>",
         escape_html(title),
         body
     )
@@ -1068,7 +1076,8 @@ fn page(title: &str, body: &str) -> String {
 fn landing_html() -> String {
     page(
         "Autographs | Jared Greenwald's Collection",
-        r#"<main class="site-shell">
+        &format!(
+            r#"<main class="site-shell">
   <section class="landing-hero" aria-labelledby="landing-title">
     <div class="landing-copy">
       <h1 id="landing-title">Jared Greenwald's Autograph Gallery</h1>
@@ -1079,15 +1088,18 @@ fn landing_html() -> String {
       </div>
     </div>
   </section>
-  <footer class="public-footer"><a href="/">Jared Greenwald's Autograph Gallery</a><span aria-hidden="true">•</span><a href="/architecture/">About</a></footer>
+  {}
 </main>"#,
+            public_footer()
+        ),
     )
 }
 
 fn collection_html() -> String {
     page(
         "Autographs | Collection",
-        r#"<main class="site-shell collection-shell">
+        &format!(
+            r#"<main class="site-shell collection-shell">
   <section class="collection-heading" aria-labelledby="collection-title">
     <nav class="breadcrumbs" aria-label="Breadcrumb"><span class="breadcrumb-item"><a href="/">Home</a></span><span class="breadcrumb-item"><span aria-hidden="true">&gt;</span><span>Collection</span></span></nav>
     <h1 id="collection-title">Collection</h1>
@@ -1098,9 +1110,11 @@ fn collection_html() -> String {
     <section class="gallery-filters" id="collection-filters" aria-label="Collection filters" hidden><div class="filter-menu"></div><div class="selected-filters" aria-label="Selected filters"></div></section>
     <section class="gallery-grid" id="collection" aria-label="Published autograph items"></section>
   </section>
-  <footer class="public-footer"><a href="/">Jared Greenwald's Autograph Gallery</a><span aria-hidden="true">•</span><a href="/architecture/">About</a></footer>
+  {}
   <script src="/assets/browse.js"></script>
 </main>"#,
+            public_footer()
+        ),
     )
 }
 
@@ -1115,15 +1129,20 @@ fn detail_html(item: &PublicItemDetail) -> String {
     page(
         &format!("Autographs | {}", item.title),
         &format!(
-            "<main class=\"site-shell detail-shell\"><header class=\"detail-heading\"><nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\"><span class=\"breadcrumb-item\"><a href=\"/\">Home</a></span><span class=\"breadcrumb-item\"><span aria-hidden=\"true\">&gt;</span><a href=\"/collection/\">Collection</a></span><span class=\"breadcrumb-item\"><span aria-hidden=\"true\">&gt;</span><span>{}</span></span></nav><h1>{}</h1><p class=\"lede\">Signed by {}</p></header><section class=\"image-viewer is-revealed\"><div class=\"image-viewer-gallery\">{}</div><div class=\"detail-metadata-panel is-revealed\"><div class=\"detail-metadata\"><div class=\"detail-facts\">{}</div>{}</div></div></section></main>",
+            "<main class=\"site-shell detail-shell\"><header class=\"detail-heading\"><nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\"><span class=\"breadcrumb-item\"><a href=\"/\">Home</a></span><span class=\"breadcrumb-item\"><span aria-hidden=\"true\">&gt;</span><a href=\"/collection/\">Collection</a></span><span class=\"breadcrumb-item\"><span aria-hidden=\"true\">&gt;</span><span>{}</span></span></nav><h1>{}</h1><p class=\"lede\">Signed by {}</p></header><section class=\"image-viewer is-revealed\"><div class=\"image-viewer-gallery\">{}</div><div class=\"detail-metadata-panel is-revealed\"><div class=\"detail-metadata\"><div class=\"detail-facts\">{}</div>{}</div></div></section>{}</main>",
             escape_html(&item.title),
             escape_html(&item.title),
             escape_html(&item.signer),
             images,
             facts,
-            groups
+            groups,
+            public_footer()
         ),
     )
+}
+
+fn public_footer() -> &'static str {
+    r#"<footer class="public-footer"><a href="/">Jared Greenwald's Autograph Gallery</a><span aria-hidden="true">•</span><a href="/architecture/">About</a></footer>"#
 }
 
 fn image_viewer(item: &PublicItemDetail) -> String {
