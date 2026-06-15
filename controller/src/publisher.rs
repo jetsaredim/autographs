@@ -1086,10 +1086,30 @@ fn detail_html(item: &PublicItemDetail) -> String {
 }
 
 fn render_template(template: &str, values: &[(&str, String)]) -> String {
-    let mut rendered = template.to_owned();
-    for (key, value) in values {
-        rendered = rendered.replace(&format!("{{{{ {key} }}}}"), value);
+    let values = values
+        .iter()
+        .map(|(key, value)| (*key, value.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let mut rendered = String::with_capacity(template.len());
+    let mut remaining = template;
+
+    while let Some(start) = remaining.find("{{") {
+        let token_start = start + 2;
+        let Some(end) = remaining[token_start..].find("}}") else {
+            break;
+        };
+        let token_end = token_start + end;
+        let key = remaining[token_start..token_end].trim();
+
+        rendered.push_str(&remaining[..start]);
+        if let Some(value) = values.get(key) {
+            rendered.push_str(value);
+        } else {
+            rendered.push_str(&remaining[start..token_end + 2]);
+        }
+        remaining = &remaining[token_end + 2..];
     }
+    rendered.push_str(remaining);
     rendered
 }
 
