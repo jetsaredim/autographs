@@ -41,6 +41,10 @@ The selected split is not the smallest byte count. It is the simplest shape
 that preserves browse/filter behavior while allowing an item update to replace
 one detail artifact and the affected indexes.
 
+Stable shell pages and browser assets are copied from `controller/static-public/`
+when a release is generated. Per-item detail pages are rendered from the
+publisher detail template because their content varies with catalog records.
+
 ## Versioning
 
 `collection.json`, `facets.json`, each item detail JSON artifact, and

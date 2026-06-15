@@ -20,12 +20,16 @@ use crate::{
     media::PrivateMediaStore,
 };
 
+const LANDING_HTML: &str = include_str!("../static-public/index.html");
+const COLLECTION_HTML: &str = include_str!("../static-public/collection/index.html");
+const BROWSE_JS: &str = include_str!("../static-public/assets/browse.js");
 const SITE_CSS: &str = include_str!("../static-public/site.css");
 const FAVICON_ICO: &[u8] = include_bytes!("../static-public/favicon.ico");
 const APP_ICON_PNG: &[u8] = include_bytes!("../static-public/icon.png");
 const ARCHITECTURE_HTML: &str = include_str!("../static-public/architecture/index.html");
 const ARCHITECTURE_DIAGRAM_SVG: &[u8] =
     include_bytes!("../static-public/architecture/architecture-diagram.svg");
+const DETAIL_TEMPLATE: &str = include_str!("../static-public/templates/detail.html");
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -635,15 +639,15 @@ fn write_release(
 ) -> Result<(), String> {
     let catalog = PublicCatalog::new(items.iter().map(|item| item.gallery.clone()).collect());
     let facets = public_facets(items);
-    write_bytes(candidate, "index.html", landing_html().as_bytes())?;
+    write_bytes(candidate, "index.html", LANDING_HTML.as_bytes())?;
     write_bytes(candidate, "favicon.ico", FAVICON_ICO)?;
     write_bytes(candidate, "icon.png", APP_ICON_PNG)?;
     write_bytes(
         candidate,
         "collection/index.html",
-        collection_html().as_bytes(),
+        COLLECTION_HTML.as_bytes(),
     )?;
-    write_bytes(candidate, "assets/browse.js", browse_script().as_bytes())?;
+    write_bytes(candidate, "assets/browse.js", BROWSE_JS.as_bytes())?;
     write_bytes(candidate, "assets/site.css", SITE_CSS.as_bytes())?;
     write_bytes(
         candidate,
@@ -1065,84 +1069,48 @@ fn slugify(value: &str) -> String {
     }
 }
 
-fn page(title: &str, body: &str) -> String {
-    format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>{}</title><meta name=\"description\" content=\"Browse a published autograph collection.\"><link rel=\"icon\" href=\"/favicon.ico\" sizes=\"any\"><link rel=\"icon\" href=\"/icon.png\" type=\"image/png\"><link rel=\"apple-touch-icon\" href=\"/icon.png\"><link rel=\"stylesheet\" href=\"/assets/site.css\"></head><body>{}</body></html>",
-        escape_html(title),
-        body
-    )
-}
-
-fn landing_html() -> String {
-    page(
-        "Autographs | Jared Greenwald's Collection",
-        &format!(
-            r#"<main class="site-shell">
-  <section class="landing-hero" aria-labelledby="landing-title">
-    <div class="landing-copy">
-      <h1 id="landing-title">Jared Greenwald's Autograph Gallery</h1>
-      <p class="lede">A curated inventory of my personal autograph collection.<br>Organized for quiet browsing and the occasional happy discovery.</p>
-      <div class="cta-row" aria-label="Gallery actions">
-        <a class="button-primary" href="/collection/">Browse the Collection</a>
-        <a class="button-secondary" href="/collection/">Surprise Me</a>
-      </div>
-    </div>
-  </section>
-  {}
-</main>"#,
-            public_footer()
-        ),
-    )
-}
-
-fn collection_html() -> String {
-    page(
-        "Autographs | Collection",
-        &format!(
-            r#"<main class="site-shell collection-shell">
-  <section class="collection-heading" aria-labelledby="collection-title">
-    <nav class="breadcrumbs" aria-label="Breadcrumb"><span class="breadcrumb-item"><a href="/">Home</a></span><span class="breadcrumb-item"><span aria-hidden="true">&gt;</span><span>Collection</span></span></nav>
-    <h1 id="collection-title">Collection</h1>
-    <p class="lede" id="collection-count">Published autographs</p>
-  </section>
-  <section class="collection-panel" aria-label="Collection items">
-    <button class="filter-toggle" type="button" aria-expanded="false" aria-controls="collection-filters" aria-label="Open filters"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16l-6.5 7.5V19l-3 1.5v-7z"></path></svg></button>
-    <section class="gallery-filters" id="collection-filters" aria-label="Collection filters" hidden><div class="filter-menu"></div><div class="selected-filters" aria-label="Selected filters"></div></section>
-    <section class="gallery-grid" id="collection" aria-label="Published autograph items"></section>
-  </section>
-  {}
-  <script src="/assets/browse.js"></script>
-</main>"#,
-            public_footer()
-        ),
-    )
-}
-
-fn browse_script() -> &'static str {
-    r#"Promise.all([fetch('/data/collection.json').then(r=>r.json()),fetch('/data/facets.json').then(r=>r.json())]).then(([catalog,facets])=>{const root=document.querySelector('#collection');const count=document.querySelector('#collection-count');const panel=document.querySelector('#collection-filters');const menu=document.querySelector('.filter-menu');const chips=document.querySelector('.selected-filters');const toggle=document.querySelector('.filter-toggle');const state={signer:'',category:'',tag:''};const text=(node,value)=>{node.textContent=value;return node};const option=(value,label)=>text(Object.assign(document.createElement('option'),{value}),label);const facet=(id)=>(facets.groups.find(g=>g.id===id)||{label:id,options:[]});const select=(group)=>{const node=document.createElement('select');node.setAttribute('aria-label',group.label);node.replaceChildren(option('',group.label),...group.options.map(o=>option(o.value,o.label)));node.onchange=()=>{state[group.id]=node.value;render()};return node};menu.replaceChildren(select(facet('signer')),select(facet('category')),select(facet('tag')));toggle.onclick=()=>{const open=panel.hasAttribute('hidden');panel.toggleAttribute('hidden',!open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'Close filters':'Open filters')};const variant=(item,name)=>item.primaryImage?.variants?.find(v=>v.name===name)||item.primaryImage?.variants?.[0];const card=(item)=>{const link=Object.assign(document.createElement('a'),{className:'gallery-card-link',href:`/items/${encodeURIComponent(item.slug)}/`});link.setAttribute('aria-label',`${item.title} signed by ${item.signer}`);const article=Object.assign(document.createElement('article'),{className:'gallery-card'});const media=Object.assign(document.createElement('div'),{className:'gallery-card-media'});const image=variant(item,'thumbnail');if(image){const img=Object.assign(document.createElement('img'),{src:image.path,alt:item.primaryImage.altText,width:image.width,height:image.height,draggable:false});media.append(img)}else{media.append(text(document.createElement('span'),'No image published yet'))}const overlay=Object.assign(document.createElement('div'),{className:'gallery-card-overlay'});overlay.append(text(document.createElement('span'),item.signer));media.append(overlay);article.append(media);link.append(article);return link};const render=()=>{const filtered=catalog.items.filter(i=>(!state.signer||i.signer===state.signer)&&(!state.category||i.category===state.category)&&(!state.tag||i.tags.includes(state.tag)));count.textContent=filtered.length===1?'1 published autograph':`${filtered.length} published autographs`;chips.replaceChildren(...Object.entries(state).filter(([,value])=>value).map(([id,value])=>{const group=facet(id);const label=(group.options.find(o=>o.value===value)||{label:value}).label;const chip=Object.assign(document.createElement('button'),{className:'filter-chip',type:'button'});chip.textContent=`${group.label}: ${label}`;chip.onclick=()=>{state[id]='';menu.querySelectorAll('select').forEach(s=>{if(s.getAttribute('aria-label')===group.label)s.value=''});render()};return chip}));root.replaceChildren(...filtered.map(card))};render()})"#
-}
-
 fn detail_html(item: &PublicItemDetail) -> String {
     let facts = detail_facts(item);
     let groups = detail_groups(item);
     let images = image_viewer(item);
-    page(
-        &format!("Autographs | {}", item.title),
-        &format!(
-            "<main class=\"site-shell detail-shell\"><header class=\"detail-heading\"><nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\"><span class=\"breadcrumb-item\"><a href=\"/\">Home</a></span><span class=\"breadcrumb-item\"><span aria-hidden=\"true\">&gt;</span><a href=\"/collection/\">Collection</a></span><span class=\"breadcrumb-item\"><span aria-hidden=\"true\">&gt;</span><span>{}</span></span></nav><h1>{}</h1><p class=\"lede\">Signed by {}</p></header><section class=\"image-viewer is-revealed\"><div class=\"image-viewer-gallery\">{}</div><div class=\"detail-metadata-panel is-revealed\"><div class=\"detail-metadata\"><div class=\"detail-facts\">{}</div>{}</div></div></section>{}</main>",
-            escape_html(&item.title),
-            escape_html(&item.title),
-            escape_html(&item.signer),
-            images,
-            facts,
-            groups,
-            public_footer()
-        ),
+    render_template(
+        DETAIL_TEMPLATE,
+        &[
+            ("item_title", escape_html(&item.title)),
+            ("item_signer", escape_html(&item.signer)),
+            ("image_viewer", images),
+            ("detail_facts", facts),
+            ("detail_groups", groups),
+        ],
     )
 }
 
-fn public_footer() -> &'static str {
-    r#"<footer class="public-footer"><a href="/">Jared Greenwald's Autograph Gallery</a><span aria-hidden="true">•</span><a href="/architecture/">About</a></footer>"#
+fn render_template(template: &str, values: &[(&str, String)]) -> String {
+    let values = values
+        .iter()
+        .map(|(key, value)| (*key, value.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let mut rendered = String::with_capacity(template.len());
+    let mut remaining = template;
+
+    while let Some(start) = remaining.find("{{") {
+        let token_start = start + 2;
+        let Some(end) = remaining[token_start..].find("}}") else {
+            break;
+        };
+        let token_end = token_start + end;
+        let key = remaining[token_start..token_end].trim();
+
+        rendered.push_str(&remaining[..start]);
+        if let Some(value) = values.get(key) {
+            rendered.push_str(value);
+        } else {
+            rendered.push_str(&remaining[start..token_end + 2]);
+        }
+        remaining = &remaining[token_end + 2..];
+    }
+    rendered.push_str(remaining);
+    rendered
 }
 
 fn image_viewer(item: &PublicItemDetail) -> String {

@@ -127,6 +127,17 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     assert!(architecture.contains("public-footer"));
     assert!(architecture.contains("./architecture-diagram.svg"));
     assert!(site_css.contains(".gallery-card"));
+    for (label, html) in [
+        ("landing", landing),
+        ("collection", collection),
+        ("detail", detail),
+        ("architecture", architecture),
+    ] {
+        assert!(
+            !html.contains("{{"),
+            "{label} contains unresolved template token"
+        );
+    }
 }
 
 #[tokio::test]
@@ -236,6 +247,53 @@ async fn publisher_public_browse_surfaces_do_not_execute_operator_markup() {
     assert!(!browse_js.contains(tag));
     assert!(browse_js.contains("textContent"));
     assert!(browse_js.contains("replaceChildren"));
+}
+
+#[tokio::test]
+async fn publisher_detail_template_tokens_in_operator_content_render_literally() {
+    let root = tempdir().unwrap();
+    let media_root = tempdir().unwrap();
+    let repository = MemoryCatalogRepository::default();
+    let media = LocalMediaStore::new(media_root.path());
+    let title = "Literal {{ image_viewer }} token";
+    let signer = "Literal {{ detail_groups }} token";
+    let item = repository
+        .create(AutographItemInput {
+            title: title.to_owned(),
+            signer: signer.to_owned(),
+            description: None,
+            category: "Cards".to_owned(),
+            tags: vec!["template-token".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+
+    LocalPublisher::new(root.path())
+        .publish(&repository, &media, PublishMode::Full)
+        .await
+        .unwrap();
+
+    let detail_html = fs::read_to_string(
+        root.path()
+            .join("current")
+            .join("items")
+            .join(slug_for_test(&item.title))
+            .join("index.html"),
+    )
+    .unwrap();
+
+    assert!(detail_html.contains(title));
+    assert!(detail_html.contains(signer));
+    assert_eq!(detail_html.matches("image-viewer-fallback").count(), 1);
 }
 
 #[tokio::test]
