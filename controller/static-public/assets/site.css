@@ -957,7 +957,7 @@ body:has(.not-found-shell) {
 
 .not-found-quote [data-not-found-quote] {
   margin: 0;
-  color: rgba(229, 231, 235, 0.78);
+  color: rgba(156, 163, 175, 0.9);
   font-size: clamp(2rem, 5vw, 4rem);
   font-weight: 400;
   line-height: 1.12;
@@ -967,8 +967,30 @@ body:has(.not-found-shell) {
 .not-found-quote [data-not-found-source] {
   display: block;
   margin-top: 1rem;
-  color: rgba(229, 231, 235, 0.62);
+  color: rgba(156, 163, 175, 0.7);
   font-size: clamp(1rem, 1.6vw, 1.25rem);
   font-style: italic;
   text-align: right;
+}
+
+.not-found-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  cursor: default !important;
+  transition: opacity 0.15s ease;
+}
+
+.not-found-link:visited {
+  color: inherit;
+}
+
+.not-found-link:hover {
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.85;
+}
+
+.not-found-link:active {
+  color: inherit;
 }
