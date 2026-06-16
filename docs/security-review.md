@@ -1,6 +1,6 @@
 # Security Review
 
-Phase 4 reviewed the current public gallery, deployment, runtime, and repository surfaces before the Phase 5 static runtime/private controller foundation, Phase 6 polished admin workflow, and Phase 7 AI ingest. This review covers the system that exists now: anonymous public browsing, app-mediated private image delivery, the temporary operator bridge, OCI-backed runtime configuration, GitHub Actions delivery, and scheduled cleanup.
+This is the historical Phase 4 security review for the pre-cutover Next.js runtime. It covered anonymous public browsing, app-mediated private image delivery, the temporary operator bridge, OCI-backed runtime configuration, GitHub Actions delivery, and scheduled cleanup before the static runtime/private controller foundation landed. Current production verification should use the static runtime runbook and Rust controller checks.
 
 ## Scope
 
@@ -11,12 +11,11 @@ Reviewed:
 - Private media delivery through app-mediated catalog image routes.
 - Oracle and OCI Object Storage configuration boundaries.
 - Caddy public ingress and runtime Podman deployment.
-- GitHub Actions CI, deploy, data-smoke, and image-cleanup workflows.
+- GitHub Actions CI, deploy, and image-cleanup workflows.
 - Repository hygiene for secrets, ignored runtime state, and public documentation.
 
-Out of scope:
+Current static-runtime follow-up scope:
 
-- Phase 5 static publisher, Rust private controller, minimal static admin seed/publish path, generated derivatives, and operator-bridge retirement.
 - Phase 6 polished admin workflow, edit-history UX, and advanced media cleanup ergonomics.
 - Phase 7 OCR/AI providers, prompts, privacy review, and model configuration.
 

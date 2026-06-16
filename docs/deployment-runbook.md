@@ -1,10 +1,10 @@
 # Deployment Runbook
 
 This runbook gets the app from a clean checkout to an OCI VM running
-systemd-managed Podman quadlets: public `Caddy` in front of the current private
-`Next.js` app plus the staged Rust private controller and shared static release
-tree on a dedicated Podman network, with Terraform-managed hooks for Oracle
-Autonomous Database Free and private OCI Object Storage media.
+systemd-managed Podman quadlets: public `Caddy` serving the generated static
+release, the Rust private controller for admin and publishing, and shared static
+release storage on a dedicated Podman network, with Terraform-managed hooks for
+Oracle Autonomous Database Free and private OCI Object Storage media.
 
 ## Preconditions
 
@@ -111,33 +111,28 @@ Populate repo-level GitHub Variables:
 - `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT`
 - `AUTOGRAPHS_DOMAIN`
 
-`GHCR_IMAGE_REPOSITORY` should be a `ghcr.io` image path such as `ghcr.io/jetsaredim/autographs/app`.
+`GHCR_IMAGE_REPOSITORY` should be the base `ghcr.io` image path used for the controller image, such as `ghcr.io/jetsaredim/autographs/app`. The deployed runtime no longer publishes or starts the old Next.js runner or tools images from that base path.
 
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
 Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, ADMIN password, and runtime connection values are ready. When enabling Phase 2 data services, Terraform provisions the ADB and bucket, while the deploy step passes app runtime coordinates through the VM-local quadlet environment file.
 
-For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Also store the wallet download password in `ORACLE_DB_WALLET_PASSWORD` if the Thin driver requires it. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the app container.
+For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Also store the wallet download password in `ORACLE_DB_WALLET_PASSWORD` if the driver requires it. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the Rust controller container.
 
-The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM`. Terraform uses it from the runner temp directory. Runtime deploy copies it to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounts `${DEPLOY_PATH}/secrets` read-only into the app container, and sets `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. This preserves PEM newlines for the OCI SDK and avoids putting multiline private keys in the quadlet environment file.
+The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM`. Terraform uses it from the runner temp directory. Runtime deploy copies it to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounts `${DEPLOY_PATH}/secrets` read-only into the Rust controller container, and sets `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. This preserves PEM newlines for the OCI SDK and avoids putting multiline private keys in the quadlet environment file.
 
 ## Data and Media Smoke
 
-This is the current-until-cutover Node runtime smoke. Retire it only after the
-Phase 5 live static publish smoke passes against the deployed Rust controller,
-generated release tree, and local/private Caddy preview.
+The pre-cutover Node data-smoke workflow and tools image are retired. Production
+verification now uses the deployed Rust controller health route, static release
+manifest, and live static publish smoke from
+[static-runtime-runbook.md](static-runtime-runbook.md).
 
-Basic `/health` remains a proof-of-life check and does not require Oracle or Object Storage secrets. Use the deeper VM smoke workflow only when data-service credentials are present:
+The deployed Rust controller exposes `GET /admin/api/health` for runtime readiness. A successful full or incremental publish verifies Oracle catalog access, private media access, generated derivatives, static release promotion, and Caddy static serving.
 
-Run `.github/workflows/data-smoke.yml` manually from GitHub Actions. The workflow resolves the runtime VM IP, starts the `production` tools image on the VM's Podman network by default, runs migrations, loads representative seed records with generated SVG fixture images, creates a published smoke item, uploads a private smoke image, reads it back through the catalog/media service, and verifies the deployed app-mediated image route with `AUTOGRAPHS_SMOKE_BASE_URL`. It is intentionally manual because it requires live ADB and private Object Storage credentials. Each Ansible smoke command has its own timeout: migrations and seed each default to 600 seconds, and `data:smoke` defaults to 1800 seconds with a 30-second forced-kill grace period. If a timeout names one of these commands, check Oracle ADB connectivity, Object Storage connectivity, and the cleanup notes below before rerunning.
+Published images are served as generated static derivatives from the promoted release. Public URLs contain generated artifact paths only; they do not expose Object Storage bucket credentials, signed direct URLs, or raw object keys as the public access contract.
 
-The workflow dispatch input `tools_image_tag` defaults to `production`; override it only when intentionally validating a different tools image tag. The smoke-created published item and private image are deleted through the catalog service before the script exits, and the script fails if the smoke item still exists or the read-back media object remains readable after cleanup. Seed records remain additive; reset the target schema before rerunning if you need a pristine sample dataset. If a workflow run fails before cleanup, search for smoke records with tag `smoke` or signer `Phase Two Smoke` and remove them through the operator delete path in [temporary-production-data-entry.md](temporary-production-data-entry.md). If metadata was never written but an image upload may have succeeded, inspect Object Storage for an `autographs/{itemId}/...smoke.svg` object key from the failed run logs and delete that object manually.
-
-The deployed app also exposes `GET /health/data` for configuration readiness and `GET /health/data?live=1` for guarded live checks. The live check requires `Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}` and verifies both Oracle catalog access and private media bucket readiness.
-
-Published images are served through app-mediated URLs shaped as `/api/catalog/{itemId}/images/{imageId}`. The URL contains app-level catalog identifiers only; it does not expose Object Storage bucket credentials, signed direct URLs, or raw object keys as the public access contract.
-
-Temporary production data entry is operator-only and documented in [temporary-production-data-entry.md](temporary-production-data-entry.md). It is current only until the Rust private controller and minimal static admin seed/publish path pass the Phase 5 live cutover checkpoint.
+Temporary production data entry through the Node operator bridge is retired. Current operator work uses the static admin shell and Rust controller under `/admin` and `/admin/api/*`.
 
 ## Workflow Behavior
 
@@ -149,24 +144,29 @@ deployment.
 Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 
 1. validates the repository,
-2. publishes prebuilt app, tools, and Rust controller images to `ghcr.io`,
+2. publishes the prebuilt Rust controller image to `ghcr.io`,
 3. runs `terraform apply`,
 4. optionally taints and recreates the runtime VM when manually requested,
 5. connects to the OCI VM over SSH through Ansible,
 6. installs/maintains Podman, firewalld, swap, and masked systemd services,
 7. copies wallet and OCI API key material to protected VM paths,
-8. installs systemd quadlets for the dedicated Podman network, app container, private controller, shared static volume, and Caddy container,
-9. pulls the published runtime images and restarts the quadlet services,
-10. checks the Caddy-fronted `/health` proof-of-life route.
+8. installs systemd quadlets for the dedicated Podman network, private controller, shared static volume, and Caddy container,
+9. stops, disables, and removes the retired Next.js app runtime if present,
+10. pulls the published runtime images and restarts the quadlet services,
+11. checks the Caddy-fronted static release and Rust controller health routes.
 
 The VM pulls images built by GitHub Actions. The VM does not build application
 code or generate catalog content during deploy.
 
-### Staged Static Preview
+The Next.js source tree remains in the repository as the parity reference for
+the public site's page-level interactions and visual theme while those behaviors
+are carried into the static publisher. It is not built, published, pulled, or
+started by the production deploy path.
 
-Plan 05-06 deploys the private controller and static route shape without
-switching anonymous public traffic away from the current Next.js app. On the
-VM, Caddy exposes generated candidates only through a localhost-bound preview:
+### Static Preview
+
+On the VM, Caddy exposes the current generated release through a localhost-bound
+preview in addition to the public hostname:
 
 ```bash
 curl --fail --silent http://127.0.0.1:8081/releases/<release-id>/collection/
@@ -176,16 +176,18 @@ The `/admin` shell and `/admin/api/*` controller proxy are available through
 the normal hostname. Plan 05-07 owns the explicit public static cutover after a
 candidate release passes local validation.
 
-The Caddy update required before the live static publish smoke is the staged
-route shape, not the final public cutover:
+The public cutover route shape is now the deployed Caddy shape:
 
 - `/admin/api/*` reverse-proxies to `autographs-controller:8080` on the private
   Podman network.
 - `/admin/*` serves the static admin shell from `/srv/autographs/admin`.
 - `/api/operator/*` continues to return `404`.
-- Anonymous public traffic still reverse-proxies to `autographs-app:3000`.
+- Anonymous public traffic serves `/srv/autographs/static/current` directly.
 - `127.0.0.1:8081` on the VM maps to Caddy's static preview listener and serves
   `/srv/autographs/static`.
+
+The deploy role stops and disables the retired `autographs-app.service`, removes
+its quadlet, and force-removes any leftover `autographs-app` Podman container.
 
 The Ansible-managed `/opt/autographs/env/controller.env` intentionally uses
 persistent controller providers in deployment:
@@ -205,18 +207,16 @@ is roll-forward oriented: correct the source or controller, run a full rebuild,
 validate through the localhost candidate listener, and promote the repaired
 release.
 
-After public static verification passes, retire `/api/catalog/*`,
-app-mediated image streaming, `/api/operator/*`, the old Node data smoke, and
-the public Next.js reverse proxy using the checklist in the static runtime
-runbook.
+The public Caddy route serves the same generated static release. `/api/catalog/*`
+and `/api/operator/*` are no longer part of the public runtime contract.
 
-The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because `tsx`, Next.js, and smoke/admin scripts can briefly exceed the VM's physical memory.
+The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because controller publishing, image processing, and tools/smoke scripts can briefly exceed the VM's physical memory.
 
 ### Runtime VM Recreation
 
 Terraform no longer embeds the runtime bootstrap state in cloud-init. If a clean VM is needed, manually run the deploy workflow with `recreate_runtime_instance=true`. The workflow taints `module.compute.oci_core_instance.runtime[0]` before `terraform apply`, forcing OCI to recreate the runtime VM and then letting Ansible converge the full production state onto the replacement instance.
 
-Image cleanup runs separately through `.github/workflows/image-cleanup.yml` on a weekly schedule and by manual dispatch. One job prunes old VM-local app/tools images while keeping the active image from `${DEPLOY_PATH}/env/app.env`, `latest`, `GHCR_CLEANUP_PROTECTED_TAGS`, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` matching images per repository. Another job prunes old GHCR package versions while keeping `latest`, protected tags, the newest `GHCR_CLEANUP_RETAIN_TAGGED` versions, and versions newer than `GHCR_CLEANUP_MIN_AGE_DAYS`. Use the manual `dry_run=true` input to preview deletions.
+Image cleanup runs separately through `.github/workflows/image-cleanup.yml` on a weekly schedule and by manual dispatch. One job prunes old VM-local runtime images while keeping the active controller image from `${DEPLOY_PATH}/env/app.env`, `latest`, `GHCR_CLEANUP_PROTECTED_TAGS`, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` matching images per repository. Another job prunes old GHCR package versions while keeping `latest`, protected tags, the newest `GHCR_CLEANUP_RETAIN_TAGGED` versions, and versions newer than `GHCR_CLEANUP_MIN_AGE_DAYS`. Use the manual `dry_run=true` input to preview deletions.
 
 ## Manual Smoke Path
 
@@ -236,8 +236,8 @@ If this fails, check the VM:
 
 ```bash
 ssh opc@"${VM_PUBLIC_IP}"
-sudo systemctl status autographs-network.service autographs-app.service autographs-controller.service autographs-caddy.service
-sudo journalctl -u autographs-app.service -u autographs-controller.service -u autographs-caddy.service --since "30 minutes ago"
+sudo systemctl status autographs-network.service autographs-controller.service autographs-caddy.service
+sudo journalctl -u autographs-controller.service -u autographs-caddy.service --since "30 minutes ago"
 sudo podman ps
 ```
 

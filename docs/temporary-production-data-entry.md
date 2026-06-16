@@ -2,16 +2,16 @@
 
 ## Purpose
 
-Production data entry remains intentionally procedural until the Phase 5 static
-runtime/private controller cutover checkpoint passes. This is the
-current-until-cutover Node bridge: it lets the operator create, update, attach
-image media to, and remove image media from catalog records through the
-deployed app's operator API while keeping private media and Oracle metadata
-connected through the catalog service.
+This page documents the retired pre-cutover Node operator bridge. It is kept as
+historical reference only; production deploys now route admin work through the
+Rust private controller and static admin shell.
 
 ## Security Boundary
 
-Operator endpoints must not be exposed through public Caddy routes. Treat this as an operator-only bridge reached from your workstation through an SSH tunnel to the app container listener on the runtime VM.
+Operator endpoints must not be exposed through public Caddy routes. The retired
+Node bridge used an SSH tunnel to the app container listener on the runtime VM;
+current production use should prefer `/admin` and `/admin/api/*` through the
+Rust controller boundary.
 
 Keep `AUTOGRAPHS_OPERATOR_API_TOKEN` in the operator shell or secret manager. Do not paste it into browser-visible pages, public docs with real values, chat logs, or repository files.
 
@@ -297,6 +297,6 @@ Phase 5 replaces this bridge with the Rust private controller and minimal
 static admin seed/publish path after the live static publish smoke and public
 hostname checks pass. At retirement, Caddy must continue returning `404` for
 `/api/operator/*`; normal seed and publish operations move to `/admin` and
-`/admin/api/*`. Keep the Node tunnel only as an explicitly documented
-break-glass procedure while the Next.js container still exists. Phase 6 turns
-the Rust foundation into the polished single-admin collection workflow.
+`/admin/api/*`. The production deploy now removes the Next.js container runtime.
+Phase 6 turns the Rust foundation into the polished single-admin collection
+workflow.

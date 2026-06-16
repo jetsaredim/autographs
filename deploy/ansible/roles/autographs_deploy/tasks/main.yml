@@ -174,7 +174,6 @@
     mode: "0600"
   no_log: true
   notify:
-    - Restart app container
     - Restart controller container
     - Restart Caddy container
 
@@ -243,7 +242,6 @@
     mode: "0600"
   no_log: true
   notify:
-    - Restart app container
     - Restart controller container
 
 - name: Write Oracle DB wallet archive
@@ -275,7 +273,6 @@
   no_log: true
   when: autographs_deploy_wallet_archive.changed
   notify:
-    - Restart app container
     - Restart controller container
 
 - name: Normalize Oracle DB wallet location for native clients
@@ -287,7 +284,6 @@
     mode: "0600"
   no_log: true
   notify:
-    - Restart app container
     - Restart controller container
 
 - name: Remove temp wallet archives
@@ -310,7 +306,6 @@
   ansible.builtin.command:
     cmd: "podman pull {{ item }}"
   loop:
-    - "{{ autographs_app_image }}"
     - "{{ autographs_controller_image }}"
     - "{{ autographs_deploy_caddy_image }}"
   register: autographs_deploy_image_pull
@@ -324,6 +319,31 @@
     registry: ghcr.io
   failed_when: false
 
+- name: Stop and disable retired Next.js app service
+  ansible.builtin.systemd:
+    name: autographs-app.service
+    state: stopped
+    enabled: false
+    daemon_reload: true
+  failed_when: false
+
+- name: Remove retired Next.js app quadlet
+  ansible.builtin.file:
+    path: "{{ autographs_deploy_quadlet_path }}/autographs-app.container"
+    state: absent
+  notify: Reload systemd
+
+- name: Remove retired Next.js app container
+  ansible.builtin.command:
+    argv:
+      - podman
+      - rm
+      - --force
+      - autographs-app
+  register: autographs_deploy_remove_app_container
+  changed_when: autographs_deploy_remove_app_container.rc == 0
+  failed_when: false
+
 - name: Install Podman quadlet units
   ansible.builtin.template:
     src: "{{ item.src }}"
@@ -334,8 +354,6 @@
   loop:
     - src: autographs.network.j2
       dest: autographs.network
-    - src: autographs-app.container.j2
-      dest: autographs-app.container
     - src: autographs-controller.container.j2
       dest: autographs-controller.container
     - src: autographs-caddy.container.j2
@@ -348,7 +366,6 @@
       dest: autographs-caddy-config.volume
   notify:
     - Reload systemd
-    - Restart app container
     - Restart controller container
     - Restart Caddy container
 
@@ -363,7 +380,6 @@
     daemon_reload: true
   loop:
     - autographs-network.service
-    - autographs-app.service
     - autographs-controller.service
     - autographs-caddy.service
 

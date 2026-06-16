@@ -10,7 +10,6 @@ autographs_deploy_static_admin_path: "{{ autographs_deploy_deploy_path }}/static
 
 autographs_deploy_quadlet_path: /etc/containers/systemd
 autographs_deploy_network_name: autographs
-autographs_deploy_app_container_name: autographs-app
 autographs_deploy_controller_container_name: autographs-controller
 autographs_deploy_caddy_container_name: autographs-caddy
 autographs_deploy_static_vol_name: autographs-static

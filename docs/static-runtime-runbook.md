@@ -298,8 +298,7 @@ merging the public Caddy root change:
 
 Recovery is roll-forward oriented: fix the controller or source data, run a
 full rebuild, validate the candidate privately, and promote the corrected
-release. Keep the Next.js app available until the static hostname verification
-passes.
+release.
 
 ## Retirement Checks
 
@@ -309,10 +308,9 @@ After public static cutover verification passes:
   replace public catalog APIs and app-mediated image streaming.
 - Return `404` for `/api/operator/*`; the Rust `/admin/api/*` boundary replaces
   the temporary Node operator bridge.
-- Retire `.github/workflows/data-smoke.yml` only after the live static publish
-  smoke is the documented production verification path.
-- Remove the remaining Next.js deploy wiring only after static browse, detail,
-  filtering, generated media, publish, and unpublish checks pass on the public
-  hostname.
+- Use the live static publish smoke as the documented production verification
+  path; the old Node data-smoke workflow has been retired.
+- Confirm the deploy role has stopped and disabled `autographs-app.service`,
+  removed its quadlet, and removed the leftover `autographs-app` container.
 - Confirm no controller deploy path still depends on OCI S3 Customer Secret
   credentials before routine static publishing use.
