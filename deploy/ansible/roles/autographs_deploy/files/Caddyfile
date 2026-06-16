@@ -8,15 +8,12 @@
 	@operator path /api/operator /api/operator/*
 	respond @operator 404
 
-    @adminNoSlash
-    redir @adminNoSlash /admin/ permanent
+	handle /admin {
+		redir /admin/ permanent
+	}
 
 	handle /admin/api/* {
 		reverse_proxy autographs-controller:8080
-	}
-
-	handle /admin {
-		redir /admin/ permanent
 	}
 
 	handle_path /admin/* {

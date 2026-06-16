@@ -120,7 +120,7 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     assert!(detail_script.contains("aria-pressed"));
     let footer_script = fs::read_to_string(current.join("assets/footer.js")).unwrap();
     assert!(footer_script.contains(r#"unlockSequence = "gallery""#));
-    assert!(footer_script.contains(r#"link.href = "/admin""#));
+    assert!(footer_script.contains(r#"link.href = "/admin/""#));
     assert!(footer_script.contains("admin-unlock"));
     let landing_script = fs::read_to_string(current.join("assets/landing.js")).unwrap();
     assert!(landing_script.contains("[data-surprise-link]"));

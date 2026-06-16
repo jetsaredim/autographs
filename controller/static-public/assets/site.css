@@ -652,6 +652,9 @@ select {
   }
 
   .image-viewer.is-revealed .detail-metadata-panel {
+    flex-basis: auto;
+    width: min(100%, 34rem);
+    margin-left: 0;
     max-height: 48rem;
     transform: translateY(0) scale(1);
   }
