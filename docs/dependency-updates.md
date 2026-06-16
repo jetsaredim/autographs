@@ -55,7 +55,7 @@ Use this checklist for Renovate PRs:
 5. For Docker or runtime image updates, confirm the controller image builds and review whether the deployed VM needs a manual smoke check.
 6. For Ansible collection or deployment-action updates, run Ansible syntax checks and prefer a manual deploy or data smoke check before treating the update as production-safe.
 
-Manual smoke review is required when an update touches deployment behavior, Terraform runtime resources, Ansible roles, data smoke behavior, Object Storage media delivery, or GHCR image publication/cleanup. The manual `Data Smoke` workflow remains the operator-facing live Oracle/Object Storage proof.
+Manual smoke review is required when an update touches deployment behavior, Terraform runtime resources, Ansible roles, static publishing behavior, Object Storage media delivery, or GHCR image publication/cleanup. The live static publish smoke remains the operator-facing live Oracle/Object Storage proof.
 
 ## Lifecycle Notes
 

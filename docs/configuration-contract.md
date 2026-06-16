@@ -26,9 +26,9 @@ These are repo-level GitHub Secrets for the deployment baseline and Phase 2 data
 | `OCI_PRIVATE_KEY_PEM` | deploy workflow | OCI API signing private key PEM |
 | `DEPLOY_SSH_PRIVATE_KEY` | deploy workflow | SSH private key for the OCI runtime VM |
 | `ADB_ADMIN_PASSWORD` | deploy workflow / Terraform | Initial Oracle Autonomous Database ADMIN password when database creation is enabled |
-| `ORACLE_DB_PASSWORD` | deploy workflow / runtime | Runtime database password passed to the Rust controller and tools containers |
+| `ORACLE_DB_PASSWORD` | deploy workflow / runtime | Runtime database password passed to the Rust controller container |
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / runtime | Base64-encoded ADB wallet zip used for mTLS connections |
-| `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Optional wallet password retained for legacy tools compatibility |
+| `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Optional wallet password retained for wallet compatibility |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Compatibility admin token accepted by the Rust controller while browser admin auth is finalized |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | Rust controller runtime | Argon2 hash for the single-admin browser login |
 
@@ -55,11 +55,10 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_CREATE_MEDIA_BUCKET` | Optional toggle for creating the private media Object Storage bucket; defaults to `false` until the namespace is confirmed |
 | `OCI_MEDIA_BUCKET_NAME` | Private Object Storage bucket for autograph images; defaults to `autographs-media-prod` |
 | `OCI_MEDIA_NAMESPACE` | Object Storage namespace for the private media bucket; usually matches `OCI_OBJECT_STORAGE_NAMESPACE` |
-| `ORACLE_DB_USER` | Runtime database user for the Rust controller and tools containers; defaults to `ADMIN` for the first bootstrap path |
+| `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |
 | `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect alias or descriptor; use the wallet alias such as `autographsdb_medium` for mTLS |
-| `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the Rust controller and tools containers; defaults to `/opt/autographs/wallet` in deploy |
+| `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the Rust controller container; defaults to `/opt/autographs/wallet` in deploy |
 | `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER` | Media adapter mode; `oci` in production, `local` for local smoke work without OCI credentials |
-| `AUTOGRAPHS_SMOKE_BASE_URL` | Optional local/operator value used by the data/media smoke script to verify a deployed app-mediated image route |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
 | `DEPLOY_SSH_USER` | SSH user for deploys, usually `opc` |
 | `DEPLOY_PATH` | Directory on the VM that stores Ansible-managed app env, Caddy config, wallet, and secret files |
@@ -93,13 +92,13 @@ Local Terraform uses:
 - Autonomous Database and private media bucket toggles, names, and Object Storage namespace
 - Object Storage namespace, bucket, and key when initializing the remote backend
 
-GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_PRIVATE_KEY_PEM` to a temporary private key file for Terraform. During VM deploy, the same secret is copied to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounted read-only into the Rust controller and tools containers, and exposed as `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. The multiline PEM is intentionally not written into the quadlet environment file.
+GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_PRIVATE_KEY_PEM` to a temporary private key file for Terraform. During VM deploy, the same secret is copied to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounted read-only into the Rust controller container, and exposed as `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. The multiline PEM is intentionally not written into the quadlet environment file.
 
 ## Phase 2 Data Services
 
 Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, ADMIN password, and runtime connection values.
 
-Runtime containers receive database and media coordinates through an Ansible-managed environment file consumed by Podman quadlets and one-shot tools runs, not committed files. The deploy workflow writes a VM-local `app.env` under `${DEPLOY_PATH}/env`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values. The Phase 2 media adapter supports `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER=local` for local smoke work and `oci` for production Object Storage.
+Runtime containers receive database and media coordinates through an Ansible-managed environment file consumed by Podman quadlets, not committed files. The deploy workflow writes a VM-local `app.env` under `${DEPLOY_PATH}/env`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values. The Phase 2 media adapter supports `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER=local` for local smoke work and `oci` for production Object Storage.
 
 ## Optional GitHub Environments
 
@@ -174,5 +173,5 @@ The operator-run live static publish smoke also uses these VM-local values:
 
 The generated static release replaces the Next.js public routes,
 `/api/catalog/*`, and app-mediated image streaming. The deploy role now retires
-the old Node service on the VM; keep any remaining Node-based tools work scoped
-to explicit smoke or migration tasks.
+the old Node service on the VM; keep any remaining Node-based work scoped to
+local parity reference or migration tasks.

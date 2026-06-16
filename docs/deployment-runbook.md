@@ -117,9 +117,9 @@ Populate repo-level GitHub Variables:
 
 Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, ADMIN password, and runtime connection values are ready. When enabling Phase 2 data services, Terraform provisions the ADB and bucket, while the deploy step passes app runtime coordinates through the VM-local quadlet environment file.
 
-For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Also store the wallet download password in `ORACLE_DB_WALLET_PASSWORD` if the Thin driver requires it. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the Rust controller and tools containers.
+For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Also store the wallet download password in `ORACLE_DB_WALLET_PASSWORD` if the driver requires it. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the Rust controller container.
 
-The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM`. Terraform uses it from the runner temp directory. Runtime deploy copies it to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounts `${DEPLOY_PATH}/secrets` read-only into the Rust controller and tools containers, and sets `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. This preserves PEM newlines for the OCI SDK and avoids putting multiline private keys in the quadlet environment file.
+The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM`. Terraform uses it from the runner temp directory. Runtime deploy copies it to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounts `${DEPLOY_PATH}/secrets` read-only into the Rust controller container, and sets `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. This preserves PEM newlines for the OCI SDK and avoids putting multiline private keys in the quadlet environment file.
 
 ## Data and Media Smoke
 
@@ -128,11 +128,11 @@ verification now uses the deployed Rust controller health route, static release
 manifest, and live static publish smoke from
 [static-runtime-runbook.md](static-runtime-runbook.md).
 
-The deployed app also exposes `GET /health/data` for configuration readiness and `GET /health/data?live=1` for guarded live checks. The live check requires `Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}` and verifies both Oracle catalog access and private media bucket readiness.
+The deployed Rust controller exposes `GET /admin/api/health` for runtime readiness. A successful full or incremental publish verifies Oracle catalog access, private media access, generated derivatives, static release promotion, and Caddy static serving.
 
-Published images are served through app-mediated URLs shaped as `/api/catalog/{itemId}/images/{imageId}`. The URL contains app-level catalog identifiers only; it does not expose Object Storage bucket credentials, signed direct URLs, or raw object keys as the public access contract.
+Published images are served as generated static derivatives from the promoted release. Public URLs contain generated artifact paths only; they do not expose Object Storage bucket credentials, signed direct URLs, or raw object keys as the public access contract.
 
-Temporary production data entry is operator-only and documented in [temporary-production-data-entry.md](temporary-production-data-entry.md). It is current only until the Rust private controller and minimal static admin seed/publish path pass the Phase 5 live cutover checkpoint.
+Temporary production data entry through the Node operator bridge is retired. Current operator work uses the static admin shell and Rust controller under `/admin` and `/admin/api/*`.
 
 ## Workflow Behavior
 
