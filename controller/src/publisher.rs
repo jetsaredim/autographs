@@ -28,7 +28,7 @@ const DETAIL_JS: &str = include_str!("../static-public/assets/detail.js");
 const FOOTER_JS: &str = include_str!("../static-public/assets/footer.js");
 const LANDING_JS: &str = include_str!("../static-public/assets/landing.js");
 const NOT_FOUND_JS: &str = include_str!("../static-public/assets/not-found.js");
-const NOT_FOUND_QUOTES_JS: &str = include_str!("../static-public/data/not-found-quote.json");
+const NOT_FOUND_QUOTES_JS: &str = include_str!("../static-public/data/not-found-quotes.json");
 const SITE_CSS: &str = include_str!("../static-public/assets/site.css");
 const FAVICON_ICO: &[u8] = include_bytes!("../static-public/favicon.ico");
 const APP_ICON_PNG: &[u8] = include_bytes!("../static-public/icon.png");
@@ -672,7 +672,11 @@ fn write_release(
     )?;
     write_json(candidate, "data/collection.json", &catalog)?;
     write_json(candidate, "data/facets.json", &facets)?;
-    write_json(candidate, "data/not-found-quotes.json", NOT_FOUND_QUOTES_JSON.as_bytes())?;
+    write_bytes(
+        candidate,
+        "data/not-found-quotes.json",
+        NOT_FOUND_QUOTES_JS.as_bytes(),
+    )?;
     for item in items {
         write_json(
             candidate,
