@@ -53,6 +53,11 @@
         "custom.regex"
       ],
       "automerge": false
+    },
+    {
+        "matchPackageNames": ["sha1", "sha2"],
+        "enabled": false,
+        "description": "Held at 0.10 until rsa crate releases stable 0.10 with digest 0.11 support"
     }
   ],
   "customManagers": [
