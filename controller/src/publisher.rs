@@ -673,8 +673,8 @@ fn write_release(
     write_json(candidate, "data/collection.json", &catalog)?;
     write_json(candidate, "data/facets.json", &facets)?;
     write_json(
-        candidate, 
-        "data/not-found-quotes.json", 
+        candidate,
+        "data/not-found-quotes.json",
         NOT_FOUND_QUOTES_JS.as_bytes(),
     )?;
     for item in items {
