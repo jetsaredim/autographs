@@ -8,12 +8,12 @@
 	@operator path /api/operator /api/operator/*
 	respond @operator 404
 
-	handle /admin/api/* {
-		reverse_proxy autographs-controller:8080
-	}
-
 	handle /admin {
 		redir /admin/ permanent
+	}
+
+	handle /admin/api/* {
+		reverse_proxy autographs-controller:8080
 	}
 
 	handle_path /admin/* {
@@ -25,20 +25,21 @@
 	root * /srv/autographs/static/current
 	file_server
 
-    handle_errors {
-        @notFound expression `{http.error.status_code} == 404`
-        rewrite @notFound /404.html
-        file_server
-    }
+	handle_errors {
+		@notFound expression `{http.error.status_code} == 404`
+		rewrite @notFound /404.html
+		file_server
+	}
 }
 
 http://:8081 {
 	root * /srv/autographs/static/current
 	file_server
 
-    handle_errors {
-        @notFound expression `{http.error.status_code} == 404`
-        rewrite @notFound /404.html
-        file_server
-    }
+	handle_errors {
+		@notFound expression `{http.error.status_code} == 404`
+		rewrite @notFound /404.html
+		file_server
+	}
 }
+# vim: tabstop=4 shiftwidth=4 expandtab

@@ -447,11 +447,11 @@ select {
 
 .image-viewer {
   position: relative;
-  display: grid;
+  display: flex;
   width: min(100%, 72rem);
-  gap: 24px;
+  gap: 0;
   align-items: start;
-  justify-items: center;
+  justify-content: center;
   margin: 0 auto;
   overflow: visible;
 }
@@ -460,11 +460,12 @@ select {
   position: relative;
   z-index: 2;
   display: grid;
+  flex: 0 1 34rem;
   width: min(100%, 34rem);
   gap: 16px;
   justify-items: center;
   transition:
-    transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 650ms cubic-bezier(0.2, 0.8, 0.2, 1),
     filter 280ms ease;
 }
 
@@ -486,7 +487,7 @@ select {
 }
 
 .image-viewer.is-revealed .image-viewer-gallery {
-  transform: translateX(-9rem);
+  transform: translateX(-1rem);
 }
 
 .focused-image-button img,
@@ -524,33 +525,41 @@ select {
 }
 
 .detail-metadata-panel {
-  position: absolute;
-  top: 0;
-  left: calc(50% + 9rem);
+  position: static;
   z-index: 1;
-  display: block;
-  width: min(28rem, calc(50vw - 2rem));
+  flex: 0 0 0;
+  width: 0;
   max-height: min(80vh, 42rem);
-  overflow: auto;
+  overflow: hidden;
   opacity: 0;
-  transform: translateX(-24px) scale(0.985);
+  transform: translateX(-32px) scale(0.985);
   visibility: hidden;
   pointer-events: none;
   transition:
-    opacity 260ms ease,
-    transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    visibility 0s linear 360ms;
+    flex-basis 650ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 650ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin-left 650ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 350ms ease,
+    transform 650ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s linear 650ms;
 }
 
 .detail-metadata-panel.is-revealed,
 .image-viewer.is-revealed .detail-metadata-panel {
+  flex-basis: min(28rem, calc(100vw - 38rem));
+  width: min(28rem, calc(100vw - 38rem));
+  margin-left: 1rem;
+  overflow: auto;
   opacity: 1;
   transform: translateX(0) scale(1);
   visibility: visible;
   pointer-events: auto;
   transition:
-    opacity 260ms ease,
-    transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    flex-basis 650ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 650ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin-left 650ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 350ms ease 150ms,
+    transform 650ms cubic-bezier(0.2, 0.8, 0.2, 1),
     visibility 0s linear 0s;
 }
 
@@ -623,11 +632,18 @@ select {
 }
 
 @media (max-width: 980px) {
+  .image-viewer {
+    display: grid;
+    justify-items: center;
+  }
+
   .detail-metadata-panel {
     position: static;
+    flex-basis: auto;
     width: min(100%, 34rem);
     max-height: 0;
     overflow: hidden;
+    margin-left: 0;
     transform: translateY(-12px) scale(0.985);
   }
 
@@ -636,6 +652,9 @@ select {
   }
 
   .image-viewer.is-revealed .detail-metadata-panel {
+    flex-basis: auto;
+    width: min(100%, 34rem);
+    margin-left: 0;
     max-height: 48rem;
     transform: translateY(0) scale(1);
   }
@@ -957,7 +976,7 @@ body:has(.not-found-shell) {
 
 .not-found-quote [data-not-found-quote] {
   margin: 0;
-  color: rgba(229, 231, 235, 0.78);
+  color: rgba(156, 163, 175, 0.9);
   font-size: clamp(2rem, 5vw, 4rem);
   font-weight: 400;
   line-height: 1.12;
@@ -967,8 +986,30 @@ body:has(.not-found-shell) {
 .not-found-quote [data-not-found-source] {
   display: block;
   margin-top: 1rem;
-  color: rgba(229, 231, 235, 0.62);
+  color: rgba(156, 163, 175, 0.7);
   font-size: clamp(1rem, 1.6vw, 1.25rem);
   font-style: italic;
   text-align: right;
+}
+
+.not-found-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  cursor: default !important;
+  transition: opacity 0.15s ease;
+}
+
+.not-found-link:visited {
+  color: inherit;
+}
+
+.not-found-link:hover {
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.85;
+}
+
+.not-found-link:active {
+  color: inherit;
 }

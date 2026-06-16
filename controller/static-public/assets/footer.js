@@ -20,7 +20,7 @@
 
     const link = document.createElement("a");
     link.className = "admin-unlock";
-    link.href = "/admin";
+    link.href = "/admin/";
     link.textContent = "Admin";
 
     footer.append(separator, link);
