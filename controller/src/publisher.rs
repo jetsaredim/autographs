@@ -708,7 +708,7 @@ pub fn validate_candidate(candidate: &Path) -> Result<PublishManifest, String> {
     let _: PublicFacets = read_json(&candidate.join("data/facets.json"))?;
     for item in catalog.items {
         let detail_json = candidate.join(format!("data/items/{}.json", item.slug));
-        let detail_html = candidate.join(format!("item/{}/index.html", item.slug));
+        let detail_html = candidate.join(format!("items/{}/index.html", item.slug));
         let detail: PublicItemDetail = read_json(&detail_json)?;
         if !detail_html.is_file() {
             return Err(format!(
