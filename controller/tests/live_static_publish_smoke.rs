@@ -119,7 +119,7 @@ mod live {
         assert_eq!(published["state"], "succeeded");
         assert!(published["releaseId"].as_str().is_some());
 
-        let item_html = fetch(&format!("{preview}/items/{slug}/"));
+        let item_html = fetch(&format!("{preview}/collection/{slug}/"));
         let item_json = fetch(&format!("{preview}/data/items/{slug}.json"));
         let collection_html = fetch(&format!("{preview}/collection/"));
         let collection_json = fetch(&format!("{preview}/data/collection.json"));
@@ -195,6 +195,7 @@ mod live {
         );
         assert_eq!(unpublished["state"], "succeeded");
         for url in [
+            format!("{preview}/collection/{slug}/"),
             format!("{preview}/items/{slug}/"),
             format!("{preview}/data/items/{slug}.json"),
             thumbnail_url,

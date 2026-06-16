@@ -63,10 +63,13 @@ async fn publisher_generates_candidate_release_and_derivatives() {
         "architecture/architecture-diagram.svg",
         "collection/index.html",
         "assets/browse.js",
+        "assets/detail.js",
+        "assets/landing.js",
         "assets/site.css",
         "data/collection.json",
         "data/facets.json",
         "data/items/signed-jedi-card.json",
+        "collection/signed-jedi-card/index.html",
         "items/signed-jedi-card/index.html",
         "manifest.json",
         "media/signed-jedi-card/image-1-thumbnail.webp",
@@ -107,20 +110,33 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     let script = fs::read_to_string(current.join("assets/browse.js")).unwrap();
     assert!(script.contains("/data/collection.json"));
     assert!(script.contains("/data/facets.json"));
+    assert!(script.contains("/collection/${encodeURIComponent(item.slug)}/"));
     assert!(!script.contains("/api/"));
+    let detail_script = fs::read_to_string(current.join("assets/detail.js")).unwrap();
+    assert!(detail_script.contains(".focused-image-button"));
+    assert!(detail_script.contains("aria-pressed"));
+    let landing_script = fs::read_to_string(current.join("assets/landing.js")).unwrap();
+    assert!(landing_script.contains("[data-surprise-link]"));
+    assert!(landing_script.contains("/data/collection.json"));
 
     let landing = fs::read_to_string(current.join("index.html")).unwrap();
     let collection = fs::read_to_string(current.join("collection/index.html")).unwrap();
-    let detail = fs::read_to_string(current.join("items/signed-jedi-card/index.html")).unwrap();
+    let detail =
+        fs::read_to_string(current.join("collection/signed-jedi-card/index.html")).unwrap();
     let architecture = fs::read_to_string(current.join("architecture/index.html")).unwrap();
     let site_css = fs::read_to_string(current.join("assets/site.css")).unwrap();
     assert!(landing.contains("landing-hero"));
+    assert!(landing.contains("data-surprise-link"));
+    assert!(landing.contains(r#"<script src="/assets/landing.js"></script>"#));
     assert!(landing.contains(r#"<link rel="icon" href="/favicon.ico" sizes="any">"#));
     assert!(landing.contains(r#"<link rel="apple-touch-icon" href="/icon.png">"#));
     assert!(landing.contains("public-footer"));
     assert!(collection.contains("collection-panel"));
     assert!(collection.contains("public-footer"));
-    assert!(detail.contains("image-viewer is-revealed"));
+    assert!(detail.contains(r#"<section class="image-viewer">"#));
+    assert!(detail.contains(r#"class="focused-image-button" type="button" aria-expanded="false""#));
+    assert!(detail.contains(r#"class="detail-metadata-panel" aria-hidden="true""#));
+    assert!(detail.contains(r#"<script src="/assets/detail.js"></script>"#));
     assert!(detail.contains("public-footer"));
     assert!(architecture.contains("Autographs system overview"));
     assert!(architecture.contains(r#"<link rel="icon" href="/favicon.ico" sizes="any">"#));
@@ -227,7 +243,7 @@ async fn publisher_public_browse_surfaces_do_not_execute_operator_markup() {
     let collection_html = fs::read_to_string(current.join("collection/index.html")).unwrap();
     let detail_html = fs::read_to_string(
         current
-            .join("items")
+            .join("collection")
             .join(slug_for_test(&item.title))
             .join("index.html"),
     )
@@ -437,6 +453,11 @@ async fn publisher_incremental_removes_unpublished_and_stale_artifacts() {
 
     let current = fixture.root.path().join("current");
     assert!(!current.join("data/items/signed-jedi-card.json").exists());
+    assert!(
+        !current
+            .join("collection/signed-jedi-card/index.html")
+            .exists()
+    );
     assert!(!current.join("items/signed-jedi-card/index.html").exists());
     assert!(!current.join("media/signed-jedi-card").exists());
     assert!(!current.join("media/stale.webp").exists());

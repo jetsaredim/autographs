@@ -23,6 +23,8 @@ use crate::{
 const LANDING_HTML: &str = include_str!("../static-public/index.html");
 const COLLECTION_HTML: &str = include_str!("../static-public/collection/index.html");
 const BROWSE_JS: &str = include_str!("../static-public/assets/browse.js");
+const DETAIL_JS: &str = include_str!("../static-public/assets/detail.js");
+const LANDING_JS: &str = include_str!("../static-public/assets/landing.js");
 const SITE_CSS: &str = include_str!("../static-public/site.css");
 const FAVICON_ICO: &[u8] = include_bytes!("../static-public/favicon.ico");
 const APP_ICON_PNG: &[u8] = include_bytes!("../static-public/icon.png");
@@ -177,7 +179,7 @@ pub fn generate_split_artifacts(catalog: &FixtureCatalog, release_id: &str) -> S
             &to_public_detail(item),
         );
         artifacts.insert(
-            format!("items/{}/index.html", item.slug),
+            format!("collection/{}/index.html", item.slug),
             format!(
                 "<!doctype html><title>{}</title><h1>{}</h1><p>Signed by {}</p>",
                 item.title, item.title, item.signer
@@ -648,6 +650,8 @@ fn write_release(
         COLLECTION_HTML.as_bytes(),
     )?;
     write_bytes(candidate, "assets/browse.js", BROWSE_JS.as_bytes())?;
+    write_bytes(candidate, "assets/detail.js", DETAIL_JS.as_bytes())?;
+    write_bytes(candidate, "assets/landing.js", LANDING_JS.as_bytes())?;
     write_bytes(candidate, "assets/site.css", SITE_CSS.as_bytes())?;
     write_bytes(
         candidate,
@@ -669,6 +673,11 @@ fn write_release(
         )?;
         write_bytes(
             candidate,
+            &format!("collection/{}/index.html", item.detail.slug),
+            detail_html(&item.detail).as_bytes(),
+        )?;
+        write_bytes(
+            candidate,
             &format!("items/{}/index.html", item.detail.slug),
             detail_html(&item.detail).as_bytes(),
         )?;
@@ -686,6 +695,8 @@ pub fn validate_candidate(candidate: &Path) -> Result<PublishManifest, String> {
         "architecture/architecture-diagram.svg",
         "collection/index.html",
         "assets/browse.js",
+        "assets/detail.js",
+        "assets/landing.js",
         "assets/site.css",
         "data/collection.json",
         "data/facets.json",
@@ -702,7 +713,7 @@ pub fn validate_candidate(candidate: &Path) -> Result<PublishManifest, String> {
     let _: PublicFacets = read_json(&candidate.join("data/facets.json"))?;
     for item in catalog.items {
         let detail_json = candidate.join(format!("data/items/{}.json", item.slug));
-        let detail_html = candidate.join(format!("items/{}/index.html", item.slug));
+        let detail_html = candidate.join(format!("collection/{}/index.html", item.slug));
         let detail: PublicItemDetail = read_json(&detail_json)?;
         if !detail_html.is_file() {
             return Err(format!(
@@ -1132,10 +1143,13 @@ fn image_viewer(item: &PublicItemDetail) -> String {
                 let thumbnail = image_variant(image, ImageVariantName::Thumbnail)?;
                 let detail = image_variant(image, ImageVariantName::Detail).unwrap_or(thumbnail);
                 Some(format!(
-                    "<a class=\"thumbnail-button\" href=\"{}\" aria-label=\"View image {}\" aria-current=\"{}\"><img src=\"{}\" alt=\"{}\" width=\"{}\" height=\"{}\" draggable=\"false\"></a>",
-                    escape_html(&detail.path),
+                    "<button class=\"thumbnail-button\" type=\"button\" aria-label=\"View image {}\" aria-pressed=\"{}\" data-detail-src=\"{}\" data-detail-alt=\"{}\" data-detail-width=\"{}\" data-detail-height=\"{}\"><img src=\"{}\" alt=\"{}\" width=\"{}\" height=\"{}\" draggable=\"false\"></button>",
                     index + 1,
                     if index == 0 { "true" } else { "false" },
+                    escape_html(&detail.path),
+                    escape_html(&image.alt_text),
+                    detail.width,
+                    detail.height,
                     escape_html(&thumbnail.path),
                     escape_html(&image.alt_text),
                     thumbnail.width,
@@ -1152,11 +1166,13 @@ fn image_viewer(item: &PublicItemDetail) -> String {
         String::new()
     };
     format!(
-        "<div class=\"focused-image-button\"><img src=\"{}\" alt=\"{}\" width=\"{}\" height=\"{}\" draggable=\"false\"></div>{}",
+        "<button class=\"focused-image-button\" type=\"button\" aria-expanded=\"false\"><img src=\"{}\" alt=\"{}\" width=\"{}\" height=\"{}\" draggable=\"false\"><span class=\"sr-only\">Toggle details for {} signed by {}</span></button>{}",
         escape_html(&variant.path),
         escape_html(&image.alt_text),
         variant.width,
         variant.height,
+        escape_html(&item.title),
+        escape_html(&item.signer),
         thumbnails
     )
 }
