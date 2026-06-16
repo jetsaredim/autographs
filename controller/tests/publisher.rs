@@ -57,6 +57,7 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     assert!(status.finished_at_epoch_seconds.is_some());
     for path in [
         "index.html",
+        "404.html",
         "favicon.ico",
         "icon.png",
         "architecture/index.html",
@@ -66,9 +67,11 @@ async fn publisher_generates_candidate_release_and_derivatives() {
         "assets/detail.js",
         "assets/footer.js",
         "assets/landing.js",
+        "assets/not-found.js",
         "assets/site.css",
         "data/collection.json",
         "data/facets.json",
+        "data/not-found-quotes.json",
         "data/items/signed-jedi-card.json",
         "items/signed-jedi-card/index.html",
         "manifest.json",

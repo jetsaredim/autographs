@@ -21,12 +21,15 @@ use crate::{
 };
 
 const LANDING_HTML: &str = include_str!("../static-public/index.html");
+const NOT_FOUND_HTML: &str = include_str!("../static-public/404.html");
 const COLLECTION_HTML: &str = include_str!("../static-public/collection/index.html");
 const BROWSE_JS: &str = include_str!("../static-public/assets/browse.js");
 const DETAIL_JS: &str = include_str!("../static-public/assets/detail.js");
 const FOOTER_JS: &str = include_str!("../static-public/assets/footer.js");
 const LANDING_JS: &str = include_str!("../static-public/assets/landing.js");
-const SITE_CSS: &str = include_str!("../static-public/site.css");
+const NOT_FOUND_JS: &str = include_str!("../static-public/assets/not-found.js");
+const NOT_FOUND_QUOTES_JS: &str = include_str!("../static-public/data/not-found-quote.json");
+const SITE_CSS: &str = include_str!("../static-public/assets/site.css");
 const FAVICON_ICO: &[u8] = include_bytes!("../static-public/favicon.ico");
 const APP_ICON_PNG: &[u8] = include_bytes!("../static-public/icon.png");
 const ARCHITECTURE_HTML: &str = include_str!("../static-public/architecture/index.html");
@@ -643,6 +646,7 @@ fn write_release(
     let catalog = PublicCatalog::new(items.iter().map(|item| item.gallery.clone()).collect());
     let facets = public_facets(items);
     write_bytes(candidate, "index.html", LANDING_HTML.as_bytes())?;
+    write_bytes(candidate, "404.html", NOT_FOUND_HTML.as_bytes())?;
     write_bytes(candidate, "favicon.ico", FAVICON_ICO)?;
     write_bytes(candidate, "icon.png", APP_ICON_PNG)?;
     write_bytes(
@@ -654,6 +658,7 @@ fn write_release(
     write_bytes(candidate, "assets/detail.js", DETAIL_JS.as_bytes())?;
     write_bytes(candidate, "assets/footer.js", FOOTER_JS.as_bytes())?;
     write_bytes(candidate, "assets/landing.js", LANDING_JS.as_bytes())?;
+    write_bytes(candidate, "assets/not-found.js", NOT_FOUND_JS.as_bytes())?;
     write_bytes(candidate, "assets/site.css", SITE_CSS.as_bytes())?;
     write_bytes(
         candidate,
@@ -667,6 +672,7 @@ fn write_release(
     )?;
     write_json(candidate, "data/collection.json", &catalog)?;
     write_json(candidate, "data/facets.json", &facets)?;
+    write_json(candidate, "data/not-found-quotes.json", NOT_FOUND_QUOTES_JSON.as_bytes())?;
     for item in items {
         write_json(
             candidate,
