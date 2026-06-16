@@ -158,6 +158,11 @@ Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 The VM pulls images built by GitHub Actions. The VM does not build application
 code or generate catalog content during deploy.
 
+The Next.js source tree remains in the repository as the parity reference for
+the public site's page-level interactions and visual theme while those behaviors
+are carried into the static publisher. It is not built, published, pulled, or
+started by the production deploy path.
+
 ### Static Preview
 
 On the VM, Caddy exposes the current generated release through a localhost-bound
