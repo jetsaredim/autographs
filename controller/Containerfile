@@ -8,7 +8,7 @@ COPY controller/static-public ./static-public
 
 RUN cargo build --release --features production-persistence
 
-FROM oraclelinux:9-slim
+FROM oraclelinux:10-slim
 
 RUN microdnf install -y oracle-instantclient-release-23ai-el9 \
     && microdnf install -y ca-certificates oracle-instantclient-basic \
