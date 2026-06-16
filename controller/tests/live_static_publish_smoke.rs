@@ -119,7 +119,7 @@ mod live {
         assert_eq!(published["state"], "succeeded");
         assert!(published["releaseId"].as_str().is_some());
 
-        let item_html = fetch(&format!("{preview}/itemitems/{slug}/"));
+        let item_html = fetch(&format!("{preview}/items/{slug}/"));
         let item_json = fetch(&format!("{preview}/data/items/{slug}.json"));
         let collection_html = fetch(&format!("{preview}/collection/"));
         let collection_json = fetch(&format!("{preview}/data/collection.json"));
