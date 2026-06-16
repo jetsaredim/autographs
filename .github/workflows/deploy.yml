@@ -15,7 +15,7 @@ on:
           - "false"
           - "true"
       force_runtime_image_build:
-        description: "Force rebuilding the tools and controller images before deploying"
+        description: "Force rebuilding the controller image before deploying"
         required: false
         default: "false"
         type: choice
@@ -59,11 +59,7 @@ jobs:
         with:
           filters: |
             runtime:
-              - "app/**"
               - "controller/**"
-              - "package.json"
-              - "pnpm-workspace.yaml"
-              - "pnpm-lock.yaml"
               - ".github/docker-bake.hcl"
               - ".github/workflows/deploy.yml"
 
@@ -112,7 +108,6 @@ jobs:
     if: always()
 
     outputs:
-      tools_image: ${{ steps.resolve.outputs.tools_image }}
       controller_image: ${{ steps.resolve.outputs.controller_image }}
       uses_production_images: ${{ steps.resolve.outputs.uses_production_images }}
 
@@ -146,11 +141,9 @@ jobs:
               exit 1
             fi
 
-            tools_tag="${GHCR_IMAGE_REPOSITORY}-tools:${GITHUB_SHA}"
             controller_tag="${GHCR_IMAGE_REPOSITORY}-controller:${GITHUB_SHA}"
             uses_production_images=false
           else
-            tools_tag="${GHCR_IMAGE_REPOSITORY}-tools:production"
             controller_tag="${GHCR_IMAGE_REPOSITORY}-controller:production"
             uses_production_images=true
           fi
@@ -168,11 +161,9 @@ jobs:
             printf '%s' "$digest"
           }
 
-          tools_digest="$(resolve_digest "$tools_tag")"
           controller_digest="$(resolve_digest "$controller_tag")"
 
           {
-            echo "tools_image=${GHCR_IMAGE_REPOSITORY}-tools@${tools_digest}"
             echo "controller_image=${GHCR_IMAGE_REPOSITORY}-controller@${controller_digest}"
             echo "uses_production_images=${uses_production_images}"
           } >> "$GITHUB_OUTPUT"
@@ -296,7 +287,6 @@ jobs:
             ${{ needs.terraform-apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
           requirements: collections/requirements.yml
           options: |
-            --extra-vars autographs_tools_image=${{ needs.resolve-runtime-images.outputs.tools_image }}
             --extra-vars autographs_controller_image=${{ needs.resolve-runtime-images.outputs.controller_image }}
             --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
             --extra-vars autographs_deploy_http_port=${{ env.AUTOGRAPHS_HTTP_PORT }}

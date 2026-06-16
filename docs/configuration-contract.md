@@ -66,11 +66,11 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `DEPLOY_SSH_READY_TIMEOUT_SECONDS` | Maximum time deploy waits for SSH after VM creation or replacement; defaults to `900` |
 | `DEPLOY_SSH_READY_INTERVAL_SECONDS` | Poll interval while waiting for SSH readiness; defaults to `10` |
 | `AUTOGRAPHS_DOMAIN` | Public hostname served by Caddy with automatic TLS; defaults to `autographs.jetsaredim.net` |
-| `GHCR_IMAGE_REPOSITORY` | Base GHCR image path used to publish tools and controller images, for example `ghcr.io/jetsaredim/autographs/app` |
+| `GHCR_IMAGE_REPOSITORY` | Base GHCR image path used to publish the controller image, for example `ghcr.io/jetsaredim/autographs/app` |
 | `GHCR_CLEANUP_RETAIN_TAGGED` | Number of newest GHCR runtime image versions to retain during scheduled/manual cleanup; defaults to `10` |
 | `GHCR_CLEANUP_MIN_AGE_DAYS` | Minimum image age before GHCR cleanup can delete it; defaults to `7` |
 | `GHCR_CLEANUP_PROTECTED_TAGS` | Optional comma-separated immutable tags that both GHCR and VM-local cleanup must preserve |
-| `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` | Number of newest local tools/controller images to retain on the runtime VM during scheduled/manual cleanup; defaults to `3` |
+| `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` | Number of newest local controller images to retain on the runtime VM during scheduled/manual cleanup; defaults to `3` |
 
 The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the runtime state object key is `envs/prod/terraform.tfstate`. `GHCR_IMAGE_REPOSITORY`, cleanup retention/protection settings, `OCI_COMPARTMENT_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_IMAGE_OCID`, `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, `OCI_OBJECT_STORAGE_NAMESPACE`, data-service toggles, data-service names, SSH readiness timing, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
 
@@ -107,14 +107,13 @@ GitHub Environments may be added later for manual approval, deployment history, 
 
 ## Runtime Image Contract
 
-Deployments publish prebuilt tools and Rust controller images to `ghcr.io` and
-set their immutable digest references on the VM. The VM does not build
-application code. Ansible pulls the exact controller image published by GitHub
-Actions, installs systemd quadlets for the private controller, shared static
-volume, and Caddy containers on a dedicated Podman network, retires the old
-Next.js app service if present, restarts affected services, and checks the
-Caddy-fronted static release plus `/admin/api/health` before the workflow
-succeeds.
+Deployments publish the prebuilt Rust controller image to `ghcr.io` and set its
+immutable digest reference on the VM. The VM does not build application code.
+Ansible pulls the exact controller image published by GitHub Actions, installs
+systemd quadlets for the private controller, shared static volume, and Caddy
+containers on a dedicated Podman network, retires the old Next.js app service if
+present, restarts affected services, and checks the Caddy-fronted static release
+plus `/admin/api/health` before the workflow succeeds.
 Scheduled/manual image cleanup handles old GHCR versions and unused VM-local
 Podman images while preserving `latest`, protected tags, and the configured
 newest image count.

@@ -111,7 +111,7 @@ Populate repo-level GitHub Variables:
 - `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT`
 - `AUTOGRAPHS_DOMAIN`
 
-`GHCR_IMAGE_REPOSITORY` should be the base `ghcr.io` image path used for the tools and controller images, such as `ghcr.io/jetsaredim/autographs/app`. The deployed runtime no longer publishes or starts the old Next.js runner image from that base path.
+`GHCR_IMAGE_REPOSITORY` should be the base `ghcr.io` image path used for the controller image, such as `ghcr.io/jetsaredim/autographs/app`. The deployed runtime no longer publishes or starts the old Next.js runner or tools images from that base path.
 
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
@@ -123,15 +123,10 @@ The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM`. Ter
 
 ## Data and Media Smoke
 
-This is the pre-cutover Node runtime smoke. Keep it only as a manual diagnostic
-while the tools image remains available; the deployed public runtime no longer
-starts the Node app service.
-
-Use the deeper VM smoke workflow only when data-service credentials are present:
-
-Run `.github/workflows/data-smoke.yml` manually from GitHub Actions. The workflow resolves the runtime VM IP, starts the `production` tools image on the VM's Podman network by default, runs migrations, loads representative seed records with generated SVG fixture images, creates a published smoke item, uploads a private smoke image, reads it back through the catalog/media service, and verifies the deployed app-mediated image route with `AUTOGRAPHS_SMOKE_BASE_URL`. It is intentionally manual because it requires live ADB and private Object Storage credentials. Each Ansible smoke command has its own timeout: migrations and seed each default to 600 seconds, and `data:smoke` defaults to 1800 seconds with a 30-second forced-kill grace period. If a timeout names one of these commands, check Oracle ADB connectivity, Object Storage connectivity, and the cleanup notes below before rerunning.
-
-The workflow dispatch input `tools_image_tag` defaults to `production`; override it only when intentionally validating a different tools image tag. The smoke-created published item and private image are deleted through the catalog service before the script exits, and the script fails if the smoke item still exists or the read-back media object remains readable after cleanup. Seed records remain additive; reset the target schema before rerunning if you need a pristine sample dataset. If a workflow run fails before cleanup, search for smoke records with tag `smoke` or signer `Phase Two Smoke` and remove them through the operator delete path in [temporary-production-data-entry.md](temporary-production-data-entry.md). If metadata was never written but an image upload may have succeeded, inspect Object Storage for an `autographs/{itemId}/...smoke.svg` object key from the failed run logs and delete that object manually.
+The pre-cutover Node data-smoke workflow and tools image are retired. Production
+verification now uses the deployed Rust controller health route, static release
+manifest, and live static publish smoke from
+[static-runtime-runbook.md](static-runtime-runbook.md).
 
 The deployed app also exposes `GET /health/data` for configuration readiness and `GET /health/data?live=1` for guarded live checks. The live check requires `Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}` and verifies both Oracle catalog access and private media bucket readiness.
 
@@ -149,7 +144,7 @@ deployment.
 Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 
 1. validates the repository,
-2. publishes prebuilt tools and Rust controller images to `ghcr.io`,
+2. publishes the prebuilt Rust controller image to `ghcr.io`,
 3. runs `terraform apply`,
 4. optionally taints and recreates the runtime VM when manually requested,
 5. connects to the OCI VM over SSH through Ansible,
@@ -216,7 +211,7 @@ The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20
 
 Terraform no longer embeds the runtime bootstrap state in cloud-init. If a clean VM is needed, manually run the deploy workflow with `recreate_runtime_instance=true`. The workflow taints `module.compute.oci_core_instance.runtime[0]` before `terraform apply`, forcing OCI to recreate the runtime VM and then letting Ansible converge the full production state onto the replacement instance.
 
-Image cleanup runs separately through `.github/workflows/image-cleanup.yml` on a weekly schedule and by manual dispatch. One job prunes old VM-local app/tools images while keeping the active image from `${DEPLOY_PATH}/env/app.env`, `latest`, `GHCR_CLEANUP_PROTECTED_TAGS`, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` matching images per repository. Another job prunes old GHCR package versions while keeping `latest`, protected tags, the newest `GHCR_CLEANUP_RETAIN_TAGGED` versions, and versions newer than `GHCR_CLEANUP_MIN_AGE_DAYS`. Use the manual `dry_run=true` input to preview deletions.
+Image cleanup runs separately through `.github/workflows/image-cleanup.yml` on a weekly schedule and by manual dispatch. One job prunes old VM-local runtime images while keeping the active controller image from `${DEPLOY_PATH}/env/app.env`, `latest`, `GHCR_CLEANUP_PROTECTED_TAGS`, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` matching images per repository. Another job prunes old GHCR package versions while keeping `latest`, protected tags, the newest `GHCR_CLEANUP_RETAIN_TAGGED` versions, and versions newer than `GHCR_CLEANUP_MIN_AGE_DAYS`. Use the manual `dry_run=true` input to preview deletions.
 
 ## Manual Smoke Path
 

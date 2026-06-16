@@ -11,7 +11,7 @@ Reviewed:
 - Private media delivery through app-mediated catalog image routes.
 - Oracle and OCI Object Storage configuration boundaries.
 - Caddy public ingress and runtime Podman deployment.
-- GitHub Actions CI, deploy, data-smoke, and image-cleanup workflows.
+- GitHub Actions CI, deploy, and image-cleanup workflows.
 - Repository hygiene for secrets, ignored runtime state, and public documentation.
 
 Out of scope:
