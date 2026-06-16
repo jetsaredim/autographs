@@ -24,6 +24,7 @@ const LANDING_HTML: &str = include_str!("../static-public/index.html");
 const COLLECTION_HTML: &str = include_str!("../static-public/collection/index.html");
 const BROWSE_JS: &str = include_str!("../static-public/assets/browse.js");
 const DETAIL_JS: &str = include_str!("../static-public/assets/detail.js");
+const FOOTER_JS: &str = include_str!("../static-public/assets/footer.js");
 const LANDING_JS: &str = include_str!("../static-public/assets/landing.js");
 const SITE_CSS: &str = include_str!("../static-public/site.css");
 const FAVICON_ICO: &[u8] = include_bytes!("../static-public/favicon.ico");
@@ -651,6 +652,7 @@ fn write_release(
     )?;
     write_bytes(candidate, "assets/browse.js", BROWSE_JS.as_bytes())?;
     write_bytes(candidate, "assets/detail.js", DETAIL_JS.as_bytes())?;
+    write_bytes(candidate, "assets/footer.js", FOOTER_JS.as_bytes())?;
     write_bytes(candidate, "assets/landing.js", LANDING_JS.as_bytes())?;
     write_bytes(candidate, "assets/site.css", SITE_CSS.as_bytes())?;
     write_bytes(
@@ -691,6 +693,7 @@ pub fn validate_candidate(candidate: &Path) -> Result<PublishManifest, String> {
         "collection/index.html",
         "assets/browse.js",
         "assets/detail.js",
+        "assets/footer.js",
         "assets/landing.js",
         "assets/site.css",
         "data/collection.json",
