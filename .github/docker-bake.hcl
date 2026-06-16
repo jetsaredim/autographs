@@ -2,7 +2,7 @@ variable "GHCR_IMAGE_REPOSITORY" {}
 variable "GITHUB_SHA" {}
 
 group "default" {
-  targets = ["app", "tools", "controller"]
+  targets = ["tools", "controller"]
 }
 
 target "controller" {
@@ -34,16 +34,6 @@ target "common" {
 
   cache-to = [
     "type=gha,scope=app-image,mode=max"
-  ]
-}
-
-target "app" {
-  inherits = ["common"]
-  target = "runner"
-  tags = [
-    "${GHCR_IMAGE_REPOSITORY}:${GITHUB_SHA}",
-    "${GHCR_IMAGE_REPOSITORY}:production",
-    "${GHCR_IMAGE_REPOSITORY}:latest"
   ]
 }
 

@@ -30,6 +30,11 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
 
     assert!(deploy_tasks.contains("Require promoted static release before Caddy cutover"));
     assert!(deploy_tasks.contains("current/manifest.json"));
+    assert!(deploy_tasks.contains("Stop and disable retired Next.js app service"));
+    assert!(deploy_tasks.contains("Remove retired Next.js app quadlet"));
+    assert!(deploy_tasks.contains("Remove retired Next.js app container"));
+    assert!(!deploy_tasks.contains("src: autographs-app.container.j2"));
+    assert!(!deploy_tasks.contains("autographs_app_image"));
     assert!(
         deploy_tasks.contains(
             "http://127.0.0.1:{{ autographs_deploy_candidate_preview_port }}/manifest.json"

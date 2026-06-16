@@ -22,7 +22,7 @@
         <mxCell id="deploy" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#52525b;arcSize=18;fontSize=16;" value="&lt;b&gt;Deploy&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 13px;&quot;&gt;main workflow&lt;/font&gt;" vertex="1">
           <mxGeometry height="64" width="150" x="314" y="302" as="geometry" />
         </mxCell>
-        <mxCell id="ghcr" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#52525b;arcSize=18;fontSize=16;" value="&lt;b&gt;GHCR&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 13px;&quot;&gt;app image&lt;/font&gt;" vertex="1">
+        <mxCell id="ghcr" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#52525b;arcSize=18;fontSize=16;" value="&lt;b&gt;GHCR&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 13px;&quot;&gt;runtime images&lt;/font&gt;" vertex="1">
           <mxGeometry height="58" width="156" x="92" y="384" as="geometry" />
         </mxCell>
         <mxCell id="admin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#52525b;arcSize=18;fontSize=16;" value="&lt;b&gt;Admin user&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 13px;&quot;&gt;code, bootstrap, data&lt;/font&gt;" vertex="1">

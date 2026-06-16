@@ -53,7 +53,7 @@ Use this checklist for Renovate PRs:
 2. For npm or pnpm updates, run `corepack pnpm --filter app lint`, `corepack pnpm --filter app typecheck`, `corepack pnpm --filter app test`, and `corepack pnpm --filter app build`.
 3. For GitHub Actions updates, require the PR CI workflow checks to pass and inspect permission changes carefully.
 4. For Terraform provider or module updates, run `terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff` and `terraform -chdir=infra/terraform validate`; review any plan output before applying.
-5. For Docker or runtime image updates, confirm the app image builds and review whether the deployed VM needs a manual smoke check.
+5. For Docker or runtime image updates, confirm the tools and controller images build and review whether the deployed VM needs a manual smoke check.
 6. For Ansible collection or deployment-action updates, run Ansible syntax checks and prefer a manual deploy or data smoke check before treating the update as production-safe.
 
 Manual smoke review is required when an update touches deployment behavior, Terraform runtime resources, Ansible roles, data smoke behavior, Object Storage media delivery, or GHCR image publication/cleanup. The manual `Data Smoke` workflow remains the operator-facing live Oracle/Object Storage proof.

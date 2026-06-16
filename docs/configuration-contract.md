@@ -26,10 +26,10 @@ These are repo-level GitHub Secrets for the deployment baseline and Phase 2 data
 | `OCI_PRIVATE_KEY_PEM` | deploy workflow | OCI API signing private key PEM |
 | `DEPLOY_SSH_PRIVATE_KEY` | deploy workflow | SSH private key for the OCI runtime VM |
 | `ADB_ADMIN_PASSWORD` | deploy workflow / Terraform | Initial Oracle Autonomous Database ADMIN password when database creation is enabled |
-| `ORACLE_DB_PASSWORD` | deploy workflow / app runtime | Runtime database password passed to the Next.js container |
-| `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / app runtime | Base64-encoded ADB wallet zip used for mTLS connections |
-| `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / app runtime | Optional wallet password for node-oracledb Thin mode mTLS connections |
-| `AUTOGRAPHS_OPERATOR_API_TOKEN` | app runtime | Temporary operator token for guarded smoke/mutation endpoints until Phase 5 Rust private controller/static admin seed path replaces or retires the bridge |
+| `ORACLE_DB_PASSWORD` | deploy workflow / runtime | Runtime database password passed to the Rust controller and tools containers |
+| `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / runtime | Base64-encoded ADB wallet zip used for mTLS connections |
+| `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Optional wallet password retained for legacy tools compatibility |
+| `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Compatibility admin token accepted by the Rust controller while browser admin auth is finalized |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | Rust controller runtime | Argon2 hash for the single-admin browser login |
 
 The current Phase 1 OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the image build, Terraform, or VM deployment steps.
@@ -55,9 +55,9 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_CREATE_MEDIA_BUCKET` | Optional toggle for creating the private media Object Storage bucket; defaults to `false` until the namespace is confirmed |
 | `OCI_MEDIA_BUCKET_NAME` | Private Object Storage bucket for autograph images; defaults to `autographs-media-prod` |
 | `OCI_MEDIA_NAMESPACE` | Object Storage namespace for the private media bucket; usually matches `OCI_OBJECT_STORAGE_NAMESPACE` |
-| `ORACLE_DB_USER` | Runtime database user for the app container; defaults to `ADMIN` for the first bootstrap path |
+| `ORACLE_DB_USER` | Runtime database user for the Rust controller and tools containers; defaults to `ADMIN` for the first bootstrap path |
 | `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect alias or descriptor; use the wallet alias such as `autographsdb_medium` for mTLS |
-| `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the app container; defaults to `/opt/autographs/wallet` in deploy |
+| `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the Rust controller and tools containers; defaults to `/opt/autographs/wallet` in deploy |
 | `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER` | Media adapter mode; `oci` in production, `local` for local smoke work without OCI credentials |
 | `AUTOGRAPHS_SMOKE_BASE_URL` | Optional local/operator value used by the data/media smoke script to verify a deployed app-mediated image route |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
@@ -66,11 +66,11 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `DEPLOY_SSH_READY_TIMEOUT_SECONDS` | Maximum time deploy waits for SSH after VM creation or replacement; defaults to `900` |
 | `DEPLOY_SSH_READY_INTERVAL_SECONDS` | Poll interval while waiting for SSH readiness; defaults to `10` |
 | `AUTOGRAPHS_DOMAIN` | Public hostname served by Caddy with automatic TLS; defaults to `autographs.jetsaredim.net` |
-| `GHCR_IMAGE_REPOSITORY` | Published app image path, for example `ghcr.io/jetsaredim/autographs/app` |
-| `GHCR_CLEANUP_RETAIN_TAGGED` | Number of newest GHCR app image versions to retain during scheduled/manual cleanup; defaults to `10` |
+| `GHCR_IMAGE_REPOSITORY` | Base GHCR image path used to publish tools and controller images, for example `ghcr.io/jetsaredim/autographs/app` |
+| `GHCR_CLEANUP_RETAIN_TAGGED` | Number of newest GHCR runtime image versions to retain during scheduled/manual cleanup; defaults to `10` |
 | `GHCR_CLEANUP_MIN_AGE_DAYS` | Minimum image age before GHCR cleanup can delete it; defaults to `7` |
 | `GHCR_CLEANUP_PROTECTED_TAGS` | Optional comma-separated immutable tags that both GHCR and VM-local cleanup must preserve |
-| `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` | Number of newest local app/tools images to retain on the runtime VM during scheduled/manual cleanup; defaults to `3` |
+| `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` | Number of newest local tools/controller images to retain on the runtime VM during scheduled/manual cleanup; defaults to `3` |
 
 The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the runtime state object key is `envs/prod/terraform.tfstate`. `GHCR_IMAGE_REPOSITORY`, cleanup retention/protection settings, `OCI_COMPARTMENT_OCID`, `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_IMAGE_OCID`, `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, `OCI_OBJECT_STORAGE_NAMESPACE`, data-service toggles, data-service names, SSH readiness timing, and `VM_PUBLIC_IP` are intentionally non-secret deployment coordinates. Keep them visible as GitHub Variables so deploy behavior can be audited without opening secrets.
 
@@ -93,13 +93,13 @@ Local Terraform uses:
 - Autonomous Database and private media bucket toggles, names, and Object Storage namespace
 - Object Storage namespace, bucket, and key when initializing the remote backend
 
-GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_PRIVATE_KEY_PEM` to a temporary private key file for Terraform. During VM deploy, the same secret is copied to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounted read-only into the app container, and exposed to the app as `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. The multiline PEM is intentionally not written into the Compose `.env` file.
+GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_PRIVATE_KEY_PEM` to a temporary private key file for Terraform. During VM deploy, the same secret is copied to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounted read-only into the Rust controller and tools containers, and exposed as `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. The multiline PEM is intentionally not written into the quadlet environment file.
 
 ## Phase 2 Data Services
 
 Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, ADMIN password, and runtime connection values.
 
-The runtime container receives database and media coordinates through an Ansible-managed environment file consumed by Podman quadlets, not committed files. The deploy workflow writes a VM-local `app.env` under `${DEPLOY_PATH}/env`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values. The Phase 2 media adapter supports `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER=local` for local smoke work and `oci` for production Object Storage.
+Runtime containers receive database and media coordinates through an Ansible-managed environment file consumed by Podman quadlets and one-shot tools runs, not committed files. The deploy workflow writes a VM-local `app.env` under `${DEPLOY_PATH}/env`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values. The Phase 2 media adapter supports `AUTOGRAPHS_MEDIA_STORAGE_PROVIDER=local` for local smoke work and `oci` for production Object Storage.
 
 ## Optional GitHub Environments
 
@@ -107,12 +107,14 @@ GitHub Environments may be added later for manual approval, deployment history, 
 
 ## Runtime Image Contract
 
-Deployments publish prebuilt app, tools, and Rust controller images to `ghcr.io`
-and set their immutable digest references on the VM. The VM does not build
-application code. Ansible pulls the exact images published by GitHub Actions,
-installs systemd quadlets for the app, private controller, shared static volume,
-and Caddy containers on a dedicated Podman network, restarts affected services,
-and checks the Caddy-fronted `/health` route before the workflow succeeds.
+Deployments publish prebuilt tools and Rust controller images to `ghcr.io` and
+set their immutable digest references on the VM. The VM does not build
+application code. Ansible pulls the exact controller image published by GitHub
+Actions, installs systemd quadlets for the private controller, shared static
+volume, and Caddy containers on a dedicated Podman network, retires the old
+Next.js app service if present, restarts affected services, and checks the
+Caddy-fronted static release plus `/admin/api/health` before the workflow
+succeeds.
 Scheduled/manual image cleanup handles old GHCR versions and unused VM-local
 Podman images while preserving `latest`, protected tags, and the configured
 newest image count.
@@ -171,8 +173,7 @@ The operator-run live static publish smoke also uses these VM-local values:
 | `AUTOGRAPHS_CONTROLLER_BASE_URL` | private runtime coordinate | Controller URL reachable from the one-shot smoke container |
 | `AUTOGRAPHS_STATIC_PREVIEW_BASE_URL` | private runtime coordinate | Caddy static root, normally `http://autographs-caddy:8081` |
 
-After the public static cutover, the generated static release replaces the
-Next.js public routes, `/api/catalog/*`, and app-mediated image streaming.
-Retire the remaining Node deploy wiring and old data smoke through the checklist
-in [static-runtime-runbook.md](static-runtime-runbook.md), not as independent ad
-hoc removals.
+The generated static release replaces the Next.js public routes,
+`/api/catalog/*`, and app-mediated image streaming. The deploy role now retires
+the old Node service on the VM; keep any remaining Node-based tools work scoped
+to explicit smoke or migration tasks.
