@@ -121,7 +121,7 @@
   const card = (item) => {
     const link = Object.assign(document.createElement("a"), {
       className: "gallery-card-link",
-      href: `/collection/${encodeURIComponent(item.slug)}/`,
+      href: `/items/${encodeURIComponent(item.slug)}/`,
     });
     link.setAttribute("aria-label", `${item.title} signed by ${item.signer}`);
     const article = Object.assign(document.createElement("article"), { className: "gallery-card" });

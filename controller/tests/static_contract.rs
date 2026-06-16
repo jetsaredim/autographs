@@ -30,7 +30,7 @@ fn static_contract_profiles_shapes_and_generates_public_safe_split_artifacts() {
     assert!(
         generated
             .artifacts
-            .contains_key("collection/signed-collectible-001/index.html")
+            .contains_key("items/signed-collectible-001/index.html")
     );
 
     let rendered = generated

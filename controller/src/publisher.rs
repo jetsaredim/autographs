@@ -179,7 +179,7 @@ pub fn generate_split_artifacts(catalog: &FixtureCatalog, release_id: &str) -> S
             &to_public_detail(item),
         );
         artifacts.insert(
-            format!("collection/{}/index.html", item.slug),
+            format!("items/{}/index.html", item.slug),
             format!(
                 "<!doctype html><title>{}</title><h1>{}</h1><p>Signed by {}</p>",
                 item.title, item.title, item.signer
@@ -673,11 +673,6 @@ fn write_release(
         )?;
         write_bytes(
             candidate,
-            &format!("collection/{}/index.html", item.detail.slug),
-            detail_html(&item.detail).as_bytes(),
-        )?;
-        write_bytes(
-            candidate,
             &format!("items/{}/index.html", item.detail.slug),
             detail_html(&item.detail).as_bytes(),
         )?;
@@ -713,7 +708,7 @@ pub fn validate_candidate(candidate: &Path) -> Result<PublishManifest, String> {
     let _: PublicFacets = read_json(&candidate.join("data/facets.json"))?;
     for item in catalog.items {
         let detail_json = candidate.join(format!("data/items/{}.json", item.slug));
-        let detail_html = candidate.join(format!("collection/{}/index.html", item.slug));
+        let detail_html = candidate.join(format!("item/{}/index.html", item.slug));
         let detail: PublicItemDetail = read_json(&detail_json)?;
         if !detail_html.is_file() {
             return Err(format!(

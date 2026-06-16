@@ -16,7 +16,7 @@
       return;
     }
     const item = catalog.items[Math.floor(Math.random() * catalog.items.length)];
-    surprise.href = `/collection/${encodeURIComponent(item.slug)}/`;
+    surprise.href = `/items/${encodeURIComponent(item.slug)}/`;
   } catch (_error) {
     surprise.href = "/collection/";
   }
