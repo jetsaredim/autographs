@@ -1,0 +1,43 @@
+name: Weekly Security Scan
+
+on:
+  schedule:
+    - cron: "37 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: production-security-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: Scan production security updates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run security scan playbook
+        uses: dawidd6/action-ansible-playbook@v9
+        env:
+          ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+        with:
+          playbook: playbooks/security-scan.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            production ansible_host=${{ vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          requirements: collections/requirements.yml
+          options: |
+            --extra-vars patch_scan_target_group=runtime
