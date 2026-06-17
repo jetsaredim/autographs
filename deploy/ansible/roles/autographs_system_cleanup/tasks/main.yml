@@ -9,7 +9,21 @@
   changed_when: false
   failed_when: false
 
-- name: List local Podman images
+- name: Report deployed controller image
+  ansible.builtin.debug:
+    msg: >-
+      Deployed controller image:
+      {{ autographs_system_cleanup_current_image.stdout | default('') | trim | default('not found in app.env', true) }}
+
+- name: Report local Podman image cleanup policy
+  ansible.builtin.debug:
+    msg: |-
+      Repository: {{ autographs_system_cleanup_controller_image_repository }}
+      Retain newest local image count: {{ autographs_system_cleanup_retain_count }}
+      Protected tags: {{ autographs_system_cleanup_protected_tags }}
+      Dry run: {{ autographs_system_cleanup_dry_run }}
+
+- name: Collect local Podman images as JSON
   ansible.builtin.command:
     argv:
       - podman
@@ -18,6 +32,42 @@
       - json
   register: autographs_system_cleanup_images
   changed_when: false
+
+- name: Report local Podman image count
+  ansible.builtin.debug:
+    msg: >-
+      podman images returned
+      {{
+        (autographs_system_cleanup_images.stdout | from_json | length)
+        if (autographs_system_cleanup_images.stdout | default('') | trim)
+        else 0
+      }}
+      image record(s).
+
+- name: List local Podman images for workflow log
+  ansible.builtin.command:
+    argv:
+      - podman
+      - images
+  register: autographs_system_cleanup_image_list
+  changed_when: false
+
+- name: Report local Podman images
+  ansible.builtin.debug:
+    msg: "{{ autographs_system_cleanup_image_list.stdout | default('No local Podman images found.', true) }}"
+
+- name: List local Podman containers for workflow log
+  ansible.builtin.command:
+    argv:
+      - podman
+      - ps
+      - --all
+  register: autographs_system_cleanup_container_list
+  changed_when: false
+
+- name: Report local Podman containers
+  ansible.builtin.debug:
+    msg: "{{ autographs_system_cleanup_container_list.stdout | default('No local Podman containers found.', true) }}"
 
 - name: Select old local controller images for cleanup
   ansible.builtin.script:
@@ -32,6 +82,44 @@
   register: autographs_system_cleanup_removable_images
   changed_when: false
 
+- name: Report old local runtime image cleanup selection
+  ansible.builtin.debug:
+    msg: >-
+      Selected {{ autographs_system_cleanup_removable_images.stdout_lines | length }}
+      old local Podman image(s) for cleanup:
+      {{
+        autographs_system_cleanup_removable_images.stdout_lines | join(', ')
+        if autographs_system_cleanup_removable_images.stdout_lines | length > 0
+        else 'none'
+      }}
+
+- name: Inspect old local runtime images selected for cleanup
+  ansible.builtin.command:
+    argv:
+      - podman
+      - image
+      - inspect
+      - --format
+      - "{{ '{{.Id}} | tags={{.RepoTags}} | created={{.Created}} | size={{.Size}}' }}"
+      - "{{ item }}"
+  loop: "{{ autographs_system_cleanup_removable_images.stdout_lines }}"
+  register: autographs_system_cleanup_removable_image_details
+  changed_when: false
+  when: autographs_system_cleanup_removable_images.stdout_lines | length > 0
+
+- name: Report old local runtime image cleanup candidate details
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        autographs_system_cleanup_removable_image_details.results
+        | default([])
+        | map(attribute='stdout')
+        | reject('equalto', '')
+        | list
+        | join('\n')
+      }}
+  when: autographs_system_cleanup_removable_images.stdout_lines | length > 0
+
 - name: Remove old local runtime images
   ansible.builtin.command:
     argv:
@@ -43,15 +131,38 @@
   when:
     - autographs_system_cleanup_dry_run | lower != "true"
     - autographs_system_cleanup_removable_images.stdout_lines | length > 0
+  register: autographs_system_cleanup_removed_images
   changed_when: true
+
+- name: Report old local runtime image removals
+  ansible.builtin.debug:
+    msg: |-
+      Removed {{ autographs_system_cleanup_removed_images.results | default([]) | length }} old local Podman image(s):
+      {{ autographs_system_cleanup_removed_images.results | default([]) | map(attribute='item') | list | join(', ') }}
+      {{
+        autographs_system_cleanup_removed_images.results
+        | default([])
+        | map(attribute='stdout')
+        | reject('equalto', '')
+        | list
+        | join('\n')
+      }}
+  when:
+    - autographs_system_cleanup_dry_run | lower != "true"
+    - autographs_system_cleanup_removable_images.stdout_lines | length > 0
 
 - name: Report old local runtime images dry run
   ansible.builtin.debug:
-    msg: "Would remove local Podman image {{ item }}"
-  loop: "{{ autographs_system_cleanup_removable_images.stdout_lines }}"
+    msg: "Would remove selected local Podman image: {{ item }}"
+  loop: "{{ autographs_system_cleanup_removable_image_details.results | default([]) | map(attribute='stdout') | list }}"
   when:
     - autographs_system_cleanup_dry_run | lower == "true"
     - autographs_system_cleanup_removable_images.stdout_lines | length > 0
+
+- name: Report old local runtime image cleanup not needed
+  ansible.builtin.debug:
+    msg: "No old local Podman images selected for cleanup."
+  when: autographs_system_cleanup_removable_images.stdout_lines | length == 0
 
 - name: Prune dangling Podman images
   ansible.builtin.command:
@@ -63,3 +174,13 @@
   register: autographs_system_cleanup_image_prune
   changed_when: "'Total reclaimed space: 0B' not in autographs_system_cleanup_image_prune.stdout"
   when: autographs_system_cleanup_dry_run | lower != "true"
+
+- name: Report dangling Podman image prune output
+  ansible.builtin.debug:
+    msg: "{{ autographs_system_cleanup_image_prune.stdout | default('podman image prune returned no output.', true) }}"
+  when: autographs_system_cleanup_dry_run | lower != "true"
+
+- name: Report dangling Podman image prune dry run
+  ansible.builtin.debug:
+    msg: "Would run podman image prune --force."
+  when: autographs_system_cleanup_dry_run | lower == "true"
