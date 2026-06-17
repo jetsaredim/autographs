@@ -2,8 +2,9 @@
   ansible.builtin.set_fact:
     security_patching_approved_package_specs: >-
       {{
-        hostvars['localhost'].patch_request_instances[inventory_hostname].package_specs
-        | default([])
+        (hostvars['localhost'].patch_request_instances | default({}))
+        .get(inventory_hostname, {})
+        .get('package_specs', [])
         | unique
         | sort
         | list
