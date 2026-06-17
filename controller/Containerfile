@@ -4,6 +4,7 @@ WORKDIR /workspace
 
 COPY controller/Cargo.toml controller/Cargo.lock ./
 COPY controller/src ./src
+COPY controller/db ./db
 COPY controller/static-public ./static-public
 
 RUN cargo build --release --features production-persistence
