@@ -6,7 +6,8 @@ Use this checklist before making the repository public, before merging a hardeni
 
 - Confirm the current branch is not `main` or `master` before committing changes.
 - Open a normal pull request, not a draft PR.
-- Let GitHub Actions validate the PR. Treat CI as the authoritative validation gate for lint, typecheck, tests, build, workflow checks, and any configured repository scans.
+- Let GitHub Actions validate the PR. Treat CI as the authoritative validation gate for the current runtime: read-only workflow checks, repository secret scanning, controller formatting, controller tests, production-persistence checks, controller build, controller image build, Containerfile linting, Terraform checks, and Ansible syntax/lint checks.
+- Do not require retired Node app gates. The former `corepack pnpm --filter app lint`, `typecheck`, `test`, and `build` checks applied to the retired Next.js app package and are no longer part of the current static-runtime/controller surface.
 - Confirm the PR review feedback is written back to the PR as GitHub comments.
 - Confirm repository badges in `README.md` map to real workflows or clearly documented static signals.
 - Confirm `README.md` separates the current static-runtime/controller implementation from Phase 6 admin and Phase 7 AI plans.
@@ -18,7 +19,7 @@ Use this checklist before making the repository public, before merging a hardeni
 - Confirm live static publish smoke status is explicit: local/CI checks can validate local-mode behavior, while live Oracle/Object Storage proof requires the static runtime runbook with real secrets.
 - Confirm the image cleanup workflow and Ansible cleanup role are still covered by the documented cleanup-job behavior.
 - Confirm ignored local files are not committed, especially `.env*`, Terraform tfvars/state, Oracle wallet material, OCI keys, local node/build output, and local Ansible/cache files.
-- Run a credible secret scan when available, such as `gitleaks detect --redact`, and record the result in the readiness notes. If the scanner is unavailable, record that CI or a follow-up PR must provide equivalent coverage.
+- Confirm the CI Secret scan job ran successfully under read-only workflow permissions (`contents: read`, `pull-requests: read`). Optional local support can use `gitleaks detect --redact`, but the local scan is supporting evidence rather than a replacement for the PR gate.
 
 ## Deferred Scope Rules
 
