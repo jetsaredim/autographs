@@ -22,7 +22,7 @@ key-files:
     - controller/src/media.rs
     - controller/src/storage_keys.rs
     - controller/tests/live_persistence_smoke.rs
-    - controller/Containerfile.smoke
+    - controller/Dockerfile.smoke
   modified:
     - controller/src/routes.rs
     - docs/static-runtime-runbook.md
