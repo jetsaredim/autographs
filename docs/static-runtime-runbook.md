@@ -135,7 +135,7 @@ and export the one-shot smoke image on a trusted Linux `amd64` workstation:
 
 ```bash
 docker build \
-  --file controller/Containerfile.smoke \
+  --file controller/Dockerfile.smoke \
   --tag localhost/autographs-live-persistence-smoke:phase-05 \
   .
 
@@ -216,7 +216,7 @@ Build and export the temporary image on a trusted Linux `amd64` workstation:
 
 ```bash
 docker build \
-  --file controller/Containerfile.static-smoke \
+  --file controller/Dockerfile.static-smoke \
   --tag localhost/autographs-live-static-publish-smoke:phase-05 \
   .
 

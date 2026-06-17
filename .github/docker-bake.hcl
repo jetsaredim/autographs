@@ -7,7 +7,7 @@ group "default" {
 
 target "controller" {
   context = "."
-  dockerfile = "controller/Containerfile"
+  dockerfile = "controller/Dockerfile"
 
   cache-from = [
     "type=gha,scope=controller-image"

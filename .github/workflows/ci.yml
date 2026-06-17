@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ vars.GHCR_CONTROLLER_IMAGE_REPOSITORY || format('ghcr.io/{0}/controller', github.repository) }}
@@ -21,17 +22,31 @@ jobs:
       - name: Run actionlint
         uses: raven-actions/actionlint@v2
 
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
   dockerfile-checks:
-    name: Containerfile checks
+    name: Dockerfile checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Lint controller Containerfile
+      - name: Lint controller Dockerfile
         uses: hadolint/hadolint-action@v3.3.0
         with:
-          dockerfile: controller/Containerfile
+          dockerfile: controller/Dockerfile
           verbose: true
 
   controller-checks:
@@ -46,6 +61,17 @@ jobs:
         with:
           components: clippy,rustfmt
 
+      - name: Cache Cargo artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/git
+            ~/.cargo/registry
+            controller/target
+          key: cargo-controller-${{ runner.os }}-${{ hashFiles('controller/Cargo.lock') }}
+          restore-keys: |
+            cargo-controller-${{ runner.os }}-
+
       - name: Check formatting
         run: cargo fmt --manifest-path controller/Cargo.toml --check
 
@@ -54,6 +80,9 @@ jobs:
 
       - name: Check production persistence adapters
         run: cargo check --manifest-path controller/Cargo.toml --features production-persistence
+
+      - name: Build controller
+        run: cargo build --manifest-path controller/Cargo.toml --features production-persistence
 
       - name: Run Clippy
         run: cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings

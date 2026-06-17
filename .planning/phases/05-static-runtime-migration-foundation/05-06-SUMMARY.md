@@ -18,7 +18,7 @@ tech-stack:
   patterns: [private-controller-container, staged-static-cutover, vm-local-controller-secrets]
 key-files:
   created:
-    - controller/Containerfile
+    - controller/Dockerfile
     - controller/src/oracle_catalog.rs
     - controller/src/oci_media.rs
     - controller/tests/caddy_static_routes.rs
@@ -58,7 +58,7 @@ completed: 2026-06-02
 - `cargo clippy --manifest-path controller/Cargo.toml --features production-persistence --all-targets -- -D warnings`
 - `ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml deploy/ansible/playbooks/data-smoke.yml deploy/ansible/playbooks/system-cleanup.yml`
 - `ansible-lint deploy/ansible`
-- `docker build --file controller/Containerfile --tag localhost/autographs-controller:phase-05 .`
+- `docker build --file controller/Dockerfile --tag localhost/autographs-controller:phase-05 .`
 - Rebuilt controller container health probe returned `{"ok":true,"service":"autographs-controller"}`.
 - `caddy validate --config /etc/caddy/Caddyfile`
 - `git diff --check`
