@@ -1,6 +1,9 @@
 .codex
 .codex/
 .tools/
+node_modules/
+app/node_modules/
+app/.next/
 controller/target/
 controller/static-public/data/collection.json
 controller/static-public/data/facets.json
