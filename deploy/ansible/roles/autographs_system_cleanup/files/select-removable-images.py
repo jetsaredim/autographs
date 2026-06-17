@@ -7,11 +7,7 @@ from datetime import datetime, timezone
 
 def main() -> int:
     retain_count = max(int(os.environ["RETAIN_COUNT"]), 0)
-    repositories = {
-        os.environ["IMAGE_REPOSITORY"],
-        os.environ["TOOLS_IMAGE_REPOSITORY"],
-        os.environ["CONTROLLER_IMAGE_REPOSITORY"],
-    }
+    repositories = {os.environ["CONTROLLER_IMAGE_REPOSITORY"]}
     current_images = {
         image.strip()
         for image in os.environ.get("CURRENT_IMAGES", "").splitlines()
