@@ -260,9 +260,9 @@ select {
   position: relative;
   display: grid;
   width: min(100%, 72rem);
-  gap: 24px;
+  gap: 0;
   margin: 0 auto;
-  padding: 56px 16px 16px;
+  padding: 16px;
   border: 1px solid #dfd8cc;
   border-radius: 8px;
   background: #ffffff;
@@ -295,20 +295,63 @@ select {
   stroke-width: 1.8;
 }
 
-.gallery-filters {
+.filter-toggle.has-active-filters[aria-expanded="false"]::after {
+  content: attr(data-active-filter-count);
   position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  min-width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 4px;
+  background: #6f675c;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.gallery-filters {
+  position: static;
   top: 0;
   right: 0;
   left: 0;
   z-index: 1;
   display: grid;
   gap: 16px;
-  min-height: 44px;
-  padding: 0 60px 0 16px;
+  margin: -16px -16px 0;
+  padding: 16px 76px 16px 16px;
   border-bottom: 1px solid #dfd8cc;
   border-radius: 8px 8px 0 0;
   background: #fbfaf7;
-  box-shadow: 0 16px 24px rgba(47, 47, 45, 0.08);
+  box-shadow: none;
+  max-height: 16rem;
+  overflow: hidden;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    max-height 220ms ease,
+    padding-top 220ms ease,
+    padding-bottom 220ms ease,
+    opacity 160ms ease,
+    transform 220ms ease,
+    border-color 220ms ease;
+}
+
+.gallery-filters.is-collapsed {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom-color: transparent;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+
+.gallery-filters:not(.is-collapsed) + .gallery-grid {
+  margin-top: 24px;
 }
 
 .filter-menu {

@@ -6,7 +6,10 @@
   </section>
   <section class="collection-panel" aria-label="Collection items">
     <button class="filter-toggle" type="button" aria-expanded="false" aria-controls="collection-filters" aria-label="Open filters"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16l-6.5 7.5V19l-3 1.5v-7z"></path></svg></button>
-    <section class="gallery-filters" id="collection-filters" aria-label="Collection filters" hidden><div class="filter-menu"></div><div class="selected-filters" aria-label="Selected filters"></div></section>
+    <section class="gallery-filters is-collapsed" id="collection-filters" aria-label="Collection filters" aria-hidden="true" inert>
+      <div class="filter-menu"></div>
+      <div class="selected-filters" aria-label="Selected filters"></div>
+    </section>
     <section class="gallery-grid" id="collection" aria-label="Published autograph items"></section>
   </section>
   <footer class="public-footer"><a href="/">Jared Greenwald's Autograph Gallery</a><span aria-hidden="true">•</span><a href="/architecture/">About</a></footer>
