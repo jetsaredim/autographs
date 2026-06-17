@@ -61,6 +61,17 @@ jobs:
         with:
           components: clippy,rustfmt
 
+      - name: Cache Cargo artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/git
+            ~/.cargo/registry
+            controller/target
+          key: cargo-controller-${{ runner.os }}-${{ hashFiles('controller/Cargo.lock') }}
+          restore-keys: |
+            cargo-controller-${{ runner.os }}-
+
       - name: Check formatting
         run: cargo fmt --manifest-path controller/Cargo.toml --check
 
