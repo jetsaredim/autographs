@@ -6,6 +6,8 @@
 
 This audit records the final Phase 4 readiness gate. Per operator preference, CI is the authoritative validation surface for this PR; local validation was stopped as a required gate and only the checks already completed are listed as supporting evidence.
 
+**Current CI note, 2026-06-17:** Phase 5 static-runtime work has since retired the Node/Next.js `app` package on `main`. The Phase 4 app commands below remain historical local evidence only. Current PR CI gates the Rust controller/static runtime, container image, workflow/infra/deploy checks, and repository secret scanning under read-only workflow permissions (`contents: read`, `pull-requests: read`).
+
 ## Requirement Traceability
 
 | Requirement | Evidence | Status |
@@ -20,22 +22,27 @@ This audit records the final Phase 4 readiness gate. Per operator preference, CI
 
 | Check | Source | Status |
 |-------|--------|--------|
-| Lint, typecheck, tests, build | GitHub Actions PR validation | PENDING CI |
-| Workflow validation | GitHub Actions PR validation | PENDING CI |
+| Workflow validation | GitHub Actions PR validation (`workflow-checks`) | PENDING CI |
+| Repository secret scan | GitHub Actions PR validation (`secret-scan` / Gitleaks) | PENDING CI |
+| Controller formatting, tests, production-persistence check, build, and Clippy | GitHub Actions PR validation (`controller-checks`) | PENDING CI |
+| Controller image build | GitHub Actions PR validation (`image-build`) | PENDING CI |
+| Containerfile lint | GitHub Actions PR validation (`dockerfile-checks`) | PENDING CI |
+| Terraform formatting, tenancy validate, and plan | GitHub Actions PR validation (`terraform-checks`) | PENDING CI |
+| Ansible syntax and lint | GitHub Actions PR validation (`validate-ansible`) | PENDING CI |
+| Retired Node app lint, typecheck, tests, and build | Removed Phase 4 app package | N/A - RETIRED |
 | Deploy path | Merge-triggered Deploy workflow | MANUAL/POST-MERGE |
 | Live Oracle/Object Storage data smoke | Manual Data Smoke workflow with real secrets | MANUAL |
-| Secret scan | CI or follow-up scanner run, such as `gitleaks detect --redact` | PENDING CI/EQUIVALENT |
 
 ## Supporting Local Evidence
 
-These commands completed before local validation was deprioritized in favor of CI:
+These commands completed before local validation was deprioritized in favor of CI. The `corepack pnpm --filter app ...` commands are retained as historical Phase 4 evidence only; they are not current gates after the static-runtime/controller migration retired the Node app package.
 
 | Command | Result |
 |---------|--------|
-| `corepack pnpm --filter app lint` | PASS |
-| `corepack pnpm --filter app typecheck` | PASS |
-| `corepack pnpm --filter app test` | PASS, 17 tests |
-| `corepack pnpm --filter app build` | PASS |
+| `corepack pnpm --filter app lint` | PASS, historical retired-app evidence |
+| `corepack pnpm --filter app typecheck` | PASS, historical retired-app evidence |
+| `corepack pnpm --filter app test` | PASS, 17 tests, historical retired-app evidence |
+| `corepack pnpm --filter app build` | PASS, historical retired-app evidence |
 | `terraform -chdir=infra/terraform fmt -check -recursive` | PASS |
 | `ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml` | PASS |
 | `ansible-playbook --syntax-check deploy/ansible/playbooks/data-smoke.yml` | PASS |
