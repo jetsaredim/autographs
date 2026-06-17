@@ -1,0 +1,18 @@
+- name: Scan production instances for security updates
+  hosts: "{{ patch_scan_target_group | default('runtime') }}"
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Scan host security update state
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: scan
+
+- name: Create production security update issue
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Create GitHub issue for security update findings
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: create_issue
