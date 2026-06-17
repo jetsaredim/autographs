@@ -64,15 +64,18 @@
     render();
   };
   const setOpen = (open) => {
-    panel.hidden = !open;
+    panel.classList.toggle("is-collapsed", !open);
+    panel.setAttribute("aria-hidden", String(!open));
+    panel.inert = !open;
+
     toggle.setAttribute("aria-expanded", String(open));
     toggle.setAttribute("aria-label", open ? "Close filters" : "Open filters");
     setToggleIcon(open);
   };
 
   menu.replaceChildren(select(facet("signer")), select(facet("category")), select(facet("tag")));
-  setOpen(Object.values(state).some(Boolean));
-  toggle.addEventListener("click", () => setOpen(panel.hidden));
+  setOpen(false);
+  toggle.addEventListener("click", () => {setOpen(panel.classList.contains("is-collapsed"));});
   window.addEventListener("popstate", () => {
     const next = new URLSearchParams(window.location.search);
     state.signer = normalizedFilter(next.get("signer"));
