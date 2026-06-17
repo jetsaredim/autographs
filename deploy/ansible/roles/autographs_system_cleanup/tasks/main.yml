@@ -153,7 +153,7 @@
 
 - name: Report old local runtime images dry run
   ansible.builtin.debug:
-    msg: "Would remove local Podman image {{ item }}"
+    msg: "Would remove selected local Podman image: {{ item }}"
   loop: "{{ autographs_system_cleanup_removable_image_details.results | default([]) | map(attribute='stdout') | list }}"
   when:
     - autographs_system_cleanup_dry_run | lower == "true"
