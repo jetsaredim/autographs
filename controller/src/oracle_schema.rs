@@ -17,13 +17,21 @@ const REQUIRED_COLUMNS: &[(&str, &str)] = &[
     ("AUTOGRAPH_PUBLIC_DERIVATIVES", "PUBLIC_PATH"),
 ];
 
-pub fn ensure_initialized(user: &str, credential: &str, connect_string: &str) -> Result<(), String> {
+pub fn ensure_initialized(
+    user: &str,
+    credential: &str,
+    connect_string: &str,
+) -> Result<(), String> {
+    tracing::info!(%user, %connect_string, "checking Oracle catalog schema state");
+
     let connection = Connection::connect(user, credential, connect_string)
         .map_err(|error| format!("connect to Oracle catalog for schema bootstrap: {error}"))?;
+
     ensure_initialized_on_connection(&connection)
 }
 
 fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), String> {
+
     let existing_tables = existing_autograph_tables(connection)?;
     if existing_tables.is_empty() {
         apply_schema(connection)?;
@@ -36,6 +44,8 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
         .filter(|table| !existing_tables.contains(*table))
         .collect();
     if !missing_tables.is_empty() {
+        tracing::error!(missing_tables = ?missing_tables, "Oracle catalog schema is partially initialized");
+
         return Err(format!(
             "Oracle catalog schema is partially initialized; missing expected table(s): {}",
             missing_tables.join(", ")
@@ -48,7 +58,9 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
                 "select count(*) from user_tab_columns where table_name = :1 and column_name = :2",
                 &[table, column],
             )
-            .map_err(|error| format!("inspect Oracle catalog schema column {table}.{column}: {error}"))?;
+            .map_err(|error| {
+                format!("inspect Oracle catalog schema column {table}.{column}: {error}")
+            })?;
         if count != 1 {
             return Err(format!(
                 "Oracle catalog schema is partially initialized; missing expected column {table}.{column}"
@@ -56,6 +68,7 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
         }
     }
 
+    tracing::info!("Oracle catalog schema preflight passed");
     Ok(())
 }
 
@@ -84,15 +97,23 @@ fn existing_autograph_tables(connection: &Connection) -> Result<HashSet<String>,
 }
 
 fn apply_schema(connection: &Connection) -> Result<(), String> {
-    for statement in schema_statements() {
+    let statements = schema_statements();
+    tracing::info!(statement_count = statements.len(), "applying Oracle catalog schema");
+
+
+    for statement in statements {
         let label = statement.lines().next().unwrap_or("schema statement");
+        tracing::debug!(%label, "applying Oracle catalog schema statement");
         connection
             .execute(&statement, &[])
             .map_err(|error| format!("apply Oracle catalog schema statement `{label}`: {error}"))?;
     }
     connection
         .commit()
-        .map_err(|error| format!("commit Oracle catalog schema bootstrap: {error}"))
+        .map_err(|error| format!("commit Oracle catalog schema bootstrap: {error}"))?;
+
+    tracing::info!("committed Oracle catalog schema bootstrap");
+    Ok(())
 }
 
 fn schema_statements() -> Vec<String> {
@@ -133,7 +154,11 @@ mod tests {
     fn schema_parser_discards_comments_and_statement_terminators() {
         let statements = schema_statements();
         assert!(statements.iter().all(|statement| !statement.ends_with(';')));
-        assert!(statements.iter().all(|statement| !statement.starts_with("--")));
+        assert!(
+            statements
+                .iter()
+                .all(|statement| !statement.starts_with("--"))
+        );
         assert!(
             statements
                 .iter()
