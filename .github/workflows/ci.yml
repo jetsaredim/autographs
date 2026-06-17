@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ vars.GHCR_CONTROLLER_IMAGE_REPOSITORY || format('ghcr.io/{0}/controller', github.repository) }}
@@ -20,6 +21,20 @@ jobs:
 
       - name: Run actionlint
         uses: raven-actions/actionlint@v2
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   dockerfile-checks:
     name: Containerfile checks
@@ -54,6 +69,9 @@ jobs:
 
       - name: Check production persistence adapters
         run: cargo check --manifest-path controller/Cargo.toml --features production-persistence
+
+      - name: Build controller
+        run: cargo build --manifest-path controller/Cargo.toml --features production-persistence
 
       - name: Run Clippy
         run: cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
