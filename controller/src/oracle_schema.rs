@@ -98,8 +98,10 @@ fn existing_autograph_tables(connection: &Connection) -> Result<HashSet<String>,
 
 fn apply_schema(connection: &Connection) -> Result<(), String> {
     let statements = schema_statements();
-    tracing::info!(statement_count = statements.len(), "applying Oracle catalog schema");
-
+    tracing::info!(
+        statement_count = statements.len(),
+        "applying Oracle catalog schema"
+    );
 
     for statement in statements {
         let label = statement.lines().next().unwrap_or("schema statement");
