@@ -1,0 +1,71 @@
+- name: Require GitHub repository context
+  ansible.builtin.assert:
+    that:
+      - security_patching_github_repository | length > 0
+      - security_patching_github_token | length > 0
+    fail_msg: GitHub repository and token context are required to create security update issues.
+
+- name: Initialize report host list
+  ansible.builtin.set_fact:
+    security_patching_hosts_with_findings: []
+
+- name: Collect hosts with security update findings
+  ansible.builtin.set_fact:
+    security_patching_hosts_with_findings: "{{ security_patching_hosts_with_findings + [item] }}"
+  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  when: (hostvars[item].security_patch_entries | default([]) | length) > 0
+
+- name: Report clean security update scan
+  ansible.builtin.debug:
+    msg: "No available security updates were reported for {{ security_patching_target_group }}."
+  when: security_patching_hosts_with_findings | length == 0
+
+- name: Ensure GitHub labels exist
+  ansible.builtin.uri:
+    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/labels"
+    method: POST
+    headers:
+      Accept: application/vnd.github+json
+      Authorization: "Bearer {{ security_patching_github_token }}"
+      X-GitHub-Api-Version: "2022-11-28"
+    body_format: json
+    body:
+      name: "{{ item.name }}"
+      color: "{{ item.color }}"
+      description: "{{ item.description }}"
+    status_code:
+      - 201
+      - 422
+  loop: "{{ security_patching_managed_labels }}"
+  when: security_patching_hosts_with_findings | length > 0
+  no_log: true
+
+- name: Render production security update issue body
+  ansible.builtin.template:
+    src: security-report.md.j2
+    dest: "{{ security_patching_report_path }}"
+    mode: "0600"
+  when: security_patching_hosts_with_findings | length > 0
+
+- name: Create production security update issue
+  ansible.builtin.uri:
+    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues"
+    method: POST
+    headers:
+      Accept: application/vnd.github+json
+      Authorization: "Bearer {{ security_patching_github_token }}"
+      X-GitHub-Api-Version: "2022-11-28"
+    body_format: json
+    body:
+      title: "Production security update report - {{ security_patching_scan_timestamp }}"
+      body: "{{ lookup('ansible.builtin.file', security_patching_report_path) }}"
+      labels: "{{ security_patching_issue_labels }}"
+    status_code: 201
+  register: security_patching_created_issue
+  when: security_patching_hosts_with_findings | length > 0
+  no_log: true
+
+- name: Report created production security update issue
+  ansible.builtin.debug:
+    msg: "Created production security update issue #{{ security_patching_created_issue.json.number }}."
+  when: security_patching_hosts_with_findings | length > 0
