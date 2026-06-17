@@ -115,11 +115,7 @@ fn production_repository() -> Result<Arc<dyn CatalogRepository>, String> {
     let oracle_password = required_env("ORACLE_DB_PASSWORD")?;
     let oracle_connect_string = required_env("ORACLE_DB_CONNECT_STRING")?;
 
-    oracle_schema::ensure_initialized(
-        &oracle_user,
-        &oracle_password,
-        &oracle_connect_string,
-    )?;
+    oracle_schema::ensure_initialized(&oracle_user, &oracle_password, &oracle_connect_string)?;
 
     tracing::info!("Oracle catalog schema is ready");
 

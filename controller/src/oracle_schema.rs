@@ -31,7 +31,6 @@ pub fn ensure_initialized(
 }
 
 fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), String> {
-
     let existing_tables = existing_autograph_tables(connection)?;
     if existing_tables.is_empty() {
         apply_schema(connection)?;
