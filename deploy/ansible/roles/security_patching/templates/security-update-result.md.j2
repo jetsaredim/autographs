@@ -1,0 +1,25 @@
+## Production security update result
+
+- Approved by: `{{ patch_approver }}`
+- Scan ID: `{{ hostvars['localhost'].patch_request_scan_id }}`
+- Target group: `{{ security_patching_target_group }}`
+{% if lookup('env', 'GITHUB_SERVER_URL') | length > 0 and lookup('env', 'GITHUB_REPOSITORY') | length > 0 and lookup('env', 'GITHUB_RUN_ID') | length > 0 %}
+- Workflow run: {{ lookup('env', 'GITHUB_SERVER_URL') }}/{{ lookup('env', 'GITHUB_REPOSITORY') }}/actions/runs/{{ lookup('env', 'GITHUB_RUN_ID') }}
+{% endif %}
+
+| Instance | Updated | Approved package specs | Remaining security updates |
+|---|---:|---:|---:|
+{% for host in groups[security_patching_target_group] | default([]) %}
+| `{{ host }}` | {{ hostvars[host].security_patching_dnf_result.changed | default(false) }} | {{ hostvars[host].security_patching_approved_package_specs | default([]) | length }} | {{ hostvars[host].security_patching_post_update_entries | default([]) | length }} |
+{% endfor %}
+
+{% if security_patching_remaining_hosts | length == 0 %}
+Post-update scan is clean for the approved target group. This issue will be closed automatically.
+{% else %}
+Post-update scan still reports findings on:
+{% for host in security_patching_remaining_hosts %}
+- `{{ host }}`: {{ hostvars[host].security_patching_post_update_entries | default([]) | length }} remaining security update(s)
+{% endfor %}
+
+This issue is intentionally left open for follow-up review.
+{% endif %}
