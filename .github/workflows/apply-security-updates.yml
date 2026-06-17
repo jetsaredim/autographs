@@ -1,0 +1,48 @@
+name: Apply Security Updates
+
+on:
+  issues:
+    types:
+      - labeled
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: production-security-updates
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Apply approved production security updates
+    if: github.event.label.name == 'approved-production-update'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run security update playbook
+        uses: dawidd6/action-ansible-playbook@v9
+        env:
+          ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          PATCH_APPROVER: ${{ github.actor }}
+          PATCH_ISSUE_NUMBER: ${{ github.event.issue.number }}
+        with:
+          playbook: playbooks/security-patch.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            production ansible_host=${{ vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          requirements: collections/requirements.yml
+          options: |
+            --extra-vars patch_issue_number=${{ github.event.issue.number }}
+            --extra-vars patch_approver=${{ github.actor }}
+            --extra-vars patch_approval_label=approved-production-update
+            --extra-vars patch_target_group=runtime
