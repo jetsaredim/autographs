@@ -26,7 +26,7 @@ This audit records the final Phase 4 readiness gate. Per operator preference, CI
 | Repository secret scan | GitHub Actions PR validation (`secret-scan` / Gitleaks) | PENDING CI |
 | Controller formatting, tests, production-persistence check, build, and Clippy | GitHub Actions PR validation (`controller-checks`) | PENDING CI |
 | Controller image build | GitHub Actions PR validation (`image-build`) | PENDING CI |
-| Containerfile lint | GitHub Actions PR validation (`dockerfile-checks`) | PENDING CI |
+| Dockerfile lint | GitHub Actions PR validation (`dockerfile-checks`) | PENDING CI |
 | Terraform formatting, tenancy validate, and plan | GitHub Actions PR validation (`terraform-checks`) | PENDING CI |
 | Ansible syntax and lint | GitHub Actions PR validation (`validate-ansible`) | PENDING CI |
 | Retired Node app lint, typecheck, tests, and build | Removed Phase 4 app package | N/A - RETIRED |
