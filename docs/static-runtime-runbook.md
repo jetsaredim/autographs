@@ -26,10 +26,10 @@ file and will render values from deploy variables. The controller-specific file
 sets `OCI_AUTH_MODE=instance_principal`, and the runtime dynamic group grants
 media-bucket-scoped Object Storage access.
 
-Start the controller with local-only values:
+Start the controller with local-only values after loading the local admin
+credential values from an untracked environment file:
 
 ```bash
-export AUTOGRAPHS_ADMIN_PASSWORD=local-only-password
 export AUTOGRAPHS_ADMIN_SECURE_COOKIES=false
 export AUTOGRAPHS_OPERATOR_API_TOKEN=local-operator-token
 cargo run --manifest-path controller/Cargo.toml
@@ -112,16 +112,21 @@ UUID-only object key, read both records back, and clean up the smoke item and
 object. Do not mark Phase 5 verified until this command has passed against the
 live OCI tenancy.
 
-Apply the committed app migrations before running the smoke. The probe performs
-a read-only schema preflight and stops before inserting an item or uploading an
-object when `002_static_runtime_foundation.sql` has not been applied.
+Before running the smoke, confirm the database has been initialized from the
+canonical controller schema end state in `controller/db/schema.sql`. The retired
+Node app migrations have already been applied to the live environment and are no
+longer part of the active repository tree; fresh ADB bootstrap or recovery
+should start from that end-state schema rather than replaying the retired
+migration chain. The probe performs a read-only schema preflight and stops
+before inserting an item or uploading an object when the static-runtime schema
+is absent.
 
 The native Oracle probe uses Oracle Instant Client and the same wallet alias as
-the deployed app. It requires `ORACLE_DB_CONNECT_STRING`, `ORACLE_DB_USER`, and
-`ORACLE_DB_PASSWORD`; the smoke container sets `TNS_ADMIN` to the mounted wallet
-directory. Instance-principal media access requires `OCI_AUTH_MODE`,
-`OCI_MEDIA_NAMESPACE`, `OCI_MEDIA_BUCKET_NAME`, and the runtime dynamic-group
-policy for the media bucket.
+the deployed controller. It requires `ORACLE_DB_CONNECT_STRING`,
+`ORACLE_DB_USER`, and the matching Oracle credential; the smoke container sets
+`TNS_ADMIN` to the mounted wallet directory. Instance-principal media access
+requires `OCI_AUTH_MODE`, `OCI_MEDIA_NAMESPACE`, `OCI_MEDIA_BUCKET_NAME`, and
+the runtime dynamic-group policy for the media bucket.
 
 ### Run the Smoke as a Temporary VM Container
 
@@ -143,12 +148,12 @@ scp /tmp/autographs-live-persistence-smoke.tar \
 ```
 
 On the runtime VM, create `/opt/autographs/env/live-persistence-smoke.env` with
-mode `0600`. Do not commit this file. It must contain:
+mode `0600`. Do not commit this file. It must contain the Oracle connection,
+wallet, and OCI media coordinates used by the deployed controller, including:
 
 ```text
 AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE=true
 ORACLE_DB_USER=ADMIN
-ORACLE_DB_PASSWORD=replace-with-runtime-db-password
 ORACLE_DB_CONNECT_STRING=autographsdb_medium
 ORACLE_DB_WALLET_DIR=/opt/autographs/wallet
 OCI_REGION=us-ashburn-1
@@ -175,8 +180,8 @@ sudo podman run --rm \
 ```
 
 The image contains the compiled smoke-test executable, CA certificates, and
-Oracle Instant Client. It does not contain the Oracle wallet, database password,
-or Object Storage credentials.
+Oracle Instant Client. It does not contain the Oracle wallet, database
+credential, or Object Storage credentials.
 
 ## Live Static Publish Smoke
 
@@ -268,49 +273,3 @@ retains only the latest failed candidate for diagnosis and leaves `current`
 pointing at the last validated release.
 
 ## Full Rebuild
-
-Use a full rebuild after schema-contract changes, recovery from an uncertain
-release state, or before the planned public cutover:
-
-```bash
-curl --fail --silent --request POST \
-  http://127.0.0.1:8080/admin/api/publish/full \
-  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}"
-```
-
-Incremental publishing is conservative in Phase 5: it regenerates the complete
-public surface after copying the prior release because durable per-item change
-events do not exist yet.
-
-## Cutover
-
-Planned downtime is acceptable for the first static-runtime cutover. Before
-merging the public Caddy root change:
-
-1. Deploy the controller/static-volume shape with the controller provider
-   variables set to Oracle plus `oci-instance-principal`.
-2. Run the live persistence smoke and live static publish smoke.
-3. Run an explicit full rebuild and inspect `/` and `/collection/` through port
-   `8081`.
-4. Deploy Caddy so the public root serves `/srv/autographs/static/current`.
-5. Verify `/`, `/collection/`, one `/items/{slug}/` page, JSON, facets, and
-   generated media from the public hostname.
-
-Recovery is roll-forward oriented: fix the controller or source data, run a
-full rebuild, validate the candidate privately, and promote the corrected
-release.
-
-## Retirement Checks
-
-After public static cutover verification passes:
-
-- Return `404` for `/api/catalog/*`; static JSON and generated derivatives
-  replace public catalog APIs and app-mediated image streaming.
-- Return `404` for `/api/operator/*`; the Rust `/admin/api/*` boundary replaces
-  the temporary Node operator bridge.
-- Use the live static publish smoke as the documented production verification
-  path; the old Node data-smoke workflow has been retired.
-- Confirm the deploy role has stopped and disabled `autographs-app.service`,
-  removed its quadlet, and removed the leftover `autographs-app` container.
-- Confirm no controller deploy path still depends on OCI S3 Customer Secret
-  credentials before routine static publishing use.
