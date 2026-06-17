@@ -1,4 +1,4 @@
-- name: Verify dnf is available
+- name: Verify dnf is available # noqa command-instead-of-module
   ansible.builtin.command:
     argv:
       - dnf
@@ -6,7 +6,7 @@
   register: security_patching_dnf_version
   changed_when: false
 
-- name: Refresh dnf metadata
+- name: Refresh dnf metadata # noqa command-instead-of-module
   ansible.builtin.command:
     argv:
       - dnf
@@ -16,7 +16,7 @@
   register: security_patching_makecache
   changed_when: false
 
-- name: List available security update advisories
+- name: List available security update advisories # noqa command-instead-of-module
   ansible.builtin.command:
     argv:
       - dnf
@@ -54,13 +54,20 @@
         + [
           {
             'advisory_id': line_parts[0],
-            'severity': (line_parts[1] | default('') | regex_replace('/Sec\\.$', '') | regex_replace('/Bugfix\\.$', '')),
+            'severity': candidate_severity,
             'package_spec': line_parts[-1]
           }
         ]
       }}
   vars:
     line_parts: "{{ item.split() }}"
+    candidate_severity: >-
+      {{
+        line_parts[1]
+        | default('')
+        | regex_replace('/Sec\\.$', '')
+        | regex_replace('/Bugfix\\.$', '')
+      }}
   loop: "{{ security_patching_updateinfo_lines }}"
   when:
     - line_parts | length >= 2
@@ -71,7 +78,7 @@
     security_patching_advisory_ids: >-
       {{ security_patching_entries_raw | map(attribute='advisory_id') | unique | sort | list }}
 
-- name: Read advisory details
+- name: Read advisory details # noqa command-instead-of-module
   ansible.builtin.command:
     argv:
       - dnf
@@ -92,11 +99,21 @@
         | combine(
             {
               item.item: {
-                'cves': (item.stdout | default('') | regex_findall('CVE-[0-9]{4}-[0-9A-Za-z_-]+') | unique | sort | list)
+                'cves': advisory_cves
               }
             },
             recursive=True
           )
+      }}
+  vars:
+    advisory_cves: >-
+      {{
+        item.stdout
+        | default('')
+        | regex_findall('CVE-[0-9]{4}-[0-9A-Za-z_-]+')
+        | unique
+        | sort
+        | list
       }}
   loop: "{{ security_patching_advisory_info.results | default([]) }}"
 
@@ -113,10 +130,17 @@
           item
           | combine(
               {
-                'cves': (security_patching_advisory_details[item.advisory_id].cves | default([]))
+                'cves': advisory_cves
               }
             )
         ]
+      }}
+  vars:
+    advisory_cves: >-
+      {{
+        (security_patching_advisory_details | default({}))
+        .get(item.advisory_id, {})
+        .get('cves', [])
       }}
   loop: "{{ security_patching_entries_raw }}"
 
