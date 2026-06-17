@@ -21,13 +21,13 @@
   },
   "packageRules": [
     {
-      "description": "Group routine non-major application and tooling updates",
+      "description": "Group routine non-major runtime and infrastructure updates",
       "matchUpdateTypes": [
         "minor",
         "patch"
       ],
       "matchManagers": [
-        "npm",
+        "cargo",
         "github-actions",
         "dockerfile",
         "terraform",
@@ -45,7 +45,7 @@
     {
       "description": "Do not automerge production dependency updates",
       "matchManagers": [
-        "npm",
+        "cargo",
         "github-actions",
         "dockerfile",
         "terraform",
@@ -55,9 +55,12 @@
       "automerge": false
     },
     {
-        "matchPackageNames": ["sha1", "sha2"],
-        "enabled": false,
-        "description": "Held at 0.10 until rsa crate releases stable 0.10 with digest 0.11 support"
+      "matchPackageNames": [
+        "sha1",
+        "sha2"
+      ],
+      "enabled": false,
+      "description": "Held at 0.10 until rsa crate releases stable 0.10 with digest 0.11 support"
     }
   ],
   "customManagers": [
@@ -72,18 +75,6 @@
       ],
       "depNameTemplate": "hashicorp/terraform",
       "datasourceTemplate": "github-releases"
-    },
-    {
-      "customType": "regex",
-      "description": "Update Corepack pnpm versions pinned in Dockerfile build stages",
-      "managerFilePatterns": [
-        "/^app/Dockerfile$/"
-      ],
-      "matchStrings": [
-        "corepack prepare pnpm@(?<currentValue>[^\\s]+) --activate"
-      ],
-      "depNameTemplate": "pnpm",
-      "datasourceTemplate": "npm"
     },
     {
       "customType": "regex",

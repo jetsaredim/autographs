@@ -1,9 +1,9 @@
-- name: Read deployed runtime images
+- name: Read deployed controller image
   ansible.builtin.command:
     argv:
       - awk
       - -F=
-      - /^AUTOGRAPHS_(APP|TOOLS|CONTROLLER)_IMAGE=/{print $2}
+      - /^AUTOGRAPHS_CONTROLLER_IMAGE=/{print $2}
       - "{{ autographs_system_cleanup_env_path }}/app.env"
   register: autographs_system_cleanup_current_image
   changed_when: false
@@ -19,14 +19,12 @@
   register: autographs_system_cleanup_images
   changed_when: false
 
-- name: Select old local images for cleanup
+- name: Select old local controller images for cleanup
   ansible.builtin.script:
     cmd: "{{ role_path }}/files/select-removable-images.py"
     executable: python3
   environment:
     RETAIN_COUNT: "{{ autographs_system_cleanup_retain_count }}"
-    IMAGE_REPOSITORY: "{{ autographs_system_cleanup_image_repository }}"
-    TOOLS_IMAGE_REPOSITORY: "{{ autographs_system_cleanup_tools_image_repository }}"
     CONTROLLER_IMAGE_REPOSITORY: "{{ autographs_system_cleanup_controller_image_repository }}"
     CURRENT_IMAGES: "{{ autographs_system_cleanup_current_image.stdout }}"
     PROTECTED_TAGS: "{{ autographs_system_cleanup_protected_tags }}"

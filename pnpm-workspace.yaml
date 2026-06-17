@@ -1,7 +1,0 @@
-packages:
-  - app
-allowBuilds:
-  esbuild: true
-  oracledb: false
-  sharp: true
-  unrs-resolver: true

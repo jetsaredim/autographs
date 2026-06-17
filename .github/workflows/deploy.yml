@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GHCR_IMAGE_REPOSITORY: ${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}
+  GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ vars.GHCR_CONTROLLER_IMAGE_REPOSITORY || format('ghcr.io/{0}/controller', github.repository) }}
   AUTOGRAPHS_HTTP_PORT: "80"
   AUTOGRAPHS_HTTPS_PORT: "443"
   AUTOGRAPHS_DOMAIN: ${{ vars.AUTOGRAPHS_DOMAIN || 'autographs.jetsaredim.net' }}
@@ -70,7 +70,7 @@ jobs:
         run: echo "build_runtime_images=${BUILD_RUNTIME_IMAGES}" >> "$GITHUB_OUTPUT"
 
   build-images:
-    name: Build and publish images
+    name: Build and publish controller image
     runs-on: ubuntu-latest
     needs: detect-runtime-image-changes
     if: needs.detect-runtime-image-changes.outputs.build_runtime_images == 'true'
@@ -89,10 +89,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build and publish images
+      - name: Build and publish controller image
         uses: docker/bake-action@v7
         env:
-          GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
+          GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ env.GHCR_CONTROLLER_IMAGE_REPOSITORY }}
           GITHUB_SHA: ${{ github.sha }}
         with:
           files: |
@@ -125,7 +125,7 @@ jobs:
           BUILD_RUNTIME_IMAGES: ${{ needs.detect-runtime-image-changes.outputs.build_runtime_images }}
           BUILD_IMAGES_RESULT: ${{ needs.build-images.result }}
           DETECT_RUNTIME_IMAGE_CHANGES_RESULT: ${{ needs.detect-runtime-image-changes.result }}
-          GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_IMAGE_REPOSITORY }}
+          GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ env.GHCR_CONTROLLER_IMAGE_REPOSITORY }}
           GITHUB_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -141,10 +141,10 @@ jobs:
               exit 1
             fi
 
-            controller_tag="${GHCR_IMAGE_REPOSITORY}-controller:${GITHUB_SHA}"
+            controller_tag="${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${GITHUB_SHA}"
             uses_production_images=false
           else
-            controller_tag="${GHCR_IMAGE_REPOSITORY}-controller:production"
+            controller_tag="${GHCR_CONTROLLER_IMAGE_REPOSITORY}:production"
             uses_production_images=true
           fi
 
@@ -164,7 +164,7 @@ jobs:
           controller_digest="$(resolve_digest "$controller_tag")"
 
           {
-            echo "controller_image=${GHCR_IMAGE_REPOSITORY}-controller@${controller_digest}"
+            echo "controller_image=${GHCR_CONTROLLER_IMAGE_REPOSITORY}@${controller_digest}"
             echo "uses_production_images=${uses_production_images}"
           } >> "$GITHUB_OUTPUT"
 

@@ -161,7 +161,7 @@ mod live {
             .expect("inspect static runtime schema");
         assert_eq!(
             count, 1,
-            "static runtime schema is missing ORIGINAL_FILENAME; run app db:migrate before the live persistence smoke"
+            "static runtime schema is missing ORIGINAL_FILENAME; initialize the database from controller/db/schema.sql before the live persistence smoke"
         );
     }
 }

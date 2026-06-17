@@ -69,7 +69,10 @@ pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
     config.validate_runtime_auth()?;
     let repository: Arc<dyn CatalogRepository> =
         match provider("AUTOGRAPHS_CONTROLLER_DB_PROVIDER").as_str() {
-            "local" => Arc::new(MemoryCatalogRepository::default()),
+            "local" => {
+                tracing::info!("configuring local in-memory catalog repository");
+                Arc::new(MemoryCatalogRepository::default())
+            }
             "oracle" => production_repository()?,
             provider => {
                 return Err(format!(
@@ -82,10 +85,12 @@ pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
     )
     .as_str()
     {
-        "local" => Arc::new(LocalMediaStore::new(
-            env::var("AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT")
-                .unwrap_or_else(|_| "/tmp/autographs-controller-media".to_owned()),
-        )),
+        "local" => {
+            let root = env::var("AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT")
+                .unwrap_or_else(|_| "/tmp/autographs-controller-media".to_owned());
+            tracing::info!(%root, "configuring local media store");
+            Arc::new(LocalMediaStore::new(root))
+        }
         "oci-instance-principal" => production_media_store()?,
         provider => {
             return Err(format!(
@@ -102,12 +107,22 @@ fn provider(name: &str) -> String {
 
 #[cfg(feature = "production-persistence")]
 fn production_repository() -> Result<Arc<dyn CatalogRepository>, String> {
-    use crate::oracle_catalog::OracleCatalogRepository;
+    use crate::{oracle_catalog::OracleCatalogRepository, oracle_schema};
+
+    tracing::info!("configuring Oracle catalog repository");
+
+    let oracle_user = required_env("ORACLE_DB_USER")?;
+    let oracle_password = required_env("ORACLE_DB_PASSWORD")?;
+    let oracle_connect_string = required_env("ORACLE_DB_CONNECT_STRING")?;
+
+    oracle_schema::ensure_initialized(&oracle_user, &oracle_password, &oracle_connect_string)?;
+
+    tracing::info!("Oracle catalog schema is ready");
 
     Ok(Arc::new(OracleCatalogRepository::new(
-        required_env("ORACLE_DB_USER")?,
-        required_env("ORACLE_DB_PASSWORD")?,
-        required_env("ORACLE_DB_CONNECT_STRING")?,
+        oracle_user,
+        oracle_password,
+        oracle_connect_string,
         required_env("OCI_MEDIA_NAMESPACE")?,
         required_env("OCI_MEDIA_BUCKET_NAME")?,
     )))
@@ -121,6 +136,7 @@ fn production_repository() -> Result<Arc<dyn CatalogRepository>, String> {
 #[cfg(feature = "production-persistence")]
 fn production_media_store() -> Result<Arc<dyn PrivateMediaStore>, String> {
     use crate::oci_media::OciInstancePrincipalMediaStore;
+    tracing::info!("configuring OCI instance-principal media store");
 
     Ok(Arc::new(OciInstancePrincipalMediaStore::new(
         required_env("OCI_MEDIA_NAMESPACE")?,

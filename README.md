@@ -60,21 +60,21 @@ Useful docs:
 
 Requirements:
 
-- Node.js 22 or newer
-- Corepack with pnpm 11.3.0
+- Rust stable toolchain.
+- Terraform and Ansible for infrastructure and deployment validation.
 
-Common commands:
+Common checks:
 
 ```bash
-corepack pnpm install
-corepack pnpm --filter app lint
-corepack pnpm --filter app typecheck
-corepack pnpm --filter app test
-corepack pnpm --filter app build
-corepack pnpm --filter app dev
+cargo fmt --manifest-path controller/Cargo.toml --check
+cargo test --manifest-path controller/Cargo.toml
+cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
+cargo check --manifest-path controller/Cargo.toml --features production-persistence
+terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff
+ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml deploy/ansible/playbooks/system-cleanup.yml
 ```
 
-Local development can use local/mock media and catalog paths where the app supports them. Production Oracle, Object Storage, OCI API keys, wallet material, operator tokens, and deploy SSH keys must stay in local secret stores, GitHub Secrets, or VM-local files. Do not commit real credentials.
+Local development can use local/mock media and catalog paths where the controller supports them. Production Oracle, Object Storage, OCI API keys, wallet material, operator tokens, and deploy SSH keys must stay in local secret stores, GitHub Secrets, or VM-local files. Do not commit real credentials.
 
 ## Deployment And Operations
 
@@ -85,7 +85,7 @@ Operational checks:
 - CI is automatic on pull requests.
 - Deploy runs on pushes to `main` and can be manually dispatched.
 - Live static publish smoke in the static runtime runbook proves Oracle, private media, generated artifacts, and Caddy static serving against real credentials.
-- Image Cleanup is scheduled and manual; it prunes old GHCR and VM-local images while preserving protected/current images.
+- Image Cleanup is scheduled and manual; it prunes old GHCR and VM-local controller images while preserving protected/current images.
 
 ## Security And Privacy
 
@@ -99,4 +99,4 @@ See [Security review](docs/security-review.md) for the current fixed, accepted, 
 
 This project is being built with a human+AI workflow using GSD: discussion, phase planning, execution plans, review, validation, and PR-based merge discipline. The point is not to hide the planning process; it is to make the repository legible as a real product lifecycle with constraints, tradeoffs, and follow-through.
 
-The current focus is carrying the remaining public UX parity from the original Next.js source into the static site before expanding into the polished Phase 6 admin workflow and Phase 7 AI-assisted ingest.
+The current focus is expanding the static Rust/controller runtime into the polished Phase 6 admin workflow and Phase 7 AI-assisted ingest.
