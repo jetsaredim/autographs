@@ -11,8 +11,8 @@ RUN cargo build --release --features production-persistence
 
 FROM oraclelinux:10-slim
 
-RUN microdnf install -y oracle-instantclient-release-26ai-el10 \
-    && microdnf install -y ca-certificates oracle-instantclient-basic \
+RUN microdnf install -y oracle-instantclient-release-26ai-el10-1.0-6.el10 \
+    && microdnf install -y ca-certificates-2025.2.80_v9.0.305-102.el10_1 oracle-instantclient-basic-23.26.2.0.0-2.el10 \
     && microdnf clean all
 
 COPY --from=builder /workspace/target/release/autographs-controller /usr/local/bin/autographs-controller
