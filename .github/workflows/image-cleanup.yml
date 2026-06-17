@@ -19,7 +19,7 @@ permissions:
   packages: write
 
 env:
-  GHCR_IMAGE_REPOSITORY: ${{ vars.GHCR_IMAGE_REPOSITORY || format('ghcr.io/{0}/app', github.repository) }}
+  GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ vars.GHCR_CONTROLLER_IMAGE_REPOSITORY || format('ghcr.io/{0}/controller', github.repository) }}
   GHCR_CLEANUP_RETAIN_TAGGED: ${{ vars.GHCR_CLEANUP_RETAIN_TAGGED || '10' }}
   GHCR_CLEANUP_MIN_AGE_DAYS: ${{ vars.GHCR_CLEANUP_MIN_AGE_DAYS || '7' }}
   GHCR_CLEANUP_PROTECTED_TAGS: ${{ vars.GHCR_CLEANUP_PROTECTED_TAGS || 'production' }}
@@ -103,25 +103,21 @@ jobs:
             ${{ needs.resolve-runtime.outputs.runtime_public_ip }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
           requirements: collections/requirements.yml
           options: |
-            --extra-vars autographs_system_cleanup_image_repository=${{ env.GHCR_IMAGE_REPOSITORY }}
-            --extra-vars autographs_system_cleanup_tools_image_repository=${{ env.GHCR_IMAGE_REPOSITORY }}-tools
-            --extra-vars autographs_system_cleanup_controller_image_repository=${{ env.GHCR_IMAGE_REPOSITORY }}-controller
+            --extra-vars autographs_system_cleanup_controller_image_repository=${{ env.GHCR_CONTROLLER_IMAGE_REPOSITORY }}
             --extra-vars autographs_system_cleanup_retain_count=${{ env.AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT }}
             --extra-vars autographs_system_cleanup_protected_tags=${{ env.GHCR_CLEANUP_PROTECTED_TAGS }}
             --extra-vars autographs_system_cleanup_dry_run=${{ env.GHCR_CLEANUP_DRY_RUN }}
             --extra-vars autographs_system_cleanup_deploy_path=${{ vars.DEPLOY_PATH || '/opt/autographs' }}
 
   ghcr-cleanup:
-    name: Remove old GHCR images
+    name: Remove old GHCR controller images
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Clean up GHCR runtime images
+      - name: Clean up GHCR controller images
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          python3 scripts/cleanup-ghcr-images.py
-          GHCR_IMAGE_REPOSITORY="${GHCR_IMAGE_REPOSITORY}-tools" python3 scripts/cleanup-ghcr-images.py
-          GHCR_IMAGE_REPOSITORY="${GHCR_IMAGE_REPOSITORY}-controller" python3 scripts/cleanup-ghcr-images.py
+          GHCR_IMAGE_REPOSITORY: ${{ env.GHCR_CONTROLLER_IMAGE_REPOSITORY }}
+        run: python3 scripts/cleanup-ghcr-images.py
