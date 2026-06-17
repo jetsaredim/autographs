@@ -1,4 +1,4 @@
-variable "GHCR_IMAGE_REPOSITORY" {}
+variable "GHCR_CONTROLLER_IMAGE_REPOSITORY" {}
 variable "GITHUB_SHA" {}
 
 group "default" {
@@ -18,8 +18,8 @@ target "controller" {
   ]
 
   tags = [
-    "${GHCR_IMAGE_REPOSITORY}-controller:${GITHUB_SHA}",
-    "${GHCR_IMAGE_REPOSITORY}-controller:production",
-    "${GHCR_IMAGE_REPOSITORY}-controller:latest"
+    "${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${GITHUB_SHA}",
+    "${GHCR_CONTROLLER_IMAGE_REPOSITORY}:production",
+    "${GHCR_CONTROLLER_IMAGE_REPOSITORY}:latest"
   ]
 }
