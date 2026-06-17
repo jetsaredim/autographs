@@ -74,7 +74,7 @@
   };
 
   menu.replaceChildren(select(facet("signer")), select(facet("category")), select(facet("tag")));
-  setOpen(false);
+  setOpen(Object.values(state).some(Boolean));
   toggle.addEventListener("click", () => {setOpen(panel.classList.contains("is-collapsed"));});
   window.addEventListener("popstate", () => {
     const next = new URLSearchParams(window.location.search);
