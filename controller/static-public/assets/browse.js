@@ -22,6 +22,39 @@
   };
   const selects = new Map();
 
+  const filterPanelStorageKey = "collection.filters.open";
+
+  const readStoredOpenState = () => {
+    try {
+      const value = window.sessionStorage.getItem(filterPanelStorageKey);
+      return value === null ? null : value === "true";
+    } catch {
+      return null;
+    }
+  };
+
+  const writeStoredOpenState = (open) => {
+    try {
+      window.sessionStorage.setItem(filterPanelStorageKey, String(open));
+    } catch {
+      // Ignore storage failures, such as private browsing restrictions.
+    }
+  };
+
+  const activeFilterCount = () => Object.values(state).filter(Boolean).length;
+
+  const syncToggleHint = () => {
+    const count = activeFilterCount();
+
+    toggle.classList.toggle("has-active-filters", count > 0);
+
+    if (count > 0) {
+      toggle.dataset.activeFilterCount = String(count);
+    } else {
+      delete toggle.dataset.activeFilterCount;
+    }
+  };
+
   const setToggleIcon = (open) => {
     toggle.replaceChildren(
       icon(open ? "M6 6l12 12M18 6L6 18" : "M4 6h16l-6.5 7.5V19l-3 1.5v-7z"),
@@ -63,7 +96,7 @@
     syncUrl();
     render();
   };
-  const setOpen = (open) => {
+  const setOpen = (open, persist = false) => {
     panel.classList.toggle("is-collapsed", !open);
     panel.setAttribute("aria-hidden", String(!open));
     panel.inert = !open;
@@ -71,11 +104,21 @@
     toggle.setAttribute("aria-expanded", String(open));
     toggle.setAttribute("aria-label", open ? "Close filters" : "Open filters");
     setToggleIcon(open);
+    syncToggleHint();
+
+    if (persist) {
+      writeStoredOpenState(open);
+    }
   };
 
   menu.replaceChildren(select(facet("signer")), select(facet("category")), select(facet("tag")));
-  setOpen(Object.values(state).some(Boolean));
-  toggle.addEventListener("click", () => {setOpen(panel.classList.contains("is-collapsed"));});
+
+  const storedOpenState = readStoredOpenState();
+  setOpen(storedOpenState ?? Object.values(state).some(Boolean));
+
+  toggle.addEventListener("click", () => {
+    setOpen(panel.classList.contains("is-collapsed"), true);
+  });
   window.addEventListener("popstate", () => {
     const next = new URLSearchParams(window.location.search);
     state.signer = normalizedFilter(next.get("signer"));
@@ -102,6 +145,7 @@
         .filter(([, value]) => value)
         .map(([id, value]) => filterChip(facet(id), value)),
     );
+    syncToggleHint();
     root.replaceChildren(...(filtered.length > 0 ? filtered.map(card) : [emptyState()]));
   }
 
