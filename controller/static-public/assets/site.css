@@ -350,7 +350,7 @@ select {
   pointer-events: none;
 }
 
-.gallery-filters:not(.is-collapsed)+.gallery-grid {
+.gallery-filters:not(.is-collapsed) + .gallery-grid {
   margin-top: 24px;
 }
 
@@ -704,7 +704,6 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   .image-viewer-gallery,
   .focused-image-button,
   .detail-metadata-panel {
@@ -947,7 +946,6 @@ select {
 }
 
 @media (min-width: 720px) {
-
   .site-shell,
   .architecture-shell {
     padding: 48px 32px;
