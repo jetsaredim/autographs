@@ -37,16 +37,16 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
   dockerfile-checks:
-    name: Containerfile checks
+    name: Dockerfile checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Lint controller Containerfile
+      - name: Lint controller Dockerfile
         uses: hadolint/hadolint-action@v3.3.0
         with:
-          dockerfile: controller/Containerfile
+          dockerfile: controller/Dockerfile
           verbose: true
 
   controller-checks:
