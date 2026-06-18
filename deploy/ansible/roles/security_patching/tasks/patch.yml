@@ -2,7 +2,7 @@
   ansible.builtin.set_fact:
     security_patching_approved_package_specs: >-
       {{
-        (hostvars['localhost'].patch_request_instances | default({}))
+        (hostvars['localhost'].security_patching_request_instances | default({}))
         .get(inventory_hostname, {})
         .get('package_specs', [])
         | unique
@@ -10,7 +10,7 @@
         | list
       }}
     security_patching_current_package_specs: >-
-      {{ security_patch_package_specs | default([]) | unique | sort | list }}
+      {{ security_patching_update_package_specs | default([]) | unique | sort | list }}
 
 - name: Require approved package specs for this host
   ansible.builtin.assert:
@@ -28,9 +28,9 @@
 
 - name: Preserve pre-update finding set
   ansible.builtin.set_fact:
-    security_patching_pre_update_entries: "{{ security_patch_entries | default([]) }}"
+    security_patching_pre_update_entries: "{{ security_patching_update_entries | default([]) }}"
 
-- name: Apply approved security package updates # noqa package-latest
+- name: Apply approved security package updates # noqa: package-latest
   ansible.builtin.dnf:
     name: "{{ security_patching_approved_package_specs }}"
     state: latest
@@ -45,5 +45,5 @@
 
 - name: Preserve post-update finding set
   ansible.builtin.set_fact:
-    security_patching_post_update_entries: "{{ security_patch_entries | default([]) }}"
-    security_patching_post_update_package_specs: "{{ security_patch_package_specs | default([]) }}"
+    security_patching_post_update_entries: "{{ security_patching_update_entries | default([]) }}"
+    security_patching_post_update_package_specs: "{{ security_patching_update_package_specs | default([]) }}"
