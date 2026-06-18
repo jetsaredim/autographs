@@ -1,6 +1,6 @@
 ## Production security update result
 
-- Approved by: `{{ patch_approver }}`
+- Approved by: `{{ security_patching_approver }}`
 - Scan ID: `{{ hostvars['localhost'].security_patching_request_scan_id }}`
 - Target group: `{{ security_patching_target_group }}`
 {% if lookup('env', 'GITHUB_SERVER_URL') | length > 0 and lookup('env', 'GITHUB_REPOSITORY') | length > 0 and lookup('env', 'GITHUB_RUN_ID') | length > 0 %}
