@@ -3,10 +3,12 @@ security_patching_github_repository: "{{ lookup('env', 'GITHUB_REPOSITORY') }}"
 security_patching_github_token: "{{ lookup('env', 'GH_TOKEN') }}"
 security_patching_scan_id: "security-scan-{{ lookup('env', 'GITHUB_RUN_ID') | default('local', true) }}"
 security_patching_scan_timestamp: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+security_patching_issue_number: ""
+security_patching_approver: "{{ lookup('env', 'PATCH_APPROVER') | default('', true) }}"
 security_patching_report_path: "/tmp/autographs-security-report-{{ security_patching_scan_id }}.md"
-security_patching_result_comment_path: "/tmp/autographs-security-update-result-{{ patch_issue_number | default('unknown') }}.md"
-security_patching_approval_label: "{{ patch_approval_label | default('approved-production-update') }}"
-security_patching_target_group: "{{ patch_target_group | default(patch_scan_target_group | default('runtime')) }}"
+security_patching_result_comment_path: "/tmp/autographs-security-update-result-{{ security_patching_issue_number | default('unknown', true) }}.md"
+security_patching_approval_label: approved-production-update
+security_patching_target_group: runtime
 
 security_patching_managed_labels:
   - name: security-patching
