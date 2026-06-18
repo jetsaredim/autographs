@@ -8,6 +8,21 @@
   loop: "{{ groups[security_patching_target_group] | default([]) }}"
   when: (hostvars[item].security_patching_post_update_entries | default([]) | length) > 0
 
+- name: Build GitHub issue label URL
+  ansible.builtin.set_fact:
+    security_patching_issue_label_url: >-
+      {{
+        [
+          security_patching_github_api_url,
+          'repos',
+          security_patching_github_repository,
+          'issues',
+          security_patching_issue_number,
+          'labels',
+          security_patching_approval_label
+        ] | join('/')
+      }}
+
 - name: Render production security update result comment
   ansible.builtin.template:
     src: security-update-result.md.j2
@@ -27,8 +42,7 @@
 
 - name: Remove approval label after workflow starts
   ansible.builtin.uri:
-    url: >-
-      {{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}/labels/{{ security_patching_approval_label }}
+    url: "{{ security_patching_issue_label_url }}"
     method: DELETE
     headers: "{{ security_patching_github_headers }}"
     status_code:
