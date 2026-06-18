@@ -214,4 +214,16 @@ jobs:
             deploy/ansible/playbooks/security-patch.yml
 
       - name: Lint Ansible playbook
-        run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/
+        run: |
+          set +e
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/ > ansible-lint.log 2>&1
+          ansible_lint_status=$?
+          cat ansible-lint.log
+          exit "$ansible_lint_status"
+
+      - name: Upload Ansible lint log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ansible-lint-log
+          path: ansible-lint.log
