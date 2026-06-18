@@ -57,19 +57,19 @@
 
 - name: Parse scanner metadata
   ansible.builtin.set_fact:
-    patch_request_metadata: "{{ security_patching_metadata_blocks[0] | from_yaml }}"
+    security_patching_request_metadata: "{{ security_patching_metadata_blocks[0] | from_yaml }}"
 
 - name: Record approved scan metadata
   ansible.builtin.set_fact:
-    patch_request_scan_id: "{{ patch_request_metadata.scan_id }}"
-    patch_request_instances: "{{ patch_request_metadata.instances | default({}) }}"
-    patch_request_target_group: "{{ patch_request_metadata.target_group }}"
+    security_patching_request_scan_id: "{{ security_patching_request_metadata.scan_id }}"
+    security_patching_request_instances: "{{ security_patching_request_metadata.instances | default({}) }}"
+    security_patching_request_target_group: "{{ security_patching_request_metadata.target_group }}"
 
 - name: Require target group and package metadata
   ansible.builtin.assert:
     that:
-      - patch_request_target_group == security_patching_target_group
-      - patch_request_instances | length > 0
+      - security_patching_request_target_group == security_patching_target_group
+      - security_patching_request_instances | length > 0
     fail_msg: "Issue #{{ patch_issue_number }} metadata does not match this production update workflow."
 
 - name: Comment that production security update was accepted
@@ -86,7 +86,7 @@
         Production security update request accepted.
 
         - Approved by: `{{ patch_approver }}`
-        - Scan ID: `{{ patch_request_scan_id }}`
-        - Target group: `{{ patch_request_target_group }}`
+        - Scan ID: `{{ security_patching_request_scan_id }}`
+        - Target group: `{{ security_patching_request_target_group }}`
     status_code: 201
   no_log: true
