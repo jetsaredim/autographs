@@ -16,15 +16,25 @@ concurrency:
 jobs:
   update:
     name: Apply approved production security updates
-    if: github.event.label.name == 'approved-production-update'
+    if: >-
+      github.event.label.name == 'approved-production-update' &&
+      github.event.issue.pull_request == null
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Install cleanup Ansible tooling
+        run: python3 -m pip install --user ansible
+
+      - name: Install cleanup Ansible collections
+        run: ansible-galaxy collection install -r deploy/ansible/collections/requirements.yml
+
       - name: Run security update playbook
-        uses: dawidd6/action-ansible-playbook@v9
+        id: security_update
+        continue-on-error: true
+        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474
         env:
           ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
           GH_TOKEN: ${{ github.token }}
@@ -46,3 +56,22 @@ jobs:
             --extra-vars security_patching_approver=${{ github.actor }}
             --extra-vars security_patching_approval_label=approved-production-update
             --extra-vars security_patching_target_group=runtime
+
+      - name: Cleanup failed security update request
+        if: always() && steps.security_update.outcome != 'success'
+        env:
+          ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+        run: |
+          ansible-playbook \
+            --extra-vars security_patching_issue_number=${{ github.event.issue.number }} \
+            --extra-vars security_patching_approval_label=approved-production-update \
+            --extra-vars security_patching_workflow_outcome=${{ steps.security_update.outcome }} \
+            deploy/ansible/playbooks/security-patch-cleanup.yml
+
+      - name: Fail after cleanup if update failed
+        if: steps.security_update.outcome != 'success'
+        run: exit 1
