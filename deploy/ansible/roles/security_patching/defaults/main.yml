@@ -1,6 +1,10 @@
 security_patching_github_api_url: https://api.github.com
 security_patching_github_repository: "{{ lookup('env', 'GITHUB_REPOSITORY') }}"
 security_patching_github_token: "{{ lookup('env', 'GH_TOKEN') }}"
+security_patching_github_headers:
+  Accept: application/vnd.github+json
+  Authorization: "Bearer {{ security_patching_github_token }}"
+  X-GitHub-Api-Version: "2022-11-28"
 security_patching_scan_id: "security-scan-{{ lookup('env', 'GITHUB_RUN_ID') | default('local', true) }}"
 security_patching_scan_timestamp: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
 security_patching_issue_number: ""
