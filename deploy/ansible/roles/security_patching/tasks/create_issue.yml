@@ -20,6 +20,21 @@
     msg: "No available security updates were reported for {{ security_patching_target_group }}."
   when: security_patching_hosts_with_findings | length == 0
 
+- name: Build GitHub issues URLs
+  ansible.builtin.set_fact:
+    security_patching_issues_url: >-
+      {{
+        [
+          security_patching_github_api_url,
+          'repos',
+          security_patching_github_repository,
+          'issues'
+        ] | join('/')
+      }}
+    security_patching_open_issues_url: >-
+      {{ security_patching_issues_url }}?state=open&labels=security-patching,patch-scan-open&per_page=100
+  when: security_patching_hosts_with_findings | length > 0
+
 - name: Ensure GitHub labels exist
   ansible.builtin.uri:
     url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/labels"
@@ -46,8 +61,7 @@
 
 - name: Read open production security update issues
   ansible.builtin.uri:
-    url: >-
-      {{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues?state=open&labels=security-patching,patch-scan-open&per_page=100
+    url: "{{ security_patching_open_issues_url }}"
     method: GET
     headers: "{{ security_patching_github_headers }}"
     status_code: 200
@@ -70,8 +84,7 @@
 
 - name: Update existing production security update issue
   ansible.builtin.uri:
-    url: >-
-      {{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_existing_issue_numbers[0] }}
+    url: "{{ security_patching_issues_url }}/{{ security_patching_existing_issue_numbers[0] }}"
     method: PATCH
     headers: "{{ security_patching_github_headers }}"
     body_format: json
@@ -88,7 +101,7 @@
 
 - name: Create production security update issue
   ansible.builtin.uri:
-    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues"
+    url: "{{ security_patching_issues_url }}"
     method: POST
     headers: "{{ security_patching_github_headers }}"
     body_format: json
