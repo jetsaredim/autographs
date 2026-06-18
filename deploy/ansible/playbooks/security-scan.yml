@@ -1,5 +1,5 @@
 - name: Scan production instances for security updates
-  hosts: "{{ patch_scan_target_group | default('runtime') }}"
+  hosts: "{{ security_patching_target_group | default('runtime') }}"
   become: true
   gather_facts: true
   tasks:
