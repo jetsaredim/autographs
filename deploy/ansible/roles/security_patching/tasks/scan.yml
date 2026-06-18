@@ -119,13 +119,13 @@
 
 - name: Initialize enriched security update entries
   ansible.builtin.set_fact:
-    security_patch_entries: []
+    security_patching_update_entries: []
 
 - name: Enrich security update entries with CVE metadata
   ansible.builtin.set_fact:
-    security_patch_entries: >-
+    security_patching_update_entries: >-
       {{
-        security_patch_entries
+        security_patching_update_entries
         + [
           item
           | combine(
@@ -146,7 +146,7 @@
 
 - name: Set approved package specs for this scan
   ansible.builtin.set_fact:
-    security_patch_package_specs: >-
-      {{ security_patch_entries | map(attribute='package_spec') | unique | sort | list }}
-    security_patch_advisory_ids: >-
-      {{ security_patch_entries | map(attribute='advisory_id') | unique | sort | list }}
+    security_patching_update_package_specs: >-
+      {{ security_patching_update_entries | map(attribute='package_spec') | unique | sort | list }}
+    security_patching_update_advisory_ids: >-
+      {{ security_patching_update_entries | map(attribute='advisory_id') | unique | sort | list }}
