@@ -8,7 +8,7 @@
         tasks_from: validate_request
 
 - name: Apply approved production security updates
-  hosts: "{{ patch_target_group | default('runtime') }}"
+  hosts: "{{ security_patching_target_group | default('runtime') }}"
   become: true
   gather_facts: true
   serial: 1
