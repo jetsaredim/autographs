@@ -1,4 +1,4 @@
 # GitHub usernames allowed to approve production security updates by applying
 # the `approved-production-update` label to scanner-created issues.
-security_patching_production_approvers:
+production_patch_approvers:
   - jetsaredim
