@@ -16,12 +16,9 @@
 
 - name: Comment production security update result
   ansible.builtin.uri:
-    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ patch_issue_number }}/comments"
+    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}/comments"
     method: POST
-    headers:
-      Accept: application/vnd.github+json
-      Authorization: "Bearer {{ security_patching_github_token }}"
-      X-GitHub-Api-Version: "2022-11-28"
+    headers: "{{ security_patching_github_headers }}"
     body_format: json
     body:
       body: "{{ lookup('ansible.builtin.file', security_patching_result_comment_path) }}"
@@ -30,12 +27,9 @@
 
 - name: Remove approval label after workflow starts
   ansible.builtin.uri:
-    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ patch_issue_number }}/labels/{{ security_patching_approval_label }}"
+    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}/labels/{{ security_patching_approval_label }}"
     method: DELETE
-    headers:
-      Accept: application/vnd.github+json
-      Authorization: "Bearer {{ security_patching_github_token }}"
-      X-GitHub-Api-Version: "2022-11-28"
+    headers: "{{ security_patching_github_headers }}"
     status_code:
       - 200
       - 404
@@ -43,12 +37,9 @@
 
 - name: Close issue when no security update findings remain
   ansible.builtin.uri:
-    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ patch_issue_number }}"
+    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}"
     method: PATCH
-    headers:
-      Accept: application/vnd.github+json
-      Authorization: "Bearer {{ security_patching_github_token }}"
-      X-GitHub-Api-Version: "2022-11-28"
+    headers: "{{ security_patching_github_headers }}"
     body_format: json
     body:
       state: closed
