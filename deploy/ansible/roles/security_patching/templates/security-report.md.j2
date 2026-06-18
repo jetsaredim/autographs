@@ -7,7 +7,7 @@ instances:
 {% for host in security_patching_hosts_with_findings %}
   {{ host }}:
     package_specs:
-{% for package_spec in hostvars[host].security_patch_package_specs | default([]) %}
+{% for package_spec in hostvars[host].security_patching_update_package_specs | default([]) %}
       - "{{ package_spec }}"
 {% endfor %}
 {% endfor %}
@@ -25,7 +25,7 @@ Target group: `{{ security_patching_target_group }}`
 | Instance | Proposed security updates | Advisories |
 |---|---:|---:|
 {% for host in security_patching_hosts_with_findings %}
-| `{{ host }}` | {{ hostvars[host].security_patch_package_specs | default([]) | length }} | {{ hostvars[host].security_patch_advisory_ids | default([]) | length }} |
+| `{{ host }}` | {{ hostvars[host].security_patching_update_package_specs | default([]) | length }} | {{ hostvars[host].security_patching_update_advisory_ids | default([]) | length }} |
 {% endfor %}
 
 ## Proposed package updates
@@ -35,7 +35,7 @@ Target group: `{{ security_patching_target_group }}`
 
 | Package spec | Advisory | Severity | CVEs |
 |---|---|---|---|
-{% for entry in hostvars[host].security_patch_entries | default([]) %}
+{% for entry in hostvars[host].security_patching_update_entries | default([]) %}
 | `{{ entry.package_spec }}` | {% if entry.advisory_id.startswith('ELSA-') %}[{{ entry.advisory_id }}](https://linux.oracle.com/errata/{{ entry.advisory_id }}.html){% elif entry.advisory_id.startswith('RHSA-') %}[{{ entry.advisory_id }}](https://access.redhat.com/errata/{{ entry.advisory_id }}){% else %}`{{ entry.advisory_id }}`{% endif %} | {{ entry.severity | default('unknown') }} | {% if entry.cves | default([]) | length > 0 %}{% for cve in entry.cves %}[{{ cve }}](https://nvd.nist.gov/vuln/detail/{{ cve }}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %} |
 {% endfor %}
 
