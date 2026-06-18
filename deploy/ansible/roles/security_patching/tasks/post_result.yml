@@ -27,7 +27,8 @@
 
 - name: Remove approval label after workflow starts
   ansible.builtin.uri:
-    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}/labels/{{ security_patching_approval_label }}"
+    url: >-
+      {{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}/labels/{{ security_patching_approval_label }}
     method: DELETE
     headers: "{{ security_patching_github_headers }}"
     status_code:
