@@ -1,0 +1,50 @@
+- name: Require cleanup issue context
+  ansible.builtin.assert:
+    that:
+      - security_patching_github_repository | length > 0
+      - security_patching_github_token | length > 0
+      - security_patching_issue_number | default('') | string | length > 0
+    fail_msg: GitHub issue number, repository, and token context are required.
+
+- name: Build GitHub issue label URL
+  ansible.builtin.set_fact:
+    security_patching_issue_label_url: >-
+      {{
+        [
+          security_patching_github_api_url,
+          'repos',
+          security_patching_github_repository,
+          'issues',
+          security_patching_issue_number,
+          'labels',
+          security_patching_approval_label
+        ] | join('/')
+      }}
+
+- name: Comment failed production security update result
+  ansible.builtin.uri:
+    url: >-
+      {{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}/comments
+    method: POST
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      body: |
+        Production security update workflow did not complete successfully.
+
+        - Workflow outcome: `{{ security_patching_workflow_outcome | default('failure') }}`
+        - Workflow run: {{ lookup('env', 'GITHUB_SERVER_URL') }}/{{ lookup('env', 'GITHUB_REPOSITORY') }}/actions/runs/{{ lookup('env', 'GITHUB_RUN_ID') }}
+
+        The approval label has been removed so this request cannot be retried accidentally. Re-run the scanner or re-apply the approval label after reviewing the workflow logs.
+    status_code: 201
+  no_log: true
+
+- name: Remove approval label after failed workflow
+  ansible.builtin.uri:
+    url: "{{ security_patching_issue_label_url }}"
+    method: DELETE
+    headers: "{{ security_patching_github_headers }}"
+    status_code:
+      - 200
+      - 404
+  no_log: true
