@@ -13,7 +13,7 @@
   ansible.builtin.set_fact:
     security_patching_hosts_with_findings: "{{ security_patching_hosts_with_findings + [item] }}"
   loop: "{{ groups[security_patching_target_group] | default([]) }}"
-  when: (hostvars[item].security_patch_entries | default([]) | length) > 0
+  when: (hostvars[item].security_patching_update_entries | default([]) | length) > 0
 
 - name: Report clean security update scan
   ansible.builtin.debug:
