@@ -42,7 +42,7 @@ jobs:
             production ansible_host=${{ vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
           requirements: collections/requirements.yml
           options: |
-            --extra-vars patch_issue_number=${{ github.event.issue.number }}
-            --extra-vars patch_approver=${{ github.actor }}
-            --extra-vars patch_approval_label=approved-production-update
-            --extra-vars patch_target_group=runtime
+            --extra-vars security_patching_issue_number=${{ github.event.issue.number }}
+            --extra-vars security_patching_approver=${{ github.actor }}
+            --extra-vars security_patching_approval_label=approved-production-update
+            --extra-vars security_patching_target_group=runtime
