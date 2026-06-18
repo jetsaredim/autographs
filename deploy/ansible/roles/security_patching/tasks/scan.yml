@@ -53,25 +53,25 @@
         security_patching_entries_raw
         + [
           {
-            'advisory_id': line_parts[0],
-            'severity': candidate_severity,
-            'package_spec': line_parts[-1]
+            'advisory_id': security_patching_line_parts[0],
+            'severity': security_patching_candidate_severity,
+            'package_spec': security_patching_line_parts[-1]
           }
         ]
       }}
   vars:
-    line_parts: "{{ item.split() }}"
-    candidate_severity: >-
+    security_patching_line_parts: "{{ item.split() }}"
+    security_patching_candidate_severity: >-
       {{
-        line_parts[1]
+        security_patching_line_parts[1]
         | default('')
         | regex_replace('/Sec\\.$', '')
         | regex_replace('/Bugfix\\.$', '')
       }}
   loop: "{{ security_patching_updateinfo_lines }}"
   when:
-    - line_parts | length >= 2
-    - line_parts[0] is match('^[A-Za-z]+[A-Za-z0-9_-]*[-:][0-9]{4}[:-].*')
+    - security_patching_line_parts | length >= 2
+    - security_patching_line_parts[0] is match('^[A-Za-z]+[A-Za-z0-9_-]*[-:][0-9]{4}[:-].*')
 
 - name: Resolve advisory IDs
   ansible.builtin.set_fact:
@@ -99,14 +99,14 @@
         | combine(
             {
               item.item: {
-                'cves': advisory_cves
+                'cves': security_patching_advisory_cves
               }
             },
             recursive=True
           )
       }}
   vars:
-    advisory_cves: >-
+    security_patching_advisory_cves: >-
       {{
         item.stdout
         | default('')
@@ -130,13 +130,13 @@
           item
           | combine(
               {
-                'cves': advisory_cves
+                'cves': security_patching_advisory_cves
               }
             )
         ]
       }}
   vars:
-    advisory_cves: >-
+    security_patching_advisory_cves: >-
       {{
         (security_patching_advisory_details | default({}))
         .get(item.advisory_id, {})
