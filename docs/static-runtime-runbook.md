@@ -183,6 +183,33 @@ The image contains the compiled smoke-test executable, CA certificates, and
 Oracle Instant Client. It does not contain the Oracle wallet, database
 credential, or Object Storage credentials.
 
+### Clean Up Interrupted Live Smoke Data
+
+If a live persistence smoke is killed before its `Drop` cleanup runs, use the
+same one-shot image and protected VM env file to remove leftover Oracle rows and
+Object Storage objects. Set one or both cleanup variables; values can be comma
+or newline separated:
+
+```text
+AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_IDS=3f14e408-d4a7-4ef7-91fe-4ec10b3ea745
+AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS=originals/3f14e408-d4a7-4ef7-91fe-4ec10b3ea745/949a003f-ba09-4fa2-bf7e-285ffdc187b4
+```
+
+Then run the persistence smoke image normally:
+
+```bash
+sudo podman run --rm \
+  --env-file /opt/autographs/env/live-persistence-smoke.env \
+  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro \
+  localhost/autographs-live-persistence-smoke:phase-05
+```
+
+Cleanup mode runs before the normal smoke gate, deletes matching
+`autograph_images`, `autograph_item_tags`, and `autograph_items` rows, deletes
+the listed Object Storage objects through instance principal auth, and verifies
+the database counts are zero. Remove the cleanup variables from the env file
+before running the normal smoke again.
+
 ## Live Static Publish Smoke
 
 ### Prerequisite: Deploy the Staged Controller and Caddy Wiring
@@ -251,7 +278,9 @@ sudo podman run --rm \
   localhost/autographs-live-static-publish-smoke:phase-05
 ```
 
-The smoke must pass before the public hostname is switched to generated output.
+The smoke result must be recorded before Phase 5 is closed. The public hostname
+now serves generated output through Caddy; the smoke proves that the deployed
+Rust/static path can still publish a fresh item end to end and remove it again.
 If a failed run stops before cleanup, search Oracle for a title beginning with
 `Live Static Smoke`, remove that temporary draft through the available
 operator-maintenance path, and delete its logged `originals/{item-id}/{image-id}`

@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Awaiting Phase 5 05-07 live static publish proof and closure summary
-last_updated: "2026-06-19T08:41:42Z"
-last_activity: 2026-06-19
+last_updated: "2026-06-19T09:33:41.130Z"
+last_activity: 2026-06-19 -- Phase 05 execution started
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 25
   completed_plans: 24
-  percent: 69
+  percent: 57
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 05 — final live static publish proof and closure summary
+**Current focus:** Phase 05 — static-runtime-migration-foundation
 
 ## Current Position
 
-Phase: 05 (static-runtime-migration-foundation) — FINAL CHECKPOINT PENDING
-Plan: 05-07
-Status: Plans 05-01 through 05-06 complete; Rust/static cutover implemented; live static publish proof and closure summary pending
-Last activity: 2026-06-19
+Phase: 05 (static-runtime-migration-foundation) — EXECUTING
+Plan: 1 of 7
+Status: Executing Phase 05
+Last activity: 2026-06-19 -- Phase 05 execution started
 
 Progress: [███████░░░] 69% overall; Phase 5 final live proof pending
 

@@ -181,18 +181,24 @@ impl CatalogRepository for OracleCatalogRepository {
         let storage_namespace = self.storage_namespace.clone();
         let bucket_name = self.bucket_name.clone();
         self.with_connection(move |connection| {
-            if load_item(&connection, item_id)?.is_none() {
-                return Err("autograph item was not found".to_owned());
-            }
-            let item_id_text = item_id.to_string();
-            if image.is_primary {
+            let existing_item = load_item(&connection, item_id)?
+                .ok_or_else(|| "autograph item was not found".to_owned())?;
+            if image.is_primary && existing_item.images.iter().any(|image| image.is_primary) {
+                let item_id_text = item_id.to_string();
                 connection
                     .execute(
                         "update autograph_images set is_primary = 'N', updated_at = current_timestamp where item_id = :1",
                         &[&item_id_text],
                     )
                     .map_err(|error| format!("clear Oracle primary image: {error}"))?;
+                connection
+                    .commit()
+                    .map_err(|error| format!("commit Oracle primary image update: {error}"))?;
             }
+            if existing_item.id != item_id {
+                return Err("autograph item was not found".to_owned());
+            }
+            let item_id_text = item_id.to_string();
             let image_id = image.id.to_string();
             let byte_size = image.byte_size as i64;
             let is_primary = if image.is_primary { "Y" } else { "N" };

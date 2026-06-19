@@ -373,7 +373,8 @@ async fn upload_image(
 
     let image_id = Uuid::new_v4();
     let object_key = build_original_object_key(item_id, image_id);
-    if state.media.write(&object_key, &body).await.is_err() {
+    if let Err(error) = state.media.write(&object_key, &body).await {
+        tracing::error!(%item_id, %image_id, %object_key, %error, "failed to write uploaded image to private media store");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     let image = AutographImage {
@@ -388,7 +389,8 @@ async fn upload_image(
     };
     match state.repository.attach_image(item_id, image).await {
         Ok(item) => (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response(),
-        Err(_) => {
+        Err(error) => {
+            tracing::error!(%item_id, %image_id, %object_key, ?error, "failed to attach uploaded image metadata");
             let _ = state.media.delete(&object_key).await;
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
