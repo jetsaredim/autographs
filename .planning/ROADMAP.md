@@ -100,7 +100,7 @@ Plans:
   2. A minimal private content seed path can write at least one autograph record and one private original image into the Oracle/Object Storage source of truth through the new static admin shell/API boundary.
   3. A publisher can generate complete static public output inside the OCI/runtime boundary without exposing private Object Storage identifiers, Oracle data, image UUIDs, or object URLs through GitHub-hosted workflows.
   4. Published image derivatives are sanitized, complete, and referenced only through public-safe generated paths.
-  5. Caddy can serve generated static output and the static admin shell through a local/private candidate validation path before planned cutover.
+  5. Caddy can serve generated static output and the static admin shell through local/private candidate validation and the current Rust/static public route shape.
   6. A thin private admin/publisher API foundation can report health, enforce the chosen private access boundary, accept minimal seed content, and trigger or report publish jobs without implementing full edit-history or full CRUD polish yet.
   7. The already-implemented Rust/static cutover and retired public Next.js/API paths are backed by a recorded live static publish proof and closure summary.
 **Plans**: 7 plans
