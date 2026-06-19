@@ -58,6 +58,8 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |
 | `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect alias or descriptor; use the wallet alias such as `autographsdb_medium` for mTLS |
 | `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the Rust controller container; defaults to `/opt/autographs/wallet` in deploy |
+| `TNS_ADMIN` | Runtime Oracle Instant Client wallet directory; deployed controller and one-shot smoke containers set this to `/opt/autographs/wallet` |
+| `RUST_LOG` | Runtime controller log filter; defaults to `autographs_controller=info,tower_http=info` and can be raised temporarily for debugging |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
 | `DEPLOY_SSH_USER` | SSH user for deploys, usually `opc` |
 | `DEPLOY_PATH` | Directory on the VM that stores Ansible-managed env, Caddy config, wallet, and secret files |

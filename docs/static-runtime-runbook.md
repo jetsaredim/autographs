@@ -134,14 +134,17 @@ To prove the runtime VM network path without installing Rust on the VM, build
 and export the one-shot smoke image on a trusted Linux `amd64` workstation:
 
 ```bash
+SMOKE_VERSION="$(git rev-parse --short HEAD)"
+SMOKE_IMAGE="localhost/autographs-live-persistence-smoke:${SMOKE_VERSION}"
+
 docker build \
   --file controller/Dockerfile.smoke \
-  --tag localhost/autographs-live-persistence-smoke:phase-05 \
+  --tag "${SMOKE_IMAGE}" \
   .
 
 docker save \
   --output /tmp/autographs-live-persistence-smoke.tar \
-  localhost/autographs-live-persistence-smoke:phase-05
+  "${SMOKE_IMAGE}"
 
 scp /tmp/autographs-live-persistence-smoke.tar \
   opc@"${VM_PUBLIC_IP}":/tmp/autographs-live-persistence-smoke.tar
@@ -169,14 +172,17 @@ permissions.
 Load and run the image with Podman:
 
 ```bash
+SMOKE_VERSION="<git-short-sha-used-during-build>"
+SMOKE_IMAGE="localhost/autographs-live-persistence-smoke:${SMOKE_VERSION}"
+
 sudo install -d -m 0700 -o opc -g opc /opt/autographs/env
 chmod 0600 /opt/autographs/env/live-persistence-smoke.env
 
 sudo podman load --input /tmp/autographs-live-persistence-smoke.tar
 sudo podman run --rm \
   --env-file /opt/autographs/env/live-persistence-smoke.env \
-  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro \
-  localhost/autographs-live-persistence-smoke:phase-05
+  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro,z \
+  "${SMOKE_IMAGE}"
 ```
 
 The image contains the compiled smoke-test executable, CA certificates, and
@@ -198,10 +204,13 @@ AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS=originals/3f14e408-d4a7-4ef7-91f
 Then run the persistence smoke image normally:
 
 ```bash
+SMOKE_VERSION="<git-short-sha-used-during-build>"
+SMOKE_IMAGE="localhost/autographs-live-persistence-smoke:${SMOKE_VERSION}"
+
 sudo podman run --rm \
   --env-file /opt/autographs/env/live-persistence-smoke.env \
-  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro \
-  localhost/autographs-live-persistence-smoke:phase-05
+  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro,z \
+  "${SMOKE_IMAGE}"
 ```
 
 Cleanup mode runs before the normal smoke gate, deletes matching
@@ -242,14 +251,18 @@ temporary Oracle row and private original.
 Build and export the temporary image on a trusted Linux `amd64` workstation:
 
 ```bash
+SMOKE_VERSION="$(git rev-parse --short HEAD)"
+SMOKE_IMAGE="localhost/autographs-live-static-publish-smoke:${SMOKE_VERSION}"
+
 docker build \
   --file controller/Dockerfile.static-smoke \
-  --tag localhost/autographs-live-static-publish-smoke:phase-05 \
+  --build-arg AUTOGRAPHS_SMOKE_IMAGE_VERSION="${SMOKE_VERSION}" \
+  --tag "${SMOKE_IMAGE}" \
   .
 
 docker save \
   --output /tmp/autographs-live-static-publish-smoke.tar \
-  localhost/autographs-live-static-publish-smoke:phase-05
+  "${SMOKE_IMAGE}"
 
 scp /tmp/autographs-live-static-publish-smoke.tar \
   opc@"${VM_PUBLIC_IP}":/tmp/autographs-live-static-publish-smoke.tar
@@ -270,12 +283,15 @@ smoke in the same protected file. Load and run the one-shot image on the
 private Podman network:
 
 ```bash
+SMOKE_VERSION="<git-short-sha-used-during-build>"
+SMOKE_IMAGE="localhost/autographs-live-static-publish-smoke:${SMOKE_VERSION}"
+
 sudo podman load --input /tmp/autographs-live-static-publish-smoke.tar
 sudo podman run --rm \
   --network autographs \
   --env-file /opt/autographs/env/live-persistence-smoke.env \
-  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro \
-  localhost/autographs-live-static-publish-smoke:phase-05
+  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro,z \
+  "${SMOKE_IMAGE}"
 ```
 
 The smoke result must be recorded before Phase 5 is closed. The public hostname
@@ -284,7 +300,35 @@ Rust/static path can still publish a fresh item end to end and remove it again.
 If a failed run stops before cleanup, search Oracle for a title beginning with
 `Live Static Smoke`, remove that temporary draft through the available
 operator-maintenance path, and delete its logged `originals/{item-id}/{image-id}`
-object from Object Storage.
+object from Object Storage. If the static smoke passes but logs a timeout while
+deleting the private original, use the live persistence smoke cleanup mode with
+the logged item ID and object key to confirm the database rows and Object Storage
+object are absent.
+
+### Controller Logs and Verbosity
+
+The controller emits structured operation logs to container stdout/stderr. Normal
+`info` logs include admin catalog create/update calls, image uploads,
+publication status changes, static publish starts/completions, release IDs,
+artifact counts, and elapsed times. Route failures log the underlying repository,
+media, or publisher error before returning the public HTTP status.
+
+The deployed env file sets:
+
+```text
+RUST_LOG=autographs_controller=info,tower_http=info
+```
+
+For a debugging session, temporarily raise the controller verbosity in
+`/opt/autographs/env/app.env`, restart `autographs-controller`, and inspect
+`sudo podman logs -f autographs-controller`:
+
+```text
+RUST_LOG=autographs_controller=debug,tower_http=debug
+```
+
+Use `autographs_controller=trace` only for short sessions; it is intended for
+live diagnosis and can produce noisy logs.
 
 ## Candidate Validation
 

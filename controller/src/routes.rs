@@ -1,4 +1,4 @@
-use std::{env, sync::Arc};
+use std::{env, sync::Arc, time::Instant};
 
 use axum::{
     Json, Router,
@@ -295,11 +295,26 @@ async fn create_item(
     Json(input): Json<AutographItemInput>,
 ) -> Response {
     if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        tracing::warn!(status = %status, "rejected create catalog item request");
         return status.into_response();
     }
 
+    let started = Instant::now();
+    tracing::info!(
+        title = %input.title,
+        category = %input.category,
+        "creating catalog item"
+    );
     match state.repository.create(input).await {
-        Ok(item) => (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response(),
+        Ok(item) => {
+            tracing::info!(
+                item_id = %item.id,
+                status = ?item.publication_status,
+                elapsed_ms = started.elapsed().as_millis(),
+                "created catalog item"
+            );
+            (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response()
+        }
         Err(error) => {
             tracing::error!(error = %error, "failed to create catalog item");
             StatusCode::BAD_REQUEST.into_response()
@@ -315,14 +330,25 @@ async fn update_item(
     Json(input): Json<AutographItemUpdate>,
 ) -> Response {
     if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        tracing::warn!(status = %status, "rejected update catalog item request");
         return status.into_response();
     }
     let Ok(id) = Uuid::parse_str(&id) else {
         return StatusCode::BAD_REQUEST.into_response();
     };
 
+    let started = Instant::now();
+    tracing::info!(item_id = %id, "updating catalog item");
     match state.repository.update(id, input).await {
-        Ok(item) => Json(ItemResponse::from(item)).into_response(),
+        Ok(item) => {
+            tracing::info!(
+                item_id = %id,
+                status = ?item.publication_status,
+                elapsed_ms = started.elapsed().as_millis(),
+                "updated catalog item"
+            );
+            Json(ItemResponse::from(item)).into_response()
+        }
         Err(error) => {
             tracing::error!(item_id = %id, error = %error, "failed to update catalog item");
             StatusCode::NOT_FOUND.into_response()
@@ -338,6 +364,7 @@ async fn upload_image(
     mut multipart: Multipart,
 ) -> Response {
     if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        tracing::warn!(status = %status, item_id = %id, "rejected upload image request");
         return status.into_response();
     }
     let Ok(item_id) = Uuid::parse_str(&id) else {
@@ -379,6 +406,15 @@ async fn upload_image(
 
     let image_id = Uuid::new_v4();
     let object_key = build_original_object_key(item_id, image_id);
+    let started = Instant::now();
+    tracing::info!(
+        %item_id,
+        %image_id,
+        %object_key,
+        content_type = %content_type,
+        byte_size = body.len(),
+        "uploading catalog image"
+    );
     if let Err(error) = state.media.write(&object_key, &body).await {
         tracing::error!(%item_id, %image_id, %object_key, %error, "failed to write uploaded image to private media store");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -394,7 +430,17 @@ async fn upload_image(
         alt_text,
     };
     match state.repository.attach_image(item_id, image).await {
-        Ok(item) => (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response(),
+        Ok(item) => {
+            tracing::info!(
+                %item_id,
+                %image_id,
+                %object_key,
+                image_count = item.images.len(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "uploaded catalog image"
+            );
+            (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response()
+        }
         Err(error) => {
             tracing::error!(%item_id, %image_id, %object_key, ?error, "failed to attach uploaded image metadata");
             let _ = state.media.delete(&object_key).await;
@@ -422,11 +468,18 @@ async fn set_publication(
     Json(input): Json<PublicationRequest>,
 ) -> Response {
     if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        tracing::warn!(status = %status, item_id = %id, "rejected publication update request");
         return status.into_response();
     }
     let Ok(id) = Uuid::parse_str(&id) else {
         return StatusCode::BAD_REQUEST.into_response();
     };
+    let started = Instant::now();
+    tracing::info!(
+        item_id = %id,
+        status = ?input.publication_status,
+        "updating catalog item publication"
+    );
     match state
         .repository
         .update(
@@ -438,7 +491,15 @@ async fn set_publication(
         )
         .await
     {
-        Ok(item) => Json(ItemResponse::from(item)).into_response(),
+        Ok(item) => {
+            tracing::info!(
+                item_id = %id,
+                status = ?item.publication_status,
+                elapsed_ms = started.elapsed().as_millis(),
+                "updated catalog item publication"
+            );
+            Json(ItemResponse::from(item)).into_response()
+        }
         Err(error) => {
             tracing::error!(
                 item_id = %id,
@@ -473,15 +534,28 @@ async fn publish(
     mode: PublishMode,
 ) -> Response {
     if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        tracing::warn!(status = %status, mode = ?mode, "rejected static publish request");
         return status.into_response();
     }
 
+    let started = Instant::now();
+    tracing::info!(mode = ?mode, "publishing static release");
     match state
         .publisher
         .publish(state.repository.as_ref(), state.media.as_ref(), mode)
         .await
     {
-        Ok(status) => (StatusCode::CREATED, Json(status)).into_response(),
+        Ok(status) => {
+            tracing::info!(
+                mode = ?mode,
+                release_id = status.release_id.as_deref().unwrap_or("<none>"),
+                artifact_count = status.artifact_count,
+                byte_size = status.byte_size,
+                elapsed_ms = started.elapsed().as_millis(),
+                "published static release"
+            );
+            (StatusCode::CREATED, Json(status)).into_response()
+        }
         Err(error) => {
             tracing::error!(error = %error, "failed to publish static release");
             (
