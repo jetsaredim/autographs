@@ -300,7 +300,10 @@ async fn create_item(
 
     match state.repository.create(input).await {
         Ok(item) => (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response(),
-        Err(_) => StatusCode::BAD_REQUEST.into_response(),
+        Err(error) => {
+            tracing::error!(error = %error, "failed to create catalog item");
+            StatusCode::BAD_REQUEST.into_response()
+        }
     }
 }
 
@@ -320,7 +323,10 @@ async fn update_item(
 
     match state.repository.update(id, input).await {
         Ok(item) => Json(ItemResponse::from(item)).into_response(),
-        Err(_) => StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(item_id = %id, error = %error, "failed to update catalog item");
+            StatusCode::NOT_FOUND.into_response()
+        }
     }
 }
 
@@ -433,7 +439,14 @@ async fn set_publication(
         .await
     {
         Ok(item) => Json(ItemResponse::from(item)).into_response(),
-        Err(_) => StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(
+                item_id = %id,
+                error = %error,
+                "failed to update catalog item publication"
+            );
+            StatusCode::NOT_FOUND.into_response()
+        }
     }
 }
 
@@ -469,11 +482,14 @@ async fn publish(
         .await
     {
         Ok(status) => (StatusCode::CREATED, Json(status)).into_response(),
-        Err(_) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(state.publisher.status()),
-        )
-            .into_response(),
+        Err(error) => {
+            tracing::error!(error = %error, "failed to publish static release");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(state.publisher.status()),
+            )
+                .into_response()
+        }
     }
 }
 
