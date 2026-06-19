@@ -72,9 +72,10 @@
 
 ## Current Guidance
 
-- Phase 5 foundation is implemented; do not rebuild it as future work.
+- Phase 5 foundation is mostly implemented; do not rebuild finished 05-01
+  through 05-06 work, but keep 05-07 live proof/cutover documentation pending.
 - Phase 6 owns polished admin workflow, edit history, and media cleanup
-  ergonomics.
+  ergonomics after the 05-07 checkpoint passes.
 - Phase 7 owns advisory AI-assisted ingest.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage
   URLs, or a split multi-service architecture for v1.

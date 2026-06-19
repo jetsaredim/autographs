@@ -77,8 +77,10 @@
 ## Project Maturity
 
 - Phases 1-4 are complete.
-- Phase 5 static runtime migration foundation is implemented in code and
-  operator docs; planning state is being reconciled after implementation.
+- Phase 5 plans 05-01 through 05-06 are done, and the static runtime
+  migration foundation is implemented in code and operator docs.
+- Phase 5 05-07 live static proof and cutover documentation remain pending
+  before closing the phase.
 - Phase 6 polished admin workflow remains pending.
 - Phase 7 advisory AI-assisted ingest remains pending.
 

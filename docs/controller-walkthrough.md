@@ -6,8 +6,10 @@ catalog writes, private upload handling, static artifact contracts, validated
 publishing, a minimal browser admin shell, and a live OCI persistence smoke
 harness.
 
-It is not yet the complete production controller. The sections below distinguish
-implemented behavior from work planned for later Phase 5 plans.
+It is the implemented controller foundation for Phase 5, but the final 05-07
+production live proof and cutover documentation still need to be recorded
+before closing the phase. Phase 6 will add the polished daily-use collection
+workflow on top of this foundation.
 
 ## Startup
 
@@ -185,8 +187,8 @@ The local-mode publisher foundation is implemented. It now:
 - Exposes authenticated full, incremental, and status publish endpoints
 - Generates minimal static category and tag filtering
 
-The production adapter live proof and runtime cutover remain separate Phase 5
-work.
+The final live static proof and runtime cutover documentation remain separate
+05-07 work.
 
 ## Static Admin Shell
 
