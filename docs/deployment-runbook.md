@@ -174,6 +174,8 @@ The public Caddy route serves the same generated static release. `/api/catalog/*
 
 The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because controller publishing, image processing, and tools/smoke scripts can briefly exceed the VM's physical memory.
 
+The role also installs `python3-oci-cli` from the Oracle Linux 10 Development Packages repo for operator diagnostics. The application does not depend on the OCI CLI, but keeping it on the VM lets an operator verify instance-principal Object Storage access independently from the Rust controller, including emergency listing or deletion of orphaned private media objects.
+
 ### Runtime VM Recreation
 
 Terraform no longer embeds the runtime bootstrap state in cloud-init. If a clean VM is needed, manually run the deploy workflow with `recreate_runtime_instance=true`. The workflow taints `module.compute.oci_core_instance.runtime[0]` before `terraform apply`, forcing OCI to recreate the runtime VM and then letting Ansible converge the full production state onto the replacement instance.

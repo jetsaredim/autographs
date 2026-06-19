@@ -31,6 +31,13 @@ autographs_deploy_packages:
   - podman
   - firewalld
   - unzip
+  - oraclelinux-developer-release-el10
+
+autographs_deploy_operator_packages:
+  - python3-oci-cli
+
+autographs_deploy_operator_package_repos:
+  - ol10_developer
 
 autographs_deploy_masked_services:
   - oracle-cloud-agent.service

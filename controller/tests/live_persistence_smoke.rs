@@ -1,6 +1,6 @@
 #[cfg(feature = "live-persistence")]
 mod live {
-    use std::env;
+    use std::{env, time::Duration};
 
     use autographs_controller::{
         media::PrivateMediaStore, oci_media::OciInstancePrincipalMediaStore,
@@ -186,13 +186,16 @@ mod live {
 
         for object_key in object_keys {
             println!("cleanup deleting OCI object key: {object_key}");
-            media
-                .delete(&object_key)
+            tokio::time::timeout(Duration::from_secs(75), media.delete(&object_key))
                 .await
+                .unwrap_or_else(|_| panic!("timed out deleting cleanup OCI object: {object_key}"))
                 .expect("delete cleanup OCI Object Storage object");
-            match media.read(&object_key).await {
-                Ok(_) => panic!("cleanup object still exists after delete: {object_key}"),
-                Err(error) => println!("cleanup confirmed object absent: {object_key} ({error})"),
+            match tokio::time::timeout(Duration::from_secs(75), media.read(&object_key)).await {
+                Err(_) => panic!("timed out confirming cleanup OCI object absence: {object_key}"),
+                Ok(Err(error)) => {
+                    println!("cleanup confirmed object absent: {object_key} ({error})")
+                }
+                Ok(Ok(_)) => panic!("cleanup object still exists after delete: {object_key}"),
             }
         }
 
@@ -266,7 +269,19 @@ mod live {
                         else {
                             return;
                         };
-                        let _ = runtime.block_on(media.delete(&object_key));
+                        let result = runtime.block_on(async {
+                            tokio::time::timeout(Duration::from_secs(75), media.delete(&object_key))
+                                .await
+                        });
+                        match result {
+                            Ok(Ok(())) => {}
+                            Ok(Err(error)) => eprintln!(
+                                "live persistence cleanup could not delete OCI object: {error}"
+                            ),
+                            Err(_) => eprintln!(
+                                "live persistence cleanup timed out deleting OCI object {object_key}"
+                            ),
+                        }
                     })
                     .join();
             });

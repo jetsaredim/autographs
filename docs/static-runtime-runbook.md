@@ -305,6 +305,24 @@ deleting the private original, use the live persistence smoke cleanup mode with
 the logged item ID and object key to confirm the database rows and Object Storage
 object are absent.
 
+When debugging Object Storage cleanup, use the VM-installed OCI CLI to verify
+that instance-principal policy allows deletes independently from the Rust media
+client:
+
+```bash
+oci os object delete \
+  --auth instance_principal \
+  --namespace-name "${OCI_MEDIA_NAMESPACE}" \
+  --bucket-name "${OCI_MEDIA_BUCKET_NAME}" \
+  --object-name "originals/<item-id>/<image-id>" \
+  --force
+```
+
+If the CLI delete is unauthorized, check that the runtime dynamic group has
+`manage objects` on the media bucket. If the CLI delete succeeds but the Rust
+cleanup path does not, investigate the controller media client or smoke cleanup
+image rather than OCI IAM.
+
 ### Controller Logs and Verbosity
 
 The controller emits structured operation logs to container stdout/stderr. Normal

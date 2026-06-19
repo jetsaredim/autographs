@@ -30,6 +30,8 @@ use crate::media::PrivateMediaStore;
 const METADATA_BASE_URL: &str = "http://169.254.169.254/opc/v2";
 const METADATA_AUTHORIZATION: &str = "Bearer Oracle";
 const REFRESH_WINDOW: Duration = Duration::from_secs(300);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Clone)]
 pub struct OciInstancePrincipalMediaStore {
@@ -63,8 +65,14 @@ impl OciInstancePrincipalMediaStore {
         let realm_domain =
             std::env::var("OCI_REALM_DOMAIN").unwrap_or_else(|_| "oraclecloud.com".to_owned());
 
+        let client = Client::builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(REQUEST_TIMEOUT)
+            .build()
+            .map_err(|error| format!("configure OCI HTTP client: {error}"))?;
+
         Ok(Self {
-            client: Client::new(),
+            client,
             namespace: Arc::new(namespace),
             bucket_name: Arc::new(bucket_name),
             region: Arc::new(region),

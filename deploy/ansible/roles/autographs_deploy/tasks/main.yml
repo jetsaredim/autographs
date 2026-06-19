@@ -3,6 +3,13 @@
     name: "{{ autographs_deploy_packages }}"
     state: present
 
+- name: Ensure operator diagnostic packages are installed
+  ansible.builtin.dnf:
+    name: "{{ autographs_deploy_operator_packages }}"
+    state: present
+    enablerepo: "{{ autographs_deploy_operator_package_repos }}"
+  when: autographs_deploy_operator_packages | length > 0
+
 - name: Ensure firewalld is enabled
   ansible.builtin.systemd:
     name: firewalld.service
