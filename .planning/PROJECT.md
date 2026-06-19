@@ -19,7 +19,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 ### Active
 
 - [x] Deliver a real end-to-end OCI-hosted personal autograph collection foundation with infrastructure, application scaffold, and deployment automation.
-- [x] Support anonymous public browsing with searchable autograph records, private image delivery mediated by the app, and enough metadata to make the collection useful.
+- [x] Support anonymous public browsing with searchable autograph records, generated public-safe image derivatives, and enough metadata to make the collection useful.
 - [x] Prove a static public catalog and minimal private seed/publish path into Oracle/Object Storage before building the full admin workflow.
 - [ ] Support a single-admin collection management workflow with multiple images per item and edit history from v1.
 - [ ] Add advisory AI-assisted metadata suggestions after the manual admin workflow exists, without making cataloging depend on AI.
@@ -66,7 +66,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 | Start with GitHub-driven OCI bootstrap and deployment as first-class work | The prompt makes CI/CD and tenancy bootstrap foundational, so later phases should build on that instead of bolting it on | Validated in Phase 1 |
 | Bias toward OCI Always Free-compatible primitives and a minimal runtime | This matches the product brief and keeps the first release operable for one developer | Validated through deployed runtime |
 | Optimize for a personal collection rather than a general user platform | The site is meant to present and manage your own autograph collection, so features like multi-image support and edit history matter more than user systems or social capabilities | Ongoing guiding principle |
-| Keep public image delivery app-mediated instead of exposing direct Object Storage URLs | Preserves private-media boundaries and centralized access control | Validated in Phases 2-3 |
+| Keep public image delivery mediated instead of exposing direct Object Storage URLs | Preserves private-media boundaries; originally validated through app-mediated image routes in Phases 2-3 and now implemented through generated static derivatives plus the private Rust controller/publisher boundary | Updated for Phase 5 static runtime |
 | Use token-guarded operator endpoints only as a temporary verification seam | Phase 2 needed safe mutation verification before the admin workflow existed | Temporary bridge until the private publisher/admin API replaces it |
 | Manage runtime services with Podman quadlets through Ansible | Simplifies long-lived runtime operations compared to compose-style orchestration on the OCI VM | Adopted in runtime deployment |
 | Move public-readiness hardening before admin and AI | The current gallery/deployment system can be made safe and presentable before adding larger private mutation and AI surfaces | Phase 4 focus as of 2026-05-25 |

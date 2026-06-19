@@ -274,13 +274,13 @@ Then open the public pages through the deployed site:
 - `/collection`
 - `/collection/<item-id>`
 
-Images should load through app-mediated URLs shaped like `/api/catalog/{itemId}/images/{imageId}`. The browser should never need a direct Object Storage URL.
+Images should load from generated static derivative URLs under `/media/...`. The browser should never need a direct Object Storage URL, and the retired `/api/catalog/{itemId}/images/{imageId}` image route should not appear in current public pages.
 
 ## Media and Metadata Path
 
-Use the operator API so the deployed app writes Oracle metadata and private Object Storage images through the same catalog service used by the rest of the system. Published public pages should then read records through the public catalog service and display images only through `/api/catalog/{itemId}/images/{imageId}`.
+This document records the retired temporary operator bridge. Current publish operations should keep Oracle metadata, private Object Storage originals, generated derivatives, and static catalog artifacts connected through the Rust controller/publisher path. Published public pages should display only generated `/media/...` derivatives, never direct Object Storage URLs or retired `/api/catalog/*` image streams.
 
-Delete images and full catalog items through the operator API as well so metadata and Object Storage cleanup stay connected.
+Historically, deletes also went through the temporary operator API so metadata and Object Storage cleanup stayed connected. Current cleanup behavior belongs to the Rust controller/publisher workflow and the Phase 6 admin ergonomics work that follows the 05-07 checkpoint.
 
 ## What Not To Do
 
