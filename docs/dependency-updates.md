@@ -22,6 +22,8 @@ Renovate does not run from a repository workflow in this setup. If the hosted ap
 | `.github/workflows/ci.yml` | `contents: read` | Least privilege for pull request validation. |
 | `.github/workflows/deploy.yml` | `contents: read`, `packages: write` | Required to read repository contents and publish the GHCR controller image. `actions: write` was removed because current deploy steps do not need Actions API mutation. |
 | `.github/workflows/image-cleanup.yml` | `contents: read`, `packages: write` | Required to read cleanup scripts/playbooks and delete old GHCR package versions. |
+| `.github/workflows/weekly-security-scan.yml` | `contents: read`, `issues: write` | Required to read scanner playbooks and create or update production security update issues. |
+| `.github/workflows/apply-security-updates.yml` | `contents: read`, `issues: write` | Required to read updater playbooks, validate approved scanner issues, comment results, and remove stale approval labels. |
 
 ## Action And Image Surfaces
 
@@ -36,9 +38,31 @@ Tracked by Renovate:
 
 Accepted current posture:
 
-- Third-party actions are pinned to stable tags instead of immutable SHAs for readability and maintainability in this personal project.
+- Routine third-party actions are pinned to stable tags for readability and maintainability in this personal project.
+- Production-sensitive third-party actions that receive production credentials are pinned to immutable commit SHAs with a trailing version hint comment, such as `# v9`, so update tooling and human reviewers can still see the intended upstream version.
 - Major dependency updates require manual review through the Renovate Dependency Dashboard issue.
-- Production deploy and cleanup changes must be reviewed with the same care as app code because they can affect the live VM and GHCR packages.
+- Production deploy, cleanup, scanner, and updater changes must be reviewed with the same care as app code because they can affect the live VM, GitHub issues, and GHCR packages.
+
+## Production GitHub Actions SHA Pins
+
+The production security scan and apply workflows invoke `dawidd6/action-ansible-playbook` while providing production-sensitive material such as the GitHub token and the deployment SSH key. Those workflow references are intentionally pinned to full commit SHAs instead of mutable version tags.
+
+The workflow lines keep a trailing version hint comment:
+
+```yaml
+uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
+```
+
+That format keeps the immutable commit pin visible while preserving the intended upstream version context for Renovate and human review.
+
+`renovate.json` has a package rule for `dawidd6/action-ansible-playbook` that requires Dependency Dashboard approval and disables automerge. When updating this action:
+
+1. Confirm the proposed commit SHA belongs to the expected upstream tag or release.
+2. Review upstream changes before approving the Renovate update.
+3. Confirm CI passes on the update PR.
+4. Treat the update as production-control-plane code because the action receives production credentials.
+
+Routine dependency grouping must not bypass this manual review requirement.
 
 ## Cleanup Reliability
 

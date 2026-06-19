@@ -209,7 +209,9 @@ jobs:
         run: |
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook -vvv --syntax-check \
             deploy/ansible/playbooks/deploy.yml \
-            deploy/ansible/playbooks/system-cleanup.yml
+            deploy/ansible/playbooks/system-cleanup.yml \
+            deploy/ansible/playbooks/security-scan.yml \
+            deploy/ansible/playbooks/security-patch.yml
 
       - name: Lint Ansible playbook
         run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/

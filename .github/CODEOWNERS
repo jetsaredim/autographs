@@ -1,0 +1,12 @@
+# Production update control plane
+.github/CODEOWNERS @jetsaredim
+.github/workflows/weekly-security-scan.yml @jetsaredim
+.github/workflows/apply-security-updates.yml @jetsaredim
+.github/production-patch-approvers.yml @jetsaredim
+
+# Production host update automation
+deploy/ansible/playbooks/security-scan.yml @jetsaredim
+deploy/ansible/playbooks/security-patch*.yml @jetsaredim
+deploy/ansible/roles/security_patching/ @jetsaredim
+
+docs/security-patching.md @jetsaredim

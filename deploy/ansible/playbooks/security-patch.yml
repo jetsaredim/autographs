@@ -1,0 +1,33 @@
+- name: Validate production security update approval
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Validate issue approval request
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: validate_request
+
+- name: Apply approved production security updates
+  hosts: "{{ security_patching_target_group | default('runtime') }}"
+  become: true
+  gather_facts: true
+  serial: 1
+  tasks:
+    - name: Scan current host security update state
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: scan
+
+    - name: Apply approved host security updates
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: patch
+
+- name: Comment on production security update issue
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Publish production security update result
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: post_result

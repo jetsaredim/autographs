@@ -1,0 +1,126 @@
+- name: Require GitHub repository context
+  ansible.builtin.assert:
+    that:
+      - security_patching_github_repository | length > 0
+      - security_patching_github_token | length > 0
+    fail_msg: GitHub repository and token context are required to create security update issues.
+
+- name: Initialize report host list
+  ansible.builtin.set_fact:
+    security_patching_hosts_with_findings: []
+
+- name: Collect hosts with security update findings
+  ansible.builtin.set_fact:
+    security_patching_hosts_with_findings: "{{ security_patching_hosts_with_findings + [item] }}"
+  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  when: (hostvars[item].security_patching_update_entries | default([]) | length) > 0
+
+- name: Report clean security update scan
+  ansible.builtin.debug:
+    msg: "No available security updates were reported for {{ security_patching_target_group }}."
+  when: security_patching_hosts_with_findings | length == 0
+
+- name: Build GitHub issues URLs
+  ansible.builtin.set_fact:
+    security_patching_issues_url: >-
+      {{
+        [
+          security_patching_github_api_url,
+          'repos',
+          security_patching_github_repository,
+          'issues'
+        ] | join('/')
+      }}
+    security_patching_open_issues_url: >-
+      {{ security_patching_issues_url }}?state=open&labels=security-patching,patch-scan-open&per_page=100
+  when: security_patching_hosts_with_findings | length > 0
+
+- name: Ensure GitHub labels exist
+  ansible.builtin.uri:
+    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/labels"
+    method: POST
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      name: "{{ item.name }}"
+      color: "{{ item.color }}"
+      description: "{{ item.description }}"
+    status_code:
+      - 201
+      - 422
+  loop: "{{ security_patching_managed_labels }}"
+  when: security_patching_hosts_with_findings | length > 0
+  no_log: true
+
+- name: Render production security update issue body
+  ansible.builtin.template:
+    src: security-report.md.j2
+    dest: "{{ security_patching_report_path }}"
+    mode: "0600"
+  when: security_patching_hosts_with_findings | length > 0
+
+- name: Read open production security update issues
+  ansible.builtin.uri:
+    url: "{{ security_patching_open_issues_url }}"
+    method: GET
+    headers: "{{ security_patching_github_headers }}"
+    status_code: 200
+  register: security_patching_open_issues
+  when: security_patching_hosts_with_findings | length > 0
+  no_log: true
+
+- name: Find existing scan issue for target group
+  ansible.builtin.set_fact:
+    security_patching_existing_issue_numbers: >-
+      {{
+        security_patching_open_issues.json
+        | default([])
+        | rejectattr('pull_request', 'defined')
+        | selectattr('body', 'search', 'target_group: "' ~ security_patching_target_group ~ '"')
+        | map(attribute='number')
+        | list
+      }}
+  when: security_patching_hosts_with_findings | length > 0
+
+- name: Update existing production security update issue
+  ansible.builtin.uri:
+    url: "{{ security_patching_issues_url }}/{{ security_patching_existing_issue_numbers[0] }}"
+    method: PATCH
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      title: "Production security update report - {{ security_patching_scan_timestamp }}"
+      body: "{{ lookup('ansible.builtin.file', security_patching_report_path) }}"
+      labels: "{{ security_patching_issue_labels }}"
+    status_code: 200
+  register: security_patching_updated_issue
+  when:
+    - security_patching_hosts_with_findings | length > 0
+    - security_patching_existing_issue_numbers | default([]) | length > 0
+  no_log: true
+
+- name: Create production security update issue
+  ansible.builtin.uri:
+    url: "{{ security_patching_issues_url }}"
+    method: POST
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      title: "Production security update report - {{ security_patching_scan_timestamp }}"
+      body: "{{ lookup('ansible.builtin.file', security_patching_report_path) }}"
+      labels: "{{ security_patching_issue_labels }}"
+    status_code: 201
+  register: security_patching_created_issue
+  when:
+    - security_patching_hosts_with_findings | length > 0
+    - security_patching_existing_issue_numbers | default([]) | length == 0
+  no_log: true
+
+- name: Report production security update issue number
+  ansible.builtin.debug:
+    msg: >-
+      Production security update issue #{{
+        security_patching_updated_issue.json.number
+        | default(security_patching_created_issue.json.number)
+      }} is ready for review.
+  when: security_patching_hosts_with_findings | length > 0

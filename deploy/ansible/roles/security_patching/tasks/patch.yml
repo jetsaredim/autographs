@@ -1,0 +1,53 @@
+- name: Resolve approved package specs for host
+  ansible.builtin.set_fact:
+    security_patching_approved_package_specs: >-
+      {{
+        (hostvars['localhost'].security_patching_request_instances | default({}))
+        .get(inventory_hostname, {})
+        .get('package_specs', [])
+        | unique
+        | sort
+        | list
+      }}
+    security_patching_current_package_specs: >-
+      {{ security_patching_update_package_specs | default([]) | unique | sort | list }}
+
+- name: Record skipped host state when no updates were approved
+  ansible.builtin.set_fact:
+    security_patching_skipped_without_approval: true
+    security_patching_post_update_entries: "{{ security_patching_update_entries | default([]) }}"
+    security_patching_post_update_package_specs: "{{ security_patching_update_package_specs | default([]) }}"
+  when: security_patching_approved_package_specs | length == 0
+
+- name: Apply approved updates for host
+  when: security_patching_approved_package_specs | length > 0
+  block:
+    - name: Refuse to apply if security update set drifted
+      ansible.builtin.assert:
+        that:
+          - security_patching_current_package_specs == security_patching_approved_package_specs
+        fail_msg: >-
+          Current security update set for {{ inventory_hostname }} does not match the approved scanner issue.
+          Current={{ security_patching_current_package_specs }} Approved={{ security_patching_approved_package_specs }}
+
+    - name: Preserve pre-update finding set
+      ansible.builtin.set_fact:
+        security_patching_pre_update_entries: "{{ security_patching_update_entries | default([]) }}"
+
+    - name: Apply approved security package updates # noqa: package-latest
+      ansible.builtin.dnf:
+        name: "{{ security_patching_approved_package_specs }}"
+        state: latest
+        security: true
+        update_only: true
+      register: security_patching_dnf_result
+
+    - name: Re-scan host after security updates
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: scan
+
+    - name: Preserve post-update finding set
+      ansible.builtin.set_fact:
+        security_patching_post_update_entries: "{{ security_patching_update_entries | default([]) }}"
+        security_patching_post_update_package_specs: "{{ security_patching_update_package_specs | default([]) }}"

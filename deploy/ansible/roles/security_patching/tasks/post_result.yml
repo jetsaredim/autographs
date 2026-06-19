@@ -1,0 +1,64 @@
+- name: Initialize remaining finding host list
+  ansible.builtin.set_fact:
+    security_patching_remaining_hosts: []
+
+- name: Collect hosts with remaining security update findings
+  ansible.builtin.set_fact:
+    security_patching_remaining_hosts: "{{ security_patching_remaining_hosts + [item] }}"
+  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  when: (hostvars[item].security_patching_post_update_entries | default([]) | length) > 0
+
+- name: Build GitHub issue label URL
+  ansible.builtin.set_fact:
+    security_patching_issue_label_url: >-
+      {{
+        [
+          security_patching_github_api_url,
+          'repos',
+          security_patching_github_repository,
+          'issues',
+          security_patching_issue_number,
+          'labels',
+          security_patching_approval_label
+        ] | join('/')
+      }}
+
+- name: Render production security update result comment
+  ansible.builtin.template:
+    src: security-update-result.md.j2
+    dest: "{{ security_patching_result_comment_path }}"
+    mode: "0600"
+
+- name: Comment production security update result
+  ansible.builtin.uri:
+    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}/comments"
+    method: POST
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      body: "{{ lookup('ansible.builtin.file', security_patching_result_comment_path) }}"
+    status_code: 201
+  no_log: true
+
+- name: Remove approval label after workflow starts
+  ansible.builtin.uri:
+    url: "{{ security_patching_issue_label_url }}"
+    method: DELETE
+    headers: "{{ security_patching_github_headers }}"
+    status_code:
+      - 200
+      - 404
+  no_log: true
+
+- name: Close issue when no security update findings remain
+  ansible.builtin.uri:
+    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}"
+    method: PATCH
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      state: closed
+      state_reason: completed
+    status_code: 200
+  when: security_patching_remaining_hosts | length == 0
+  no_log: true

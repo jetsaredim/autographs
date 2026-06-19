@@ -1,0 +1,8 @@
+- name: Cleanup failed production security update request
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Cleanup failed security update request
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: cleanup_failed_request

@@ -1,0 +1,152 @@
+- name: Verify dnf is available # noqa command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - --version
+  register: security_patching_dnf_version
+  changed_when: false
+
+- name: Refresh dnf metadata # noqa command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - -q
+      - makecache
+      - --refresh
+  register: security_patching_makecache
+  changed_when: false
+
+- name: List available security update advisories # noqa command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - -q
+      - updateinfo
+      - list
+      - --security
+      - --available
+  register: security_patching_updateinfo_list
+  changed_when: false
+  failed_when: security_patching_updateinfo_list.rc not in [0, 100]
+
+- name: Normalize security update advisory lines
+  ansible.builtin.set_fact:
+    security_patching_updateinfo_lines: >-
+      {{
+        security_patching_updateinfo_list.stdout_lines
+        | default([])
+        | map('trim')
+        | reject('equalto', '')
+        | reject('match', '^Last metadata')
+        | reject('match', '^Loaded plugins')
+        | list
+      }}
+
+- name: Initialize security update entries
+  ansible.builtin.set_fact:
+    security_patching_entries_raw: []
+
+- name: Parse security update entries
+  ansible.builtin.set_fact:
+    security_patching_entries_raw: >-
+      {{
+        security_patching_entries_raw
+        + [
+          {
+            'advisory_id': security_patching_line_parts[0],
+            'severity': security_patching_candidate_severity,
+            'package_spec': security_patching_line_parts[-1]
+          }
+        ]
+      }}
+  vars:
+    security_patching_line_parts: "{{ item.split() }}"
+    security_patching_candidate_severity: >-
+      {{
+        security_patching_line_parts[1]
+        | default('')
+        | regex_replace('/Sec\\.$', '')
+        | regex_replace('/Bugfix\\.$', '')
+      }}
+  loop: "{{ security_patching_updateinfo_lines }}"
+  when:
+    - security_patching_line_parts | length >= 2
+    - security_patching_line_parts[0] is match('^[A-Za-z]+[A-Za-z0-9_-]*[-:][0-9]{4}[:-].*')
+
+- name: Resolve advisory IDs
+  ansible.builtin.set_fact:
+    security_patching_advisory_ids: >-
+      {{ security_patching_entries_raw | map(attribute='advisory_id') | unique | sort | list }}
+
+- name: Read advisory details # noqa command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - -q
+      - updateinfo
+      - info
+      - "{{ item }}"
+  register: security_patching_advisory_info
+  changed_when: false
+  failed_when: false
+  loop: "{{ security_patching_advisory_ids }}"
+
+- name: Build advisory detail map
+  ansible.builtin.set_fact:
+    security_patching_advisory_details: >-
+      {{
+        security_patching_advisory_details | default({})
+        | combine(
+            {
+              item.item: {
+                'cves': security_patching_advisory_cves
+              }
+            },
+            recursive=True
+          )
+      }}
+  vars:
+    security_patching_advisory_cves: >-
+      {{
+        item.stdout
+        | default('')
+        | regex_findall('CVE-[0-9]{4}-[0-9A-Za-z_-]+')
+        | unique
+        | sort
+        | list
+      }}
+  loop: "{{ security_patching_advisory_info.results | default([]) }}"
+
+- name: Initialize enriched security update entries
+  ansible.builtin.set_fact:
+    security_patching_update_entries: []
+
+- name: Enrich security update entries with CVE metadata
+  ansible.builtin.set_fact:
+    security_patching_update_entries: >-
+      {{
+        security_patching_update_entries
+        + [
+          item
+          | combine(
+              {
+                'cves': security_patching_advisory_cves
+              }
+            )
+        ]
+      }}
+  vars:
+    security_patching_advisory_cves: >-
+      {{
+        (security_patching_advisory_details | default({}))
+        .get(item.advisory_id, {})
+        .get('cves', [])
+      }}
+  loop: "{{ security_patching_entries_raw }}"
+
+- name: Set approved package specs for this scan
+  ansible.builtin.set_fact:
+    security_patching_update_package_specs: >-
+      {{ security_patching_update_entries | map(attribute='package_spec') | unique | sort | list }}
+    security_patching_update_advisory_ids: >-
+      {{ security_patching_update_entries | map(attribute='advisory_id') | unique | sort | list }}

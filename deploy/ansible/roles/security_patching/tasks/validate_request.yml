@@ -1,0 +1,86 @@
+- name: Require issue request context
+  ansible.builtin.assert:
+    that:
+      - security_patching_github_repository | length > 0
+      - security_patching_github_token | length > 0
+      - security_patching_issue_number | default('') | string | length > 0
+      - security_patching_approver | default('') | string | length > 0
+    fail_msg: GitHub issue number, actor, repository, and token context are required.
+
+- name: Load allowed update actors
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../../../.github/production-patch-approvers.yml"
+
+- name: Require allowed update actor
+  ansible.builtin.assert:
+    that:
+      - security_patching_approver in production_patch_approvers
+    fail_msg: "Actor {{ security_patching_approver }} is not allowed to run this update workflow."
+
+- name: Read update issue
+  ansible.builtin.uri:
+    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}"
+    method: GET
+    headers: "{{ security_patching_github_headers }}"
+    status_code: 200
+  register: security_patching_issue
+  no_log: true
+
+- name: Extract issue labels
+  ansible.builtin.set_fact:
+    security_patching_issue_label_names: "{{ security_patching_issue.json.labels | map(attribute='name') | list }}"
+
+- name: Require scanner-created issue and request label
+  ansible.builtin.assert:
+    that:
+      - security_patching_issue.json.state == 'open'
+      - "'security-patching' in security_patching_issue_label_names"
+      - security_patching_approval_label in security_patching_issue_label_names
+    fail_msg: "Issue #{{ security_patching_issue_number }} is not an open scanner-created issue with the request label."
+
+- name: Extract scanner metadata block
+  ansible.builtin.set_fact:
+    security_patching_metadata_blocks: >-
+      {{
+        security_patching_issue.json.body
+        | regex_findall('(?s)<!-- autographs-security-patch-metadata\\n(.*?)\\n-->')
+      }}
+
+- name: Require exactly one scanner metadata block
+  ansible.builtin.assert:
+    that:
+      - security_patching_metadata_blocks | length == 1
+    fail_msg: "Issue #{{ security_patching_issue_number }} does not contain exactly one scanner metadata block."
+
+- name: Parse scanner metadata
+  ansible.builtin.set_fact:
+    security_patching_request_metadata: "{{ security_patching_metadata_blocks[0] | from_yaml }}"
+
+- name: Record approved scan metadata
+  ansible.builtin.set_fact:
+    security_patching_request_scan_id: "{{ security_patching_request_metadata.scan_id }}"
+    security_patching_request_instances: "{{ security_patching_request_metadata.instances | default({}) }}"
+    security_patching_request_target_group: "{{ security_patching_request_metadata.target_group }}"
+
+- name: Require target group and package metadata
+  ansible.builtin.assert:
+    that:
+      - security_patching_request_target_group == security_patching_target_group
+      - security_patching_request_instances | length > 0
+    fail_msg: "Issue #{{ security_patching_issue_number }} metadata does not match this update workflow."
+
+- name: Comment that update request was accepted
+  ansible.builtin.uri:
+    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}/comments"
+    method: POST
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      body: |
+        Production security update request accepted.
+
+        - Approved by: `{{ security_patching_approver }}`
+        - Scan ID: `{{ security_patching_request_scan_id }}`
+        - Target group: `{{ security_patching_request_target_group }}`
+    status_code: 201
+  no_log: true

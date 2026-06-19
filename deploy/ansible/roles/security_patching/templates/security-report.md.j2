@@ -1,0 +1,55 @@
+<!-- autographs-security-patch-metadata
+scan_id: "{{ security_patching_scan_id }}"
+created_at: "{{ security_patching_scan_timestamp }}"
+target_group: "{{ security_patching_target_group }}"
+approval_label: "{{ security_patching_approval_label }}"
+instances:
+{% for host in security_patching_hosts_with_findings %}
+  {{ host }}:
+    package_specs:
+{% for package_spec in hostvars[host].security_patching_update_package_specs | default([]) %}
+      - "{{ package_spec }}"
+{% endfor %}
+{% endfor %}
+-->
+# Production security update report
+
+Scan ID: `{{ security_patching_scan_id }}`
+
+Generated: `{{ security_patching_scan_timestamp }}`
+
+Target group: `{{ security_patching_target_group }}`
+
+## Summary
+
+| Instance | Proposed security updates | Advisories |
+|---|---:|---:|
+{% for host in security_patching_hosts_with_findings %}
+| `{{ host }}` | {{ hostvars[host].security_patching_update_package_specs | default([]) | length }} | {{ hostvars[host].security_patching_update_advisory_ids | default([]) | length }} |
+{% endfor %}
+
+## Proposed package updates
+
+{% for host in security_patching_hosts_with_findings %}
+### `{{ host }}`
+
+| Package spec | Advisory | Severity | CVEs |
+|---|---|---|---|
+{% for entry in hostvars[host].security_patching_update_entries | default([]) %}
+| `{{ entry.package_spec }}` | {% if entry.advisory_id.startswith('ELSA-') %}[{{ entry.advisory_id }}](https://linux.oracle.com/errata/{{ entry.advisory_id }}.html){% elif entry.advisory_id.startswith('RHSA-') %}[{{ entry.advisory_id }}](https://access.redhat.com/errata/{{ entry.advisory_id }}){% else %}`{{ entry.advisory_id }}`{% endif %} | {{ entry.severity | default('unknown') }} | {% if entry.cves | default([]) | length > 0 %}{% for cve in entry.cves %}[{{ cve }}](https://nvd.nist.gov/vuln/detail/{{ cve }}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %} |
+{% endfor %}
+
+{% endfor %}
+
+## Review checklist
+
+- [ ] I reviewed the proposed package specs above.
+- [ ] I reviewed the associated advisories and CVEs.
+- [ ] I understand the update workflow will re-scan first and refuse to continue if the package set drifted.
+- [ ] I understand service restarts or a later reboot may be required depending on updated packages.
+
+## One-click approval
+
+Apply the label `{{ security_patching_approval_label }}` to this issue to run the production security update workflow.
+
+Only users listed in `.github/production-patch-approvers.yml` are allowed to approve production updates. The workflow removes the approval label after it starts and closes this issue only if the post-update scan is clean.

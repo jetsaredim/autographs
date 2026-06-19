@@ -1,0 +1,34 @@
+security_patching_github_api_url: https://api.github.com
+security_patching_github_repository: "{{ lookup('env', 'GITHUB_REPOSITORY') }}"
+security_patching_github_token: "{{ lookup('env', 'GH_TOKEN') }}"
+security_patching_github_headers:
+  Accept: application/vnd.github+json
+  Authorization: "Bearer {{ security_patching_github_token }}"
+  X-GitHub-Api-Version: "2022-11-28"
+security_patching_scan_id: "security-scan-{{ lookup('env', 'GITHUB_RUN_ID') | default('local', true) }}"
+security_patching_scan_timestamp: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+security_patching_issue_number: ""
+security_patching_approver: "{{ lookup('env', 'PATCH_APPROVER') | default('', true) }}"
+security_patching_report_path: "/tmp/autographs-security-report-{{ security_patching_scan_id }}.md"
+security_patching_result_comment_path: "/tmp/autographs-security-update-result-{{ security_patching_issue_number | default('unknown', true) }}.md"
+security_patching_approval_label: approved-production-update
+security_patching_target_group: runtime
+
+security_patching_managed_labels:
+  - name: security-patching
+    color: b60205
+    description: Production security update scanner output
+  - name: production
+    color: 5319e7
+    description: Production runtime maintenance
+  - name: patch-scan-open
+    color: fbca04
+    description: Open security update scan finding
+  - name: approved-production-update
+    color: 0e8a16
+    description: Apply the scanner-approved production security updates
+
+security_patching_issue_labels:
+  - security-patching
+  - production
+  - patch-scan-open

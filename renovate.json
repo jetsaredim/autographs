@@ -43,6 +43,17 @@
       "dependencyDashboardApproval": true
     },
     {
+      "description": "Require explicit review for production Ansible action SHA-pin updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackageNames": [
+        "dawidd6/action-ansible-playbook"
+      ],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
       "description": "Do not automerge production dependency updates",
       "matchManagers": [
         "cargo",
