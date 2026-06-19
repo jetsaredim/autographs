@@ -13,7 +13,8 @@ Use this checklist before making the repository public, before merging a hardeni
 - Confirm `README.md` separates the current static-runtime/controller implementation from Phase 6 admin and Phase 7 AI plans.
 - Confirm `docs/security-review.md` records current-surface security findings as fixed, accepted, deferred, or tracked.
 - Confirm `docs/dependency-updates.md` explains Renovate scope, the Dependency Dashboard issue, review expectations, and manual verification before merging dependency updates.
-- Confirm `renovate.json` is present and configured for package, workflow, Docker/Corepack, Terraform, and runtime image update surfaces.
+- Confirm `renovate.json` is present and configured for Rust packages, workflow, Docker, Terraform, Ansible, and runtime image update surfaces.
+- Confirm production security patching controls are reviewed when changed: `.github/CODEOWNERS`, `.github/production-patch-approvers.yml`, `.github/workflows/weekly-security-scan.yml`, `.github/workflows/apply-security-updates.yml`, `deploy/ansible/roles/security_patching/`, and `docs/security-patching.md`.
 - Confirm retired operator routes remain blocked at the public Caddy edge and normal admin operations use `/admin` plus `/admin/api/*`.
 - Confirm public image delivery uses generated static derivatives and does not expose direct Object Storage URLs, bucket names, namespaces, object keys, signed URLs, or credentials.
 - Confirm live static publish smoke status is explicit: local/CI checks can validate local-mode behavior, while live Oracle/Object Storage proof requires the static runtime runbook with real secrets.

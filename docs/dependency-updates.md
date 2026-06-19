@@ -29,12 +29,12 @@ Renovate does not run from a repository workflow in this setup. If the hosted ap
 
 Tracked by Renovate:
 
-- npm and pnpm dependencies in the root and app manifests.
+- Rust dependencies in `controller/Cargo.toml` and `controller/Cargo.lock`.
 - GitHub Actions such as `actions/checkout`, `docker/*`, `hashicorp/setup-terraform`, and `dawidd6/action-ansible-playbook`.
-- Docker images in `app/Dockerfile`, including Node base images and pinned Corepack pnpm usage.
+- Docker images in `controller/Dockerfile` and related controller smoke Dockerfiles.
 - Terraform providers and modules in `infra/terraform`.
 - Ansible Galaxy collections in `deploy/ansible/collections/requirements.yml`.
-- The Caddy runtime image default in `deploy/ansible/roles/autographs_deploy/defaults/main.yml`.
+- The Caddy/runtime image defaults in `deploy/ansible/roles/autographs_deploy/defaults/main.yml`.
 
 Accepted current posture:
 
@@ -73,17 +73,17 @@ The scheduled Image Cleanup workflow failed in GitHub run `26355096380` because 
 Use this checklist for Renovate PRs:
 
 1. Read the Renovate release notes and package diff before merging.
-2. For npm or pnpm updates, run `corepack pnpm --filter app lint`, `corepack pnpm --filter app typecheck`, `corepack pnpm --filter app test`, and `corepack pnpm --filter app build`.
+2. For Rust/controller updates, run `cargo fmt --manifest-path controller/Cargo.toml --check`, `cargo test --manifest-path controller/Cargo.toml`, `cargo check --manifest-path controller/Cargo.toml --features production-persistence`, and `cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings`.
 3. For GitHub Actions updates, require the PR CI workflow checks to pass and inspect permission changes carefully.
 4. For Terraform provider or module updates, run `terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff` and `terraform -chdir=infra/terraform validate`; review any plan output before applying.
 5. For Docker or runtime image updates, confirm the controller image builds and review whether the deployed VM needs a manual smoke check.
-6. For Ansible collection or deployment-action updates, run Ansible syntax checks and prefer a manual deploy or data smoke check before treating the update as production-safe.
+6. For Ansible collection or deployment-action updates, run Ansible syntax/lint checks, including the security scan/apply playbooks when relevant, and prefer a manual deploy or live static publish smoke before treating the update as production-safe.
 
 Manual smoke review is required when an update touches deployment behavior, Terraform runtime resources, Ansible roles, static publishing behavior, Object Storage media delivery, or GHCR image publication/cleanup. The live static publish smoke remains the operator-facing live Oracle/Object Storage proof.
 
 ## Lifecycle Notes
 
-- Phase 5 must update this policy when the static publisher, Rust private controller, generated derivatives, and operator-bridge replacement add new dependencies or validation gates.
+- Phase 5 updated this policy for the static publisher, Rust private controller, generated derivatives, operator-bridge replacement, and production security patching surfaces.
 - Phase 6 must update this policy when polished admin authentication, edit history, media cleanup, and admin workflow ergonomics add new dependencies or validation gates.
 - Phase 7 must update this policy when OCR/AI providers, prompt tooling, model SDKs, or image/text extraction dependencies are introduced.
 - Major updates should stay separate and should not be merged only because automated checks pass.

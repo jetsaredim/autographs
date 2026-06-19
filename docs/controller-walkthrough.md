@@ -139,8 +139,9 @@ The runtime selects them with `AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and
 
 ## Database Migration
 
-[`app/db/migrations/002_static_runtime_foundation.sql`](../app/db/migrations/002_static_runtime_foundation.sql)
-prepares Oracle for later publishing:
+[`controller/db/schema.sql`](../controller/db/schema.sql) is the current
+controller-owned Oracle schema. It includes the static-runtime fields that were
+originally planned as a migration from the retired Next.js app schema:
 
 - Adds private `original_filename`
 - Adds publish-job status tracking

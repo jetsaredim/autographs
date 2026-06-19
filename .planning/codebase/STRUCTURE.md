@@ -1,97 +1,104 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-05-28
+**Analysis Date:** 2026-06-19
 
 ## Directory Layout
 
 ```text
 autographs/
-├── app/                         # Full-stack Next.js application package
-│   ├── app/                     # App Router pages, layouts, API routes, components
-│   ├── db/                      # SQL migrations and seed fixtures
-│   ├── scripts/                 # Migration, seed, and smoke scripts
-│   └── src/                     # Catalog, database, media, and test modules
-├── deploy/ansible/              # OCI runtime VM configuration and Podman quadlets
-├── docs/                        # Operator runbooks and configuration docs
-├── infra/terraform/             # OCI infrastructure as code
-├── .github/workflows/           # CI, deploy, data smoke, and image cleanup workflows
-├── renovate.json                # Conservative dependency automation policy
-├── .planning/                   # GSD project state, roadmap, phases, and codebase maps
-├── .prompts/                    # Original implementation prompt artifacts
-├── package.json                 # Root pnpm workspace commands
-└── pnpm-workspace.yaml          # Workspace definition
+├── controller/                    # Rust private controller and static publisher
+│   ├── db/                         # Oracle schema
+│   ├── fixtures/                   # Static/publisher fixtures
+│   ├── src/                        # Controller, catalog, media, publisher modules
+│   ├── static-admin/               # Minimal private admin shell
+│   ├── static-public/              # Generated/public static artifact templates/assets
+│   └── tests/                      # Rust integration and contract tests
+├── deploy/ansible/                 # OCI runtime VM configuration and maintenance roles
+│   ├── playbooks/                  # deploy, cleanup, security scan/patch playbooks
+│   └── roles/                      # deploy, cleanup, security_patching roles
+├── docs/                           # Operator runbooks and public project docs
+├── infra/terraform/                # OCI infrastructure as code
+├── .github/workflows/              # CI, deploy, cleanup, security patch workflows
+├── .planning/                      # GSD project state, roadmap, phases, codebase maps
+├── .prompts/                       # Original implementation prompt artifacts
+└── renovate.json                   # Conservative dependency automation policy
 ```
 
 ## Key File Locations
 
-**Application Entry Points**
-- `app/app/layout.tsx`: root metadata/layout.
-- `app/app/page.tsx`: public landing page.
-- `app/app/collection/page.tsx`: public collection grid and URL-backed filters.
-- `app/app/collection/[id]/page.tsx`: published item detail page.
-- `app/app/admin/page.tsx`: placeholder only; Phase 5 may replace this with a minimal static admin seed/publish shell, while Phase 6 owns the polished admin workflow.
+**Rust Controller and Publisher**
+- `controller/src/main.rs`: controller entry point.
+- `controller/src/routes.rs`: admin/API route wiring.
+- `controller/src/auth.rs`: single-admin/private access foundation.
+- `controller/src/catalog.rs`: catalog domain behavior.
+- `controller/src/oracle_catalog.rs`, `controller/src/oracle_schema.rs`:
+  production persistence adapter and schema handling.
+- `controller/src/media.rs`, `controller/src/oci_media.rs`: media abstraction
+  and OCI Object Storage implementation.
+- `controller/src/publisher.rs`, `controller/src/contracts.rs`,
+  `controller/src/derivatives.rs`: static artifact generation, validation,
+  derivative creation, and release behavior.
 
-**API Routes**
-- `app/app/api/catalog/`: public published-only catalog and app-mediated images.
-- `app/app/api/operator/catalog/`: temporary token-guarded operator mutation bridge.
-- `app/app/health/`: runtime health endpoints.
+**Static Assets**
+- `controller/static-public/`: public static release source/templates/assets.
+- `controller/static-admin/`: minimal admin shell.
+- `controller/fixtures/`: fixtures for static contract and publisher tests.
 
-**Domain Logic**
-- `app/src/catalog/`: catalog types, service, Oracle repository, public view models, tests.
-- `app/src/media/`: private media store abstraction and OCI/local implementations.
-- `app/src/db/`: Oracle connection/config/migration helpers.
+**Tests**
+- `controller/tests/auth_and_health.rs`
+- `controller/tests/caddy_static_routes.rs`
+- `controller/tests/live_persistence_smoke.rs`
+- `controller/tests/live_static_publish_smoke.rs`
+- `controller/tests/publisher.rs`
+- `controller/tests/seed_content.rs`
+- `controller/tests/static_admin.rs`
+- `controller/tests/static_contract.rs`
 
 **Infrastructure and Runtime**
-- `infra/terraform/`: OCI networking, compute, ADB, Object Storage, DNS, and supporting resources.
-- `infra/terraform/tenancy/`: tenancy-level/manual-bootstrap guidance and examples.
-- `deploy/ansible/`: VM runtime setup, app/Caddy quadlets, deployment roles.
-- `.github/workflows/`: repository validation, deployment, smoke, and cleanup workflows.
+- `infra/terraform/`: OCI runtime, DNS, database, media bucket, and supporting resources.
+- `infra/terraform/tenancy/`: tenancy-level bootstrap concerns.
+- `deploy/ansible/roles/autographs_deploy/`: controller/Caddy runtime deployment.
+- `deploy/ansible/roles/autographs_system_cleanup/`: runtime cleanup.
+- `deploy/ansible/roles/security_patching/`: production security update scanner/apply workflow.
 
 **Planning and Documentation**
-- `.planning/PROJECT.md`, `.planning/ROADMAP.md`, `.planning/REQUIREMENTS.md`, `.planning/STATE.md`: high-level GSD truth.
-- `.planning/phases/01-*`, `02-*`, `03-*`, `04-*`: completed phase plans/summaries.
+- `.planning/PROJECT.md`, `.planning/ROADMAP.md`, `.planning/REQUIREMENTS.md`,
+  `.planning/STATE.md`: high-level GSD truth.
+- `.planning/phases/05-static-runtime-migration-foundation/`: Phase 5 plans and summaries.
 - `.planning/codebase/*.md`: current codebase maps for future agents.
-- `README.md`: public showcase, status, architecture, local-development, operations, security, and human+AI/GSD framing.
-- `docs/`: operator-facing setup, deploy, DNS, Terraform, dependency-update, security-review, and temporary data-entry runbooks.
-- `docs/architecture.drawio` and `app/public/architecture-diagram.svg`: current public architecture diagram sources.
-
-## Test Organization
-
-- `app/src/**/*.test.ts`: Node test runner coverage for service logic, public view models, approved quote inventory, and public-surface privacy regressions.
-- Primary commands are run through pnpm workspace filters: `corepack pnpm --filter app test`, `lint`, `typecheck`, and `build`.
+- `README.md`: public showcase and current architecture overview.
+- `docs/`: operator-facing setup, deploy, DNS, Terraform, dependency-update,
+  security, static runtime, controller, and production patching runbooks.
 
 ## Where to Add New Code
 
-**Phase 5 Static Runtime Migration Foundation**
-- Treat the researched static-runtime direction as the next planned phase, not implemented architecture: static public catalog, static admin seed shell, and a thin private admin/publisher API.
-- Start with the public static artifact contract and publisher preview before replacing the current public Next.js runtime.
-- Include a minimal content seed path that can write representative metadata and a private original image into Oracle/Object Storage, so the publisher has real source data to generate.
-- Keep private OCI Object Storage identifiers, Oracle data, image UUIDs, and object URLs inside the OCI/runtime boundary; do not move catalog content generation into GitHub-hosted workflows.
-- Caddy and Ansible are likely retained, but Caddy would shift from reverse-proxying all public traffic to serving generated public files plus a private admin/API boundary.
-
 **Phase 6 Admin Workflow**
-- Build polished admin CRUD on top of the Phase 5 private seed/publisher/API foundation rather than direct expansion of `app/app/admin/`.
-- If the pivot is accepted, admin pages should become a static shell served by Caddy and privileged mutations should move behind a thin private API.
-- Reuse the existing catalog/media field model and public DTO contracts where practical, but avoid recreating the current dynamic public app under a different language runtime.
-- Edit history remains a Phase 6 requirement, but its storage/API shape should be decided with the static-runtime foundation in mind.
+- Extend `controller/static-admin/` and `controller/src/routes.rs` for polished
+  admin UX/API behavior.
+- Keep edit history, media cleanup, and publication controls in Rust/controller
+  boundaries rather than resurrecting the retired Next.js app.
+- Add persistence changes through `controller/db/schema.sql` and production
+  adapter tests where needed.
 
-**Public Gallery Changes**
-- Keep public DTOs in `app/src/catalog/public-view-models.ts`.
-- Keep public privacy regressions in `app/src/gallery/public-surface.test.ts`.
+**Public Static Output**
+- Update `controller/static-public/`, `controller/src/contracts.rs`, and
+  `controller/src/publisher.rs`.
+- Preserve public-safe output: no private object keys, bucket names,
+  namespaces, signed URLs, Oracle internals, image UUIDs, or unpublished data.
 
-**Infrastructure Changes**
-- Use `infra/terraform/` for app infrastructure and `infra/terraform/tenancy/` only for tenancy-level bootstrap concerns.
-- Keep runtime VM behavior in `deploy/ansible/` unless a Terraform resource boundary truly belongs in infrastructure.
+**Infrastructure and Operations**
+- Use `infra/terraform/` for OCI resources and `deploy/ansible/` for VM/runtime
+  behavior.
+- Use `deploy/ansible/roles/security_patching/` for production OS security
+  patching behavior and `docs/security-patching.md` for operator guidance.
 
 ## Current Layout Guidance
 
-- Do not re-scaffold the app, pnpm workspace, workflows, or Terraform baseline.
-- Treat `.prompts/001-autograph-gallery-bootstrap-do/` as historical product intent, not the current implementation map.
-- Treat Phase 4 as complete current-surface showcase and hardening work on top of the completed public/data/media foundation.
-- Treat Phase 5 as the static runtime migration foundation before full admin CRUD.
-- Treat Phase 6 as the full admin collection workflow on top of the private seed/publisher/API foundation.
-- Treat Phase 7 as advisory AI-assisted ingest.
+- Do not re-scaffold `app/`, pnpm workspace commands, or the retired Next.js runtime.
+- Treat `.prompts/001-autograph-gallery-bootstrap-do/` as historical product intent.
+- Treat Phase 5 static runtime/controller foundation as implemented.
+- Treat Phase 6 as polished admin workflow and Phase 7 as advisory AI ingest.
 
 ---
 
-*Structure analysis refreshed: 2026-05-28 after Phase 5 static-runtime context gathering*
+*Structure analysis refreshed: 2026-06-19 after Phase 5 static runtime implementation and PR 129 production security patching merge*
