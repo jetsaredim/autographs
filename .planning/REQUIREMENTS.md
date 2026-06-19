@@ -47,8 +47,8 @@
 - [x] **STATIC-03**: Published image derivatives are generated from private originals with sanitized filenames, stripped private metadata, and no leaked Object Storage URLs, UUIDs, namespaces, bucket names, or object keys.
 - [x] **STATIC-04**: Caddy can serve generated static output through a local/private candidate validation path before planned public cutover.
 - [x] **STATIC-05**: A static admin shell and thin private admin/publisher API foundation exist for health, private access enforcement, minimal content seeding into Oracle/Object Storage, and publish trigger/status behavior without implementing the full polished admin workflow yet.
-- [x] **STATIC-06**: Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, current data smoke path, and temporary operator bridge.
-- [ ] **STATIC-07**: The static publishing path can prove an end-to-end seeded content loop: submit minimal metadata and an image through the private admin/API boundary, persist them to Oracle/Object Storage, generate static output, and verify the generated public page and derivative image.
+- [x] **STATIC-06**: Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, current data smoke path, and temporary operator bridge; the current repo docs describe those paths as retired.
+- [ ] **STATIC-07**: The implemented static publishing path has a recorded live end-to-end proof: submit minimal metadata and an image through the private admin/API boundary, persist them to Oracle/Object Storage, generate static output, verify the generated public page and derivative image, and capture the Phase 5 closure summary.
 
 ### AI-Assisted Ingest
 

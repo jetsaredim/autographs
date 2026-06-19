@@ -37,13 +37,13 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 
 ## Context
 
-- The repository now contains a runnable OCI-hosted implementation with completed delivery-spine, data/media-core, public-gallery, and public-hardening phases; Phase 5 has delivered plans 05-01 through 05-06 and still needs the 05-07 live proof/cutover checkpoint before it closes.
+- The repository now contains a runnable OCI-hosted implementation with completed delivery-spine, data/media-core, public-gallery, and public-hardening phases; Phase 5 has delivered plans 05-01 through 05-06 and still needs the 05-07 live static publish proof and closure summary before it closes.
 - The deployed platform uses Oracle Cloud Infrastructure with an Always Free bias, including OCI Object Storage for private images and Oracle Autonomous Database Free for metadata.
 - GitHub remains the source of truth for delivery, with pull-request validation, GHCR image publishing, and automated deployment on merge to `main`.
 - Runtime deployment uses Podman quadlets managed through Ansible rather than compose-style orchestration.
 - Public image access now uses generated public-safe derivatives in the static release instead of direct Object Storage URLs or retired app-mediated image streaming routes.
 - Retired operator-only mutation routes remain blocked at the public Caddy edge; normal admin and publish operations use the Rust private controller under `/admin` and `/admin/api/*`.
-- Phase 5 plans 05-01 through 05-06 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, and runtime cutover shape. Phase 6 remains gated on the 05-07 live proof/cutover checkpoint and then focuses on polished collection-management ergonomics on that foundation.
+- Phase 5 plans 05-01 through 05-06 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, and runtime cutover shape. Phase 6 remains gated on the 05-07 live static publish proof and closure summary and then focuses on polished collection-management ergonomics on that foundation.
 - The intended product remains a personal collection site rather than a reusable platform, so roadmap choices continue to prioritize collection quality, manageability, and presentation over multi-user extensibility.
 
 ## Constraints

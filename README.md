@@ -101,4 +101,4 @@ See [Security review and current security posture](docs/security-review.md) for 
 
 This project is being built with a human+AI workflow using GSD: discussion, phase planning, execution plans, review, validation, and PR-based merge discipline. The point is not to hide the planning process; it is to make the repository legible as a real product lifecycle with constraints, tradeoffs, and follow-through.
 
-The current focus is closing Phase 5 with the 05-07 live static proof and cutover documentation checkpoint. Phase 6 polished admin workflow and Phase 7 AI-assisted ingest follow after that checkpoint.
+The current focus is closing Phase 5 with the 05-07 live static publish proof and closure summary. The Rust/static cutover and Next.js retirement are already implemented; Phase 6 polished admin workflow and Phase 7 AI-assisted ingest follow after the 05-07 proof is recorded.

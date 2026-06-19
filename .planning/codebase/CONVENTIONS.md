@@ -73,7 +73,8 @@
 ## Current Guidance
 
 - Phase 5 foundation is mostly implemented; do not rebuild finished 05-01
-  through 05-06 work, but keep 05-07 live proof/cutover documentation pending.
+  through 05-06 work, but keep 05-07 live static publish proof and closure
+  summary pending.
 - Phase 6 owns polished admin workflow, edit history, and media cleanup
   ergonomics after the 05-07 checkpoint passes.
 - Phase 7 owns advisory AI-assisted ingest.

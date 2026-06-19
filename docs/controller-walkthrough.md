@@ -6,8 +6,9 @@ catalog writes, private upload handling, static artifact contracts, validated
 publishing, a minimal browser admin shell, and a live OCI persistence smoke
 harness.
 
-It is the implemented controller foundation for Phase 5, but the final 05-07
-production live proof and cutover documentation still need to be recorded
+It is the implemented controller foundation for Phase 5, and the old Next.js
+runtime has been retired from the active repo/runtime path. The final 05-07
+work is to record the production live static publish proof and closure summary
 before closing the phase. Phase 6 will add the polished daily-use collection
 workflow on top of this foundation.
 
@@ -137,7 +138,8 @@ Production-persistence builds also include:
 
 The runtime selects them with `AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and
 `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-instance-principal`. The
-05-07 live proof validates the full path before public cutover.
+05-07 live static publish proof records that the deployed full path works after
+the Rust/static cutover.
 
 ## Database Migration
 
@@ -187,8 +189,8 @@ The local-mode publisher foundation is implemented. It now:
 - Exposes authenticated full, incremental, and status publish endpoints
 - Generates minimal static category and tag filtering
 
-The final live static proof and runtime cutover documentation remain separate
-05-07 work.
+The final recorded live static publish proof and phase closure summary remain
+separate 05-07 work.
 
 ## Static Admin Shell
 
@@ -231,4 +233,4 @@ cargo test --manifest-path controller/Cargo.toml \
 
 ## Remaining Phase 5 Work
 
-- `05-07`: Live static end-to-end proof and cutover documentation
+- `05-07`: Live static publish proof and Phase 5 closure summary

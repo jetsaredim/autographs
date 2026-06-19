@@ -263,13 +263,16 @@ If you only want to remove an item from the public collection without deleting i
 
 ## Verify Public Read Paths
 
-After a create, update, attach, or delete operation, verify through the public read path, not by inspecting Oracle or Object Storage directly:
+This section records the retired Node bridge verification path. The following
+catalog API curl is historical and should not be used for current production
+verification:
 
 ```bash
 curl -sS "${AUTOGRAPHS_OPERATOR_BASE_URL}/api/catalog/${AUTOGRAPH_ITEM_ID}" | jq .
 ```
 
-Then open the public pages through the deployed site:
+Current verification should publish through the Rust controller/publisher path,
+then open the generated public pages through the deployed static site:
 
 - `/collection`
 - `/collection/<item-id>`
@@ -293,10 +296,10 @@ Historically, deletes also went through the temporary operator API so metadata a
 
 ## Retirement Path
 
-Phase 5 replaces this bridge with the Rust private controller and minimal
-static admin seed/publish path after the live static publish smoke and public
-hostname checks pass. At retirement, Caddy must continue returning `404` for
-`/api/operator/*`; normal seed and publish operations move to `/admin` and
-`/admin/api/*`. The production deploy now removes the Next.js container runtime.
-Phase 6 turns the Rust foundation into the polished single-admin collection
-workflow.
+Phase 5 has replaced this bridge with the Rust private controller and minimal
+static admin seed/publish path. Caddy must continue returning `404` for
+`/api/operator/*`; normal seed and publish operations use `/admin` and
+`/admin/api/*`. The production deploy removes the Next.js container runtime.
+The remaining 05-07 checkpoint is to run and record the live static publish
+proof, public hostname checks, and phase summary before Phase 6 turns the Rust
+foundation into the polished single-admin collection workflow.

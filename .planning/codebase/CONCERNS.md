@@ -8,7 +8,7 @@
 - Issue: Several GSD maps still described the retired Next.js runtime and Phase
   5 as future work after the Rust/static implementation had landed.
 - Impact: Future work could accidentally recreate removed app surfaces or close
-  Phase 5 before the 05-07 live proof/cutover checkpoint is recorded.
+  Phase 5 before the 05-07 live static publish proof and closure summary are recorded.
 - Mitigation: This reconciliation refreshes the planning maps and high-level
   state. Keep `.planning/codebase/*` updated after major implementation shifts.
 
@@ -72,7 +72,7 @@
    static runtime.
 2. Keep README, public readiness, dependency update, security, and patching docs
    aligned with the Rust/static runtime.
-3. Complete 05-07 live static proof/cutover documentation before Phase 6 planning.
+3. Complete 05-07 live static publish proof and closure summary before Phase 6 planning.
 4. Re-run codebase mapping after major Phase 6/7 implementation shifts.
 
 ---

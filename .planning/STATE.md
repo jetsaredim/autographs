@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Awaiting Phase 5 05-07 live proof and cutover documentation
+stopped_at: Awaiting Phase 5 05-07 live static publish proof and closure summary
 last_updated: "2026-06-19T08:41:42Z"
 last_activity: 2026-06-19
 progress:
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 05 — final live static proof and cutover documentation
+**Current focus:** Phase 05 — final live static publish proof and closure summary
 
 ## Current Position
 
 Phase: 05 (static-runtime-migration-foundation) — FINAL CHECKPOINT PENDING
 Plan: 05-07
-Status: Plans 05-01 through 05-06 complete; implementation foundation present; live proof/cutover documentation pending
+Status: Plans 05-01 through 05-06 complete; Rust/static cutover implemented; live static publish proof and closure summary pending
 Last activity: 2026-06-19
 
 Progress: [███████░░░] 69% overall; Phase 5 final live proof pending
@@ -89,9 +89,9 @@ Recent decisions affecting current work:
 - Planning guidance: Formally plan Phase 5 to prove the static publishing contract, Rust private controller, minimal static admin seed/publish path, and local/private Caddy candidate validation before Phase 6 admin polish.
 - Phase 5 publisher: Generate static candidates and sanitized WebP derivatives locally, validate the full public inventory and privacy boundary, then atomically promote the `current` symlink.
 - Phase 5 static admin: Keep the minimal browser shell framework-free and browser-storage-free, backed by the HTTP-only cookie and same-origin `/admin/api/*` calls.
-- Phase 5 deployment: Keep the public hostname on Next.js until the explicit live cutover checkpoint; stage localhost-only generated-release preview and private `/admin/api/*` controller routing first.
+- Phase 5 deployment: The public hostname now serves the Rust/static runtime through Caddy; keep the localhost generated-release preview and private `/admin/api/*` controller route documented for live proof and diagnostics.
 - Phase 5 controller persistence: Use native OCI instance-principal request signing for Object Storage access from the runtime instance. A dev-node binary smoke on 2026-06-14 proved non-UTF-8 media bytes can be PUT, read back, and deleted from `autographs-media-prod` with instance principals; do not revive the OCI S3 Customer Secret path for controller media.
-- Phase 5 implementation reconciliation: The active code/docs foundation is Caddy-served generated static output plus the Rust private controller; the old Next.js app/runtime has been retired from current implementation docs, but 05-07 live proof and cutover documentation are still pending.
+- Phase 5 implementation reconciliation: The active code/docs foundation is Caddy-served generated static output plus the Rust private controller; the old Next.js app/runtime has been retired from current implementation docs, but 05-07 still needs a recorded live static publish proof and closure summary.
 - Production security patching: PR 129 added weekly/manual security update scans, scanner issue create/update behavior, allowlisted label approval, drift-checked apply, result/failure comments, and operator runbook coverage.
 
 ### Pending Todos
@@ -102,7 +102,7 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- Phase 5 needs final 05-07 live static proof and cutover documentation before Phase 6 planning starts.
+- Phase 5 needs final 05-07 live static publish proof and closure summary before Phase 6 planning starts.
 - Phase 6 needs formal planning for polished admin collection workflow, edit history, media cleanup ergonomics, and admin hardening on top of the implemented Rust/static foundation after the 05-07 checkpoint passes.
 - Phase 7 remains advisory AI-assisted ingest after manual admin workflows exist.
 - Keep production security patching action pins, approval allowlist, and Ansible role behavior reviewed with deploy/runtime changes.
@@ -114,7 +114,7 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-06-19T08:41:42Z
-Stopped at: Awaiting Phase 5 05-07 live proof and cutover documentation
+Stopped at: Awaiting Phase 5 05-07 live static publish proof and closure summary
 Resume file: .planning/ROADMAP.md
 
 ## Quick Tasks Completed
@@ -132,4 +132,4 @@ Resume file: .planning/ROADMAP.md
 | 2026-06-11 | remove-obsolete-runtime-vault-s3-credent | Removed runtime Terraform Vault/KMS/secret resources that are no longer needed for the instance-principal Object Storage direction. |
 | 2026-06-12 | tighten-tenancy-iam-for-instance-princip | Replaced the admin-runtime/Vault IAM path with runtime dynamic-group media object access and state-bucket-scoped deploy object access. |
 | 2026-06-13 | remove-obsolete-tenancy-split-doc | Removed the historical Terraform tenancy split migration runbook from active operator docs. |
-| 2026-06-19 | reconcile-current-state-docs | Reconciled GSD and operator docs with the implemented Rust/static runtime foundation and production security patching workflow; follow-up review kept Phase 5 05-07 live proof pending. |
+| 2026-06-19 | reconcile-current-state-docs | Reconciled GSD and operator docs with the implemented Rust/static runtime foundation and production security patching workflow; follow-up review kept Phase 5 05-07 live static publish proof and closure summary pending. |
