@@ -37,13 +37,13 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 
 ## Context
 
-- The repository now contains a runnable OCI-hosted implementation with completed delivery-spine, data/media-core, public-gallery, public-hardening, and static runtime foundation phases.
+- The repository now contains a runnable OCI-hosted implementation with completed delivery-spine, data/media-core, public-gallery, and public-hardening phases; Phase 5 has delivered plans 05-01 through 05-06 and still needs the 05-07 live proof/cutover checkpoint before it closes.
 - The deployed platform uses Oracle Cloud Infrastructure with an Always Free bias, including OCI Object Storage for private images and Oracle Autonomous Database Free for metadata.
 - GitHub remains the source of truth for delivery, with pull-request validation, GHCR image publishing, and automated deployment on merge to `main`.
 - Runtime deployment uses Podman quadlets managed through Ansible rather than compose-style orchestration.
 - Public image access now uses generated public-safe derivatives in the static release instead of direct Object Storage URLs or retired app-mediated image streaming routes.
 - Retired operator-only mutation routes remain blocked at the public Caddy edge; normal admin and publish operations use the Rust private controller under `/admin` and `/admin/api/*`.
-- Phase 5 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, and runtime cutover shape. Phase 6 now focuses on polished collection-management ergonomics on that foundation.
+- Phase 5 plans 05-01 through 05-06 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, and runtime cutover shape. Phase 6 remains gated on the 05-07 live proof/cutover checkpoint and then focuses on polished collection-management ergonomics on that foundation.
 - The intended product remains a personal collection site rather than a reusable platform, so roadmap choices continue to prioritize collection quality, manageability, and presentation over multi-user extensibility.
 
 ## Constraints
@@ -51,7 +51,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - **Tech stack**: Use generated static public artifacts plus one Rust private controller for v1 — keeps implementation and operations simpler than a public split-service platform.
 - **Cloud**: Prefer OCI Always Free services wherever feasible — the product should be realistic for a fresh low-cost tenancy.
 - **Database**: Prefer Oracle Autonomous Database Free — the prompt explicitly selects it unless implementation friction forces a justified fallback.
-- **Storage**: Keep autograph images private in OCI Object Storage — access should be centralized through the app rather than direct public buckets.
+- **Storage**: Keep autograph originals private in OCI Object Storage — public access should use generated safe derivatives in static releases, with private originals mediated by the Rust controller/publisher boundary rather than direct public buckets.
 - **Delivery**: Auto-deploy from GitHub Actions on merge to `main` — CI/CD is part of project bootstrap, not optional polish.
 - **Operations**: One developer should be able to understand and run the system — avoid enterprise sprawl and multi-service complexity.
 - **Scope**: v1 must stay narrow — no staging environment, no bulk import, no public accounts, and no advanced search platform, but multi-image items and edit history are in scope because they matter directly for managing a personal collection well.
