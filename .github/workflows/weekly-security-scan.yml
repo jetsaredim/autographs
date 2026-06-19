@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Run security scan playbook
-        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474
+        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
           GH_TOKEN: ${{ github.token }}
