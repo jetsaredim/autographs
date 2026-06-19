@@ -84,7 +84,7 @@ Recent decisions affecting current work:
 - Phase 6: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
 - Phase 7: Add advisory AI-assisted ingest after the admin workflow exists, without making manual entry dependent on AI.
 - Review follow-up: Phase 6 and Phase 7 now carry explicit security/documentation completion criteria for the new admin and AI surfaces they introduce.
-- Pivot research: The current live Next.js public runtime and data-smoke path may be replaced by a static public catalog, static admin shell, and thin private admin/publisher API that generates content inside the OCI boundary.
+- Pivot outcome: The former live Next.js public runtime and data-smoke path were replaced by the static public catalog, static admin shell, and thin private admin/publisher API that generate content inside the OCI boundary.
 - Static-runtime boundary: GitHub Actions should build and deploy code artifacts only; catalog content generation should not expose private OCI object identifiers, URLs, Oracle data, or image UUIDs through GitHub-hosted workflows.
 - Planning guidance: Formally plan Phase 5 to prove the static publishing contract, Rust private controller, minimal static admin seed/publish path, and local/private Caddy candidate validation before Phase 6 admin polish.
 - Phase 5 publisher: Generate static candidates and sanitized WebP derivatives locally, validate the full public inventory and privacy boundary, then atomically promote the `current` symlink.

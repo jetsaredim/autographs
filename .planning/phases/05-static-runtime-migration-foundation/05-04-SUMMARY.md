@@ -30,7 +30,7 @@ key-decisions:
 patterns-established:
   - "Publisher validation checks required pages, JSON parsing, referenced derivatives, manifest inventory, WebP type, byte accounting, generic denied terms, and private source identifiers."
   - "Publish status returns release ID, artifact count, byte total, timestamps, and redacted failure text."
-requirements-completed: [STATIC-02, STATIC-03, STATIC-04, STATIC-07]
+requirements-completed: [STATIC-02, STATIC-03, STATIC-04]
 duration: 35m
 completed: 2026-06-02
 ---
