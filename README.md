@@ -53,8 +53,9 @@ Useful docs:
 - [Configuration contract](docs/configuration-contract.md)
 - [Deployment runbook](docs/deployment-runbook.md)
 - [Temporary production data entry](docs/temporary-production-data-entry.md)
-- [Security review](docs/security-review.md)
+- [Security review and current security posture](docs/security-review.md)
 - [Dependency updates](docs/dependency-updates.md)
+- [Production security patching](docs/security-patching.md)
 
 ## Local Development
 
@@ -86,6 +87,7 @@ Operational checks:
 - Deploy runs on pushes to `main` and can be manually dispatched.
 - Live static publish smoke in the static runtime runbook proves Oracle, private media, generated artifacts, and Caddy static serving against real credentials.
 - Image Cleanup is scheduled and manual; it prunes old GHCR and VM-local controller images while preserving protected/current images.
+- Weekly Security Scan opens or updates managed production security update issues; applying `approved-production-update` triggers the guarded Ansible patch workflow for allowlisted operators.
 
 ## Security And Privacy
 
@@ -93,10 +95,10 @@ The public gallery is intentionally read-only. Static catalog JSON and generated
 
 Retired operator APIs remain blocked at the public Caddy edge. Admin and publish operations use the Rust private controller through `/admin` and `/admin/api/*`.
 
-See [Security review](docs/security-review.md) for the current fixed, accepted, and deferred findings.
+See [Security review and current security posture](docs/security-review.md) for the current Rust/static runtime posture, historical Phase 4 findings, and follow-up boundaries.
 
 ## Human + AI / GSD
 
 This project is being built with a human+AI workflow using GSD: discussion, phase planning, execution plans, review, validation, and PR-based merge discipline. The point is not to hide the planning process; it is to make the repository legible as a real product lifecycle with constraints, tradeoffs, and follow-through.
 
-The current focus is expanding the static Rust/controller runtime into the polished Phase 6 admin workflow and Phase 7 AI-assisted ingest.
+The current focus is closing Phase 5 with the 05-07 live static publish proof and closure summary. The Rust/static cutover and Next.js retirement are already implemented; Phase 6 polished admin workflow and Phase 7 AI-assisted ingest follow after the 05-07 proof is recorded.

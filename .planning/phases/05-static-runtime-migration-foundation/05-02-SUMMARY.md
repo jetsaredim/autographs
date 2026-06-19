@@ -31,7 +31,7 @@ key-decisions:
 patterns-established:
   - "Controller health responses expose readiness booleans only, never secret or OCI/Oracle values."
   - "Browser admin access uses HttpOnly SameSite=Strict cookies with Secure enabled by default."
-requirements-completed: [STATIC-02, STATIC-05, STATIC-07]
+requirements-completed: [STATIC-02, STATIC-05]
 duration: 12 min
 completed: 2026-06-01
 ---

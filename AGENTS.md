@@ -3,16 +3,16 @@
 
 **Autographs**
 
-Autographs is a production-lean personal autograph collection website where you can publish your own signed memorabilia for anonymous public browsing. The first release pairs a single self-hosted `Next.js` application with private OCI Object Storage for images and Oracle Autonomous Database Free for metadata, while also establishing the OCI bootstrap, CI/CD, and operator guidance needed to run the collection as a real, durable personal project.
+Autographs is a production-lean personal autograph collection website where you can publish your own signed memorabilia for anonymous public browsing. The current implementation serves a generated static public catalog through Caddy and uses a Rust private controller for admin health, seed/publish operations, Oracle metadata access, private OCI Object Storage media access, generated derivatives, and static release publishing on OCI infrastructure managed through Terraform, GitHub Actions, Ansible, and Podman quadlets.
 
 **Core Value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
 
 ### Constraints
 
-- **Tech stack**: Use a single `Next.js` full-stack application for v1 — keeps implementation and operations simpler than a split-service design.
+- **Tech stack**: Use generated static public artifacts plus one Rust private controller for v1 — keeps implementation and operations simpler than a public split-service platform.
 - **Cloud**: Prefer OCI Always Free services wherever feasible — the product should be realistic for a fresh low-cost tenancy.
 - **Database**: Prefer Oracle Autonomous Database Free — the prompt explicitly selects it unless implementation friction forces a justified fallback.
-- **Storage**: Keep autograph images private in OCI Object Storage — access should be centralized through the app rather than direct public buckets.
+- **Storage**: Keep autograph originals private in OCI Object Storage — public access should use generated public-safe derivatives rather than direct public buckets.
 - **Delivery**: Auto-deploy from GitHub Actions on merge to `main` — CI/CD is part of project bootstrap, not optional polish.
 - **Operations**: One developer should be able to understand and run the system — avoid enterprise sprawl and multi-service complexity.
 - **Scope**: v1 must stay narrow — no staging environment, no bulk import, no public accounts, and no advanced search platform, but multi-image items and edit history are in scope because they matter directly for managing a personal collection well.
@@ -23,46 +23,44 @@ Autographs is a production-lean personal autograph collection website where you 
 ## Technology Stack
 
 ## Languages
-- TypeScript for the `Next.js` application, service layer, scripts, and tests.
+- Rust for the private controller, static publisher, persistence adapters, media handling, routes, and tests.
 - Markdown for planning, operator runbooks, and repository documentation.
 - HCL for Terraform infrastructure.
 - YAML for GitHub Actions and Ansible deployment automation.
-- Shell scripts for deployment and validation helpers.
-- CSS for global application styling.
+- HTML, CSS, and JavaScript for generated/static public and admin surfaces.
+- Jinja templates for Ansible-managed runtime files and security patching issue/comment bodies.
 ## Runtime
-- Single full-stack `Next.js` application under `app/`.
-- Node.js runtime managed through Corepack and pnpm.
-- Containerized app image published through GitHub/GHCR and deployed to OCI.
-- App package commands are executed with `corepack pnpm --filter app ...`.
+- Public runtime: Caddy serves generated static releases.
+- Private runtime: Rust controller container runs admin/API and publishing behavior behind Caddy/private routes.
+- Containerized controller image published through GitHub/GHCR and deployed to OCI.
 ## Frameworks
-- `Next.js` App Router for public pages and API routes.
-- React components for the public gallery, detail pages, image viewer, and supporting UI.
-- Oracle-backed catalog service with app-mediated private media delivery.
+- Rust controller and static publisher under `controller/`.
+- Static public and admin assets under `controller/static-public/` and `controller/static-admin/`.
+- Oracle-backed catalog service with generated public-safe static output.
 - Terraform under `infra/terraform/` for OCI baseline resources and state guidance.
-- GitHub Actions for PR validation, image build/publish, deployment, and data smoke workflows.
+- GitHub Actions for PR validation, image build/publish, deployment, image cleanup, and production security patching workflows.
 - Ansible under `deploy/ansible/` for VM runtime configuration.
-- Podman quadlets for long-lived app and Caddy containers on the runtime VM.
+- Podman quadlets for long-lived controller and Caddy containers on the runtime VM.
 ## Key Dependencies
 - Oracle Autonomous Database Free for catalog metadata.
 - OCI Object Storage for private autograph media.
-- Local filesystem media mode for local/CI smoke paths without live OCI credentials.
-- Caddy as the public HTTP(S) edge in front of the app container.
+- Local/mock media and catalog modes for local/CI paths without live OCI credentials.
+- Caddy as the public HTTP(S) edge and static-file server in front of private controller routes.
 - Podman as the container runtime on the OCI VM.
 - GHCR as the container image registry.
 ## Configuration
 - `.env.example` documents local/runtime variables.
 - `.github/.env.github.example` documents GitHub Actions environment/secret expectations.
 - `docs/configuration-contract.md` documents the committed configuration and secret contract.
-- Ansible renders the deployed app environment file from `deploy/ansible/roles/autographs_deploy/templates/app.env.j2`.
-- Secrets such as Oracle DB password, wallet material, OCI private key, OCI identifiers, GHCR token, and operator token must be supplied through GitHub/environment/operator secret stores.
+- Ansible renders deployed controller/Caddy runtime files from `deploy/ansible/roles/autographs_deploy/`.
+- Secrets such as Oracle DB password, wallet material, OCI private key, OCI identifiers, GHCR token, deploy SSH key, and operator/admin tokens must be supplied through GitHub/environment/operator secret stores.
 ## Platform Requirements
-- Development uses Node.js/Corepack/pnpm for app work and Terraform CLI for infrastructure work.
-- Production targets OCI tenancy resources, Oracle Autonomous Database Free, private OCI Object Storage, and an OCI VM runtime capable of Podman, Caddy, the app container, and configured swap.
+- Development uses Rust/Cargo for controller work plus Terraform and Ansible for infrastructure/runtime validation.
+- Production targets OCI tenancy resources, Oracle Autonomous Database Free, private OCI Object Storage, and an OCI VM runtime capable of Podman, Caddy, the controller container, and configured swap.
 ## Project Maturity
-- Phases 1-4 are complete: delivery spine, OCI bootstrap, Oracle/private media core, public gallery MVP, and public showcase/hardening.
-- Phase 5 context is gathered and needs formal GSD phase planning for the static runtime migration foundation.
-- The repository is no longer planning-only; it contains application, infrastructure, deployment, testing, and operator documentation artifacts.
-- Do not re-scaffold the app or infra. Phase 5 should prove the static public runtime, Rust private controller, minimal static admin seed/publish path, and operator-bridge replacement. Phase 6 owns polished admin workflow; Phase 7 owns advisory AI-assisted ingest.
+- Phase 5 plans 05-01 through 05-06 are done, and the static runtime migration foundation is implemented in code/docs; 05-07 live static publish proof and closure summary remain pending before closing the phase.
+- The repository is no longer planning-only; it contains Rust/controller, static public/admin, infrastructure, deployment, maintenance, testing, and operator documentation artifacts.
+- Do not re-scaffold the retired Next.js app or infra. Phase 6 owns polished admin workflow after the Phase 5 05-07 proof/closure checkpoint; Phase 7 owns advisory AI-assisted ingest.
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
@@ -72,42 +70,40 @@ Autographs is a production-lean personal autograph collection website where you 
 - Phase directories use zero-padded numeric prefixes plus kebab-case slugs, for example `.planning/phases/03-public-gallery-mvp/`.
 - Phase plan and summary files use `{phase}-{plan}-PLAN.md` and `{phase}-{plan}-SUMMARY.md`.
 - Codebase map docs use uppercase concern names in `.planning/codebase/`.
-- Next.js route files follow App Router conventions: `page.tsx`, `layout.tsx`, `route.ts`, `not-found.tsx`.
-- React components use PascalCase filenames under `app/app/components/`.
-- Domain modules use descriptive TypeScript names under `app/src/`, for example `public-view-models.ts`, `repository.ts`, and `service.ts`.
-- Tests live beside related source modules as `*.test.ts`.
-- Prefer established domain terms: autograph item, signer, category, tags, primary image, supporting images, publication status, operator bridge, admin workflow, and edit history.
+- Rust modules under `controller/src/` use descriptive snake_case names.
+- Integration tests live under `controller/tests/`.
+- Static public/admin assets live under `controller/static-public/` and `controller/static-admin/`.
+- Prefer established domain terms: autograph item, signer, category, tags, primary image, supporting images, publication status, static release, candidate release, generated derivative, private original, admin shell, publisher, controller, edit history, and security patching issue.
 ## Code Style
-- TypeScript is the implementation language for app, service, scripts, and tests.
-- The app uses native CSS in `app/app/globals.css`; Phase 3 explicitly avoided Tailwind, shadcn, decorative gradients, and icon libraries.
-- Use existing service/repository/media boundaries rather than placing persistence details directly in route components.
-- Keep public DTOs free of private storage identifiers.
-- Keep admin/operator terminology precise: current operator APIs are temporary, token-guarded, and blocked by the public Caddy route; Phase 5 owns the Rust private controller and minimal static admin seed/publish path, while Phase 6 owns polished admin UX.
+- Rust is the active implementation language for runtime behavior.
+- Use plain static HTML/CSS/JavaScript for minimal admin/public static surfaces unless a later phase intentionally changes that constraint.
+- Keep public static artifacts free of private storage identifiers and unpublished records.
+- Keep persistence/media details in controller adapters and service modules, not scattered through route handlers or static assets.
+- Keep Ansible playbooks thin and put reusable behavior in roles.
 ## Import Organization
-- Prefer relative imports within the app package unless a local alias is introduced intentionally.
-- Use type-only imports for TypeScript-only contracts where possible.
-- Keep framework route/page files thin and delegate behavior to `app/src/*` modules.
+- Keep Rust module organization explicit and close to the controller/publisher domain.
+- Keep static assets decoupled from production secrets and private source identifiers.
 ## Error Handling
-- Public routes should avoid leaking internal storage, OCI, or database details.
-- Operator routes may return operational errors, but must remain token-guarded and accessible only through the documented tunnel/procedure until Phase 5 replaces or retires them.
-- Service-layer methods throw explicit not-found errors for missing catalog items/images; API routes translate expected not-found cases to HTTP responses.
+- Public static output should fail closed during generation/validation rather than publish incomplete or privacy-leaking artifacts.
+- Controller routes should avoid leaking internal OCI, Oracle, or filesystem details.
+- Security patching apply runs must refuse drifted package sets and remove stale approval labels on failure.
 ## Logging
 - No project-specific logging abstraction exists yet.
-- Runtime and deploy diagnostics currently rely on Next.js, Podman, Caddy, GitHub Actions, and Ansible logs.
+- Runtime and deploy diagnostics currently rely on Rust controller, Podman, Caddy, GitHub Actions, and Ansible logs.
 ## Comments
 - Add comments only where a non-obvious operational or domain boundary needs context.
-- Prefer self-explanatory TypeScript names and existing service/repository/media separation over explanatory comments for ordinary flow.
+- Prefer self-explanatory Rust names and existing controller/repository/media separation over explanatory comments for ordinary flow.
 ## Testing Habits
-- Use Node's built-in test runner through `node --import tsx --test src/**/*.test.ts`.
-- Keep privacy regression tests mandatory for public-surface changes.
-- Prefer service/view-model tests for behavior that can be validated without live OCI credentials.
-- Use live data smoke workflows only for real ADB/Object Storage verification.
+- Use Cargo checks for current runtime code: `cargo fmt`, `cargo test`, `cargo check --features production-persistence`, and `cargo clippy`.
+- Keep static contract/privacy tests mandatory for public artifact changes.
+- Run Ansible syntax/lint checks for deployment, cleanup, and security patching changes.
+- Use live smoke workflows/runbooks only for real Oracle/Object Storage verification.
 ## Documentation Habits
 - Distinguish current implementation from planned/future phases.
-- Keep operator docs procedural and explicit about manual prerequisites, secret handling, and tunnel-only temporary routes.
+- Keep operator docs procedural and explicit about manual prerequisites, secret handling, approval labels, and live-smoke requirements.
 - Update `.planning/codebase/*` after substantial codebase drift so future agents do not resurrect planning-only assumptions.
 ## Current Guidance
-- Phase 5 should prove the static runtime migration foundation with a Rust private controller, minimal static admin seed/publish path, generated public artifacts, and operator-bridge retirement. Phase 6 should add the polished admin collection workflow, edit history, and media cleanup ergonomics on that foundation. Phase 7 should add advisory AI-assisted ingest.
+- Phase 5 foundation is mostly implemented; do not rebuild finished 05-01 through 05-06 work, and treat the Rust/static cutover and Next.js retirement as already implemented. Keep 05-07 live static publish proof and closure summary pending. Phase 6 should add the polished admin collection workflow, edit history, and media cleanup ergonomics on that foundation after the 05-07 checkpoint passes. Phase 7 should add advisory AI-assisted ingest.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage URLs, or a split frontend/backend service architecture for v1.
 <!-- GSD:conventions-end -->
 
@@ -115,43 +111,38 @@ Autographs is a production-lean personal autograph collection website where you 
 ## Architecture
 
 ## Pattern Overview
-- Autographs is an implemented single-application system, not a planning-only repository.
-- The current architecture is a full-stack `Next.js` App Router application under `app/`, backed by Oracle Autonomous Database for catalog metadata and private OCI Object Storage for autograph images.
-- Public visitors browse only published items.
-- Temporary operator-only mutation routes remain token-guarded and blocked at the public Caddy edge until Phase 5 replaces or retires them with the Rust private controller and minimal static admin seed/publish path.
+- Autographs is a static-public, Rust-controller system, not a planning-only repository.
+- The former active Next.js runtime has been retired from the repository; public behavior lives in generated static artifacts under `controller/static-public/`, and private operator/admin behavior lives in the Rust controller under `controller/`.
+- Caddy serves the generated static release, blocks retired operator routes, and routes private `/admin` and `/admin/api/*` traffic to the controller/admin surfaces.
 ## Layers
-- Public web layer: `app/app/` contains anonymous landing, collection, detail, image viewer, architecture, not-found, and shared component surfaces.
-- Public API layer: `app/app/api/catalog/` provides published-only catalog list/detail access and app-mediated image delivery.
-- Temporary operator API layer: `app/app/api/operator/catalog/` provides transitional token-guarded create, update, image attach, image delete, and item delete workflows for production data entry before the Phase 5 static-runtime/private-controller foundation. It is not the v1 admin UX.
-- Catalog service layer: `app/src/catalog/` contains domain types, Oracle repository, catalog service orchestration, public-safe view models, and tests.
-- Media layer: `app/src/media/` abstracts OCI Object Storage and local filesystem-backed media modes.
-- Database layer: `app/src/db/`, `app/db/migrations/`, and `app/scripts/` handle Oracle configuration, schema, migrations, seed data, and data smoke helpers.
-- Infrastructure and delivery layer: `infra/terraform/`, `deploy/ansible/`, and `.github/workflows/` provide OCI infrastructure, runtime VM configuration, Podman quadlets, PR validation, image publishing, deploy, data smoke, and image cleanup.
+- Static public layer: `controller/static-public/` contains generated public HTML, JSON, assets, templates, and public-safe media paths.
+- Static admin shell: `controller/static-admin/` contains the minimal private admin seed/publish shell.
+- Rust controller: `controller/src/` contains private admin/API routes, auth, catalog/media adapters, static publishing, derivative generation, and release promotion.
+- Database layer: `controller/db/schema.sql` contains the Oracle schema used by the Rust controller.
+- Infrastructure, delivery, and maintenance layer: `infra/terraform/`, `deploy/ansible/`, and `.github/workflows/` provide OCI infrastructure, runtime VM configuration, Podman quadlets, PR validation, image publishing, deploy, image cleanup, and production security patching.
 - Planning and operator documentation: `.planning/`, `docs/`, and `.prompts/` hold GSD state, roadmap, phase artifacts, codebase intelligence, bootstrap/runbook docs, and original product prompt.
 ## Data Flow
-- Anonymous visitors request `/`, `/collection`, or `/collection/{id}`.
-- Public pages call the catalog service, which lists/reads only `published` records by default.
-- Public view models convert private catalog records into public-safe DTOs and route image access through `/api/catalog/{itemId}/images/{imageId}`.
-- Image API routes resolve the published item and stream bytes from the configured private media store without exposing Object Storage URLs or object identifiers in the public UI.
-- Temporary operator API calls use `AUTOGRAPHS_OPERATOR_API_TOKEN`, then create/update Oracle rows and upload/delete private media through the same service layer. Production operator use goes through the documented SSH tunnel path because public Caddy blocks `/api/operator/*`.
-- GitHub Actions validates changes and deploys the containerized app/runtime changes to OCI on the documented path.
+- Anonymous visitors request the public site through Caddy and receive generated static HTML, public-safe JSON, assets, and generated media derivatives.
+- Operators use the private admin shell and `/admin/api/*` controller routes for health, minimal seed, and publish operations.
+- The controller reads and writes Oracle catalog metadata and private OCI Object Storage media.
+- The publisher generates candidate static output inside the runtime/OCI boundary, validates privacy and completeness, then promotes the release.
+- GitHub Actions validates changes, builds/publishes the controller image, deploys runtime changes, and runs production maintenance workflows.
 ## Key Abstractions
-- `CatalogService`: Coordinates metadata and media operations.
-- `CatalogRepository`: Persists catalog records, tags, and image metadata through Oracle.
-- `PrivateMediaStore`: Abstracts OCI Object Storage and local media modes.
-- Public view models: Strip private storage fields and build app-mediated image routes.
-- Operator API bridge: Temporary mutation surface used until Phase 5 replaces or retires it with the Rust private controller and minimal static admin seed/publish path.
+- Rust controller routes: private admin/API boundary.
+- Static artifact contracts: public-safe gallery/detail/search/facet data and publish manifests.
+- Publisher: candidate generation, validation, derivative creation, and release promotion.
+- Oracle catalog adapter: metadata persistence for production.
+- OCI media adapter: private original media access.
+- Security patching role: scan, issue rendering, approval validation, patching, result reporting, and failure cleanup.
 ## Current Phase Boundary
-- Phases 1-4 are complete.
-- Phase 5 context is gathered and needs formal GSD phase planning before implementation.
-- Phase 5 should prove the static runtime migration foundation: static public artifacts, a Rust private controller, minimal static admin seed/publish path, generated derivatives, and operator-bridge replacement or retirement.
-- Phase 6 should build the polished admin collection workflow on that foundation.
+- Phase 5 plans 05-01 through 05-06 are done, and the Rust/static foundation is present; 05-07 live static publish proof and closure summary remain pending before closing the phase.
+- Phase 6 should build the polished admin collection workflow on the Rust/static foundation after the 05-07 checkpoint.
 - Phase 7 should add advisory AI-assisted ingest.
-- Do not re-scaffold the application or replace the delivery spine.
+- Do not re-scaffold the retired Next.js app or replace the delivery spine.
 ## Notable Absences
-- Phase 5 Rust private controller, static publisher, and minimal static admin seed/publish path are not implemented yet.
 - Polished Phase 6 admin collection workflow is not implemented yet.
 - Edit history persistence/rendering is not implemented yet.
+- Full media replacement/orphan cleanup ergonomics are not implemented yet.
 - AI-assisted metadata suggestions are not implemented yet.
 <!-- GSD:architecture-end -->
 

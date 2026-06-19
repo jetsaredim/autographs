@@ -16,8 +16,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Oracle and Private Media Core** - Prove the database and object-storage seams that every collection record depends on. Implementation complete; live Oracle/Object Storage smoke path documented for operator execution with real credentials.
 - [x] **Phase 3: Public Gallery MVP** - Deliver anonymous browse, filter, and detail views for published autograph items. Complete; anonymous public gallery, filters, detail pages, image viewer, quote states, and privacy gates are implemented.
 - [x] **Phase 4: Public Showcase and Hardening** - Tie up loose ends, audit the current security posture, polish documentation, and prepare the current repository state to be public as a human+AI showcase. (completed 2026-05-25)
-- [ ] **Phase 5: Static Runtime Migration Foundation** - Prove a static public catalog and minimal private seed/publish path inside the OCI boundary, validated privately through Caddy before planned cutover from the public Next.js runtime.
-- [ ] **Phase 6: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop on top of the private publisher foundation.
+- [ ] **Phase 5: Static Runtime Migration Foundation** - Plans 05-01 through 05-06 are done and the Rust/static implementation foundation is present; final 05-07 live static publish proof and closure summary remain pending before closing the phase.
+- [ ] **Phase 6: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop on top of the private publisher foundation after the Phase 5 live static publish proof and closure checkpoint.
 - [ ] **Phase 7: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
 
 ## Phase Details
@@ -92,7 +92,7 @@ Plans:
 **UI hint**: no
 
 ### Phase 5: Static Runtime Migration Foundation
-**Goal**: Prove a static public catalog generated inside the OCI boundary, validated privately through Caddy, with a minimal static admin seed shell and private publisher/API path before planned cutover from the current public Next.js runtime.
+**Goal**: Prove a static public catalog generated inside the OCI boundary, validated through Caddy, with a minimal static admin seed shell and private publisher/API path replacing the prior public Next.js runtime foundation.
 **Depends on**: Phase 4
 **Requirements**: STATIC-01, STATIC-02, STATIC-03, STATIC-04, STATIC-05, STATIC-06, STATIC-07
 **Success Criteria** (what must be TRUE):
@@ -100,9 +100,9 @@ Plans:
   2. A minimal private content seed path can write at least one autograph record and one private original image into the Oracle/Object Storage source of truth through the new static admin shell/API boundary.
   3. A publisher can generate complete static public output inside the OCI/runtime boundary without exposing private Object Storage identifiers, Oracle data, image UUIDs, or object URLs through GitHub-hosted workflows.
   4. Published image derivatives are sanitized, complete, and referenced only through public-safe generated paths.
-  5. Caddy can serve generated static output and the static admin shell through a local/private candidate validation path before planned cutover.
+  5. Caddy can serve generated static output and the static admin shell through local/private candidate validation and the current Rust/static public route shape.
   6. A thin private admin/publisher API foundation can report health, enforce the chosen private access boundary, accept minimal seed content, and trigger or report publish jobs without implementing full edit-history or full CRUD polish yet.
-  7. Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, old data smoke path, and temporary operator bridge.
+  7. The already-implemented Rust/static cutover and retired public Next.js/API paths are backed by a recorded live static publish proof and closure summary.
 **Plans**: 7 plans
 Plans:
 - [x] 05-01-PLAN.md - Define and test the static public artifact contract.
@@ -111,7 +111,7 @@ Plans:
 - [x] 05-04-PLAN.md - Build the static publisher, derivative generator, candidate validation, and promotion mechanism.
 - [x] 05-05-PLAN.md - Add the minimal static admin seed/publish shell.
 - [x] 05-06-PLAN.md - Wire deployment, Caddy private validation, and CI.
-- [ ] 05-07-PLAN.md - Prove the live static path and document cutover/retirement.
+- [ ] 05-07-PLAN.md - Run and record the live static publish proof and close Phase 5.
 **UI hint**: no
 
 ### Phase 6: Admin Collection Workflow
@@ -150,6 +150,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Oracle and Private Media Core | 4/4 | Complete | 2026-05-14 |
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
-| 5. Static Runtime Migration Foundation | 6/7 | In Progress|  |
+| 5. Static Runtime Migration Foundation | 6/7 | Pending final live static publish proof and closure summary | - |
 | 6. Admin Collection Workflow | 0/TBD | Not started | - |
 | 7. AI-Assisted Ingest | 0/TBD | Not started | - |

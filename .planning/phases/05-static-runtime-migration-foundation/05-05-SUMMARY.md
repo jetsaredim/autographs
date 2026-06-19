@@ -29,7 +29,7 @@ key-decisions:
   - "Persist the richer private catalog metadata already represented by the Oracle schema instead of presenting non-functional form fields."
 patterns-established:
   - "Static admin source is scanned for embedded secrets, private storage terms, browser credential storage, and privileged URLs outside /admin/api/*."
-requirements-completed: [STATIC-05, STATIC-07]
+requirements-completed: [STATIC-05]
 duration: 10m
 completed: 2026-06-02
 ---

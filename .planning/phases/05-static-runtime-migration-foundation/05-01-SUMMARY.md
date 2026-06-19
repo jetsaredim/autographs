@@ -29,7 +29,7 @@ key-decisions:
 patterns-established:
   - "Public static DTOs are serialized from explicit Rust structs rather than source-of-truth records."
   - "Generated public artifact tests scan rendered JSON, HTML, manifests, and paths for private identifiers."
-requirements-completed: [STATIC-01, STATIC-02, STATIC-03, STATIC-07]
+requirements-completed: [STATIC-01, STATIC-02, STATIC-03]
 duration: 7 min
 completed: 2026-06-01
 ---

@@ -1,82 +1,121 @@
 # Architecture
 
-**Analysis Date:** 2026-05-28
+**Analysis Date:** 2026-06-19
 
 ## Pattern Overview
 
-Autographs is now an implemented single-application system, not a planning-only repository. The current architecture is a full-stack `Next.js` App Router application under `app/`, backed by Oracle Autonomous Database for catalog metadata and private OCI Object Storage for autograph images. Public visitors browse only published items, while temporary operator-only mutation routes remain token-guarded and blocked at the public Caddy edge until Phase 5 replaces or retires them with the Rust private controller and minimal static admin seed/publish path.
+Autographs is now a static-public, Rust-controller system. The former active
+Next.js runtime has been retired from the repository; public behavior lives in
+generated static artifacts under `controller/static-public/`, and private
+operator/admin behavior lives in the Rust controller under `controller/`.
+
+Caddy is the public edge. It serves the generated static release, blocks
+retired operator routes, and routes private `/admin` and `/admin/api/*`
+traffic to the controller/admin surfaces. Oracle Autonomous Database remains
+the metadata source of truth, and OCI Object Storage remains the private media
+source of truth. The controller publishes public-safe pages, JSON, manifests,
+and derived media from those private sources.
 
 ## Layers
 
-**Public Web Layer**
-- Location: `app/app/`
-- Purpose: Anonymous landing page, collection grid, detail pages, image viewer, architecture page, not-found states, and shared public components.
-- Key files: `app/app/page.tsx`, `app/app/collection/page.tsx`, `app/app/collection/[id]/page.tsx`, `app/app/components/*`.
+**Static Public Layer**
+- Location: `controller/static-public/`
+- Purpose: Generated public landing, collection, detail template, architecture,
+  data JSON, client assets, approved quote states, and derived-media paths.
+- Boundary: Public artifacts must not expose private Object Storage URLs,
+  bucket names, namespaces, object keys, Oracle internals, image UUIDs, or
+  unpublished records.
 
-**Public API Layer**
-- Location: `app/app/api/catalog/`
-- Purpose: Published-only catalog list/detail access and app-mediated image delivery.
-- Key files: `app/app/api/catalog/route.ts`, `app/app/api/catalog/[id]/route.ts`, `app/app/api/catalog/[id]/images/[imageId]/route.ts`.
+**Static Admin Shell**
+- Location: `controller/static-admin/`
+- Purpose: Minimal private browser shell for seed/publish operations. It is the
+  Phase 5 foundation, not the polished Phase 6 collection-management UX.
 
-**Temporary Operator API Layer**
-- Location: `app/app/api/operator/catalog/`
-- Purpose: Transitional token-guarded create, update, image attach, image delete, and item delete workflows for production data entry before the Phase 5 static-runtime/private-controller foundation.
-- Boundary: Must remain operator-only by deployment/routing procedure and bearer token; it is not the v1 admin UX.
-
-**Catalog Service Layer**
-- Location: `app/src/catalog/`
-- Purpose: Domain types, Oracle repository, catalog service orchestration, public-safe view models, and tests.
-- Key files: `service.ts`, `repository.ts`, `public-view-models.ts`, `types.ts`.
-
-**Media Layer**
-- Location: `app/src/media/`
-- Purpose: Private media abstraction with OCI Object Storage and local filesystem-backed modes.
-- Key files: `oci-store.ts`, `local-store.ts`, `config.ts`.
+**Rust Controller**
+- Location: `controller/src/`
+- Purpose: Private admin health/auth routes, minimal content seed APIs, Oracle
+  catalog access, private media access, static publishing, derivative
+  generation, candidate validation, and release promotion.
+- Key modules: `auth.rs`, `catalog.rs`, `config.rs`, `contracts.rs`,
+  `derivatives.rs`, `media.rs`, `oci_media.rs`, `oracle_catalog.rs`,
+  `publisher.rs`, `routes.rs`, and `storage_keys.rs`.
 
 **Database Layer**
-- Location: `app/src/db/`, `app/db/migrations/`, `app/scripts/`
-- Purpose: Oracle configuration, migration execution, schema, seed data, and data smoke helpers.
+- Location: `controller/db/schema.sql`
+- Purpose: Oracle schema used by the Rust controller and static publisher.
+
+**Media Layer**
+- Location: `controller/src/media.rs`, `controller/src/oci_media.rs`
+- Purpose: Private original media storage and retrieval, including OCI
+  Object Storage access through runtime credentials/instance-principal signing.
 
 **Infrastructure and Delivery Layer**
 - Locations: `infra/terraform/`, `deploy/ansible/`, `.github/workflows/`
-- Purpose: OCI infrastructure, runtime VM configuration, Podman quadlets, PR validation, image publishing, deploy, data smoke, and image cleanup.
+- Purpose: OCI infrastructure, runtime VM configuration, Podman quadlets, Caddy
+  static/controller routing, controller image publishing, deploy validation,
+  image cleanup, and production security patching.
 
-**Public Showcase and Hardening Layer**
-- Locations: `README.md`, `renovate.json`, `docs/security-review.md`, `docs/dependency-updates.md`, `docs/architecture.drawio`, `app/public/architecture-diagram.svg`
-- Purpose: Public repository framing, dependency-update policy, current-surface security review, architecture presentation, and hardening documentation.
+**Production Security Patching Layer**
+- Locations: `.github/workflows/weekly-security-scan.yml`,
+  `.github/workflows/apply-security-updates.yml`,
+  `.github/production-patch-approvers.yml`,
+  `deploy/ansible/roles/security_patching/`, and `docs/security-patching.md`.
+- Purpose: Weekly/manual production security update scans, scanner issue
+  creation/update, allowlisted label approval, drift-checked `dnf` security
+  updates, result comments, and failure cleanup.
 
 **Planning and Operator Documentation**
 - Locations: `.planning/`, `docs/`, `.prompts/`
-- Purpose: GSD state, roadmap, phase artifacts, codebase intelligence, bootstrap/runbook docs, and original product prompt.
+- Purpose: GSD state, roadmap, phase artifacts, codebase intelligence,
+  bootstrap/runbook docs, dependency policy, and historical prompt context.
 
 ## Data Flow
 
-1. Anonymous visitors request `/`, `/collection`, or `/collection/{id}`.
-2. Public pages call the catalog service, which lists/reads only `published` records by default.
-3. Public view models convert private catalog records into public-safe DTOs and route image access through `/api/catalog/{itemId}/images/{imageId}`.
-4. Image API routes resolve the published item and stream bytes from the configured private media store without exposing Object Storage URLs or object identifiers in the public UI.
-5. Temporary operator API calls use `AUTOGRAPHS_OPERATOR_API_TOKEN`, then create/update Oracle rows and upload/delete private media through the same service layer. Production operator use goes through the documented SSH tunnel path because public Caddy blocks `/api/operator/*`.
-6. GitHub Actions validates changes and deploys the containerized app/runtime changes to OCI on the documented path.
+1. Anonymous visitors request the public site through Caddy.
+2. Caddy serves the current generated static release: HTML, public-safe JSON,
+   static assets, and generated media derivatives.
+3. Operators use the private admin shell and `/admin/api/*` controller routes
+   for health, minimal seed, and publish operations.
+4. The controller reads and writes Oracle catalog metadata and private OCI
+   Object Storage media.
+5. The publisher generates candidate static output inside the runtime/OCI
+   boundary, validates privacy and completeness, then promotes the release.
+6. GitHub Actions validates code, builds/publishes the controller image,
+   deploys runtime changes, and runs production maintenance workflows.
 
 ## Key Abstractions
 
-- `CatalogService`: Coordinates metadata and media operations.
-- `CatalogRepository`: Persists catalog records, tags, and image metadata through Oracle.
-- `PrivateMediaStore`: Abstracts OCI Object Storage and local media modes.
-- Public view models: Strip private storage fields and build app-mediated image routes.
-- Operator API bridge: Temporary mutation surface used until Phase 5 replaces or retires it with the Rust private controller and minimal static admin seed/publish path.
+- Rust controller routes: private admin/API boundary.
+- Static artifact contracts: public-safe gallery/detail/search/facet data and
+  publish manifests.
+- Publisher: candidate generation, validation, derivative creation, and release
+  promotion.
+- Oracle catalog adapter: metadata persistence for production.
+- OCI media adapter: private original media access.
+- Security patching role: scan, issue rendering, approval validation, patching,
+  result reporting, and failure cleanup.
 
 ## Current Phase Boundary
 
-Phases 1-4 are complete. Phase 5 context is gathered and needs formal GSD phase planning before implementation. Phase 5 should prove the static runtime migration foundation: static public artifacts, public-safe JSON, generated derivatives, a Rust private admin/controller container, a minimal static admin seed/publish UI, publish validation, Caddy/runtime cutover, and retirement or replacement of the temporary Node operator bridge. Phase 6 should polish the daily-use admin collection workflow on that foundation. Phase 7 should add advisory AI-assisted ingest. Do not re-scaffold the existing delivery spine.
+Phase 5 static runtime migration foundation is mostly implemented in the
+checked-out code: Rust controller, static public artifacts, static admin shell,
+publisher, deployment wiring, live/static runbooks, and retired Node/Next.js
+runtime guidance are present. Plans 05-01 through 05-06 are done, but 05-07
+live static publish proof and closure summary remain pending before closing the
+phase.
+
+After the 05-07 checkpoint passes, Phase 6 should focus on the polished daily-use admin
+collection workflow: create/edit forms, publication controls, edit history,
+richer media cleanup, and admin UX hardening on top of the Rust/static
+foundation. Phase 7 remains advisory AI-assisted ingest.
 
 ## Notable Absences
 
-- Phase 5 Rust private controller, static publisher, and minimal static admin seed/publish path are not implemented yet.
 - Polished Phase 6 admin collection workflow is not implemented yet.
 - Edit history persistence/rendering is not implemented yet.
+- Full media replacement/orphan cleanup ergonomics are not implemented yet.
 - AI-assisted metadata suggestions are not implemented yet.
 
 ---
 
-*Architecture analysis refreshed: 2026-05-28 after Phase 5 static-runtime context gathering*
+*Architecture analysis refreshed: 2026-06-19 after Phase 5 static runtime implementation and PR 129 production security patching merge*

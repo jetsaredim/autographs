@@ -1,52 +1,80 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-05-28
+**Analysis Date:** 2026-06-19
 
 ## Current Risks
 
-**Codebase-map drift can mislead future agents**
-- Issue: Some codebase intelligence docs lagged behind implemented app, infra, CI, and Phase 4 hardening/showcase work.
-- Impact: Future planning/execution agents could re-scaffold existing surfaces or treat completed hardening as still pending.
-- Mitigation: This reconciliation refreshes the stale maps. Keep `.planning/codebase/*` updated after substantial implementation shifts.
+**Planning-doc drift can mislead future agents**
+- Issue: Several GSD maps still described the retired Next.js runtime and Phase
+  5 as future work after the Rust/static implementation had landed.
+- Impact: Future work could accidentally recreate removed app surfaces or close
+  Phase 5 before the 05-07 live static publish proof and closure summary are recorded.
+- Mitigation: This reconciliation refreshes the planning maps and high-level
+  state. Keep `.planning/codebase/*` updated after major implementation shifts.
 
-**Temporary operator API must not become accidental admin UX**
-- Issue: `/api/operator/catalog/*` supports real mutation workflows for production data entry before the Phase 5 Rust private controller/static admin seed path.
-- Impact: If exposed through public routing or copied into UI, it could bypass the intended single-admin design.
-- Mitigation: Keep routes token-guarded, blocked at the public Caddy edge, tunnel/procedure-only for production use, and covered by public-surface tests until Phase 5 replaces or retires the bridge.
+**Static public artifacts are the privacy boundary**
+- Issue: Public output is generated ahead of time, so any leaked private key,
+  object identifier, unpublished record, Oracle detail, or image UUID can become
+  durable public content.
+- Impact: A publish bug could expose private media/source metadata.
+- Mitigation: Keep static contract/privacy validation mandatory and generate
+  public derivatives/paths only through publisher-controlled code.
 
-**Phase 5 owns the static runtime migration foundation**
-- Issue: The current public runtime still depends on live Next.js catalog APIs and a temporary Node operator bridge.
-- Impact: Jumping straight to polished admin CRUD would preserve the runtime shape Phase 5 is meant to retire.
-- Mitigation: Plan and test the static public artifact contract, Rust private controller, minimal static admin seed/publish path, generated derivatives, Caddy cutover, and operator-bridge retirement before Phase 6 admin polish.
+**Rust controller is now the private mutation boundary**
+- Issue: Admin/publish behavior is concentrated behind `/admin` and
+  `/admin/api/*`.
+- Impact: Auth, route exposure, persistence, and media operations now carry the
+  production mutation risk formerly held by temporary operator APIs.
+- Mitigation: Treat Phase 6 admin expansion as security-sensitive and keep
+  retired operator APIs blocked at Caddy.
+
+**Production security patching can affect the live VM**
+- Issue: Applying `approved-production-update` runs Ansible against production
+  and can update OS packages.
+- Impact: Supply-chain, approval, drift-check, SSH, or `dnf` failures can
+  affect live operations.
+- Mitigation: Keep action SHA pins updateable/reviewed, preserve approver
+  allowlist checks, refuse drifted package sets, remove stale approval labels on
+  failure, and document the workflow in `docs/security-patching.md`.
 
 **Live OCI verification depends on real secrets and tenancy state**
-- Issue: Routine local tests avoid live OCI credentials, while data/media smoke requires real ADB and Object Storage configuration.
-- Impact: CI/local green does not automatically prove deployed data/media behavior.
-- Mitigation: Use the manual Data Smoke workflow and deployment runbooks when real credential-backed verification is needed.
+- Issue: Routine local tests avoid live OCI credentials.
+- Impact: CI green does not automatically prove deployed Oracle/Object Storage
+  behavior.
+- Mitigation: Use `docs/static-runtime-runbook.md`, deployment checks, and live
+  smoke tests when real credential-backed verification is needed.
 
 ## Security Considerations
 
-- Public image delivery must remain app-mediated and must not expose Object Storage object keys, bucket names, namespaces, signed URLs, or credentials.
-- Operator token values, OCI keys, Oracle wallet material, ADB passwords, GHCR credentials, and Terraform tfvars/state must stay out of git.
-- Phase 5 private admin/controller access should provide exactly one admin path and no public account system.
-- GitHub Actions permissions, Terraform IAM boundaries, runtime secrets, and operator routes have current-surface Phase 4 review coverage; re-check new static/publisher/admin-controller surfaces in Phase 5, polished admin surfaces in Phase 6, and AI surfaces in Phase 7.
+- Public static output must not expose Object Storage object keys, bucket names,
+  namespaces, signed URLs, Oracle internals, image UUIDs, or credentials.
+- Operator/admin tokens, OCI keys, Oracle wallet material, ADB passwords, GHCR
+  credentials, deploy SSH keys, and Terraform tfvars/state must stay out of git.
+- Production-sensitive GitHub Actions should use least privilege and reviewed
+  immutable action references where practical.
+- Phase 6 and Phase 7 must add fresh security review for the new admin and AI
+  surfaces they introduce.
 
 ## Fragile Areas
 
-- Static publisher validation, derivative generation, Caddy route cutover, and Rust access to Oracle/Object Storage are high-risk Phase 5 areas.
-- Operator API request parsing and media cleanup flows deserve focused Phase 5 replacement/retirement tests before Phase 6 builds polished admin UX.
-- Oracle-backed repository behavior is harder to verify without live integration smoke; keep local tests plus explicit smoke workflows.
-- App-mediated image delivery is a privacy-sensitive path and a potential performance hotspot.
-- Planning configuration currently has Nyquist validation disabled, so validation artifacts will not be generated until that setting changes.
+- Static publisher validation and release promotion.
+- Derivative generation and privacy stripping.
+- Rust Oracle/Object Storage production adapters.
+- Caddy route boundaries between public static, admin shell, and controller API.
+- Production security patching issue metadata, approval labels, cleanup, and
+  drift checks.
+- Planning state after out-of-band implementation progress.
 
 ## Near-Term Recommendations
 
-1. Formally plan Phase 5 from the gathered static-runtime context before implementation starts.
-2. Preserve public-surface privacy regression tests as required gates for any static-output or media-route changes.
-3. Validate Rust Oracle/Object Storage, derivative generation, and Caddy static/media/admin routing early in Phase 5.
-4. Keep polished admin UX, edit-history browsing, and advanced media cleanup ergonomics in Phase 6 unless Phase 5 needs a minimal foundation hook.
-5. Re-run codebase mapping after major Phase 5/6/7 implementation shifts so the maps stay useful.
+1. Finish reconciling `.planning/PROJECT.md`, `.planning/ROADMAP.md`,
+   `.planning/REQUIREMENTS.md`, and `.planning/STATE.md` with the implemented
+   static runtime.
+2. Keep README, public readiness, dependency update, security, and patching docs
+   aligned with the Rust/static runtime.
+3. Complete 05-07 live static publish proof and closure summary before Phase 6 planning.
+4. Re-run codebase mapping after major Phase 6/7 implementation shifts.
 
 ---
 
-*Concerns refreshed: 2026-05-28 after Phase 5 static-runtime context gathering*
+*Concerns refreshed: 2026-06-19 after Phase 5 static runtime implementation and PR 129 production security patching merge*

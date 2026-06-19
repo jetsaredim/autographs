@@ -42,13 +42,13 @@
 
 ### Static Runtime Migration
 
-- [ ] **STATIC-01**: Public static artifact contracts are defined for gallery pages, item detail pages, search/facet data, generated media paths, and publish manifests.
-- [ ] **STATIC-02**: Static catalog generation runs inside the OCI/runtime boundary and does not require GitHub-hosted workflows to read catalog data, private image identifiers, Object Storage object keys, bucket details, or Oracle content.
-- [ ] **STATIC-03**: Published image derivatives are generated from private originals with sanitized filenames, stripped private metadata, and no leaked Object Storage URLs, UUIDs, namespaces, bucket names, or object keys.
-- [ ] **STATIC-04**: Caddy can serve generated static output through a local/private candidate validation path before planned public cutover.
-- [ ] **STATIC-05**: A static admin shell and thin private admin/publisher API foundation exist for health, private access enforcement, minimal content seeding into Oracle/Object Storage, and publish trigger/status behavior without implementing the full polished admin workflow yet.
-- [ ] **STATIC-06**: Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, current data smoke path, and temporary operator bridge.
-- [ ] **STATIC-07**: The static publishing path can prove an end-to-end seeded content loop: submit minimal metadata and an image through the private admin/API boundary, persist them to Oracle/Object Storage, generate static output, and verify the generated public page and derivative image.
+- [x] **STATIC-01**: Public static artifact contracts are defined for gallery pages, item detail pages, search/facet data, generated media paths, and publish manifests.
+- [x] **STATIC-02**: Static catalog generation runs inside the OCI/runtime boundary and does not require GitHub-hosted workflows to read catalog data, private image identifiers, Object Storage object keys, bucket details, or Oracle content.
+- [x] **STATIC-03**: Published image derivatives are generated from private originals with sanitized filenames, stripped private metadata, and no leaked Object Storage URLs, UUIDs, namespaces, bucket names, or object keys.
+- [x] **STATIC-04**: Caddy can serve generated static output through a local/private candidate validation path before planned public cutover.
+- [x] **STATIC-05**: A static admin shell and thin private admin/publisher API foundation exist for health, private access enforcement, minimal content seeding into Oracle/Object Storage, and publish trigger/status behavior without implementing the full polished admin workflow yet.
+- [x] **STATIC-06**: Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, current data smoke path, and temporary operator bridge; the current repo docs describe those paths as retired.
+- [ ] **STATIC-07**: The implemented static publishing path has a recorded live end-to-end proof: submit minimal metadata and an image through the private admin/API boundary, persist them to Oracle/Object Storage, generate static output, verify the generated public page and derivative image, and capture the Phase 5 closure summary.
 
 ### AI-Assisted Ingest
 
@@ -78,7 +78,7 @@ None currently. Future scope should be added only if it directly supports the pe
 | Bulk import in v1 | Single-item workflows should be proven before adding ingestion complexity |
 | Advanced search infrastructure | Metadata filters and simple search are enough for launch |
 | Multi-admin roles and permissions | The brief only needs one admin path for the collection owner |
-| Separate frontend and backend services | v1 intentionally uses one `Next.js` full-stack app |
+| Public multi-service platform split | v1 intentionally uses generated static public output plus one private Rust controller, not a public frontend/backend platform |
 | Public direct object-storage URLs | Conflicts with the private-media requirement and centralized access control |
 
 ## Traceability
@@ -105,12 +105,12 @@ None currently. Future scope should be added only if it directly supports the pe
 | ADMIN-03 | Phase 6 | Pending |
 | ADMIN-04 | Phase 6 | Pending |
 | ADMIN-05 | Phase 6 | Pending |
-| STATIC-01 | Phase 5 | Pending |
-| STATIC-02 | Phase 5 | Pending |
-| STATIC-03 | Phase 5 | Pending |
-| STATIC-04 | Phase 5 | Pending |
-| STATIC-05 | Phase 5 | Pending |
-| STATIC-06 | Phase 5 | Pending |
+| STATIC-01 | Phase 5 | Complete |
+| STATIC-02 | Phase 5 | Complete |
+| STATIC-03 | Phase 5 | Complete |
+| STATIC-04 | Phase 5 | Complete |
+| STATIC-05 | Phase 5 | Complete |
+| STATIC-06 | Phase 5 | Complete |
 | STATIC-07 | Phase 5 | Pending |
 | AI-01 | Phase 7 | Pending |
 | AI-02 | Phase 7 | Pending |
@@ -129,4 +129,4 @@ None currently. Future scope should be added only if it directly supports the pe
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-05-26 after inserting Static Runtime Migration Foundation as Phase 5*
+*Last updated: 2026-06-19 after correcting STATIC-07 to pending live proof*

@@ -31,7 +31,7 @@ key-files:
     - .github/workflows/deploy.yml
     - .github/workflows/image-cleanup.yml
 key-decisions:
-  - "Keep the public hostname on the existing Next.js runtime until the explicit 05-07 live proof and cutover checkpoint; expose generated releases only through the localhost candidate listener for now."
+  - "Stage generated releases through the localhost candidate listener so 05-07 can record the live static publish proof after the Rust/static cutover."
   - "Build production Oracle and OCI S3 adapters into the controller image so the 05-07 smoke can prove the real source-of-truth path inside the OCI boundary."
   - "Keep controller persistence overrides in the VM-local protected controller.env file; GitHub Actions deploys code artifacts and configuration shape only."
 requirements-completed: [STATIC-02, STATIC-04, STATIC-05, STATIC-06]
@@ -47,7 +47,7 @@ completed: 2026-06-02
 
 - Added a multi-stage Rust controller image with Oracle Instant Client, wallet alias support through `TNS_ADMIN`, native Oracle catalog persistence, and OCI S3-compatible private media storage.
 - Added Ansible-managed controller and static-volume quadlets. The controller remains private on the Podman network, mounts wallet/secrets/static storage, and receives production persistence overrides through a VM-local protected environment file.
-- Added staged Caddy routes for `/admin`, `/admin/api/*`, old operator-route blocking, and a host-local static candidate preview. Public catalog traffic intentionally remains on Next.js until the live 05-07 checkpoint.
+- Added staged Caddy routes for `/admin`, `/admin/api/*`, old operator-route blocking, and a host-local static candidate preview. Later reconciliation confirmed the public catalog traffic has moved to the Rust/static Caddy path; 05-07 remains the recorded live proof and closure checkpoint.
 - Extended GitHub Actions and cleanup automation to validate, publish, deploy, retain, and prune the controller image without running catalog generation on GitHub-hosted workers.
 
 ## Verification
@@ -65,12 +65,12 @@ completed: 2026-06-02
 
 ## Deviations
 
-- The literal plan action described switching the public root to generated files during this plan. The implementation deliberately stages that switch: localhost candidate preview is live-ready, while the public hostname remains on Next.js until 05-07 proves Oracle, Object Storage, publishing, static browsing, and unpublish behavior on the VM.
+- The literal plan action described switching the public root to generated files during this plan. The implementation staged that switch here through the localhost candidate preview; later reconciliation confirmed the public hostname now serves the Rust/static path, while 05-07 still needs to record proof of Oracle, Object Storage, publishing, static browsing, and unpublish behavior on the VM.
 - The production persistence adapters were added here because the live proof cannot validate the controller end to end while it is limited to local-memory adapters.
 
 ## Next Phase Readiness
 
-- `05-07` can deploy the staged runtime, switch the protected VM-local controller environment to Oracle and OCI S3-compatible storage, run the live candidate smoke, and document the public cutover and legacy-runtime retirement criteria.
+- `05-07` can run the live static publish smoke against the deployed Rust/static runtime, record public hostname checks, and create the Phase 5 closure summary.
 - The temporary OCI S3 customer key must remain on the VM/operator path and should be revoked after the live checkpoint.
 
 ---

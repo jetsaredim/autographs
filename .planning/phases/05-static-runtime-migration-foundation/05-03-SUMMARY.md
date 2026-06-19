@@ -33,7 +33,7 @@ key-decisions:
 patterns-established:
   - "Private seed APIs return redacted item/image responses without bucket, namespace, object key, Object Storage URL, or original filename leakage."
   - "Live persistence verification checks schema readiness before mutation and logs generated cleanup coordinates before writing."
-requirements-completed: [STATIC-02, STATIC-03, STATIC-05, STATIC-07]
+requirements-completed: [STATIC-02, STATIC-03, STATIC-05]
 duration: 1h 45m
 completed: 2026-06-02
 ---
