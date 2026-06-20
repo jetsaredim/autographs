@@ -197,9 +197,6 @@ impl CatalogRepository for OracleCatalogRepository {
                         &[&item_id_text],
                     )
                     .map_err(|error| format!("clear Oracle primary image: {error}"))?;
-                connection
-                    .commit()
-                    .map_err(|error| format!("commit Oracle primary image update: {error}"))?;
             }
             if existing_item.id != item_id {
                 return Err("autograph item was not found".to_owned());
