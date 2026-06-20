@@ -255,13 +255,15 @@ Deploy PR 94 through the normal deployment workflow, or manually install the
 same controller quadlet, Caddyfile, static volume, and admin-shell files on the
 VM before running this checkpoint.
 
-The final Phase 5 checkpoint is a second credential-gated smoke that exercises
-the deployed controller and Caddy preview as black boxes. It creates a uniquely
-named draft through `/admin/api/*`, uploads a valid private image, verifies the
-Oracle row and OCI Object Storage object, publishes a static release, and
-fetches the browse page, item HTML, item JSON, facets, and generated WebP
-derivatives through Caddy. It then unpublishes the item, runs an incremental
-publish, confirms that stale public files return `404`, and removes the
+For Phase 5 closeout, the final checkpoint was a second credential-gated smoke
+that exercised the deployed controller and Caddy preview as black boxes. Rerun
+this smoke for future controller or publisher changes that need live
+end-to-end proof. It creates a uniquely named draft through `/admin/api/*`,
+uploads a valid private image, verifies the Oracle row and OCI Object Storage
+object, publishes a static release, and fetches the browse page, item HTML,
+item JSON, facets, and generated WebP derivatives through Caddy. It then
+unpublishes the item, runs an incremental publish, confirms that stale public
+files return `404`, and removes the
 temporary Oracle row and private original.
 
 Build and export the temporary image on a trusted Linux `amd64` workstation:
