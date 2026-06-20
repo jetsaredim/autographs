@@ -1,6 +1,6 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-06-19
+**Analysis Date:** 2026-06-20
 
 ## Current Risks
 
@@ -8,9 +8,10 @@
 - Issue: Several GSD maps still described the retired Next.js runtime and Phase
   5 as future work after the Rust/static implementation had landed.
 - Impact: Future work could accidentally recreate removed app surfaces or close
-  Phase 5 before the 05-07 live static publish proof and closure summary are recorded.
-- Mitigation: This reconciliation refreshes the planning maps and high-level
-  state. Keep `.planning/codebase/*` updated after major implementation shifts.
+  Phase 5 before the live static publish proof and closure summary were recorded.
+- Mitigation: Phase 5 closeout now refreshes the planning maps, generated
+  AGENTS context, UAT, security, and verification state. Keep
+  `.planning/codebase/*` updated after major implementation shifts.
 
 **Static public artifacts are the privacy boundary**
 - Issue: Public output is generated ahead of time, so any leaked private key,
@@ -67,14 +68,13 @@
 
 ## Near-Term Recommendations
 
-1. Finish reconciling `.planning/PROJECT.md`, `.planning/ROADMAP.md`,
-   `.planning/REQUIREMENTS.md`, and `.planning/STATE.md` with the implemented
-   static runtime.
+1. Use the Phase 5 closeout artifacts as the baseline for Phase 6 planning.
 2. Keep README, public readiness, dependency update, security, and patching docs
    aligned with the Rust/static runtime.
-3. Complete 05-07 live static publish proof and closure summary before Phase 6 planning.
+3. Preserve live smoke and cleanup checks as operator-run verification when
+   changing controller persistence, media, or publishing behavior.
 4. Re-run codebase mapping after major Phase 6/7 implementation shifts.
 
 ---
 
-*Concerns refreshed: 2026-06-19 after Phase 5 static runtime implementation and PR 129 production security patching merge*
+*Concerns refreshed: 2026-06-20 after Phase 5 verification closeout*

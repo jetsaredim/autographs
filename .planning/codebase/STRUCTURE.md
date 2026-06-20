@@ -96,11 +96,11 @@ autographs/
 
 - Do not re-scaffold `app/`, pnpm workspace commands, or the retired Next.js runtime.
 - Treat `.prompts/001-autograph-gallery-bootstrap-do/` as historical product intent.
-- Treat Phase 5 static runtime/controller foundation as mostly implemented,
-  with 05-07 live static publish proof and closure summary still pending.
-- Treat Phase 6 as polished admin workflow after the 05-07 checkpoint passes,
-  and Phase 7 as advisory AI ingest.
+- Treat Phase 5 static runtime/controller foundation as complete, including
+  05-07 live static publish proof and closure evidence.
+- Treat Phase 6 as polished admin workflow on that completed foundation, and
+  Phase 7 as advisory AI ingest.
 
 ---
 
-*Structure analysis refreshed: 2026-06-19 after Phase 5 static runtime implementation and PR 129 production security patching merge*
+*Structure analysis refreshed: 2026-06-20 after Phase 5 verification closeout*

@@ -97,17 +97,16 @@ and derived media from those private sources.
 
 ## Current Phase Boundary
 
-Phase 5 static runtime migration foundation is mostly implemented in the
-checked-out code: Rust controller, static public artifacts, static admin shell,
-publisher, deployment wiring, live/static runbooks, and retired Node/Next.js
-runtime guidance are present. Plans 05-01 through 05-06 are done, but 05-07
-live static publish proof and closure summary remain pending before closing the
-phase.
+Phase 5 static runtime migration foundation is complete in the checked-out
+code: Rust controller, static public artifacts, static admin shell, publisher,
+deployment wiring, live/static runbooks, retired Node/Next.js runtime guidance,
+live static publish proof, UAT, security review, and verification closeout are
+present.
 
-After the 05-07 checkpoint passes, Phase 6 should focus on the polished daily-use admin
-collection workflow: create/edit forms, publication controls, edit history,
-richer media cleanup, and admin UX hardening on top of the Rust/static
-foundation. Phase 7 remains advisory AI-assisted ingest.
+Phase 6 should focus on the polished daily-use admin collection workflow:
+create/edit forms, publication controls, edit history, richer media cleanup,
+and admin UX hardening on top of the Rust/static foundation. Phase 7 remains
+advisory AI-assisted ingest.
 
 ## Notable Absences
 

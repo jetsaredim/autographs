@@ -76,11 +76,10 @@
 
 ## Project Maturity
 
-- Phases 1-4 are complete.
-- Phase 5 plans 05-01 through 05-06 are done, and the static runtime
-  migration foundation is implemented in code and operator docs.
-- Phase 5 05-07 live static publish proof and closure summary remain pending
-  before closing the phase.
+- Phases 1-5 are complete.
+- Phase 5 plans 05-01 through 05-07 are done, and the static runtime
+  migration foundation is implemented in code, operator docs, live smoke proof,
+  UAT, security review, and verification closeout artifacts.
 - Phase 6 polished admin workflow remains pending.
 - Phase 7 advisory AI-assisted ingest remains pending.
 
@@ -96,4 +95,4 @@
 
 ---
 
-*Stack analysis refreshed: 2026-06-19 after Phase 5 static runtime implementation and PR 129 production security patching merge*
+*Stack analysis refreshed: 2026-06-20 after Phase 5 verification closeout*
