@@ -16,8 +16,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Oracle and Private Media Core** - Prove the database and object-storage seams that every collection record depends on. Implementation complete; live Oracle/Object Storage smoke path documented for operator execution with real credentials.
 - [x] **Phase 3: Public Gallery MVP** - Deliver anonymous browse, filter, and detail views for published autograph items. Complete; anonymous public gallery, filters, detail pages, image viewer, quote states, and privacy gates are implemented.
 - [x] **Phase 4: Public Showcase and Hardening** - Tie up loose ends, audit the current security posture, polish documentation, and prepare the current repository state to be public as a human+AI showcase. (completed 2026-05-25)
-- [ ] **Phase 5: Static Runtime Migration Foundation** - Plans 05-01 through 05-06 are done and the Rust/static implementation foundation is present; final 05-07 live static publish proof and closure summary remain pending before closing the phase.
-- [ ] **Phase 6: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop on top of the private publisher foundation after the Phase 5 live static publish proof and closure checkpoint.
+- [x] **Phase 5: Static Runtime Migration Foundation** - Complete; the Rust/static runtime foundation is deployed and backed by recorded live static publish proof through Oracle, OCI Object Storage, generated static output, Caddy, and cleanup.
+- [ ] **Phase 6: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop on top of the private publisher foundation.
 - [ ] **Phase 7: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
 
 ## Phase Details
@@ -111,7 +111,7 @@ Plans:
 - [x] 05-04-PLAN.md - Build the static publisher, derivative generator, candidate validation, and promotion mechanism.
 - [x] 05-05-PLAN.md - Add the minimal static admin seed/publish shell.
 - [x] 05-06-PLAN.md - Wire deployment, Caddy private validation, and CI.
-- [ ] 05-07-PLAN.md - Run and record the live static publish proof and close Phase 5.
+- [x] 05-07-PLAN.md - Run and record the live static publish proof and close Phase 5.
 **UI hint**: no
 
 ### Phase 6: Admin Collection Workflow
@@ -150,6 +150,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Oracle and Private Media Core | 4/4 | Complete | 2026-05-14 |
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
-| 5. Static Runtime Migration Foundation | 6/7 | Pending final live static publish proof and closure summary | - |
+| 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
 | 6. Admin Collection Workflow | 0/TBD | Not started | - |
 | 7. AI-Assisted Ingest | 0/TBD | Not started | - |

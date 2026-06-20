@@ -48,7 +48,7 @@
 - [x] **STATIC-04**: Caddy can serve generated static output through a local/private candidate validation path before planned public cutover.
 - [x] **STATIC-05**: A static admin shell and thin private admin/publisher API foundation exist for health, private access enforcement, minimal content seeding into Oracle/Object Storage, and publish trigger/status behavior without implementing the full polished admin workflow yet.
 - [x] **STATIC-06**: Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, current data smoke path, and temporary operator bridge; the current repo docs describe those paths as retired.
-- [ ] **STATIC-07**: The implemented static publishing path has a recorded live end-to-end proof: submit minimal metadata and an image through the private admin/API boundary, persist them to Oracle/Object Storage, generate static output, verify the generated public page and derivative image, and capture the Phase 5 closure summary.
+- [x] **STATIC-07**: The implemented static publishing path has a recorded live end-to-end proof: submit minimal metadata and an image through the private admin/API boundary, persist them to Oracle/Object Storage, generate static output, verify the generated public page and derivative image, and capture the Phase 5 closure summary.
 
 ### AI-Assisted Ingest
 
@@ -111,7 +111,7 @@ None currently. Future scope should be added only if it directly supports the pe
 | STATIC-04 | Phase 5 | Complete |
 | STATIC-05 | Phase 5 | Complete |
 | STATIC-06 | Phase 5 | Complete |
-| STATIC-07 | Phase 5 | Pending |
+| STATIC-07 | Phase 5 | Complete |
 | AI-01 | Phase 7 | Pending |
 | AI-02 | Phase 7 | Pending |
 | AI-03 | Phase 7 | Pending |
@@ -129,4 +129,4 @@ None currently. Future scope should be added only if it directly supports the pe
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-06-19 after correcting STATIC-07 to pending live proof*
+*Last updated: 2026-06-20 after recording the Phase 5 live static publish proof*
