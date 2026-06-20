@@ -300,6 +300,6 @@ Phase 5 has replaced this bridge with the Rust private controller and minimal
 static admin seed/publish path. Caddy must continue returning `404` for
 `/api/operator/*`; normal seed and publish operations use `/admin` and
 `/admin/api/*`. The production deploy removes the Next.js container runtime.
-The remaining 05-07 checkpoint is to run and record the live static publish
-proof, public hostname checks, and phase summary before Phase 6 turns the Rust
-foundation into the polished single-admin collection workflow.
+The 05-07 checkpoint recorded the live static publish proof, public hostname
+checks, and phase summary. Phase 6 turns the completed Rust foundation into the
+polished single-admin collection workflow.

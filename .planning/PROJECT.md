@@ -37,13 +37,13 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 
 ## Context
 
-- The repository now contains a runnable OCI-hosted implementation with completed delivery-spine, data/media-core, public-gallery, and public-hardening phases; Phase 5 has delivered plans 05-01 through 05-06 and still needs the 05-07 live static publish proof and closure summary before it closes.
+- The repository now contains a runnable OCI-hosted implementation with completed delivery-spine, data/media-core, public-gallery, public-hardening, and static-runtime migration phases; Phase 5 has delivered plans 05-01 through 05-07, live static publish proof, UAT, security review, and verification closeout.
 - The deployed platform uses Oracle Cloud Infrastructure with an Always Free bias, including OCI Object Storage for private images and Oracle Autonomous Database Free for metadata.
 - GitHub remains the source of truth for delivery, with pull-request validation, GHCR image publishing, and automated deployment on merge to `main`.
 - Runtime deployment uses Podman quadlets managed through Ansible rather than compose-style orchestration.
 - Public image access now uses generated public-safe derivatives in the static release instead of direct Object Storage URLs or retired app-mediated image streaming routes.
 - Retired operator-only mutation routes remain blocked at the public Caddy edge; normal admin and publish operations use the Rust private controller under `/admin` and `/admin/api/*`.
-- Phase 5 plans 05-01 through 05-06 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, and runtime cutover shape. Phase 6 remains gated on the 05-07 live static publish proof and closure summary and then focuses on polished collection-management ergonomics on that foundation.
+- Phase 5 plans 05-01 through 05-07 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, runtime cutover, live static publish proof, and closure evidence. Phase 6 now focuses on polished collection-management ergonomics on that foundation.
 - The intended product remains a personal collection site rather than a reusable platform, so roadmap choices continue to prioritize collection quality, manageability, and presentation over multi-user extensibility.
 
 ## Constraints
@@ -67,12 +67,13 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 | Bias toward OCI Always Free-compatible primitives and a minimal runtime | This matches the product brief and keeps the first release operable for one developer | Validated through deployed runtime |
 | Optimize for a personal collection rather than a general user platform | The site is meant to present and manage your own autograph collection, so features like multi-image support and edit history matter more than user systems or social capabilities | Ongoing guiding principle |
 | Keep public image delivery mediated instead of exposing direct Object Storage URLs | Preserves private-media boundaries; originally validated through app-mediated image routes in Phases 2-3 and now implemented through generated static derivatives plus the private Rust controller/publisher boundary | Updated for Phase 5 static runtime |
-| Use token-guarded operator endpoints only as a temporary verification seam | Phase 2 needed safe mutation verification before the admin workflow existed | Temporary bridge until the private publisher/admin API replaces it |
+| Use token-guarded operator endpoints only as a temporary verification seam | Phase 2 needed safe mutation verification before the admin workflow existed | Replaced and retired by the Phase 5 Rust private controller and `/admin/api/*` path |
 | Manage runtime services with Podman quadlets through Ansible | Simplifies long-lived runtime operations compared to compose-style orchestration on the OCI VM | Adopted in runtime deployment |
 | Move public-readiness hardening before admin and AI | The current gallery/deployment system can be made safe and presentable before adding larger private mutation and AI surfaces | Phase 4 focus as of 2026-05-25 |
 | Insert Static Runtime Migration Foundation before admin CRUD | Smoke-test and runtime complexity suggest anonymous browsing may be better served as static generated output, while admin/publish work stays private and thin | Phase 5 as of 2026-05-26 |
 | Use native OCI instance-principal signing for controller Object Storage access | The dev-node smoke proved OCI instance principal auth plus native Object Storage binary PUT/GET/DELETE against the private media bucket, avoiding S3 Customer Secret credentials, Python SDK drift, and long-lived runtime object credentials | Phase 5 controller media adapter direction as of 2026-06-14 |
-| Retire the active Next.js runtime in favor of Caddy-served static output and the Rust controller | Phase 5 implementation proved generated public artifacts, private publishing, Caddy routing, and controller health/persistence paths | Current implementation as of 2026-06-19 |
+| Retire the active Next.js runtime in favor of Caddy-served static output and the Rust controller | Phase 5 implementation proved generated public artifacts, private publishing, Caddy routing, and controller health/persistence paths | Validated through Phase 5 closeout as of 2026-06-20 |
+| Close Phase 5 after live static publish proof and verification gates | The live static publish smoke, cleanup verification, UAT, security review, and verification artifacts now prove the static runtime foundation end to end | Phase 5 complete as of 2026-06-20 |
 | Add guarded production security patching through GitHub Issues and Ansible | Routine OS security updates need reviewable operator approval, package-set drift refusal, and cleanup of failed approvals | Added after PR 129 merge |
 | Treat multi-image support and edit history as v1 capabilities | These directly improve personal collection quality and manageability | Phase 6 requirement baseline |
 | Add AI-assisted ingest after admin workflow | AI suggestions should enhance a proven manual admin flow rather than define it | Captured as Phase 7 |
@@ -95,4 +96,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-19 after reconciling Phase 5 static runtime implementation and production security patching*
+*Last updated: 2026-06-20 after closing Phase 5 verification and reconciling planning context*

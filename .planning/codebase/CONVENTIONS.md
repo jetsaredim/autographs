@@ -72,15 +72,14 @@
 
 ## Current Guidance
 
-- Phase 5 foundation is mostly implemented; do not rebuild finished 05-01
-  through 05-06 work, but keep 05-07 live static publish proof and closure
-  summary pending.
+- Phase 5 foundation is complete; do not rebuild finished 05-01 through 05-07
+  work, and treat the Rust/static cutover and Next.js retirement as validated.
 - Phase 6 owns polished admin workflow, edit history, and media cleanup
-  ergonomics after the 05-07 checkpoint passes.
+  ergonomics on the completed Rust/static foundation.
 - Phase 7 owns advisory AI-assisted ingest.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage
   URLs, or a split multi-service architecture for v1.
 
 ---
 
-*Conventions refreshed: 2026-06-19 after Phase 5 static runtime implementation and PR 129 production security patching merge*
+*Conventions refreshed: 2026-06-20 after Phase 5 verification closeout*

@@ -58,9 +58,9 @@ Autographs is a production-lean personal autograph collection website where you 
 - Development uses Rust/Cargo for controller work plus Terraform and Ansible for infrastructure/runtime validation.
 - Production targets OCI tenancy resources, Oracle Autonomous Database Free, private OCI Object Storage, and an OCI VM runtime capable of Podman, Caddy, the controller container, and configured swap.
 ## Project Maturity
-- Phase 5 plans 05-01 through 05-06 are done, and the static runtime migration foundation is implemented in code/docs; 05-07 live static publish proof and closure summary remain pending before closing the phase.
+- Phase 5 plans 05-01 through 05-07 are done, and the static runtime migration foundation is implemented in code/docs with live static publish proof, UAT, security review, and verification closeout artifacts.
 - The repository is no longer planning-only; it contains Rust/controller, static public/admin, infrastructure, deployment, maintenance, testing, and operator documentation artifacts.
-- Do not re-scaffold the retired Next.js app or infra. Phase 6 owns polished admin workflow after the Phase 5 05-07 proof/closure checkpoint; Phase 7 owns advisory AI-assisted ingest.
+- Do not re-scaffold the retired Next.js app or infra. Phase 6 owns polished admin workflow on the completed Phase 5 Rust/static foundation; Phase 7 owns advisory AI-assisted ingest.
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
@@ -103,7 +103,7 @@ Autographs is a production-lean personal autograph collection website where you 
 - Keep operator docs procedural and explicit about manual prerequisites, secret handling, approval labels, and live-smoke requirements.
 - Update `.planning/codebase/*` after substantial codebase drift so future agents do not resurrect planning-only assumptions.
 ## Current Guidance
-- Phase 5 foundation is mostly implemented; do not rebuild finished 05-01 through 05-06 work, and treat the Rust/static cutover and Next.js retirement as already implemented. Keep 05-07 live static publish proof and closure summary pending. Phase 6 should add the polished admin collection workflow, edit history, and media cleanup ergonomics on that foundation after the 05-07 checkpoint passes. Phase 7 should add advisory AI-assisted ingest.
+- Phase 5 foundation is complete; do not rebuild finished 05-01 through 05-07 work, and treat the Rust/static cutover and Next.js retirement as validated. Phase 6 should add the polished admin collection workflow, edit history, and media cleanup ergonomics on that foundation. Phase 7 should add advisory AI-assisted ingest.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage URLs, or a split frontend/backend service architecture for v1.
 <!-- GSD:conventions-end -->
 
@@ -135,8 +135,8 @@ Autographs is a production-lean personal autograph collection website where you 
 - OCI media adapter: private original media access.
 - Security patching role: scan, issue rendering, approval validation, patching, result reporting, and failure cleanup.
 ## Current Phase Boundary
-- Phase 5 plans 05-01 through 05-06 are done, and the Rust/static foundation is present; 05-07 live static publish proof and closure summary remain pending before closing the phase.
-- Phase 6 should build the polished admin collection workflow on the Rust/static foundation after the 05-07 checkpoint.
+- Phase 5 plans 05-01 through 05-07 are complete, and the Rust/static foundation is present with live static publish proof and closeout artifacts.
+- Phase 6 should build the polished admin collection workflow on the Rust/static foundation.
 - Phase 7 should add advisory AI-assisted ingest.
 - Do not re-scaffold the retired Next.js app or replace the delivery spine.
 ## Notable Absences

@@ -94,12 +94,14 @@ Storage URLs. Private original keys are generated as:
 originals/{item-uuid}/{image-uuid}
 ```
 
-## Required Live Persistence Smoke
+## Live Persistence Smoke
 
-The Oracle Autonomous Database and OCI Object Storage persistence smoke is
-mandatory before Phase 5 verification passes, even though ordinary CI skips it.
-Supply the runtime wallet/connect variables and instance-principal media
-coordinates through the operator environment, then run:
+The Oracle Autonomous Database and OCI Object Storage persistence smoke was
+required for Phase 5 closeout and remains the operator-run verification path for
+future controller persistence or private media changes. Ordinary CI skips it
+because it needs live tenancy credentials. Supply the runtime
+wallet/connect variables and instance-principal media coordinates through the
+operator environment, then run:
 
 ```bash
 AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE=true \
@@ -107,10 +109,11 @@ AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE=true \
   --features live-persistence live_persistence_smoke -- --ignored --nocapture
 ```
 
-The smoke must create one draft item, upload one private original with a
-UUID-only object key, read both records back, and clean up the smoke item and
-object. Do not mark Phase 5 verified until this command has passed against the
-live OCI tenancy.
+The smoke creates one draft item, uploads one private original with a UUID-only
+object key, reads both records back, and cleans up the smoke item and object.
+Phase 5 closeout recorded this proof against the live OCI tenancy; rerun it when
+controller persistence, Oracle connectivity, OCI instance-principal media
+access, or cleanup behavior changes.
 
 Before running the smoke, confirm the database has been initialized from the
 canonical controller schema end state in `controller/db/schema.sql`. The retired
@@ -252,13 +255,15 @@ Deploy PR 94 through the normal deployment workflow, or manually install the
 same controller quadlet, Caddyfile, static volume, and admin-shell files on the
 VM before running this checkpoint.
 
-The final Phase 5 checkpoint is a second credential-gated smoke that exercises
-the deployed controller and Caddy preview as black boxes. It creates a uniquely
-named draft through `/admin/api/*`, uploads a valid private image, verifies the
-Oracle row and OCI Object Storage object, publishes a static release, and
-fetches the browse page, item HTML, item JSON, facets, and generated WebP
-derivatives through Caddy. It then unpublishes the item, runs an incremental
-publish, confirms that stale public files return `404`, and removes the
+For Phase 5 closeout, the final checkpoint was a second credential-gated smoke
+that exercised the deployed controller and Caddy preview as black boxes. Rerun
+this smoke for future controller or publisher changes that need live
+end-to-end proof. It creates a uniquely named draft through `/admin/api/*`,
+uploads a valid private image, verifies the Oracle row and OCI Object Storage
+object, publishes a static release, and fetches the browse page, item HTML,
+item JSON, facets, and generated WebP derivatives through Caddy. It then
+unpublishes the item, runs an incremental publish, confirms that stale public
+files return `404`, and removes the
 temporary Oracle row and private original.
 
 Build and export the temporary image on a trusted Linux `amd64` workstation:
@@ -311,9 +316,10 @@ sudo podman run --rm \
   "${SMOKE_IMAGE}"
 ```
 
-The smoke result must be recorded before Phase 5 is closed. The public hostname
-now serves generated output through Caddy; the smoke proves that the deployed
-Rust/static path can still publish a fresh item end to end and remove it again.
+The static smoke result was recorded for Phase 5 closeout. The public hostname
+now serves generated output through Caddy; rerunning the smoke proves that the
+deployed Rust/static path can still publish a fresh item end to end and remove
+it again.
 If a failed run stops before cleanup, search Oracle for a title beginning with
 `Live Static Smoke`, remove that temporary draft through the available
 operator-maintenance path, and delete its logged `originals/{item-id}/{image-id}`
