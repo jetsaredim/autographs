@@ -174,20 +174,29 @@ Load and run the image with Podman:
 ```bash
 SMOKE_VERSION="<git-short-sha-used-during-build>"
 SMOKE_IMAGE="localhost/autographs-live-persistence-smoke:${SMOKE_VERSION}"
+SMOKE_WALLET_DIR="/tmp/autographs-smoke-wallet"
 
 sudo install -d -m 0700 -o opc -g opc /opt/autographs/env
 chmod 0600 /opt/autographs/env/live-persistence-smoke.env
+sudo rm -rf "${SMOKE_WALLET_DIR}"
+sudo cp -a /opt/autographs/wallet "${SMOKE_WALLET_DIR}"
 
 sudo podman load --input /tmp/autographs-live-persistence-smoke.tar
 sudo podman run --rm \
   --env-file /opt/autographs/env/live-persistence-smoke.env \
-  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro,z \
+  --volume "${SMOKE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
   "${SMOKE_IMAGE}"
 ```
 
 The image contains the compiled smoke-test executable, CA certificates, and
 Oracle Instant Client. It does not contain the Oracle wallet, database
 credential, or Object Storage credentials.
+
+Use a copied wallet directory for one-shot smoke containers instead of mounting
+the controller's live wallet path. The deployed controller owns
+`/opt/autographs/wallet` with a private SELinux label; giving each smoke run its
+own copied wallet lets Podman apply a separate private label without relabeling
+the controller's mounted secret directory.
 
 ### Clean Up Interrupted Live Smoke Data
 
@@ -206,10 +215,14 @@ Then run the persistence smoke image normally:
 ```bash
 SMOKE_VERSION="<git-short-sha-used-during-build>"
 SMOKE_IMAGE="localhost/autographs-live-persistence-smoke:${SMOKE_VERSION}"
+SMOKE_WALLET_DIR="/tmp/autographs-smoke-wallet"
+
+sudo rm -rf "${SMOKE_WALLET_DIR}"
+sudo cp -a /opt/autographs/wallet "${SMOKE_WALLET_DIR}"
 
 sudo podman run --rm \
   --env-file /opt/autographs/env/live-persistence-smoke.env \
-  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro,z \
+  --volume "${SMOKE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
   "${SMOKE_IMAGE}"
 ```
 
@@ -285,12 +298,16 @@ private Podman network:
 ```bash
 SMOKE_VERSION="<git-short-sha-used-during-build>"
 SMOKE_IMAGE="localhost/autographs-live-static-publish-smoke:${SMOKE_VERSION}"
+SMOKE_WALLET_DIR="/tmp/autographs-smoke-wallet"
+
+sudo rm -rf "${SMOKE_WALLET_DIR}"
+sudo cp -a /opt/autographs/wallet "${SMOKE_WALLET_DIR}"
 
 sudo podman load --input /tmp/autographs-live-static-publish-smoke.tar
 sudo podman run --rm \
   --network autographs \
   --env-file /opt/autographs/env/live-persistence-smoke.env \
-  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro,z \
+  --volume "${SMOKE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
   "${SMOKE_IMAGE}"
 ```
 
