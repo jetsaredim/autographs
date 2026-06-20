@@ -51,7 +51,7 @@ Declared values (must be multiples of 4):
 Exceptions:
 - Minimum interactive target height is 44px for buttons, links styled as buttons, inputs, selects, and file-upload triggers.
 - Compact table/list rows may use a 40px minimum height when the row also contains a separate 44px action target.
-- Status dots may be 8px or 10px because they are non-interactive.
+- Status dots are 8px because they are non-interactive.
 - Form textareas use a minimum height of 96px for description/inscription fields and 64px for short notes.
 
 ---
@@ -168,7 +168,7 @@ Forms:
 Item finder:
 - Existing-item maintenance is secondary but competent. Provide search/filter by signer, title, category, tag, and publication status.
 - Item rows show title, signer, status, image count, pending-change marker, and last updated date.
-- Row actions are text buttons: `Edit`, `History`, and `Publish status` when applicable.
+- Row actions are text buttons: `Edit item`, `View history`, and `Publish status` when applicable.
 
 ---
 
