@@ -6,11 +6,10 @@ catalog writes, private upload handling, static artifact contracts, validated
 publishing, a minimal browser admin shell, and a live OCI persistence smoke
 harness.
 
-It is the implemented controller foundation for Phase 5, and the old Next.js
-runtime has been retired from the active repo/runtime path. The final 05-07
-work is to record the production live static publish proof and closure summary
-before closing the phase. Phase 6 will add the polished daily-use collection
-workflow on top of this foundation.
+It is the completed controller foundation from Phase 5, and the old Next.js
+runtime has been retired from the active repo/runtime path. The 05-07 production
+live static publish proof and closure summary are recorded; Phase 6 will add the
+polished daily-use collection workflow on top of this foundation.
 
 ## Startup
 
@@ -189,8 +188,8 @@ The local-mode publisher foundation is implemented. It now:
 - Exposes authenticated full, incremental, and status publish endpoints
 - Generates minimal static category and tag filtering
 
-The final recorded live static publish proof and phase closure summary remain
-separate 05-07 work.
+The final recorded live static publish proof and phase closure summary are
+captured in the Phase 5 05-07 closeout artifacts.
 
 ## Static Admin Shell
 
@@ -231,6 +230,8 @@ cargo test --manifest-path controller/Cargo.toml \
   --features live-persistence live_persistence_smoke -- --ignored --nocapture
 ```
 
-## Remaining Phase 5 Work
+## Phase 5 Closeout
 
-- `05-07`: Live static publish proof and Phase 5 closure summary
+- `05-07`: Live static publish proof and Phase 5 closure summary recorded.
+- Phase 6 owns the polished daily-use collection workflow on this completed
+  Rust/static foundation.
