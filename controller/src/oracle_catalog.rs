@@ -108,17 +108,16 @@ impl CatalogRepository for OracleCatalogRepository {
             validate_input(&item.title, &item.signer, &item.category)?;
             let id_text = id.to_string();
             let status = publication_status_text(item.publication_status);
-            connection
+            let statement = connection
                 .execute(
                     "update autograph_items set
-                        title = :2, signer = :3, description = :4, category = :5,
-                        object_reference = :6, event_name = :7, event_location = :8,
-                        source = :9, inscription = :10, certification_company = :11,
-                        certification_id = :12, estimated_year = :13,
-                        publication_status = :14, updated_at = current_timestamp
-                    where id = :1",
+                        title = :1, signer = :2, description = :3, category = :4,
+                        object_reference = :5, event_name = :6, event_location = :7,
+                        source = :8, inscription = :9, certification_company = :10,
+                        certification_id = :11, estimated_year = :12,
+                        publication_status = :13, updated_at = current_timestamp
+                    where id = :14",
                     &[
-                        &id_text,
                         &item.title,
                         &item.signer,
                         &item.description,
@@ -132,9 +131,16 @@ impl CatalogRepository for OracleCatalogRepository {
                         &item.certification_id,
                         &item.estimated_year,
                         &status,
+                        &id_text,
                     ],
                 )
                 .map_err(|error| format!("update Oracle catalog item: {error}"))?;
+            let rows_updated = statement
+                .row_count()
+                .map_err(|error| format!("read Oracle catalog update row count: {error}"))?;
+            if rows_updated == 0 {
+                return Err("autograph item was not found".to_owned());
+            }
             replace_tags(&connection, id, &item.tags)?;
             connection
                 .commit()
@@ -181,11 +187,10 @@ impl CatalogRepository for OracleCatalogRepository {
         let storage_namespace = self.storage_namespace.clone();
         let bucket_name = self.bucket_name.clone();
         self.with_connection(move |connection| {
-            if load_item(&connection, item_id)?.is_none() {
-                return Err("autograph item was not found".to_owned());
-            }
-            let item_id_text = item_id.to_string();
-            if image.is_primary {
+            let existing_item = load_item(&connection, item_id)?
+                .ok_or_else(|| "autograph item was not found".to_owned())?;
+            if image.is_primary && existing_item.images.iter().any(|image| image.is_primary) {
+                let item_id_text = item_id.to_string();
                 connection
                     .execute(
                         "update autograph_images set is_primary = 'N', updated_at = current_timestamp where item_id = :1",
@@ -193,6 +198,10 @@ impl CatalogRepository for OracleCatalogRepository {
                     )
                     .map_err(|error| format!("clear Oracle primary image: {error}"))?;
             }
+            if existing_item.id != item_id {
+                return Err("autograph item was not found".to_owned());
+            }
+            let item_id_text = item_id.to_string();
             let image_id = image.id.to_string();
             let byte_size = image.byte_size as i64;
             let is_primary = if image.is_primary { "Y" } else { "N" };

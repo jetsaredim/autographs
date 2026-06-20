@@ -11,8 +11,8 @@ Pull=never
 Network=autographs.network
 EnvironmentFile={{ autographs_deploy_env_path }}/app.env
 EnvironmentFile={{ autographs_deploy_env_path }}/controller.env
-Volume={{ autographs_deploy_wallet_path }}:/opt/autographs/wallet:ro
-Volume={{ autographs_deploy_secrets_path }}:/opt/autographs/secrets:ro
+Volume={{ autographs_deploy_wallet_path }}:/opt/autographs/wallet:ro,Z
+Volume={{ autographs_deploy_secrets_path }}:/opt/autographs/secrets:ro,Z
 Volume=autographs-static.volume:/var/lib/autographs/static
 
 [Service]

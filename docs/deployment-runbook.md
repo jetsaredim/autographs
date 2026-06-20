@@ -168,11 +168,13 @@ The deploy role stops and disables the retired `autographs-app.service`, removes
 
 The Ansible-managed `/opt/autographs/env/controller.env` intentionally uses persistent controller providers in deployment: `AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-instance-principal`. The controller-specific environment also sets `OCI_AUTH_MODE=instance_principal` and relies on `OCI_MEDIA_NAMESPACE` plus `OCI_MEDIA_BUCKET_NAME` from the Ansible-managed runtime environment. Do not rely on a manual edit to `controller.env`; Ansible owns that file on each deploy. The deploy workflow verifies `/admin/api/health` reports those active provider modes before it succeeds.
 
-Run the mandatory live static publish smoke from [static-runtime-runbook.md](static-runtime-runbook.md) before changing the public hostname. Planned downtime is acceptable for the first switch. Recovery is roll-forward oriented: correct the source or controller, run a full rebuild, validate through the localhost candidate listener, and promote the repaired release.
+Run the mandatory live static publish smoke from [static-runtime-runbook.md](static-runtime-runbook.md) before closing Phase 5. The public hostname now serves the generated Rust/static runtime through Caddy. Recovery is roll-forward oriented: correct the source or controller, run a full rebuild, validate through the localhost candidate listener, and promote the repaired release.
 
 The public Caddy route serves the same generated static release. `/api/catalog/*` and `/api/operator/*` are no longer part of the public runtime contract.
 
 The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because controller publishing, image processing, and tools/smoke scripts can briefly exceed the VM's physical memory.
+
+The role also installs `python3-oci-cli` from the Oracle Linux 10 Development Packages repo for operator diagnostics. The application does not depend on the OCI CLI, but keeping it on the VM lets an operator verify instance-principal Object Storage access independently from the Rust controller, including emergency listing or deletion of orphaned private media objects.
 
 ### Runtime VM Recreation
 

@@ -1,11 +1,13 @@
 #[cfg(feature = "live-persistence")]
 mod live {
-    use std::{env, io::Cursor, process::Command};
+    use std::{env, io::Cursor, process::Command, time::Duration};
 
     use autographs_controller::{
+        catalog::{CatalogRepository, PublicationStatus},
         contracts::{PublicCatalog, PublicFacets, PublicItemDetail},
         media::PrivateMediaStore,
         oci_media::OciInstancePrincipalMediaStore,
+        oracle_catalog::OracleCatalogRepository,
         storage_keys::build_original_object_key,
     };
     use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
@@ -23,6 +25,10 @@ mod live {
             );
             return;
         }
+        println!(
+            "live static smoke image version: {}",
+            env::var("AUTOGRAPHS_SMOKE_IMAGE_VERSION").unwrap_or_else(|_| "unknown".to_owned())
+        );
 
         let controller = required("AUTOGRAPHS_CONTROLLER_BASE_URL");
         let preview = required("AUTOGRAPHS_STATIC_PREVIEW_BASE_URL");
@@ -37,8 +43,16 @@ mod live {
         let connection =
             Connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
                 .expect("connect to Oracle Autonomous Database");
-        let media = OciInstancePrincipalMediaStore::new(storage_namespace, bucket_name)
-            .expect("configure OCI instance-principal media store");
+        let repository = OracleCatalogRepository::new(
+            oracle_user.clone(),
+            oracle_password.clone(),
+            oracle_connect_string.clone(),
+            storage_namespace.clone(),
+            bucket_name.clone(),
+        );
+        let media =
+            OciInstancePrincipalMediaStore::new(storage_namespace.clone(), bucket_name.clone())
+                .expect("configure OCI instance-principal media store");
 
         let marker = Uuid::new_v4().simple().to_string();
         let title = format!("Live Static Smoke {marker}");
@@ -61,6 +75,17 @@ mod live {
             Some(&create_body),
         );
         let item_id = uuid_field(&created, "id");
+        println!("live static smoke item id: {item_id}");
+        let mut cleanup = LiveStaticSmokeCleanup {
+            connection: &connection,
+            item_id: item_id.to_string(),
+            object_key: None,
+            storage_namespace: storage_namespace.clone(),
+            bucket_name: bucket_name.clone(),
+            controller: controller.clone(),
+            operator_token: operator_token.clone(),
+            published: false,
+        };
 
         let image_body = png_fixture();
         let mut upload = NamedTempFile::new().expect("create temporary live smoke image");
@@ -86,15 +111,7 @@ mod live {
         )
         .expect("parse uploaded image id");
         let object_key = build_original_object_key(item_id, image_id);
-        let _cleanup = LiveStaticSmokeCleanup {
-            connection: &connection,
-            media: media.clone(),
-            item_id: item_id.to_string(),
-            object_key: object_key.clone(),
-            controller: controller.clone(),
-            operator_token: operator_token.clone(),
-        };
-        println!("live static smoke item id: {item_id}");
+        cleanup.object_key = Some(object_key.clone());
         println!("live static smoke object key: {object_key}");
 
         assert_oracle_image(&connection, item_id, image_id, &object_key);
@@ -104,12 +121,24 @@ mod live {
             .expect("read live static smoke original from OCI Object Storage");
         assert_eq!(stored, image_body);
 
-        json_request(
+        let publication = json_request(
             "POST",
             &format!("{controller}/admin/api/items/{item_id}/publication"),
             &operator_token,
             Some(r#"{"publicationStatus":"published"}"#),
         );
+        assert_eq!(publication["publicationStatus"], "published");
+        let published_item = repository
+            .get(item_id)
+            .await
+            .expect("read live static smoke item after publication update")
+            .expect("live static smoke item exists after publication update");
+        assert_eq!(
+            published_item.publication_status,
+            PublicationStatus::Published
+        );
+        assert_eq!(published_item.images.len(), 1);
+        cleanup.published = true;
         let published = json_request(
             "POST",
             &format!("{controller}/admin/api/publish/full"),
@@ -117,24 +146,44 @@ mod live {
             None,
         );
         assert_eq!(published["state"], "succeeded");
-        assert!(published["releaseId"].as_str().is_some());
+        let release_id = published["releaseId"]
+            .as_str()
+            .expect("publish response includes release id");
+        println!("live static smoke publish release id: {release_id}");
 
-        let item_html = fetch(&format!("{preview}/items/{slug}/"));
-        let item_json = fetch(&format!("{preview}/data/items/{slug}.json"));
         let collection_html = fetch(&format!("{preview}/collection/"));
         let collection_json = fetch(&format!("{preview}/data/collection.json"));
         let facets_json = fetch(&format!("{preview}/data/facets.json"));
-        let thumbnail_url = format!("{preview}/media/{slug}/image-1-thumbnail.webp");
-        let detail_url = format!("{preview}/media/{slug}/image-1-detail.webp");
+
+        let catalog: PublicCatalog =
+            serde_json::from_str(&collection_json).expect("decode generated collection JSON");
+        let facets: PublicFacets =
+            serde_json::from_str(&facets_json).expect("decode generated facets JSON");
+        let matches = catalog
+            .items
+            .iter()
+            .filter(|item| {
+                item.title == title && item.category == category && item.tags.contains(&tag)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            matches.len(),
+            1,
+            "seeded item missing from generated collection in release {release_id}"
+        );
+        let generated_slug = matches[0].slug.clone();
+        println!("live static smoke generated slug: {generated_slug}");
+        assert_eq!(generated_slug, slug);
+
+        let item_html = fetch(&format!("{preview}/items/{generated_slug}/"));
+        let item_json = fetch(&format!("{preview}/data/items/{generated_slug}.json"));
+        let thumbnail_url = format!("{preview}/media/{generated_slug}/image-1-thumbnail.webp");
+        let detail_url = format!("{preview}/media/{generated_slug}/image-1-detail.webp");
         let thumbnail = fetch_bytes(&thumbnail_url);
         let detail = fetch_bytes(&detail_url);
 
         let public_item: PublicItemDetail =
             serde_json::from_str(&item_json).expect("decode generated item JSON");
-        let catalog: PublicCatalog =
-            serde_json::from_str(&collection_json).expect("decode generated collection JSON");
-        let facets: PublicFacets =
-            serde_json::from_str(&facets_json).expect("decode generated facets JSON");
         assert_eq!(public_item.slug, slug);
         assert_eq!(image::guess_format(&thumbnail).unwrap(), ImageFormat::WebP);
         assert_eq!(image::guess_format(&detail).unwrap(), ImageFormat::WebP);
@@ -147,13 +196,6 @@ mod live {
                 .any(|option| option.value == category || option.value == tag)
         }));
 
-        let matches = catalog
-            .items
-            .iter()
-            .filter(|item| item.category == category && item.tags.contains(&tag))
-            .collect::<Vec<_>>();
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].slug, slug);
         assert!(
             catalog
                 .items
@@ -195,68 +237,116 @@ mod live {
         );
         assert_eq!(unpublished["state"], "succeeded");
         for url in [
-            format!("{preview}/items/{slug}/"),
-            format!("{preview}/data/items/{slug}.json"),
+            format!("{preview}/items/{generated_slug}/"),
+            format!("{preview}/data/items/{generated_slug}.json"),
             thumbnail_url,
             detail_url,
         ] {
             assert_eq!(status(&url), 404, "stale public artifact remained: {url}");
         }
+        delete_media_with_retries(&media, &object_key)
+            .await
+            .expect("delete live static smoke original from OCI Object Storage");
+        cleanup.object_key = None;
     }
 
     struct LiveStaticSmokeCleanup<'a> {
         connection: &'a Connection,
-        media: OciInstancePrincipalMediaStore,
         item_id: String,
-        object_key: String,
+        object_key: Option<String>,
+        storage_namespace: String,
+        bucket_name: String,
         controller: String,
         operator_token: String,
+        published: bool,
     }
 
     impl Drop for LiveStaticSmokeCleanup<'_> {
         fn drop(&mut self) {
-            let publication_drafted = best_effort_json_request(
-                "POST",
-                &format!(
-                    "{}/admin/api/items/{}/publication",
-                    self.controller, self.item_id
-                ),
-                &self.operator_token,
-                Some(r#"{"publicationStatus":"draft"}"#),
-            )
-            .is_some();
-            let static_cleanup_succeeded = if publication_drafted {
-                best_effort_json_request(
-                    "POST",
-                    &format!("{}/admin/api/publish/incremental", self.controller),
-                    &self.operator_token,
-                    None,
-                )
-                .is_some_and(|unpublished| unpublished["state"] == "succeeded")
-            } else {
-                false
-            };
-            if !static_cleanup_succeeded {
+            if self.published {
                 eprintln!(
-                    "live static smoke could not confirm stale public artifact cleanup for item {}",
+                    "live static smoke cleanup drafting and republishing item {}",
+                    self.item_id
+                );
+                let publication_drafted = best_effort_json_request(
+                    "POST",
+                    &format!(
+                        "{}/admin/api/items/{}/publication",
+                        self.controller, self.item_id
+                    ),
+                    &self.operator_token,
+                    Some(r#"{"publicationStatus":"draft"}"#),
+                )
+                .is_some();
+                let static_cleanup_succeeded = if publication_drafted {
+                    best_effort_json_request(
+                        "POST",
+                        &format!("{}/admin/api/publish/incremental", self.controller),
+                        &self.operator_token,
+                        None,
+                    )
+                    .is_some_and(|unpublished| unpublished["state"] == "succeeded")
+                } else {
+                    false
+                };
+                if !static_cleanup_succeeded {
+                    eprintln!(
+                        "live static smoke could not confirm stale public artifact cleanup for item {}",
+                        self.item_id
+                    );
+                } else {
+                    eprintln!(
+                        "live static smoke cleanup republished without item {}",
+                        self.item_id
+                    );
+                }
+            } else {
+                eprintln!(
+                    "live static smoke cleaning unpublished temporary item {}",
                     self.item_id
                 );
             }
-            std::thread::scope(|scope| {
-                let media = self.media.clone();
-                let object_key = self.object_key.clone();
-                let _ = scope
-                    .spawn(move || {
-                        let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-                            .enable_all()
-                            .build()
-                        else {
-                            return;
-                        };
-                        let _ = runtime.block_on(media.delete(&object_key));
-                    })
-                    .join();
-            });
+            if let Some(object_key) = self.object_key.clone() {
+                eprintln!("live static smoke cleanup deleting OCI object {object_key}");
+                std::thread::scope(|scope| {
+                    let storage_namespace = self.storage_namespace.clone();
+                    let bucket_name = self.bucket_name.clone();
+                    let _ = scope
+                        .spawn(move || {
+                            let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                                .enable_all()
+                                .build()
+                            else {
+                                return;
+                            };
+                            let result = runtime.block_on(async {
+                                let media = match OciInstancePrincipalMediaStore::new(
+                                    storage_namespace,
+                                    bucket_name,
+                                ) {
+                                    Ok(media) => media,
+                                    Err(error) => {
+                                        return Err(format!(
+                                            "configure OCI media cleanup client: {error}"
+                                        ));
+                                    }
+                                };
+                                delete_media_with_retries(&media, &object_key).await
+                            });
+                            match result {
+                                Ok(()) => {}
+                                Err(error) => eprintln!(
+                                    "live static smoke cleanup could not delete OCI object: {error}"
+                                ),
+                            }
+                        })
+                        .join();
+                });
+            }
+            eprintln!(
+                "live static smoke cleanup deleting Oracle rows for item {}",
+                self.item_id
+            );
             let _ = self.connection.execute(
                 "delete from autograph_images where item_id = :1",
                 &[&self.item_id],
@@ -266,7 +356,41 @@ mod live {
                 &[&self.item_id],
             );
             let _ = self.connection.commit();
+            eprintln!(
+                "live static smoke cleanup complete for item {}",
+                self.item_id
+            );
         }
+    }
+
+    async fn delete_media_with_retries(
+        media: &OciInstancePrincipalMediaStore,
+        object_key: &str,
+    ) -> Result<(), String> {
+        let delays = [
+            Duration::ZERO,
+            Duration::from_secs(2),
+            Duration::from_secs(5),
+        ];
+        let mut last_error = None;
+        for (attempt, delay) in delays.into_iter().enumerate() {
+            if !delay.is_zero() {
+                tokio::time::sleep(delay).await;
+            }
+            match tokio::time::timeout(Duration::from_secs(75), media.delete(object_key)).await {
+                Ok(Ok(())) => return Ok(()),
+                Ok(Err(error)) => {
+                    last_error = Some(error);
+                }
+                Err(_) => {
+                    last_error = Some(format!(
+                        "timed out deleting OCI object {object_key} on attempt {}",
+                        attempt + 1
+                    ));
+                }
+            }
+        }
+        Err(last_error.unwrap_or_else(|| format!("delete OCI object failed: {object_key}")))
     }
 
     fn json_request(method: &str, url: &str, token: &str, body: Option<&str>) -> Value {
@@ -281,7 +405,15 @@ mod live {
         body: Option<&str>,
     ) -> Option<Value> {
         let output = Command::new("curl")
-            .args(["--fail-with-body", "--silent", "--show-error"])
+            .args([
+                "--fail-with-body",
+                "--silent",
+                "--show-error",
+                "--connect-timeout",
+                "5",
+                "--max-time",
+                "60",
+            ])
             .args(json_request_args(method, url, token, body))
             .output()
             .ok()?;
@@ -322,7 +454,15 @@ mod live {
 
     fn fetch_bytes(url: &str) -> Vec<u8> {
         let output = Command::new("curl")
-            .args(["--fail-with-body", "--silent", "--show-error"])
+            .args([
+                "--fail-with-body",
+                "--silent",
+                "--show-error",
+                "--connect-timeout",
+                "5",
+                "--max-time",
+                "60",
+            ])
             .arg(url)
             .output()
             .unwrap_or_else(|error| panic!("run curl for {url}: {error}"));
@@ -342,6 +482,10 @@ mod live {
                 "/dev/null",
                 "--write-out",
                 "%{http_code}",
+                "--connect-timeout",
+                "5",
+                "--max-time",
+                "60",
             ])
             .arg(url)
             .output()
@@ -355,7 +499,15 @@ mod live {
 
     fn curl(args: Vec<String>, context: &str) -> String {
         let output = Command::new("curl")
-            .args(["--fail-with-body", "--silent", "--show-error"])
+            .args([
+                "--fail-with-body",
+                "--silent",
+                "--show-error",
+                "--connect-timeout",
+                "5",
+                "--max-time",
+                "60",
+            ])
             .args(args)
             .output()
             .unwrap_or_else(|error| panic!("run curl for {context}: {error}"));

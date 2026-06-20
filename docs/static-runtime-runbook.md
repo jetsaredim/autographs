@@ -134,14 +134,17 @@ To prove the runtime VM network path without installing Rust on the VM, build
 and export the one-shot smoke image on a trusted Linux `amd64` workstation:
 
 ```bash
+SMOKE_VERSION="$(git rev-parse --short HEAD)"
+SMOKE_IMAGE="localhost/autographs-live-persistence-smoke:${SMOKE_VERSION}"
+
 docker build \
   --file controller/Dockerfile.smoke \
-  --tag localhost/autographs-live-persistence-smoke:phase-05 \
+  --tag "${SMOKE_IMAGE}" \
   .
 
 docker save \
   --output /tmp/autographs-live-persistence-smoke.tar \
-  localhost/autographs-live-persistence-smoke:phase-05
+  "${SMOKE_IMAGE}"
 
 scp /tmp/autographs-live-persistence-smoke.tar \
   opc@"${VM_PUBLIC_IP}":/tmp/autographs-live-persistence-smoke.tar
@@ -169,19 +172,65 @@ permissions.
 Load and run the image with Podman:
 
 ```bash
+SMOKE_VERSION="<git-short-sha-used-during-build>"
+SMOKE_IMAGE="localhost/autographs-live-persistence-smoke:${SMOKE_VERSION}"
+SMOKE_WALLET_DIR="/tmp/autographs-smoke-wallet"
+
 sudo install -d -m 0700 -o opc -g opc /opt/autographs/env
 chmod 0600 /opt/autographs/env/live-persistence-smoke.env
+sudo rm -rf "${SMOKE_WALLET_DIR}"
+sudo cp -a /opt/autographs/wallet "${SMOKE_WALLET_DIR}"
 
 sudo podman load --input /tmp/autographs-live-persistence-smoke.tar
 sudo podman run --rm \
   --env-file /opt/autographs/env/live-persistence-smoke.env \
-  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro \
-  localhost/autographs-live-persistence-smoke:phase-05
+  --volume "${SMOKE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
+  "${SMOKE_IMAGE}"
 ```
 
 The image contains the compiled smoke-test executable, CA certificates, and
 Oracle Instant Client. It does not contain the Oracle wallet, database
 credential, or Object Storage credentials.
+
+Use a copied wallet directory for one-shot smoke containers instead of mounting
+the controller's live wallet path. The deployed controller owns
+`/opt/autographs/wallet` with a private SELinux label; giving each smoke run its
+own copied wallet lets Podman apply a separate private label without relabeling
+the controller's mounted secret directory.
+
+### Clean Up Interrupted Live Smoke Data
+
+If a live persistence smoke is killed before its `Drop` cleanup runs, use the
+same one-shot image and protected VM env file to remove leftover Oracle rows and
+Object Storage objects. Set one or both cleanup variables; values can be comma
+or newline separated:
+
+```text
+AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_IDS=3f14e408-d4a7-4ef7-91fe-4ec10b3ea745
+AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS=originals/3f14e408-d4a7-4ef7-91fe-4ec10b3ea745/949a003f-ba09-4fa2-bf7e-285ffdc187b4
+```
+
+Then run the persistence smoke image normally:
+
+```bash
+SMOKE_VERSION="<git-short-sha-used-during-build>"
+SMOKE_IMAGE="localhost/autographs-live-persistence-smoke:${SMOKE_VERSION}"
+SMOKE_WALLET_DIR="/tmp/autographs-smoke-wallet"
+
+sudo rm -rf "${SMOKE_WALLET_DIR}"
+sudo cp -a /opt/autographs/wallet "${SMOKE_WALLET_DIR}"
+
+sudo podman run --rm \
+  --env-file /opt/autographs/env/live-persistence-smoke.env \
+  --volume "${SMOKE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
+  "${SMOKE_IMAGE}"
+```
+
+Cleanup mode runs before the normal smoke gate, deletes matching
+`autograph_images`, `autograph_item_tags`, and `autograph_items` rows, deletes
+the listed Object Storage objects through instance principal auth, and verifies
+the database counts are zero. Remove the cleanup variables from the env file
+before running the normal smoke again.
 
 ## Live Static Publish Smoke
 
@@ -215,14 +264,18 @@ temporary Oracle row and private original.
 Build and export the temporary image on a trusted Linux `amd64` workstation:
 
 ```bash
+SMOKE_VERSION="$(git rev-parse --short HEAD)"
+SMOKE_IMAGE="localhost/autographs-live-static-publish-smoke:${SMOKE_VERSION}"
+
 docker build \
   --file controller/Dockerfile.static-smoke \
-  --tag localhost/autographs-live-static-publish-smoke:phase-05 \
+  --build-arg AUTOGRAPHS_SMOKE_IMAGE_VERSION="${SMOKE_VERSION}" \
+  --tag "${SMOKE_IMAGE}" \
   .
 
 docker save \
   --output /tmp/autographs-live-static-publish-smoke.tar \
-  localhost/autographs-live-static-publish-smoke:phase-05
+  "${SMOKE_IMAGE}"
 
 scp /tmp/autographs-live-static-publish-smoke.tar \
   opc@"${VM_PUBLIC_IP}":/tmp/autographs-live-static-publish-smoke.tar
@@ -243,19 +296,74 @@ smoke in the same protected file. Load and run the one-shot image on the
 private Podman network:
 
 ```bash
+SMOKE_VERSION="<git-short-sha-used-during-build>"
+SMOKE_IMAGE="localhost/autographs-live-static-publish-smoke:${SMOKE_VERSION}"
+SMOKE_WALLET_DIR="/tmp/autographs-smoke-wallet"
+
+sudo rm -rf "${SMOKE_WALLET_DIR}"
+sudo cp -a /opt/autographs/wallet "${SMOKE_WALLET_DIR}"
+
 sudo podman load --input /tmp/autographs-live-static-publish-smoke.tar
 sudo podman run --rm \
   --network autographs \
   --env-file /opt/autographs/env/live-persistence-smoke.env \
-  --volume /opt/autographs/wallet:/opt/autographs/wallet:ro \
-  localhost/autographs-live-static-publish-smoke:phase-05
+  --volume "${SMOKE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
+  "${SMOKE_IMAGE}"
 ```
 
-The smoke must pass before the public hostname is switched to generated output.
+The smoke result must be recorded before Phase 5 is closed. The public hostname
+now serves generated output through Caddy; the smoke proves that the deployed
+Rust/static path can still publish a fresh item end to end and remove it again.
 If a failed run stops before cleanup, search Oracle for a title beginning with
 `Live Static Smoke`, remove that temporary draft through the available
 operator-maintenance path, and delete its logged `originals/{item-id}/{image-id}`
-object from Object Storage.
+object from Object Storage. If the static smoke passes but logs a timeout while
+deleting the private original, use the live persistence smoke cleanup mode with
+the logged item ID and object key to confirm the database rows and Object Storage
+object are absent.
+
+When debugging Object Storage cleanup, use the VM-installed OCI CLI to verify
+that instance-principal policy allows deletes independently from the Rust media
+client:
+
+```bash
+oci os object delete \
+  --auth instance_principal \
+  --namespace-name "${OCI_MEDIA_NAMESPACE}" \
+  --bucket-name "${OCI_MEDIA_BUCKET_NAME}" \
+  --object-name "originals/<item-id>/<image-id>" \
+  --force
+```
+
+If the CLI delete is unauthorized, check that the runtime dynamic group has
+`manage objects` on the media bucket. If the CLI delete succeeds but the Rust
+cleanup path does not, investigate the controller media client or smoke cleanup
+image rather than OCI IAM.
+
+### Controller Logs and Verbosity
+
+The controller emits structured operation logs to container stdout/stderr. Normal
+`info` logs include admin catalog create/update calls, image uploads,
+publication status changes, static publish starts/completions, release IDs,
+artifact counts, and elapsed times. Route failures log the underlying repository,
+media, or publisher error before returning the public HTTP status.
+
+The deployed env file sets:
+
+```text
+RUST_LOG=autographs_controller=info,tower_http=info
+```
+
+For a debugging session, temporarily raise the controller verbosity in
+`/opt/autographs/env/app.env`, restart `autographs-controller`, and inspect
+`sudo podman logs -f autographs-controller`:
+
+```text
+RUST_LOG=autographs_controller=debug,tower_http=debug
+```
+
+Use `autographs_controller=trace` only for short sessions; it is intended for
+live diagnosis and can produce noisy logs.
 
 ## Candidate Validation
 
