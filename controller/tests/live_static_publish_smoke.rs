@@ -50,8 +50,9 @@ mod live {
             storage_namespace.clone(),
             bucket_name.clone(),
         );
-        let media = OciInstancePrincipalMediaStore::new(storage_namespace, bucket_name)
-            .expect("configure OCI instance-principal media store");
+        let media =
+            OciInstancePrincipalMediaStore::new(storage_namespace.clone(), bucket_name.clone())
+                .expect("configure OCI instance-principal media store");
 
         let marker = Uuid::new_v4().simple().to_string();
         let title = format!("Live Static Smoke {marker}");
@@ -77,9 +78,10 @@ mod live {
         println!("live static smoke item id: {item_id}");
         let mut cleanup = LiveStaticSmokeCleanup {
             connection: &connection,
-            media: media.clone(),
             item_id: item_id.to_string(),
             object_key: None,
+            storage_namespace: storage_namespace.clone(),
+            bucket_name: bucket_name.clone(),
             controller: controller.clone(),
             operator_token: operator_token.clone(),
             published: false,
@@ -242,13 +244,18 @@ mod live {
         ] {
             assert_eq!(status(&url), 404, "stale public artifact remained: {url}");
         }
+        delete_media_with_retries(&media, &object_key)
+            .await
+            .expect("delete live static smoke original from OCI Object Storage");
+        cleanup.object_key = None;
     }
 
     struct LiveStaticSmokeCleanup<'a> {
         connection: &'a Connection,
-        media: OciInstancePrincipalMediaStore,
         item_id: String,
         object_key: Option<String>,
+        storage_namespace: String,
+        bucket_name: String,
         controller: String,
         operator_token: String,
         published: bool,
@@ -302,7 +309,8 @@ mod live {
             if let Some(object_key) = self.object_key.clone() {
                 eprintln!("live static smoke cleanup deleting OCI object {object_key}");
                 std::thread::scope(|scope| {
-                    let media = self.media.clone();
+                    let storage_namespace = self.storage_namespace.clone();
+                    let bucket_name = self.bucket_name.clone();
                     let _ = scope
                         .spawn(move || {
                             let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
@@ -311,21 +319,24 @@ mod live {
                             else {
                                 return;
                             };
-                            let result = runtime
-                                .block_on(async {
-                                    tokio::time::timeout(
-                                        Duration::from_secs(60),
-                                        media.delete(&object_key),
-                                    )
-                                    .await
-                                });
+                            let result = runtime.block_on(async {
+                                let media = match OciInstancePrincipalMediaStore::new(
+                                    storage_namespace,
+                                    bucket_name,
+                                ) {
+                                    Ok(media) => media,
+                                    Err(error) => {
+                                        return Err(format!(
+                                            "configure OCI media cleanup client: {error}"
+                                        ));
+                                    }
+                                };
+                                delete_media_with_retries(&media, &object_key).await
+                            });
                             match result {
-                                Ok(Ok(())) => {}
-                                Ok(Err(error)) => eprintln!(
+                                Ok(()) => {}
+                                Err(error) => eprintln!(
                                     "live static smoke cleanup could not delete OCI object: {error}"
-                                ),
-                                Err(_) => eprintln!(
-                                    "live static smoke cleanup timed out deleting OCI object {object_key}"
                                 ),
                             }
                         })
@@ -350,6 +361,36 @@ mod live {
                 self.item_id
             );
         }
+    }
+
+    async fn delete_media_with_retries(
+        media: &OciInstancePrincipalMediaStore,
+        object_key: &str,
+    ) -> Result<(), String> {
+        let delays = [
+            Duration::ZERO,
+            Duration::from_secs(2),
+            Duration::from_secs(5),
+        ];
+        let mut last_error = None;
+        for (attempt, delay) in delays.into_iter().enumerate() {
+            if !delay.is_zero() {
+                tokio::time::sleep(delay).await;
+            }
+            match tokio::time::timeout(Duration::from_secs(75), media.delete(object_key)).await {
+                Ok(Ok(())) => return Ok(()),
+                Ok(Err(error)) => {
+                    last_error = Some(error);
+                }
+                Err(_) => {
+                    last_error = Some(format!(
+                        "timed out deleting OCI object {object_key} on attempt {}",
+                        attempt + 1
+                    ));
+                }
+            }
+        }
+        Err(last_error.unwrap_or_else(|| format!("delete OCI object failed: {object_key}")))
     }
 
     fn json_request(method: &str, url: &str, token: &str, body: Option<&str>) -> Value {
