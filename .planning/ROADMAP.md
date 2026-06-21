@@ -125,7 +125,7 @@ Plans:
   6. A thin private admin/publisher API foundation can report health, enforce the chosen private access boundary, accept minimal seed content, and trigger or report publish jobs without implementing full edit-history or full CRUD polish yet.
   7. The already-implemented Rust/static cutover and retired public Next.js/API paths are backed by a recorded live static publish proof and closure summary.
 
-**Plans**: 7 plans
+**Plans**: 8 plans
 Plans:
 
 - [x] 05-01-PLAN.md - Define and test the static public artifact contract.
@@ -179,7 +179,11 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 06-07-PLAN.md - Complete admin security review, operator docs, retired-bridge docs, and codebase map updates.
+- [ ] 06-07-PLAN.md - Complete admin security review, operator docs, retired-bridge docs, and final local verification guidance.
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 06-08-PLAN.md - Refresh codebase maps after the completed admin workflow closeout.
 
 **UI hint**: yes
 
@@ -210,5 +214,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
-| 6. Admin Collection Workflow | 0/TBD | Not started | - |
+| 6. Admin Collection Workflow | 0/8 | Not started | - |
 | 7. AI-Assisted Ingest | 0/TBD | Not started | - |

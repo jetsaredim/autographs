@@ -72,7 +72,7 @@ Copied verbatim from `.planning/phases/06-admin-collection-workflow/06-CONTEXT.m
 |----|-------------|------------------|
 | DATA-03 | Application records edit history for autograph items so the admin can see what changed over time in v1. [VERIFIED: .planning/REQUIREMENTS.md] | Add controller-owned edit event persistence with field diffs, image events, publication events, item-history read API, and admin timeline rendering. [VERIFIED: controller/src/catalog.rs] |
 | MEDIA-04 | Application keeps image objects and metadata references in sync so uploads and edits do not leave orphaned records or orphaned files in normal operation. [VERIFIED: .planning/REQUIREMENTS.md] | Extend current upload rollback behavior into delete/replace/primary operations, using `PrivateMediaStore::delete` plus repository metadata transitions. [VERIFIED: controller/src/media.rs] [VERIFIED: controller/tests/seed_content.rs] |
-| ADMIN-01 | Exactly one admin authentication path exists for collection management, and no public user account system is required for v1. [VERIFIED: .planning/REQUIREMENTS.md] | Preserve cookie-based browser admin path and decide whether operator bearer token remains maintenance-only or is retired from daily collection management docs. [VERIFIED: controller/src/auth.rs] [VERIFIED: docs/configuration-contract.md] |
+| ADMIN-01 | Exactly one admin authentication path exists for collection management, and no public user account system is required for v1. [VERIFIED: .planning/REQUIREMENTS.md] | Preserve cookie-based browser admin path and remove bearer-token authorization from collection-management routes; any remaining token compatibility must be non-management only. [VERIFIED: controller/src/auth.rs] [VERIFIED: docs/configuration-contract.md] |
 | ADMIN-02 | Admin can create a new autograph item by uploading images and reviewing/editing metadata in one workflow before publish. [VERIFIED: .planning/REQUIREMENTS.md] | Replace Phase 5 seed shell with status hub plus create form; keep save separate from publish. [VERIFIED: controller/static-admin/admin.js] |
 | ADMIN-03 | Admin can edit an existing autograph item, including metadata and associated images. [VERIFIED: .planning/REQUIREMENTS.md] | Add list/search/get routes, edit form hydration, image delete/replace/primary APIs, and history display. [VERIFIED: controller/src/routes.rs] |
 | ADMIN-04 | Admin can save reviewed metadata and publish the item so it becomes visible in the public gallery. [VERIFIED: .planning/REQUIREMENTS.md] | Build on existing publication update and incremental publish endpoints, adding pending unpublished change status. [VERIFIED: controller/src/routes.rs] [VERIFIED: controller/src/publisher.rs] |
@@ -98,7 +98,7 @@ Phase 6 should be planned as an extension of the existing Rust private controlle
 
 The largest missing planning surfaces are not framework selection; they are domain behavior: edit-history persistence and rendering, item list/get/search routes for editing, multi-image delete/replace/primary management, cautious media cleanup with observable failures, pending unpublished change status, static release retention/pruning, and final security/docs closure. [VERIFIED: controller/src/catalog.rs] [VERIFIED: controller/static-admin/index.html] [VERIFIED: .planning/phases/06-admin-collection-workflow/06-CONTEXT.md]
 
-**Primary recommendation:** Plan Phase 6 as five to six focused waves: repository/schema/history foundation; admin list/create/edit workflow; media maintenance/cleanup; pending-change publish/status/retention; security/docs/operator-bridge retirement; and final live-smoke/security closeout. [VERIFIED: .planning/ROADMAP.md] [ASSUMED]
+**Primary recommendation:** Plan Phase 6 as focused waves: repository/schema/history foundation; admin list/create/edit workflow; media maintenance/cleanup; pending-change publish/status/retention; static admin UI; auth hardening; security/docs/operator-bridge retirement; and codebase-map closeout. [VERIFIED: .planning/ROADMAP.md] [ASSUMED]
 
 ## Architectural Responsibility Map
 
@@ -272,7 +272,7 @@ Use JSON only for the variable diff payload; keep `item_id`, `event_type`, and `
 
 ### Pattern 5: Release Retention as Publisher Responsibility
 
-**What:** Add a deterministic pruning policy after successful publish, for example retain current plus last N promoted releases and latest failed candidate. [VERIFIED: controller/src/publisher.rs] [ASSUMED]
+**What:** Add a deterministic count-based pruning policy after successful publish: retain 5 promoted releases by default, counting the active `current` target as one retained release, and retain 1 failed candidate by default. Expose both counts through runtime env vars. [VERIFIED: controller/src/publisher.rs] [ASSUMED]
 
 **Why:** Current code retains only the latest failed candidate but does not prune successful `releases/` directories. [VERIFIED: controller/src/publisher.rs]
 
@@ -305,7 +305,7 @@ Use JSON only for the variable diff payload; keep `item_id`, `event_type`, and `
 | Stored data | Private Object Storage originals use keys shaped `originals/{item-uuid}/{image-uuid}`. [VERIFIED: controller/src/storage_keys.rs] | Add normal image delete/replace cleanup paths and smoke cleanup coverage. [VERIFIED: controller/tests/live_static_publish_smoke.rs] |
 | Live service config | Caddy serves `/admin/*`, proxies `/admin/api/*`, and blocks `/api/operator/*` with 404. [VERIFIED: deploy/ansible/roles/autographs_deploy/files/Caddyfile] | Keep route shape; final audit should verify retired operator route docs are gone or clearly historical. [VERIFIED: docs/deployment-runbook.md] |
 | OS-registered state | Runtime VM uses systemd-managed Podman quadlets for controller/Caddy and shared static volume. [VERIFIED: docs/deployment-runbook.md] | If env vars are added for retention/status, update Ansible templates and restart handlers. [VERIFIED: deploy/ansible/roles/autographs_deploy/templates/app.env.j2] |
-| Secrets/env vars | `AUTOGRAPHS_ADMIN_PASSWORD_HASH`, optional local `AUTOGRAPHS_ADMIN_PASSWORD`, and `AUTOGRAPHS_OPERATOR_API_TOKEN` exist. [VERIFIED: docs/configuration-contract.md] | Phase 6 must define "exactly one admin authentication path" for daily management and document whether operator token remains maintenance-only. [VERIFIED: .planning/REQUIREMENTS.md] |
+| Secrets/env vars | `AUTOGRAPHS_ADMIN_PASSWORD_HASH`, optional local `AUTOGRAPHS_ADMIN_PASSWORD`, and `AUTOGRAPHS_OPERATOR_API_TOKEN` exist. [VERIFIED: docs/configuration-contract.md] | Phase 6 must make the session cookie from `/admin/api/login` the only collection-management auth path and remove bearer-token collection-management docs/tests. [VERIFIED: .planning/REQUIREMENTS.md] |
 | Secrets/env vars | Oracle wallet/password and OCI media namespace/bucket are deployed through environment/operator secret stores. [VERIFIED: docs/configuration-contract.md] | Do not expose these in diagnostics, DTOs, static admin source, or public artifacts. [VERIFIED: controller/tests/static_admin.rs] |
 | Build artifacts | Static releases accumulate under `${AUTOGRAPHS_STATIC_RELEASE_ROOT}/releases/`; failed candidates retain only latest under `failed/`. [VERIFIED: controller/src/publisher.rs] | Add promoted-release retention/pruning policy and status visibility. [VERIFIED: .planning/phases/06-admin-collection-workflow/06-CONTEXT.md] |
 
@@ -433,28 +433,28 @@ This extends current health/publish status without exposing storage identifiers.
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | Phase 6 can be split into five to six waves without over-fragmenting. | Summary / Likely Plan Breakdown | Planner may choose a different granularity. |
+| A1 | Phase 6 can be split into focused waves without over-fragmenting, including a separate closeout map refresh if checker scope limits require it. | Summary / Likely Plan Breakdown | Planner may choose a different granularity. |
 | A2 | Controller-owned edit events are preferable to Oracle triggers. | Standard Stack / Architecture Patterns | If trigger-based audit is required later, repository design may shift. |
 | A3 | CLOB/JSON diff payload plus relational query columns is enough for v1 history. | Architecture Patterns | If Oracle JSON type compatibility differs in the live ADB, schema may use CLOB with `is json` instead. |
 | A4 | Cleanup should record retryable failures instead of attempting cross-system transactional semantics. | Common Pitfalls | Planner must design retry/repair ergonomics carefully. |
-| A5 | The operator token can remain maintenance-only while cookie login is the daily admin path. | Security Domain | User may prefer full token retirement after Phase 6. |
+| A5 | Bearer-token compatibility, if any remains, must not authorize collection-management routes after Phase 6; session-cookie login is the only collection-management path. | Security Domain | Non-management token compatibility may still need explicit docs if retained. |
 
-## Open Questions
+## Open Questions — RESOLVED
 
-1. **Should the compatibility bearer token remain after Phase 6?**
+1. **[RESOLVED] Should the compatibility bearer token remain after Phase 6?**
    - What we know: It is currently documented as a compatibility/admin token and accepted by controller auth. [VERIFIED: docs/configuration-contract.md] [VERIFIED: controller/src/routes.rs]
-   - What's unclear: Whether "exactly one admin authentication path" means remove bearer access entirely or keep it only for operator maintenance/live smoke. [VERIFIED: .planning/REQUIREMENTS.md]
-   - Recommendation: Plan a security/docs decision checkpoint before final auth cleanup. [ASSUMED]
+   - Resolution: Phase 6 makes `/admin/api/login` plus the HTTP-only session cookie the only collection-management authentication path. Bearer-token authorization must be removed from item, image, cleanup, publication, and publish routes; ignored live-smoke tests must log in through the session path. If the code retains token parsing for non-management compatibility, docs must clearly state it is not a collection-management path. [RESOLVED: .planning/REQUIREMENTS.md] [RESOLVED: .planning/phases/06-admin-collection-workflow/06-CONTEXT.md]
+   - Planning impact: Plan 06-06 hardens collection-management routes to `AuthKind::Session`, and Plan 06-07 removes bearer-token collection-management wording from operator docs. [RESOLVED: .planning/phases/06-admin-collection-workflow/06-06-PLAN.md] [RESOLVED: .planning/phases/06-admin-collection-workflow/06-07-PLAN.md]
 
-2. **How much release rollback should be retained?**
+2. **[RESOLVED] How much release rollback should be retained?**
    - What we know: Current code prunes failed candidates to one but does not prune promoted releases. [VERIFIED: controller/src/publisher.rs]
-   - What's unclear: Exact count/window for successful release retention. [VERIFIED: .planning/phases/06-admin-collection-workflow/06-CONTEXT.md]
-   - Recommendation: Use a configurable small count, such as current plus 3-5 prior releases, unless disk evidence suggests otherwise. [ASSUMED]
+   - Resolution: Use count-based retention, not time-window retention, for Phase 6. Default `AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT=5`, counting the active `current` target as one retained promoted release, and default `AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT=1`. Both counts are configurable through controller runtime env vars and rendered by the Ansible controller env template. [RESOLVED: .planning/phases/06-admin-collection-workflow/06-CONTEXT.md]
+   - Planning impact: Plan 06-04 implements publisher pruning, config parsing, `.env.example`, and the Ansible `controller.env.j2` entries for production runtime rendering. [RESOLVED: .planning/phases/06-admin-collection-workflow/06-04-PLAN.md]
 
-3. **Should history capture create events for seed/imported records already present?**
+3. **[RESOLVED] Should history capture create events for seed/imported records already present?**
    - What we know: Existing live/static smoke data can create items before edit history exists. [VERIFIED: controller/tests/live_static_publish_smoke.rs]
-   - What's unclear: Whether old items need synthetic baseline events. [ASSUMED]
-   - Recommendation: Add forward-only history for new changes and optionally display "history starts on Phase 6 deployment" for pre-existing records. [ASSUMED]
+   - Resolution: Do not synthesize baseline create events for pre-existing records. Edit history is forward-only from the Phase 6 history schema deployment; the first post-Phase 6 edit to an existing record records real before/after values from the current row, and records with no events show the UI copy `No history recorded yet. Changes made after the Phase 6 history update will appear here.` [RESOLVED: .planning/phases/06-admin-collection-workflow/06-UI-SPEC.md]
+   - Planning impact: Plan 06-01 creates the history table and event contracts without a backfill task, and Plan 06-05 renders the approved empty-history copy. [RESOLVED: .planning/phases/06-admin-collection-workflow/06-01-PLAN.md] [RESOLVED: .planning/phases/06-admin-collection-workflow/06-05-PLAN.md]
 
 ## Environment Availability
 
@@ -502,7 +502,7 @@ OWASP ASVS 5.0.0 is the current stable ASVS version according to OWASP's project
 |---------------|---------|------------------|
 | V2 Authentication | yes | Preserve single-admin login, Argon2 password hash, lockout clarity, logout, expired-session UI. [VERIFIED: controller/src/auth.rs] |
 | V3 Session Management | yes | Preserve HTTP-only SameSite Strict cookie, secure cookies in deployment, logout invalidation, and no browser storage. [VERIFIED: controller/src/routes.rs] [VERIFIED: controller/tests/auth_and_health.rs] |
-| V4 Access Control | yes | Keep all admin mutations authenticated and same-origin/bearer-authorized; keep public output static and published-only. [VERIFIED: controller/src/routes.rs] [VERIFIED: controller/src/publisher.rs] |
+| V4 Access Control | yes | Keep all collection-management mutations authenticated through the single admin session cookie plus same-origin checks; keep public output static and published-only. [VERIFIED: controller/src/routes.rs] [VERIFIED: controller/src/publisher.rs] |
 | V5 Input Validation | yes | Keep required metadata validation, image MIME/content validation, size limits, and upload byte decoding. [VERIFIED: controller/src/catalog.rs] [VERIFIED: controller/src/routes.rs] |
 | V6 Cryptography / Secrets | yes | Use Argon2 for admin password hashes and keep Oracle/OCI/admin secrets out of static source and DTOs. [VERIFIED: controller/src/auth.rs] [VERIFIED: docs/configuration-contract.md] |
 | V8 Data Protection | yes | Do not expose Object Storage URLs, namespaces, bucket names, object keys, image UUIDs, unpublished records, or original filenames. [VERIFIED: controller/tests/static_admin.rs] [VERIFIED: controller/tests/publisher.rs] |
@@ -517,7 +517,7 @@ OWASP ASVS 5.0.0 is the current stable ASVS version according to OWASP's project
 | Stored XSS from catalog metadata | Tampering / Elevation of Privilege | Escape generated HTML and use DOM `textContent`/`replaceChildren` patterns; tests already assert public browse safety. [VERIFIED: controller/src/publisher.rs] [VERIFIED: controller/tests/publisher.rs] |
 | Private media identifier leakage | Information Disclosure | Dedicated redacted DTOs and privacy scans over static/admin source. [VERIFIED: controller/src/routes.rs] [VERIFIED: controller/tests/static_admin.rs] |
 | Orphaned private originals | Information Disclosure / Repudiation | Explicit controller cleanup, event recording, retries/guidance, live smoke cleanup mode. [VERIFIED: controller/src/media.rs] [VERIFIED: controller/tests/live_persistence_smoke.rs] |
-| Operator token ambiguity | Elevation of Privilege | Decide and document whether bearer token remains maintenance-only or is retired from collection management. [VERIFIED: docs/configuration-contract.md] [ASSUMED] |
+| Bearer token reaches collection management | Elevation of Privilege | Remove bearer-token authorization from collection-management routes and document the session cookie as the only collection-management path. [VERIFIED: docs/configuration-contract.md] [ASSUMED] |
 | Unbounded release accumulation | Denial of Service | Add publisher-owned retention/pruning after successful promotion. [VERIFIED: controller/src/publisher.rs] [ASSUMED] |
 
 ## Sources
