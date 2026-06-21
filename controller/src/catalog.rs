@@ -38,17 +38,12 @@ pub struct AutographItemInput {
     pub publication_status: PublicationStatus,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum FieldPatch<T> {
+    #[default]
     Unchanged,
     Clear,
     Set(T),
-}
-
-impl<T> Default for FieldPatch<T> {
-    fn default() -> Self {
-        Self::Unchanged
-    }
 }
 
 impl<'de, T> Deserialize<'de> for FieldPatch<T>
@@ -162,8 +157,12 @@ impl EditEventKind {
             Self::CleanupChanged => "cleanupChanged",
         }
     }
+}
 
-    pub fn from_str(value: &str) -> Result<Self, String> {
+impl std::str::FromStr for EditEventKind {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, String> {
         match value {
             "created" => Ok(Self::Created),
             "metadataUpdated" => Ok(Self::MetadataUpdated),

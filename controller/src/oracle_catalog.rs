@@ -424,7 +424,7 @@ fn event_from_row(item_id: Uuid, row: &Row) -> Result<AutographEditEvent, String
     Ok(AutographEditEvent {
         id: parse_uuid(&row_value::<String>(row, 0, "edit event id")?)?,
         item_id,
-        kind: EditEventKind::from_str(&row_value::<String>(row, 1, "edit event type")?)?,
+        kind: row_value::<String>(row, 1, "edit event type")?.parse::<EditEventKind>()?,
         summary: row_value(row, 2, "edit event summary")?,
         field_diffs,
         created_at_epoch_seconds: row_value::<Option<i64>>(row, 4, "edit event created at")?

@@ -212,7 +212,7 @@ mod live {
                 .expect("connect to Oracle Autonomous Database for listing smoke rows");
         assert_static_runtime_schema(&connection);
 
-        let mut rows = connection
+        let rows = connection
             .query(
                 "select
                    i.id,
@@ -230,7 +230,7 @@ mod live {
             .expect("query live smoke rows");
 
         let mut found = false;
-        while let Some(row) = rows.next() {
+        for row in rows {
             found = true;
             let row = row.expect("read live smoke row");
             let item_id: String = row.get(0).expect("read smoke item id");
