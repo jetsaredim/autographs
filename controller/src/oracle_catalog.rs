@@ -466,7 +466,7 @@ fn insert_edit_event(connection: &Connection, event: &AutographEditEvent) -> Res
                 id, item_id, event_type, summary, field_diffs_json, created_at
             ) values (
                 :1, :2, :3, :4, :5, 
-                timestamp '1970-01-01 00:00:00' + numtodsinterval(:6, 'SECOND'
+                timestamp '1970-01-01 00:00:00' + numtodsinterval(:6, 'SECOND')
             )",
             &[
                 &id_text,
