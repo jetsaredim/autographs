@@ -323,10 +323,7 @@ impl CatalogRepository for MemoryCatalogRepository {
             candidate
         };
         if let Some(event) = event {
-            self.events
-                .lock()
-                .expect("catalog event lock")
-                .push(event);
+            self.events.lock().expect("catalog event lock").push(event);
         }
         Ok(updated)
     }

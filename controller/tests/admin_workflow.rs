@@ -49,7 +49,12 @@ async fn history_nullable_field_clear_records_before_and_after_values() {
         json!("signed at event"),
         Value::Null,
     );
-    assert_field_diff(metadata_event, "source", Value::Null, json!("Private collection"));
+    assert_field_diff(
+        metadata_event,
+        "source",
+        Value::Null,
+        json!("Private collection"),
+    );
 }
 
 #[tokio::test]
@@ -103,7 +108,12 @@ async fn history_metadata_and_publication_updates_record_field_level_diffs() {
         .iter()
         .find(|event| event.kind == EditEventKind::MetadataUpdated)
         .expect("metadata history event");
-    assert_field_diff(metadata_event, "signer", json!("Mark Hamill"), json!("Carrie Fisher"));
+    assert_field_diff(
+        metadata_event,
+        "signer",
+        json!("Mark Hamill"),
+        json!("Carrie Fisher"),
+    );
     assert_field_diff(metadata_event, "category", json!("Cards"), json!("Photos"));
     assert_field_diff(
         metadata_event,
