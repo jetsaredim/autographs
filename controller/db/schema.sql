@@ -78,6 +78,28 @@ create table autograph_publish_jobs (
     check (status in ('queued', 'running', 'succeeded', 'failed'))
 );
 
+create table autograph_edit_events (
+  id varchar2(36) primary key,
+  item_id varchar2(36) not null,
+  event_type varchar2(48) not null,
+  summary varchar2(500) not null,
+  field_diffs_json clob,
+  created_at timestamp default current_timestamp not null,
+  constraint autograph_edit_events_item_fk
+    foreign key (item_id) references autograph_items(id) on delete cascade,
+  constraint autograph_edit_events_type_ck
+    check (event_type in (
+      'created',
+      'metadataUpdated',
+      'imageAdded',
+      'imageRemoved',
+      'imageReplaced',
+      'primaryImageChanged',
+      'publicationChanged',
+      'cleanupChanged'
+    ))
+);
+
 create table autograph_public_derivatives (
   id varchar2(36) primary key,
   image_id varchar2(36) not null,
@@ -105,6 +127,9 @@ create index autograph_images_item_order_idx on autograph_images(item_id, sort_o
 
 create index autograph_publish_jobs_status_idx
   on autograph_publish_jobs(status, started_at);
+
+create index autograph_edit_events_item_created_idx
+  on autograph_edit_events(item_id, created_at);
 
 create index autograph_public_derivatives_release_idx
   on autograph_public_derivatives(release_id);
