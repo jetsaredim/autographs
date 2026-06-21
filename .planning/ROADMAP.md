@@ -125,7 +125,7 @@ Plans:
   6. A thin private admin/publisher API foundation can report health, enforce the chosen private access boundary, accept minimal seed content, and trigger or report publish jobs without implementing full edit-history or full CRUD polish yet.
   7. The already-implemented Rust/static cutover and retired public Next.js/API paths are backed by a recorded live static publish proof and closure summary.
 
-**Plans**: 8 plans
+**Plans**: 7 plans
 Plans:
 
 - [x] 05-01-PLAN.md - Define and test the static public artifact contract.
