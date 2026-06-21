@@ -151,7 +151,7 @@ Plans:
   4. Admin can publish changes so items become visible in the public gallery without leaving orphaned metadata references or image files in normal operation.
   5. Admin routes, secrets, edit-history behavior, media cleanup, and operator-bridge retirement are reviewed for security and documented before Phase 6 is marked complete.
 
-**Plans**: 7 plans
+**Plans**: 8 plans
 Plans:
 **Wave 1**
 
