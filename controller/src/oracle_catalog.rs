@@ -4,8 +4,9 @@ use tokio::task;
 use uuid::Uuid;
 
 use crate::catalog::{
-    AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
-    PublicationStatus,
+    AutographEditEvent, AutographImage, AutographItem, AutographItemInput, AutographItemUpdate,
+    CatalogRepository, EditEventKind, FieldDiff, PendingChangeSummary, PublicationStatus,
+    apply_update, event_kind_for_diffs, event_summary, now_epoch_seconds, validate_required_fields,
 };
 
 #[derive(Clone)]
@@ -57,7 +58,7 @@ impl OracleCatalogRepository {
 #[async_trait]
 impl CatalogRepository for OracleCatalogRepository {
     async fn create(&self, input: AutographItemInput) -> Result<AutographItem, String> {
-        validate_input(&input.title, &input.signer, &input.category)?;
+        validate_required_fields(&input.title, &input.signer, &input.category)?;
         let id = Uuid::new_v4();
         self.with_connection(move |connection| {
             let id_text = id.to_string();
@@ -91,6 +92,14 @@ impl CatalogRepository for OracleCatalogRepository {
                 )
                 .map_err(|error| format!("insert Oracle catalog item: {error}"))?;
             replace_tags(&connection, id, &input.tags)?;
+            let event = AutographEditEvent::new(
+                id,
+                EditEventKind::Created,
+                format!("Created autograph item `{}`", input.title),
+                Vec::new(),
+                now_epoch_seconds(),
+            );
+            insert_edit_event(&connection, &event)?;
             connection
                 .commit()
                 .map_err(|error| format!("commit Oracle catalog item: {error}"))?;
@@ -104,8 +113,11 @@ impl CatalogRepository for OracleCatalogRepository {
         self.with_connection(move |connection| {
             let mut item = load_item(&connection, id)?
                 .ok_or_else(|| "autograph item was not found".to_owned())?;
-            apply_update(&mut item, input);
-            validate_input(&item.title, &item.signer, &item.category)?;
+            let field_diffs = apply_update(&mut item, input);
+            validate_required_fields(&item.title, &item.signer, &item.category)?;
+            if field_diffs.is_empty() {
+                return Ok(item);
+            }
             let id_text = id.to_string();
             let status = publication_status_text(item.publication_status);
             let statement = connection
@@ -142,6 +154,15 @@ impl CatalogRepository for OracleCatalogRepository {
                 return Err("autograph item was not found".to_owned());
             }
             replace_tags(&connection, id, &item.tags)?;
+            let kind = event_kind_for_diffs(&field_diffs);
+            let event = AutographEditEvent::new(
+                id,
+                kind,
+                event_summary(kind, &field_diffs),
+                field_diffs,
+                now_epoch_seconds(),
+            );
+            insert_edit_event(&connection, &event)?;
             connection
                 .commit()
                 .map_err(|error| format!("commit Oracle catalog update: {error}"))?;
@@ -228,10 +249,47 @@ impl CatalogRepository for OracleCatalogRepository {
                 )
                 .map_err(|error| format!("insert Oracle catalog image: {error}"))?;
             connection
+                .execute(
+                    "update autograph_items set updated_at = current_timestamp where id = :1",
+                    &[&item_id_text],
+                )
+                .map_err(|error| format!("touch Oracle catalog item for image upload: {error}"))?;
+            let event = AutographEditEvent::new(
+                item_id,
+                EditEventKind::ImageAdded,
+                "Image added",
+                Vec::new(),
+                now_epoch_seconds(),
+            );
+            insert_edit_event(&connection, &event)?;
+            connection
                 .commit()
                 .map_err(|error| format!("commit Oracle catalog image: {error}"))?;
             load_item(&connection, item_id)?
                 .ok_or_else(|| "updated Oracle item was not found".to_owned())
+        })
+        .await
+    }
+
+    async fn history(&self, item_id: Uuid) -> Result<Vec<AutographEditEvent>, String> {
+        self.with_connection(move |connection| load_history(&connection, item_id))
+            .await
+    }
+
+    async fn pending_changes(&self) -> Result<PendingChangeSummary, String> {
+        // Publish-job persistence is not wired to Oracle yet, so there is no reliable
+        // persisted publish boundary to compare edit events against.
+        // Keep this provisional until publish jobs are recorded in autograph_publish_jobs.
+        Ok(PendingChangeSummary::default())
+    }
+
+    async fn record_event(&self, event: AutographEditEvent) -> Result<AutographEditEvent, String> {
+        self.with_connection(move |connection| {
+            insert_edit_event(&connection, &event)?;
+            connection
+                .commit()
+                .map_err(|error| format!("commit Oracle catalog edit event: {error}"))?;
+            Ok(event)
         })
         .await
     }
@@ -245,7 +303,9 @@ fn load_item(connection: &Connection, id: Uuid) -> Result<Option<AutographItem>,
                 title, signer, description, category, object_reference,
                 event_name, event_location, source, inscription,
                 certification_company, certification_id, estimated_year,
-                publication_status
+                publication_status,
+                cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
+                cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
             from autograph_items where id = :1",
             &[&id_text],
         )
@@ -282,6 +342,10 @@ fn item_from_row(id: Uuid, row: &Row) -> Result<AutographItem, String> {
         )?)?,
         tags: Vec::new(),
         images: Vec::new(),
+        created_at_epoch_seconds: row_value::<Option<i64>>(row, 13, "created at")?
+            .unwrap_or_default(),
+        updated_at_epoch_seconds: row_value::<Option<i64>>(row, 14, "updated at")?
+            .unwrap_or_default(),
     })
 }
 
@@ -333,6 +397,43 @@ fn load_images(connection: &Connection, id: Uuid) -> Result<Vec<AutographImage>,
     Ok(images)
 }
 
+fn load_history(connection: &Connection, item_id: Uuid) -> Result<Vec<AutographEditEvent>, String> {
+    let item_id_text = item_id.to_string();
+    let mut rows = connection
+        .query(
+            "select
+                id, event_type, summary, field_diffs_json,
+                cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19))
+            from autograph_edit_events
+            where item_id = :1
+            order by created_at desc, id desc",
+            &[&item_id_text],
+        )
+        .map_err(|error| format!("read Oracle catalog edit history: {error}"))?;
+    let mut events = Vec::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("read Oracle catalog edit history row: {error}"))?;
+        events.push(event_from_row(item_id, &row)?);
+    }
+    Ok(events)
+}
+
+fn event_from_row(item_id: Uuid, row: &Row) -> Result<AutographEditEvent, String> {
+    let field_diffs_json = row_value::<Option<String>>(row, 3, "edit event field diffs")?
+        .unwrap_or_else(|| "[]".to_owned());
+    let field_diffs = serde_json::from_str::<Vec<FieldDiff>>(&field_diffs_json)
+        .map_err(|error| format!("parse Oracle catalog edit event field diffs: {error}"))?;
+    Ok(AutographEditEvent {
+        id: parse_uuid(&row_value::<String>(row, 0, "edit event id")?)?,
+        item_id,
+        kind: row_value::<String>(row, 1, "edit event type")?.parse::<EditEventKind>()?,
+        summary: row_value(row, 2, "edit event summary")?,
+        field_diffs,
+        created_at_epoch_seconds: row_value::<Option<i64>>(row, 4, "edit event created at")?
+            .unwrap_or_default(),
+    })
+}
+
 fn replace_tags(connection: &Connection, id: Uuid, tags: &[String]) -> Result<(), String> {
     let id_text = id.to_string();
     connection
@@ -352,55 +453,31 @@ fn replace_tags(connection: &Connection, id: Uuid, tags: &[String]) -> Result<()
     Ok(())
 }
 
-fn apply_update(item: &mut AutographItem, input: AutographItemUpdate) {
-    if let Some(value) = input.title {
-        item.title = value;
-    }
-    if let Some(value) = input.signer {
-        item.signer = value;
-    }
-    if let Some(value) = input.description {
-        item.description = Some(value);
-    }
-    if let Some(value) = input.category {
-        item.category = value;
-    }
-    if let Some(value) = input.tags {
-        item.tags = value;
-    }
-    if let Some(value) = input.object_reference {
-        item.object_reference = Some(value);
-    }
-    if let Some(value) = input.event_name {
-        item.event_name = Some(value);
-    }
-    if let Some(value) = input.event_location {
-        item.event_location = Some(value);
-    }
-    if let Some(value) = input.source {
-        item.source = Some(value);
-    }
-    if let Some(value) = input.inscription {
-        item.inscription = Some(value);
-    }
-    if let Some(value) = input.certification_company {
-        item.certification_company = Some(value);
-    }
-    if let Some(value) = input.certification_id {
-        item.certification_id = Some(value);
-    }
-    if let Some(value) = input.estimated_year {
-        item.estimated_year = Some(value);
-    }
-    if let Some(value) = input.publication_status {
-        item.publication_status = value;
-    }
-}
-
-fn validate_input(title: &str, signer: &str, category: &str) -> Result<(), String> {
-    if title.trim().is_empty() || signer.trim().is_empty() || category.trim().is_empty() {
-        return Err("title, signer, and category are required".to_owned());
-    }
+fn insert_edit_event(connection: &Connection, event: &AutographEditEvent) -> Result<(), String> {
+    let id_text = event.id.to_string();
+    let item_id_text = event.item_id.to_string();
+    let event_type = event.kind.as_str();
+    let field_diffs_json = serde_json::to_string(&event.field_diffs)
+        .map_err(|error| format!("serialize Oracle catalog edit event field diffs: {error}"))?;
+    let created_at_epoch_seconds = event.created_at_epoch_seconds;
+    connection
+        .execute(
+            "insert into autograph_edit_events (
+                id, item_id, event_type, summary, field_diffs_json, created_at
+            ) values (
+                :1, :2, :3, :4, :5, 
+                timestamp '1970-01-01 00:00:00' + numtodsinterval(:6, 'SECOND')
+            )",
+            &[
+                &id_text,
+                &item_id_text,
+                &event_type,
+                &event.summary,
+                &field_diffs_json,
+                &created_at_epoch_seconds,
+            ],
+        )
+        .map_err(|error| format!("insert Oracle catalog edit event: {error}"))?;
     Ok(())
 }
 

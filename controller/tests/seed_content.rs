@@ -1,4 +1,4 @@
-use std::{fs, path::Path, sync::Arc};
+use std::{fs, io::Cursor, path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use autographs_controller::{
@@ -17,7 +17,6 @@ use axum::{
 };
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 use serde_json::Value;
-use std::io::Cursor;
 use tempfile::tempdir;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -193,6 +192,8 @@ async fn seed_content_upload_does_not_leave_orphan_media_when_attachment_fails()
         estimated_year: None,
         publication_status: PublicationStatus::Draft,
         images: Vec::new(),
+        created_at_epoch_seconds: 0,
+        updated_at_epoch_seconds: 0,
     };
     let repository = Arc::new(FailingAttachRepository { item: item.clone() });
     let media = Arc::new(LocalMediaStore::new(root.path()));

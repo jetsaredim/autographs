@@ -15,7 +15,7 @@ use crate::{
     auth::AuthState,
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
-        MemoryCatalogRepository, PublicationStatus,
+        MemoryCatalogRepository, PublicationStatus, REQUIRED_FIELDS_ERROR,
     },
     config::ControllerConfig,
     media::{LocalMediaStore, PrivateMediaStore},
@@ -351,7 +351,7 @@ async fn update_item(
         }
         Err(error) => {
             tracing::error!(item_id = %id, error = %error, "failed to update catalog item");
-            StatusCode::NOT_FOUND.into_response()
+            repository_update_error_status(&error).into_response()
         }
     }
 }
@@ -506,7 +506,7 @@ async fn set_publication(
                 error = %error,
                 "failed to update catalog item publication"
             );
-            StatusCode::NOT_FOUND.into_response()
+            repository_update_error_status(&error).into_response()
         }
     }
 }
@@ -583,6 +583,16 @@ fn authorize_mutation(
     csrf_allowed(state, method, headers, &auth)
         .then_some(auth)
         .ok_or(StatusCode::FORBIDDEN)
+}
+
+fn repository_update_error_status(error: &str) -> StatusCode {
+    if error == REQUIRED_FIELDS_ERROR {
+        StatusCode::BAD_REQUEST
+    } else if error.contains("not found") {
+        StatusCode::NOT_FOUND
+    } else {
+        StatusCode::INTERNAL_SERVER_ERROR
+    }
 }
 
 #[derive(Deserialize)]

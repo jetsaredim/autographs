@@ -8,12 +8,15 @@ const EXPECTED_TABLES: &[&str] = &[
     "AUTOGRAPH_ITEM_TAGS",
     "AUTOGRAPH_IMAGES",
     "AUTOGRAPH_PUBLISH_JOBS",
+    "AUTOGRAPH_EDIT_EVENTS",
     "AUTOGRAPH_PUBLIC_DERIVATIVES",
 ];
 const REQUIRED_COLUMNS: &[(&str, &str)] = &[
     ("AUTOGRAPH_ITEMS", "PUBLICATION_STATUS"),
     ("AUTOGRAPH_IMAGES", "ORIGINAL_FILENAME"),
     ("AUTOGRAPH_PUBLISH_JOBS", "STATUS"),
+    ("AUTOGRAPH_EDIT_EVENTS", "EVENT_TYPE"),
+    ("AUTOGRAPH_EDIT_EVENTS", "FIELD_DIFFS_JSON"),
     ("AUTOGRAPH_PUBLIC_DERIVATIVES", "PUBLIC_PATH"),
 ];
 
@@ -79,6 +82,7 @@ fn existing_autograph_tables(connection: &Connection) -> Result<HashSet<String>,
                 'AUTOGRAPH_ITEM_TAGS',
                 'AUTOGRAPH_IMAGES',
                 'AUTOGRAPH_PUBLISH_JOBS',
+                'AUTOGRAPH_EDIT_EVENTS',
                 'AUTOGRAPH_PUBLIC_DERIVATIVES'
             )",
             &[],
@@ -164,6 +168,11 @@ mod tests {
             statements
                 .iter()
                 .any(|statement| statement.starts_with("create table autograph_items"))
+        );
+        assert!(
+            statements
+                .iter()
+                .any(|statement| statement.starts_with("create table autograph_edit_events"))
         );
     }
 }
