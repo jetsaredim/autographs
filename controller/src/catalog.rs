@@ -9,6 +9,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+pub(crate) const REQUIRED_FIELDS_ERROR: &str = "title, signer, and category are required";
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PublicationStatus {
@@ -492,13 +494,16 @@ pub(crate) fn validate_required_fields(
     category: &str,
 ) -> Result<(), String> {
     if title.trim().is_empty() || signer.trim().is_empty() || category.trim().is_empty() {
-        return Err("title, signer, and category are required".to_owned());
+        return Err(REQUIRED_FIELDS_ERROR.to_owned());
     }
     Ok(())
 }
 
 pub(crate) fn event_kind_for_diffs(field_diffs: &[FieldDiff]) -> EditEventKind {
-    if field_diffs.len() == 1 && field_diffs[0].field == "publicationStatus" {
+    if field_diffs
+        .iter()
+        .any(|diff| diff.field == "publicationStatus")
+    {
         EditEventKind::PublicationChanged
     } else {
         EditEventKind::MetadataUpdated

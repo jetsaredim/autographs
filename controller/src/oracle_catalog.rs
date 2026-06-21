@@ -277,8 +277,10 @@ impl CatalogRepository for OracleCatalogRepository {
     }
 
     async fn pending_changes(&self) -> Result<PendingChangeSummary, String> {
-        self.with_connection(move |connection| pending_changes(&connection))
-            .await
+        // Publish-job persistence is not wired to Oracle yet, so there is no reliable
+        // persisted publish boundary to compare edit events against.
+        // Keep this provisional until publish jobs are recorded in autograph_publish_jobs.
+        Ok(PendingChangeSummary::default())
     }
 
     async fn record_event(&self, event: AutographEditEvent) -> Result<AutographEditEvent, String> {
@@ -432,36 +434,6 @@ fn event_from_row(item_id: Uuid, row: &Row) -> Result<AutographEditEvent, String
     })
 }
 
-fn pending_changes(connection: &Connection) -> Result<PendingChangeSummary, String> {
-    let mut rows = connection
-        .query(
-            "select
-                count(*),
-                min(cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)))
-            from autograph_edit_events
-            where created_at > coalesce(
-                (select max(finished_at) from autograph_publish_jobs where status = 'succeeded'),
-                timestamp '1970-01-01 00:00:00'
-            )",
-            &[],
-        )
-        .map_err(|error| format!("read Oracle catalog pending changes: {error}"))?;
-    let Some(row) = rows.next() else {
-        return Ok(PendingChangeSummary::default());
-    };
-    let row = row.map_err(|error| format!("read Oracle catalog pending changes row: {error}"))?;
-    let count: i64 = row
-        .get(0)
-        .map_err(|error| format!("read Oracle catalog pending change count: {error}"))?;
-    let oldest_changed_at_epoch_seconds: Option<i64> = row
-        .get(1)
-        .map_err(|error| format!("read Oracle catalog oldest pending change: {error}"))?;
-    Ok(PendingChangeSummary {
-        count: count.max(0) as usize,
-        oldest_changed_at_epoch_seconds,
-    })
-}
-
 fn replace_tags(connection: &Connection, id: Uuid, tags: &[String]) -> Result<(), String> {
     let id_text = id.to_string();
     connection
@@ -487,17 +459,22 @@ fn insert_edit_event(connection: &Connection, event: &AutographEditEvent) -> Res
     let event_type = event.kind.as_str();
     let field_diffs_json = serde_json::to_string(&event.field_diffs)
         .map_err(|error| format!("serialize Oracle catalog edit event field diffs: {error}"))?;
+    let created_at_epoch_seconds = event.created_at_epoch_seconds;
     connection
         .execute(
             "insert into autograph_edit_events (
                 id, item_id, event_type, summary, field_diffs_json, created_at
-            ) values (:1, :2, :3, :4, :5, current_timestamp)",
+            ) values (
+                :1, :2, :3, :4, :5, 
+                timestamp '1970-01-01 00:00:00' + numtodsinterval(:6, 'SECOND'
+            )",
             &[
                 &id_text,
                 &item_id_text,
                 &event_type,
                 &event.summary,
                 &field_diffs_json,
+                &created_at_epoch_seconds,
             ],
         )
         .map_err(|error| format!("insert Oracle catalog edit event: {error}"))?;

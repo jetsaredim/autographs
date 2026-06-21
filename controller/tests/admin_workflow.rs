@@ -1,8 +1,19 @@
-use autographs_controller::catalog::{
-    AutographItemInput, AutographItemUpdate, CatalogRepository, EditEventKind,
-    MemoryCatalogRepository, PublicationStatus,
+use autographs_controller::{
+    catalog::{
+        AutographItemInput, AutographItemUpdate, CatalogRepository, EditEventKind,
+        MemoryCatalogRepository, PublicationStatus,
+    },
+    config::ControllerConfig,
+    media::LocalMediaStore,
+    routes::router_with_stores,
+};
+use axum::{
+    body::Body,
+    http::{Request, StatusCode, header},
 };
 use serde_json::{Value, json};
+use std::sync::Arc;
+use tower::ServiceExt;
 
 #[tokio::test]
 async fn history_nullable_field_clear_records_before_and_after_values() {
@@ -58,6 +69,51 @@ async fn history_nullable_field_clear_records_before_and_after_values() {
 }
 
 #[tokio::test]
+async fn update_blank_required_field_returns_bad_request() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(AutographItemInput {
+            title: "Signed Jedi Card".to_owned(),
+            signer: "Mark Hamill".to_owned(),
+            description: None,
+            category: "Cards".to_owned(),
+            tags: vec!["jedi".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Draft,
+        })
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(false),
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/admin/api/items/{}", item.id))
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"title":""}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn history_metadata_and_publication_updates_record_field_level_diffs() {
     let repository = MemoryCatalogRepository::default();
     let item = repository
@@ -96,6 +152,7 @@ async fn history_metadata_and_publication_updates_record_field_level_diffs() {
         .update(
             item.id,
             AutographItemUpdate {
+                title: Some("Published Jedi Card".to_owned()),
                 publication_status: Some(PublicationStatus::Published),
                 ..Default::default()
             },
@@ -131,6 +188,12 @@ async fn history_metadata_and_publication_updates_record_field_level_diffs() {
         "publicationStatus",
         json!("draft"),
         json!("published"),
+    );
+    assert_field_diff(
+        publication_event,
+        "title",
+        json!("Signed Jedi Card"),
+        json!("Published Jedi Card"),
     );
 }
 
