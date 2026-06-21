@@ -36,7 +36,7 @@ Progress: [███████░░░] 71% overall; Phase 5 complete
 
 **Velocity:**
 
-- Total plans completed: 25 of 25
+- Total plans completed: 25 of 33
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
