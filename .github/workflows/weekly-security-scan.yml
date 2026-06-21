@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run security scan playbook
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
