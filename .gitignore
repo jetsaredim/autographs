@@ -1,6 +1,7 @@
 .codex
 .codex/
 .tools/
+wallet.zip
 node_modules/
 app/node_modules/
 app/.next/
