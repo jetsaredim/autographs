@@ -28,7 +28,9 @@ pub(super) async fn list_items(
         Ok(items) => {
             let mut summaries = Vec::with_capacity(items.len());
             for item in items {
-                let has_pending_changes = pending_marker(&state, item.id).await.has_pending_changes;
+                let has_pending_changes = pending_marker(&state, item.id)
+                    .await
+                    .has_pending_changes;
                 summaries.push(AdminItemSummaryResponse::from_item(item, has_pending_changes));
             }
             Json(summaries).into_response()
@@ -81,7 +83,11 @@ pub(super) async fn item_history(
         Ok(Some(_)) => {}
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(error) => {
-            tracing::error!(item_id = %id, error = %error, "failed to check item before history lookup");
+            tracing::error!(
+                item_id = %id,
+                error = %error,
+                "failed to check item before history lookup"
+            );
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     }
@@ -93,7 +99,11 @@ pub(super) async fn item_history(
         })
         .into_response(),
         Err(error) => {
-            tracing::error!(item_id = %id, error = %error, "failed to load admin catalog item history");
+            tracing::error!(
+                item_id = %id,
+                error = %error,
+                "failed to load admin catalog item history"
+            );
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
@@ -184,7 +194,11 @@ impl From<AutographEditEvent> for EditEventResponse {
             event_type: event.kind.as_str().to_owned(),
             created_at_epoch_seconds: event.created_at_epoch_seconds,
             summary: event.summary,
-            field_diffs: event.field_diffs.into_iter().map(FieldDiffResponse::from).collect(),
+            field_diffs: event
+                .field_diffs
+                .into_iter()
+                .map(FieldDiffResponse::from)
+                .collect(),
         }
     }
 }
