@@ -16,7 +16,10 @@ pub struct AdminItemFilter {
 
 #[async_trait]
 pub trait AdminCatalogRepositoryExt {
-    async fn list_admin_items(&self, filter: AdminItemFilter) -> Result<Vec<AutographItem>, String>;
+    async fn list_admin_items(
+        &self,
+        filter: AdminItemFilter,
+    ) -> Result<Vec<AutographItem>, String>;
 }
 
 #[async_trait]
@@ -24,7 +27,10 @@ impl<T> AdminCatalogRepositoryExt for T
 where
     T: CatalogRepository + ?Sized,
 {
-    async fn list_admin_items(&self, filter: AdminItemFilter) -> Result<Vec<AutographItem>, String> {
+    async fn list_admin_items(
+        &self,
+        filter: AdminItemFilter,
+    ) -> Result<Vec<AutographItem>, String> {
         let mut items = self
             .list()
             .await?
@@ -71,10 +77,8 @@ fn text_matches(value: &str, query: &Option<String>) -> bool {
 }
 
 fn tags_match(tags: &[String], query: &Option<String>) -> bool {
-    normalized_query(query).is_none_or(|query| {
-        tags.iter()
-            .any(|tag| contains_normalized(tag, &query))
-    })
+    normalized_query(query)
+        .is_none_or(|query| tags.iter().any(|tag| contains_normalized(tag, &query)))
 }
 
 fn normalized_query(query: &Option<String>) -> Option<String> {
