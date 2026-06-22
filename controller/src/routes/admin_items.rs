@@ -113,7 +113,11 @@ pub(super) async fn pending_marker(state: &AppState, item_id: Uuid) -> PendingMa
     match state.repository.history(item_id).await {
         Ok(events) => PendingMarkerResponse::from_events(&events),
         Err(error) => {
-            tracing::warn!(item_id = %item_id, error = %error, "failed to load pending marker history");
+            tracing::warn!(
+                item_id = %item_id,
+                error = %error,
+                "failed to load pending marker history"
+            );
             PendingMarkerResponse::default()
         }
     }
