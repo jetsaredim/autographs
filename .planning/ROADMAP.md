@@ -155,7 +155,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 06-01-PLAN.md - Create the edit-history, pending-change, and clearable metadata foundation.
+- [x] 06-01-PLAN.md - Create the edit-history, pending-change, and clearable metadata foundation.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
