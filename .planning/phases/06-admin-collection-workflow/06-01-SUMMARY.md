@@ -2,7 +2,7 @@
 phase: 06-admin-collection-workflow
 plan: 01
 type: summary
-status: attempted
+status: complete
 ---
 
 # Phase 6 Plan 01 Summary
@@ -24,13 +24,24 @@ Implemented the durable catalog-change foundation for the admin workflow.
 
 ## Verification
 
-Intended verification commands:
+Verified on 2026-06-22 after PR #139 was merged to `main`:
 
 ```sh
 cargo fmt --manifest-path controller/Cargo.toml --check
 cargo test --manifest-path controller/Cargo.toml --test admin_workflow -- --nocapture
 cargo test --manifest-path controller/Cargo.toml
 cargo check --manifest-path controller/Cargo.toml --features production-persistence
+cargo clippy --manifest-path controller/Cargo.toml
 ```
 
-The implementation was prepared through the GitHub connector because the execution sandbox could not resolve `github.com`; local cargo/rustfmt were also unavailable in the sandbox, so verification should be run in the normal repository environment.
+Results:
+
+- `cargo fmt --check`: passed.
+- `admin_workflow`: 4 passed, 0 failed.
+- Full controller test suite: passed; live persistence/static publish smoke tests remain ignored unless compiled with live credentials.
+- `production-persistence` check: passed.
+- `cargo clippy`: passed.
+
+## Rollout
+
+Operator confirmed on 2026-06-22 that the live Oracle schema changes were applied, the deploy workflow was rerun, and a full content generation was triggered.
