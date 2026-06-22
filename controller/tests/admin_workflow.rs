@@ -1,7 +1,7 @@
 use autographs_controller::{
     catalog::{
-        AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository, EditEventKind,
-        MemoryCatalogRepository, PublicationStatus,
+        AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository,
+        EditEventKind, MemoryCatalogRepository, PublicationStatus,
     },
     config::ControllerConfig,
     media::LocalMediaStore,
@@ -198,7 +198,10 @@ async fn admin_can_list_get_update_and_read_history() {
     assert_redacted(&detail_body);
     let detail_json: Value = serde_json::from_str(&detail_body).unwrap();
     assert_eq!(detail_json["id"], hamill.id.to_string());
-    assert_eq!(detail_json["images"][0]["altText"], "Signed Jedi Card by Mark Hamill");
+    assert_eq!(
+        detail_json["images"][0]["altText"],
+        "Signed Jedi Card by Mark Hamill"
+    );
     assert_eq!(detail_json["pendingChanges"]["hasPendingChanges"], true);
 
     let patch = app
@@ -253,7 +256,9 @@ async fn admin_can_list_get_update_and_read_history() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/admin/api/items?signer=fisher&category=photos&publicationStatus=published")
+                .uri(
+                    "/admin/api/items?signer=fisher&category=photos&publicationStatus=published",
+                )
                 .header(header::AUTHORIZATION, "Bearer operator-test-token")
                 .body(Body::empty())
                 .unwrap(),
