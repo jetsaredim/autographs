@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod catalog;
+pub mod catalog_admin;
 pub mod config;
 pub mod contracts;
 pub mod derivatives;
