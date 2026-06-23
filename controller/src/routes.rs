@@ -202,9 +202,18 @@ pub fn router_with_services(
         .route("/admin/api/logout", post(logout))
         .route("/admin/api/protected", get(protected))
         .route("/admin/api/test-mutation", post(protected_mutation))
-        .route("/admin/api/items", get(admin_items::list_items).post(create_item))
-        .route("/admin/api/items/{id}", get(admin_items::get_item).patch(update_item))
-        .route("/admin/api/items/{id}/history", get(admin_items::item_history))
+        .route(
+            "/admin/api/items",
+            get(admin_items::list_items).post(create_item),
+        )
+        .route(
+            "/admin/api/items/{id}",
+            get(admin_items::get_item).patch(update_item),
+        )
+        .route(
+            "/admin/api/items/{id}/history",
+            get(admin_items::item_history),
+        )
         .route("/admin/api/items/{id}/images", post(upload_image))
         .route("/admin/api/items/{id}/publication", post(set_publication))
         .route("/admin/api/publish/incremental", post(publish_incremental))

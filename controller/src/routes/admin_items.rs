@@ -28,10 +28,11 @@ pub(super) async fn list_items(
         Ok(items) => {
             let mut summaries = Vec::with_capacity(items.len());
             for item in items {
-                let has_pending_changes = pending_marker(&state, item.id)
-                    .await
-                    .has_pending_changes;
-                summaries.push(AdminItemSummaryResponse::from_item(item, has_pending_changes));
+                let has_pending_changes = pending_marker(&state, item.id).await.has_pending_changes;
+                summaries.push(AdminItemSummaryResponse::from_item(
+                    item,
+                    has_pending_changes,
+                ));
             }
             Json(summaries).into_response()
         }

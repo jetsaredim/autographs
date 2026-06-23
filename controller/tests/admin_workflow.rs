@@ -1,7 +1,7 @@
 use autographs_controller::{
     catalog::{
-        AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository,
-        EditEventKind, MemoryCatalogRepository, PublicationStatus,
+        AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository, EditEventKind,
+        MemoryCatalogRepository, PublicationStatus,
     },
     config::ControllerConfig,
     media::LocalMediaStore,
@@ -245,20 +245,24 @@ async fn admin_can_list_get_update_and_read_history() {
     assert_redacted(&history_body);
     let history_json: Value = serde_json::from_str(&history_body).unwrap();
     assert_eq!(history_json["itemId"], hamill.id.to_string());
-    assert!(history_json["events"].as_array().unwrap().iter().any(|event| {
-        event["eventType"] == "metadataUpdated"
-            && event["fieldDiffs"].as_array().unwrap().iter().any(|diff| {
-                diff["field"] == "title" && diff["after"] == "Signed Jedi Card - updated"
+    assert!(
+        history_json["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|event| {
+                event["eventType"] == "metadataUpdated"
+                    && event["fieldDiffs"].as_array().unwrap().iter().any(|diff| {
+                        diff["field"] == "title" && diff["after"] == "Signed Jedi Card - updated"
+                    })
             })
-    }));
+    );
 
     let fisher_list = app
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(
-                    "/admin/api/items?signer=fisher&category=photos&publicationStatus=published",
-                )
+                .uri("/admin/api/items?signer=fisher&category=photos&publicationStatus=published")
                 .header(header::AUTHORIZATION, "Bearer operator-test-token")
                 .body(Body::empty())
                 .unwrap(),
@@ -532,7 +536,10 @@ fn assert_redacted(body: &str) {
         "OCI_",
         "objectstorage",
     ] {
-        assert!(!body.contains(denied), "admin response leaked {denied}: {body}");
+        assert!(
+            !body.contains(denied),
+            "admin response leaked {denied}: {body}"
+        );
     }
 }
 

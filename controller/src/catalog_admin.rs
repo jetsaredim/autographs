@@ -16,10 +16,8 @@ pub struct AdminItemFilter {
 
 #[async_trait]
 pub trait AdminCatalogRepositoryExt {
-    async fn list_admin_items(
-        &self,
-        filter: AdminItemFilter,
-    ) -> Result<Vec<AutographItem>, String>;
+    async fn list_admin_items(&self, filter: AdminItemFilter)
+    -> Result<Vec<AutographItem>, String>;
 }
 
 #[async_trait]
