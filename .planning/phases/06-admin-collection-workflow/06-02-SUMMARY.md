@@ -37,7 +37,7 @@ branch: task-06-02-admin-api
 
 The admin finder is implemented as a repository extension that composes with the existing `CatalogRepository::list()` method, so both the in-memory repository and Oracle repository get the same case-insensitive filtering behavior without duplicating predicate logic in each adapter.
 
-Rust formatting was applied through CI because this environment could not clone the repository directly.
+Rust formatting and one compile-fix pass were applied through CI because this environment could not clone the repository directly.
 
 Local verification was not run from this environment because outbound GitHub clone access was unavailable in the sandbox. Intended verification commands:
 
