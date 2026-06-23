@@ -1,0 +1,33 @@
+name: Test Dump
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-dump:
+    name: Test dump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run admin workflow tests
+        shell: bash
+        run: |
+          set +e
+          cargo test --manifest-path controller/Cargo.toml --test admin_workflow -- --nocapture 2>&1 | tee /tmp/admin-workflow-test.log
+          status=${PIPESTATUS[0]}
+          echo "exit_status=${status}" >> /tmp/admin-workflow-test.log
+          exit 0
+
+      - name: Upload test output
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-workflow-test-output
+          path: /tmp/admin-workflow-test.log
