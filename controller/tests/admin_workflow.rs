@@ -230,6 +230,7 @@ async fn admin_can_list_get_update_and_read_history() {
     assert!(patch_json["pendingChanges"]["count"].as_u64().unwrap() >= 2);
 
     let history = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("GET")

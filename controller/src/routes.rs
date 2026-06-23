@@ -689,7 +689,7 @@ impl ItemResponse {
         }
     }
 
-    pub(super) fn from_item_with_pending(
+    fn from_item_with_pending(
         item: AutographItem,
         pending_changes: admin_items::PendingMarkerResponse,
     ) -> Self {
