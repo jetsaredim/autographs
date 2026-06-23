@@ -458,7 +458,12 @@ async fn upload_image(
                 elapsed_ms = started.elapsed().as_millis(),
                 "uploaded catalog image"
             );
-            (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response()
+            let pending = admin_items::pending_marker(&state, item_id).await;
+            (
+                StatusCode::CREATED,
+                Json(ItemResponse::from_item_with_pending(item, pending)),
+            )
+                .into_response()
         }
         Err(error) => {
             tracing::error!(%item_id, %image_id, %object_key, ?error, "failed to attach uploaded image metadata");

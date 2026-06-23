@@ -179,7 +179,7 @@ async fn admin_can_list_get_update_and_read_history() {
     assert_eq!(list_json[0]["id"], hamill.id.to_string());
     assert_eq!(list_json[0]["title"], "Signed Jedi Card");
     assert_eq!(list_json[0]["imageCount"], 1);
-    assert_eq!(list_json[0]["hasPendingChanges"], true);
+    assert_json_true(&list_json[0]["hasPendingChanges"]);
 
     let detail = app
         .clone()
@@ -202,7 +202,7 @@ async fn admin_can_list_get_update_and_read_history() {
         detail_json["images"][0]["altText"],
         "Signed Jedi Card by Mark Hamill"
     );
-    assert_eq!(detail_json["pendingChanges"]["hasPendingChanges"], true);
+    assert_json_true(&detail_json["pendingChanges"]["hasPendingChanges"]);
 
     let patch = app
         .clone()
@@ -226,7 +226,7 @@ async fn admin_can_list_get_update_and_read_history() {
     assert_eq!(patch.status(), StatusCode::OK);
     let patch_json = response_json(patch).await;
     assert_eq!(patch_json["title"], "Signed Jedi Card - updated");
-    assert_eq!(patch_json["pendingChanges"]["hasPendingChanges"], true);
+    assert_json_true(&patch_json["pendingChanges"]["hasPendingChanges"]);
     assert!(patch_json["pendingChanges"]["count"].as_u64().unwrap() >= 2);
 
     let history = app
@@ -309,7 +309,7 @@ async fn save_does_not_publish() {
         .unwrap();
     assert_eq!(create.status(), StatusCode::CREATED);
     let create_json = response_json(create).await;
-    assert_eq!(create_json["pendingChanges"]["hasPendingChanges"], true);
+    assert_json_true(&create_json["pendingChanges"]["hasPendingChanges"]);
     let item_id = create_json["id"].as_str().unwrap();
 
     let status_after_create = app
@@ -348,7 +348,7 @@ async fn save_does_not_publish() {
         .unwrap();
     assert_eq!(patch.status(), StatusCode::OK);
     let patch_json = response_json(patch).await;
-    assert_eq!(patch_json["pendingChanges"]["hasPendingChanges"], true);
+    assert_json_true(&patch_json["pendingChanges"]["hasPendingChanges"]);
     assert!(patch_json["pendingChanges"]["count"].as_u64().unwrap() >= 2);
 
     let status_after_patch = app
@@ -364,6 +364,71 @@ async fn save_does_not_publish() {
         .unwrap();
     let status_json = response_json(status_after_patch).await;
     assert_eq!(status_json["state"], "idle");
+}
+
+#[tokio::test]
+async fn image_upload_response_includes_pending_changes() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Upload Pending Item",
+            "Ashley Eckstein",
+            "Photos",
+            vec!["ahsoka"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(false),
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+
+    let boundary = "autographs-test-boundary";
+    let one_by_one_png: &[u8] = &[
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
+        0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 248, 15, 4, 0, 9,
+        251, 3, 253, 167, 111, 129, 219, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+    ];
+    let mut body = Vec::new();
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"altText\"\r\n\r\nUploaded test image\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"upload.png\"\r\nContent-Type: image/png\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(one_by_one_png);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/admin/api/items/{}/images", item.id))
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(
+                    header::CONTENT_TYPE,
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let response_json = response_json(response).await;
+    assert_json_true(&response_json["pendingChanges"]["hasPendingChanges"]);
+    assert!(response_json["pendingChanges"]["count"].as_u64().unwrap() >= 2);
+    assert_eq!(response_json["images"][0]["altText"], "Uploaded test image");
 }
 
 #[tokio::test]
@@ -526,6 +591,10 @@ async fn response_string(response: axum::response::Response) -> String {
             .to_vec(),
     )
     .unwrap()
+}
+
+fn assert_json_true(value: &Value) {
+    assert!(value.as_bool().is_some_and(|value| value));
 }
 
 fn assert_redacted(body: &str) {

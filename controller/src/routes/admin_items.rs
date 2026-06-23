@@ -27,6 +27,10 @@ pub(super) async fn list_items(
     match state.repository.as_ref().list_admin_items(filter).await {
         Ok(items) => {
             let mut summaries = Vec::with_capacity(items.len());
+            // Phase 06-02 intentionally derives per-item pending markers from existing
+            // item history. This keeps the API simple for the current small admin
+            // catalog; a future publish-boundary store can replace this with a bulk
+            // repository query when the catalog size makes the N+1 lookup material.
             for item in items {
                 let has_pending_changes = pending_marker(&state, item.id).await.has_pending_changes;
                 summaries.push(AdminItemSummaryResponse::from_item(
@@ -110,6 +114,9 @@ pub(super) async fn item_history(
     }
 }
 
+// Until publish-boundary persistence exists, this marker means "this item has
+// recorded admin edit history" rather than "this item differs from the last
+// completed static release."
 pub(super) async fn pending_marker(state: &AppState, item_id: Uuid) -> PendingMarkerResponse {
     match state.repository.history(item_id).await {
         Ok(events) => PendingMarkerResponse::from_events(&events),
