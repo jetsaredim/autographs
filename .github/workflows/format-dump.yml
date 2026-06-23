@@ -1,0 +1,38 @@
+name: Format Dump
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  format-dump:
+    name: Format dump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Run rustfmt
+        run: cargo fmt --manifest-path controller/Cargo.toml
+
+      - name: Collect formatted files
+        run: |
+          mkdir -p /tmp/format-dump
+          git diff -- controller/**/*.rs > /tmp/format-dump/rustfmt.diff
+          cp controller/src/catalog_admin.rs /tmp/format-dump/catalog_admin.rs
+          cp controller/src/routes.rs /tmp/format-dump/routes.rs
+          cp controller/src/routes/admin_items.rs /tmp/format-dump/admin_items.rs
+          cp controller/tests/admin_workflow.rs /tmp/format-dump/admin_workflow.rs
+
+      - name: Upload rustfmt output
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustfmt-output
+          path: /tmp/format-dump
