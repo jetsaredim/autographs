@@ -4,35 +4,35 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   format-dump:
     name: Format dump
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout PR branch
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
 
-      - name: Run rustfmt
+      - name: Apply rustfmt
         run: cargo fmt --manifest-path controller/Cargo.toml
 
-      - name: Collect formatted files
-        run: |
-          mkdir -p /tmp/format-dump
-          git diff -- controller/**/*.rs > /tmp/format-dump/rustfmt.diff
-          cp controller/src/catalog_admin.rs /tmp/format-dump/catalog_admin.rs
-          cp controller/src/routes.rs /tmp/format-dump/routes.rs
-          cp controller/src/routes/admin_items.rs /tmp/format-dump/admin_items.rs
-          cp controller/tests/admin_workflow.rs /tmp/format-dump/admin_workflow.rs
+      - name: Remove temporary formatter workflow
+        run: rm .github/workflows/format-dump.yml
 
-      - name: Upload rustfmt output
-        uses: actions/upload-artifact@v4
-        with:
-          name: rustfmt-output
-          path: /tmp/format-dump
+      - name: Commit rustfmt output
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add controller/src/catalog_admin.rs controller/src/routes.rs controller/src/routes/admin_items.rs controller/tests/admin_workflow.rs .github/workflows/format-dump.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "Apply rustfmt output"
+          git push
