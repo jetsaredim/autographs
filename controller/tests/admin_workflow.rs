@@ -11,8 +11,9 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
+use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::{io::Cursor, sync::Arc};
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -387,11 +388,7 @@ async fn image_upload_response_includes_pending_changes() {
     );
 
     let boundary = "autographs-test-boundary";
-    let one_by_one_png: &[u8] = &[
-        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
-        0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 248, 15, 4, 0, 9,
-        251, 3, 253, 167, 111, 129, 219, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
-    ];
+    let one_by_one_png = valid_png_fixture();
     let mut body = Vec::new();
     body.extend_from_slice(
         format!(
@@ -405,7 +402,7 @@ async fn image_upload_response_includes_pending_changes() {
         )
         .as_bytes(),
     );
-    body.extend_from_slice(one_by_one_png);
+    body.extend_from_slice(&one_by_one_png);
     body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
 
     let response = app
@@ -429,6 +426,14 @@ async fn image_upload_response_includes_pending_changes() {
     assert_json_true(&response_json["pendingChanges"]["hasPendingChanges"]);
     assert!(response_json["pendingChanges"]["count"].as_u64().unwrap() >= 2);
     assert_eq!(response_json["images"][0]["altText"], "Uploaded test image");
+}
+
+fn valid_png_fixture() -> Vec<u8> {
+    let mut body = Cursor::new(Vec::new());
+    DynamicImage::ImageRgb8(RgbImage::from_pixel(1, 1, Rgb([21, 92, 126])))
+        .write_to(&mut body, ImageFormat::Png)
+        .expect("encode test PNG");
+    body.into_inner()
 }
 
 #[tokio::test]
