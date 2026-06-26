@@ -228,6 +228,8 @@ pub trait CatalogRepository: Send + Sync {
         image: AutographImage,
     ) -> Result<AutographItem, String>;
 
+    async fn set_primary_image(&self, item_id: Uuid, image_id: Uuid) -> Result<AutographItem, String>;
+
     async fn history(&self, _item_id: Uuid) -> Result<Vec<AutographEditEvent>, String> {
         Ok(Vec::new())
     }
@@ -378,6 +380,25 @@ impl CatalogRepository for MemoryCatalogRepository {
                 Vec::new(),
                 now,
             ));
+        Ok(updated)
+    }
+
+    async fn set_primary_image(&self, item_id: Uuid, image_id: Uuid) -> Result<AutographItem, String> {
+        let now = now_epoch_seconds();
+        let updated = {
+            let mut items = self.items.lock().expect("catalog state lock");
+            let item = items.get_mut(&item_id).ok_or_else(|| "autograph item was not found".to_owned())?;
+            let image = item.images.iter_mut().find(|image| image.id == image_id)
+                .ok_or_else(|| "autograph image was not found".to_owned())?;
+            if !image.is_primary {
+                for image in &mut item.images { image.is_primary = image.id == image_id; }
+                item.updated_at_epoch_seconds = now;
+            }
+            item.clone()
+        };
+        self.events.lock().expect("catalog event lock").push(AutographEditEvent::new(
+            item_id, EditEventKind::PrimaryImageChanged, "Primary image changed", Vec::new(), now,
+        ));
         Ok(updated)
     }
 

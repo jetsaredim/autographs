@@ -271,6 +271,28 @@ impl CatalogRepository for OracleCatalogRepository {
         .await
     }
 
+    async fn set_primary_image(&self, item_id: Uuid, image_id: Uuid) -> Result<AutographItem, String> {
+        self.with_connection(move |connection| {
+            let item_id_text = item_id.to_string();
+            let image_id_text = image_id.to_string();
+            let exists: i64 = connection.query_row_as(
+                "select count(*) from autograph_images where id = :1 and item_id = :2",
+                &[&image_id_text, &item_id_text],
+            ).map_err(|error| format!("check Oracle primary image: {error}"))?;
+            if exists != 1 { return Err("autograph image was not found".to_owned()); }
+            connection.execute(
+                "update autograph_images set is_primary = case when id = :1 then 'Y' else 'N' end, updated_at = current_timestamp where item_id = :2",
+                &[&image_id_text, &item_id_text],
+            ).map_err(|error| format!("set Oracle primary image: {error}"))?;
+            connection.execute("update autograph_items set updated_at = current_timestamp where id = :1", &[&item_id_text])
+                .map_err(|error| format!("touch Oracle catalog item for primary image: {error}"))?;
+            let event = AutographEditEvent::new(item_id, EditEventKind::PrimaryImageChanged, "Primary image changed", Vec::new(), now_epoch_seconds());
+            insert_edit_event(&connection, &event)?;
+            connection.commit().map_err(|error| format!("commit Oracle primary image: {error}"))?;
+            load_item(&connection, item_id)?.ok_or_else(|| "autograph item was not found".to_owned())
+        }).await
+    }
+
     async fn history(&self, item_id: Uuid) -> Result<Vec<AutographEditEvent>, String> {
         self.with_connection(move |connection| load_history(&connection, item_id))
             .await

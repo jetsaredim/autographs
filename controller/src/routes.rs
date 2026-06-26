@@ -215,6 +215,7 @@ pub fn router_with_services(
             get(admin_items::item_history),
         )
         .route("/admin/api/items/{id}/images", post(upload_image))
+        .route("/admin/api/items/{id}/images/{image_id}/primary", post(set_primary_image))
         .route("/admin/api/items/{id}/publication", post(set_publication))
         .route("/admin/api/publish/incremental", post(publish_incremental))
         .route("/admin/api/publish/full", post(publish_full))
@@ -389,16 +390,17 @@ async fn upload_image(
     let Ok(item_id) = Uuid::parse_str(&id) else {
         return StatusCode::BAD_REQUEST.into_response();
     };
-    match state.repository.get(item_id).await {
-        Ok(Some(_)) => {}
+    let existing_item = match state.repository.get(item_id).await {
+        Ok(Some(item)) => item,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-    }
+    };
 
     let mut filename = None;
     let mut content_type = None;
     let mut body = None;
     let mut alt_text = None;
+    let mut requested_primary = None;
     while let Ok(Some(field)) = multipart.next_field().await {
         if field.name() == Some("image") {
             filename = field.file_name().map(str::to_owned);
@@ -406,6 +408,8 @@ async fn upload_image(
             body = field.bytes().await.ok();
         } else if field.name() == Some("altText") {
             alt_text = field.text().await.ok();
+        } else if field.name() == Some("isPrimary") {
+            requested_primary = field.text().await.ok().and_then(|value| value.parse::<bool>().ok());
         }
     }
     let Some(body) = body else {
@@ -444,8 +448,8 @@ async fn upload_image(
         original_filename: filename.unwrap_or_else(|| "upload".to_owned()),
         content_type,
         byte_size: body.len(),
-        is_primary: true,
-        sort_order: 0,
+        is_primary: requested_primary.unwrap_or(existing_item.images.is_empty()),
+        sort_order: existing_item.images.iter().map(|image| image.sort_order).max().unwrap_or(-1) + 1,
         alt_text,
     };
     match state.repository.attach_image(item_id, image).await {
@@ -470,6 +474,20 @@ async fn upload_image(
             let _ = state.media.delete(&object_key).await;
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
+    }
+}
+
+async fn set_primary_image(
+    State(state): State<AppState>, Path((id, image_id)): Path<(String, String)>, method: Method, headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_mutation(&state, &method, &headers) { return status.into_response(); }
+    let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else { return StatusCode::BAD_REQUEST.into_response(); };
+    match state.repository.set_primary_image(item_id, image_id).await {
+        Ok(item) => {
+            let pending = admin_items::pending_marker(&state, item_id).await;
+            Json(ItemResponse::from_item_with_pending(item, pending)).into_response()
+        }
+        Err(error) => repository_update_error_status(&error).into_response(),
     }
 }
 
