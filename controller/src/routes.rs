@@ -23,6 +23,8 @@ use crate::{
     storage_keys::build_original_object_key,
 };
 
+mod admin_items;
+
 const SESSION_COOKIE: &str = "autographs_admin_session";
 
 #[derive(Clone)]
@@ -200,8 +202,18 @@ pub fn router_with_services(
         .route("/admin/api/logout", post(logout))
         .route("/admin/api/protected", get(protected))
         .route("/admin/api/test-mutation", post(protected_mutation))
-        .route("/admin/api/items", post(create_item))
-        .route("/admin/api/items/{id}", axum::routing::patch(update_item))
+        .route(
+            "/admin/api/items",
+            get(admin_items::list_items).post(create_item),
+        )
+        .route(
+            "/admin/api/items/{id}",
+            get(admin_items::get_item).patch(update_item),
+        )
+        .route(
+            "/admin/api/items/{id}/history",
+            get(admin_items::item_history),
+        )
         .route("/admin/api/items/{id}/images", post(upload_image))
         .route("/admin/api/items/{id}/publication", post(set_publication))
         .route("/admin/api/publish/incremental", post(publish_incremental))
@@ -307,13 +319,19 @@ async fn create_item(
     );
     match state.repository.create(input).await {
         Ok(item) => {
+            let item_id = item.id;
             tracing::info!(
-                item_id = %item.id,
+                item_id = %item_id,
                 status = ?item.publication_status,
                 elapsed_ms = started.elapsed().as_millis(),
                 "created catalog item"
             );
-            (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response()
+            let pending = admin_items::pending_marker(&state, item_id).await;
+            (
+                StatusCode::CREATED,
+                Json(ItemResponse::from_item_with_pending(item, pending)),
+            )
+                .into_response()
         }
         Err(error) => {
             tracing::error!(error = %error, "failed to create catalog item");
@@ -347,7 +365,8 @@ async fn update_item(
                 elapsed_ms = started.elapsed().as_millis(),
                 "updated catalog item"
             );
-            Json(ItemResponse::from(item)).into_response()
+            let pending = admin_items::pending_marker(&state, id).await;
+            Json(ItemResponse::from_item_with_pending(item, pending)).into_response()
         }
         Err(error) => {
             tracing::error!(item_id = %id, error = %error, "failed to update catalog item");
@@ -439,7 +458,12 @@ async fn upload_image(
                 elapsed_ms = started.elapsed().as_millis(),
                 "uploaded catalog image"
             );
-            (StatusCode::CREATED, Json(ItemResponse::from(item))).into_response()
+            let pending = admin_items::pending_marker(&state, item_id).await;
+            (
+                StatusCode::CREATED,
+                Json(ItemResponse::from_item_with_pending(item, pending)),
+            )
+                .into_response()
         }
         Err(error) => {
             tracing::error!(%item_id, %image_id, %object_key, ?error, "failed to attach uploaded image metadata");
@@ -498,7 +522,8 @@ async fn set_publication(
                 elapsed_ms = started.elapsed().as_millis(),
                 "updated catalog item publication"
             );
-            Json(ItemResponse::from(item)).into_response()
+            let pending = admin_items::pending_marker(&state, id).await;
+            Json(ItemResponse::from_item_with_pending(item, pending)).into_response()
         }
         Err(error) => {
             tracing::error!(
@@ -603,7 +628,7 @@ struct PublicationRequest {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ItemResponse {
+pub(super) struct ItemResponse {
     id: Uuid,
     title: String,
     signer: String,
@@ -620,6 +645,8 @@ struct ItemResponse {
     estimated_year: Option<i32>,
     publication_status: PublicationStatus,
     images: Vec<ImageResponse>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pending_changes: Option<admin_items::PendingMarkerResponse>,
 }
 
 #[derive(Serialize)]
@@ -630,10 +657,11 @@ struct ImageResponse {
     byte_size: usize,
     is_primary: bool,
     sort_order: i32,
+    alt_text: Option<String>,
 }
 
-impl From<AutographItem> for ItemResponse {
-    fn from(item: AutographItem) -> Self {
+impl ItemResponse {
+    fn from_item(item: AutographItem) -> Self {
         Self {
             id: item.id,
             title: item.title,
@@ -659,9 +687,27 @@ impl From<AutographItem> for ItemResponse {
                     byte_size: image.byte_size,
                     is_primary: image.is_primary,
                     sort_order: image.sort_order,
+                    alt_text: image.alt_text,
                 })
                 .collect(),
+            pending_changes: None,
         }
+    }
+
+    fn from_item_with_pending(
+        item: AutographItem,
+        pending_changes: admin_items::PendingMarkerResponse,
+    ) -> Self {
+        Self {
+            pending_changes: Some(pending_changes),
+            ..Self::from_item(item)
+        }
+    }
+}
+
+impl From<AutographItem> for ItemResponse {
+    fn from(item: AutographItem) -> Self {
+        Self::from_item(item)
     }
 }
 
