@@ -55,23 +55,25 @@ end;
 declare
   unresolved_count number;
 begin
-    execute immediate q'[
-      update autograph_cleanup_events
-         set target_object_key = (
-           select images.object_key
-             from autograph_images images
-            where images.item_id = autograph_cleanup_events.item_id
-              and images.id = autograph_cleanup_events.image_id
-         )
-       where target_object_key is null
-         and operation = 'delete'
-         and exists (
-           select 1
-             from autograph_images images
-            where images.item_id = autograph_cleanup_events.item_id
-              and images.id = autograph_cleanup_events.image_id
-         )
-    ]';
+  execute immediate q'[
+    update autograph_cleanup_events
+       set target_object_key = (
+         select images.object_key
+           from autograph_images images
+          where images.item_id = autograph_cleanup_events.item_id
+            and images.id = autograph_cleanup_events.image_id
+       )
+     where target_object_key is null
+       and operation = 'delete'
+       and exists (
+         select 1
+           from autograph_images images
+          where images.item_id = autograph_cleanup_events.item_id
+            and images.id = autograph_cleanup_events.image_id
+       )
+  ]';
+
+  commit;
 
   execute immediate q'[
     select count(*)
