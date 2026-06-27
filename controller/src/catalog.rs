@@ -125,6 +125,91 @@ pub struct AutographImage {
     pub alt_text: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CleanupStatus {
+    Succeeded,
+    DeleteFailed,
+    RetrySucceeded,
+}
+
+impl CleanupStatus {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Succeeded => "succeeded",
+            Self::DeleteFailed => "deleteFailed",
+            Self::RetrySucceeded => "retrySucceeded",
+        }
+    }
+}
+
+impl std::str::FromStr for CleanupStatus {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, String> {
+        match value {
+            "succeeded" => Ok(Self::Succeeded),
+            "deleteFailed" => Ok(Self::DeleteFailed),
+            "retrySucceeded" => Ok(Self::RetrySucceeded),
+            _ => Err(format!("unsupported cleanup status: {value}")),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ImageCleanupEvent {
+    pub id: Uuid,
+    pub item_id: Uuid,
+    pub image_id: Uuid,
+    pub operation: String,
+    pub status: CleanupStatus,
+    pub admin_message: String,
+    pub created_at_epoch_seconds: i64,
+    pub resolved_at_epoch_seconds: Option<i64>,
+}
+
+impl ImageCleanupEvent {
+    pub fn new(
+        item_id: Uuid,
+        image_id: Uuid,
+        operation: impl Into<String>,
+        status: CleanupStatus,
+        admin_message: impl Into<String>,
+        created_at_epoch_seconds: i64,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            item_id,
+            image_id,
+            operation: operation.into(),
+            status,
+            admin_message: admin_message.into(),
+            created_at_epoch_seconds,
+            resolved_at_epoch_seconds: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanupWarning {
+    pub image_id: Uuid,
+    pub operation: String,
+    pub status: CleanupStatus,
+    pub admin_message: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct ImageCleanupOutcome {
+    pub item: AutographItem,
+    pub warning: Option<CleanupWarning>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ImageReplacementInput {
+    pub image: AutographImage,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldDiff {
@@ -228,7 +313,49 @@ pub trait CatalogRepository: Send + Sync {
         image: AutographImage,
     ) -> Result<AutographItem, String>;
 
-    async fn set_primary_image(&self, item_id: Uuid, image_id: Uuid) -> Result<AutographItem, String>;
+    async fn set_primary_image(
+        &self,
+        _item_id: Uuid,
+        _image_id: Uuid,
+    ) -> Result<AutographItem, String> {
+        Err("primary image selection is not supported by this repository".to_owned())
+    }
+
+    async fn remove_image_metadata(
+        &self,
+        _item_id: Uuid,
+        _image_id: Uuid,
+    ) -> Result<AutographItem, String> {
+        Err("image metadata removal is not supported by this repository".to_owned())
+    }
+
+    async fn replace_image_metadata(
+        &self,
+        _item_id: Uuid,
+        _image_id: Uuid,
+        _input: ImageReplacementInput,
+    ) -> Result<AutographItem, String> {
+        Err("image metadata replacement is not supported by this repository".to_owned())
+    }
+
+    async fn record_cleanup_event(
+        &self,
+        event: ImageCleanupEvent,
+    ) -> Result<ImageCleanupEvent, String> {
+        Ok(event)
+    }
+
+    async fn cleanup_warnings(&self, _item_id: Uuid) -> Result<Vec<CleanupWarning>, String> {
+        Ok(Vec::new())
+    }
+
+    async fn mark_cleanup_retry_succeeded(
+        &self,
+        _item_id: Uuid,
+        _image_id: Uuid,
+    ) -> Result<(), String> {
+        Ok(())
+    }
 
     async fn history(&self, _item_id: Uuid) -> Result<Vec<AutographEditEvent>, String> {
         Ok(Vec::new())
@@ -247,6 +374,7 @@ pub trait CatalogRepository: Send + Sync {
 pub struct MemoryCatalogRepository {
     items: Arc<Mutex<HashMap<Uuid, AutographItem>>>,
     events: Arc<Mutex<Vec<AutographEditEvent>>>,
+    cleanup_events: Arc<Mutex<Vec<ImageCleanupEvent>>>,
 }
 
 impl Default for MemoryCatalogRepository {
@@ -254,6 +382,7 @@ impl Default for MemoryCatalogRepository {
         Self {
             items: Arc::new(Mutex::new(HashMap::new())),
             events: Arc::new(Mutex::new(Vec::new())),
+            cleanup_events: Arc::new(Mutex::new(Vec::new())),
         }
     }
 }
@@ -383,23 +512,187 @@ impl CatalogRepository for MemoryCatalogRepository {
         Ok(updated)
     }
 
-    async fn set_primary_image(&self, item_id: Uuid, image_id: Uuid) -> Result<AutographItem, String> {
+    async fn set_primary_image(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+    ) -> Result<AutographItem, String> {
         let now = now_epoch_seconds();
         let updated = {
             let mut items = self.items.lock().expect("catalog state lock");
-            let item = items.get_mut(&item_id).ok_or_else(|| "autograph item was not found".to_owned())?;
-            let image = item.images.iter_mut().find(|image| image.id == image_id)
+            let item = items
+                .get_mut(&item_id)
+                .ok_or_else(|| "autograph item was not found".to_owned())?;
+            let image = item
+                .images
+                .iter_mut()
+                .find(|image| image.id == image_id)
                 .ok_or_else(|| "autograph image was not found".to_owned())?;
             if !image.is_primary {
-                for image in &mut item.images { image.is_primary = image.id == image_id; }
+                for image in &mut item.images {
+                    image.is_primary = image.id == image_id;
+                }
                 item.updated_at_epoch_seconds = now;
             }
             item.clone()
         };
-        self.events.lock().expect("catalog event lock").push(AutographEditEvent::new(
-            item_id, EditEventKind::PrimaryImageChanged, "Primary image changed", Vec::new(), now,
-        ));
+        self.events
+            .lock()
+            .expect("catalog event lock")
+            .push(AutographEditEvent::new(
+                item_id,
+                EditEventKind::PrimaryImageChanged,
+                "Primary image changed",
+                Vec::new(),
+                now,
+            ));
         Ok(updated)
+    }
+
+    async fn remove_image_metadata(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+    ) -> Result<AutographItem, String> {
+        let now = now_epoch_seconds();
+        let updated = {
+            let mut items = self.items.lock().expect("catalog state lock");
+            let item = items
+                .get_mut(&item_id)
+                .ok_or_else(|| "autograph item was not found".to_owned())?;
+            let position = item
+                .images
+                .iter()
+                .position(|image| image.id == image_id)
+                .ok_or_else(|| "autograph image was not found".to_owned())?;
+            let was_primary = item.images[position].is_primary;
+            item.images.remove(position);
+            if was_primary && !item.images.iter().any(|image| image.is_primary) {
+                if let Some(first) = item.images.first_mut() {
+                    first.is_primary = true;
+                }
+            }
+            item.updated_at_epoch_seconds = now;
+            item.clone()
+        };
+        self.events
+            .lock()
+            .expect("catalog event lock")
+            .push(AutographEditEvent::new(
+                item_id,
+                EditEventKind::ImageRemoved,
+                "Image removed",
+                Vec::new(),
+                now,
+            ));
+        Ok(updated)
+    }
+
+    async fn replace_image_metadata(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+        input: ImageReplacementInput,
+    ) -> Result<AutographItem, String> {
+        let now = now_epoch_seconds();
+        let updated = {
+            let mut items = self.items.lock().expect("catalog state lock");
+            let item = items
+                .get_mut(&item_id)
+                .ok_or_else(|| "autograph item was not found".to_owned())?;
+            let existing = item
+                .images
+                .iter_mut()
+                .find(|image| image.id == image_id)
+                .ok_or_else(|| "autograph image was not found".to_owned())?;
+            let mut replacement = input.image;
+            replacement.is_primary = existing.is_primary;
+            replacement.sort_order = existing.sort_order;
+            *existing = replacement;
+            item.updated_at_epoch_seconds = now;
+            item.clone()
+        };
+        self.events
+            .lock()
+            .expect("catalog event lock")
+            .push(AutographEditEvent::new(
+                item_id,
+                EditEventKind::ImageReplaced,
+                "Image replaced",
+                Vec::new(),
+                now,
+            ));
+        Ok(updated)
+    }
+
+    async fn record_cleanup_event(
+        &self,
+        event: ImageCleanupEvent,
+    ) -> Result<ImageCleanupEvent, String> {
+        self.cleanup_events
+            .lock()
+            .expect("cleanup event lock")
+            .push(event.clone());
+        self.events
+            .lock()
+            .expect("catalog event lock")
+            .push(AutographEditEvent::new(
+                event.item_id,
+                EditEventKind::CleanupChanged,
+                "Cleanup status changed",
+                Vec::new(),
+                event.created_at_epoch_seconds,
+            ));
+        Ok(event)
+    }
+
+    async fn cleanup_warnings(&self, item_id: Uuid) -> Result<Vec<CleanupWarning>, String> {
+        Ok(self
+            .cleanup_events
+            .lock()
+            .expect("cleanup event lock")
+            .iter()
+            .filter(|event| event.item_id == item_id && event.status == CleanupStatus::DeleteFailed)
+            .map(|event| CleanupWarning {
+                image_id: event.image_id,
+                operation: event.operation.clone(),
+                status: event.status,
+                admin_message: event.admin_message.clone(),
+            })
+            .collect())
+    }
+
+    async fn mark_cleanup_retry_succeeded(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+    ) -> Result<(), String> {
+        let now = now_epoch_seconds();
+        for event in self
+            .cleanup_events
+            .lock()
+            .expect("cleanup event lock")
+            .iter_mut()
+            .filter(|event| {
+                event.item_id == item_id
+                    && event.image_id == image_id
+                    && event.status == CleanupStatus::DeleteFailed
+            })
+        {
+            event.status = CleanupStatus::RetrySucceeded;
+            event.resolved_at_epoch_seconds = Some(now);
+        }
+        self.events
+            .lock()
+            .expect("catalog event lock")
+            .push(AutographEditEvent::new(
+                item_id,
+                EditEventKind::CleanupChanged,
+                "Cleanup retry succeeded",
+                Vec::new(),
+                now,
+            ));
+        Ok(())
     }
 
     async fn history(&self, item_id: Uuid) -> Result<Vec<AutographEditEvent>, String> {

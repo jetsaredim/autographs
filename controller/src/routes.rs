@@ -5,7 +5,7 @@ use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
 };
 use image::ImageFormat;
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,8 @@ use crate::{
     auth::AuthState,
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
-        MemoryCatalogRepository, PublicationStatus, REQUIRED_FIELDS_ERROR,
+        CleanupStatus, CleanupWarning, ImageCleanupEvent, ImageReplacementInput,
+        MemoryCatalogRepository, PublicationStatus, REQUIRED_FIELDS_ERROR, now_epoch_seconds,
     },
     config::ControllerConfig,
     media::{LocalMediaStore, PrivateMediaStore},
@@ -215,7 +216,18 @@ pub fn router_with_services(
             get(admin_items::item_history),
         )
         .route("/admin/api/items/{id}/images", post(upload_image))
-        .route("/admin/api/items/{id}/images/{image_id}/primary", post(set_primary_image))
+        .route(
+            "/admin/api/items/{id}/images/{image_id}/primary",
+            post(set_primary_image),
+        )
+        .route(
+            "/admin/api/items/{id}/images/{image_id}",
+            delete(delete_image).put(replace_image),
+        )
+        .route(
+            "/admin/api/items/{id}/images/{image_id}/cleanup/retry",
+            post(retry_image_cleanup),
+        )
         .route("/admin/api/items/{id}/publication", post(set_publication))
         .route("/admin/api/publish/incremental", post(publish_incremental))
         .route("/admin/api/publish/full", post(publish_full))
@@ -409,7 +421,11 @@ async fn upload_image(
         } else if field.name() == Some("altText") {
             alt_text = field.text().await.ok();
         } else if field.name() == Some("isPrimary") {
-            requested_primary = field.text().await.ok().and_then(|value| value.parse::<bool>().ok());
+            requested_primary = field
+                .text()
+                .await
+                .ok()
+                .and_then(|value| value.parse::<bool>().ok());
         }
     }
     let Some(body) = body else {
@@ -449,7 +465,13 @@ async fn upload_image(
         content_type,
         byte_size: body.len(),
         is_primary: requested_primary.unwrap_or(existing_item.images.is_empty()),
-        sort_order: existing_item.images.iter().map(|image| image.sort_order).max().unwrap_or(-1) + 1,
+        sort_order: existing_item
+            .images
+            .iter()
+            .map(|image| image.sort_order)
+            .max()
+            .unwrap_or(-1)
+            + 1,
         alt_text,
     };
     match state.repository.attach_image(item_id, image).await {
@@ -478,10 +500,17 @@ async fn upload_image(
 }
 
 async fn set_primary_image(
-    State(state): State<AppState>, Path((id, image_id)): Path<(String, String)>, method: Method, headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
 ) -> Response {
-    if let Err(status) = authorize_mutation(&state, &method, &headers) { return status.into_response(); }
-    let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else { return StatusCode::BAD_REQUEST.into_response(); };
+    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        return status.into_response();
+    }
+    let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
     match state.repository.set_primary_image(item_id, image_id).await {
         Ok(item) => {
             let pending = admin_items::pending_marker(&state, item_id).await;
@@ -489,6 +518,267 @@ async fn set_primary_image(
         }
         Err(error) => repository_update_error_status(&error).into_response(),
     }
+}
+
+async fn delete_image(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        return status.into_response();
+    }
+    let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let item = match state.repository.get(item_id).await {
+        Ok(Some(item)) => item,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(%item_id, error = %error, "failed to load item before image delete");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let Some(image) = item
+        .images
+        .iter()
+        .find(|image| image.id == image_id)
+        .cloned()
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    if let Err(error) = state.media.delete(&image.object_key).await {
+        tracing::warn!(%item_id, %image_id, error = %error, "private image delete failed");
+        let warning = record_cleanup_warning(&state, item_id, image_id, "delete").await;
+        return (
+            StatusCode::CONFLICT,
+            Json(CleanupWarningEnvelope::from(warning)),
+        )
+            .into_response();
+    }
+
+    match state
+        .repository
+        .remove_image_metadata(item_id, image_id)
+        .await
+    {
+        Ok(item) => {
+            let pending = admin_items::pending_marker(&state, item_id).await;
+            Json(ItemResponse::from_item_with_pending(item, pending)).into_response()
+        }
+        Err(error) => {
+            tracing::error!(%item_id, %image_id, error = %error, "failed to remove image metadata after media delete");
+            repository_update_error_status(&error).into_response()
+        }
+    }
+}
+
+async fn replace_image(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+    multipart: Multipart,
+) -> Response {
+    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        return status.into_response();
+    }
+    let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let item = match state.repository.get(item_id).await {
+        Ok(Some(item)) => item,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(%item_id, error = %error, "failed to load item before image replacement");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let Some(existing_image) = item
+        .images
+        .iter()
+        .find(|image| image.id == image_id)
+        .cloned()
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Some(upload) = parse_image_multipart(multipart).await else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    if !valid_image_upload(&upload.content_type, &upload.body) {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+
+    let replacement_id = Uuid::new_v4();
+    let replacement_key = build_original_object_key(item_id, replacement_id);
+    if let Err(error) = state.media.write(&replacement_key, &upload.body).await {
+        tracing::error!(%item_id, %replacement_id, error = %error, "failed to write replacement image");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    let replacement = AutographImage {
+        id: replacement_id,
+        object_key: replacement_key.clone(),
+        original_filename: upload.filename.unwrap_or_else(|| "upload".to_owned()),
+        content_type: upload.content_type,
+        byte_size: upload.body.len(),
+        is_primary: existing_image.is_primary,
+        sort_order: existing_image.sort_order,
+        alt_text: upload.alt_text,
+    };
+
+    let item = match state
+        .repository
+        .replace_image_metadata(
+            item_id,
+            image_id,
+            ImageReplacementInput { image: replacement },
+        )
+        .await
+    {
+        Ok(item) => item,
+        Err(error) => {
+            tracing::error!(%item_id, %image_id, error = %error, "failed to replace image metadata");
+            let _ = state.media.delete(&replacement_key).await;
+            return repository_update_error_status(&error).into_response();
+        }
+    };
+
+    let warning = if let Err(error) = state.media.delete(&existing_image.object_key).await {
+        tracing::warn!(%item_id, %image_id, error = %error, "old private image cleanup failed after replacement");
+        Some(record_cleanup_warning(&state, item_id, image_id, "replace").await)
+    } else {
+        None
+    };
+    let pending = admin_items::pending_marker(&state, item_id).await;
+    let response = ItemResponseWithWarning {
+        item: ItemResponse::from_item_with_pending(item, pending),
+        cleanup_warning: warning.map(CleanupWarningResponse::from),
+    };
+    Json(response).into_response()
+}
+
+async fn retry_image_cleanup(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+        return status.into_response();
+    }
+    let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let item = match state.repository.get(item_id).await {
+        Ok(item) => item,
+        Err(error) => {
+            tracing::error!(%item_id, error = %error, "failed to load item before cleanup retry");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let object_key = item
+        .as_ref()
+        .and_then(|item| item.images.iter().find(|image| image.id == image_id))
+        .map(|image| image.object_key.clone())
+        .unwrap_or_else(|| build_original_object_key(item_id, image_id));
+    if let Err(error) = state.media.delete(&object_key).await {
+        tracing::warn!(%item_id, %image_id, error = %error, "private image cleanup retry failed");
+        let warning = record_cleanup_warning(&state, item_id, image_id, "retry").await;
+        return (
+            StatusCode::CONFLICT,
+            Json(CleanupWarningEnvelope::from(warning)),
+        )
+            .into_response();
+    }
+    let removed = if item
+        .as_ref()
+        .is_some_and(|item| item.images.iter().any(|image| image.id == image_id))
+    {
+        match state
+            .repository
+            .remove_image_metadata(item_id, image_id)
+            .await
+        {
+            Ok(item) => Some(item),
+            Err(error) => {
+                tracing::error!(%item_id, %image_id, error = %error, "failed to remove image metadata after cleanup retry");
+                return repository_update_error_status(&error).into_response();
+            }
+        }
+    } else {
+        None
+    };
+    if let Err(error) = state
+        .repository
+        .mark_cleanup_retry_succeeded(item_id, image_id)
+        .await
+    {
+        tracing::error!(%item_id, %image_id, error = %error, "failed to mark cleanup retry succeeded");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    if let Some(item) = removed {
+        let pending = admin_items::pending_marker(&state, item_id).await;
+        Json(ItemResponse::from_item_with_pending(item, pending)).into_response()
+    } else {
+        StatusCode::OK.into_response()
+    }
+}
+
+async fn record_cleanup_warning(
+    state: &AppState,
+    item_id: Uuid,
+    image_id: Uuid,
+    operation: &str,
+) -> CleanupWarning {
+    let message = "Private image cleanup needs retry from the admin maintenance action.".to_owned();
+    let event = ImageCleanupEvent::new(
+        item_id,
+        image_id,
+        operation,
+        CleanupStatus::DeleteFailed,
+        message.clone(),
+        now_epoch_seconds(),
+    );
+    if let Err(error) = state.repository.record_cleanup_event(event).await {
+        tracing::error!(%item_id, %image_id, operation, error = %error, "failed to record cleanup warning");
+    }
+    CleanupWarning {
+        image_id,
+        operation: operation.to_owned(),
+        status: CleanupStatus::DeleteFailed,
+        admin_message: message,
+    }
+}
+
+struct ParsedImageUpload {
+    filename: Option<String>,
+    content_type: String,
+    body: Vec<u8>,
+    alt_text: Option<String>,
+}
+
+async fn parse_image_multipart(mut multipart: Multipart) -> Option<ParsedImageUpload> {
+    let mut filename = None;
+    let mut content_type = None;
+    let mut body = None;
+    let mut alt_text = None;
+    while let Ok(Some(field)) = multipart.next_field().await {
+        if field.name() == Some("image") {
+            filename = field.file_name().map(str::to_owned);
+            content_type = field.content_type().map(str::to_owned);
+            body = field.bytes().await.ok().map(|bytes| bytes.to_vec());
+        } else if field.name() == Some("altText") {
+            alt_text = field.text().await.ok();
+        }
+    }
+    Some(ParsedImageUpload {
+        filename,
+        content_type: content_type.unwrap_or_else(|| "application/octet-stream".to_owned()),
+        body: body?,
+        alt_text,
+    })
 }
 
 fn valid_image_upload(content_type: &str, body: &[u8]) -> bool {
@@ -676,6 +966,49 @@ struct ImageResponse {
     is_primary: bool,
     sort_order: i32,
     alt_text: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ItemResponseWithWarning {
+    #[serde(flatten)]
+    item: ItemResponse,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cleanup_warning: Option<CleanupWarningResponse>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CleanupWarningResponse {
+    image_id: Uuid,
+    operation: String,
+    status: CleanupStatus,
+    admin_message: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CleanupWarningEnvelope {
+    cleanup_warning: CleanupWarningResponse,
+}
+
+impl From<CleanupWarning> for CleanupWarningEnvelope {
+    fn from(warning: CleanupWarning) -> Self {
+        Self {
+            cleanup_warning: CleanupWarningResponse::from(warning),
+        }
+    }
+}
+
+impl From<CleanupWarning> for CleanupWarningResponse {
+    fn from(warning: CleanupWarning) -> Self {
+        Self {
+            image_id: warning.image_id,
+            operation: warning.operation,
+            status: warning.status,
+            admin_message: warning.admin_message,
+        }
+    }
 }
 
 impl ItemResponse {

@@ -150,6 +150,12 @@ mod live {
             println!("cleanup deleting Oracle rows for item id: {item_id}");
             connection
                 .execute(
+                    "delete from autograph_cleanup_events where item_id = :1",
+                    &[&item_id],
+                )
+                .expect("delete cleanup event rows");
+            connection
+                .execute(
                     "delete from autograph_images where item_id = :1",
                     &[&item_id],
                 )
@@ -181,6 +187,12 @@ mod live {
                 "select count(*) from autograph_item_tags where item_id = :1",
                 &item_id,
                 "cleanup tag rows",
+            );
+            assert_count_zero(
+                &connection,
+                "select count(*) from autograph_cleanup_events where item_id = :1",
+                &item_id,
+                "cleanup event rows",
             );
         }
 
@@ -219,7 +231,11 @@ mod live {
                    i.title,
                    i.publication_status,
                    img.id,
-                   img.object_key
+                   img.object_key,
+                   (select count(*)
+                      from autograph_cleanup_events ce
+                     where ce.item_id = i.id
+                       and ce.status = 'deleteFailed')
                  from autograph_items i
                  left join autograph_images img on img.item_id = i.id
                  where i.title like 'Live Smoke%'
@@ -238,8 +254,9 @@ mod live {
             let status: String = row.get(2).expect("read smoke status");
             let image_id: Option<String> = row.get(3).expect("read smoke image id");
             let object_key: Option<String> = row.get(4).expect("read smoke object key");
+            let cleanup_warnings: i64 = row.get(5).expect("read smoke cleanup warning count");
             println!(
-                "item_id={item_id} status={status} title={title:?} image_id={} object_key={}",
+                "item_id={item_id} status={status} title={title:?} image_id={} object_key={} cleanup_warnings={cleanup_warnings}",
                 image_id.as_deref().unwrap_or("<none>"),
                 object_key.as_deref().unwrap_or("<none>")
             );
@@ -335,6 +352,16 @@ mod live {
         assert_eq!(
             count, 1,
             "static runtime schema is missing ORIGINAL_FILENAME; initialize the database from controller/db/schema.sql before the live persistence smoke"
+        );
+        let cleanup_count: i64 = connection
+            .query_row_as(
+                "select count(*) from user_tab_columns where table_name = 'AUTOGRAPH_CLEANUP_EVENTS' and column_name = 'ADMIN_MESSAGE'",
+                &[],
+            )
+            .expect("inspect cleanup event schema");
+        assert_eq!(
+            cleanup_count, 1,
+            "static runtime schema is missing AUTOGRAPH_CLEANUP_EVENTS.ADMIN_MESSAGE; initialize the database from controller/db/schema.sql before the live persistence smoke"
         );
     }
 }

@@ -5,8 +5,9 @@ use uuid::Uuid;
 
 use crate::catalog::{
     AutographEditEvent, AutographImage, AutographItem, AutographItemInput, AutographItemUpdate,
-    CatalogRepository, EditEventKind, FieldDiff, PendingChangeSummary, PublicationStatus,
-    apply_update, event_kind_for_diffs, event_summary, now_epoch_seconds, validate_required_fields,
+    CatalogRepository, CleanupStatus, CleanupWarning, EditEventKind, FieldDiff, ImageCleanupEvent,
+    ImageReplacementInput, PendingChangeSummary, PublicationStatus, apply_update,
+    event_kind_for_diffs, event_summary, now_epoch_seconds, validate_required_fields,
 };
 
 #[derive(Clone)]
@@ -271,7 +272,11 @@ impl CatalogRepository for OracleCatalogRepository {
         .await
     }
 
-    async fn set_primary_image(&self, item_id: Uuid, image_id: Uuid) -> Result<AutographItem, String> {
+    async fn set_primary_image(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+    ) -> Result<AutographItem, String> {
         self.with_connection(move |connection| {
             let item_id_text = item_id.to_string();
             let image_id_text = image_id.to_string();
@@ -291,6 +296,192 @@ impl CatalogRepository for OracleCatalogRepository {
             connection.commit().map_err(|error| format!("commit Oracle primary image: {error}"))?;
             load_item(&connection, item_id)?.ok_or_else(|| "autograph item was not found".to_owned())
         }).await
+    }
+
+    async fn remove_image_metadata(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+    ) -> Result<AutographItem, String> {
+        self.with_connection(move |connection| {
+            let item_id_text = item_id.to_string();
+            let image_id_text = image_id.to_string();
+            let image = load_image(&connection, item_id, image_id)?
+                .ok_or_else(|| "autograph image was not found".to_owned())?;
+            let statement = connection
+                .execute(
+                    "delete from autograph_images where id = :1 and item_id = :2",
+                    &[&image_id_text, &item_id_text],
+                )
+                .map_err(|error| format!("delete Oracle catalog image metadata: {error}"))?;
+            let rows_deleted = statement
+                .row_count()
+                .map_err(|error| format!("read Oracle image delete row count: {error}"))?;
+            if rows_deleted == 0 {
+                return Err("autograph image was not found".to_owned());
+            }
+            if image.is_primary {
+                promote_first_remaining_image(&connection, item_id)?;
+            }
+            connection
+                .execute(
+                    "update autograph_items set updated_at = current_timestamp where id = :1",
+                    &[&item_id_text],
+                )
+                .map_err(|error| format!("touch Oracle catalog item for image removal: {error}"))?;
+            let event = AutographEditEvent::new(
+                item_id,
+                EditEventKind::ImageRemoved,
+                "Image removed",
+                Vec::new(),
+                now_epoch_seconds(),
+            );
+            insert_edit_event(&connection, &event)?;
+            connection
+                .commit()
+                .map_err(|error| format!("commit Oracle image metadata removal: {error}"))?;
+            load_item(&connection, item_id)?
+                .ok_or_else(|| "autograph item was not found".to_owned())
+        })
+        .await
+    }
+
+    async fn replace_image_metadata(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+        input: ImageReplacementInput,
+    ) -> Result<AutographItem, String> {
+        let storage_namespace = self.storage_namespace.clone();
+        let bucket_name = self.bucket_name.clone();
+        self.with_connection(move |connection| {
+            let existing = load_image(&connection, item_id, image_id)?
+                .ok_or_else(|| "autograph image was not found".to_owned())?;
+            let item_id_text = item_id.to_string();
+            let image_id_text = image_id.to_string();
+            let replacement_id_text = input.image.id.to_string();
+            let byte_size = input.image.byte_size as i64;
+            let is_primary = if existing.is_primary { "Y" } else { "N" };
+            let statement = connection
+                .execute(
+                    "update autograph_images set
+                        id = :1,
+                        storage_namespace = :2,
+                        bucket_name = :3,
+                        object_key = :4,
+                        original_filename = :5,
+                        content_type = :6,
+                        byte_size = :7,
+                        is_primary = :8,
+                        sort_order = :9,
+                        alt_text = :10,
+                        updated_at = current_timestamp
+                    where id = :11 and item_id = :12",
+                    &[
+                        &replacement_id_text,
+                        &storage_namespace,
+                        &bucket_name,
+                        &input.image.object_key,
+                        &input.image.original_filename,
+                        &input.image.content_type,
+                        &byte_size,
+                        &is_primary,
+                        &existing.sort_order,
+                        &input.image.alt_text,
+                        &image_id_text,
+                        &item_id_text,
+                    ],
+                )
+                .map_err(|error| format!("replace Oracle catalog image metadata: {error}"))?;
+            let rows_updated = statement
+                .row_count()
+                .map_err(|error| format!("read Oracle image replacement row count: {error}"))?;
+            if rows_updated == 0 {
+                return Err("autograph image was not found".to_owned());
+            }
+            connection
+                .execute(
+                    "update autograph_items set updated_at = current_timestamp where id = :1",
+                    &[&item_id_text],
+                )
+                .map_err(|error| {
+                    format!("touch Oracle catalog item for image replacement: {error}")
+                })?;
+            let event = AutographEditEvent::new(
+                item_id,
+                EditEventKind::ImageReplaced,
+                "Image replaced",
+                Vec::new(),
+                now_epoch_seconds(),
+            );
+            insert_edit_event(&connection, &event)?;
+            connection
+                .commit()
+                .map_err(|error| format!("commit Oracle image metadata replacement: {error}"))?;
+            load_item(&connection, item_id)?
+                .ok_or_else(|| "autograph item was not found".to_owned())
+        })
+        .await
+    }
+
+    async fn record_cleanup_event(
+        &self,
+        event: ImageCleanupEvent,
+    ) -> Result<ImageCleanupEvent, String> {
+        self.with_connection(move |connection| {
+            insert_cleanup_event(&connection, &event)?;
+            let edit_event = AutographEditEvent::new(
+                event.item_id,
+                EditEventKind::CleanupChanged,
+                "Cleanup status changed",
+                Vec::new(),
+                event.created_at_epoch_seconds,
+            );
+            insert_edit_event(&connection, &edit_event)?;
+            connection
+                .commit()
+                .map_err(|error| format!("commit Oracle cleanup event: {error}"))?;
+            Ok(event)
+        })
+        .await
+    }
+
+    async fn cleanup_warnings(&self, item_id: Uuid) -> Result<Vec<CleanupWarning>, String> {
+        self.with_connection(move |connection| load_cleanup_warnings(&connection, item_id))
+            .await
+    }
+
+    async fn mark_cleanup_retry_succeeded(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+    ) -> Result<(), String> {
+        self.with_connection(move |connection| {
+            let item_id_text = item_id.to_string();
+            let image_id_text = image_id.to_string();
+            connection
+                .execute(
+                    "update autograph_cleanup_events set
+                        status = 'retrySucceeded',
+                        resolved_at = current_timestamp
+                    where item_id = :1 and image_id = :2 and status = 'deleteFailed'",
+                    &[&item_id_text, &image_id_text],
+                )
+                .map_err(|error| format!("mark Oracle cleanup retry succeeded: {error}"))?;
+            let event = AutographEditEvent::new(
+                item_id,
+                EditEventKind::CleanupChanged,
+                "Cleanup retry succeeded",
+                Vec::new(),
+                now_epoch_seconds(),
+            );
+            insert_edit_event(&connection, &event)?;
+            connection
+                .commit()
+                .map_err(|error| format!("commit Oracle cleanup retry: {error}"))?;
+            Ok(())
+        })
+        .await
     }
 
     async fn history(&self, item_id: Uuid) -> Result<Vec<AutographEditEvent>, String> {
@@ -419,6 +610,61 @@ fn load_images(connection: &Connection, id: Uuid) -> Result<Vec<AutographImage>,
     Ok(images)
 }
 
+fn load_image(
+    connection: &Connection,
+    item_id: Uuid,
+    image_id: Uuid,
+) -> Result<Option<AutographImage>, String> {
+    let item_id_text = item_id.to_string();
+    let image_id_text = image_id.to_string();
+    let mut rows = connection
+        .query(
+            "select
+                id, object_key, original_filename, content_type, byte_size,
+                is_primary, sort_order, alt_text
+            from autograph_images where item_id = :1 and id = :2",
+            &[&item_id_text, &image_id_text],
+        )
+        .map_err(|error| format!("read Oracle catalog image: {error}"))?;
+    let Some(row) = rows.next() else {
+        return Ok(None);
+    };
+    let row = row.map_err(|error| format!("read Oracle catalog image row: {error}"))?;
+    Ok(Some(AutographImage {
+        id: parse_uuid(&row_value::<String>(&row, 0, "image id")?)?,
+        object_key: row_value(&row, 1, "image object key")?,
+        original_filename: row_value::<Option<String>>(&row, 2, "image original filename")?
+            .unwrap_or_else(|| "upload".to_owned()),
+        content_type: row_value(&row, 3, "image content type")?,
+        byte_size: row_value::<Option<i64>>(&row, 4, "image byte size")?.unwrap_or(0) as usize,
+        is_primary: row_value::<String>(&row, 5, "image primary flag")? == "Y",
+        sort_order: row_value(&row, 6, "image sort order")?,
+        alt_text: row_value(&row, 7, "image alt text")?,
+    }))
+}
+
+fn promote_first_remaining_image(connection: &Connection, item_id: Uuid) -> Result<(), String> {
+    let item_id_text = item_id.to_string();
+    let next_primary = connection
+        .query_row_as::<String>(
+            "select id from autograph_images where item_id = :1 order by sort_order, id fetch first 1 row only",
+            &[&item_id_text],
+        )
+        .ok();
+    if let Some(next_primary) = next_primary {
+        connection
+            .execute(
+                "update autograph_images set
+                    is_primary = case when id = :1 then 'Y' else 'N' end,
+                    updated_at = current_timestamp
+                where item_id = :2",
+                &[&next_primary, &item_id_text],
+            )
+            .map_err(|error| format!("promote Oracle primary image after removal: {error}"))?;
+    }
+    Ok(())
+}
+
 fn load_history(connection: &Connection, item_id: Uuid) -> Result<Vec<AutographEditEvent>, String> {
     let item_id_text = item_id.to_string();
     let mut rows = connection
@@ -438,6 +684,33 @@ fn load_history(connection: &Connection, item_id: Uuid) -> Result<Vec<AutographE
         events.push(event_from_row(item_id, &row)?);
     }
     Ok(events)
+}
+
+fn load_cleanup_warnings(
+    connection: &Connection,
+    item_id: Uuid,
+) -> Result<Vec<CleanupWarning>, String> {
+    let item_id_text = item_id.to_string();
+    let mut rows = connection
+        .query(
+            "select image_id, operation, status, admin_message
+            from autograph_cleanup_events
+            where item_id = :1 and status = 'deleteFailed'
+            order by created_at desc, id desc",
+            &[&item_id_text],
+        )
+        .map_err(|error| format!("read Oracle cleanup warnings: {error}"))?;
+    let mut warnings = Vec::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("read Oracle cleanup warning row: {error}"))?;
+        warnings.push(CleanupWarning {
+            image_id: parse_uuid(&row_value::<String>(&row, 0, "cleanup image id")?)?,
+            operation: row_value(&row, 1, "cleanup operation")?,
+            status: row_value::<String>(&row, 2, "cleanup status")?.parse::<CleanupStatus>()?,
+            admin_message: row_value(&row, 3, "cleanup admin message")?,
+        });
+    }
+    Ok(warnings)
 }
 
 fn event_from_row(item_id: Uuid, row: &Row) -> Result<AutographEditEvent, String> {
@@ -500,6 +773,34 @@ fn insert_edit_event(connection: &Connection, event: &AutographEditEvent) -> Res
             ],
         )
         .map_err(|error| format!("insert Oracle catalog edit event: {error}"))?;
+    Ok(())
+}
+
+fn insert_cleanup_event(connection: &Connection, event: &ImageCleanupEvent) -> Result<(), String> {
+    let id_text = event.id.to_string();
+    let item_id_text = event.item_id.to_string();
+    let image_id_text = event.image_id.to_string();
+    let status = event.status.as_str();
+    let created_at_epoch_seconds = event.created_at_epoch_seconds;
+    connection
+        .execute(
+            "insert into autograph_cleanup_events (
+                id, item_id, image_id, operation, status, admin_message, created_at
+            ) values (
+                :1, :2, :3, :4, :5, :6,
+                timestamp '1970-01-01 00:00:00' + numtodsinterval(:7, 'SECOND')
+            )",
+            &[
+                &id_text,
+                &item_id_text,
+                &image_id_text,
+                &event.operation,
+                &status,
+                &event.admin_message,
+                &created_at_epoch_seconds,
+            ],
+        )
+        .map_err(|error| format!("insert Oracle cleanup event: {error}"))?;
     Ok(())
 }
 
