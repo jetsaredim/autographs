@@ -1,7 +1,7 @@
 use autographs_controller::{
     catalog::{
-        AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository, EditEventKind,
-        CleanupStatus, ImageCleanupEvent, MemoryCatalogRepository, PublicationStatus,
+        AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository, CleanupStatus,
+        EditEventKind, ImageCleanupEvent, MemoryCatalogRepository, PublicationStatus,
     },
     config::ControllerConfig,
     media::LocalMediaStore,
