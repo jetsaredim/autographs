@@ -1,7 +1,7 @@
 use autographs_controller::{
     catalog::{
         AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository, EditEventKind,
-        MemoryCatalogRepository, PublicationStatus,
+        CleanupStatus, ImageCleanupEvent, MemoryCatalogRepository, PublicationStatus,
     },
     config::ControllerConfig,
     media::LocalMediaStore,
@@ -426,6 +426,89 @@ async fn image_upload_response_includes_pending_changes() {
     assert_json_true(&response_json["pendingChanges"]["hasPendingChanges"]);
     assert!(response_json["pendingChanges"]["count"].as_u64().unwrap() >= 2);
     assert_eq!(response_json["images"][0]["altText"], "Uploaded test image");
+}
+
+#[tokio::test]
+async fn admin_status_reports_pending_publish_cleanup_and_retention() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Status Pending Item",
+            "Billy Dee Williams",
+            "Photos",
+            vec!["lando"],
+            PublicationStatus::Published,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    repository
+        .record_cleanup_event(ImageCleanupEvent::new(
+            item.id,
+            image_id,
+            "originals/private/leaked-key",
+            "delete",
+            CleanupStatus::DeleteFailed,
+            "Cleanup needs attention. Review the affected item before publishing again.",
+            item.updated_at_epoch_seconds,
+        ))
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(false),
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/status")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_string(response).await;
+    assert_redacted(&body);
+    for denied in [
+        "objectKey",
+        "bucketName",
+        "storageNamespace",
+        "ORACLE_DB",
+        "OCI_",
+        "objectstorage",
+        "originals/",
+        "AUTOGRAPHS_ADMIN_PASSWORD",
+    ] {
+        assert!(!body.contains(denied), "status leaked {denied}: {body}");
+    }
+    let json: Value = serde_json::from_str(&body).unwrap();
+    assert!(json.get("providers").is_some());
+    assert!(json.get("publish").is_some());
+    assert!(json.get("pendingChanges").is_some());
+    assert!(json.get("cleanup").is_some());
+    assert!(json.get("releaseRetention").is_some());
+    assert_eq!(json["providers"]["database"], "local");
+    assert_eq!(json["providers"]["media"], "local");
+    assert_eq!(json["publish"]["state"], "idle");
+    assert!(json["pendingChanges"]["count"].as_u64().unwrap() > 0);
+    assert_eq!(json["cleanup"]["warningCount"], 1);
+    assert_eq!(json["releaseRetention"]["promotedReleaseRetainCount"], 5);
+    assert_eq!(json["releaseRetention"]["failedCandidateRetainCount"], 1);
+    assert_eq!(
+        json["liveSmokeGuidance"],
+        "Run live smoke from docs/static-runtime-runbook.md when Oracle/Object Storage behavior changes."
+    );
+    assert_eq!(
+        json["cleanupGuidance"],
+        "Cleanup warnings must be resolved before trusting a publish batch."
+    );
 }
 
 #[tokio::test]
