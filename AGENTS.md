@@ -172,6 +172,11 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 - Keep all commits for a task inside the current work branch. Merge back to `main` only through the project's normal PR/merge path.
 - If a commit command would run on `main` or `master`, stop and report the current branch plus the branch that should contain the work.
 
+## Pull Request Opening Guardrails
+
+- Always open pull requests as normal, ready-for-review PRs, not draft PRs.
+- If a tool or workflow default would create a draft PR, override it to create a non-draft PR unless the user explicitly asks for a draft.
+
 ## Connectivity and Publishing Failures
 
 - If `git push`, `git fetch`, `gh`, SSH, DNS, or GitHub API calls fail because of local connectivity, local SSH configuration, credentials, network restrictions, or sandbox/network access, stop and tell the user immediately.
