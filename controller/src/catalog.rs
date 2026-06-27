@@ -353,8 +353,8 @@ pub trait CatalogRepository: Send + Sync {
         &self,
         _item_id: Uuid,
         _image_id: Uuid,
-    ) -> Result<(), String> {
-        Ok(())
+    ) -> Result<bool, String> {
+        Ok(false)
     }
 
     async fn history(&self, _item_id: Uuid) -> Result<Vec<AutographEditEvent>, String> {
@@ -667,8 +667,9 @@ impl CatalogRepository for MemoryCatalogRepository {
         &self,
         item_id: Uuid,
         image_id: Uuid,
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         let now = now_epoch_seconds();
+        let mut updated = false;
         for event in self
             .cleanup_events
             .lock()
@@ -682,6 +683,10 @@ impl CatalogRepository for MemoryCatalogRepository {
         {
             event.status = CleanupStatus::RetrySucceeded;
             event.resolved_at_epoch_seconds = Some(now);
+            updated = true;
+        }
+        if !updated {
+            return Ok(false);
         }
         self.events
             .lock()
@@ -693,7 +698,7 @@ impl CatalogRepository for MemoryCatalogRepository {
                 Vec::new(),
                 now,
             ));
-        Ok(())
+        Ok(true)
     }
 
     async fn history(&self, item_id: Uuid) -> Result<Vec<AutographEditEvent>, String> {

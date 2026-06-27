@@ -670,6 +670,17 @@ async fn retry_image_cleanup(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
+    let has_retryable_warning = match state.repository.cleanup_warnings(item_id).await {
+        Ok(warnings) => warnings.iter().any(|warning| image_id == warning.image_id),
+        Err(error) => {
+            tracing::error!(%item_id, %image_id, error = %error, "failed to load cleanup warnings before cleanup retry");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    if !has_retryable_warning {
+        tracing::warn!(%item_id, %image_id, "cleanup retry requested without unresolved cleanup warning");
+        return StatusCode::CONFLICT.into_response();
+    }
     let object_key = item
         .as_ref()
         .and_then(|item| item.images.iter().find(|image| image.id == image_id))
@@ -702,13 +713,20 @@ async fn retry_image_cleanup(
     } else {
         None
     };
-    if let Err(error) = state
+    let retry_marked = match state
         .repository
         .mark_cleanup_retry_succeeded(item_id, image_id)
         .await
     {
-        tracing::error!(%item_id, %image_id, error = %error, "failed to mark cleanup retry succeeded");
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        Ok(updated) => updated,
+        Err(error) => {
+            tracing::error!(%item_id, %image_id, error = %error, "failed to mark cleanup retry succeeded");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    if !retry_marked {
+        tracing::warn!(%item_id, %image_id, "cleanup retry succeeded but warning was already resolved");
+        return StatusCode::CONFLICT.into_response();
     }
     if let Some(item) = removed {
         Json(item_response_with_state(&state, item).await).into_response()

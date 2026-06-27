@@ -502,6 +502,55 @@ async fn cleanup_retry_is_idempotent_when_object_is_already_gone() {
     );
 }
 
+#[tokio::test]
+async fn cleanup_retry_without_warning_does_not_delete_healthy_image() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    let object_key = build_original_object_key(item.id, image_id);
+
+    let retried = app
+        .oneshot(
+            Request::post(format!(
+                "/admin/api/items/{}/images/{image_id}/cleanup/retry",
+                item.id
+            ))
+            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(retried.status(), StatusCode::CONFLICT);
+    assert_eq!(media.read(&object_key).await.unwrap(), png_fixture());
+    assert_eq!(
+        repository.get(item.id).await.unwrap().unwrap().images.len(),
+        1
+    );
+    assert!(
+        repository
+            .cleanup_warnings(item.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
 fn item_input() -> AutographItemInput {
     AutographItemInput {
         title: "Signed Card".into(),

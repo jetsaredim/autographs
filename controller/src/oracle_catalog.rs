@@ -455,11 +455,11 @@ impl CatalogRepository for OracleCatalogRepository {
         &self,
         item_id: Uuid,
         image_id: Uuid,
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         self.with_connection(move |connection| {
             let item_id_text = item_id.to_string();
             let image_id_text = image_id.to_string();
-            connection
+            let statement = connection
                 .execute(
                     "update autograph_cleanup_events set
                         status = 'retrySucceeded',
@@ -468,6 +468,12 @@ impl CatalogRepository for OracleCatalogRepository {
                     &[&item_id_text, &image_id_text],
                 )
                 .map_err(|error| format!("mark Oracle cleanup retry succeeded: {error}"))?;
+            let rows_updated = statement
+                .row_count()
+                .map_err(|error| format!("read Oracle cleanup retry row count: {error}"))?;
+            if rows_updated == 0 {
+                return Ok(false);
+            }
             let event = AutographEditEvent::new(
                 item_id,
                 EditEventKind::CleanupChanged,
@@ -479,7 +485,7 @@ impl CatalogRepository for OracleCatalogRepository {
             connection
                 .commit()
                 .map_err(|error| format!("commit Oracle cleanup retry: {error}"))?;
-            Ok(())
+            Ok(true)
         })
         .await
     }
