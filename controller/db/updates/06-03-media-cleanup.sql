@@ -20,6 +20,7 @@ begin
         id varchar2(36) primary key,
         item_id varchar2(36) not null,
         image_id varchar2(36) not null,
+        target_object_key varchar2(1024) not null,
         operation varchar2(48) not null,
         status varchar2(48) not null,
         admin_message varchar2(500) not null,
@@ -31,6 +32,29 @@ begin
           check (status in ('succeeded', 'deleteFailed', 'retrySucceeded'))
       )
     ]';
+  end if;
+end;
+/
+
+declare
+  column_count number;
+begin
+  select count(*)
+    into column_count
+    from user_tab_columns
+   where table_name = 'AUTOGRAPH_CLEANUP_EVENTS'
+     and column_name = 'TARGET_OBJECT_KEY';
+
+  if column_count = 0 then
+    execute immediate
+      'alter table autograph_cleanup_events add target_object_key varchar2(1024)';
+    execute immediate q'[
+      update autograph_cleanup_events
+         set target_object_key = 'legacy-cleanup-target-unavailable'
+       where target_object_key is null
+    ]';
+    execute immediate
+      'alter table autograph_cleanup_events modify target_object_key varchar2(1024) not null';
   end if;
 end;
 /

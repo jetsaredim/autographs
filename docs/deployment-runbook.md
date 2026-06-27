@@ -138,8 +138,9 @@ controller image that depends on the new shape.
 For Phase 06-03 media cleanup, run
 [`controller/db/updates/06-03-media-cleanup.sql`](../controller/db/updates/06-03-media-cleanup.sql)
 against the live Oracle catalog schema before merging or manually deploying the
-updated controller. The script adds `autograph_cleanup_events`, creates
-`autograph_cleanup_events_item_status_idx`, and replaces
+updated controller. The script adds `autograph_cleanup_events`, ensures each
+cleanup event has the private internal `target_object_key` needed for exact
+retry cleanup, creates `autograph_cleanup_events_item_status_idx`, and replaces
 `autograph_edit_events_type_ck` so edit history can record `cleanupChanged`.
 After the script succeeds, deploy normally and verify `/admin/api/health`.
 
@@ -157,6 +158,11 @@ Then verify the schema shape before deploying the new controller:
 ```sql
 select table_name from user_tables
  where table_name = 'AUTOGRAPH_CLEANUP_EVENTS';
+
+select column_name
+  from user_tab_columns
+ where table_name = 'AUTOGRAPH_CLEANUP_EVENTS'
+   and column_name = 'TARGET_OBJECT_KEY';
 
 select constraint_name, search_condition_vc
   from user_constraints

@@ -540,7 +540,8 @@ async fn delete_image(
 
     if let Err(error) = state.media.delete(&image.object_key).await {
         tracing::warn!(%item_id, %image_id, error = %error, "private image delete failed");
-        return cleanup_warning_response(&state, item_id, image_id, "delete").await;
+        return cleanup_warning_response(&state, item_id, image_id, &image.object_key, "delete")
+            .await;
     }
 
     match state
@@ -551,7 +552,7 @@ async fn delete_image(
         Ok(item) => Json(item_response_with_state(&state, item).await).into_response(),
         Err(error) => {
             tracing::error!(%item_id, %image_id, error = %error, "failed to remove image metadata after media delete");
-            cleanup_warning_response(&state, item_id, image_id, "delete").await
+            cleanup_warning_response(&state, item_id, image_id, &image.object_key, "delete").await
         }
     }
 }
@@ -630,10 +631,34 @@ async fn replace_image(
 
     let warning = if let Err(error) = state.media.delete(&existing_image.object_key).await {
         tracing::warn!(%item_id, %image_id, error = %error, "old private image cleanup failed after replacement");
-        match record_cleanup_warning(&state, item_id, image_id, "replace").await {
+        match record_cleanup_warning(
+            &state,
+            item_id,
+            image_id,
+            &existing_image.object_key,
+            "replace",
+        )
+        .await
+        {
             Ok(warning) => Some(warning),
             Err(error) => {
                 tracing::error!(%item_id, %image_id, error = %error, "failed to persist replacement cleanup warning");
+                if let Err(rollback_error) = state
+                    .repository
+                    .replace_image_metadata(
+                        item_id,
+                        image_id,
+                        ImageReplacementInput {
+                            image: existing_image.clone(),
+                        },
+                    )
+                    .await
+                {
+                    tracing::error!(%item_id, %image_id, error = %rollback_error, "failed to roll back replacement metadata after cleanup warning persistence failure");
+                }
+                if let Err(delete_error) = state.media.delete(&replacement_key).await {
+                    tracing::warn!(%item_id, %image_id, error = %delete_error, "failed to delete replacement object after cleanup warning persistence failure");
+                }
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
         }
@@ -679,18 +704,16 @@ async fn retry_image_cleanup(
         tracing::warn!(%item_id, %image_id, "cleanup retry requested without unresolved cleanup warning");
         return StatusCode::CONFLICT.into_response();
     };
-    let object_key = if cleanup_warning.operation == "replace" {
-        build_original_object_key(item_id, image_id)
-    } else {
-        item.as_ref()
-            .and_then(|item| item.images.iter().find(|image| image.id == image_id))
-            .map(|image| image.object_key.clone())
-            .unwrap_or_else(|| build_original_object_key(item_id, image_id))
-    };
-    if let Err(error) = state.media.delete(&object_key).await {
+    if let Err(error) = state.media.delete(&cleanup_warning.target_object_key).await {
         tracing::warn!(%item_id, %image_id, error = %error, "private image cleanup retry failed");
-        return cleanup_warning_response(&state, item_id, image_id, &cleanup_warning.operation)
-            .await;
+        return cleanup_warning_response(
+            &state,
+            item_id,
+            image_id,
+            &cleanup_warning.target_object_key,
+            &cleanup_warning.operation,
+        )
+        .await;
     }
     let removed = if cleanup_warning.operation != "replace"
         && item
@@ -713,7 +736,7 @@ async fn retry_image_cleanup(
     };
     let retry_marked = match state
         .repository
-        .mark_cleanup_retry_succeeded(item_id, image_id)
+        .mark_cleanup_retry_succeeded(item_id, image_id, &cleanup_warning.target_object_key)
         .await
     {
         Ok(updated) => updated,
@@ -737,12 +760,14 @@ async fn record_cleanup_warning(
     state: &AppState,
     item_id: Uuid,
     image_id: Uuid,
+    target_object_key: &str,
     operation: &str,
 ) -> Result<CleanupWarning, String> {
     let message = "Private image cleanup needs retry from the admin maintenance action.".to_owned();
     let event = ImageCleanupEvent::new(
         item_id,
         image_id,
+        target_object_key,
         operation,
         CleanupStatus::DeleteFailed,
         message.clone(),
@@ -755,6 +780,7 @@ async fn record_cleanup_warning(
         .map_err(|error| format!("record cleanup warning: {error}"))?;
     Ok(CleanupWarning {
         image_id,
+        target_object_key: target_object_key.to_owned(),
         operation: operation.to_owned(),
         status: CleanupStatus::DeleteFailed,
         admin_message: message,
@@ -765,9 +791,10 @@ async fn cleanup_warning_response(
     state: &AppState,
     item_id: Uuid,
     image_id: Uuid,
+    target_object_key: &str,
     operation: &str,
 ) -> Response {
-    match record_cleanup_warning(state, item_id, image_id, operation).await {
+    match record_cleanup_warning(state, item_id, image_id, target_object_key, operation).await {
         Ok(warning) => (
             StatusCode::CONFLICT,
             Json(CleanupWarningEnvelope::from(warning)),

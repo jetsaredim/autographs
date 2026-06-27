@@ -528,6 +528,75 @@ async fn failed_replacement_cleanup_retry_preserves_replacement_target() {
 }
 
 #[tokio::test]
+async fn second_replacement_cleanup_retry_deletes_previous_replacement_object() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media = Arc::new(FailingDeleteMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+
+    let first_replacement = app
+        .clone()
+        .oneshot(replace_request(item.id, image_id))
+        .await
+        .unwrap();
+    assert_eq!(first_replacement.status(), StatusCode::OK);
+    let first_replacement_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+    assert!(media.read(&first_replacement_key).await.is_ok());
+
+    media.fail_deletes(true);
+    let second_replacement = app
+        .clone()
+        .oneshot(replace_request(item.id, image_id))
+        .await
+        .unwrap();
+    assert_eq!(second_replacement.status(), StatusCode::OK);
+    let second_replacement_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+    assert_ne!(first_replacement_key, second_replacement_key);
+
+    media.fail_deletes(false);
+    let retried = app
+        .oneshot(
+            Request::post(format!(
+                "/admin/api/items/{}/images/{image_id}/cleanup/retry",
+                item.id
+            ))
+            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(retried.status(), StatusCode::OK);
+    assert!(media.read(&first_replacement_key).await.is_err());
+    assert!(media.read(&second_replacement_key).await.is_ok());
+    let item_after_retry = repository.get(item.id).await.unwrap().unwrap();
+    assert_eq!(item_after_retry.images.len(), 1);
+    assert_eq!(item_after_retry.images[0].id, image_id);
+    assert_eq!(
+        item_after_retry.images[0].object_key,
+        second_replacement_key
+    );
+}
+
+#[tokio::test]
 async fn replacement_cleanup_warning_persistence_failure_returns_error() {
     let root = tempdir().unwrap();
     let repository = Arc::new(FailingCleanupEventRepository {
@@ -548,6 +617,9 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
     )
     .await;
     let old_image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    let old_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
     media.fail_deletes(true);
 
     let replaced = app
@@ -563,6 +635,10 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
             .unwrap()
             .is_empty()
     );
+    let rolled_back = repository.get(item.id).await.unwrap().unwrap();
+    assert_eq!(rolled_back.images.len(), 1);
+    assert_eq!(rolled_back.images[0].id, old_image_id);
+    assert_eq!(rolled_back.images[0].object_key, old_key);
 }
 
 #[tokio::test]
@@ -961,6 +1037,7 @@ impl CatalogRepository for FailingRemoveRepository {
             .filter(|event| event.item_id == item_id && event.status == CleanupStatus::DeleteFailed)
             .map(|event| CleanupWarning {
                 image_id: event.image_id,
+                target_object_key: event.target_object_key.clone(),
                 operation: event.operation.clone(),
                 status: event.status,
                 admin_message: event.admin_message.clone(),

@@ -161,6 +161,7 @@ pub struct ImageCleanupEvent {
     pub id: Uuid,
     pub item_id: Uuid,
     pub image_id: Uuid,
+    pub target_object_key: String,
     pub operation: String,
     pub status: CleanupStatus,
     pub admin_message: String,
@@ -172,6 +173,7 @@ impl ImageCleanupEvent {
     pub fn new(
         item_id: Uuid,
         image_id: Uuid,
+        target_object_key: impl Into<String>,
         operation: impl Into<String>,
         status: CleanupStatus,
         admin_message: impl Into<String>,
@@ -181,6 +183,7 @@ impl ImageCleanupEvent {
             id: Uuid::new_v4(),
             item_id,
             image_id,
+            target_object_key: target_object_key.into(),
             operation: operation.into(),
             status,
             admin_message: admin_message.into(),
@@ -194,6 +197,8 @@ impl ImageCleanupEvent {
 #[serde(rename_all = "camelCase")]
 pub struct CleanupWarning {
     pub image_id: Uuid,
+    #[serde(skip_serializing)]
+    pub target_object_key: String,
     pub operation: String,
     pub status: CleanupStatus,
     pub admin_message: String,
@@ -353,6 +358,7 @@ pub trait CatalogRepository: Send + Sync {
         &self,
         _item_id: Uuid,
         _image_id: Uuid,
+        _target_object_key: &str,
     ) -> Result<bool, String> {
         Ok(false)
     }
@@ -657,6 +663,7 @@ impl CatalogRepository for MemoryCatalogRepository {
             .filter(|event| event.item_id == item_id && event.status == CleanupStatus::DeleteFailed)
             .map(|event| CleanupWarning {
                 image_id: event.image_id,
+                target_object_key: event.target_object_key.clone(),
                 operation: event.operation.clone(),
                 status: event.status,
                 admin_message: event.admin_message.clone(),
@@ -668,6 +675,7 @@ impl CatalogRepository for MemoryCatalogRepository {
         &self,
         item_id: Uuid,
         image_id: Uuid,
+        target_object_key: &str,
     ) -> Result<bool, String> {
         let now = now_epoch_seconds();
         let mut updated = false;
@@ -679,6 +687,7 @@ impl CatalogRepository for MemoryCatalogRepository {
             .filter(|event| {
                 event.item_id == item_id
                     && event.image_id == image_id
+                    && event.target_object_key == target_object_key
                     && event.status == CleanupStatus::DeleteFailed
             })
         {

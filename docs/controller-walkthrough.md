@@ -156,7 +156,8 @@ For an existing deployed schema, do not replay the canonical full schema. Apply
 the relevant one-shot update from [`controller/db/updates/`](../controller/db/updates/)
 before deploying the controller image that requires it. Phase 06-03 uses
 [`06-03-media-cleanup.sql`](../controller/db/updates/06-03-media-cleanup.sql) to
-add durable cleanup events and allow the `cleanupChanged` edit-history event.
+add durable cleanup events with private retry targets and allow the
+`cleanupChanged` edit-history event.
 
 ## Static Contracts
 

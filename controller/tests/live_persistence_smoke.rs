@@ -355,13 +355,13 @@ mod live {
         );
         let cleanup_count: i64 = connection
             .query_row_as(
-                "select count(*) from user_tab_columns where table_name = 'AUTOGRAPH_CLEANUP_EVENTS' and column_name = 'ADMIN_MESSAGE'",
+                "select count(*) from user_tab_columns where table_name = 'AUTOGRAPH_CLEANUP_EVENTS' and column_name in ('ADMIN_MESSAGE', 'TARGET_OBJECT_KEY')",
                 &[],
             )
             .expect("inspect cleanup event schema");
         assert_eq!(
-            cleanup_count, 1,
-            "static runtime schema is missing AUTOGRAPH_CLEANUP_EVENTS.ADMIN_MESSAGE; initialize the database from controller/db/schema.sql before the live persistence smoke"
+            cleanup_count, 2,
+            "static runtime schema is missing AUTOGRAPH_CLEANUP_EVENTS cleanup columns; initialize or update the database from controller/db/schema.sql and controller/db/updates/06-03-media-cleanup.sql before the live persistence smoke"
         );
     }
 }

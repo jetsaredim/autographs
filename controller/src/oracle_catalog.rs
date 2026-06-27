@@ -452,7 +452,9 @@ impl CatalogRepository for OracleCatalogRepository {
         &self,
         item_id: Uuid,
         image_id: Uuid,
+        target_object_key: &str,
     ) -> Result<bool, String> {
+        let target_object_key = target_object_key.to_owned();
         self.with_connection(move |connection| {
             let item_id_text = item_id.to_string();
             let image_id_text = image_id.to_string();
@@ -461,8 +463,11 @@ impl CatalogRepository for OracleCatalogRepository {
                     "update autograph_cleanup_events set
                         status = 'retrySucceeded',
                         resolved_at = current_timestamp
-                    where item_id = :1 and image_id = :2 and status = 'deleteFailed'",
-                    &[&item_id_text, &image_id_text],
+                    where item_id = :1
+                      and image_id = :2
+                      and target_object_key = :3
+                      and status = 'deleteFailed'",
+                    &[&item_id_text, &image_id_text, &target_object_key],
                 )
                 .map_err(|error| format!("mark Oracle cleanup retry succeeded: {error}"))?;
             let rows_updated = statement
@@ -696,7 +701,7 @@ fn load_cleanup_warnings(
     let item_id_text = item_id.to_string();
     let mut rows = connection
         .query(
-            "select image_id, operation, status, admin_message
+            "select image_id, target_object_key, operation, status, admin_message
             from autograph_cleanup_events
             where item_id = :1 and status = 'deleteFailed'
             order by created_at desc, id desc",
@@ -708,9 +713,10 @@ fn load_cleanup_warnings(
         let row = row.map_err(|error| format!("read Oracle cleanup warning row: {error}"))?;
         warnings.push(CleanupWarning {
             image_id: parse_uuid(&row_value::<String>(&row, 0, "cleanup image id")?)?,
-            operation: row_value(&row, 1, "cleanup operation")?,
-            status: row_value::<String>(&row, 2, "cleanup status")?.parse::<CleanupStatus>()?,
-            admin_message: row_value(&row, 3, "cleanup admin message")?,
+            target_object_key: row_value(&row, 1, "cleanup target object key")?,
+            operation: row_value(&row, 2, "cleanup operation")?,
+            status: row_value::<String>(&row, 3, "cleanup status")?.parse::<CleanupStatus>()?,
+            admin_message: row_value(&row, 4, "cleanup admin message")?,
         });
     }
     Ok(warnings)
@@ -788,15 +794,16 @@ fn insert_cleanup_event(connection: &Connection, event: &ImageCleanupEvent) -> R
     connection
         .execute(
             "insert into autograph_cleanup_events (
-                id, item_id, image_id, operation, status, admin_message, created_at
+                id, item_id, image_id, target_object_key, operation, status, admin_message, created_at
             ) values (
-                :1, :2, :3, :4, :5, :6,
-                timestamp '1970-01-01 00:00:00' + numtodsinterval(:7, 'SECOND')
+                :1, :2, :3, :4, :5, :6, :7,
+                timestamp '1970-01-01 00:00:00' + numtodsinterval(:8, 'SECOND')
             )",
             &[
                 &id_text,
                 &item_id_text,
                 &image_id_text,
+                &event.target_object_key,
                 &event.operation,
                 &status,
                 &event.admin_message,

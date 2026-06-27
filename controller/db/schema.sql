@@ -104,6 +104,7 @@ create table autograph_cleanup_events (
   id varchar2(36) primary key,
   item_id varchar2(36) not null,
   image_id varchar2(36) not null,
+  target_object_key varchar2(1024) not null,
   operation varchar2(48) not null,
   status varchar2(48) not null,
   admin_message varchar2(500) not null,
