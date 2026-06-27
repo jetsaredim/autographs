@@ -29,6 +29,7 @@ key-files:
     - controller/src/oracle_schema.rs
     - controller/src/oracle_catalog.rs
     - controller/src/routes.rs
+    - controller/src/routes/admin_items.rs
     - controller/tests/admin_workflow.rs
     - controller/tests/live_persistence_smoke.rs
 
@@ -63,7 +64,8 @@ completed: 2026-06-26
 - Added explicit primary-image selection and preserved current primary images when supporting uploads omit `isPrimary`.
 - Added image delete, replace, and cleanup retry routes under `/admin/api/items/{id}/images/{image_id}`.
 - Added `autograph_cleanup_events` plus memory/Oracle repository support for durable retryable cleanup warnings.
-- Extended local media cleanup coverage for delete success, delete failure, replacement rollback, retry idempotence, and redacted warning responses.
+- Exposed redacted `cleanupWarnings` on normal admin item responses so retry guidance is rediscoverable after failed cleanup.
+- Extended local media cleanup coverage for delete success, delete failure, replacement rollback, old-object replacement cleanup retry, size limits, retry idempotence, and redacted warning responses.
 - Updated the ignored live persistence smoke to check cleanup-event schema and include cleanup/list guidance for cleanup warning rows.
 
 ## Task Commits
@@ -83,6 +85,7 @@ completed: 2026-06-26
 - `controller/src/oracle_schema.rs` - Adds cleanup-event table/column preflight checks.
 - `controller/src/oracle_catalog.rs` - Implements Oracle metadata delete/replace, cleanup event insert/query, and retry status updates.
 - `controller/src/routes.rs` - Adds primary, delete, replace, and `/cleanup/retry` image routes with redacted cleanup warning responses.
+- `controller/src/routes/admin_items.rs` - Uses the warning-aware item response helper for admin item detail responses.
 - `controller/tests/live_persistence_smoke.rs` - Extends ignored live smoke schema/list/cleanup checks for cleanup-event rows.
 - `controller/tests/admin_workflow.rs` - Uses a generated valid PNG fixture for upload-pending coverage under stricter image validation.
 
@@ -91,6 +94,7 @@ completed: 2026-06-26
 - Retry events do not store or return private object keys. Replacement cleanup retries recompute the old private object path from the old image ID and item ID.
 - Delete failures return `409 Conflict` with a small `cleanupWarning` envelope and keep image metadata attached so the admin can retry safely.
 - Replacement metadata swaps preserve primary/sort semantics while assigning a fresh image/object UUID for the new original.
+- Normal admin item responses include redacted unresolved cleanup warnings but still omit private object keys, bucket names, namespaces, and original filenames.
 
 ## Deviations from Plan
 
@@ -117,7 +121,7 @@ completed: 2026-06-26
 ## Verification
 
 - `cargo fmt --manifest-path controller/Cargo.toml --check` - passed
-- `cargo test --manifest-path controller/Cargo.toml --test media_cleanup -- --nocapture` - passed, 5 tests
+- `cargo test --manifest-path controller/Cargo.toml --test media_cleanup -- --nocapture` - passed, 9 tests
 - `cargo test --manifest-path controller/Cargo.toml --test publisher -- --nocapture` - passed, 8 tests
 - `cargo test --manifest-path controller/Cargo.toml` - passed, full controller suite
 - `cargo check --manifest-path controller/Cargo.toml --features production-persistence` - passed

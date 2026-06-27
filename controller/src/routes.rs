@@ -27,6 +27,7 @@ use crate::{
 mod admin_items;
 
 const SESSION_COOKIE: &str = "autographs_admin_session";
+const MAX_IMAGE_UPLOAD_BYTES: usize = 20 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -339,12 +340,8 @@ async fn create_item(
                 elapsed_ms = started.elapsed().as_millis(),
                 "created catalog item"
             );
-            let pending = admin_items::pending_marker(&state, item_id).await;
-            (
-                StatusCode::CREATED,
-                Json(ItemResponse::from_item_with_pending(item, pending)),
-            )
-                .into_response()
+            let response = item_response_with_state(&state, item).await;
+            (StatusCode::CREATED, Json(response)).into_response()
         }
         Err(error) => {
             tracing::error!(error = %error, "failed to create catalog item");
@@ -378,8 +375,7 @@ async fn update_item(
                 elapsed_ms = started.elapsed().as_millis(),
                 "updated catalog item"
             );
-            let pending = admin_items::pending_marker(&state, id).await;
-            Json(ItemResponse::from_item_with_pending(item, pending)).into_response()
+            Json(item_response_with_state(&state, item).await).into_response()
         }
         Err(error) => {
             tracing::error!(item_id = %id, error = %error, "failed to update catalog item");
@@ -435,7 +431,7 @@ async fn upload_image(
     if !matches!(
         content_type.as_str(),
         "image/jpeg" | "image/png" | "image/webp"
-    ) || body.len() > 20 * 1024 * 1024
+    ) || body.len() > MAX_IMAGE_UPLOAD_BYTES
     {
         return StatusCode::BAD_REQUEST.into_response();
     }
@@ -464,7 +460,7 @@ async fn upload_image(
         original_filename: filename.unwrap_or_else(|| "upload".to_owned()),
         content_type,
         byte_size: body.len(),
-        is_primary: requested_primary.unwrap_or(existing_item.images.is_empty()),
+        is_primary: existing_item.images.is_empty() || requested_primary.unwrap_or(false),
         sort_order: existing_item
             .images
             .iter()
@@ -484,12 +480,8 @@ async fn upload_image(
                 elapsed_ms = started.elapsed().as_millis(),
                 "uploaded catalog image"
             );
-            let pending = admin_items::pending_marker(&state, item_id).await;
-            (
-                StatusCode::CREATED,
-                Json(ItemResponse::from_item_with_pending(item, pending)),
-            )
-                .into_response()
+            let response = item_response_with_state(&state, item).await;
+            (StatusCode::CREATED, Json(response)).into_response()
         }
         Err(error) => {
             tracing::error!(%item_id, %image_id, %object_key, ?error, "failed to attach uploaded image metadata");
@@ -512,10 +504,7 @@ async fn set_primary_image(
         return StatusCode::BAD_REQUEST.into_response();
     };
     match state.repository.set_primary_image(item_id, image_id).await {
-        Ok(item) => {
-            let pending = admin_items::pending_marker(&state, item_id).await;
-            Json(ItemResponse::from_item_with_pending(item, pending)).into_response()
-        }
+        Ok(item) => Json(item_response_with_state(&state, item).await).into_response(),
         Err(error) => repository_update_error_status(&error).into_response(),
     }
 }
@@ -564,13 +553,15 @@ async fn delete_image(
         .remove_image_metadata(item_id, image_id)
         .await
     {
-        Ok(item) => {
-            let pending = admin_items::pending_marker(&state, item_id).await;
-            Json(ItemResponse::from_item_with_pending(item, pending)).into_response()
-        }
+        Ok(item) => Json(item_response_with_state(&state, item).await).into_response(),
         Err(error) => {
             tracing::error!(%item_id, %image_id, error = %error, "failed to remove image metadata after media delete");
-            repository_update_error_status(&error).into_response()
+            let warning = record_cleanup_warning(&state, item_id, image_id, "delete").await;
+            (
+                StatusCode::CONFLICT,
+                Json(CleanupWarningEnvelope::from(warning)),
+            )
+                .into_response()
         }
     }
 }
@@ -607,7 +598,9 @@ async fn replace_image(
     let Some(upload) = parse_image_multipart(multipart).await else {
         return StatusCode::BAD_REQUEST.into_response();
     };
-    if !valid_image_upload(&upload.content_type, &upload.body) {
+    if upload.body.len() > MAX_IMAGE_UPLOAD_BYTES
+        || !valid_image_upload(&upload.content_type, &upload.body)
+    {
         return StatusCode::BAD_REQUEST.into_response();
     }
 
@@ -651,9 +644,8 @@ async fn replace_image(
     } else {
         None
     };
-    let pending = admin_items::pending_marker(&state, item_id).await;
     let response = ItemResponseWithWarning {
-        item: ItemResponse::from_item_with_pending(item, pending),
+        item: item_response_with_state(&state, item).await,
         cleanup_warning: warning.map(CleanupWarningResponse::from),
     };
     Json(response).into_response()
@@ -719,8 +711,7 @@ async fn retry_image_cleanup(
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     if let Some(item) = removed {
-        let pending = admin_items::pending_marker(&state, item_id).await;
-        Json(ItemResponse::from_item_with_pending(item, pending)).into_response()
+        Json(item_response_with_state(&state, item).await).into_response()
     } else {
         StatusCode::OK.into_response()
     }
@@ -750,6 +741,22 @@ async fn record_cleanup_warning(
         status: CleanupStatus::DeleteFailed,
         admin_message: message,
     }
+}
+
+pub(super) async fn item_response_with_state(
+    state: &AppState,
+    item: AutographItem,
+) -> ItemResponse {
+    let item_id = item.id;
+    let pending = admin_items::pending_marker(state, item_id).await;
+    let cleanup_warnings = match state.repository.cleanup_warnings(item_id).await {
+        Ok(warnings) => warnings,
+        Err(error) => {
+            tracing::warn!(%item_id, error = %error, "failed to load cleanup warnings");
+            Vec::new()
+        }
+    };
+    ItemResponse::from_item_with_state(item, pending, cleanup_warnings)
 }
 
 struct ParsedImageUpload {
@@ -830,8 +837,7 @@ async fn set_publication(
                 elapsed_ms = started.elapsed().as_millis(),
                 "updated catalog item publication"
             );
-            let pending = admin_items::pending_marker(&state, id).await;
-            Json(ItemResponse::from_item_with_pending(item, pending)).into_response()
+            Json(item_response_with_state(&state, item).await).into_response()
         }
         Err(error) => {
             tracing::error!(
@@ -955,6 +961,8 @@ pub(super) struct ItemResponse {
     images: Vec<ImageResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pending_changes: Option<admin_items::PendingMarkerResponse>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    cleanup_warnings: Vec<CleanupWarningResponse>,
 }
 
 #[derive(Serialize)]
@@ -1042,15 +1050,21 @@ impl ItemResponse {
                 })
                 .collect(),
             pending_changes: None,
+            cleanup_warnings: Vec::new(),
         }
     }
 
-    fn from_item_with_pending(
+    fn from_item_with_state(
         item: AutographItem,
         pending_changes: admin_items::PendingMarkerResponse,
+        cleanup_warnings: Vec<CleanupWarning>,
     ) -> Self {
         Self {
             pending_changes: Some(pending_changes),
+            cleanup_warnings: cleanup_warnings
+                .into_iter()
+                .map(CleanupWarningResponse::from)
+                .collect(),
             ..Self::from_item(item)
         }
     }

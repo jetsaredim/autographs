@@ -3,7 +3,7 @@ use std::{
     io::Cursor,
     path::Path,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -12,7 +12,8 @@ use async_trait::async_trait;
 use autographs_controller::{
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
-        ImageReplacementInput, MemoryCatalogRepository, PublicationStatus,
+        CleanupStatus, CleanupWarning, ImageCleanupEvent, ImageReplacementInput,
+        MemoryCatalogRepository, PublicationStatus,
     },
     config::ControllerConfig,
     media::{LocalMediaStore, PrivateMediaStore},
@@ -104,6 +105,27 @@ async fn supporting_upload_preserves_primary_and_primary_route_selects_one_image
             .iter()
             .any(|image| image["id"] == second_id && image["isPrimary"] == true)
     );
+}
+
+#[tokio::test]
+async fn first_upload_is_primary_even_when_false_is_requested() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        Arc::new(LocalMediaStore::new(root.path())),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+
+    let first = response_json(
+        app.oneshot(upload_request(item.id, Some(false)))
+            .await
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(first["images"][0]["isPrimary"], true);
 }
 
 #[tokio::test]
@@ -213,6 +235,40 @@ async fn delete_image_failure_keeps_metadata_and_returns_redacted_cleanup_warnin
 }
 
 #[tokio::test]
+async fn delete_metadata_failure_after_media_delete_records_retryable_warning() {
+    let root = tempdir().unwrap();
+    let item_id = Uuid::new_v4();
+    let image_id = Uuid::new_v4();
+    let object_key = build_original_object_key(item_id, image_id);
+    let item = item_with_image(item_id, image_id, object_key.clone());
+    let repository = Arc::new(FailingRemoveRepository {
+        item: Mutex::new(item),
+        cleanup_events: Mutex::new(Vec::new()),
+    });
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    media.write(&object_key, &png_fixture()).await.unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+
+    let deleted = app
+        .oneshot(
+            Request::delete(format!("/admin/api/items/{item_id}/images/{image_id}"))
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(deleted.status(), StatusCode::CONFLICT);
+    assert!(media.read(&object_key).await.is_err());
+    assert_eq!(repository.cleanup_warnings(item_id).await.unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn replacement_rolls_back_new_object_when_metadata_swap_fails() {
     let root = tempdir().unwrap();
     let item_id = Uuid::new_v4();
@@ -259,6 +315,122 @@ async fn replacement_rolls_back_new_object_when_metadata_swap_fails() {
 
     assert_eq!(replaced.status(), StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(file_count(root.path()), 1);
+}
+
+#[tokio::test]
+async fn replacement_cleanup_warning_is_visible_and_retryable_by_old_image_id() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media = Arc::new(FailingDeleteMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let old_image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    media.fail_deletes(true);
+
+    let replaced = app
+        .clone()
+        .oneshot(replace_request(item.id, old_image_id))
+        .await
+        .unwrap();
+
+    assert_eq!(replaced.status(), StatusCode::OK);
+    let replaced_json = response_json(replaced).await;
+    assert_eq!(
+        replaced_json["cleanupWarnings"][0]["imageId"],
+        old_image_id.to_string()
+    );
+    let new_image_id = Uuid::parse_str(replaced_json["images"][0]["id"].as_str().unwrap()).unwrap();
+    assert_ne!(new_image_id, old_image_id);
+
+    let detail = response_json(
+        app.clone()
+            .oneshot(
+                Request::get(format!("/admin/api/items/{}", item.id))
+                    .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        detail["cleanupWarnings"][0]["imageId"],
+        old_image_id.to_string()
+    );
+
+    media.fail_deletes(false);
+    media
+        .delete(&build_original_object_key(item.id, old_image_id))
+        .await
+        .unwrap();
+    let retried = app
+        .oneshot(
+            Request::post(format!(
+                "/admin/api/items/{}/images/{old_image_id}/cleanup/retry",
+                item.id
+            ))
+            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(retried.status(), StatusCode::OK);
+    assert!(
+        repository
+            .cleanup_warnings(item.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn replacement_upload_rejects_images_over_twenty_mebibytes() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+
+    let rejected = app
+        .oneshot(replace_request_with_body(
+            item.id,
+            image_id,
+            vec![0_u8; 20 * 1024 * 1024 + 1],
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        repository.get(item.id).await.unwrap().unwrap().images.len(),
+        1
+    );
 }
 
 #[tokio::test]
@@ -369,10 +541,14 @@ fn upload_request(item_id: Uuid, primary: Option<bool>) -> Request<Body> {
 }
 
 fn replace_request(item_id: Uuid, image_id: Uuid) -> Request<Body> {
+    replace_request_with_body(item_id, image_id, png_fixture())
+}
+
+fn replace_request_with_body(item_id: Uuid, image_id: Uuid, image_body: Vec<u8>) -> Request<Body> {
     let boundary = "cleanup-replace-boundary";
     let mut body = Vec::new();
     body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"replacement.png\"\r\nContent-Type: image/png\r\n\r\n").as_bytes());
-    body.extend_from_slice(&png_fixture());
+    body.extend_from_slice(&image_body);
     body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
     Request::put(format!("/admin/api/items/{item_id}/images/{image_id}"))
         .header(header::AUTHORIZATION, "Bearer operator-test-token")
@@ -382,6 +558,38 @@ fn replace_request(item_id: Uuid, image_id: Uuid) -> Request<Body> {
         )
         .body(Body::from(body))
         .unwrap()
+}
+
+fn item_with_image(item_id: Uuid, image_id: Uuid, object_key: String) -> AutographItem {
+    AutographItem {
+        id: item_id,
+        title: "Signed Card".into(),
+        signer: "Signer".into(),
+        description: None,
+        category: "Cards".into(),
+        tags: vec![],
+        object_reference: None,
+        event_name: None,
+        event_location: None,
+        source: None,
+        inscription: None,
+        certification_company: None,
+        certification_id: None,
+        estimated_year: None,
+        publication_status: PublicationStatus::Draft,
+        images: vec![AutographImage {
+            id: image_id,
+            object_key,
+            original_filename: "old.png".into(),
+            content_type: "image/png".into(),
+            byte_size: 3,
+            is_primary: true,
+            sort_order: 0,
+            alt_text: None,
+        }],
+        created_at_epoch_seconds: 0,
+        updated_at_epoch_seconds: 0,
+    }
 }
 
 fn png_fixture() -> Vec<u8> {
@@ -505,5 +713,77 @@ impl CatalogRepository for FailingReplaceRepository {
         _input: ImageReplacementInput,
     ) -> Result<AutographItem, String> {
         Err("forced metadata replacement failure".to_owned())
+    }
+}
+
+struct FailingRemoveRepository {
+    item: Mutex<AutographItem>,
+    cleanup_events: Mutex<Vec<ImageCleanupEvent>>,
+}
+
+#[async_trait]
+impl CatalogRepository for FailingRemoveRepository {
+    async fn create(&self, _input: AutographItemInput) -> Result<AutographItem, String> {
+        Err("not used".to_owned())
+    }
+
+    async fn update(
+        &self,
+        _id: Uuid,
+        _input: AutographItemUpdate,
+    ) -> Result<AutographItem, String> {
+        Err("not used".to_owned())
+    }
+
+    async fn get(&self, id: Uuid) -> Result<Option<AutographItem>, String> {
+        let item = self.item.lock().expect("item lock").clone();
+        Ok((id == item.id).then_some(item))
+    }
+
+    async fn list(&self) -> Result<Vec<AutographItem>, String> {
+        Ok(vec![self.item.lock().expect("item lock").clone()])
+    }
+
+    async fn attach_image(
+        &self,
+        _item_id: Uuid,
+        _image: AutographImage,
+    ) -> Result<AutographItem, String> {
+        Err("not used".to_owned())
+    }
+
+    async fn remove_image_metadata(
+        &self,
+        _item_id: Uuid,
+        _image_id: Uuid,
+    ) -> Result<AutographItem, String> {
+        Err("forced metadata removal failure".to_owned())
+    }
+
+    async fn record_cleanup_event(
+        &self,
+        event: ImageCleanupEvent,
+    ) -> Result<ImageCleanupEvent, String> {
+        self.cleanup_events
+            .lock()
+            .expect("cleanup lock")
+            .push(event.clone());
+        Ok(event)
+    }
+
+    async fn cleanup_warnings(&self, item_id: Uuid) -> Result<Vec<CleanupWarning>, String> {
+        Ok(self
+            .cleanup_events
+            .lock()
+            .expect("cleanup lock")
+            .iter()
+            .filter(|event| event.item_id == item_id && event.status == CleanupStatus::DeleteFailed)
+            .map(|event| CleanupWarning {
+                image_id: event.image_id,
+                operation: event.operation.clone(),
+                status: event.status,
+                admin_message: event.admin_message.clone(),
+            })
+            .collect())
     }
 }
