@@ -607,6 +607,7 @@ impl CatalogRepository for MemoryCatalogRepository {
                 .find(|image| image.id == image_id)
                 .ok_or_else(|| "autograph image was not found".to_owned())?;
             let mut replacement = input.image;
+            replacement.id = existing.id;
             replacement.is_primary = existing.is_primary;
             replacement.sort_order = existing.sort_order;
             *existing = replacement;

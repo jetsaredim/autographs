@@ -351,7 +351,14 @@ async fn replacement_cleanup_warning_is_visible_and_retryable_by_old_image_id() 
         old_image_id.to_string()
     );
     let new_image_id = Uuid::parse_str(replaced_json["images"][0]["id"].as_str().unwrap()).unwrap();
-    assert_ne!(new_image_id, old_image_id);
+    assert_eq!(new_image_id, old_image_id);
+    let replacement_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+    assert_ne!(
+        replacement_key,
+        build_original_object_key(item.id, old_image_id)
+    );
 
     let detail = response_json(
         app.clone()
@@ -395,6 +402,7 @@ async fn replacement_cleanup_warning_is_visible_and_retryable_by_old_image_id() 
             .unwrap()
             .is_empty()
     );
+    assert!(media.read(&replacement_key).await.is_ok());
 }
 
 #[tokio::test]
@@ -430,6 +438,44 @@ async fn replacement_upload_rejects_images_over_twenty_mebibytes() {
     assert_eq!(
         repository.get(item.id).await.unwrap().unwrap().images.len(),
         1
+    );
+}
+
+#[tokio::test]
+async fn replacement_cleanup_warning_persistence_failure_returns_error() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(FailingCleanupEventRepository {
+        inner: MemoryCatalogRepository::default(),
+    });
+    let media = Arc::new(FailingDeleteMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let old_image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    media.fail_deletes(true);
+
+    let replaced = app
+        .oneshot(replace_request(item.id, old_image_id))
+        .await
+        .unwrap();
+
+    assert_eq!(replaced.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(
+        repository
+            .cleanup_warnings(item.id)
+            .await
+            .unwrap()
+            .is_empty()
     );
 }
 
@@ -834,5 +880,58 @@ impl CatalogRepository for FailingRemoveRepository {
                 admin_message: event.admin_message.clone(),
             })
             .collect())
+    }
+}
+
+struct FailingCleanupEventRepository {
+    inner: MemoryCatalogRepository,
+}
+
+#[async_trait]
+impl CatalogRepository for FailingCleanupEventRepository {
+    async fn create(&self, input: AutographItemInput) -> Result<AutographItem, String> {
+        self.inner.create(input).await
+    }
+
+    async fn update(&self, id: Uuid, input: AutographItemUpdate) -> Result<AutographItem, String> {
+        self.inner.update(id, input).await
+    }
+
+    async fn get(&self, id: Uuid) -> Result<Option<AutographItem>, String> {
+        self.inner.get(id).await
+    }
+
+    async fn list(&self) -> Result<Vec<AutographItem>, String> {
+        self.inner.list().await
+    }
+
+    async fn attach_image(
+        &self,
+        item_id: Uuid,
+        image: AutographImage,
+    ) -> Result<AutographItem, String> {
+        self.inner.attach_image(item_id, image).await
+    }
+
+    async fn replace_image_metadata(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+        input: ImageReplacementInput,
+    ) -> Result<AutographItem, String> {
+        self.inner
+            .replace_image_metadata(item_id, image_id, input)
+            .await
+    }
+
+    async fn record_cleanup_event(
+        &self,
+        _event: ImageCleanupEvent,
+    ) -> Result<ImageCleanupEvent, String> {
+        Err("forced cleanup event persistence failure".to_owned())
+    }
+
+    async fn cleanup_warnings(&self, item_id: Uuid) -> Result<Vec<CleanupWarning>, String> {
+        self.inner.cleanup_warnings(item_id).await
     }
 }

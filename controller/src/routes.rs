@@ -540,12 +540,7 @@ async fn delete_image(
 
     if let Err(error) = state.media.delete(&image.object_key).await {
         tracing::warn!(%item_id, %image_id, error = %error, "private image delete failed");
-        let warning = record_cleanup_warning(&state, item_id, image_id, "delete").await;
-        return (
-            StatusCode::CONFLICT,
-            Json(CleanupWarningEnvelope::from(warning)),
-        )
-            .into_response();
+        return cleanup_warning_response(&state, item_id, image_id, "delete").await;
     }
 
     match state
@@ -556,12 +551,7 @@ async fn delete_image(
         Ok(item) => Json(item_response_with_state(&state, item).await).into_response(),
         Err(error) => {
             tracing::error!(%item_id, %image_id, error = %error, "failed to remove image metadata after media delete");
-            let warning = record_cleanup_warning(&state, item_id, image_id, "delete").await;
-            (
-                StatusCode::CONFLICT,
-                Json(CleanupWarningEnvelope::from(warning)),
-            )
-                .into_response()
+            cleanup_warning_response(&state, item_id, image_id, "delete").await
         }
     }
 }
@@ -611,7 +601,7 @@ async fn replace_image(
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     let replacement = AutographImage {
-        id: replacement_id,
+        id: image_id,
         object_key: replacement_key.clone(),
         original_filename: upload.filename.unwrap_or_else(|| "upload".to_owned()),
         content_type: upload.content_type,
@@ -640,7 +630,13 @@ async fn replace_image(
 
     let warning = if let Err(error) = state.media.delete(&existing_image.object_key).await {
         tracing::warn!(%item_id, %image_id, error = %error, "old private image cleanup failed after replacement");
-        Some(record_cleanup_warning(&state, item_id, image_id, "replace").await)
+        match record_cleanup_warning(&state, item_id, image_id, "replace").await {
+            Ok(warning) => Some(warning),
+            Err(error) => {
+                tracing::error!(%item_id, %image_id, error = %error, "failed to persist replacement cleanup warning");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        }
     } else {
         None
     };
@@ -670,30 +666,30 @@ async fn retry_image_cleanup(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let has_retryable_warning = match state.repository.cleanup_warnings(item_id).await {
-        Ok(warnings) => warnings.iter().any(|warning| image_id == warning.image_id),
+    let cleanup_warning = match state.repository.cleanup_warnings(item_id).await {
+        Ok(warnings) => warnings
+            .into_iter()
+            .find(|warning| image_id == warning.image_id),
         Err(error) => {
             tracing::error!(%item_id, %image_id, error = %error, "failed to load cleanup warnings before cleanup retry");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    if !has_retryable_warning {
+    let Some(cleanup_warning) = cleanup_warning else {
         tracing::warn!(%item_id, %image_id, "cleanup retry requested without unresolved cleanup warning");
         return StatusCode::CONFLICT.into_response();
-    }
-    let object_key = item
-        .as_ref()
-        .and_then(|item| item.images.iter().find(|image| image.id == image_id))
-        .map(|image| image.object_key.clone())
-        .unwrap_or_else(|| build_original_object_key(item_id, image_id));
+    };
+    let object_key = if cleanup_warning.operation == "replace" {
+        build_original_object_key(item_id, image_id)
+    } else {
+        item.as_ref()
+            .and_then(|item| item.images.iter().find(|image| image.id == image_id))
+            .map(|image| image.object_key.clone())
+            .unwrap_or_else(|| build_original_object_key(item_id, image_id))
+    };
     if let Err(error) = state.media.delete(&object_key).await {
         tracing::warn!(%item_id, %image_id, error = %error, "private image cleanup retry failed");
-        let warning = record_cleanup_warning(&state, item_id, image_id, "retry").await;
-        return (
-            StatusCode::CONFLICT,
-            Json(CleanupWarningEnvelope::from(warning)),
-        )
-            .into_response();
+        return cleanup_warning_response(&state, item_id, image_id, "retry").await;
     }
     let removed = if item
         .as_ref()
@@ -740,7 +736,7 @@ async fn record_cleanup_warning(
     item_id: Uuid,
     image_id: Uuid,
     operation: &str,
-) -> CleanupWarning {
+) -> Result<CleanupWarning, String> {
     let message = "Private image cleanup needs retry from the admin maintenance action.".to_owned();
     let event = ImageCleanupEvent::new(
         item_id,
@@ -750,14 +746,35 @@ async fn record_cleanup_warning(
         message.clone(),
         now_epoch_seconds(),
     );
-    if let Err(error) = state.repository.record_cleanup_event(event).await {
-        tracing::error!(%item_id, %image_id, operation, error = %error, "failed to record cleanup warning");
-    }
-    CleanupWarning {
+    state
+        .repository
+        .record_cleanup_event(event)
+        .await
+        .map_err(|error| format!("record cleanup warning: {error}"))?;
+    Ok(CleanupWarning {
         image_id,
         operation: operation.to_owned(),
         status: CleanupStatus::DeleteFailed,
         admin_message: message,
+    })
+}
+
+async fn cleanup_warning_response(
+    state: &AppState,
+    item_id: Uuid,
+    image_id: Uuid,
+    operation: &str,
+) -> Response {
+    match record_cleanup_warning(state, item_id, image_id, operation).await {
+        Ok(warning) => (
+            StatusCode::CONFLICT,
+            Json(CleanupWarningEnvelope::from(warning)),
+        )
+            .into_response(),
+        Err(error) => {
+            tracing::error!(%item_id, %image_id, operation, error = %error, "failed to persist cleanup warning");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 

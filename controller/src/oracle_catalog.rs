@@ -359,26 +359,23 @@ impl CatalogRepository for OracleCatalogRepository {
                 .ok_or_else(|| "autograph image was not found".to_owned())?;
             let item_id_text = item_id.to_string();
             let image_id_text = image_id.to_string();
-            let replacement_id_text = input.image.id.to_string();
             let byte_size = input.image.byte_size as i64;
             let is_primary = if existing.is_primary { "Y" } else { "N" };
             let statement = connection
                 .execute(
                     "update autograph_images set
-                        id = :1,
-                        storage_namespace = :2,
-                        bucket_name = :3,
-                        object_key = :4,
-                        original_filename = :5,
-                        content_type = :6,
-                        byte_size = :7,
-                        is_primary = :8,
-                        sort_order = :9,
-                        alt_text = :10,
+                        storage_namespace = :1,
+                        bucket_name = :2,
+                        object_key = :3,
+                        original_filename = :4,
+                        content_type = :5,
+                        byte_size = :6,
+                        is_primary = :7,
+                        sort_order = :8,
+                        alt_text = :9,
                         updated_at = current_timestamp
-                    where id = :11 and item_id = :12",
+                    where id = :10 and item_id = :11",
                     &[
-                        &replacement_id_text,
                         &storage_namespace,
                         &bucket_name,
                         &input.image.object_key,
