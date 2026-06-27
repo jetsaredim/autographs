@@ -403,6 +403,10 @@ async fn replacement_cleanup_warning_is_visible_and_retryable_by_old_image_id() 
             .is_empty()
     );
     assert!(media.read(&replacement_key).await.is_ok());
+    let item_after_retry = repository.get(item.id).await.unwrap().unwrap();
+    assert_eq!(item_after_retry.images.len(), 1);
+    assert_eq!(item_after_retry.images[0].id, old_image_id);
+    assert_eq!(item_after_retry.images[0].object_key, replacement_key);
 }
 
 #[tokio::test]
@@ -438,6 +442,88 @@ async fn replacement_upload_rejects_images_over_twenty_mebibytes() {
     assert_eq!(
         repository.get(item.id).await.unwrap().unwrap().images.len(),
         1
+    );
+}
+
+#[tokio::test]
+async fn failed_replacement_cleanup_retry_preserves_replacement_target() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media = Arc::new(FailingDeleteMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    media.fail_deletes(true);
+    let replaced = app
+        .clone()
+        .oneshot(replace_request(item.id, image_id))
+        .await
+        .unwrap();
+    assert_eq!(replaced.status(), StatusCode::OK);
+    let replacement_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+
+    let failed_retry = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/admin/api/items/{}/images/{image_id}/cleanup/retry",
+                item.id
+            ))
+            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(failed_retry.status(), StatusCode::CONFLICT);
+    assert!(
+        repository
+            .cleanup_warnings(item.id)
+            .await
+            .unwrap()
+            .iter()
+            .all(|warning| warning.operation == "replace")
+    );
+
+    media.fail_deletes(false);
+    let succeeded_retry = app
+        .oneshot(
+            Request::post(format!(
+                "/admin/api/items/{}/images/{image_id}/cleanup/retry",
+                item.id
+            ))
+            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(succeeded_retry.status(), StatusCode::OK);
+    let item_after_retry = repository.get(item.id).await.unwrap().unwrap();
+    assert_eq!(item_after_retry.images.len(), 1);
+    assert_eq!(item_after_retry.images[0].id, image_id);
+    assert_eq!(item_after_retry.images[0].object_key, replacement_key);
+    assert!(media.read(&replacement_key).await.is_ok());
+    assert!(
+        repository
+            .cleanup_warnings(item.id)
+            .await
+            .unwrap()
+            .is_empty()
     );
 }
 

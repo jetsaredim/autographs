@@ -689,11 +689,13 @@ async fn retry_image_cleanup(
     };
     if let Err(error) = state.media.delete(&object_key).await {
         tracing::warn!(%item_id, %image_id, error = %error, "private image cleanup retry failed");
-        return cleanup_warning_response(&state, item_id, image_id, "retry").await;
+        return cleanup_warning_response(&state, item_id, image_id, &cleanup_warning.operation)
+            .await;
     }
-    let removed = if item
-        .as_ref()
-        .is_some_and(|item| item.images.iter().any(|image| image.id == image_id))
+    let removed = if cleanup_warning.operation != "replace"
+        && item
+            .as_ref()
+            .is_some_and(|item| item.images.iter().any(|image| image.id == image_id))
     {
         match state
             .repository
