@@ -22,6 +22,11 @@ const REQUIRED_COLUMNS: &[(&str, &str)] = &[
     ("AUTOGRAPH_CLEANUP_EVENTS", "RESOLVED_AT"),
     ("AUTOGRAPH_PUBLIC_DERIVATIVES", "PUBLIC_PATH"),
 ];
+const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &str)] = &[(
+    "AUTOGRAPH_EDIT_EVENTS",
+    "AUTOGRAPH_EDIT_EVENTS_TYPE_CK",
+    "cleanupChanged",
+)];
 
 pub fn ensure_initialized(
     user: &str,
@@ -69,6 +74,27 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
         if count != 1 {
             return Err(format!(
                 "Oracle catalog schema is partially initialized; missing expected column {table}.{column}"
+            ));
+        }
+    }
+
+    for (table, constraint, required_text) in REQUIRED_CHECK_CONSTRAINTS {
+        let count: i64 = connection
+            .query_row_as(
+                "select count(*) from user_constraints
+                  where table_name = :1
+                    and constraint_name = :2
+                    and constraint_type = 'C'
+                    and status = 'ENABLED'
+                    and search_condition_vc like '%' || :3 || '%'",
+                &[table, constraint, required_text],
+            )
+            .map_err(|error| {
+                format!("inspect Oracle catalog schema constraint {table}.{constraint}: {error}")
+            })?;
+        if count != 1 {
+            return Err(format!(
+                "Oracle catalog schema is partially initialized; constraint {table}.{constraint} is missing required value {required_text}; run controller/db/updates/06-03-media-cleanup.sql before deploying this controller"
             ));
         }
     }
