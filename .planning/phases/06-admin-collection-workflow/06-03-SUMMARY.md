@@ -34,8 +34,8 @@ key-files:
     - controller/tests/live_persistence_smoke.rs
 
 key-decisions:
-  - "Replacement uses a fresh UUID-backed object and metadata row identity, leaving failed old-object cleanup retryable by the old image ID."
-  - "Cleanup warnings expose only redacted admin messages and image IDs; private object keys, bucket names, namespaces, and filenames stay out of admin responses."
+  - "Replacement keeps the admin-facing image ID stable while moving metadata to a fresh UUID-backed private object key."
+  - "Cleanup events persist the exact private target object key needed for retry, but cleanup warnings expose only redacted admin messages and image IDs."
 
 patterns-established:
   - "Delete path removes private media before metadata; failed media delete keeps metadata attached and records a retryable warning."
@@ -91,9 +91,9 @@ completed: 2026-06-26
 
 ## Decisions Made
 
-- Retry events do not store or return private object keys. Replacement cleanup retries recompute the old private object path from the old image ID and item ID.
+- Cleanup events store the exact private target object key so retry deletes the intended object, including after repeated replacements. Admin responses still omit private object keys, bucket names, namespaces, and filenames.
 - Delete failures return `409 Conflict` with a small `cleanupWarning` envelope and keep image metadata attached so the admin can retry safely.
-- Replacement metadata swaps preserve primary/sort semantics while assigning a fresh image/object UUID for the new original.
+- Replacement metadata swaps preserve primary/sort semantics and the admin-facing image ID while assigning a fresh object UUID for the new original.
 - Normal admin item responses include redacted unresolved cleanup warnings but still omit private object keys, bucket names, namespaces, and original filenames.
 
 ## Deviations from Plan
