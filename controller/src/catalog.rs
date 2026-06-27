@@ -567,10 +567,11 @@ impl CatalogRepository for MemoryCatalogRepository {
                 .ok_or_else(|| "autograph image was not found".to_owned())?;
             let was_primary = item.images[position].is_primary;
             item.images.remove(position);
-            if was_primary && !item.images.iter().any(|image| image.is_primary) {
-                if let Some(first) = item.images.first_mut() {
-                    first.is_primary = true;
-                }
+            if was_primary
+                && !item.images.iter().any(|image| image.is_primary)
+                && let Some(first) = item.images.first_mut()
+            {
+                first.is_primary = true;
             }
             item.updated_at_epoch_seconds = now;
             item.clone()
