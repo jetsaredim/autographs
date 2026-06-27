@@ -512,6 +512,47 @@ async fn admin_status_reports_pending_publish_cleanup_and_retention() {
 }
 
 #[tokio::test]
+async fn publish_batches_saved_changes() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media_root = tempfile::tempdir().unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(false),
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+
+    let first = create_item(&app, "Batch Item One", "Carrie Fisher").await;
+    let second = create_item(&app, "Batch Item Two", "Mark Hamill").await;
+
+    patch_item_title(&app, first, "Batch Item One Updated").await;
+    patch_item_title(&app, second, "Batch Item Two Updated").await;
+
+    let before_publish = admin_status(&app).await;
+    assert!(before_publish["pendingChanges"]["count"].as_u64().unwrap() >= 4);
+
+    let publish = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/publish/incremental")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+    let publish_json = response_json(publish).await;
+    assert_eq!(publish_json["state"], "succeeded");
+
+    let after_publish = admin_status(&app).await;
+    assert_eq!(after_publish["pendingChanges"]["count"], 0);
+    assert_eq!(after_publish["pendingChanges"]["hasPendingChanges"], false);
+    assert_eq!(after_publish["publish"]["state"], "succeeded");
+}
+
+#[tokio::test]
 async fn history_metadata_and_publication_updates_record_field_level_diffs() {
     let repository = MemoryCatalogRepository::default();
     let item = repository
@@ -657,6 +698,72 @@ fn test_item_input(
         estimated_year: None,
         publication_status,
     }
+}
+
+async fn create_item(
+    app: &axum::Router,
+    title: &str,
+    signer: &str,
+) -> uuid::Uuid {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/items")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "title": title,
+                        "signer": signer,
+                        "category": "Cards",
+                        "tags": ["batch"],
+                        "publicationStatus": "published"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let body = response_json(response).await;
+    uuid::Uuid::parse_str(body["id"].as_str().unwrap()).unwrap()
+}
+
+async fn patch_item_title(app: &axum::Router, item_id: uuid::Uuid, title: &str) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/admin/api/items/{item_id}"))
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "title": title }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+async fn admin_status(app: &axum::Router) -> Value {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/status")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    response_json(response).await
 }
 
 async fn response_json(response: axum::response::Response) -> Value {
