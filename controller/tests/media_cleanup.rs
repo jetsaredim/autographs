@@ -30,6 +30,20 @@ use tempfile::tempdir;
 use tower::ServiceExt;
 use uuid::Uuid;
 
+#[test]
+fn cleanup_schema_update_fails_closed_for_unresolved_legacy_targets() {
+    let script = fs::read_to_string(format!(
+        "{}/db/updates/06-03-media-cleanup.sql",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("read media cleanup schema update");
+
+    assert!(!script.contains("legacy-cleanup-target-unavailable"));
+    assert!(script.contains("raise_application_error"));
+    assert!(script.contains("legacy rows without exact target_object_key"));
+    assert!(script.contains("from autograph_images images"));
+}
+
 #[tokio::test]
 async fn supporting_upload_preserves_primary_and_primary_route_selects_one_image() {
     let root = tempdir().unwrap();

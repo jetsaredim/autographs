@@ -3,8 +3,8 @@
 -- Run this against the production Oracle catalog schema before deploying a
 -- controller image that includes Phase 06-03 cleanup-warning behavior.
 -- The script is safe to re-run: it creates the cleanup table and index only
--- when they are absent, then replaces the edit-event type check constraint
--- with the Phase 06-03 value set.
+-- when they are absent, adds the exact cleanup target column when needed, then
+-- replaces the edit-event type check constraint with the Phase 06-03 value set.
 
 declare
   table_count number;
@@ -48,11 +48,57 @@ begin
   if column_count = 0 then
     execute immediate
       'alter table autograph_cleanup_events add target_object_key varchar2(1024)';
+  end if;
+end;
+/
+
+declare
+  unresolved_count number;
+begin
     execute immediate q'[
       update autograph_cleanup_events
-         set target_object_key = 'legacy-cleanup-target-unavailable'
+         set target_object_key = (
+           select images.object_key
+             from autograph_images images
+            where images.item_id = autograph_cleanup_events.item_id
+              and images.id = autograph_cleanup_events.image_id
+         )
        where target_object_key is null
+         and operation = 'delete'
+         and exists (
+           select 1
+             from autograph_images images
+            where images.item_id = autograph_cleanup_events.item_id
+              and images.id = autograph_cleanup_events.image_id
+         )
     ]';
+
+  execute immediate q'[
+    select count(*)
+      from autograph_cleanup_events
+     where target_object_key is null
+  ]'
+    into unresolved_count;
+
+  if unresolved_count > 0 then
+    raise_application_error(
+      -20063,
+      'AUTOGRAPH_CLEANUP_EVENTS has legacy rows without exact target_object_key; resolve or remove those cleanup warnings before rerunning 06-03-media-cleanup.sql'
+    );
+  end if;
+end;
+/
+
+declare
+  nullable_flag varchar2(1);
+begin
+  select nullable
+    into nullable_flag
+    from user_tab_columns
+   where table_name = 'AUTOGRAPH_CLEANUP_EVENTS'
+     and column_name = 'TARGET_OBJECT_KEY';
+
+  if nullable_flag = 'Y' then
     execute immediate
       'alter table autograph_cleanup_events modify target_object_key varchar2(1024) not null';
   end if;

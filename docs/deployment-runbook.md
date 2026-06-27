@@ -143,6 +143,10 @@ cleanup event has the private internal `target_object_key` needed for exact
 retry cleanup, creates `autograph_cleanup_events_item_status_idx`, and replaces
 `autograph_edit_events_type_ck` so edit history can record `cleanupChanged`.
 After the script succeeds, deploy normally and verify `/admin/api/health`.
+If an earlier version of this update created cleanup-warning rows before
+`target_object_key` existed, the script backfills only targets that can be
+proven from current image metadata and fails closed for unresolved legacy rows;
+manually resolve or remove those warnings, then rerun the script.
 
 With SQLcl or SQL*Plus configured for the same ADB wallet alias as the deployed
 controller, the manual shape is:

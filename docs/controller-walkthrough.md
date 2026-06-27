@@ -157,7 +157,9 @@ the relevant one-shot update from [`controller/db/updates/`](../controller/db/up
 before deploying the controller image that requires it. Phase 06-03 uses
 [`06-03-media-cleanup.sql`](../controller/db/updates/06-03-media-cleanup.sql) to
 add durable cleanup events with private retry targets and allow the
-`cleanupChanged` edit-history event.
+`cleanupChanged` edit-history event. If a partially applied older update left
+cleanup warnings without exact targets, the update fails closed instead of
+inventing a retry target.
 
 ## Static Contracts
 
