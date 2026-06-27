@@ -4,6 +4,9 @@ plan: 02
 type: summary
 status: implemented
 branch: task-06-02-admin-api
+pr: 141
+merged_at: 2026-06-26T20:29:58Z
+merge_commit: 8bc8302333a5537acf7cb9bbac59e5789729076a
 ---
 
 # Phase 06-02 Summary
@@ -43,9 +46,14 @@ The admin finder is implemented as a repository extension that composes with the
 
 The admin list/detail pending marker is intentionally provisional for this phase: it means the item has recorded admin edit history, not that the item differs from the last completed static release. It currently performs one history lookup per listed item, which is acceptable for the small admin catalog in 06-02; a later publish-boundary store should replace this with a bulk repository query when needed.
 
-Rust formatting and one compile-fix pass were applied through CI because this environment could not clone the repository directly.
+PR #141 merged on 2026-06-26 as `8bc8302333a5537acf7cb9bbac59e5789729076a`, and deployment was confirmed after merge.
 
-Local verification was not run from this environment because outbound GitHub clone access was unavailable in the sandbox. Intended verification commands:
+Deployed runtime signoff passed after merge:
+
+- Authenticated `/admin/api/items`, `/admin/api/items/{id}`, and `/admin/api/items/{id}/history` calls worked as expected.
+- A full static rebuild completed successfully.
+
+Local and CI verification completed for the final PR head:
 
 ```bash
 cargo fmt --manifest-path controller/Cargo.toml --check
@@ -55,4 +63,6 @@ cargo test --manifest-path controller/Cargo.toml --test admin_workflow image_upl
 cargo test --manifest-path controller/Cargo.toml --test admin_workflow -- --nocapture
 cargo test --manifest-path controller/Cargo.toml
 cargo check --manifest-path controller/Cargo.toml --features production-persistence
+cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
+gh pr checks 141 --repo jetsaredim/autographs
 ```
