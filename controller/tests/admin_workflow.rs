@@ -700,11 +700,7 @@ fn test_item_input(
     }
 }
 
-async fn create_item(
-    app: &axum::Router,
-    title: &str,
-    signer: &str,
-) -> uuid::Uuid {
+async fn create_item(app: &axum::Router, title: &str, signer: &str) -> uuid::Uuid {
     let response = app
         .clone()
         .oneshot(

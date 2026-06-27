@@ -371,6 +371,16 @@ pub trait CatalogRepository: Send + Sync {
         Ok(PendingChangeSummary::default())
     }
 
+    async fn record_successful_publish(
+        &self,
+        _mode: &str,
+        _release_id: Option<&str>,
+        _started_at_epoch_seconds: Option<i64>,
+        _finished_at_epoch_seconds: i64,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
     async fn record_event(&self, event: AutographEditEvent) -> Result<AutographEditEvent, String> {
         Ok(event)
     }
@@ -381,6 +391,7 @@ pub struct MemoryCatalogRepository {
     items: Arc<Mutex<HashMap<Uuid, AutographItem>>>,
     events: Arc<Mutex<Vec<AutographEditEvent>>>,
     cleanup_events: Arc<Mutex<Vec<ImageCleanupEvent>>>,
+    last_successful_publish_finished_at_epoch_seconds: Arc<Mutex<Option<i64>>>,
 }
 
 impl Default for MemoryCatalogRepository {
@@ -389,6 +400,7 @@ impl Default for MemoryCatalogRepository {
             items: Arc::new(Mutex::new(HashMap::new())),
             events: Arc::new(Mutex::new(Vec::new())),
             cleanup_events: Arc::new(Mutex::new(Vec::new())),
+            last_successful_publish_finished_at_epoch_seconds: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -731,13 +743,39 @@ impl CatalogRepository for MemoryCatalogRepository {
 
     async fn pending_changes(&self) -> Result<PendingChangeSummary, String> {
         let events = self.events.lock().expect("catalog event lock");
+        let last_successful_publish = *self
+            .last_successful_publish_finished_at_epoch_seconds
+            .lock()
+            .expect("publish boundary lock");
+        let pending = events
+            .iter()
+            .filter(|event| {
+                last_successful_publish
+                    .map(|published_at| event.created_at_epoch_seconds > published_at)
+                    .unwrap_or(true)
+            })
+            .collect::<Vec<_>>();
         Ok(PendingChangeSummary {
-            count: events.len(),
-            oldest_changed_at_epoch_seconds: events
+            count: pending.len(),
+            oldest_changed_at_epoch_seconds: pending
                 .iter()
                 .map(|event| event.created_at_epoch_seconds)
                 .min(),
         })
+    }
+
+    async fn record_successful_publish(
+        &self,
+        _mode: &str,
+        _release_id: Option<&str>,
+        _started_at_epoch_seconds: Option<i64>,
+        finished_at_epoch_seconds: i64,
+    ) -> Result<(), String> {
+        *self
+            .last_successful_publish_finished_at_epoch_seconds
+            .lock()
+            .expect("publish boundary lock") = Some(finished_at_epoch_seconds);
+        Ok(())
     }
 
     async fn record_event(&self, event: AutographEditEvent) -> Result<AutographEditEvent, String> {

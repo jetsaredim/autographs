@@ -1019,6 +1019,22 @@ async fn publish(
         .await
     {
         Ok(status) => {
+            let finished_at_epoch_seconds = status
+                .finished_at_epoch_seconds
+                .unwrap_or_else(now_epoch_seconds);
+            if let Err(error) = state
+                .repository
+                .record_successful_publish(
+                    publish_mode_label(mode),
+                    status.release_id.as_deref(),
+                    status.started_at_epoch_seconds,
+                    finished_at_epoch_seconds,
+                )
+                .await
+            {
+                tracing::error!(error = %error, "failed to record successful publish job");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
             tracing::info!(
                 mode = ?mode,
                 release_id = status.release_id.as_deref().unwrap_or("<none>"),
@@ -1045,6 +1061,13 @@ async fn publish_status(State(state): State<AppState>, headers: HeaderMap) -> Re
         return StatusCode::UNAUTHORIZED.into_response();
     }
     Json(state.publisher.status()).into_response()
+}
+
+fn publish_mode_label(mode: PublishMode) -> &'static str {
+    match mode {
+        PublishMode::Full => "full",
+        PublishMode::Incremental => "incremental",
+    }
 }
 
 async fn cleanup_warning_count(state: &AppState) -> Result<usize, String> {

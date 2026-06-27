@@ -498,10 +498,75 @@ impl CatalogRepository for OracleCatalogRepository {
     }
 
     async fn pending_changes(&self) -> Result<PendingChangeSummary, String> {
-        // Publish-job persistence is not wired to Oracle yet, so there is no reliable
-        // persisted publish boundary to compare edit events against.
-        // Keep this provisional until publish jobs are recorded in autograph_publish_jobs.
-        Ok(PendingChangeSummary::default())
+        self.with_connection(move |connection| {
+            let mut rows = connection
+                .query(
+                    "with latest_publish as (
+                        select max(finished_at) as finished_at
+                        from autograph_publish_jobs
+                        where status = 'succeeded' and finished_at is not null
+                    )
+                    select
+                        count(*),
+                        cast(round((cast(min(e.created_at) as date) - date '1970-01-01') * 86400) as number(19))
+                    from autograph_edit_events e
+                    cross join latest_publish p
+                    where p.finished_at is null or e.created_at > p.finished_at",
+                    &[],
+                )
+                .map_err(|error| format!("read Oracle pending changes: {error}"))?;
+            let Some(row) = rows.next() else {
+                return Ok(PendingChangeSummary::default());
+            };
+            let row = row.map_err(|error| format!("read Oracle pending changes row: {error}"))?;
+            Ok(PendingChangeSummary {
+                count: row_value::<Option<i64>>(&row, 0, "pending change count")?.unwrap_or(0)
+                    as usize,
+                oldest_changed_at_epoch_seconds: row_value(&row, 1, "oldest pending change")?,
+            })
+        })
+        .await
+    }
+
+    async fn record_successful_publish(
+        &self,
+        mode: &str,
+        release_id: Option<&str>,
+        started_at_epoch_seconds: Option<i64>,
+        finished_at_epoch_seconds: i64,
+    ) -> Result<(), String> {
+        let mode = mode.to_owned();
+        let release_id = release_id.map(str::to_owned);
+        self.with_connection(move |connection| {
+            let id = Uuid::new_v4().to_string();
+            let status = "succeeded";
+            let started_at_epoch_seconds =
+                started_at_epoch_seconds.unwrap_or(finished_at_epoch_seconds);
+            connection
+                .execute(
+                    "insert into autograph_publish_jobs (
+                        id, publish_mode, status, release_id, started_at, finished_at
+                    ) values (
+                        :1, :2, :3, :4,
+                        timestamp '1970-01-01 00:00:00' + numtodsinterval(:5, 'SECOND'),
+                        timestamp '1970-01-01 00:00:00' + numtodsinterval(:6, 'SECOND')
+                    )",
+                    &[
+                        &id,
+                        &mode,
+                        &status,
+                        &release_id,
+                        &started_at_epoch_seconds,
+                        &finished_at_epoch_seconds,
+                    ],
+                )
+                .map_err(|error| format!("insert Oracle publish job: {error}"))?;
+            connection
+                .commit()
+                .map_err(|error| format!("commit Oracle publish job: {error}"))?;
+            Ok(())
+        })
+        .await
     }
 
     async fn record_event(&self, event: AutographEditEvent) -> Result<AutographEditEvent, String> {
