@@ -23,7 +23,7 @@
 - [x] **MEDIA-01**: Admin can upload multiple images for a single autograph item into a private OCI Object Storage bucket.
 - [x] **MEDIA-02**: Application stores and retrieves one designated primary image plus additional supporting images for an autograph item.
 - [x] **MEDIA-03**: Public users can view autograph images through app-mediated delivery without exposing public object URLs or bucket credentials.
-- [ ] **MEDIA-04**: Application keeps image objects and metadata references in sync so uploads and edits do not leave orphaned records or orphaned files in normal operation.
+- [x] **MEDIA-04**: Application keeps image objects and metadata references in sync so uploads and edits do not leave orphaned records or orphaned files in normal operation.
 
 ### Public Gallery
 
@@ -37,8 +37,8 @@
 - [ ] **ADMIN-01**: Exactly one admin authentication path exists for collection management, and no public user account system is required for v1.
 - [ ] **ADMIN-02**: Admin can create a new autograph item by uploading images and reviewing/editing metadata in one workflow before publish.
 - [ ] **ADMIN-03**: Admin can edit an existing autograph item, including metadata and associated images.
-- [ ] **ADMIN-04**: Admin can save reviewed metadata and publish the item so it becomes visible in the public gallery.
-- [ ] **ADMIN-05**: Admin routes, secrets, edit-history behavior, media cleanup, and operator-bridge retirement are reviewed for security and documented before the admin workflow is considered complete.
+- [x] **ADMIN-04**: Admin can save reviewed metadata and publish the item so it becomes visible in the public gallery.
+- [x] **ADMIN-05**: Admin routes, secrets, edit-history behavior, media cleanup, and operator-bridge retirement are reviewed for security and documented before the admin workflow is considered complete.
 
 ### Static Runtime Migration
 
@@ -95,7 +95,7 @@ None currently. Future scope should be added only if it directly supports the pe
 | MEDIA-01 | Phase 2 | Complete |
 | MEDIA-02 | Phase 2 | Complete |
 | MEDIA-03 | Phase 2 | Complete |
-| MEDIA-04 | Phase 6 | Pending |
+| MEDIA-04 | Phase 6 | Complete |
 | GALL-01 | Phase 3 | Complete |
 | GALL-02 | Phase 3 | Complete |
 | GALL-03 | Phase 3 | Complete |
@@ -103,8 +103,8 @@ None currently. Future scope should be added only if it directly supports the pe
 | ADMIN-01 | Phase 6 | Pending |
 | ADMIN-02 | Phase 6 | Pending |
 | ADMIN-03 | Phase 6 | Pending |
-| ADMIN-04 | Phase 6 | Pending |
-| ADMIN-05 | Phase 6 | Pending |
+| ADMIN-04 | Phase 6 | Complete |
+| ADMIN-05 | Phase 6 | Complete |
 | STATIC-01 | Phase 5 | Complete |
 | STATIC-02 | Phase 5 | Complete |
 | STATIC-03 | Phase 5 | Complete |
