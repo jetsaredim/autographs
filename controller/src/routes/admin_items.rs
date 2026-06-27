@@ -13,7 +13,7 @@ use crate::{
     catalog_admin::{AdminCatalogRepositoryExt, AdminItemFilter},
 };
 
-use super::{AppState, ItemResponse, authenticate};
+use super::{AppState, authenticate, item_response_with_state};
 
 pub(super) async fn list_items(
     State(state): State<AppState>,
@@ -60,10 +60,7 @@ pub(super) async fn get_item(
     };
 
     match state.repository.get(id).await {
-        Ok(Some(item)) => {
-            let pending = pending_marker(&state, id).await;
-            Json(ItemResponse::from_item_with_pending(item, pending)).into_response()
-        }
+        Ok(Some(item)) => Json(item_response_with_state(&state, item).await).into_response(),
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(error) => {
             tracing::error!(item_id = %id, error = %error, "failed to get admin catalog item");

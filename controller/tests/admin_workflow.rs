@@ -388,7 +388,7 @@ async fn image_upload_response_includes_pending_changes() {
     );
 
     let boundary = "autographs-test-boundary";
-    let one_by_one_png = valid_png_fixture();
+    let png = png_fixture();
     let mut body = Vec::new();
     body.extend_from_slice(
         format!(
@@ -402,7 +402,7 @@ async fn image_upload_response_includes_pending_changes() {
         )
         .as_bytes(),
     );
-    body.extend_from_slice(&one_by_one_png);
+    body.extend_from_slice(&png);
     body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
 
     let response = app
@@ -426,14 +426,6 @@ async fn image_upload_response_includes_pending_changes() {
     assert_json_true(&response_json["pendingChanges"]["hasPendingChanges"]);
     assert!(response_json["pendingChanges"]["count"].as_u64().unwrap() >= 2);
     assert_eq!(response_json["images"][0]["altText"], "Uploaded test image");
-}
-
-fn valid_png_fixture() -> Vec<u8> {
-    let mut body = Cursor::new(Vec::new());
-    DynamicImage::ImageRgb8(RgbImage::from_pixel(1, 1, Rgb([21, 92, 126])))
-        .write_to(&mut body, ImageFormat::Png)
-        .expect("encode test PNG");
-    body.into_inner()
 }
 
 #[tokio::test]
@@ -600,6 +592,14 @@ async fn response_string(response: axum::response::Response) -> String {
 
 fn assert_json_true(value: &Value) {
     assert!(value.as_bool().is_some_and(|value| value));
+}
+
+fn png_fixture() -> Vec<u8> {
+    let mut body = Cursor::new(Vec::new());
+    DynamicImage::ImageRgb8(RgbImage::from_pixel(8, 8, Rgb([1, 2, 3])))
+        .write_to(&mut body, ImageFormat::Png)
+        .unwrap();
+    body.into_inner()
 }
 
 fn assert_redacted(body: &str) {

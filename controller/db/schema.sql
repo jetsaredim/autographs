@@ -100,6 +100,22 @@ create table autograph_edit_events (
     ))
 );
 
+create table autograph_cleanup_events (
+  id varchar2(36) primary key,
+  item_id varchar2(36) not null,
+  image_id varchar2(36) not null,
+  target_object_key varchar2(1024) not null,
+  operation varchar2(48) not null,
+  status varchar2(48) not null,
+  admin_message varchar2(500) not null,
+  created_at timestamp default current_timestamp not null,
+  resolved_at timestamp,
+  constraint autograph_cleanup_events_item_fk
+    foreign key (item_id) references autograph_items(id) on delete cascade,
+  constraint autograph_cleanup_events_status_ck
+    check (status in ('succeeded', 'deleteFailed', 'retrySucceeded'))
+);
+
 create table autograph_public_derivatives (
   id varchar2(36) primary key,
   image_id varchar2(36) not null,
@@ -130,6 +146,9 @@ create index autograph_publish_jobs_status_idx
 
 create index autograph_edit_events_item_created_idx
   on autograph_edit_events(item_id, created_at);
+
+create index autograph_cleanup_events_item_status_idx
+  on autograph_cleanup_events(item_id, status, created_at);
 
 create index autograph_public_derivatives_release_idx
   on autograph_public_derivatives(release_id);

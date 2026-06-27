@@ -163,7 +163,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 06-03-PLAN.md - Add simple multi-image primary selection, removal, replacement, and cleanup retry behavior.
+- [x] 06-03-PLAN.md - Add simple multi-image primary selection, removal, replacement, and cleanup retry behavior.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -214,5 +214,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
-| 6. Admin Collection Workflow | 2/8 | In progress | - |
+| 6. Admin Collection Workflow | 3/8 | In progress | - |
 | 7. AI-Assisted Ingest | 0/TBD | Not started | - |

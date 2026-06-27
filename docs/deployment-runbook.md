@@ -127,6 +127,53 @@ Published images are served as generated static derivatives from the promoted re
 
 Current operator work uses the static admin shell and Rust controller under `/admin` and `/admin/api/*`.
 
+## Oracle Schema Updates
+
+The committed [`controller/db/schema.sql`](../controller/db/schema.sql) is the
+canonical end state for fresh or recovered databases. Existing production
+schemas should be advanced with the one-shot scripts under
+[`controller/db/updates/`](../controller/db/updates/) before deploying the
+controller image that depends on the new shape.
+
+For Phase 06-03 media cleanup, run
+[`controller/db/updates/06-03-media-cleanup.sql`](../controller/db/updates/06-03-media-cleanup.sql)
+against the live Oracle catalog schema before merging or manually deploying the
+updated controller. The script adds `autograph_cleanup_events`, ensures each
+cleanup event has the private internal `target_object_key` needed for exact
+retry cleanup, creates `autograph_cleanup_events_item_status_idx`, and replaces
+`autograph_edit_events_type_ck` so edit history can record `cleanupChanged`.
+After the script succeeds, deploy normally and verify `/admin/api/health`.
+If an earlier version of this update created cleanup-warning rows before
+`target_object_key` existed, the script backfills only targets that can be
+proven from current image metadata and fails closed for unresolved legacy rows;
+manually resolve or remove those warnings, then rerun the script.
+
+With SQLcl or SQL*Plus configured for the same ADB wallet alias as the deployed
+controller, the manual shape is:
+
+```bash
+export TNS_ADMIN="/path/to/adb-wallet"
+sqlplus "${ORACLE_DB_USER}/${ORACLE_DB_PASSWORD}@${ORACLE_DB_CONNECT_STRING}" \
+  @controller/db/updates/06-03-media-cleanup.sql
+```
+
+Then verify the schema shape before deploying the new controller:
+
+```sql
+select table_name from user_tables
+ where table_name = 'AUTOGRAPH_CLEANUP_EVENTS';
+
+select column_name
+  from user_tab_columns
+ where table_name = 'AUTOGRAPH_CLEANUP_EVENTS'
+   and column_name = 'TARGET_OBJECT_KEY';
+
+select constraint_name, search_condition_vc
+  from user_constraints
+ where table_name = 'AUTOGRAPH_EDIT_EVENTS'
+   and constraint_name = 'AUTOGRAPH_EDIT_EVENTS_TYPE_CK';
+```
+
 ## Workflow Behavior
 
 Pull requests run `.github/workflows/ci.yml`. The CI workflow checks the Rust controller, builds the controller image without pushing it, validates Terraform, and runs Ansible syntax/lint checks for the quadlet deployment.
