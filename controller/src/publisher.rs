@@ -375,6 +375,49 @@ impl Default for PublishStatus {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReleaseRetentionPolicy {
+    pub promoted_release_retain_count: usize,
+    pub failed_candidate_retain_count: usize,
+}
+
+impl ReleaseRetentionPolicy {
+    pub const DEFAULT_PROMOTED_RELEASE_RETAIN_COUNT: usize = 5;
+    pub const DEFAULT_FAILED_CANDIDATE_RETAIN_COUNT: usize = 1;
+
+    pub fn new(promoted_release_retain_count: usize, failed_candidate_retain_count: usize) -> Self {
+        Self {
+            promoted_release_retain_count: retain_count_or_default(
+                promoted_release_retain_count,
+                Self::DEFAULT_PROMOTED_RELEASE_RETAIN_COUNT,
+            ),
+            failed_candidate_retain_count: retain_count_or_default(
+                failed_candidate_retain_count,
+                Self::DEFAULT_FAILED_CANDIDATE_RETAIN_COUNT,
+            ),
+        }
+    }
+}
+
+impl Default for ReleaseRetentionPolicy {
+    fn default() -> Self {
+        Self {
+            promoted_release_retain_count: Self::DEFAULT_PROMOTED_RELEASE_RETAIN_COUNT,
+            failed_candidate_retain_count: Self::DEFAULT_FAILED_CANDIDATE_RETAIN_COUNT,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReleaseRetentionStatus {
+    pub active_release_id: Option<String>,
+    pub promoted_release_retain_count: usize,
+    pub promoted_release_count: usize,
+    pub failed_candidate_retain_count: usize,
+    pub failed_candidate_count: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PublishChange {
     ItemMetadata,
     PublicationStatus,
@@ -423,18 +466,31 @@ pub fn artifact_impact_for(change: PublishChange) -> ArtifactImpact {
 pub struct LocalPublisher {
     root: Arc<PathBuf>,
     status: Arc<Mutex<PublishStatus>>,
+    retention_policy: ReleaseRetentionPolicy,
 }
 
 impl LocalPublisher {
     pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self::with_retention_policy(root, ReleaseRetentionPolicy::default())
+    }
+
+    pub fn with_retention_policy(
+        root: impl Into<PathBuf>,
+        retention_policy: ReleaseRetentionPolicy,
+    ) -> Self {
         Self {
             root: Arc::new(root.into()),
             status: Arc::new(Mutex::new(PublishStatus::default())),
+            retention_policy,
         }
     }
 
     pub fn status(&self) -> PublishStatus {
         self.status.lock().expect("publisher status lock").clone()
+    }
+
+    pub fn retention_status(&self) -> Result<ReleaseRetentionStatus, String> {
+        retention_status(&self.root, self.retention_policy)
     }
 
     pub async fn publish(
@@ -459,6 +515,7 @@ impl LocalPublisher {
             .and_then(|_| validate_candidate(&candidate))
             .and_then(|manifest| {
                 promote_candidate(&self.root, &release_id)?;
+                prune_promoted_releases(&self.root, self.retention_policy)?;
                 Ok(manifest)
             });
 
@@ -481,7 +538,7 @@ impl LocalPublisher {
                 Ok(status)
             }
             Err(error) => {
-                retain_latest_failed_candidate(&self.root, &candidate)?;
+                retain_failed_candidates(&self.root, &candidate, self.retention_policy)?;
                 let status = PublishStatus {
                     state: "failed".to_owned(),
                     release_id: Some(release_id),
@@ -939,26 +996,130 @@ fn promote_candidate(root: &Path, release_id: &str) -> Result<(), String> {
     fs::rename(next, current).map_err(|error| format!("promote current pointer: {error}"))
 }
 
-fn retain_latest_failed_candidate(root: &Path, candidate: &Path) -> Result<(), String> {
+fn prune_promoted_releases(
+    root: &Path,
+    retention_policy: ReleaseRetentionPolicy,
+) -> Result<(), String> {
+    let releases_root = root.join("releases");
+    let active_release_id = active_release_id(root)?;
+    let mut retained = active_release_id.iter().cloned().collect::<BTreeSet<_>>();
+    let retain_count = retention_policy.promoted_release_retain_count;
+
+    for release in release_directories(&releases_root)? {
+        if retained.len() >= retain_count {
+            break;
+        }
+        retained.insert(release.name);
+    }
+
+    for release in release_directories(&releases_root)? {
+        if !retained.contains(&release.name) {
+            fs::remove_dir_all(&release.path)
+                .map_err(|error| format!("prune promoted release: {error}"))?;
+        }
+    }
+    Ok(())
+}
+
+fn retain_failed_candidates(
+    root: &Path,
+    candidate: &Path,
+    retention_policy: ReleaseRetentionPolicy,
+) -> Result<(), String> {
     let failed_root = root.join("failed");
     fs::create_dir_all(&failed_root)
         .map_err(|error| format!("create failed release root: {error}"))?;
-    for entry in
-        fs::read_dir(&failed_root).map_err(|error| format!("read failed release root: {error}"))?
-    {
-        let path = entry
-            .map_err(|error| format!("read failed release entry: {error}"))?
-            .path();
-        if path.is_dir() {
-            fs::remove_dir_all(path).map_err(|error| format!("prune failed candidate: {error}"))?;
-        }
-    }
     if candidate.exists() {
         let name = candidate.file_name().expect("candidate release id");
         fs::rename(candidate, failed_root.join(name))
             .map_err(|error| format!("retain failed candidate: {error}"))?;
     }
+    let retained = release_directories(&failed_root)?
+        .into_iter()
+        .take(retention_policy.failed_candidate_retain_count)
+        .map(|release| release.name)
+        .collect::<BTreeSet<_>>();
+    for release in release_directories(&failed_root)? {
+        if !retained.contains(&release.name) {
+            fs::remove_dir_all(&release.path)
+                .map_err(|error| format!("prune failed candidate: {error}"))?;
+        }
+    }
     Ok(())
+}
+
+fn retention_status(
+    root: &Path,
+    retention_policy: ReleaseRetentionPolicy,
+) -> Result<ReleaseRetentionStatus, String> {
+    Ok(ReleaseRetentionStatus {
+        active_release_id: active_release_id(root)?,
+        promoted_release_retain_count: retention_policy.promoted_release_retain_count,
+        promoted_release_count: release_directories(&root.join("releases"))?.len(),
+        failed_candidate_retain_count: retention_policy.failed_candidate_retain_count,
+        failed_candidate_count: release_directories(&root.join("failed"))?.len(),
+    })
+}
+
+#[derive(Debug)]
+struct ReleaseDirectory {
+    name: String,
+    path: PathBuf,
+    modified_epoch_seconds: i64,
+}
+
+fn release_directories(root: &Path) -> Result<Vec<ReleaseDirectory>, String> {
+    if !root.exists() {
+        return Ok(Vec::new());
+    }
+    let mut releases = Vec::new();
+    for entry in fs::read_dir(root).map_err(|error| format!("read release root: {error}"))? {
+        let entry = entry.map_err(|error| format!("read release entry: {error}"))?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        let modified_epoch_seconds = entry
+            .metadata()
+            .and_then(|metadata| metadata.modified())
+            .ok()
+            .and_then(|modified| {
+                modified
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .ok()
+                    .map(|duration| duration.as_secs() as i64)
+            })
+            .unwrap_or(0);
+        releases.push(ReleaseDirectory {
+            name,
+            path,
+            modified_epoch_seconds,
+        });
+    }
+    releases.sort_by(|left, right| {
+        right
+            .modified_epoch_seconds
+            .cmp(&left.modified_epoch_seconds)
+            .then_with(|| right.name.cmp(&left.name))
+    });
+    Ok(releases)
+}
+
+fn active_release_id(root: &Path) -> Result<Option<String>, String> {
+    let current = root.join("current");
+    if !current.exists() {
+        return Ok(None);
+    }
+    let target = fs::read_link(&current)
+        .map_err(|error| format!("read current release pointer: {error}"))?;
+    Ok(target
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string()))
+}
+
+const fn retain_count_or_default(value: usize, default: usize) -> usize {
+    if value == 0 { default } else { value }
 }
 
 fn scan_privacy(root: &Path) -> Result<(), String> {

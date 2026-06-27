@@ -1,5 +1,7 @@
 use std::{env, net::SocketAddr, path::PathBuf};
 
+use crate::publisher::ReleaseRetentionPolicy;
+
 #[derive(Clone, Debug)]
 pub struct ControllerConfig {
     pub bind_addr: SocketAddr,
@@ -12,6 +14,8 @@ pub struct ControllerConfig {
     pub media_configured: bool,
     pub static_release_configured: bool,
     pub static_release_root: PathBuf,
+    pub static_promoted_release_retain_count: usize,
+    pub static_failed_candidate_retain_count: usize,
 }
 
 impl ControllerConfig {
@@ -43,6 +47,14 @@ impl ControllerConfig {
             static_release_root: env::var("AUTOGRAPHS_STATIC_RELEASE_ROOT")
                 .map(PathBuf::from)
                 .unwrap_or_else(|_| PathBuf::from("/tmp/autographs-static")),
+            static_promoted_release_retain_count: retain_count_env_or_default(
+                "AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT",
+                ReleaseRetentionPolicy::DEFAULT_PROMOTED_RELEASE_RETAIN_COUNT,
+            ),
+            static_failed_candidate_retain_count: retain_count_env_or_default(
+                "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT",
+                ReleaseRetentionPolicy::DEFAULT_FAILED_CANDIDATE_RETAIN_COUNT,
+            ),
         })
     }
 
@@ -58,6 +70,10 @@ impl ControllerConfig {
             media_configured: false,
             static_release_configured: false,
             static_release_root: PathBuf::from("/tmp/autographs-static"),
+            static_promoted_release_retain_count:
+                ReleaseRetentionPolicy::DEFAULT_PROMOTED_RELEASE_RETAIN_COUNT,
+            static_failed_candidate_retain_count:
+                ReleaseRetentionPolicy::DEFAULT_FAILED_CANDIDATE_RETAIN_COUNT,
         }
     }
 
@@ -85,6 +101,14 @@ fn all_present(names: &[&str]) -> bool {
 
 fn non_blank_env(name: &str) -> Option<String> {
     env::var(name).ok().and_then(non_blank)
+}
+
+fn retain_count_env_or_default(name: &str, default: usize) -> usize {
+    env::var(name)
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(default)
 }
 
 pub(crate) fn non_blank(value: String) -> Option<String> {
@@ -115,5 +139,30 @@ mod tests {
 
         assert!(config.validate_runtime_auth().is_ok());
         assert_eq!(config.admin_password_hash.as_deref(), Some("hash"));
+    }
+
+    #[test]
+    fn retention_counts_ignore_zero_or_invalid_values() {
+        assert_eq!(
+            retain_count_env_or_default("AUTOGRAPHS_TEST_MISSING_RETAIN_COUNT", 5),
+            5
+        );
+        unsafe {
+            env::set_var("AUTOGRAPHS_TEST_ZERO_RETAIN_COUNT", "0");
+            env::set_var("AUTOGRAPHS_TEST_INVALID_RETAIN_COUNT", "nope");
+            env::set_var("AUTOGRAPHS_TEST_VALID_RETAIN_COUNT", "9");
+        }
+        assert_eq!(
+            retain_count_env_or_default("AUTOGRAPHS_TEST_ZERO_RETAIN_COUNT", 5),
+            5
+        );
+        assert_eq!(
+            retain_count_env_or_default("AUTOGRAPHS_TEST_INVALID_RETAIN_COUNT", 5),
+            5
+        );
+        assert_eq!(
+            retain_count_env_or_default("AUTOGRAPHS_TEST_VALID_RETAIN_COUNT", 5),
+            9
+        );
     }
 }

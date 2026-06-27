@@ -20,7 +20,7 @@ use crate::{
     },
     config::ControllerConfig,
     media::{LocalMediaStore, PrivateMediaStore},
-    publisher::{LocalPublisher, PublishMode},
+    publisher::{LocalPublisher, PublishMode, ReleaseRetentionPolicy},
     storage_keys::build_original_object_key,
 };
 
@@ -170,11 +170,18 @@ pub fn router_with_stores(
     media: Arc<dyn PrivateMediaStore>,
 ) -> Router {
     let static_release_root = config.static_release_root.clone();
+    let retention_policy = ReleaseRetentionPolicy::new(
+        config.static_promoted_release_retain_count,
+        config.static_failed_candidate_retain_count,
+    );
     router_with_services(
         config,
         repository,
         media,
-        Arc::new(LocalPublisher::new(static_release_root)),
+        Arc::new(LocalPublisher::with_retention_policy(
+            static_release_root,
+            retention_policy,
+        )),
     )
 }
 

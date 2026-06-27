@@ -609,7 +609,10 @@ async fn publisher_retention_prunes_promoted_releases_without_deleting_current_t
     let retention = publisher.retention_status().unwrap();
     assert_eq!(retention.promoted_release_retain_count, 2);
     assert_eq!(retention.promoted_release_count, 2);
-    assert_eq!(retention.active_release_id.as_deref(), publisher.status().release_id.as_deref());
+    assert_eq!(
+        retention.active_release_id.as_deref(),
+        publisher.status().release_id.as_deref()
+    );
 }
 
 #[tokio::test]
