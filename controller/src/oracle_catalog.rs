@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::catalog::{
     AutographEditEvent, AutographImage, AutographItem, AutographItemInput, AutographItemUpdate,
     CatalogRepository, CleanupStatus, CleanupWarning, EditEventKind, FieldDiff, ImageCleanupEvent,
-    ImageReplacementInput, PendingChangeSummary, PublicationStatus, apply_update,
+    ImageReplacementInput, PendingChangeSummary, PublicationStatus, PublishBoundary, apply_update,
     event_kind_for_diffs, event_summary, now_epoch_seconds, validate_required_fields,
 };
 
@@ -502,16 +502,16 @@ impl CatalogRepository for OracleCatalogRepository {
             let mut rows = connection
                 .query(
                     "with latest_publish as (
-                        select max(finished_at) as finished_at
+                        select max(started_at) as started_at
                         from autograph_publish_jobs
-                        where status = 'succeeded' and finished_at is not null
+                        where status = 'succeeded'
                     )
                     select
                         count(*),
                         cast(round((cast(min(e.created_at) as date) - date '1970-01-01') * 86400) as number(19))
                     from autograph_edit_events e
                     cross join latest_publish p
-                    where p.finished_at is null or e.created_at > p.finished_at",
+                    where p.started_at is null or e.created_at >= p.started_at",
                     &[],
                 )
                 .map_err(|error| format!("read Oracle pending changes: {error}"))?;
@@ -528,11 +528,53 @@ impl CatalogRepository for OracleCatalogRepository {
         .await
     }
 
+    async fn pending_changes_for_item(
+        &self,
+        item_id: Uuid,
+    ) -> Result<PendingChangeSummary, String> {
+        self.with_connection(move |connection| {
+            let item_id = item_id.to_string();
+            let mut rows = connection
+                .query(
+                    "with latest_publish as (
+                        select max(started_at) as started_at
+                        from autograph_publish_jobs
+                        where status = 'succeeded'
+                    )
+                    select
+                        count(*),
+                        cast(round((cast(min(e.created_at) as date) - date '1970-01-01') * 86400) as number(19))
+                    from autograph_edit_events e
+                    cross join latest_publish p
+                    where e.item_id = :1
+                      and (p.started_at is null or e.created_at >= p.started_at)",
+                    &[&item_id],
+                )
+                .map_err(|error| format!("read Oracle item pending changes: {error}"))?;
+            let Some(row) = rows.next() else {
+                return Ok(PendingChangeSummary::default());
+            };
+            let row =
+                row.map_err(|error| format!("read Oracle item pending changes row: {error}"))?;
+            Ok(PendingChangeSummary {
+                count: row_value::<Option<i64>>(&row, 0, "item pending change count")?
+                    .unwrap_or(0) as usize,
+                oldest_changed_at_epoch_seconds: row_value(&row, 1, "oldest item pending change")?,
+            })
+        })
+        .await
+    }
+
+    async fn begin_publish_boundary(&self) -> Result<PublishBoundary, String> {
+        Ok(PublishBoundary::conservative(now_epoch_seconds()))
+    }
+
     async fn record_successful_publish(
         &self,
         mode: &str,
         release_id: Option<&str>,
-        started_at_epoch_seconds: Option<i64>,
+        publish_boundary: PublishBoundary,
+        _started_at_epoch_seconds: Option<i64>,
         finished_at_epoch_seconds: i64,
     ) -> Result<(), String> {
         let mode = mode.to_owned();
@@ -540,8 +582,7 @@ impl CatalogRepository for OracleCatalogRepository {
         self.with_connection(move |connection| {
             let id = Uuid::new_v4().to_string();
             let status = "succeeded";
-            let started_at_epoch_seconds =
-                started_at_epoch_seconds.unwrap_or(finished_at_epoch_seconds);
+            let started_at_epoch_seconds = publish_boundary.started_at_epoch_seconds;
             connection
                 .execute(
                     "insert into autograph_publish_jobs (

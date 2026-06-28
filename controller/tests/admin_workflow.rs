@@ -1,11 +1,13 @@
+use async_trait::async_trait;
 use autographs_controller::{
     catalog::{
         AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository, CleanupStatus,
         EditEventKind, ImageCleanupEvent, MemoryCatalogRepository, PublicationStatus,
     },
     config::ControllerConfig,
-    media::LocalMediaStore,
+    media::{LocalMediaStore, PrivateMediaStore},
     routes::router_with_stores,
+    storage_keys::build_original_object_key,
 };
 use axum::{
     body::{Body, to_bytes},
@@ -13,7 +15,14 @@ use axum::{
 };
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 use serde_json::{Value, json};
-use std::{io::Cursor, sync::Arc};
+use std::{
+    io::Cursor,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
+use tokio::sync::Notify;
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -515,8 +524,11 @@ async fn admin_status_reports_pending_publish_cleanup_and_retention() {
 async fn publish_batches_saved_changes() {
     let repository = Arc::new(MemoryCatalogRepository::default());
     let media_root = tempfile::tempdir().unwrap();
+    let static_root = tempfile::tempdir().unwrap();
+    let mut config = ControllerConfig::for_test(false);
+    config.static_release_root = static_root.path().to_path_buf();
     let app = router_with_stores(
-        ControllerConfig::for_test(false),
+        config,
         repository,
         Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
     );
@@ -550,6 +562,196 @@ async fn publish_batches_saved_changes() {
     assert_eq!(after_publish["pendingChanges"]["count"], 0);
     assert_eq!(after_publish["pendingChanges"]["hasPendingChanges"], false);
     assert_eq!(after_publish["publish"]["state"], "succeeded");
+
+    let list = response_json(
+        app.clone()
+            .oneshot(
+                Request::get("/admin/api/items")
+                    .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    for item_id in [first, second] {
+        let item = list
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["id"] == item_id.to_string())
+            .expect("published item in list");
+        assert_eq!(item["hasPendingChanges"], false);
+
+        let detail = response_json(
+            app.clone()
+                .oneshot(
+                    Request::get(format!("/admin/api/items/{item_id}"))
+                        .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(detail["pendingChanges"]["hasPendingChanges"], false);
+        assert_eq!(detail["pendingChanges"]["count"], 0);
+    }
+}
+
+#[tokio::test]
+async fn publish_keeps_in_flight_same_second_edit_pending() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media_root = tempfile::tempdir().unwrap();
+    let static_root = tempfile::tempdir().unwrap();
+    let media = Arc::new(BlockingReadMediaStore::new(media_root.path()));
+    let item = repository
+        .create(test_item_input(
+            "In Flight Item",
+            "Rosario Dawson",
+            "Photos",
+            vec!["ahsoka"],
+            PublicationStatus::Published,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    media.write(&object_key, &png_fixture()).await.unwrap();
+    repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: image_id,
+                object_key,
+                original_filename: "private-flight.png".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: 128,
+                is_primary: true,
+                sort_order: 0,
+                alt_text: None,
+            },
+        )
+        .await
+        .unwrap();
+    let mut config = ControllerConfig::for_test(false);
+    config.static_release_root = static_root.path().to_path_buf();
+    let app = router_with_stores(config, repository, media.clone());
+
+    let publish_app = app.clone();
+    let publish = tokio::spawn(async move {
+        publish_app
+            .oneshot(
+                Request::post("/admin/api/publish/full")
+                    .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+    });
+    media.wait_for_blocked_read().await;
+
+    patch_item_title(&app, item.id, "In Flight Item Updated").await;
+    media.release_read();
+
+    let publish = publish.await.unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+    let status = admin_status(&app).await;
+    assert!(status["pendingChanges"]["count"].as_u64().unwrap() > 0);
+    assert_eq!(status["pendingChanges"]["hasPendingChanges"], true);
+
+    let detail = response_json(
+        app.oneshot(
+            Request::get(format!("/admin/api/items/{}", item.id))
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap(),
+    )
+    .await;
+    assert_eq!(detail["title"], "In Flight Item Updated");
+    assert_eq!(detail["pendingChanges"]["hasPendingChanges"], true);
+}
+
+#[tokio::test]
+async fn admin_status_reports_safe_publish_error_without_private_media_details() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let static_root = tempfile::tempdir().unwrap();
+    let item = repository
+        .create(test_item_input(
+            "Leaky Media Item",
+            "Temuera Morrison",
+            "Photos",
+            vec!["bounty"],
+            PublicationStatus::Published,
+        ))
+        .await
+        .unwrap();
+    repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: uuid::Uuid::new_v4(),
+                object_key: "originals/private/leaky-object-key.png".to_owned(),
+                original_filename: "private-leak.png".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: 42,
+                is_primary: true,
+                sort_order: 0,
+                alt_text: None,
+            },
+        )
+        .await
+        .unwrap();
+    let mut config = ControllerConfig::for_test(false);
+    config.static_release_root = static_root.path().to_path_buf();
+    let app = router_with_stores(config, repository, Arc::new(LeakyFailingReadMediaStore));
+
+    let publish = app
+        .clone()
+        .oneshot(
+            Request::post("/admin/api/publish/full")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+    let status = app
+        .oneshot(
+            Request::get("/admin/api/status")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(status.status(), StatusCode::OK);
+    let body = response_string(status).await;
+    let json: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        json["publish"]["error"],
+        "Static publish failed. Check controller logs for details."
+    );
+    for denied in [
+        "https://objectstorage.us-ashburn-1.oraclecloud.com",
+        "objectstorage",
+        "private-namespace",
+        "private-bucket",
+        "originals/",
+        "leaky-object-key",
+        "OCI_",
+        "ORACLE_DB",
+    ] {
+        assert!(!body.contains(denied), "status leaked {denied}: {body}");
+    }
 }
 
 #[tokio::test]
@@ -817,4 +1019,68 @@ fn assert_field_diff(
         .unwrap_or_else(|| panic!("missing diff for {field}"));
     assert_eq!(diff.before, before);
     assert_eq!(diff.after, after);
+}
+
+struct BlockingReadMediaStore {
+    inner: LocalMediaStore,
+    should_block: AtomicBool,
+    blocked: Notify,
+    release: Notify,
+}
+
+impl BlockingReadMediaStore {
+    fn new(root: impl Into<std::path::PathBuf>) -> Self {
+        Self {
+            inner: LocalMediaStore::new(root),
+            should_block: AtomicBool::new(true),
+            blocked: Notify::new(),
+            release: Notify::new(),
+        }
+    }
+
+    async fn wait_for_blocked_read(&self) {
+        self.blocked.notified().await;
+    }
+
+    fn release_read(&self) {
+        self.release.notify_waiters();
+    }
+}
+
+#[async_trait]
+impl PrivateMediaStore for BlockingReadMediaStore {
+    async fn write(&self, object_key: &str, body: &[u8]) -> Result<(), String> {
+        self.inner.write(object_key, body).await
+    }
+
+    async fn read(&self, object_key: &str) -> Result<Vec<u8>, String> {
+        if self.should_block.swap(false, Ordering::SeqCst) {
+            self.blocked.notify_one();
+            self.release.notified().await;
+        }
+        self.inner.read(object_key).await
+    }
+
+    async fn delete(&self, object_key: &str) -> Result<(), String> {
+        self.inner.delete(object_key).await
+    }
+}
+
+struct LeakyFailingReadMediaStore;
+
+#[async_trait]
+impl PrivateMediaStore for LeakyFailingReadMediaStore {
+    async fn write(&self, _object_key: &str, _body: &[u8]) -> Result<(), String> {
+        Ok(())
+    }
+
+    async fn read(&self, object_key: &str) -> Result<Vec<u8>, String> {
+        Err(format!(
+            "GET https://objectstorage.us-ashburn-1.oraclecloud.com/n/private-namespace/b/private-bucket/o/{object_key} failed with OCI_MEDIA_BUCKET_NAME and ORACLE_DB_CONNECT_STRING"
+        ))
+    }
+
+    async fn delete(&self, _object_key: &str) -> Result<(), String> {
+        Ok(())
+    }
 }

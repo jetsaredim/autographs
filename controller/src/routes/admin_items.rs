@@ -9,7 +9,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    catalog::{AutographEditEvent, AutographItem, FieldDiff},
+    catalog::{AutographEditEvent, AutographItem, FieldDiff, PendingChangeSummary},
     catalog_admin::{AdminCatalogRepositoryExt, AdminItemFilter},
 };
 
@@ -111,12 +111,9 @@ pub(super) async fn item_history(
     }
 }
 
-// Until publish-boundary persistence exists, this marker means "this item has
-// recorded admin edit history" rather than "this item differs from the last
-// completed static release."
 pub(super) async fn pending_marker(state: &AppState, item_id: Uuid) -> PendingMarkerResponse {
-    match state.repository.history(item_id).await {
-        Ok(events) => PendingMarkerResponse::from_events(&events),
+    match state.repository.pending_changes_for_item(item_id).await {
+        Ok(summary) => PendingMarkerResponse::from_summary(summary),
         Err(error) => {
             tracing::warn!(
                 item_id = %item_id,
@@ -137,14 +134,11 @@ pub(super) struct PendingMarkerResponse {
 }
 
 impl PendingMarkerResponse {
-    fn from_events(events: &[AutographEditEvent]) -> Self {
+    fn from_summary(summary: PendingChangeSummary) -> Self {
         Self {
-            has_pending_changes: !events.is_empty(),
-            count: events.len(),
-            oldest_changed_at_epoch_seconds: events
-                .iter()
-                .map(|event| event.created_at_epoch_seconds)
-                .min(),
+            has_pending_changes: summary.count > 0,
+            count: summary.count,
+            oldest_changed_at_epoch_seconds: summary.oldest_changed_at_epoch_seconds,
         }
     }
 }

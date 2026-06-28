@@ -3,6 +3,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
+    time::SystemTime,
 };
 
 use serde::{Deserialize, Serialize};
@@ -36,6 +37,7 @@ const ARCHITECTURE_HTML: &str = include_str!("../static-public/architecture/inde
 const ARCHITECTURE_DIAGRAM_SVG: &[u8] =
     include_bytes!("../static-public/architecture/architecture-diagram.svg");
 const DETAIL_TEMPLATE: &str = include_str!("../static-public/templates/detail.html");
+const SAFE_PUBLISH_ERROR: &str = "Static publish failed. Check controller logs for details.";
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -544,7 +546,7 @@ impl LocalPublisher {
                     release_id: Some(release_id),
                     started_at_epoch_seconds: Some(started_at_epoch_seconds),
                     finished_at_epoch_seconds: Some(OffsetDateTime::now_utc().unix_timestamp()),
-                    error: Some(redact_error(&error)),
+                    error: Some(SAFE_PUBLISH_ERROR.to_owned()),
                     ..Default::default()
                 };
                 self.set_status(status);
@@ -1065,7 +1067,7 @@ fn retention_status(
 struct ReleaseDirectory {
     name: String,
     path: PathBuf,
-    modified_epoch_seconds: i64,
+    modified: SystemTime,
 }
 
 fn release_directories(root: &Path) -> Result<Vec<ReleaseDirectory>, String> {
@@ -1080,27 +1082,20 @@ fn release_directories(root: &Path) -> Result<Vec<ReleaseDirectory>, String> {
             continue;
         }
         let name = entry.file_name().to_string_lossy().to_string();
-        let modified_epoch_seconds = entry
+        let modified = entry
             .metadata()
             .and_then(|metadata| metadata.modified())
-            .ok()
-            .and_then(|modified| {
-                modified
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .ok()
-                    .map(|duration| duration.as_secs() as i64)
-            })
-            .unwrap_or(0);
+            .unwrap_or(SystemTime::UNIX_EPOCH);
         releases.push(ReleaseDirectory {
             name,
             path,
-            modified_epoch_seconds,
+            modified,
         });
     }
     releases.sort_by(|left, right| {
         right
-            .modified_epoch_seconds
-            .cmp(&left.modified_epoch_seconds)
+            .modified
+            .cmp(&left.modified)
             .then_with(|| right.name.cmp(&left.name))
     });
     Ok(releases)
@@ -1395,22 +1390,52 @@ fn escape_html(value: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn redact_error(error: &str) -> String {
-    let redacted = [
-        "storageNamespace",
-        "bucketName",
-        "objectKey",
-        "objectstorage",
-        "OCI_",
-    ]
-    .into_iter()
-    .fold(error.to_owned(), |text, denied| {
-        text.replace(denied, "[redacted]")
-    });
-    let truncated = redacted.chars().take(240).collect::<String>();
-    if redacted.chars().count() > 240 {
-        format!("{truncated}...")
-    } else {
-        truncated
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        collections::BTreeSet,
+        fs::FileTimes,
+        time::{Duration, UNIX_EPOCH},
+    };
+
+    #[test]
+    fn release_directories_sort_newest_with_subsecond_precision() {
+        let root = tempfile::tempdir().unwrap();
+        let oldest = root.path().join("zzz-oldest");
+        let middle = root.path().join("mmm-middle");
+        let newest = root.path().join("aaa-newest");
+        fs::create_dir(&oldest).unwrap();
+        fs::create_dir(&middle).unwrap();
+        fs::create_dir(&newest).unwrap();
+        set_modified(&oldest, 100);
+        set_modified(&middle, 200);
+        set_modified(&newest, 300);
+
+        let releases = release_directories(root.path()).unwrap();
+        let modified_seconds = releases
+            .iter()
+            .map(|release| {
+                release
+                    .modified
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(modified_seconds.len(), 1);
+        let names = releases
+            .into_iter()
+            .map(|release| release.name)
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["aaa-newest", "mmm-middle", "zzz-oldest"]);
+    }
+
+    fn set_modified(path: &Path, nanos: u32) {
+        let timestamp = UNIX_EPOCH + Duration::new(1_800_000_000, nanos);
+        let directory = fs::File::open(path).unwrap();
+        directory
+            .set_times(FileTimes::new().set_modified(timestamp))
+            .unwrap();
     }
 }

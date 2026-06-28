@@ -1012,6 +1012,13 @@ async fn publish(
     }
 
     let started = Instant::now();
+    let publish_boundary = match state.repository.begin_publish_boundary().await {
+        Ok(boundary) => boundary,
+        Err(error) => {
+            tracing::error!(error = %error, "failed to capture publish boundary");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
     tracing::info!(mode = ?mode, "publishing static release");
     match state
         .publisher
@@ -1027,6 +1034,7 @@ async fn publish(
                 .record_successful_publish(
                     publish_mode_label(mode),
                     status.release_id.as_deref(),
+                    publish_boundary,
                     status.started_at_epoch_seconds,
                     finished_at_epoch_seconds,
                 )

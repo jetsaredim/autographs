@@ -566,8 +566,10 @@ async fn publisher_failed_publish_retains_only_latest_candidate() {
     );
     let status = publisher.status();
     assert_eq!(status.state, "failed");
-    assert!(status.error.is_some());
-    assert!(!status.error.unwrap().contains("objectKey"));
+    assert_eq!(
+        status.error.as_deref(),
+        Some("Static publish failed. Check controller logs for details.")
+    );
 }
 
 #[tokio::test]
