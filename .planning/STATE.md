@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-04-PLAN.md
-last_updated: "2026-06-28T12:22:49.686Z"
-last_activity: 2026-06-28 -- Phase 06 06-04 deploy is green after the Oracle schema update
+stopped_at: Completed 06-05-PLAN.md
+last_updated: "2026-06-28T13:03:41.633Z"
+last_activity: 2026-06-28 -- Completed 06-05 static admin collection workflow
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 33
-  completed_plans: 29
-  percent: 88
+  completed_plans: 30
+  percent: 91
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 ## Current Position
 
 Phase: 06 (admin-collection-workflow) — EXECUTING
-Plan: 06-05
+Plan: 06-06
 Status: Ready to execute next wave
-Last activity: 2026-06-28 -- Phase 06 06-04 deploy is green after the Oracle schema update
+Last activity: 2026-06-28 -- Completed 06-05 static admin collection workflow
 
-Progress: [█████████░] 88% overall; Phase 6 plans 1-4 complete
+Progress: [█████████░] 91% overall; Phase 6 plans 1-5 complete
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 29 of 33
+- Total plans completed: 30 of 33
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -49,12 +49,12 @@ Progress: [█████████░] 88% overall; Phase 6 plans 1-4 comple
 | 03 | 5 | - | - |
 | 04 | 5/5 | 54 min | 11 min |
 | 05 | 7/7 | - | - |
-| 06 | 4/8 | - | - |
+| 06 | 5/8 | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: 05-07, 06-01, 06-02, 06-03, 06-04
-- Trend: Positive; Phase 6 now has edit-history, private admin item APIs, retryable media cleanup foundations, and publish-status retention merged locally with full controller verification
+- Last 5 plans: 06-01, 06-02, 06-03, 06-04, 06-05
+- Trend: Positive; Phase 6 now has edit-history, private admin item APIs, retryable media cleanup foundations, publish-status retention, and a polished static admin workflow merged locally with full controller verification
 
 | Phase 04 P01 | 38 min | 3 tasks | 4 files |
 | Phase 04 P02 | 4 min | 3 tasks | 5 files |
@@ -68,6 +68,7 @@ Progress: [█████████░] 88% overall; Phase 6 plans 1-4 comple
 | Phase 06 P02 | PR #141 | 2 tasks | 6 files |
 | Phase 06 P03 | 45 min | 2 tasks | 8 files |
 | Phase 06 P04 | 10 min | 3 tasks | 10 files |
+| Phase 06 P05 | 10min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,9 @@ Recent decisions affecting current work:
 - Phase 5 controller persistence: Use native OCI instance-principal request signing for Object Storage access from the runtime instance. A dev-node binary smoke on 2026-06-14 proved non-UTF-8 media bytes can be PUT, read back, and deleted from `autographs-media-prod` with instance principals; do not revive the OCI S3 Customer Secret path for controller media.
 - Phase 5 closure: Live static smoke on 2026-06-20 proved private controller seeding, Oracle persistence, OCI Object Storage upload, generated static output, Caddy serving, unpublish republish, and cleanup against image revision `23b6289`.
 - Production security patching: PR 129 added weekly/manual security update scans, scanner issue create/update behavior, allowlisted label approval, drift-checked apply, result/failure comments, and operator runbook coverage.
+- [Phase 06]: The browser client renders catalog, history, image, publish, and diagnostics values through DOM node creation and textContent.
+- [Phase 06]: Image tiles show safe metadata and actions only; private originals are managed through same-origin admin API calls, not direct object URLs.
+- [Phase 06]: The Phase 6 admin workflow remains plain static HTML/CSS/JavaScript with no frontend build system or browser storage.
 
 ### Pending Todos
 
@@ -118,8 +122,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-27T19:43:18.112Z
-Stopped at: Completed 06-04-PLAN.md
+Last session: 2026-06-28T13:03:41.624Z
+Stopped at: Completed 06-05-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed

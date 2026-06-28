@@ -15,7 +15,7 @@
 
 - [x] **DATA-01**: Admin can store an autograph record in Oracle Autonomous Database Free with title, signer, description, category, tags, object references, event/source, event/location, inscription text, certification company and ID, estimated year, and publication status fields.
 - [x] **DATA-02**: Application can create, read, update, and list autograph metadata records through the chosen Oracle-backed data layer.
-- [ ] **DATA-03**: Application records edit history for autograph items so the admin can see what changed over time in v1.
+- [x] **DATA-03**: Application records edit history for autograph items so the admin can see what changed over time in v1.
 - [x] **DATA-04**: Application can seed or otherwise load representative sample data for local development and verification.
 
 ### Media Storage
@@ -35,8 +35,8 @@
 ### Admin Workflow
 
 - [ ] **ADMIN-01**: Exactly one admin authentication path exists for collection management, and no public user account system is required for v1.
-- [ ] **ADMIN-02**: Admin can create a new autograph item by uploading images and reviewing/editing metadata in one workflow before publish.
-- [ ] **ADMIN-03**: Admin can edit an existing autograph item, including metadata and associated images.
+- [x] **ADMIN-02**: Admin can create a new autograph item by uploading images and reviewing/editing metadata in one workflow before publish.
+- [x] **ADMIN-03**: Admin can edit an existing autograph item, including metadata and associated images.
 - [x] **ADMIN-04**: Admin can save reviewed metadata and publish the item so it becomes visible in the public gallery.
 - [x] **ADMIN-05**: Admin routes, secrets, edit-history behavior, media cleanup, and operator-bridge retirement are reviewed for security and documented before the admin workflow is considered complete.
 
@@ -90,7 +90,7 @@ None currently. Future scope should be added only if it directly supports the pe
 | PLAT-03 | Phase 1 | Complete |
 | DATA-01 | Phase 2 | Complete |
 | DATA-02 | Phase 2 | Complete |
-| DATA-03 | Phase 6 | Pending |
+| DATA-03 | Phase 6 | Complete |
 | DATA-04 | Phase 2 | Complete |
 | MEDIA-01 | Phase 2 | Complete |
 | MEDIA-02 | Phase 2 | Complete |
@@ -101,8 +101,8 @@ None currently. Future scope should be added only if it directly supports the pe
 | GALL-03 | Phase 3 | Complete |
 | GALL-04 | Phase 3 | Complete |
 | ADMIN-01 | Phase 6 | Pending |
-| ADMIN-02 | Phase 6 | Pending |
-| ADMIN-03 | Phase 6 | Pending |
+| ADMIN-02 | Phase 6 | Complete |
+| ADMIN-03 | Phase 6 | Complete |
 | ADMIN-04 | Phase 6 | Complete |
 | ADMIN-05 | Phase 6 | Complete |
 | STATIC-01 | Phase 5 | Complete |
@@ -123,6 +123,7 @@ None currently. Future scope should be added only if it directly supports the pe
 | SHIP-05 | Phase 4 | Complete |
 
 **Coverage:**
+
 - v1 requirements: 36 total
 - Mapped to phases: 36
 - Unmapped: 0
