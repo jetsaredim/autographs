@@ -117,9 +117,12 @@ fn static_admin_save_captures_image_selection_before_editor_reset() {
     for expected in [
         "const selectedFiles = Array.from(elements.imageFiles.files);",
         "const selectedAltText = elements.itemForm.elements.altText.value.trim();",
-        "await uploadImages(item.id, selectedFiles, selectedAltText);",
+        "state.dirty = false;",
+        "await uploadImages(item.id, selectedFiles, selectedAltText, { allowDirty: true });",
         "async function uploadImages(",
         "files = Array.from(elements.imageFiles.files)",
+        "options = {}",
+        "if (!options.allowDirty && !ensureSavedBeforeImageChange())",
         "upload.append(\"altText\", altText);",
     ] {
         assert!(
@@ -178,6 +181,26 @@ fn static_admin_publish_actions_require_saved_changes_in_shared_path() {
         !editor_source.contains("state.dirty"),
         "publishFromEditor should delegate dirty-state protection to publishChanges"
     );
+}
+
+#[test]
+fn static_admin_image_actions_require_saved_changes_in_shared_path() {
+    let source = static_admin_source();
+    for expected in [
+        "function ensureSavedBeforeImageChange()",
+        "Save item before changing images.",
+        "async function uploadImages(",
+        "if (!options.allowDirty && !ensureSavedBeforeImageChange())",
+        "async function markPrimary(imageId)",
+        "async function removeImage(imageId)",
+        "async function replaceImage(imageId)",
+        "async function retryCleanup(imageId)",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin source should guard image actions with {expected}"
+        );
+    }
 }
 
 #[test]

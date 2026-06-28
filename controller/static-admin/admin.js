@@ -476,7 +476,11 @@ async function saveItem(event) {
     const item = await jsonRequest(id ? endpoints.item(id) : endpoints.items, id ? "PATCH" : "POST", formPayload());
     state.currentItem = item;
     if (selectedFiles.length) {
-      await uploadImages(item.id, selectedFiles, selectedAltText);
+      state.dirty = false;
+      elements.discardUnsaved.hidden = true;
+      elements.publishFromEditor.setAttribute("aria-disabled", "false");
+      elements.dirtyState.textContent = "No unsaved client-side edits.";
+      await uploadImages(item.id, selectedFiles, selectedAltText, { allowDirty: true });
     } else {
       renderEditor(item);
     }
@@ -493,8 +497,12 @@ async function saveItem(event) {
 async function uploadImages(
   itemId = state.currentItem?.id || elements.itemForm.elements.itemId.value.trim(),
   files = Array.from(elements.imageFiles.files),
-  altText = elements.itemForm.elements.altText.value.trim()
+  altText = elements.itemForm.elements.altText.value.trim(),
+  options = {}
 ) {
+  if (!options.allowDirty && !ensureSavedBeforeImageChange()) {
+    return;
+  }
   const selectedFiles = Array.from(files);
   if (!itemId || selectedFiles.length === 0) {
     return;
@@ -518,6 +526,9 @@ async function markPrimary(imageId) {
   if (!state.currentItem?.id) {
     return;
   }
+  if (!ensureSavedBeforeImageChange()) {
+    return;
+  }
   try {
     const item = await request(endpoints.imagePrimary(state.currentItem.id, imageId), { method: "POST" });
     state.currentItem = item;
@@ -531,6 +542,9 @@ async function markPrimary(imageId) {
 
 async function removeImage(imageId) {
   if (!state.currentItem?.id || !window.confirm(copy.removeImage)) {
+    return;
+  }
+  if (!ensureSavedBeforeImageChange()) {
     return;
   }
   try {
@@ -549,6 +563,9 @@ async function removeImage(imageId) {
 
 async function replaceImage(imageId) {
   if (!state.currentItem?.id) {
+    return;
+  }
+  if (!ensureSavedBeforeImageChange()) {
     return;
   }
   const file = elements.replacementImage.files[0];
@@ -581,6 +598,9 @@ async function retryCleanup(imageId) {
   if (!state.currentItem?.id) {
     return;
   }
+  if (!ensureSavedBeforeImageChange()) {
+    return;
+  }
   try {
     const item = await request(endpoints.cleanupRetry(state.currentItem.id, imageId), { method: "POST" });
     if (item) {
@@ -603,6 +623,16 @@ function ensureSavedBeforePublish() {
   }
   setView("add-item-view");
   elements.globalMessage.textContent = "Save item before publishing these changes.";
+  elements.globalMessage.focus();
+  return false;
+}
+
+function ensureSavedBeforeImageChange() {
+  if (!state.dirty) {
+    return true;
+  }
+  setView("add-item-view");
+  elements.globalMessage.textContent = "Save item before changing images.";
   elements.globalMessage.focus();
   return false;
 }
