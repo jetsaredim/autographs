@@ -602,6 +602,57 @@ async fn publish_batches_saved_changes() {
 }
 
 #[tokio::test]
+async fn publish_clears_same_second_saved_change_included_in_release() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media_root = tempfile::tempdir().unwrap();
+    let static_root = tempfile::tempdir().unwrap();
+    let mut config = ControllerConfig::for_test(false);
+    config.static_release_root = static_root.path().to_path_buf();
+    let app = router_with_stores(
+        config,
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+
+    let item_id = create_item(&app, "Included Save Item", "Daisy Ridley").await;
+    patch_item_title(&app, item_id, "Included Save Item Updated").await;
+    let before_publish = admin_status(&app).await;
+    assert_eq!(before_publish["pendingChanges"]["hasPendingChanges"], true);
+
+    let publish = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/publish/full")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    let status = admin_status(&app).await;
+    assert_eq!(status["pendingChanges"]["count"], 0);
+    assert_eq!(status["pendingChanges"]["hasPendingChanges"], false);
+
+    let detail = response_json(
+        app.oneshot(
+            Request::get(format!("/admin/api/items/{item_id}"))
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap(),
+    )
+    .await;
+    assert_eq!(detail["pendingChanges"]["count"], 0);
+    assert_eq!(detail["pendingChanges"]["hasPendingChanges"], false);
+}
+
+#[tokio::test]
 async fn publish_keeps_in_flight_same_second_edit_pending() {
     let repository = Arc::new(MemoryCatalogRepository::default());
     let media_root = tempfile::tempdir().unwrap();

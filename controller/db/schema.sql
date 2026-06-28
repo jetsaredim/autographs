@@ -100,6 +100,18 @@ create table autograph_edit_events (
     ))
 );
 
+create table autograph_publish_job_events (
+  publish_job_id varchar2(36) not null,
+  edit_event_id varchar2(36) not null,
+  created_at timestamp default current_timestamp not null,
+  constraint autograph_publish_job_events_pk
+    primary key (publish_job_id, edit_event_id),
+  constraint autograph_publish_job_events_job_fk
+    foreign key (publish_job_id) references autograph_publish_jobs(id) on delete cascade,
+  constraint autograph_publish_job_events_event_fk
+    foreign key (edit_event_id) references autograph_edit_events(id) on delete cascade
+);
+
 create table autograph_cleanup_events (
   id varchar2(36) primary key,
   item_id varchar2(36) not null,
@@ -146,6 +158,9 @@ create index autograph_publish_jobs_status_idx
 
 create index autograph_edit_events_item_created_idx
   on autograph_edit_events(item_id, created_at);
+
+create index autograph_publish_job_events_event_idx
+  on autograph_publish_job_events(edit_event_id);
 
 create index autograph_cleanup_events_item_status_idx
   on autograph_cleanup_events(item_id, status, created_at);

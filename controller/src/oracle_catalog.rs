@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use async_trait::async_trait;
 use oracle::{Connection, Row};
 use tokio::task;
@@ -9,6 +11,51 @@ use crate::catalog::{
     ImageReplacementInput, PendingChangeSummary, PublicationStatus, PublishBoundary, apply_update,
     event_kind_for_diffs, event_summary, now_epoch_seconds, validate_required_fields,
 };
+
+const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish as (
+    select id, started_at
+    from (
+        select id, started_at, created_at
+        from autograph_publish_jobs
+        where status = 'succeeded'
+        order by started_at desc, created_at desc, id desc
+    )
+    where rownum = 1
+)
+select
+    count(*),
+    cast(round((cast(min(e.created_at) as date) - date '1970-01-01') * 86400) as number(19))
+from autograph_edit_events e
+left join latest_publish p on 1 = 1
+left join autograph_publish_job_events pe
+    on pe.publish_job_id = p.id
+   and pe.edit_event_id = e.id
+where p.id is null
+   or (pe.edit_event_id is null and e.created_at >= p.started_at)";
+
+const ITEM_PENDING_CHANGES_SQL: &str = "with latest_publish as (
+    select id, started_at
+    from (
+        select id, started_at, created_at
+        from autograph_publish_jobs
+        where status = 'succeeded'
+        order by started_at desc, created_at desc, id desc
+    )
+    where rownum = 1
+)
+select
+    count(*),
+    cast(round((cast(min(e.created_at) as date) - date '1970-01-01') * 86400) as number(19))
+from autograph_edit_events e
+left join latest_publish p on 1 = 1
+left join autograph_publish_job_events pe
+    on pe.publish_job_id = p.id
+   and pe.edit_event_id = e.id
+where e.item_id = :1
+  and (
+    p.id is null
+    or (pe.edit_event_id is null and e.created_at >= p.started_at)
+  )";
 
 #[derive(Clone)]
 pub struct OracleCatalogRepository {
@@ -500,20 +547,7 @@ impl CatalogRepository for OracleCatalogRepository {
     async fn pending_changes(&self) -> Result<PendingChangeSummary, String> {
         self.with_connection(move |connection| {
             let mut rows = connection
-                .query(
-                    "with latest_publish as (
-                        select max(started_at) as started_at
-                        from autograph_publish_jobs
-                        where status = 'succeeded'
-                    )
-                    select
-                        count(*),
-                        cast(round((cast(min(e.created_at) as date) - date '1970-01-01') * 86400) as number(19))
-                    from autograph_edit_events e
-                    cross join latest_publish p
-                    where p.started_at is null or e.created_at >= p.started_at",
-                    &[],
-                )
+                .query(GLOBAL_PENDING_CHANGES_SQL, &[])
                 .map_err(|error| format!("read Oracle pending changes: {error}"))?;
             let Some(row) = rows.next() else {
                 return Ok(PendingChangeSummary::default());
@@ -535,21 +569,7 @@ impl CatalogRepository for OracleCatalogRepository {
         self.with_connection(move |connection| {
             let item_id = item_id.to_string();
             let mut rows = connection
-                .query(
-                    "with latest_publish as (
-                        select max(started_at) as started_at
-                        from autograph_publish_jobs
-                        where status = 'succeeded'
-                    )
-                    select
-                        count(*),
-                        cast(round((cast(min(e.created_at) as date) - date '1970-01-01') * 86400) as number(19))
-                    from autograph_edit_events e
-                    cross join latest_publish p
-                    where e.item_id = :1
-                      and (p.started_at is null or e.created_at >= p.started_at)",
-                    &[&item_id],
-                )
+                .query(ITEM_PENDING_CHANGES_SQL, &[&item_id])
                 .map_err(|error| format!("read Oracle item pending changes: {error}"))?;
             let Some(row) = rows.next() else {
                 return Ok(PendingChangeSummary::default());
@@ -557,8 +577,8 @@ impl CatalogRepository for OracleCatalogRepository {
             let row =
                 row.map_err(|error| format!("read Oracle item pending changes row: {error}"))?;
             Ok(PendingChangeSummary {
-                count: row_value::<Option<i64>>(&row, 0, "item pending change count")?
-                    .unwrap_or(0) as usize,
+                count: row_value::<Option<i64>>(&row, 0, "item pending change count")?.unwrap_or(0)
+                    as usize,
                 oldest_changed_at_epoch_seconds: row_value(&row, 1, "oldest item pending change")?,
             })
         })
@@ -566,7 +586,27 @@ impl CatalogRepository for OracleCatalogRepository {
     }
 
     async fn begin_publish_boundary(&self) -> Result<PublishBoundary, String> {
-        Ok(PublishBoundary::conservative(now_epoch_seconds()))
+        self.with_connection(move |connection| {
+            let started_at_epoch_seconds = now_epoch_seconds();
+            let mut rows = connection
+                .query("select id from autograph_edit_events", &[])
+                .map_err(|error| format!("snapshot Oracle publish edit events: {error}"))?;
+            let mut included_event_ids = BTreeSet::new();
+            for row in &mut rows {
+                let row =
+                    row.map_err(|error| format!("read Oracle publish edit event row: {error}"))?;
+                included_event_ids.insert(parse_uuid(&row_value::<String>(
+                    &row,
+                    0,
+                    "publish edit event id",
+                )?)?);
+            }
+            Ok(PublishBoundary {
+                started_at_epoch_seconds,
+                included_event_ids,
+            })
+        })
+        .await
     }
 
     async fn record_successful_publish(
@@ -602,6 +642,7 @@ impl CatalogRepository for OracleCatalogRepository {
                     ],
                 )
                 .map_err(|error| format!("insert Oracle publish job: {error}"))?;
+            insert_publish_job_events(&connection, &id, &publish_boundary.included_event_ids)?;
             connection
                 .commit()
                 .map_err(|error| format!("commit Oracle publish job: {error}"))?;
@@ -891,6 +932,27 @@ fn insert_edit_event(connection: &Connection, event: &AutographEditEvent) -> Res
     Ok(())
 }
 
+fn insert_publish_job_events(
+    connection: &Connection,
+    publish_job_id: &str,
+    included_event_ids: &BTreeSet<Uuid>,
+) -> Result<(), String> {
+    for event_id in included_event_ids {
+        let edit_event_id = event_id.to_string();
+        connection
+            .execute(
+                "insert into autograph_publish_job_events (
+                    publish_job_id, edit_event_id
+                ) values (
+                    :1, :2
+                )",
+                &[&publish_job_id, &edit_event_id],
+            )
+            .map_err(|error| format!("insert Oracle publish job event snapshot: {error}"))?;
+    }
+    Ok(())
+}
+
 fn insert_cleanup_event(connection: &Connection, event: &ImageCleanupEvent) -> Result<(), String> {
     let id_text = event.id.to_string();
     let item_id_text = event.item_id.to_string();
@@ -948,4 +1010,43 @@ fn row_value<T: oracle::sql_type::FromSql>(
 ) -> Result<T, String> {
     row.get(index)
         .map_err(|error| format!("read Oracle catalog {name}: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GLOBAL_PENDING_CHANGES_SQL, ITEM_PENDING_CHANGES_SQL};
+
+    #[test]
+    fn oracle_pending_queries_clear_same_second_events_in_latest_publish_snapshot() {
+        for sql in [GLOBAL_PENDING_CHANGES_SQL, ITEM_PENDING_CHANGES_SQL] {
+            assert!(sql.contains("from autograph_publish_jobs"));
+            assert!(sql.contains("where status = 'succeeded'"));
+            assert!(sql.contains("order by started_at desc, created_at desc, id desc"));
+            assert!(sql.contains("left join autograph_publish_job_events pe"));
+            assert!(sql.contains("pe.publish_job_id = p.id"));
+            assert!(sql.contains("pe.edit_event_id = e.id"));
+            assert!(sql.contains("pe.edit_event_id is null and e.created_at >= p.started_at"));
+        }
+    }
+
+    #[test]
+    fn oracle_item_pending_query_uses_same_snapshot_exclusion_as_global_query() {
+        assert!(ITEM_PENDING_CHANGES_SQL.contains("where e.item_id = :1"));
+
+        for required_fragment in [
+            "left join autograph_publish_job_events pe",
+            "pe.publish_job_id = p.id",
+            "pe.edit_event_id = e.id",
+            "pe.edit_event_id is null and e.created_at >= p.started_at",
+        ] {
+            assert!(
+                ITEM_PENDING_CHANGES_SQL.contains(required_fragment),
+                "item pending query missing `{required_fragment}`"
+            );
+            assert!(
+                GLOBAL_PENDING_CHANGES_SQL.contains(required_fragment),
+                "global pending query missing `{required_fragment}`"
+            );
+        }
+    }
 }
