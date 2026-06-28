@@ -67,6 +67,7 @@ const elements = {
   publishStatus: $("#publish-status"),
   dirtyState: $("#dirty-state"),
   discardUnsaved: $("#discard-unsaved"),
+  publishFromEditor: $("#publish-from-editor"),
 };
 
 const setText = (selector, value) => {
@@ -127,12 +128,15 @@ const buildQuery = (form) => {
 };
 
 const request = async (path, options = {}) => {
+  const { allowAnonymous = false, ...fetchOptions } = options;
   const response = await fetch(path, {
     credentials: "same-origin",
-    ...options,
+    ...fetchOptions,
   });
   if (response.status === 401) {
-    handleAuthFailure();
+    if (!allowAnonymous && !elements.workflowView.hidden) {
+      handleAuthFailure();
+    }
     const error = new Error(copy.sessionExpired);
     error.status = response.status;
     throw error;
@@ -156,10 +160,21 @@ const jsonRequest = (path, method, body) =>
   });
 
 function handleAuthFailure() {
+  showLogin(copy.sessionExpired);
+  elements.sessionStatus.textContent = copy.sessionExpired;
+}
+
+function showWorkflow() {
+  elements.loginView.hidden = true;
+  elements.workflowView.hidden = false;
+  elements.loginMessage.textContent = "";
+  elements.sessionStatus.textContent = "Logged in. Private changes stay here until you publish.";
+}
+
+function showLogin(message = "") {
   elements.workflowView.hidden = true;
   elements.loginView.hidden = false;
-  elements.loginMessage.textContent = copy.sessionExpired;
-  elements.sessionStatus.textContent = copy.sessionExpired;
+  elements.loginMessage.textContent = message;
 }
 
 function setView(viewId) {
@@ -182,9 +197,9 @@ function setView(viewId) {
 
 const pendingCopy = (count) => `${count} saved change(s) have not been published yet.`;
 
-async function renderHub() {
+async function renderHub({ allowAnonymous = false } = {}) {
   try {
-    const diagnostics = await request(endpoints.status);
+    const diagnostics = await request(endpoints.status, { allowAnonymous });
     state.diagnostics = diagnostics;
     const pendingCount = diagnostics.pendingChanges?.count || 0;
     const cleanupCount = diagnostics.cleanup?.warningCount || 0;
@@ -207,10 +222,12 @@ async function renderHub() {
     setText("#publish-pending-summary", pendingCopy(pendingCount));
     elements.hubDiagnostics.textContent = JSON.stringify(diagnostics, null, 2);
     renderDiagnostics();
+    return true;
   } catch (error) {
     if (error.status !== 401) {
       elements.globalMessage.textContent = `Status unavailable: ${error.message}`;
     }
+    return false;
   }
 }
 
@@ -295,6 +312,7 @@ function renderEditor(item = null) {
   state.dirty = false;
   elements.itemForm.reset();
   elements.discardUnsaved.hidden = true;
+  elements.publishFromEditor.setAttribute("aria-disabled", "false");
   setText("#dirty-state", "No unsaved client-side edits.");
   setText("#editor-title", item ? "Edit item" : "Add item");
   setText(
@@ -452,13 +470,18 @@ const formPayload = () => {
 async function saveItem(event) {
   event.preventDefault();
   const id = elements.itemForm.elements.itemId.value.trim();
+  const selectedFiles = Array.from(elements.imageFiles.files);
+  const selectedAltText = elements.itemForm.elements.altText.value.trim();
   try {
     const item = await jsonRequest(id ? endpoints.item(id) : endpoints.items, id ? "PATCH" : "POST", formPayload());
     state.currentItem = item;
-    renderEditor(item);
+    if (selectedFiles.length) {
+      await uploadImages(item.id, selectedFiles, selectedAltText);
+    } else {
+      renderEditor(item);
+    }
     elements.globalMessage.textContent = copy.saveSuccess;
     elements.globalMessage.focus();
-    await uploadImages();
     await renderHub();
   } catch (error) {
     if (error.status !== 401) {
@@ -467,16 +490,20 @@ async function saveItem(event) {
   }
 }
 
-async function uploadImages() {
-  const id = state.currentItem?.id || elements.itemForm.elements.itemId.value.trim();
-  if (!id || elements.imageFiles.files.length === 0) {
+async function uploadImages(
+  itemId = state.currentItem?.id || elements.itemForm.elements.itemId.value.trim(),
+  files = Array.from(elements.imageFiles.files),
+  altText = elements.itemForm.elements.altText.value.trim()
+) {
+  const selectedFiles = Array.from(files);
+  if (!itemId || selectedFiles.length === 0) {
     return;
   }
-  for (const file of elements.imageFiles.files) {
+  for (const file of selectedFiles) {
     const upload = new FormData();
     upload.append("image", file);
-    upload.append("altText", elements.itemForm.elements.altText.value.trim());
-    const item = await request(endpoints.images(id), {
+    upload.append("altText", altText);
+    const item = await request(endpoints.images(itemId), {
       method: "POST",
       body: upload,
     });
@@ -612,8 +639,27 @@ const loadItem = async (id, historyFirst = false) => {
 const markDirty = () => {
   state.dirty = true;
   elements.discardUnsaved.hidden = false;
-  elements.dirtyState.textContent = "Unsaved client-side edits.";
+  elements.publishFromEditor.setAttribute("aria-disabled", "true");
+  elements.dirtyState.textContent = "Unsaved client-side edits. Save before publishing.";
 };
+
+function publishFromEditor() {
+  if (state.dirty) {
+    elements.globalMessage.textContent = "Save item before publishing these changes.";
+    elements.globalMessage.focus();
+    return;
+  }
+  return publishChanges("incremental");
+}
+
+async function bootstrapSession() {
+  const hasSession = await renderHub({ allowAnonymous: true });
+  if (hasSession) {
+    showWorkflow();
+  } else {
+    showLogin();
+  }
+}
 
 elements.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -623,9 +669,7 @@ elements.loginForm.addEventListener("submit", async (event) => {
       password: event.currentTarget.elements.password.value,
     });
     event.currentTarget.reset();
-    elements.loginView.hidden = true;
-    elements.workflowView.hidden = false;
-    elements.sessionStatus.textContent = "Logged in. Private changes stay here until you publish.";
+    showWorkflow();
     setView("hub-view");
   } catch (error) {
     elements.loginMessage.textContent = error.status === 429 ? copy.lockout : "Login failed.";
@@ -636,9 +680,7 @@ elements.logout.addEventListener("click", async () => {
   try {
     await request(endpoints.logout, { method: "POST" });
   } finally {
-    elements.workflowView.hidden = true;
-    elements.loginView.hidden = false;
-    elements.loginMessage.textContent = "Logged out.";
+    showLogin("Logged out.");
   }
 });
 
@@ -655,8 +697,8 @@ $("#refresh-history").addEventListener("click", () => renderHistory());
 $("#back-to-hub").addEventListener("click", () => setView("hub-view"));
 $("#add-another-item").addEventListener("click", () => renderEditor());
 $("#discard-unsaved").addEventListener("click", () => renderEditor(state.currentItem));
-$("#upload-more-images").addEventListener("click", uploadImages);
-$("#publish-from-editor").addEventListener("click", () => publishChanges("incremental"));
+$("#upload-more-images").addEventListener("click", () => uploadImages());
+$("#publish-from-editor").addEventListener("click", publishFromEditor);
 $("#publish-incremental").addEventListener("click", () => publishChanges("incremental"));
 $("#publish-full").addEventListener("click", () => publishChanges("full"));
 
@@ -667,4 +709,4 @@ elements.itemFilters.addEventListener("submit", (event) => {
   renderItemList();
 });
 
-renderHub();
+bootstrapSession();

@@ -111,6 +111,61 @@ fn static_admin_markup_labels_every_form_control() {
     }
 }
 
+#[test]
+fn static_admin_save_captures_image_selection_before_editor_reset() {
+    let source = static_admin_source();
+    for expected in [
+        "const selectedFiles = Array.from(elements.imageFiles.files);",
+        "const selectedAltText = elements.itemForm.elements.altText.value.trim();",
+        "await uploadImages(item.id, selectedFiles, selectedAltText);",
+        "async function uploadImages(",
+        "files = Array.from(elements.imageFiles.files)",
+        "upload.append(\"altText\", altText);",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin source should preserve selected image upload state with {expected}"
+        );
+    }
+}
+
+#[test]
+fn static_admin_publish_from_editor_requires_saved_changes() {
+    let source = static_admin_source();
+    for expected in [
+        "function publishFromEditor()",
+        "if (state.dirty)",
+        "Save item before publishing these changes.",
+        "elements.globalMessage.focus();",
+        "$(\"#publish-from-editor\").addEventListener(\"click\", publishFromEditor);",
+        "elements.publishFromEditor.setAttribute(\"aria-disabled\", \"true\");",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin source should block stale editor publishes with {expected}"
+        );
+    }
+}
+
+#[test]
+fn static_admin_bootstraps_existing_sessions_without_expired_copy() {
+    let source = static_admin_source();
+    for expected in [
+        "const { allowAnonymous = false, ...fetchOptions } = options;",
+        "if (!allowAnonymous && !elements.workflowView.hidden)",
+        "async function bootstrapSession()",
+        "await renderHub({ allowAnonymous: true });",
+        "showWorkflow();",
+        "showLogin();",
+        "bootstrapSession();",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin source should keep initial anonymous bootstrap distinct with {expected}"
+        );
+    }
+}
+
 fn static_admin_source() -> String {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static-admin");
     ["index.html", "admin.js", "admin.css"]
