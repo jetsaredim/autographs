@@ -12,26 +12,15 @@ use crate::catalog::{
     event_kind_for_diffs, event_summary, now_epoch_seconds, validate_required_fields,
 };
 
-const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish_job as (
-    select id, started_at
+const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish as (
+    select id, started_at, snapshot_event_count
     from (
-        select id, started_at, created_at
+        select id, started_at, snapshot_event_count, created_at
         from autograph_publish_jobs
         where status = 'succeeded'
         order by started_at desc, created_at desc, id desc
     )
     where rownum = 1
-),
-latest_publish as (
-    select
-        p.id,
-        p.started_at,
-        case when exists (
-            select 1
-            from autograph_publish_job_events snapshot_events
-            where snapshot_events.publish_job_id = p.id
-        ) then 1 else 0 end as has_snapshot_rows
-    from latest_publish_job p
 )
 select
     count(*),
@@ -42,29 +31,18 @@ left join autograph_publish_job_events pe
     on pe.publish_job_id = p.id
    and pe.edit_event_id = e.id
 where p.id is null
-   or (p.has_snapshot_rows = 1 and pe.edit_event_id is null)
-   or (p.has_snapshot_rows = 0 and e.created_at >= p.started_at)";
+   or (p.snapshot_event_count is not null and pe.edit_event_id is null)
+   or (p.snapshot_event_count is null and e.created_at >= p.started_at)";
 
-const ITEM_PENDING_CHANGES_SQL: &str = "with latest_publish_job as (
-    select id, started_at
+const ITEM_PENDING_CHANGES_SQL: &str = "with latest_publish as (
+    select id, started_at, snapshot_event_count
     from (
-        select id, started_at, created_at
+        select id, started_at, snapshot_event_count, created_at
         from autograph_publish_jobs
         where status = 'succeeded'
         order by started_at desc, created_at desc, id desc
     )
     where rownum = 1
-),
-latest_publish as (
-    select
-        p.id,
-        p.started_at,
-        case when exists (
-            select 1
-            from autograph_publish_job_events snapshot_events
-            where snapshot_events.publish_job_id = p.id
-        ) then 1 else 0 end as has_snapshot_rows
-    from latest_publish_job p
 )
 select
     count(*),
@@ -77,8 +55,8 @@ left join autograph_publish_job_events pe
 where e.item_id = :1
   and (
     p.id is null
-    or (p.has_snapshot_rows = 1 and pe.edit_event_id is null)
-    or (p.has_snapshot_rows = 0 and e.created_at >= p.started_at)
+    or (p.snapshot_event_count is not null and pe.edit_event_id is null)
+    or (p.snapshot_event_count is null and e.created_at >= p.started_at)
   )";
 
 #[derive(Clone)]
@@ -647,20 +625,22 @@ impl CatalogRepository for OracleCatalogRepository {
             let id = Uuid::new_v4().to_string();
             let status = "succeeded";
             let started_at_epoch_seconds = publish_boundary.started_at_epoch_seconds;
+            let snapshot_event_count = publish_boundary.included_event_ids.len() as i64;
             connection
                 .execute(
                     "insert into autograph_publish_jobs (
-                        id, publish_mode, status, release_id, started_at, finished_at
+                        id, publish_mode, status, release_id, snapshot_event_count, started_at, finished_at
                     ) values (
-                        :1, :2, :3, :4,
-                        timestamp '1970-01-01 00:00:00' + numtodsinterval(:5, 'SECOND'),
-                        timestamp '1970-01-01 00:00:00' + numtodsinterval(:6, 'SECOND')
+                        :1, :2, :3, :4, :5,
+                        timestamp '1970-01-01 00:00:00' + numtodsinterval(:6, 'SECOND'),
+                        timestamp '1970-01-01 00:00:00' + numtodsinterval(:7, 'SECOND')
                     )",
                     &[
                         &id,
                         &mode,
                         &status,
                         &release_id,
+                        &snapshot_event_count,
                         &started_at_epoch_seconds,
                         &finished_at_epoch_seconds,
                     ],
@@ -1046,14 +1026,16 @@ mod tests {
             assert!(sql.contains("from autograph_publish_jobs"));
             assert!(sql.contains("where status = 'succeeded'"));
             assert!(sql.contains("order by started_at desc, created_at desc, id desc"));
-            assert!(sql.contains("case when exists ("));
-            assert!(sql.contains("from autograph_publish_job_events snapshot_events"));
-            assert!(sql.contains("then 1 else 0 end as has_snapshot_rows"));
+            assert!(sql.contains("snapshot_event_count"));
             assert!(sql.contains("left join autograph_publish_job_events pe"));
             assert!(sql.contains("pe.publish_job_id = p.id"));
             assert!(sql.contains("pe.edit_event_id = e.id"));
-            assert!(sql.contains("p.has_snapshot_rows = 1 and pe.edit_event_id is null"));
-            assert!(sql.contains("p.has_snapshot_rows = 0 and e.created_at >= p.started_at"));
+            assert!(
+                sql.contains("p.snapshot_event_count is not null and pe.edit_event_id is null")
+            );
+            assert!(
+                sql.contains("p.snapshot_event_count is null and e.created_at >= p.started_at")
+            );
             assert!(!sql.contains("pe.edit_event_id is null and e.created_at >= p.started_at"));
         }
     }
@@ -1066,8 +1048,8 @@ mod tests {
             "left join autograph_publish_job_events pe",
             "pe.publish_job_id = p.id",
             "pe.edit_event_id = e.id",
-            "p.has_snapshot_rows = 1 and pe.edit_event_id is null",
-            "p.has_snapshot_rows = 0 and e.created_at >= p.started_at",
+            "p.snapshot_event_count is not null and pe.edit_event_id is null",
+            "p.snapshot_event_count is null and e.created_at >= p.started_at",
         ] {
             assert!(
                 ITEM_PENDING_CHANGES_SQL.contains(required_fragment),

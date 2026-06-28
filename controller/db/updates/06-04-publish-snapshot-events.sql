@@ -32,6 +32,22 @@ end;
 /
 
 declare
+  column_count number;
+begin
+  select count(*)
+    into column_count
+    from user_tab_columns
+   where table_name = 'AUTOGRAPH_PUBLISH_JOBS'
+     and column_name = 'SNAPSHOT_EVENT_COUNT';
+
+  if column_count = 0 then
+    execute immediate
+      'alter table autograph_publish_jobs add snapshot_event_count number(10)';
+  end if;
+end;
+/
+
+declare
   index_count number;
 begin
   select count(*)

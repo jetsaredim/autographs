@@ -69,6 +69,7 @@ create table autograph_publish_jobs (
   status varchar2(24) not null,
   release_id varchar2(128),
   error_detail clob,
+  snapshot_event_count number(10),
   started_at timestamp default current_timestamp not null,
   finished_at timestamp,
   created_at timestamp default current_timestamp not null,
