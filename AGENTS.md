@@ -189,6 +189,7 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 - When a review agent is deployed on a GitHub PR, every actionable finding from that agent must be written back to the PR as a GitHub comment.
 - Prefer inline review comments when a finding maps to a specific changed line; otherwise post a single PR-level review/comment that groups the remaining findings by severity.
 - Do not leave review-agent findings only in chat, local files, or agent summaries. The PR must contain the review feedback so it is visible during code review.
+- When the review comes back clean, post a short PR comment confirming that the review was clean and no actionable findings remain.
 - If GitHub comment creation fails because of connectivity, credentials, permissions, or API errors, stop and report the failed command/API action plus the finding text that still needs to be posted.
 
 
