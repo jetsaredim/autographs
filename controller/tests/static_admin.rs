@@ -130,21 +130,54 @@ fn static_admin_save_captures_image_selection_before_editor_reset() {
 }
 
 #[test]
-fn static_admin_publish_from_editor_requires_saved_changes() {
+fn static_admin_publish_actions_require_saved_changes_in_shared_path() {
     let source = static_admin_source();
     for expected in [
+        "function ensureSavedBeforePublish()",
+        "if (!state.dirty)",
+        "setView(\"add-item-view\");",
         "function publishFromEditor()",
-        "if (state.dirty)",
+        "async function publishChanges(mode = \"incremental\")",
+        "if (!ensureSavedBeforePublish())",
         "Save item before publishing these changes.",
         "elements.globalMessage.focus();",
         "$(\"#publish-from-editor\").addEventListener(\"click\", publishFromEditor);",
+        "$(\"#publish-incremental\").addEventListener(\"click\", () => publishChanges(\"incremental\"));",
+        "$(\"#publish-full\").addEventListener(\"click\", () => publishChanges(\"full\"));",
         "elements.publishFromEditor.setAttribute(\"aria-disabled\", \"true\");",
     ] {
         assert!(
             source.contains(expected),
-            "static admin source should block stale editor publishes with {expected}"
+            "static admin source should block stale publishes through the shared path with {expected}"
         );
     }
+
+    let publish_start = source
+        .find("async function publishChanges(mode = \"incremental\")")
+        .expect("publishChanges exists");
+    let publish_source = &source[publish_start..];
+    let guard_position = publish_source
+        .find("if (!ensureSavedBeforePublish())")
+        .expect("publishChanges checks dirty editor state");
+    let full_confirm_position = publish_source
+        .find("if (mode === \"full\"")
+        .expect("publishChanges retains full rebuild confirmation");
+    assert!(
+        guard_position < full_confirm_position,
+        "publishChanges should block dirty editor state before prompting for a full rebuild"
+    );
+
+    let editor_start = source
+        .find("function publishFromEditor()")
+        .expect("publishFromEditor exists");
+    let editor_source = &source[editor_start..source[editor_start..]
+        .find("\n}\n\nasync function bootstrapSession")
+        .map(|end| editor_start + end)
+        .expect("publishFromEditor body ends before bootstrapSession")];
+    assert!(
+        !editor_source.contains("state.dirty"),
+        "publishFromEditor should delegate dirty-state protection to publishChanges"
+    );
 }
 
 #[test]

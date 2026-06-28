@@ -597,7 +597,20 @@ async function retryCleanup(imageId) {
   }
 }
 
+function ensureSavedBeforePublish() {
+  if (!state.dirty) {
+    return true;
+  }
+  setView("add-item-view");
+  elements.globalMessage.textContent = "Save item before publishing these changes.";
+  elements.globalMessage.focus();
+  return false;
+}
+
 async function publishChanges(mode = "incremental") {
+  if (!ensureSavedBeforePublish()) {
+    return;
+  }
   if (mode === "full" && !window.confirm(copy.fullRebuild)) {
     return;
   }
@@ -644,11 +657,6 @@ const markDirty = () => {
 };
 
 function publishFromEditor() {
-  if (state.dirty) {
-    elements.globalMessage.textContent = "Save item before publishing these changes.";
-    elements.globalMessage.focus();
-    return;
-  }
   return publishChanges("incremental");
 }
 
