@@ -501,25 +501,33 @@ async function uploadImages(
   options = {}
 ) {
   if (!options.allowDirty && !ensureSavedBeforeImageChange()) {
-    return;
+    return false;
   }
   const selectedFiles = Array.from(files);
   if (!itemId || selectedFiles.length === 0) {
-    return;
+    return false;
   }
-  for (const file of selectedFiles) {
-    const upload = new FormData();
-    upload.append("image", file);
-    upload.append("altText", altText);
-    const item = await request(endpoints.images(itemId), {
-      method: "POST",
-      body: upload,
-    });
-    state.currentItem = item;
+  try {
+    for (const file of selectedFiles) {
+      const upload = new FormData();
+      upload.append("image", file);
+      upload.append("altText", altText);
+      const item = await request(endpoints.images(itemId), {
+        method: "POST",
+        body: upload,
+      });
+      state.currentItem = item;
+    }
+    elements.imageFiles.value = "";
+    renderEditor(state.currentItem);
+    elements.imageMessage.textContent = "Images uploaded. Mark one primary image if needed.";
+    return true;
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.imageMessage.textContent = `Image upload failed: ${error.message}`;
+    }
+    return false;
   }
-  elements.imageFiles.value = "";
-  renderEditor(state.currentItem);
-  elements.imageMessage.textContent = "Images uploaded. Mark one primary image if needed.";
 }
 
 async function markPrimary(imageId) {

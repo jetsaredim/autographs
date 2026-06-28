@@ -123,6 +123,7 @@ fn static_admin_save_captures_image_selection_before_editor_reset() {
         "files = Array.from(elements.imageFiles.files)",
         "options = {}",
         "if (!options.allowDirty && !ensureSavedBeforeImageChange())",
+        "Image upload failed:",
         "upload.append(\"altText\", altText);",
     ] {
         assert!(
