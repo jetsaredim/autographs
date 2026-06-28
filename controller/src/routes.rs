@@ -20,7 +20,7 @@ use crate::{
     },
     config::ControllerConfig,
     media::{LocalMediaStore, PrivateMediaStore},
-    publisher::{LocalPublisher, PublishMode},
+    publisher::{LocalPublisher, PublishMode, PublishStatus, ReleaseRetentionPolicy},
     storage_keys::build_original_object_key,
 };
 
@@ -170,11 +170,18 @@ pub fn router_with_stores(
     media: Arc<dyn PrivateMediaStore>,
 ) -> Router {
     let static_release_root = config.static_release_root.clone();
+    let retention_policy = ReleaseRetentionPolicy::new(
+        config.static_promoted_release_retain_count,
+        config.static_failed_candidate_retain_count,
+    );
     router_with_services(
         config,
         repository,
         media,
-        Arc::new(LocalPublisher::new(static_release_root)),
+        Arc::new(LocalPublisher::with_retention_policy(
+            static_release_root,
+            retention_policy,
+        )),
     )
 }
 
@@ -200,6 +207,7 @@ pub fn router_with_services(
     Router::new()
         .route("/health", get(health))
         .route("/admin/api/health", get(admin_health))
+        .route("/admin/api/status", get(admin_status))
         .route("/admin/api/login", post(login))
         .route("/admin/api/logout", post(logout))
         .route("/admin/api/protected", get(protected))
@@ -254,6 +262,68 @@ async fn admin_health(State(state): State<AppState>) -> Json<AdminHealthResponse
         media_configured: state.config.media_configured,
         static_release_configured: state.config.static_release_configured,
     })
+}
+
+async fn admin_status(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    if authenticate(&state, &headers).is_none() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    let pending_changes = match state.repository.pending_changes().await {
+        Ok(summary) => summary,
+        Err(error) => {
+            tracing::error!(error = %error, "failed to load pending changes for admin status");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let cleanup_warning_count = match cleanup_warning_count(&state).await {
+        Ok(count) => count,
+        Err(error) => {
+            tracing::error!(error = %error, "failed to load cleanup warnings for admin status");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let release_retention = match state.publisher.retention_status() {
+        Ok(status) => status,
+        Err(error) => {
+            tracing::error!(error = %error, "failed to load release retention status");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    Json(AdminStatusResponse {
+        providers: ProviderModesResponse {
+            database: provider("AUTOGRAPHS_CONTROLLER_DB_PROVIDER"),
+            media: provider("AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER"),
+        },
+        controller: ControllerStatusResponse {
+            ok: true,
+            oracle_configured: state.config.oracle_configured,
+            media_configured: state.config.media_configured,
+            static_release_configured: state.config.static_release_configured,
+        },
+        publish: PublishSummaryResponse::from(state.publisher.status()),
+        pending_changes: PendingChangesResponse {
+            count: pending_changes.count,
+            oldest_changed_at_epoch_seconds: pending_changes.oldest_changed_at_epoch_seconds,
+            has_pending_changes: pending_changes.count > 0,
+        },
+        cleanup: CleanupSummaryResponse {
+            warning_count: cleanup_warning_count,
+            has_warnings: cleanup_warning_count > 0,
+        },
+        release_retention: ReleaseRetentionResponse {
+            active_release_id: release_retention.active_release_id,
+            promoted_release_retain_count: release_retention.promoted_release_retain_count,
+            promoted_release_count: release_retention.promoted_release_count,
+            failed_candidate_retain_count: release_retention.failed_candidate_retain_count,
+            failed_candidate_count: release_retention.failed_candidate_count,
+        },
+        live_smoke_guidance:
+            "Run live smoke from docs/static-runtime-runbook.md when Oracle/Object Storage behavior changes.",
+        cleanup_guidance: "Cleanup warnings must be resolved before trusting a publish batch.",
+    })
+    .into_response()
 }
 
 async fn login(State(state): State<AppState>, Json(payload): Json<LoginRequest>) -> Response {
@@ -942,6 +1012,13 @@ async fn publish(
     }
 
     let started = Instant::now();
+    let publish_boundary = match state.repository.begin_publish_boundary().await {
+        Ok(boundary) => boundary,
+        Err(error) => {
+            tracing::error!(error = %error, "failed to capture publish boundary");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
     tracing::info!(mode = ?mode, "publishing static release");
     match state
         .publisher
@@ -949,6 +1026,23 @@ async fn publish(
         .await
     {
         Ok(status) => {
+            let finished_at_epoch_seconds = status
+                .finished_at_epoch_seconds
+                .unwrap_or_else(now_epoch_seconds);
+            if let Err(error) = state
+                .repository
+                .record_successful_publish(
+                    publish_mode_label(mode),
+                    status.release_id.as_deref(),
+                    publish_boundary,
+                    status.started_at_epoch_seconds,
+                    finished_at_epoch_seconds,
+                )
+                .await
+            {
+                tracing::error!(error = %error, "failed to record successful publish job");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
             tracing::info!(
                 mode = ?mode,
                 release_id = status.release_id.as_deref().unwrap_or("<none>"),
@@ -975,6 +1069,22 @@ async fn publish_status(State(state): State<AppState>, headers: HeaderMap) -> Re
         return StatusCode::UNAUTHORIZED.into_response();
     }
     Json(state.publisher.status()).into_response()
+}
+
+fn publish_mode_label(mode: PublishMode) -> &'static str {
+    match mode {
+        PublishMode::Full => "full",
+        PublishMode::Incremental => "incremental",
+    }
+}
+
+async fn cleanup_warning_count(state: &AppState) -> Result<usize, String> {
+    let items = state.repository.list().await?;
+    let mut count = 0;
+    for item in items {
+        count += state.repository.cleanup_warnings(item.id).await?.len();
+    }
+    Ok(count)
 }
 
 fn authorize_mutation(
@@ -1062,6 +1172,86 @@ struct CleanupWarningResponse {
 #[serde(rename_all = "camelCase")]
 struct CleanupWarningEnvelope {
     cleanup_warning: CleanupWarningResponse,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdminStatusResponse {
+    providers: ProviderModesResponse,
+    controller: ControllerStatusResponse,
+    publish: PublishSummaryResponse,
+    pending_changes: PendingChangesResponse,
+    cleanup: CleanupSummaryResponse,
+    release_retention: ReleaseRetentionResponse,
+    live_smoke_guidance: &'static str,
+    cleanup_guidance: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderModesResponse {
+    database: String,
+    media: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ControllerStatusResponse {
+    ok: bool,
+    oracle_configured: bool,
+    media_configured: bool,
+    static_release_configured: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PublishSummaryResponse {
+    state: String,
+    release_id: Option<String>,
+    artifact_count: usize,
+    byte_size: usize,
+    started_at_epoch_seconds: Option<i64>,
+    finished_at_epoch_seconds: Option<i64>,
+    error: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PendingChangesResponse {
+    count: usize,
+    oldest_changed_at_epoch_seconds: Option<i64>,
+    has_pending_changes: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CleanupSummaryResponse {
+    warning_count: usize,
+    has_warnings: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReleaseRetentionResponse {
+    active_release_id: Option<String>,
+    promoted_release_retain_count: usize,
+    promoted_release_count: usize,
+    failed_candidate_retain_count: usize,
+    failed_candidate_count: usize,
+}
+
+impl From<PublishStatus> for PublishSummaryResponse {
+    fn from(status: PublishStatus) -> Self {
+        Self {
+            state: status.state,
+            release_id: status.release_id,
+            artifact_count: status.artifact_count,
+            byte_size: status.byte_size,
+            started_at_epoch_seconds: status.started_at_epoch_seconds,
+            finished_at_epoch_seconds: status.finished_at_epoch_seconds,
+            error: status.error,
+        }
+    }
 }
 
 impl From<CleanupWarning> for CleanupWarningEnvelope {

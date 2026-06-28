@@ -14,7 +14,8 @@ use autographs_controller::{
     contracts::{ImageVariantName, PublicCatalog, PublicItemDetail, PublishManifest},
     media::{LocalMediaStore, PrivateMediaStore},
     publisher::{
-        LocalPublisher, PublishChange, PublishMode, artifact_impact_for, validate_candidate,
+        LocalPublisher, PublishChange, PublishMode, ReleaseRetentionPolicy, artifact_impact_for,
+        validate_candidate,
     },
     routes::router_with_services,
     storage_keys::build_original_object_key,
@@ -565,8 +566,92 @@ async fn publisher_failed_publish_retains_only_latest_candidate() {
     );
     let status = publisher.status();
     assert_eq!(status.state, "failed");
-    assert!(status.error.is_some());
-    assert!(!status.error.unwrap().contains("objectKey"));
+    assert_eq!(
+        status.error.as_deref(),
+        Some("Static publish failed. Check controller logs for details.")
+    );
+}
+
+#[tokio::test]
+async fn publisher_retention_prunes_promoted_releases_without_deleting_current_target() {
+    let fixture = fixture().await;
+    let publisher = LocalPublisher::with_retention_policy(
+        fixture.root.path(),
+        ReleaseRetentionPolicy {
+            promoted_release_retain_count: 2,
+            failed_candidate_retain_count: 1,
+        },
+    );
+
+    for _ in 0..4 {
+        publisher
+            .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+            .await
+            .unwrap();
+    }
+
+    let current = fixture.root.path().join("current");
+    let current_target = current.canonicalize().unwrap();
+    assert!(current.join("manifest.json").is_file());
+    assert!(current_target.join("manifest.json").is_file());
+
+    let releases = fs::read_dir(fixture.root.path().join("releases"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.is_dir())
+        .collect::<Vec<_>>();
+    assert_eq!(releases.len(), 2);
+    assert!(
+        releases
+            .iter()
+            .any(|release| release.canonicalize().unwrap() == current_target),
+        "retention must keep the active current release target"
+    );
+
+    let retention = publisher.retention_status().unwrap();
+    assert_eq!(retention.promoted_release_retain_count, 2);
+    assert_eq!(retention.promoted_release_count, 2);
+    assert_eq!(
+        retention.active_release_id.as_deref(),
+        publisher.status().release_id.as_deref()
+    );
+}
+
+#[tokio::test]
+async fn publisher_retention_prunes_failed_candidates_to_configured_newest_count() {
+    let fixture = fixture().await;
+    fixture
+        .media
+        .write(&fixture.published.images[0].object_key, b"not an image")
+        .await
+        .unwrap();
+    let publisher = LocalPublisher::with_retention_policy(
+        fixture.root.path(),
+        ReleaseRetentionPolicy {
+            promoted_release_retain_count: 5,
+            failed_candidate_retain_count: 2,
+        },
+    );
+
+    for _ in 0..4 {
+        assert!(
+            publisher
+                .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+                .await
+                .is_err()
+        );
+    }
+
+    let failed = fs::read_dir(fixture.root.path().join("failed"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.is_dir())
+        .collect::<Vec<_>>();
+    assert_eq!(failed.len(), 2);
+
+    let retention = publisher.retention_status().unwrap();
+    assert_eq!(retention.failed_candidate_retain_count, 2);
+    assert_eq!(retention.failed_candidate_count, 2);
 }
 
 async fn fixture() -> Fixture {

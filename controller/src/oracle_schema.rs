@@ -9,6 +9,7 @@ const EXPECTED_TABLES: &[&str] = &[
     "AUTOGRAPH_IMAGES",
     "AUTOGRAPH_PUBLISH_JOBS",
     "AUTOGRAPH_EDIT_EVENTS",
+    "AUTOGRAPH_PUBLISH_JOB_EVENTS",
     "AUTOGRAPH_CLEANUP_EVENTS",
     "AUTOGRAPH_PUBLIC_DERIVATIVES",
 ];
@@ -16,8 +17,10 @@ const REQUIRED_COLUMNS: &[(&str, &str)] = &[
     ("AUTOGRAPH_ITEMS", "PUBLICATION_STATUS"),
     ("AUTOGRAPH_IMAGES", "ORIGINAL_FILENAME"),
     ("AUTOGRAPH_PUBLISH_JOBS", "STATUS"),
+    ("AUTOGRAPH_PUBLISH_JOBS", "SNAPSHOT_EVENT_COUNT"),
     ("AUTOGRAPH_EDIT_EVENTS", "EVENT_TYPE"),
     ("AUTOGRAPH_EDIT_EVENTS", "FIELD_DIFFS_JSON"),
+    ("AUTOGRAPH_PUBLISH_JOB_EVENTS", "EDIT_EVENT_ID"),
     ("AUTOGRAPH_CLEANUP_EVENTS", "ADMIN_MESSAGE"),
     ("AUTOGRAPH_CLEANUP_EVENTS", "TARGET_OBJECT_KEY"),
     ("AUTOGRAPH_CLEANUP_EVENTS", "RESOLVED_AT"),
@@ -113,6 +116,7 @@ fn existing_autograph_tables(connection: &Connection) -> Result<HashSet<String>,
                 'AUTOGRAPH_IMAGES',
                 'AUTOGRAPH_PUBLISH_JOBS',
                 'AUTOGRAPH_EDIT_EVENTS',
+                'AUTOGRAPH_PUBLISH_JOB_EVENTS',
                 'AUTOGRAPH_CLEANUP_EVENTS',
                 'AUTOGRAPH_PUBLIC_DERIVATIVES'
             )",
@@ -208,7 +212,25 @@ mod tests {
         assert!(
             statements
                 .iter()
+                .any(|statement| statement.starts_with("create table autograph_publish_job_events"))
+        );
+        assert!(
+            statements
+                .iter()
                 .any(|statement| statement.starts_with("create table autograph_cleanup_events"))
         );
+    }
+
+    #[test]
+    fn publish_snapshot_update_script_creates_event_mapping_table() {
+        let script = include_str!("../db/updates/06-04-publish-snapshot-events.sql");
+
+        assert!(script.contains("AUTOGRAPH_PUBLISH_JOB_EVENTS"));
+        assert!(script.contains("create table autograph_publish_job_events"));
+        assert!(script.contains("publish_job_id varchar2(36) not null"));
+        assert!(script.contains("edit_event_id varchar2(36) not null"));
+        assert!(script.contains("references autograph_publish_jobs(id) on delete cascade"));
+        assert!(script.contains("references autograph_edit_events(id) on delete cascade"));
+        assert!(script.contains("create index autograph_publish_job_events_event_idx"));
     }
 }

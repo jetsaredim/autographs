@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use async_trait::async_trait;
 use oracle::{Connection, Row};
 use tokio::task;
@@ -6,9 +8,56 @@ use uuid::Uuid;
 use crate::catalog::{
     AutographEditEvent, AutographImage, AutographItem, AutographItemInput, AutographItemUpdate,
     CatalogRepository, CleanupStatus, CleanupWarning, EditEventKind, FieldDiff, ImageCleanupEvent,
-    ImageReplacementInput, PendingChangeSummary, PublicationStatus, apply_update,
+    ImageReplacementInput, PendingChangeSummary, PublicationStatus, PublishBoundary, apply_update,
     event_kind_for_diffs, event_summary, now_epoch_seconds, validate_required_fields,
 };
+
+const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish as (
+    select id, started_at, snapshot_event_count
+    from (
+        select id, started_at, snapshot_event_count, created_at
+        from autograph_publish_jobs
+        where status = 'succeeded'
+        order by started_at desc, created_at desc, id desc
+    )
+    where rownum = 1
+)
+select
+    count(*),
+    cast(round((cast(min(e.created_at) as date) - date '1970-01-01') * 86400) as number(19))
+from autograph_edit_events e
+left join latest_publish p on 1 = 1
+left join autograph_publish_job_events pe
+    on pe.publish_job_id = p.id
+   and pe.edit_event_id = e.id
+where p.id is null
+   or (p.snapshot_event_count is not null and pe.edit_event_id is null)
+   or (p.snapshot_event_count is null and e.created_at >= p.started_at)";
+
+const ITEM_PENDING_CHANGES_SQL: &str = "with latest_publish as (
+    select id, started_at, snapshot_event_count
+    from (
+        select id, started_at, snapshot_event_count, created_at
+        from autograph_publish_jobs
+        where status = 'succeeded'
+        order by started_at desc, created_at desc, id desc
+    )
+    where rownum = 1
+)
+select
+    count(*),
+    cast(round((cast(min(e.created_at) as date) - date '1970-01-01') * 86400) as number(19))
+from autograph_edit_events e
+left join latest_publish p on 1 = 1
+left join autograph_publish_job_events pe
+    on pe.publish_job_id = p.id
+   and pe.edit_event_id = e.id
+where e.item_id = :1
+  and (
+    p.id is null
+    or (p.snapshot_event_count is not null and pe.edit_event_id is null)
+    or (p.snapshot_event_count is null and e.created_at >= p.started_at)
+  )";
 
 #[derive(Clone)]
 pub struct OracleCatalogRepository {
@@ -498,10 +547,112 @@ impl CatalogRepository for OracleCatalogRepository {
     }
 
     async fn pending_changes(&self) -> Result<PendingChangeSummary, String> {
-        // Publish-job persistence is not wired to Oracle yet, so there is no reliable
-        // persisted publish boundary to compare edit events against.
-        // Keep this provisional until publish jobs are recorded in autograph_publish_jobs.
-        Ok(PendingChangeSummary::default())
+        self.with_connection(move |connection| {
+            let mut rows = connection
+                .query(GLOBAL_PENDING_CHANGES_SQL, &[])
+                .map_err(|error| format!("read Oracle pending changes: {error}"))?;
+            let Some(row) = rows.next() else {
+                return Ok(PendingChangeSummary::default());
+            };
+            let row = row.map_err(|error| format!("read Oracle pending changes row: {error}"))?;
+            Ok(PendingChangeSummary {
+                count: row_value::<Option<i64>>(&row, 0, "pending change count")?.unwrap_or(0)
+                    as usize,
+                oldest_changed_at_epoch_seconds: row_value(&row, 1, "oldest pending change")?,
+            })
+        })
+        .await
+    }
+
+    async fn pending_changes_for_item(
+        &self,
+        item_id: Uuid,
+    ) -> Result<PendingChangeSummary, String> {
+        self.with_connection(move |connection| {
+            let item_id = item_id.to_string();
+            let mut rows = connection
+                .query(ITEM_PENDING_CHANGES_SQL, &[&item_id])
+                .map_err(|error| format!("read Oracle item pending changes: {error}"))?;
+            let Some(row) = rows.next() else {
+                return Ok(PendingChangeSummary::default());
+            };
+            let row =
+                row.map_err(|error| format!("read Oracle item pending changes row: {error}"))?;
+            Ok(PendingChangeSummary {
+                count: row_value::<Option<i64>>(&row, 0, "item pending change count")?.unwrap_or(0)
+                    as usize,
+                oldest_changed_at_epoch_seconds: row_value(&row, 1, "oldest item pending change")?,
+            })
+        })
+        .await
+    }
+
+    async fn begin_publish_boundary(&self) -> Result<PublishBoundary, String> {
+        self.with_connection(move |connection| {
+            let started_at_epoch_seconds = now_epoch_seconds();
+            let mut rows = connection
+                .query("select id from autograph_edit_events", &[])
+                .map_err(|error| format!("snapshot Oracle publish edit events: {error}"))?;
+            let mut included_event_ids = BTreeSet::new();
+            for row in &mut rows {
+                let row =
+                    row.map_err(|error| format!("read Oracle publish edit event row: {error}"))?;
+                included_event_ids.insert(parse_uuid(&row_value::<String>(
+                    &row,
+                    0,
+                    "publish edit event id",
+                )?)?);
+            }
+            Ok(PublishBoundary {
+                started_at_epoch_seconds,
+                included_event_ids,
+            })
+        })
+        .await
+    }
+
+    async fn record_successful_publish(
+        &self,
+        mode: &str,
+        release_id: Option<&str>,
+        publish_boundary: PublishBoundary,
+        _started_at_epoch_seconds: Option<i64>,
+        finished_at_epoch_seconds: i64,
+    ) -> Result<(), String> {
+        let mode = mode.to_owned();
+        let release_id = release_id.map(str::to_owned);
+        self.with_connection(move |connection| {
+            let id = Uuid::new_v4().to_string();
+            let status = "succeeded";
+            let started_at_epoch_seconds = publish_boundary.started_at_epoch_seconds;
+            let snapshot_event_count = publish_boundary.included_event_ids.len() as i64;
+            connection
+                .execute(
+                    "insert into autograph_publish_jobs (
+                        id, publish_mode, status, release_id, snapshot_event_count, started_at, finished_at
+                    ) values (
+                        :1, :2, :3, :4, :5,
+                        timestamp '1970-01-01 00:00:00' + numtodsinterval(:6, 'SECOND'),
+                        timestamp '1970-01-01 00:00:00' + numtodsinterval(:7, 'SECOND')
+                    )",
+                    &[
+                        &id,
+                        &mode,
+                        &status,
+                        &release_id,
+                        &snapshot_event_count,
+                        &started_at_epoch_seconds,
+                        &finished_at_epoch_seconds,
+                    ],
+                )
+                .map_err(|error| format!("insert Oracle publish job: {error}"))?;
+            insert_publish_job_events(&connection, &id, &publish_boundary.included_event_ids)?;
+            connection
+                .commit()
+                .map_err(|error| format!("commit Oracle publish job: {error}"))?;
+            Ok(())
+        })
+        .await
     }
 
     async fn record_event(&self, event: AutographEditEvent) -> Result<AutographEditEvent, String> {
@@ -785,6 +936,27 @@ fn insert_edit_event(connection: &Connection, event: &AutographEditEvent) -> Res
     Ok(())
 }
 
+fn insert_publish_job_events(
+    connection: &Connection,
+    publish_job_id: &str,
+    included_event_ids: &BTreeSet<Uuid>,
+) -> Result<(), String> {
+    for event_id in included_event_ids {
+        let edit_event_id = event_id.to_string();
+        connection
+            .execute(
+                "insert into autograph_publish_job_events (
+                    publish_job_id, edit_event_id
+                ) values (
+                    :1, :2
+                )",
+                &[&publish_job_id, &edit_event_id],
+            )
+            .map_err(|error| format!("insert Oracle publish job event snapshot: {error}"))?;
+    }
+    Ok(())
+}
+
 fn insert_cleanup_event(connection: &Connection, event: &ImageCleanupEvent) -> Result<(), String> {
     let id_text = event.id.to_string();
     let item_id_text = event.item_id.to_string();
@@ -842,4 +1014,51 @@ fn row_value<T: oracle::sql_type::FromSql>(
 ) -> Result<T, String> {
     row.get(index)
         .map_err(|error| format!("read Oracle catalog {name}: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GLOBAL_PENDING_CHANGES_SQL, ITEM_PENDING_CHANGES_SQL};
+
+    #[test]
+    fn oracle_pending_queries_use_snapshot_membership_before_timestamp_fallback() {
+        for sql in [GLOBAL_PENDING_CHANGES_SQL, ITEM_PENDING_CHANGES_SQL] {
+            assert!(sql.contains("from autograph_publish_jobs"));
+            assert!(sql.contains("where status = 'succeeded'"));
+            assert!(sql.contains("order by started_at desc, created_at desc, id desc"));
+            assert!(sql.contains("snapshot_event_count"));
+            assert!(sql.contains("left join autograph_publish_job_events pe"));
+            assert!(sql.contains("pe.publish_job_id = p.id"));
+            assert!(sql.contains("pe.edit_event_id = e.id"));
+            assert!(
+                sql.contains("p.snapshot_event_count is not null and pe.edit_event_id is null")
+            );
+            assert!(
+                sql.contains("p.snapshot_event_count is null and e.created_at >= p.started_at")
+            );
+            assert!(!sql.contains("pe.edit_event_id is null and e.created_at >= p.started_at"));
+        }
+    }
+
+    #[test]
+    fn oracle_item_pending_query_uses_same_snapshot_exclusion_as_global_query() {
+        assert!(ITEM_PENDING_CHANGES_SQL.contains("where e.item_id = :1"));
+
+        for required_fragment in [
+            "left join autograph_publish_job_events pe",
+            "pe.publish_job_id = p.id",
+            "pe.edit_event_id = e.id",
+            "p.snapshot_event_count is not null and pe.edit_event_id is null",
+            "p.snapshot_event_count is null and e.created_at >= p.started_at",
+        ] {
+            assert!(
+                ITEM_PENDING_CHANGES_SQL.contains(required_fragment),
+                "item pending query missing `{required_fragment}`"
+            );
+            assert!(
+                GLOBAL_PENDING_CHANGES_SQL.contains(required_fragment),
+                "global pending query missing `{required_fragment}`"
+            );
+        }
+    }
 }

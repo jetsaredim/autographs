@@ -26,6 +26,8 @@ autographs_deploy_controller_media_storage_provider: >-
   {{ lookup('env', 'AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER') | default('oci-instance-principal', true) }}
 autographs_deploy_controller_local_media_root: >-
   {{ lookup('env', 'AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT') | default('/tmp/autographs-controller-media', true) }}
+autographs_deploy_static_promoted_release_retain_count: 5
+autographs_deploy_static_failed_candidate_retain_count: 1
 
 autographs_deploy_packages:
   - podman

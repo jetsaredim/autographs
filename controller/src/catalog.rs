@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -60,6 +60,21 @@ where
             Some(value) => Self::Set(value),
             None => Self::Clear,
         })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PublishBoundary {
+    pub started_at_epoch_seconds: i64,
+    pub included_event_ids: BTreeSet<Uuid>,
+}
+
+impl PublishBoundary {
+    pub fn conservative(started_at_epoch_seconds: i64) -> Self {
+        Self {
+            started_at_epoch_seconds,
+            included_event_ids: BTreeSet::new(),
+        }
     }
 }
 
@@ -371,6 +386,28 @@ pub trait CatalogRepository: Send + Sync {
         Ok(PendingChangeSummary::default())
     }
 
+    async fn pending_changes_for_item(
+        &self,
+        _item_id: Uuid,
+    ) -> Result<PendingChangeSummary, String> {
+        Ok(PendingChangeSummary::default())
+    }
+
+    async fn begin_publish_boundary(&self) -> Result<PublishBoundary, String> {
+        Ok(PublishBoundary::conservative(now_epoch_seconds()))
+    }
+
+    async fn record_successful_publish(
+        &self,
+        _mode: &str,
+        _release_id: Option<&str>,
+        _publish_boundary: PublishBoundary,
+        _started_at_epoch_seconds: Option<i64>,
+        _finished_at_epoch_seconds: i64,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
     async fn record_event(&self, event: AutographEditEvent) -> Result<AutographEditEvent, String> {
         Ok(event)
     }
@@ -381,6 +418,7 @@ pub struct MemoryCatalogRepository {
     items: Arc<Mutex<HashMap<Uuid, AutographItem>>>,
     events: Arc<Mutex<Vec<AutographEditEvent>>>,
     cleanup_events: Arc<Mutex<Vec<ImageCleanupEvent>>>,
+    last_successful_publish_boundary: Arc<Mutex<Option<PublishBoundary>>>,
 }
 
 impl Default for MemoryCatalogRepository {
@@ -389,6 +427,7 @@ impl Default for MemoryCatalogRepository {
             items: Arc::new(Mutex::new(HashMap::new())),
             events: Arc::new(Mutex::new(Vec::new())),
             cleanup_events: Arc::new(Mutex::new(Vec::new())),
+            last_successful_publish_boundary: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -731,13 +770,69 @@ impl CatalogRepository for MemoryCatalogRepository {
 
     async fn pending_changes(&self) -> Result<PendingChangeSummary, String> {
         let events = self.events.lock().expect("catalog event lock");
+        let last_successful_publish = self
+            .last_successful_publish_boundary
+            .lock()
+            .expect("publish boundary lock")
+            .clone();
+        let pending = events
+            .iter()
+            .filter(|event| is_event_pending(event, last_successful_publish.as_ref()))
+            .collect::<Vec<_>>();
         Ok(PendingChangeSummary {
-            count: events.len(),
-            oldest_changed_at_epoch_seconds: events
+            count: pending.len(),
+            oldest_changed_at_epoch_seconds: pending
                 .iter()
                 .map(|event| event.created_at_epoch_seconds)
                 .min(),
         })
+    }
+
+    async fn pending_changes_for_item(
+        &self,
+        item_id: Uuid,
+    ) -> Result<PendingChangeSummary, String> {
+        let events = self.events.lock().expect("catalog event lock");
+        let last_successful_publish = self
+            .last_successful_publish_boundary
+            .lock()
+            .expect("publish boundary lock")
+            .clone();
+        let pending = events
+            .iter()
+            .filter(|event| event.item_id == item_id)
+            .filter(|event| is_event_pending(event, last_successful_publish.as_ref()))
+            .collect::<Vec<_>>();
+        Ok(PendingChangeSummary {
+            count: pending.len(),
+            oldest_changed_at_epoch_seconds: pending
+                .iter()
+                .map(|event| event.created_at_epoch_seconds)
+                .min(),
+        })
+    }
+
+    async fn begin_publish_boundary(&self) -> Result<PublishBoundary, String> {
+        let events = self.events.lock().expect("catalog event lock");
+        Ok(PublishBoundary {
+            started_at_epoch_seconds: now_epoch_seconds(),
+            included_event_ids: events.iter().map(|event| event.id).collect(),
+        })
+    }
+
+    async fn record_successful_publish(
+        &self,
+        _mode: &str,
+        _release_id: Option<&str>,
+        publish_boundary: PublishBoundary,
+        _started_at_epoch_seconds: Option<i64>,
+        _finished_at_epoch_seconds: i64,
+    ) -> Result<(), String> {
+        *self
+            .last_successful_publish_boundary
+            .lock()
+            .expect("publish boundary lock") = Some(publish_boundary);
+        Ok(())
     }
 
     async fn record_event(&self, event: AutographEditEvent) -> Result<AutographEditEvent, String> {
@@ -747,6 +842,15 @@ impl CatalogRepository for MemoryCatalogRepository {
             .push(event.clone());
         Ok(event)
     }
+}
+
+fn is_event_pending(event: &AutographEditEvent, boundary: Option<&PublishBoundary>) -> bool {
+    boundary
+        .map(|boundary| {
+            !boundary.included_event_ids.contains(&event.id)
+                && event.created_at_epoch_seconds >= boundary.started_at_epoch_seconds
+        })
+        .unwrap_or(true)
 }
 
 pub(crate) fn apply_update(item: &mut AutographItem, input: AutographItemUpdate) -> Vec<FieldDiff> {
