@@ -12,7 +12,7 @@ use crate::catalog::{
     event_kind_for_diffs, event_summary, now_epoch_seconds, validate_required_fields,
 };
 
-const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish as (
+const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish_job as (
     select id, started_at
     from (
         select id, started_at, created_at
@@ -21,6 +21,17 @@ const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish as (
         order by started_at desc, created_at desc, id desc
     )
     where rownum = 1
+),
+latest_publish as (
+    select
+        p.id,
+        p.started_at,
+        case when exists (
+            select 1
+            from autograph_publish_job_events snapshot_events
+            where snapshot_events.publish_job_id = p.id
+        ) then 1 else 0 end as has_snapshot_rows
+    from latest_publish_job p
 )
 select
     count(*),
@@ -31,9 +42,10 @@ left join autograph_publish_job_events pe
     on pe.publish_job_id = p.id
    and pe.edit_event_id = e.id
 where p.id is null
-   or (pe.edit_event_id is null and e.created_at >= p.started_at)";
+   or (p.has_snapshot_rows = 1 and pe.edit_event_id is null)
+   or (p.has_snapshot_rows = 0 and e.created_at >= p.started_at)";
 
-const ITEM_PENDING_CHANGES_SQL: &str = "with latest_publish as (
+const ITEM_PENDING_CHANGES_SQL: &str = "with latest_publish_job as (
     select id, started_at
     from (
         select id, started_at, created_at
@@ -42,6 +54,17 @@ const ITEM_PENDING_CHANGES_SQL: &str = "with latest_publish as (
         order by started_at desc, created_at desc, id desc
     )
     where rownum = 1
+),
+latest_publish as (
+    select
+        p.id,
+        p.started_at,
+        case when exists (
+            select 1
+            from autograph_publish_job_events snapshot_events
+            where snapshot_events.publish_job_id = p.id
+        ) then 1 else 0 end as has_snapshot_rows
+    from latest_publish_job p
 )
 select
     count(*),
@@ -54,7 +77,8 @@ left join autograph_publish_job_events pe
 where e.item_id = :1
   and (
     p.id is null
-    or (pe.edit_event_id is null and e.created_at >= p.started_at)
+    or (p.has_snapshot_rows = 1 and pe.edit_event_id is null)
+    or (p.has_snapshot_rows = 0 and e.created_at >= p.started_at)
   )";
 
 #[derive(Clone)]
@@ -1017,15 +1041,20 @@ mod tests {
     use super::{GLOBAL_PENDING_CHANGES_SQL, ITEM_PENDING_CHANGES_SQL};
 
     #[test]
-    fn oracle_pending_queries_clear_same_second_events_in_latest_publish_snapshot() {
+    fn oracle_pending_queries_use_snapshot_membership_before_timestamp_fallback() {
         for sql in [GLOBAL_PENDING_CHANGES_SQL, ITEM_PENDING_CHANGES_SQL] {
             assert!(sql.contains("from autograph_publish_jobs"));
             assert!(sql.contains("where status = 'succeeded'"));
             assert!(sql.contains("order by started_at desc, created_at desc, id desc"));
+            assert!(sql.contains("case when exists ("));
+            assert!(sql.contains("from autograph_publish_job_events snapshot_events"));
+            assert!(sql.contains("then 1 else 0 end as has_snapshot_rows"));
             assert!(sql.contains("left join autograph_publish_job_events pe"));
             assert!(sql.contains("pe.publish_job_id = p.id"));
             assert!(sql.contains("pe.edit_event_id = e.id"));
-            assert!(sql.contains("pe.edit_event_id is null and e.created_at >= p.started_at"));
+            assert!(sql.contains("p.has_snapshot_rows = 1 and pe.edit_event_id is null"));
+            assert!(sql.contains("p.has_snapshot_rows = 0 and e.created_at >= p.started_at"));
+            assert!(!sql.contains("pe.edit_event_id is null and e.created_at >= p.started_at"));
         }
     }
 
@@ -1037,7 +1066,8 @@ mod tests {
             "left join autograph_publish_job_events pe",
             "pe.publish_job_id = p.id",
             "pe.edit_event_id = e.id",
-            "pe.edit_event_id is null and e.created_at >= p.started_at",
+            "p.has_snapshot_rows = 1 and pe.edit_event_id is null",
+            "p.has_snapshot_rows = 0 and e.created_at >= p.started_at",
         ] {
             assert!(
                 ITEM_PENDING_CHANGES_SQL.contains(required_fragment),
