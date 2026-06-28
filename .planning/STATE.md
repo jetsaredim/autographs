@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 06-04-PLAN.md
-last_updated: "2026-06-27T19:43:18.122Z"
-last_activity: 2026-06-27 -- Phase 06 06-04 pending status, diagnostics, publish batching, and retention completed
+last_updated: "2026-06-28T12:22:49.686Z"
+last_activity: 2026-06-28 -- Phase 06 06-04 deploy is green after the Oracle schema update
 progress:
   total_phases: 7
   completed_phases: 5
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 Phase: 06 (admin-collection-workflow) — EXECUTING
 Plan: 06-05
 Status: Ready to execute next wave
-Last activity: 2026-06-27 -- Phase 06 06-04 pending status, diagnostics, publish batching, and retention completed
+Last activity: 2026-06-28 -- Phase 06 06-04 deploy is green after the Oracle schema update
 
 Progress: [█████████░] 88% overall; Phase 6 plans 1-4 complete
 
@@ -36,7 +36,7 @@ Progress: [█████████░] 88% overall; Phase 6 plans 1-4 comple
 
 **Velocity:**
 
-- Total plans completed: 28 of 33
+- Total plans completed: 29 of 33
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -49,12 +49,12 @@ Progress: [█████████░] 88% overall; Phase 6 plans 1-4 comple
 | 03 | 5 | - | - |
 | 04 | 5/5 | 54 min | 11 min |
 | 05 | 7/7 | - | - |
-| 06 | 3/8 | - | - |
+| 06 | 4/8 | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: 05-06, 05-07, 06-01, 06-02, 06-03
-- Trend: Positive; Phase 6 has edit-history, private admin item APIs, and retryable media cleanup foundations merged locally with full controller verification
+- Last 5 plans: 05-07, 06-01, 06-02, 06-03, 06-04
+- Trend: Positive; Phase 6 now has edit-history, private admin item APIs, retryable media cleanup foundations, and publish-status retention merged locally with full controller verification
 
 | Phase 04 P01 | 38 min | 3 tasks | 4 files |
 | Phase 04 P02 | 4 min | 3 tasks | 5 files |
