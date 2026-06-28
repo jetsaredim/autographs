@@ -124,6 +124,7 @@ None - plan executed exactly as written.
 - `cargo check --manifest-path controller/Cargo.toml --features production-persistence` - passed
 - `cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings` - passed
 - `ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ansible-playbook -i deploy/ansible/inventory/ci.ini deploy/ansible/playbooks/deploy.yml --syntax-check` - passed
+- Production deploy workflow returned green after the Oracle schema update that adds `AUTOGRAPHS_PUBLISH_JOB_EVENTS`.
 
 ## Known Stubs
 

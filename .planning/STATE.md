@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 06-04-PLAN.md
-last_updated: "2026-06-27T19:43:18.122Z"
-last_activity: 2026-06-27 -- Phase 06 06-04 pending status, diagnostics, publish batching, and retention completed
+last_updated: "2026-06-28T12:22:49.686Z"
+last_activity: 2026-06-28 -- Phase 06 06-04 deploy is green after the Oracle schema update
 progress:
   total_phases: 7
   completed_phases: 5
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 Phase: 06 (admin-collection-workflow) — EXECUTING
 Plan: 06-05
 Status: Ready to execute next wave
-Last activity: 2026-06-27 -- Phase 06 06-04 pending status, diagnostics, publish batching, and retention completed
+Last activity: 2026-06-28 -- Phase 06 06-04 deploy is green after the Oracle schema update
 
 Progress: [█████████░] 88% overall; Phase 6 plans 1-4 complete
 
@@ -36,7 +36,7 @@ Progress: [█████████░] 88% overall; Phase 6 plans 1-4 comple
 
 **Velocity:**
 
-- Total plans completed: 28 of 33
+- Total plans completed: 29 of 33
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -49,7 +49,7 @@ Progress: [█████████░] 88% overall; Phase 6 plans 1-4 comple
 | 03 | 5 | - | - |
 | 04 | 5/5 | 54 min | 11 min |
 | 05 | 7/7 | - | - |
-| 06 | 3/8 | - | - |
+| 06 | 4/8 | - | - |
 
 **Recent Trend:**
 
