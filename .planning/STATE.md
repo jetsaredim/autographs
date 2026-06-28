@@ -53,8 +53,8 @@ Progress: [█████████░] 88% overall; Phase 6 plans 1-4 comple
 
 **Recent Trend:**
 
-- Last 5 plans: 05-06, 05-07, 06-01, 06-02, 06-03
-- Trend: Positive; Phase 6 has edit-history, private admin item APIs, and retryable media cleanup foundations merged locally with full controller verification
+- Last 5 plans: 05-07, 06-01, 06-02, 06-03, 06-04
+- Trend: Positive; Phase 6 now has edit-history, private admin item APIs, retryable media cleanup foundations, and publish-status retention merged locally with full controller verification
 
 | Phase 04 P01 | 38 min | 3 tasks | 4 files |
 | Phase 04 P02 | 4 min | 3 tasks | 5 files |
