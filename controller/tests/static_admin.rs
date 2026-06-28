@@ -189,6 +189,9 @@ fn static_admin_publish_actions_require_saved_changes_in_shared_path() {
 fn static_admin_image_actions_require_saved_changes_in_shared_path() {
     let source = static_admin_source();
     for expected in [
+        "const uploadOnlyFieldNames = new Set([\"images\", \"replacementImage\", \"altText\"]);",
+        "const markDirty = (event) =>",
+        "if (uploadOnlyFieldNames.has(event?.target?.name))",
         "function ensureSavedBeforeImageChange()",
         "Save item before changing images.",
         "async function uploadImages(",

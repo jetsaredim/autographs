@@ -42,6 +42,8 @@ const state = {
   dirty: false,
 };
 
+const uploadOnlyFieldNames = new Set(["images", "replacementImage", "altText"]);
+
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
@@ -700,7 +702,10 @@ const loadItem = async (id, historyFirst = false) => {
   }
 };
 
-const markDirty = () => {
+const markDirty = (event) => {
+  if (uploadOnlyFieldNames.has(event?.target?.name)) {
+    return;
+  }
   state.dirty = true;
   elements.discardUnsaved.hidden = false;
   elements.publishFromEditor.setAttribute("aria-disabled", "true");
