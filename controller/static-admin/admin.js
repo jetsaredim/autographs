@@ -637,6 +637,16 @@ function ensureSavedBeforeImageChange() {
   return false;
 }
 
+function ensureSavedBeforeOpeningAnotherItem() {
+  if (!state.dirty) {
+    return true;
+  }
+  setView("add-item-view");
+  elements.globalMessage.textContent = "Save item before opening another item.";
+  elements.globalMessage.focus();
+  return false;
+}
+
 async function publishChanges(mode = "incremental") {
   if (!ensureSavedBeforePublish()) {
     return;
@@ -666,6 +676,9 @@ async function publishChanges(mode = "incremental") {
 }
 
 const loadItem = async (id, historyFirst = false) => {
+  if (!ensureSavedBeforeOpeningAnotherItem()) {
+    return;
+  }
   try {
     const item = await request(endpoints.item(id));
     renderEditor(item);
@@ -726,14 +739,22 @@ for (const tab of elements.tabs) {
   tab.addEventListener("click", () => setView(tab.dataset.view));
 }
 
-$("#add-new-item").addEventListener("click", () => renderEditor());
+$("#add-new-item").addEventListener("click", () => {
+  if (ensureSavedBeforeOpeningAnotherItem()) {
+    renderEditor();
+  }
+});
 $("#find-existing-items").addEventListener("click", () => setView("items-view"));
 $("#refresh-status").addEventListener("click", renderHub);
 $("#refresh-diagnostics").addEventListener("click", renderHub);
 $("#refresh-items").addEventListener("click", renderItemList);
 $("#refresh-history").addEventListener("click", () => renderHistory());
 $("#back-to-hub").addEventListener("click", () => setView("hub-view"));
-$("#add-another-item").addEventListener("click", () => renderEditor());
+$("#add-another-item").addEventListener("click", () => {
+  if (ensureSavedBeforeOpeningAnotherItem()) {
+    renderEditor();
+  }
+});
 $("#discard-unsaved").addEventListener("click", () => renderEditor(state.currentItem));
 $("#upload-more-images").addEventListener("click", () => uploadImages());
 $("#publish-from-editor").addEventListener("click", publishFromEditor);

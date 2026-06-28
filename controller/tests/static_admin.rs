@@ -173,10 +173,11 @@ fn static_admin_publish_actions_require_saved_changes_in_shared_path() {
     let editor_start = source
         .find("function publishFromEditor()")
         .expect("publishFromEditor exists");
-    let editor_source = &source[editor_start..source[editor_start..]
-        .find("\n}\n\nasync function bootstrapSession")
-        .map(|end| editor_start + end)
-        .expect("publishFromEditor body ends before bootstrapSession")];
+    let editor_source = &source[editor_start
+        ..source[editor_start..]
+            .find("\n}\n\nasync function bootstrapSession")
+            .map(|end| editor_start + end)
+            .expect("publishFromEditor body ends before bootstrapSession")];
     assert!(
         !editor_source.contains("state.dirty"),
         "publishFromEditor should delegate dirty-state protection to publishChanges"
