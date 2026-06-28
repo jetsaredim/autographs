@@ -1,31 +1,151 @@
 const endpoints = {
   health: "/admin/api/health",
+  status: "/admin/api/status",
   login: "/admin/api/login",
   logout: "/admin/api/logout",
   items: "/admin/api/items",
+  item: (id) => `/admin/api/items/${encodeURIComponent(id)}`,
+  history: (id) => `/admin/api/items/${encodeURIComponent(id)}/history`,
+  images: (id) => `/admin/api/items/${encodeURIComponent(id)}/images`,
+  imagePrimary: (id, imageId) =>
+    `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/primary`,
+  imageDelete: (id, imageId) =>
+    `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}`,
+  imageReplace: (id, imageId) =>
+    `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}`,
+  cleanupRetry: (id, imageId) =>
+    `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/cleanup/retry`,
   publishIncremental: "/admin/api/publish/incremental",
   publishFull: "/admin/api/publish/full",
   publishStatus: "/admin/api/publish/status",
 };
 
-const sessionMessage = document.querySelector("#session-message");
-const itemMessage = document.querySelector("#item-message");
-const publishStatus = document.querySelector("#publish-status");
-const itemForm = document.querySelector("#item-form");
+const copy = {
+  sessionExpired:
+    "Your admin session expired. Log in again to continue; unsent form changes are still on this page.",
+  lockout: "Too many login attempts. Wait and try again.",
+  saveError:
+    "Something did not save. Review the highlighted fields, keep this page open, and try again. If the problem repeats, check the redacted diagnostics panel.",
+  removeImage:
+    "Remove image: Remove this image from the item and queue cleanup of the private original? This cannot be undone from the admin UI.",
+  fullRebuild: "Run a full rebuild only for repair or structural changes. Continue?",
+  saveSuccess: "Saved privately. Publish changes when this batch is ready for the public site.",
+  publishSuccess: "Published. The public static release is current.",
+  cleanupWarning: "Cleanup needs attention. Review the affected item before publishing again.",
+};
+
+const state = {
+  currentView: "hub-view",
+  currentItem: null,
+  items: [],
+  diagnostics: null,
+  dirty: false,
+};
+
+const $ = (selector) => document.querySelector(selector);
+
+const elements = {
+  loginView: $("#login-view"),
+  workflowView: $("#workflow-view"),
+  loginForm: $("#login-form"),
+  loginMessage: $("#login-message"),
+  logout: $("#logout"),
+  sessionStatus: $("#session-status"),
+  globalMessage: $("#global-message"),
+  tabs: Array.from(document.querySelectorAll(".tab-button")),
+  views: Array.from(document.querySelectorAll(".view-panel")),
+  itemForm: $("#item-form"),
+  itemFilters: $("#item-filters"),
+  itemList: $("#item-list"),
+  imageGrid: $("#image-grid"),
+  imageFiles: $("#image-files"),
+  replacementImage: $("#replacement-image"),
+  imageMessage: $("#image-message"),
+  historyList: $("#history-list"),
+  diagnosticsOutput: $("#diagnostics-output"),
+  hubDiagnostics: $("#hub-diagnostics"),
+  publishStatus: $("#publish-status"),
+  dirtyState: $("#dirty-state"),
+  discardUnsaved: $("#discard-unsaved"),
+};
+
+const setText = (selector, value) => {
+  const element = $(selector);
+  if (element) {
+    element.textContent = value;
+  }
+};
+
+const textNode = (tag, text, className) => {
+  const element = document.createElement(tag);
+  if (className) {
+    element.className = className;
+  }
+  element.textContent = text;
+  return element;
+};
+
+const buttonNode = (text, className, onClick) => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.textContent = text;
+  button.addEventListener("click", onClick);
+  return button;
+};
+
+const formatEpoch = (seconds) => {
+  if (!seconds) {
+    return "Not recorded";
+  }
+  return new Date(seconds * 1000).toLocaleString();
+};
+
+const formatValue = (value) => {
+  if (value === null || value === undefined) {
+    return "Empty";
+  }
+  if (Array.isArray(value)) {
+    return value.length ? value.join(", ") : "Empty";
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
+};
+
+const buildQuery = (form) => {
+  const params = new URLSearchParams();
+  for (const [key, value] of new FormData(form).entries()) {
+    const trimmed = String(value).trim();
+    if (trimmed) {
+      params.set(key, trimmed);
+    }
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+};
 
 const request = async (path, options = {}) => {
   const response = await fetch(path, {
     credentials: "same-origin",
     ...options,
   });
+  if (response.status === 401) {
+    handleAuthFailure();
+    const error = new Error(copy.sessionExpired);
+    error.status = response.status;
+    throw error;
+  }
+  const contentType = response.headers.get("content-type") || "";
+  const body = contentType.includes("application/json") ? await response.json() : await response.text();
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `${response.status} ${response.statusText}`);
+    const error = new Error(typeof body === "string" && body ? body : response.statusText);
+    error.status = response.status;
+    error.body = body;
+    throw error;
   }
-  if (response.status === 204) {
-    return null;
-  }
-  return response.json();
+  return response.status === 204 ? null : body;
 };
 
 const jsonRequest = (path, method, body) =>
@@ -35,136 +155,516 @@ const jsonRequest = (path, method, body) =>
     body: JSON.stringify(body),
   });
 
-const optionalValue = (form, name) => {
-  const value = form.elements[name].value.trim();
-  return value || null;
+function handleAuthFailure() {
+  elements.workflowView.hidden = true;
+  elements.loginView.hidden = false;
+  elements.loginMessage.textContent = copy.sessionExpired;
+  elements.sessionStatus.textContent = copy.sessionExpired;
+}
+
+function setView(viewId) {
+  state.currentView = viewId;
+  for (const view of elements.views) {
+    view.hidden = view.id !== viewId;
+  }
+  for (const tab of elements.tabs) {
+    const active = tab.dataset.view === viewId;
+    tab.setAttribute("aria-current", active ? "page" : "false");
+  }
+  if (viewId === "hub-view") {
+    renderHub();
+  } else if (viewId === "items-view") {
+    renderItemList();
+  } else if (viewId === "diagnostics-view") {
+    renderDiagnostics();
+  }
+}
+
+const pendingCopy = (count) => `${count} saved change(s) have not been published yet.`;
+
+async function renderHub() {
+  try {
+    const diagnostics = await request(endpoints.status);
+    state.diagnostics = diagnostics;
+    const pendingCount = diagnostics.pendingChanges?.count || 0;
+    const cleanupCount = diagnostics.cleanup?.warningCount || 0;
+    setText(
+      "#controller-health",
+      diagnostics.controller?.ok ? "Healthy. Controller and configured providers responded." : "Needs attention."
+    );
+    setText("#pending-summary", pendingCopy(pendingCount));
+    setText("#publish-summary", publishSummaryText(diagnostics.publish));
+    setText(
+      "#cleanup-summary",
+      cleanupCount > 0 ? copy.cleanupWarning : "0 cleanup warnings"
+    );
+    setText(
+      "#retention-summary",
+      `${diagnostics.releaseRetention?.promotedReleaseCount || 0} promoted release(s), ${
+        diagnostics.releaseRetention?.failedCandidateCount || 0
+      } failed candidate(s) retained.`
+    );
+    setText("#publish-pending-summary", pendingCopy(pendingCount));
+    elements.hubDiagnostics.textContent = JSON.stringify(diagnostics, null, 2);
+    renderDiagnostics();
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.globalMessage.textContent = `Status unavailable: ${error.message}`;
+    }
+  }
+}
+
+const publishSummaryText = (publish) => {
+  if (!publish) {
+    return "Idle";
+  }
+  const stateLabel = publish.state || "idle";
+  const release = publish.releaseId ? ` release ${publish.releaseId}` : "";
+  const finished = publish.finishedAtEpochSeconds
+    ? ` at ${formatEpoch(publish.finishedAtEpochSeconds)}`
+    : "";
+  return `${stateLabel}${release}${finished}`;
 };
 
-const itemId = () => itemForm.elements.itemId.value.trim();
-
-const renderStatus = async () => {
+async function renderItemList() {
   try {
-    const [health, status] = await Promise.all([
-      request(endpoints.health),
-      request(endpoints.publishStatus),
-    ]);
-    publishStatus.textContent = JSON.stringify({ health, publish: status }, null, 2);
+    const items = await request(`${endpoints.items}${buildQuery(elements.itemFilters)}`);
+    state.items = Array.isArray(items) ? items : [];
+    elements.itemList.replaceChildren();
+    if (state.items.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.append(
+        textNode("h3", "No saved items yet"),
+        textNode(
+          "p",
+          "Start with the backlog: add an autograph item, upload its images, save it privately, then publish when the batch is ready."
+        )
+      );
+      elements.itemList.append(empty);
+      return;
+    }
+    const table = document.createElement("table");
+    table.append(itemTableHead());
+    const body = document.createElement("tbody");
+    for (const item of state.items) {
+      const row = document.createElement("tr");
+      for (const value of [
+        item.title,
+        item.signer,
+        item.publicationStatus,
+        String(item.imageCount || 0),
+        item.hasPendingChanges ? "Pending" : "Clean",
+        formatEpoch(item.updatedAtEpochSeconds),
+      ]) {
+        const cell = document.createElement("td");
+        cell.textContent = value || "Empty";
+        row.append(cell);
+      }
+      const actions = document.createElement("td");
+      actions.className = "row-actions";
+      actions.append(
+        buttonNode("Edit item", "text-action", () => loadItem(item.id)),
+        buttonNode("View history", "text-action", () => loadItem(item.id, true)),
+        buttonNode("Publish status", "text-action", () => setView("publish-view"))
+      );
+      row.append(actions);
+      body.append(row);
+    }
+    table.append(body);
+    elements.itemList.append(table);
   } catch (error) {
-    publishStatus.textContent = `Unable to load publish status: ${error.message}`;
+    if (error.status !== 401) {
+      elements.itemList.replaceChildren(textNode("p", `Item list unavailable: ${error.message}`, "empty-state"));
+    }
+  }
+}
+
+const itemTableHead = () => {
+  const head = document.createElement("thead");
+  const row = document.createElement("tr");
+  for (const label of ["Title", "Signer", "Status", "Images", "Changes", "Updated", "Actions"]) {
+    row.append(textNode("th", label));
+  }
+  head.append(row);
+  return head;
+};
+
+function renderEditor(item = null) {
+  state.currentItem = item;
+  state.dirty = false;
+  elements.itemForm.reset();
+  elements.discardUnsaved.hidden = true;
+  setText("#dirty-state", "No unsaved client-side edits.");
+  setText("#editor-title", item ? "Edit item" : "Add item");
+  setText(
+    "#editor-context",
+    item
+      ? "Existing items hydrate into this same editor. Saving still stays private until publish."
+      : "Backlog entry starts as a private draft. Save privately, then publish when the batch is ready."
+  );
+  const values = item || { publicationStatus: "draft", tags: [], images: [] };
+  for (const [name, value] of Object.entries({
+    itemId: values.id || "",
+    title: values.title || "",
+    signer: values.signer || "",
+    category: values.category || "",
+    tags: Array.isArray(values.tags) ? values.tags.join(", ") : "",
+    objectReference: values.objectReference || "",
+    estimatedYear: values.estimatedYear || "",
+    description: values.description || "",
+    inscription: values.inscription || "",
+    eventName: values.eventName || "",
+    eventLocation: values.eventLocation || "",
+    source: values.source || "",
+    certificationCompany: values.certificationCompany || "",
+    certificationId: values.certificationId || "",
+    publicationStatus: values.publicationStatus || "draft",
+  })) {
+    if (elements.itemForm.elements[name]) {
+      elements.itemForm.elements[name].value = value;
+    }
+  }
+  renderImages(values.images || [], values.cleanupWarnings || []);
+  renderHistory(item?.id);
+  setView("add-item-view");
+}
+
+function renderImages(images = [], cleanupWarnings = []) {
+  elements.imageGrid.replaceChildren();
+  if (!state.currentItem?.id) {
+    elements.imageGrid.append(textNode("p", "Save the item before uploading images.", "empty-state"));
+    return;
+  }
+  if (images.length === 0) {
+    elements.imageGrid.append(textNode("p", "No images uploaded yet.", "empty-state"));
+    return;
+  }
+  const warningsByImage = new Map(cleanupWarnings.map((warning) => [warning.imageId, warning]));
+  for (const image of [...images].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))) {
+    const tile = document.createElement("article");
+    tile.className = image.isPrimary ? "image-tile primary-image" : "image-tile";
+    tile.append(
+      textNode("h4", image.isPrimary ? "Primary image" : "Supporting image"),
+      textNode("p", image.altText || "No alt text recorded."),
+      textNode("p", `${image.contentType || "image"} - ${image.byteSize || 0} bytes`, "helper-text")
+    );
+    const warning = warningsByImage.get(image.id);
+    if (warning) {
+      tile.append(textNode("p", warning.adminMessage || copy.cleanupWarning, "status-warning"));
+    }
+    const actions = document.createElement("div");
+    actions.className = "inline-actions";
+    actions.append(
+      buttonNode("Mark primary", "secondary-action", () => markPrimary(image.id)),
+      buttonNode("Remove image", "destructive", () => removeImage(image.id)),
+      buttonNode("Replace image", "secondary-action", () => replaceImage(image.id))
+    );
+    if (warning) {
+      actions.append(buttonNode("Retry cleanup", "secondary-action", () => retryCleanup(image.id)));
+    }
+    tile.append(actions);
+    elements.imageGrid.append(tile);
+  }
+}
+
+async function renderHistory(itemId = state.currentItem?.id) {
+  elements.historyList.replaceChildren();
+  if (!itemId) {
+    elements.historyList.append(
+      textNode(
+        "p",
+        "No history recorded yet. Changes made after the Phase 6 history update will appear here.",
+        "empty-state"
+      )
+    );
+    return;
+  }
+  try {
+    const history = await request(endpoints.history(itemId));
+    const events = history.events || [];
+    if (events.length === 0) {
+      elements.historyList.append(
+        textNode(
+          "p",
+          "No history recorded yet. Changes made after the Phase 6 history update will appear here.",
+          "empty-state"
+        )
+      );
+      return;
+    }
+    for (const event of events) {
+      const row = document.createElement("article");
+      row.className = "history-entry";
+      row.append(
+        textNode("h4", event.summary || event.eventType),
+        textNode("p", `${event.eventType} - ${formatEpoch(event.createdAtEpochSeconds)}`, "helper-text")
+      );
+      for (const diff of event.fieldDiffs || []) {
+        const diffRow = document.createElement("div");
+        diffRow.className = "diff-row";
+        diffRow.append(
+          textNode("span", diff.field),
+          textNode("span", formatValue(diff.before)),
+          textNode("span", formatValue(diff.after))
+        );
+        row.append(diffRow);
+      }
+      elements.historyList.append(row);
+    }
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.historyList.append(textNode("p", `History unavailable: ${error.message}`, "empty-state"));
+    }
+  }
+}
+
+function renderDiagnostics() {
+  const diagnostics = state.diagnostics || {};
+  elements.diagnosticsOutput.textContent = JSON.stringify(diagnostics, null, 2);
+}
+
+const formPayload = () => {
+  const form = elements.itemForm;
+  const estimatedYear = form.elements.estimatedYear.value.trim();
+  const optional = (name) => {
+    const value = form.elements[name].value.trim();
+    return value || null;
+  };
+  return {
+    title: form.elements.title.value.trim(),
+    signer: form.elements.signer.value.trim(),
+    description: optional("description"),
+    category: form.elements.category.value.trim(),
+    tags: form.elements.tags.value.split(",").map((tag) => tag.trim()).filter(Boolean),
+    objectReference: optional("objectReference"),
+    eventName: optional("eventName"),
+    eventLocation: optional("eventLocation"),
+    source: optional("source"),
+    inscription: optional("inscription"),
+    certificationCompany: optional("certificationCompany"),
+    certificationId: optional("certificationId"),
+    estimatedYear: estimatedYear ? Number(estimatedYear) : null,
+    publicationStatus: form.elements.publicationStatus.value,
+  };
+};
+
+async function saveItem(event) {
+  event.preventDefault();
+  const id = elements.itemForm.elements.itemId.value.trim();
+  try {
+    const item = await jsonRequest(id ? endpoints.item(id) : endpoints.items, id ? "PATCH" : "POST", formPayload());
+    state.currentItem = item;
+    renderEditor(item);
+    elements.globalMessage.textContent = copy.saveSuccess;
+    elements.globalMessage.focus();
+    await uploadImages();
+    await renderHub();
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.globalMessage.textContent = error.status === 429 ? copy.lockout : copy.saveError;
+    }
+  }
+}
+
+async function uploadImages() {
+  const id = state.currentItem?.id || elements.itemForm.elements.itemId.value.trim();
+  if (!id || elements.imageFiles.files.length === 0) {
+    return;
+  }
+  for (const file of elements.imageFiles.files) {
+    const upload = new FormData();
+    upload.append("image", file);
+    upload.append("altText", elements.itemForm.elements.altText.value.trim());
+    const item = await request(endpoints.images(id), {
+      method: "POST",
+      body: upload,
+    });
+    state.currentItem = item;
+  }
+  elements.imageFiles.value = "";
+  renderEditor(state.currentItem);
+  elements.imageMessage.textContent = "Images uploaded. Mark one primary image if needed.";
+}
+
+async function markPrimary(imageId) {
+  if (!state.currentItem?.id) {
+    return;
+  }
+  try {
+    const item = await request(endpoints.imagePrimary(state.currentItem.id, imageId), { method: "POST" });
+    state.currentItem = item;
+    renderEditor(item);
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.imageMessage.textContent = `Primary image update failed: ${error.message}`;
+    }
+  }
+}
+
+async function removeImage(imageId) {
+  if (!state.currentItem?.id || !window.confirm(copy.removeImage)) {
+    return;
+  }
+  try {
+    const item = await request(endpoints.imageDelete(state.currentItem.id, imageId), { method: "DELETE" });
+    state.currentItem = item;
+    renderEditor(item);
+  } catch (error) {
+    if (error.status === 409 && error.body?.cleanupWarning) {
+      elements.imageMessage.textContent = copy.cleanupWarning;
+      await loadItem(state.currentItem.id);
+    } else if (error.status !== 401) {
+      elements.imageMessage.textContent = `Image removal failed: ${error.message}`;
+    }
+  }
+}
+
+async function replaceImage(imageId) {
+  if (!state.currentItem?.id) {
+    return;
+  }
+  const file = elements.replacementImage.files[0];
+  if (!file) {
+    elements.imageMessage.textContent = "Choose a replacement image first.";
+    return;
+  }
+  const upload = new FormData();
+  upload.append("image", file);
+  upload.append("altText", elements.itemForm.elements.altText.value.trim());
+  try {
+    const item = await request(endpoints.imageReplace(state.currentItem.id, imageId), {
+      method: "PUT",
+      body: upload,
+    });
+    state.currentItem = item;
+    elements.replacementImage.value = "";
+    renderEditor(item);
+  } catch (error) {
+    if (error.status === 409 && error.body?.cleanupWarning) {
+      elements.imageMessage.textContent = copy.cleanupWarning;
+      await loadItem(state.currentItem.id);
+    } else if (error.status !== 401) {
+      elements.imageMessage.textContent = `Image replacement failed: ${error.message}`;
+    }
+  }
+}
+
+async function retryCleanup(imageId) {
+  if (!state.currentItem?.id) {
+    return;
+  }
+  try {
+    const item = await request(endpoints.cleanupRetry(state.currentItem.id, imageId), { method: "POST" });
+    if (item) {
+      state.currentItem = item;
+      renderEditor(item);
+    } else {
+      elements.imageMessage.textContent = "Cleanup retry succeeded.";
+      await loadItem(state.currentItem.id);
+    }
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.imageMessage.textContent = `Cleanup retry failed: ${error.message}`;
+    }
+  }
+}
+
+async function publishChanges(mode = "incremental") {
+  if (mode === "full" && !window.confirm(copy.fullRebuild)) {
+    return;
+  }
+  elements.publishStatus.textContent = "Publishing";
+  try {
+    const status = await request(mode === "full" ? endpoints.publishFull : endpoints.publishIncremental, {
+      method: "POST",
+    });
+    elements.publishStatus.textContent = JSON.stringify(status, null, 2);
+    setText("#publish-state", status.state || "Succeeded");
+    setText("#release-summary", publishSummaryText(status));
+    setText("#publish-next-action", copy.publishSuccess);
+    elements.globalMessage.textContent = copy.publishSuccess;
+    elements.globalMessage.focus();
+    await renderHub();
+  } catch (error) {
+    if (error.status !== 401) {
+      setText("#publish-state", "Failed");
+      setText("#publish-next-action", "Retry publish, inspect diagnostics, or run live smoke guidance.");
+      elements.publishStatus.textContent = `Publish failed: ${error.message}`;
+    }
+  }
+}
+
+const loadItem = async (id, historyFirst = false) => {
+  try {
+    const item = await request(endpoints.item(id));
+    renderEditor(item);
+    if (historyFirst) {
+      await renderHistory(id);
+    }
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.globalMessage.textContent = `Item unavailable: ${error.message}`;
+    }
   }
 };
 
-document.querySelector("#login-form").addEventListener("submit", async (event) => {
+const markDirty = () => {
+  state.dirty = true;
+  elements.discardUnsaved.hidden = false;
+  elements.dirtyState.textContent = "Unsaved client-side edits.";
+};
+
+elements.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  sessionMessage.textContent = "";
+  elements.loginMessage.textContent = "";
   try {
     await jsonRequest(endpoints.login, "POST", {
       password: event.currentTarget.elements.password.value,
     });
     event.currentTarget.reset();
-    sessionMessage.textContent = "Logged in.";
-    await renderStatus();
+    elements.loginView.hidden = true;
+    elements.workflowView.hidden = false;
+    elements.sessionStatus.textContent = "Logged in. Private changes stay here until you publish.";
+    setView("hub-view");
   } catch (error) {
-    sessionMessage.textContent = `Login failed: ${error.message}`;
+    elements.loginMessage.textContent = error.status === 429 ? copy.lockout : "Login failed.";
   }
 });
 
-document.querySelector("#logout").addEventListener("click", async () => {
+elements.logout.addEventListener("click", async () => {
   try {
     await request(endpoints.logout, { method: "POST" });
-    sessionMessage.textContent = "Logged out.";
-    publishStatus.textContent = "Not loaded.";
-  } catch (error) {
-    sessionMessage.textContent = `Logout failed: ${error.message}`;
+  } finally {
+    elements.workflowView.hidden = true;
+    elements.loginView.hidden = false;
+    elements.loginMessage.textContent = "Logged out.";
   }
 });
 
-const triggerPublish = async (path) => {
-  publishStatus.textContent = "Publishing...";
-  try {
-    const status = await request(path, { method: "POST" });
-    publishStatus.textContent = JSON.stringify(status, null, 2);
-  } catch (error) {
-    publishStatus.textContent = `Publish failed: ${error.message}`;
-  }
-};
+for (const tab of elements.tabs) {
+  tab.addEventListener("click", () => setView(tab.dataset.view));
+}
 
-document.querySelector("#refresh-status").addEventListener("click", renderStatus);
-document
-  .querySelector("#publish-incremental")
-  .addEventListener("click", () => triggerPublish(endpoints.publishIncremental));
-document
-  .querySelector("#publish-full")
-  .addEventListener("click", () => triggerPublish(endpoints.publishFull));
+$("#add-new-item").addEventListener("click", () => renderEditor());
+$("#find-existing-items").addEventListener("click", () => setView("items-view"));
+$("#refresh-status").addEventListener("click", renderHub);
+$("#refresh-diagnostics").addEventListener("click", renderHub);
+$("#refresh-items").addEventListener("click", renderItemList);
+$("#refresh-history").addEventListener("click", () => renderHistory());
+$("#back-to-hub").addEventListener("click", () => setView("hub-view"));
+$("#add-another-item").addEventListener("click", () => renderEditor());
+$("#discard-unsaved").addEventListener("click", () => renderEditor(state.currentItem));
+$("#upload-more-images").addEventListener("click", uploadImages);
+$("#publish-from-editor").addEventListener("click", () => publishChanges("incremental"));
+$("#publish-incremental").addEventListener("click", () => publishChanges("incremental"));
+$("#publish-full").addEventListener("click", () => publishChanges("full"));
 
-const setPublication = async (publicationStatus) => {
-  const id = itemId();
-  if (!id) {
-    throw new Error("Save or enter an item ID first.");
-  }
-  return jsonRequest(`${endpoints.items}/${id}/publication`, "POST", {
-    publicationStatus,
-  });
-};
-
-document.querySelector("#publish-item").addEventListener("click", async () => {
-  try {
-    await setPublication("published");
-    itemMessage.textContent = "Item marked published. Trigger a static publish to update the public release.";
-  } catch (error) {
-    itemMessage.textContent = `Publish item failed: ${error.message}`;
-  }
-});
-
-document.querySelector("#unpublish-item").addEventListener("click", async () => {
-  try {
-    await setPublication("draft");
-    itemMessage.textContent = "Item returned to draft. Trigger a static publish to remove public artifacts.";
-  } catch (error) {
-    itemMessage.textContent = `Unpublish item failed: ${error.message}`;
-  }
-});
-
-itemForm.addEventListener("submit", async (event) => {
+elements.itemForm.addEventListener("submit", saveItem);
+elements.itemForm.addEventListener("input", markDirty);
+elements.itemFilters.addEventListener("submit", (event) => {
   event.preventDefault();
-  itemMessage.textContent = "";
-  const form = event.currentTarget;
-  const id = itemId();
-  const estimatedYear = optionalValue(form, "estimatedYear");
-  const payload = {
-    title: form.elements.title.value.trim(),
-    signer: form.elements.signer.value.trim(),
-    description: optionalValue(form, "description"),
-    category: form.elements.category.value.trim(),
-    tags: form.elements.tags.value.split(",").map((tag) => tag.trim()).filter(Boolean),
-    objectReference: optionalValue(form, "objectReference"),
-    eventName: optionalValue(form, "eventName"),
-    eventLocation: optionalValue(form, "eventLocation"),
-    source: optionalValue(form, "source"),
-    inscription: optionalValue(form, "inscription"),
-    certificationCompany: optionalValue(form, "certificationCompany"),
-    certificationId: optionalValue(form, "certificationId"),
-    estimatedYear: estimatedYear ? Number(estimatedYear) : null,
-    publicationStatus: form.elements.publicationStatus.value,
-  };
-
-  try {
-    const item = await jsonRequest(id ? `${endpoints.items}/${id}` : endpoints.items, id ? "PATCH" : "POST", payload);
-    form.elements.itemId.value = item.id;
-    const image = form.elements.image.files[0];
-    if (image) {
-      const upload = new FormData();
-      upload.append("image", image);
-      upload.append("altText", optionalValue(form, "altText") || "");
-      await request(`${endpoints.items}/${item.id}/images`, {
-        method: "POST",
-        body: upload,
-      });
-    }
-    itemMessage.textContent = `Saved ${item.id}.`;
-  } catch (error) {
-    itemMessage.textContent = `Save failed: ${error.message}`;
-  }
+  renderItemList();
 });
 
-renderStatus();
+renderHub();
