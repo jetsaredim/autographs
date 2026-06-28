@@ -23,12 +23,13 @@ fn static_admin_source_keeps_secrets_private_and_privileged_calls_same_origin() 
 }
 
 #[test]
-fn static_admin_source_references_seed_and_publish_contract() {
+fn static_admin_source_references_collection_workflow_contract() {
     let source = static_admin_source();
     for endpoint in [
         "/admin/api/login",
         "/admin/api/logout",
         "/admin/api/health",
+        "/admin/api/status",
         "/admin/api/items",
         "/admin/api/publish/incremental",
         "/admin/api/publish/full",
@@ -37,6 +38,27 @@ fn static_admin_source_references_seed_and_publish_contract() {
         assert!(
             source.contains(endpoint),
             "static admin source is missing {endpoint}"
+        );
+    }
+    for workflow_copy in [
+        "Admin hub",
+        "Add new item",
+        "Find or modify existing items",
+        "Identity",
+        "Story",
+        "Provenance",
+        "Publication",
+        "Publish changes",
+        "Full rebuild",
+        "No history recorded yet",
+        "No saved items yet",
+        "Start with the backlog: add an autograph item, upload its images, save it privately, then publish when the batch is ready.",
+        "Run a full rebuild only for repair or structural changes. Continue?",
+        "Remove image: Remove this image from the item and queue cleanup of the private original? This cannot be undone from the admin UI.",
+    ] {
+        assert!(
+            source.contains(workflow_copy),
+            "static admin source is missing workflow copy {workflow_copy}"
         );
     }
     for field in [
@@ -58,8 +80,35 @@ fn static_admin_source_references_seed_and_publish_contract() {
         );
     }
     assert!(source.contains("FormData"));
-    assert!(source.contains("Phase 5"));
-    assert!(source.contains("Phase 6"));
+    assert!(!source.to_ascii_lowercase().contains("seed"));
+}
+
+#[test]
+fn static_admin_markup_labels_every_form_control() {
+    let html = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("static-admin")
+            .join("index.html"),
+    )
+    .expect("read static admin markup");
+
+    for tag in ["input", "select", "textarea"] {
+        for control in html.match_indices(&format!("<{tag}")) {
+            let element = &html[control.0..];
+            let end = element.find('>').expect("control has closing bracket");
+            let element = &element[..end];
+            let Some(id_start) = element.find("id=\"") else {
+                panic!("static admin {tag} missing id: {element}");
+            };
+            let id_value = &element[id_start + 4..];
+            let id_end = id_value.find('"').expect("id has closing quote");
+            let id = &id_value[..id_end];
+            assert!(
+                html.contains(&format!("<label for=\"{id}\"")),
+                "static admin {tag} #{id} is missing a visible matching label"
+            );
+        }
+    }
 }
 
 fn static_admin_source() -> String {
