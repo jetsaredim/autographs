@@ -313,7 +313,7 @@
 
 - name: Copy admin shell into promoted static release
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../controller/static-admin/"
+    src: "{{ playbook_dir }}/../../../controller/static-admin/"
     dest: "{{ autographs_deploy_static_volume.stdout }}/current/admin/"
     owner: "{{ autographs_deploy_user }}"
     group: "{{ autographs_deploy_user }}"
