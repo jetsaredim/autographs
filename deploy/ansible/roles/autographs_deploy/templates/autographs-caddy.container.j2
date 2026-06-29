@@ -6,13 +6,12 @@ Requires=autographs-network.service autographs-controller.service
 
 [Container]
 ContainerName={{ autographs_deploy_caddy_container_name }}
-Image={{ autographs_deploy_caddy_image }}
+Image=docker.io/library/caddy:2-alpine
 Pull=never
 Network=autographs.network
 Environment=AUTOGRAPHS_DOMAIN={{ autographs_deploy_domain }}
 Volume={{ autographs_deploy_caddy_path }}/Caddyfile:/etc/caddy/Caddyfile:ro,Z
 Volume=autographs-static.volume:/srv/autographs/static:ro
-Volume={{ autographs_deploy_static_admin_path }}:/srv/autographs/admin:ro,Z
 Volume=autographs-caddy-data.volume:/data
 Volume=autographs-caddy-config.volume:/config
 PublishPort={{ autographs_deploy_http_port }}:80

@@ -12,13 +12,15 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
     assert!(caddyfile.contains("handle /admin/api/*"));
     assert!(caddyfile.contains("reverse_proxy autographs-controller:8080"));
     assert!(caddyfile.contains("handle_path /admin/*"));
-    assert!(caddyfile.contains("root * /srv/autographs/admin"));
+    assert!(caddyfile.contains("root * /srv/autographs/static/current/admin"));
     assert!(caddyfile.contains("http://:8081"));
     assert!(caddyfile.contains("root * /srv/autographs/static/current"));
     assert!(caddyfile.contains("file_server"));
     assert!(!caddyfile.contains("reverse_proxy autographs-app:3000"));
 
     assert!(caddy_quadlet.contains("Volume=autographs-static.volume:/srv/autographs/static:ro"));
+    assert!(caddy_quadlet.contains("Image=docker.io/library/caddy:2-alpine"));
+    assert!(!caddy_quadlet.contains("/usr/share/caddy/admin"));
     assert!(!caddy_quadlet.contains("autographs-app.service"));
     assert!(
         caddy_quadlet
@@ -30,6 +32,8 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
 
     assert!(deploy_tasks.contains("Require promoted static release before Caddy cutover"));
     assert!(deploy_tasks.contains("current/manifest.json"));
+    assert!(deploy_tasks.contains("Copy admin shell into promoted static release"));
+    assert!(deploy_tasks.contains("current/admin/"));
     assert!(deploy_tasks.contains("Stop and disable retired Next.js app service"));
     assert!(deploy_tasks.contains("Remove retired Next.js app quadlet"));
     assert!(deploy_tasks.contains("Remove retired Next.js app container"));
