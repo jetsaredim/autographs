@@ -241,6 +241,8 @@ fn static_admin_login_keeps_expired_sessions_in_place_when_root_redirects_back_h
     for expected in [
         "const next = nextDestination();",
         "if (window.location.pathname === adminRootPath && next === adminRootPath)",
+        "next.includes(\"\\\\\")",
+        "new URL(next, window.location.origin)",
         "showWorkflow();",
         "window.location.replace(next);",
     ] {

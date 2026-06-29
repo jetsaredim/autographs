@@ -211,15 +211,19 @@ const loginRedirectUrl = (next = currentAdminPath()) => {
 };
 
 const normalizeNextPath = (next) => {
-  if (
-    !next ||
-    typeof next !== "string" ||
-    !next.startsWith("/") ||
-    next.startsWith("//")
-  ) {
+  if (!next || typeof next !== "string" || next.includes("\\")) {
     return adminRootPath;
   }
-  return next.startsWith(adminLoginPath) ? adminRootPath : next;
+  try {
+    const url = new URL(next, window.location.origin);
+    const isAdminPath = url.pathname === adminRootPath.slice(0, -1) || url.pathname.startsWith(adminRootPath);
+    if (url.origin !== window.location.origin || !isAdminPath) {
+      return adminRootPath;
+    }
+    return url.pathname === adminLoginPath ? adminRootPath : `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return adminRootPath;
+  }
 };
 
 const nextDestination = () => normalizeNextPath(new URLSearchParams(window.location.search).get("next"));
