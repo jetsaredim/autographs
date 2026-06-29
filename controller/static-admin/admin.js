@@ -43,6 +43,9 @@ const state = {
 };
 
 const uploadOnlyFieldNames = new Set(["images", "replacementImage", "altText"]);
+const adminLoginPath = "/admin/login";
+const adminRootPath = "/admin/";
+const publicHomePath = "/";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -198,6 +201,28 @@ function setView(viewId) {
 }
 
 const pendingCopy = (count) => `${count} saved change(s) have not been published yet.`;
+
+const currentAdminPath = () => `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+const loginRedirectUrl = (next = currentAdminPath()) => {
+  const url = new URL(adminLoginPath, window.location.origin);
+  url.searchParams.set("next", next);
+  return `${url.pathname}${url.search}`;
+};
+
+const normalizeNextPath = (next) => {
+  if (
+    !next ||
+    typeof next !== "string" ||
+    !next.startsWith("/") ||
+    next.startsWith("//")
+  ) {
+    return adminRootPath;
+  }
+  return next.startsWith(adminLoginPath) ? adminRootPath : next;
+};
+
+const nextDestination = () => normalizeNextPath(new URLSearchParams(window.location.search).get("next"));
 
 async function renderHub({ allowAnonymous = false } = {}) {
   try {
@@ -717,11 +742,20 @@ function publishFromEditor() {
 }
 
 async function bootstrapSession() {
+  const onLoginRoute = window.location.pathname === adminLoginPath;
   const hasSession = await renderHub({ allowAnonymous: true });
   if (hasSession) {
+    if (onLoginRoute) {
+      window.location.replace(nextDestination());
+      return;
+    }
     showWorkflow();
   } else {
-    showLogin();
+    if (onLoginRoute) {
+      showLogin();
+    } else {
+      window.location.replace(loginRedirectUrl());
+    }
   }
 }
 
@@ -733,10 +767,13 @@ elements.loginForm.addEventListener("submit", async (event) => {
       password: event.currentTarget.elements.password.value,
     });
     event.currentTarget.reset();
-    showWorkflow();
-    setView("hub-view");
+    window.location.replace(nextDestination());
   } catch (error) {
-    elements.loginMessage.textContent = error.status === 429 ? copy.lockout : "Login failed.";
+    if (error.status === 401 || error.status === 429) {
+      window.location.replace(publicHomePath);
+    } else {
+      elements.loginMessage.textContent = error.status === 429 ? copy.lockout : "Login failed.";
+    }
   }
 });
 
