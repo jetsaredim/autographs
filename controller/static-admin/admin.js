@@ -43,6 +43,9 @@ const state = {
 };
 
 const uploadOnlyFieldNames = new Set(["images", "replacementImage", "altText"]);
+const adminLoginPath = "/admin/login";
+const adminRootPath = "/admin/";
+const publicHomePath = "/";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -198,6 +201,32 @@ function setView(viewId) {
 }
 
 const pendingCopy = (count) => `${count} saved change(s) have not been published yet.`;
+
+const currentAdminPath = () => `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+const loginRedirectUrl = (next = currentAdminPath()) => {
+  const url = new URL(adminLoginPath, window.location.origin);
+  url.searchParams.set("next", next);
+  return `${url.pathname}${url.search}`;
+};
+
+const normalizeNextPath = (next) => {
+  if (!next || typeof next !== "string" || next.includes("\\")) {
+    return adminRootPath;
+  }
+  try {
+    const url = new URL(next, window.location.origin);
+    const isAdminPath = url.pathname === adminRootPath.slice(0, -1) || url.pathname.startsWith(adminRootPath);
+    if (url.origin !== window.location.origin || !isAdminPath) {
+      return adminRootPath;
+    }
+    return url.pathname === adminLoginPath ? adminRootPath : `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return adminRootPath;
+  }
+};
+
+const nextDestination = () => normalizeNextPath(new URLSearchParams(window.location.search).get("next"));
 
 async function renderHub({ allowAnonymous = false } = {}) {
   try {
@@ -717,11 +746,20 @@ function publishFromEditor() {
 }
 
 async function bootstrapSession() {
+  const onLoginRoute = window.location.pathname === adminLoginPath;
   const hasSession = await renderHub({ allowAnonymous: true });
   if (hasSession) {
+    if (onLoginRoute) {
+      window.location.replace(nextDestination());
+      return;
+    }
     showWorkflow();
   } else {
-    showLogin();
+    if (onLoginRoute) {
+      showLogin();
+    } else {
+      window.location.replace(loginRedirectUrl());
+    }
   }
 }
 
@@ -732,11 +770,19 @@ elements.loginForm.addEventListener("submit", async (event) => {
     await jsonRequest(endpoints.login, "POST", {
       password: event.currentTarget.elements.password.value,
     });
+    const next = nextDestination();
     event.currentTarget.reset();
-    showWorkflow();
-    setView("hub-view");
+    if (window.location.pathname === adminRootPath && next === adminRootPath) {
+      showWorkflow();
+      return;
+    }
+    window.location.replace(next);
   } catch (error) {
-    elements.loginMessage.textContent = error.status === 429 ? copy.lockout : "Login failed.";
+    if (error.status === 401 || error.status === 429) {
+      window.location.replace(publicHomePath);
+    } else {
+      elements.loginMessage.textContent = error.status === 429 ? copy.lockout : "Login failed.";
+    }
   }
 });
 

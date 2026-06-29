@@ -214,8 +214,16 @@ fn static_admin_bootstraps_existing_sessions_without_expired_copy() {
     for expected in [
         "const { allowAnonymous = false, ...fetchOptions } = options;",
         "if (!allowAnonymous && !elements.workflowView.hidden)",
+        "const adminLoginPath = \"/admin/login\";",
+        "const adminRootPath = \"/admin/\";",
+        "const publicHomePath = \"/\";",
+        "url.searchParams.set(\"next\", next);",
+        "new URLSearchParams(window.location.search).get(\"next\")",
         "async function bootstrapSession()",
         "await renderHub({ allowAnonymous: true });",
+        "window.location.replace(loginRedirectUrl());",
+        "window.location.replace(nextDestination());",
+        "window.location.replace(publicHomePath);",
         "showWorkflow();",
         "showLogin();",
         "bootstrapSession();",
@@ -223,6 +231,24 @@ fn static_admin_bootstraps_existing_sessions_without_expired_copy() {
         assert!(
             source.contains(expected),
             "static admin source should keep initial anonymous bootstrap distinct with {expected}"
+        );
+    }
+}
+
+#[test]
+fn static_admin_login_keeps_expired_sessions_in_place_when_root_redirects_back_home() {
+    let source = static_admin_source();
+    for expected in [
+        "const next = nextDestination();",
+        "if (window.location.pathname === adminRootPath && next === adminRootPath)",
+        "next.includes(\"\\\\\")",
+        "new URL(next, window.location.origin)",
+        "showWorkflow();",
+        "window.location.replace(next);",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin source should restore an expired session in place with {expected}"
         );
     }
 }

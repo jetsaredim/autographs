@@ -73,6 +73,29 @@ async fn auth_and_health_routes_are_redacted_and_guarded() {
 }
 
 #[tokio::test]
+async fn auth_and_health_routes_stay_guarded_without_bootstrap_credentials() {
+    let mut config = ControllerConfig::for_test(true);
+    config.admin_password = None;
+    config.admin_password_hash = None;
+    config.operator_token = None;
+    let app = router(config);
+
+    let status = app
+        .clone()
+        .oneshot(
+            Request::get("/admin/api/status")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(status.status(), StatusCode::UNAUTHORIZED);
+
+    let login = login(&app, "anything").await;
+    assert_eq!(login.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn auth_and_health_login_issues_strict_secure_cookie_and_cookie_mutations_require_same_origin()
  {
     let app = router(ControllerConfig::for_test(true));
