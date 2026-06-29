@@ -235,6 +235,22 @@ fn static_admin_bootstraps_existing_sessions_without_expired_copy() {
     }
 }
 
+#[test]
+fn static_admin_login_keeps_expired_sessions_in_place_when_root_redirects_back_home() {
+    let source = static_admin_source();
+    for expected in [
+        "const next = nextDestination();",
+        "if (window.location.pathname === adminRootPath && next === adminRootPath)",
+        "showWorkflow();",
+        "window.location.replace(next);",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin source should restore an expired session in place with {expected}"
+        );
+    }
+}
+
 fn static_admin_source() -> String {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static-admin");
     ["index.html", "admin.js", "admin.css"]

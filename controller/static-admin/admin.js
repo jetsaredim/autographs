@@ -766,8 +766,13 @@ elements.loginForm.addEventListener("submit", async (event) => {
     await jsonRequest(endpoints.login, "POST", {
       password: event.currentTarget.elements.password.value,
     });
+    const next = nextDestination();
     event.currentTarget.reset();
-    window.location.replace(nextDestination());
+    if (window.location.pathname === adminRootPath && next === adminRootPath) {
+      showWorkflow();
+      return;
+    }
+    window.location.replace(next);
   } catch (error) {
     if (error.status === 401 || error.status === 429) {
       window.location.replace(publicHomePath);

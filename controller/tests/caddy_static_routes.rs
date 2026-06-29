@@ -55,6 +55,29 @@ fn controller_quadlet_keeps_private_api_off_host_ports() {
     assert!(!controller_quadlet.contains("PublishPort="));
 }
 
+#[test]
+fn deploy_tasks_hash_rotation_discards_preserved_plaintext_credentials() {
+    let deploy_tasks = read_repo("deploy/ansible/roles/autographs_deploy/tasks/main.yml");
+    let select_start = deploy_tasks
+        .find("- name: Select deployed admin credentials")
+        .expect("select deployed admin credentials exists");
+    let validate_start = deploy_tasks
+        .find("- name: Validate deployed admin authentication secret")
+        .expect("credential validation exists");
+    let select_tasks = &deploy_tasks[select_start..validate_start];
+
+    for expected in [
+        "if autographs_deploy_admin_password_input | length > 0\n          and autographs_deploy_admin_password_hash_input | length == 0",
+        "''\n          if autographs_deploy_admin_password_hash_input | length > 0",
+        "''\n          if autographs_deploy_admin_password_input | length > 0",
+    ] {
+        assert!(
+            select_tasks.contains(expected),
+            "deploy tasks should prefer the configured hash and drop preserved plaintext with {expected}"
+        );
+    }
+}
+
 fn read_repo(relative: &str) -> String {
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
