@@ -69,6 +69,7 @@ fn deploy_tasks_hash_rotation_discards_preserved_plaintext_credentials() {
     for expected in [
         "if autographs_deploy_admin_password_input | length > 0\n          and autographs_deploy_admin_password_hash_input | length == 0",
         "''\n          if autographs_deploy_admin_password_hash_input | length > 0",
+        "''\n              if autographs_deploy_admin_password_hash_existing | length > 0",
         "''\n          if autographs_deploy_admin_password_input | length > 0",
     ] {
         assert!(

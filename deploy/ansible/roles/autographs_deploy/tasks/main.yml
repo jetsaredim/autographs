@@ -222,7 +222,11 @@
           else (
             autographs_deploy_admin_password_existing
             if autographs_deploy_admin_password_existing | length > 0
-            else lookup('password', '/dev/null length=32 chars=ascii_letters,digits')
+            else (
+              ''
+              if autographs_deploy_admin_password_hash_existing | length > 0
+              else lookup('password', '/dev/null length=32 chars=ascii_letters,digits')
+            )
           )
         )
       }}
