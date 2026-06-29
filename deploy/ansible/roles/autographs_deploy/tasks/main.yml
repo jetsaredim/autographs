@@ -171,26 +171,38 @@
 
 - name: Resolve deployed admin credentials
   ansible.builtin.set_fact:
-    autographs_admin_password_input: >-
-      {{ autographs_admin_password | default(lookup('env', 'AUTOGRAPHS_ADMIN_PASSWORD') | default('', true), true) | trim }}
-    autographs_admin_password_hash_input: >-
-      {{ autographs_admin_password_hash | default(lookup('env', 'AUTOGRAPHS_ADMIN_PASSWORD_HASH') | default('', true), true) | trim }}
-    autographs_admin_password_existing: >-
+    autographs_deploy_admin_password_input: >-
+      {{
+        autographs_deploy_admin_password
+        | default(autographs_admin_password | default('', true), true)
+        | default(lookup('env', 'AUTOGRAPHS_ADMIN_PASSWORD') | default('', true), true)
+        | trim
+      }}
+    autographs_deploy_admin_password_hash_input: >-
+      {{
+        autographs_deploy_admin_password_hash
+        | default(autographs_admin_password_hash | default('', true), true)
+        | default(lookup('env', 'AUTOGRAPHS_ADMIN_PASSWORD_HASH') | default('', true), true)
+        | trim
+      }}
+    autographs_deploy_admin_password_existing: >-
       {{
         (
           autographs_deploy_app_env_file.content
           | b64decode
-          | regex_search('(?m)^AUTOGRAPHS_ADMIN_PASSWORD=(.*)$', '\\1')
+          | regex_findall('(?m)^AUTOGRAPHS_ADMIN_PASSWORD=([^\n]*)$')
+          | first
         ) | default('', true) | trim
         if autographs_deploy_app_env_stat.stat.exists
         else ''
       }}
-    autographs_admin_password_hash_existing: >-
+    autographs_deploy_admin_password_hash_existing: >-
       {{
         (
           autographs_deploy_app_env_file.content
           | b64decode
-          | regex_search('(?m)^AUTOGRAPHS_ADMIN_PASSWORD_HASH=(.*)$', '\\1')
+          | regex_findall('(?m)^AUTOGRAPHS_ADMIN_PASSWORD_HASH=([^\n]*)$')
+          | first
         ) | default('', true) | trim
         if autographs_deploy_app_env_stat.stat.exists
         else ''
@@ -199,25 +211,25 @@
 
 - name: Select deployed admin credentials
   ansible.builtin.set_fact:
-    autographs_admin_password_resolved: >-
+    autographs_deploy_admin_password_resolved: >-
       {{
-        autographs_admin_password_existing
-        if autographs_admin_password_existing | length > 0
+        autographs_deploy_admin_password_input
+        if autographs_deploy_admin_password_input | length > 0
         else (
-          autographs_admin_password_input
-          if autographs_admin_password_input | length > 0
+          autographs_deploy_admin_password_existing
+          if autographs_deploy_admin_password_existing | length > 0
           else (
             lookup('password', '/dev/null length=32 chars=ascii_letters,digits')
-            if autographs_admin_password_hash_input | length == 0
+            if autographs_deploy_admin_password_hash_input | length == 0
             else ''
           )
         )
       }}
-    autographs_admin_password_hash_resolved: >-
+    autographs_deploy_admin_password_hash_resolved: >-
       {{
-        autographs_admin_password_hash_existing
-        if autographs_admin_password_hash_existing | length > 0
-        else autographs_admin_password_hash_input
+        autographs_deploy_admin_password_hash_input
+        if autographs_deploy_admin_password_hash_input | length > 0
+        else autographs_deploy_admin_password_hash_existing
       }}
   no_log: true
 
@@ -226,15 +238,18 @@
     that:
       - >-
         (
-          autographs_admin_password_resolved | default('', true) | trim | length
+          autographs_deploy_admin_password_resolved | default('', true) | trim | length
         ) > 0
         or (
-          autographs_admin_password_hash_resolved | default('', true) | trim | length
+          autographs_deploy_admin_password_hash_resolved | default('', true) | trim | length
         ) > 0
         or (
           autographs_operator_api_token | default(lookup('env', 'AUTOGRAPHS_OPERATOR_API_TOKEN') | default('', true), true) | trim | length
         ) > 0
-    fail_msg: "Set a non-empty autographs_admin_password, autographs_admin_password_hash, or autographs_operator_api_token for deployed admin routes."
+    fail_msg: >-
+      Set a non-empty autographs_deploy_admin_password,
+      autographs_deploy_admin_password_hash, or autographs_operator_api_token
+      for deployed admin routes.
   no_log: true
 
 - name: Write app environment file
