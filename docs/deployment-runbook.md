@@ -206,7 +206,7 @@ curl --fail --silent http://127.0.0.1:8081/releases/<release-id>/collection/
 The `/admin` shell and `/admin/api/*` controller proxy are available through the normal hostname. The public static cutover route shape is now the deployed Caddy shape:
 
 - `/admin/api/*` reverse-proxies to `autographs-controller:8080` on the private Podman network.
-- `/admin/*` serves the static admin shell from `/srv/autographs/admin`.
+- `/admin/*` serves the static admin shell from `/srv/autographs/static/current/admin`.
 - `/api/operator/*` continues to return `404`.
 - Anonymous public traffic serves `/srv/autographs/static/current` directly.
 - `127.0.0.1:8081` on the VM maps to Caddy's static preview listener and serves `/srv/autographs/static`.

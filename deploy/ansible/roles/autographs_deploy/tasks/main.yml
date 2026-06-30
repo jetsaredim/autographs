@@ -306,20 +306,6 @@
       full static publish and verify the promoted release before deploying this
       Caddy cutover.
 
-- name: Remove staged admin shell before restaging
-  ansible.builtin.file:
-    path: "{{ autographs_deploy_static_volume.stdout }}/current/admin"
-    state: absent
-
-- name: Copy admin shell into promoted static release
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../../controller/static-admin/"
-    dest: "{{ autographs_deploy_static_volume.stdout }}/current/admin/"
-    owner: "{{ autographs_deploy_user }}"
-    group: "{{ autographs_deploy_user }}"
-    mode: "0644"
-    directory_mode: "0755"
-
 - name: Copy Caddyfile
   ansible.builtin.copy:
     src: Caddyfile

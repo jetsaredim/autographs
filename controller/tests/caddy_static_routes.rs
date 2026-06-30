@@ -32,8 +32,9 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
 
     assert!(deploy_tasks.contains("Require promoted static release before Caddy cutover"));
     assert!(deploy_tasks.contains("current/manifest.json"));
-    assert!(deploy_tasks.contains("Copy admin shell into promoted static release"));
-    assert!(deploy_tasks.contains("current/admin/"));
+    assert!(!deploy_tasks.contains("Remove staged admin shell before restaging"));
+    assert!(!deploy_tasks.contains("Copy admin shell into promoted static release"));
+    assert!(!deploy_tasks.contains("current/admin/"));
     assert!(deploy_tasks.contains("Stop and disable retired Next.js app service"));
     assert!(deploy_tasks.contains("Remove retired Next.js app quadlet"));
     assert!(deploy_tasks.contains("Remove retired Next.js app container"));
@@ -44,6 +45,18 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
             "http://127.0.0.1:{{ autographs_deploy_candidate_preview_port }}/manifest.json"
         )
     );
+}
+
+#[test]
+fn controller_dockerfile_copies_compile_time_static_assets() {
+    let dockerfile = read_repo("controller/Dockerfile");
+
+    assert!(dockerfile.contains("COPY controller/src ./src"));
+    assert!(dockerfile.contains("COPY controller/db ./db"));
+    assert!(dockerfile.contains("COPY controller/static-public ./static-public"));
+    assert!(dockerfile.contains("COPY controller/static-admin ./static-admin"));
+    assert!(dockerfile.contains("cargo build --release --features production-persistence"));
+    assert!(dockerfile.contains("COPY controller/static-admin /opt/autographs/static-admin"));
 }
 
 #[test]
