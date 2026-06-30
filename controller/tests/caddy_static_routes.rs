@@ -32,9 +32,15 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
 
     assert!(deploy_tasks.contains("Require promoted static release before Caddy cutover"));
     assert!(deploy_tasks.contains("current/manifest.json"));
+    assert!(deploy_tasks.contains("Check promoted admin shell artifacts"));
+    assert!(deploy_tasks.contains("Read promoted static release manifest"));
+    assert!(deploy_tasks.contains("admin/index.html"));
+    assert!(deploy_tasks.contains("admin/admin.js"));
+    assert!(deploy_tasks.contains("admin/admin.css"));
+    assert!(deploy_tasks.contains("| from_json"));
+    assert!(deploy_tasks.contains("| difference("));
     assert!(!deploy_tasks.contains("Remove staged admin shell before restaging"));
     assert!(!deploy_tasks.contains("Copy admin shell into promoted static release"));
-    assert!(!deploy_tasks.contains("current/admin/"));
     assert!(deploy_tasks.contains("Stop and disable retired Next.js app service"));
     assert!(deploy_tasks.contains("Remove retired Next.js app quadlet"));
     assert!(deploy_tasks.contains("Remove retired Next.js app container"));
@@ -45,6 +51,10 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
             "http://127.0.0.1:{{ autographs_deploy_candidate_preview_port }}/manifest.json"
         )
     );
+    assert!(deploy_tasks.contains("Verify Caddy admin shell route"));
+    assert!(deploy_tasks.contains("url: \"https://127.0.0.1/admin/\""));
+    assert!(deploy_tasks.contains("Host: \"{{ autographs_deploy_domain }}\""));
+    assert!(deploy_tasks.contains("validate_certs: false"));
 }
 
 #[test]
