@@ -2,6 +2,7 @@
 .github/CODEOWNERS @jetsaredim
 .github/workflows/weekly-security-scan.yml @jetsaredim
 .github/workflows/apply-security-updates.yml @jetsaredim
+.github/actions/resolve-runtime-ip/ @jetsaredim
 .github/production-patch-approvers.yml @jetsaredim
 
 # Production host update automation

@@ -1,0 +1,110 @@
+name: Resolve runtime VM IP
+description: Resolve the production runtime VM public IP from Terraform state with a VM_PUBLIC_IP fallback.
+
+inputs:
+  oci-private-key-pem:
+    description: OCI API signing private key PEM.
+    required: true
+  oci-cli-user-ocid:
+    description: OCI API signing user OCID.
+    required: true
+  oci-tenancy-ocid:
+    description: OCI tenancy OCID.
+    required: true
+  oci-fingerprint:
+    description: OCI API signing key fingerprint.
+    required: true
+  oci-object-storage-namespace:
+    description: OCI Object Storage namespace containing the Terraform state bucket.
+    required: true
+  vm-public-ip:
+    description: Fallback runtime VM public IP when Terraform state output is unavailable.
+    required: false
+    default: ""
+  terraform-version:
+    description: Terraform version to install.
+    required: false
+    default: "1.15.7"
+  terraform-working-directory:
+    description: Terraform root directory.
+    required: false
+    default: infra/terraform
+  terraform-state-bucket:
+    description: Terraform state Object Storage bucket.
+    required: false
+    default: autographs-tf-state
+  terraform-state-key:
+    description: Terraform state object key.
+    required: false
+    default: envs/prod/terraform.tfstate
+  terraform-state-region:
+    description: OCI region for Terraform state and provider authentication.
+    required: false
+    default: us-ashburn-1
+  terraform-workspace-key-prefix:
+    description: Terraform backend workspace key prefix.
+    required: false
+    default: envs
+
+outputs:
+  runtime_public_ip:
+    description: Resolved runtime VM public IP.
+    value: ${{ steps.resolve.outputs.runtime_public_ip }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+      with:
+        terraform_version: ${{ inputs.terraform-version }}
+        terraform_wrapper: false
+
+    - name: Write OCI API private key
+      shell: bash
+      env:
+        OCI_PRIVATE_KEY_PEM: ${{ inputs.oci-private-key-pem }}
+      run: |
+        mkdir -p "$RUNNER_TEMP/oci"
+        printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
+        chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
+
+    - name: Resolve runtime VM IP
+      id: resolve
+      shell: bash
+      working-directory: ${{ inputs.terraform-working-directory }}
+      env:
+        OCI_REGION: ${{ inputs.terraform-state-region }}
+        OCI_CLI_USER_OCID: ${{ inputs.oci-cli-user-ocid }}
+        OCI_TENANCY_OCID: ${{ inputs.oci-tenancy-ocid }}
+        OCI_FINGERPRINT: ${{ inputs.oci-fingerprint }}
+        OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
+        tenancy_ocid: ${{ inputs.oci-tenancy-ocid }}
+        user_ocid: ${{ inputs.oci-cli-user-ocid }}
+        fingerprint: ${{ inputs.oci-fingerprint }}
+        private_key_path: ${{ runner.temp }}/oci/api_key.pem
+        VM_PUBLIC_IP: ${{ inputs.vm-public-ip }}
+      run: |
+        RESOLVED_VM_PUBLIC_IP=""
+        if terraform init \
+          -backend-config="bucket=${{ inputs.terraform-state-bucket }}" \
+          -backend-config="namespace=${{ inputs.oci-object-storage-namespace }}" \
+          -backend-config="region=${{ inputs.terraform-state-region }}" \
+          -backend-config="key=${{ inputs.terraform-state-key }}" \
+          -backend-config="workspace_key_prefix=${{ inputs.terraform-workspace-key-prefix }}" \
+          -backend-config="auth=APIKey"; then
+          RESOLVED_VM_PUBLIC_IP="$(terraform output -raw runtime_public_ip 2>/dev/null || true)"
+          if [ -z "$RESOLVED_VM_PUBLIC_IP" ]; then
+            echo "::warning::Terraform state did not expose runtime_public_ip; falling back to VM_PUBLIC_IP."
+          fi
+        else
+          echo "::warning::Unable to initialize Terraform state; falling back to VM_PUBLIC_IP."
+        fi
+        if [ -z "$RESOLVED_VM_PUBLIC_IP" ]; then
+          RESOLVED_VM_PUBLIC_IP="$VM_PUBLIC_IP"
+        fi
+        if [ -z "$RESOLVED_VM_PUBLIC_IP" ]; then
+          echo "Unable to resolve runtime VM IP from Terraform state or VM_PUBLIC_IP." >&2
+          exit 1
+        fi
+        echo "runtime_public_ip=$RESOLVED_VM_PUBLIC_IP" >> "$GITHUB_OUTPUT"

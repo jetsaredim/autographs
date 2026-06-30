@@ -21,6 +21,7 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 
 - Runs every Monday at `08:37 UTC` and also supports `workflow_dispatch`.
 - Grants `contents: read` and `issues: write` so the checked-out playbook can create or update GitHub issues.
+- Resolves the runtime host through `.github/actions/resolve-runtime-ip`, which reads the Terraform `runtime_public_ip` output and falls back to `VM_PUBLIC_IP` only when the output is unavailable.
 - Pins `dawidd6/action-ansible-playbook` by commit SHA.
 - Supplies the production host inventory inline as the alias `production` in the `runtime` group.
 - Passes `security_patching_target_group=runtime` to `deploy/ansible/playbooks/security-scan.yml`.
@@ -37,6 +38,7 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
   ```
 
 - Installs local Ansible tooling for the cleanup path before the third-party Ansible action runs.
+- Resolves the runtime host through `.github/actions/resolve-runtime-ip`, which reads the Terraform `runtime_public_ip` output and falls back to `VM_PUBLIC_IP` only when the output is unavailable.
 - Runs `deploy/ansible/playbooks/security-patch.yml` through the pinned Ansible action.
 - Uses `continue-on-error: true` on the main update step so the workflow can still run cleanup after validation, SSH, drift, or `dnf` failures.
 - Passes these extra vars to the apply playbook:
@@ -259,10 +261,10 @@ Both workflows use the same host alias to avoid exposing the raw production IP a
 
 ```ini
 [runtime]
-production ansible_host=<VM_PUBLIC_IP> ansible_user=<DEPLOY_SSH_USER or opc>
+production ansible_host=<runtime_public_ip from Terraform, or VM_PUBLIC_IP fallback> ansible_user=<DEPLOY_SSH_USER or opc>
 ```
 
-The workflows expect `VM_PUBLIC_IP` to exist as a repository variable unless the inventory is later replaced by a Terraform-output or OCI-inventory step.
+The workflows first read Terraform state and use the `runtime_public_ip` output for this inventory host. `VM_PUBLIC_IP` remains a fallback repository variable for unusual cases where Terraform state is unavailable or does not yet expose the output.
 
 ## Apply flow
 
