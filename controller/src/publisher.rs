@@ -37,6 +37,9 @@ const ARCHITECTURE_HTML: &str = include_str!("../static-public/architecture/inde
 const ARCHITECTURE_DIAGRAM_SVG: &[u8] =
     include_bytes!("../static-public/architecture/architecture-diagram.svg");
 const DETAIL_TEMPLATE: &str = include_str!("../static-public/templates/detail.html");
+const ADMIN_HTML: &str = include_str!("../static-admin/index.html");
+const ADMIN_JS: &str = include_str!("../static-admin/admin.js");
+const ADMIN_CSS: &str = include_str!("../static-admin/admin.css");
 const SAFE_PUBLISH_ERROR: &str = "Static publish failed. Check controller logs for details.";
 
 #[derive(Clone, Debug, Deserialize)]
@@ -729,6 +732,9 @@ fn write_release(
         "architecture/architecture-diagram.svg",
         ARCHITECTURE_DIAGRAM_SVG,
     )?;
+    write_bytes(candidate, "admin/index.html", ADMIN_HTML.as_bytes())?;
+    write_bytes(candidate, "admin/admin.js", ADMIN_JS.as_bytes())?;
+    write_bytes(candidate, "admin/admin.css", ADMIN_CSS.as_bytes())?;
     write_json(candidate, "data/collection.json", &catalog)?;
     write_json(candidate, "data/facets.json", &facets)?;
     write_bytes(
@@ -759,6 +765,9 @@ pub fn validate_candidate(candidate: &Path) -> Result<PublishManifest, String> {
         "icon.png",
         "architecture/index.html",
         "architecture/architecture-diagram.svg",
+        "admin/index.html",
+        "admin/admin.js",
+        "admin/admin.css",
         "collection/index.html",
         "assets/browse.js",
         "assets/detail.js",
@@ -963,6 +972,7 @@ fn clear_generated_surface(candidate: &Path) -> Result<(), String> {
         "index.html",
         "collection",
         "architecture",
+        "admin",
         "items",
         "data",
         "media",
