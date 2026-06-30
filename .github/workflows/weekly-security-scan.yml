@@ -22,6 +22,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Resolve runtime VM IP
+        id: resolve
+        uses: ./.github/actions/resolve-runtime-ip
+        with:
+          oci-private-key-pem: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+          oci-cli-user-ocid: ${{ secrets.OCI_CLI_USER_OCID }}
+          oci-tenancy-ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          oci-fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          oci-object-storage-namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
+          vm-public-ip: ${{ vars.VM_PUBLIC_IP }}
+
       - name: Run security scan playbook
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
@@ -37,7 +48,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            production ansible_host=${{ vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+            production ansible_host=${{ steps.resolve.outputs.runtime_public_ip }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
           requirements: collections/requirements.yml
           options: |
             --extra-vars security_patching_target_group=runtime

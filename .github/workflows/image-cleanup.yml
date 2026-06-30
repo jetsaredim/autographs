@@ -36,51 +36,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: "1.15.7"
-          terraform_wrapper: false
-
-      - name: Write OCI API private key
-        env:
-          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/oci"
-          printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
-          chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
-
       - name: Resolve runtime VM IP
         id: resolve
-        working-directory: infra/terraform
-        env:
-          OCI_REGION: us-ashburn-1
-          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
-          tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
-          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          private_key_path: ${{ runner.temp }}/oci/api_key.pem
-          VM_PUBLIC_IP: ${{ vars.VM_PUBLIC_IP }}
-        run: |
-          terraform init \
-            -backend-config="bucket=autographs-tf-state" \
-            -backend-config="namespace=${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}" \
-            -backend-config="region=us-ashburn-1" \
-            -backend-config="key=envs/prod/terraform.tfstate" \
-            -backend-config="workspace_key_prefix=envs" \
-            -backend-config="auth=APIKey"
-          RESOLVED_VM_PUBLIC_IP="$(terraform output -raw runtime_public_ip 2>/dev/null || true)"
-          if [ -z "$RESOLVED_VM_PUBLIC_IP" ]; then
-            RESOLVED_VM_PUBLIC_IP="$VM_PUBLIC_IP"
-          fi
-          if [ -z "$RESOLVED_VM_PUBLIC_IP" ]; then
-            echo "Unable to resolve runtime VM IP from Terraform state or VM_PUBLIC_IP." >&2
-            exit 1
-          fi
-          echo "runtime_public_ip=$RESOLVED_VM_PUBLIC_IP" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/resolve-runtime-ip
+        with:
+          oci-private-key-pem: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+          oci-cli-user-ocid: ${{ secrets.OCI_CLI_USER_OCID }}
+          oci-tenancy-ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          oci-fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          oci-object-storage-namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
+          vm-public-ip: ${{ vars.VM_PUBLIC_IP }}
 
   runtime-cleanup:
     name: Remove old runtime images
