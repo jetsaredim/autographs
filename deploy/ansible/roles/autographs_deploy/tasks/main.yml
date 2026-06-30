@@ -349,12 +349,33 @@
           | list
         )
         | length == 0
+        or
+        [
+          'admin/index.html',
+          'admin/admin.js',
+          'admin/admin.css'
+        ]
+        | intersect(
+          (
+            autographs_deploy_static_manifest_file.content
+            | default('e30=')
+            | b64decode
+            | from_json
+          ).artifacts
+          | default([])
+          | map(attribute='path')
+          | list
+        )
+        | length == 0
     fail_msg: >-
       Caddy is configured to serve the generated static public site from
       /srv/autographs/static/current, but the {{ autographs_deploy_static_vol_name }}
-      Podman volume does not contain current/manifest.json plus the generated
-      admin shell artifacts listed in that manifest. Run a successful full static
-      publish and verify the promoted release before deploying this Caddy cutover.
+      Podman volume does not contain current/manifest.json plus regular
+      current/admin shell artifacts. Publisher-owned releases must list all admin
+      shell artifacts in that manifest; legacy migration releases are accepted
+      only when the current/admin files already exist. Run a successful full
+      static publish and verify the promoted release before deploying this Caddy
+      cutover.
 
 - name: Copy Caddyfile
   ansible.builtin.copy:
@@ -528,16 +549,23 @@
   until: autographs_deploy_static_preview_check.status is defined
 
 - name: Verify Caddy admin shell route
-  ansible.builtin.uri:
-    url: "https://127.0.0.1/admin/"
-    method: GET
-    headers:
-      Host: "{{ autographs_deploy_domain }}"
-    status_code:
-      - 200
-    validate_certs: false
-    return_content: false
+  ansible.builtin.command:
+    argv:
+      - curl
+      - --fail
+      - --silent
+      - --show-error
+      - --output
+      - /dev/null
+      - --connect-timeout
+      - "5"
+      - --max-time
+      - "15"
+      - --resolve
+      - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+      - "https://{{ autographs_deploy_domain }}/admin/"
   register: autographs_deploy_admin_shell_check
+  changed_when: false
   retries: 12
   delay: 5
-  until: autographs_deploy_admin_shell_check.status is defined
+  until: autographs_deploy_admin_shell_check.rc == 0

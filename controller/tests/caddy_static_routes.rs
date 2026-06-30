@@ -39,6 +39,11 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
     assert!(deploy_tasks.contains("admin/admin.css"));
     assert!(deploy_tasks.contains("| from_json"));
     assert!(deploy_tasks.contains("| difference("));
+    assert!(deploy_tasks.contains("| intersect("));
+    assert!(
+        deploy_tasks.contains("legacy migration releases are accepted")
+            || deploy_tasks.contains("legacy promoted release")
+    );
     assert!(!deploy_tasks.contains("Remove staged admin shell before restaging"));
     assert!(!deploy_tasks.contains("Copy admin shell into promoted static release"));
     assert!(deploy_tasks.contains("Stop and disable retired Next.js app service"));
@@ -52,9 +57,12 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
         )
     );
     assert!(deploy_tasks.contains("Verify Caddy admin shell route"));
-    assert!(deploy_tasks.contains("url: \"https://127.0.0.1/admin/\""));
-    assert!(deploy_tasks.contains("Host: \"{{ autographs_deploy_domain }}\""));
-    assert!(deploy_tasks.contains("validate_certs: false"));
+    assert!(deploy_tasks.contains("ansible.builtin.command:"));
+    assert!(deploy_tasks.contains("\"{{ autographs_deploy_domain }}:443:127.0.0.1\""));
+    assert!(deploy_tasks.contains("\"https://{{ autographs_deploy_domain }}/admin/\""));
+    assert!(deploy_tasks.contains("until: autographs_deploy_admin_shell_check.rc == 0"));
+    assert!(!deploy_tasks.contains("url: \"https://127.0.0.1/admin/\""));
+    assert!(!deploy_tasks.contains("Host: \"{{ autographs_deploy_domain }}\""));
 }
 
 #[test]
