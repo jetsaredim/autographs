@@ -85,14 +85,21 @@ runs:
         private_key_path: ${{ runner.temp }}/oci/api_key.pem
         VM_PUBLIC_IP: ${{ inputs.vm-public-ip }}
       run: |
-        terraform init \
+        RESOLVED_VM_PUBLIC_IP=""
+        if terraform init \
           -backend-config="bucket=${{ inputs.terraform-state-bucket }}" \
           -backend-config="namespace=${{ inputs.oci-object-storage-namespace }}" \
           -backend-config="region=${{ inputs.terraform-state-region }}" \
           -backend-config="key=${{ inputs.terraform-state-key }}" \
           -backend-config="workspace_key_prefix=${{ inputs.terraform-workspace-key-prefix }}" \
-          -backend-config="auth=APIKey"
-        RESOLVED_VM_PUBLIC_IP="$(terraform output -raw runtime_public_ip 2>/dev/null || true)"
+          -backend-config="auth=APIKey"; then
+          RESOLVED_VM_PUBLIC_IP="$(terraform output -raw runtime_public_ip 2>/dev/null || true)"
+          if [ -z "$RESOLVED_VM_PUBLIC_IP" ]; then
+            echo "::warning::Terraform state did not expose runtime_public_ip; falling back to VM_PUBLIC_IP."
+          fi
+        else
+          echo "::warning::Unable to initialize Terraform state; falling back to VM_PUBLIC_IP."
+        fi
         if [ -z "$RESOLVED_VM_PUBLIC_IP" ]; then
           RESOLVED_VM_PUBLIC_IP="$VM_PUBLIC_IP"
         fi

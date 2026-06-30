@@ -25,6 +25,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Install cleanup Ansible tooling
+        run: python3 -m pip install --user ansible
+
+      - name: Install cleanup Ansible collections
+        run: ansible-galaxy collection install -r deploy/ansible/collections/requirements.yml
+
       - name: Resolve runtime VM IP
         id: resolve
         uses: ./.github/actions/resolve-runtime-ip
@@ -35,12 +41,6 @@ jobs:
           oci-fingerprint: ${{ secrets.OCI_FINGERPRINT }}
           oci-object-storage-namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           vm-public-ip: ${{ vars.VM_PUBLIC_IP }}
-
-      - name: Install cleanup Ansible tooling
-        run: python3 -m pip install --user ansible
-
-      - name: Install cleanup Ansible collections
-        run: ansible-galaxy collection install -r deploy/ansible/collections/requirements.yml
 
       - name: Run security update playbook
         id: security_update
