@@ -127,10 +127,6 @@
       owner: "{{ autographs_deploy_user }}"
       group: "{{ autographs_deploy_user }}"
       mode: "0755"
-    - path: "{{ autographs_deploy_static_admin_path }}"
-      owner: "{{ autographs_deploy_user }}"
-      group: "{{ autographs_deploy_user }}"
-      mode: "0755"
     - path: "{{ autographs_deploy_quadlet_path }}"
       owner: root
       group: root
@@ -273,16 +269,6 @@
     - Restart controller container
     - Restart Caddy container
 
-- name: Copy static admin shell
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../../controller/static-admin/"
-    dest: "{{ autographs_deploy_static_admin_path }}/"
-    owner: "{{ autographs_deploy_user }}"
-    group: "{{ autographs_deploy_user }}"
-    directory_mode: "0755"
-    mode: "0644"
-  notify: Restart Caddy container
-
 - name: Write staged controller environment file
   ansible.builtin.template:
     src: controller.env.j2
@@ -319,6 +305,20 @@
       Podman volume does not contain current/manifest.json. Run a successful
       full static publish and verify the promoted release before deploying this
       Caddy cutover.
+
+- name: Remove staged admin shell before restaging
+  ansible.builtin.file:
+    path: "{{ autographs_deploy_static_volume.stdout }}/current/admin"
+    state: absent
+
+- name: Copy admin shell into promoted static release
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../../controller/static-admin/"
+    dest: "{{ autographs_deploy_static_volume.stdout }}/current/admin/"
+    owner: "{{ autographs_deploy_user }}"
+    group: "{{ autographs_deploy_user }}"
+    mode: "0644"
+    directory_mode: "0755"
 
 - name: Copy Caddyfile
   ansible.builtin.copy:
@@ -403,7 +403,7 @@
     cmd: "podman pull {{ item }}"
   loop:
     - "{{ autographs_controller_image }}"
-    - "{{ autographs_deploy_caddy_image }}"
+    - "docker.io/library/caddy:2-alpine"
   register: autographs_deploy_image_pull
   changed_when: >-
     'Downloaded newer image' in autographs_deploy_image_pull.stdout

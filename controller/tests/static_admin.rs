@@ -236,6 +236,15 @@ fn static_admin_bootstraps_existing_sessions_without_expired_copy() {
 }
 
 #[test]
+fn static_admin_css_keeps_hidden_sections_hidden() {
+    let source = static_admin_source();
+    assert!(
+        source.contains("[hidden] {\n  display: none !important;\n}"),
+        "static admin CSS should explicitly hide hidden sections"
+    );
+}
+
+#[test]
 fn static_admin_login_keeps_expired_sessions_in_place_when_root_redirects_back_home() {
     let source = static_admin_source();
     for expected in [

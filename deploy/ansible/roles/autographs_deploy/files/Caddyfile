@@ -17,7 +17,7 @@
 	}
 
 	handle_path /admin/* {
-		root * /srv/autographs/admin
+		root * /srv/autographs/static/current/admin
 		try_files {path} /index.html
 		file_server
 	}
