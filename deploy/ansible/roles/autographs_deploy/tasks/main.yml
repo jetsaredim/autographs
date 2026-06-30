@@ -562,8 +562,8 @@
       - --max-time
       - "15"
       - --resolve
-      - "{{ autographs_deploy_domain }}:443:127.0.0.1"
-      - "https://{{ autographs_deploy_domain }}/admin/"
+      - "{{ autographs_deploy_domain }}:{{ autographs_deploy_https_port }}:127.0.0.1"
+      - "https://{{ autographs_deploy_domain }}:{{ autographs_deploy_https_port }}/admin/"
   register: autographs_deploy_admin_shell_check
   changed_when: false
   retries: 12

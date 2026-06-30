@@ -6,6 +6,7 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
     let caddy_quadlet =
         read_repo("deploy/ansible/roles/autographs_deploy/templates/autographs-caddy.container.j2");
     let deploy_tasks = read_repo("deploy/ansible/roles/autographs_deploy/tasks/main.yml");
+    let deploy_defaults = read_repo("deploy/ansible/roles/autographs_deploy/defaults/main.yml");
 
     assert!(caddyfile.contains("@operator path /api/operator /api/operator/*"));
     assert!(caddyfile.contains("respond @operator 404"));
@@ -58,8 +59,14 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
     );
     assert!(deploy_tasks.contains("Verify Caddy admin shell route"));
     assert!(deploy_tasks.contains("ansible.builtin.command:"));
-    assert!(deploy_tasks.contains("\"{{ autographs_deploy_domain }}:443:127.0.0.1\""));
-    assert!(deploy_tasks.contains("\"https://{{ autographs_deploy_domain }}/admin/\""));
+    assert!(deploy_defaults.contains("autographs_deploy_https_port: 443"));
+    assert!(deploy_defaults.contains("  - curl"));
+    assert!(deploy_tasks.contains(
+        "\"{{ autographs_deploy_domain }}:{{ autographs_deploy_https_port }}:127.0.0.1\""
+    ));
+    assert!(deploy_tasks.contains(
+        "\"https://{{ autographs_deploy_domain }}:{{ autographs_deploy_https_port }}/admin/\""
+    ));
     assert!(deploy_tasks.contains("until: autographs_deploy_admin_shell_check.rc == 0"));
     assert!(!deploy_tasks.contains("url: \"https://127.0.0.1/admin/\""));
     assert!(!deploy_tasks.contains("Host: \"{{ autographs_deploy_domain }}\""));
@@ -68,6 +75,8 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
 #[test]
 fn controller_dockerfile_copies_compile_time_static_assets() {
     let dockerfile = read_repo("controller/Dockerfile");
+    let smoke_dockerfile = read_repo("controller/Dockerfile.smoke");
+    let static_smoke_dockerfile = read_repo("controller/Dockerfile.static-smoke");
 
     assert!(dockerfile.contains("COPY controller/src ./src"));
     assert!(dockerfile.contains("COPY controller/db ./db"));
@@ -75,6 +84,8 @@ fn controller_dockerfile_copies_compile_time_static_assets() {
     assert!(dockerfile.contains("COPY controller/static-admin ./static-admin"));
     assert!(dockerfile.contains("cargo build --release --features production-persistence"));
     assert!(dockerfile.contains("COPY controller/static-admin /opt/autographs/static-admin"));
+    assert!(smoke_dockerfile.contains("COPY controller/static-admin ./static-admin"));
+    assert!(static_smoke_dockerfile.contains("COPY controller/static-admin ./static-admin"));
 }
 
 #[test]

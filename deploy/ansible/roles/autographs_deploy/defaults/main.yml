@@ -30,6 +30,7 @@ autographs_deploy_static_failed_candidate_retain_count: 1
 autographs_deploy_packages:
   - podman
   - firewalld
+  - curl
   - unzip
   - oraclelinux-developer-release-el10
 
