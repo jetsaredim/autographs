@@ -348,6 +348,74 @@ async fn publisher_allows_generic_private_filenames_in_admin_shell_copy() {
 }
 
 #[tokio::test]
+async fn publisher_allows_original_filenames_that_only_match_generated_media_paths() {
+    let root = tempdir().unwrap();
+    let media_root = tempdir().unwrap();
+    let repository = MemoryCatalogRepository::default();
+    let media = LocalMediaStore::new(media_root.path());
+    let item = repository
+        .create(AutographItemInput {
+            title: "Generated Media Path Card".to_owned(),
+            signer: "Path Copy".to_owned(),
+            description: Some(
+                "A published item with filenames matching derivative path terms.".to_owned(),
+            ),
+            category: "Cards".to_owned(),
+            tags: vec!["paths".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+    for (sort_order, original_filename) in ["image", "detail"].into_iter().enumerate() {
+        let image_id = Uuid::new_v4();
+        let object_key = build_original_object_key(item.id, image_id);
+        let bytes = png_bytes();
+        media.write(&object_key, &bytes).await.unwrap();
+        repository
+            .attach_image(
+                item.id,
+                AutographImage {
+                    id: image_id,
+                    object_key,
+                    original_filename: original_filename.to_owned(),
+                    content_type: "image/png".to_owned(),
+                    byte_size: bytes.len(),
+                    is_primary: sort_order == 0,
+                    sort_order: sort_order as i32,
+                    alt_text: None,
+                },
+            )
+            .await
+            .unwrap();
+    }
+
+    LocalPublisher::new(root.path())
+        .publish(&repository, &media, PublishMode::Full)
+        .await
+        .unwrap();
+
+    let current = root.path().join("current");
+    assert!(
+        current
+            .join("media/generated-media-path-card/image-1-detail.webp")
+            .is_file()
+    );
+    assert!(
+        current
+            .join("media/generated-media-path-card/image-2-thumbnail.webp")
+            .is_file()
+    );
+}
+
+#[tokio::test]
 async fn publisher_rejects_private_object_key_in_admin_shell_copy() {
     let root = tempdir().unwrap();
     let media_root = tempdir().unwrap();

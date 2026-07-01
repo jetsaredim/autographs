@@ -1171,23 +1171,28 @@ fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Resu
     collect_paths(root, &mut files)?;
     for path in files {
         let relative = path.strip_prefix(root).expect("candidate path");
-        let rendered = if path.extension().and_then(|extension| extension.to_str()) == Some("webp")
-        {
-            relative.display().to_string()
+        let text = if is_webp_path(&path) {
+            None
         } else {
-            let text = fs::read(&path)
+            let bytes = fs::read(&path)
                 .map_err(|error| format!("read candidate source privacy scan: {error}"))?;
-            format!("{}\n{}", relative.display(), String::from_utf8_lossy(&text))
+            Some(String::from_utf8_lossy(&bytes).into_owned())
         };
+        let rendered = text
+            .as_ref()
+            .map(|text| format!("{}\n{}", relative.display(), text))
+            .unwrap_or_else(|| relative.display().to_string());
         if high_confidence_denied
             .iter()
             .filter(|value| !value.is_empty())
             .any(|value| rendered.contains(value))
-            || (is_catalog_generated_surface(relative)
-                && low_confidence_denied
-                    .iter()
-                    .filter(|value| !value.is_empty())
-                    .any(|value| rendered.contains(value)))
+        {
+            return Err("candidate privacy scan rejected private source reference".to_owned());
+        }
+        if is_catalog_content_surface(relative)
+            && text.as_deref().is_some_and(|text| {
+                contains_low_confidence_source_value(text, &low_confidence_denied)
+            })
         {
             return Err("candidate privacy scan rejected private source reference".to_owned());
         }
@@ -1195,8 +1200,40 @@ fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Resu
     Ok(())
 }
 
-fn is_catalog_generated_surface(relative: &Path) -> bool {
-    relative.starts_with("data") || relative.starts_with("items") || relative.starts_with("media")
+fn is_catalog_content_surface(relative: &Path) -> bool {
+    relative.starts_with("data") || relative.starts_with("items")
+}
+
+fn contains_low_confidence_source_value(text: &str, denied: &[String]) -> bool {
+    denied
+        .iter()
+        .filter(|value| !value.is_empty())
+        .filter(|value| is_actionable_low_confidence_value(value))
+        .any(|value| contains_standalone_value(text, value))
+}
+
+fn is_actionable_low_confidence_value(value: &str) -> bool {
+    !matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "media" | "image" | "images" | "detail" | "thumbnail" | "upload"
+    )
+}
+
+fn contains_standalone_value(text: &str, value: &str) -> bool {
+    text.match_indices(value).any(|(index, _)| {
+        let before = text[..index].chars().next_back();
+        let after = text[index + value.len()..].chars().next();
+        !before.is_some_and(is_filename_or_path_char)
+            && !after.is_some_and(is_filename_or_path_char)
+    })
+}
+
+fn is_filename_or_path_char(value: char) -> bool {
+    value.is_ascii_alphanumeric() || matches!(value, '_' | '-' | '.' | '/')
+}
+
+fn is_webp_path(path: &Path) -> bool {
+    path.extension().and_then(|extension| extension.to_str()) == Some("webp")
 }
 
 fn collect_paths(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
