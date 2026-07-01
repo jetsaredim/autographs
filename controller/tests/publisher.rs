@@ -63,6 +63,9 @@ async fn publisher_generates_candidate_release_and_derivatives() {
         "icon.png",
         "architecture/index.html",
         "architecture/architecture-diagram.svg",
+        "admin/index.html",
+        "admin/admin.js",
+        "admin/admin.css",
         "collection/index.html",
         "assets/browse.js",
         "assets/detail.js",
@@ -89,6 +92,12 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     assert!(!rendered.contains("Draft Only"));
 
     let manifest: PublishManifest = read_json(&current.join("manifest.json"));
+    for path in ["admin/index.html", "admin/admin.js", "admin/admin.css"] {
+        assert!(
+            manifest.artifacts.iter().any(|entry| entry.path == path),
+            "manifest missing {path}"
+        );
+    }
     let derivatives = manifest
         .artifacts
         .iter()

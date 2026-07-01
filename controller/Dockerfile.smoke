@@ -7,6 +7,7 @@ COPY controller/src ./src
 COPY controller/db ./db
 COPY controller/tests ./tests
 COPY controller/static-public ./static-public
+COPY controller/static-admin ./static-admin
 
 RUN cargo test --release --features live-persistence --test live_persistence_smoke --no-run \
     && smoke_binary="$(find target/release/deps -maxdepth 1 -type f -name 'live_persistence_smoke-*' -perm -111 | head -n 1)" \

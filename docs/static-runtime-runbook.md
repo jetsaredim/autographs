@@ -252,7 +252,7 @@ wiring from PR 94 has already been deployed to the VM. That deployment installs:
 Until that staged deployment is present, the smoke cannot reach
 `http://autographs-controller:8080` or `http://autographs-caddy:8081`.
 Deploy PR 94 through the normal deployment workflow, or manually install the
-same controller quadlet, Caddyfile, static volume, and admin-shell files on the
+same controller quadlet, Caddyfile, static volume, and promoted static release on the
 VM before running this checkpoint.
 
 For Phase 5 closeout, the final checkpoint was a second credential-gated smoke

@@ -8,6 +8,7 @@ COPY controller/Cargo.toml controller/Cargo.lock ./
 COPY controller/src ./src
 COPY controller/db ./db
 COPY controller/static-public ./static-public
+COPY controller/static-admin ./static-admin
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
