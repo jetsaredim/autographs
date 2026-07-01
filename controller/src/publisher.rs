@@ -1158,21 +1158,19 @@ fn scan_privacy(root: &Path) -> Result<(), String> {
 }
 
 fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Result<(), String> {
-    let mut denied = Vec::new();
+    let mut high_confidence_denied = Vec::new();
+    let mut low_confidence_denied = Vec::new();
     for item in items {
         for image in &item.images {
-            denied.push(image.id.to_string());
-            denied.push(image.original_filename.clone());
-            denied.push(image.object_key.clone());
+            high_confidence_denied.push(image.id.to_string());
+            high_confidence_denied.push(image.object_key.clone());
+            low_confidence_denied.push(image.original_filename.clone());
         }
     }
     let mut files = Vec::new();
     collect_paths(root, &mut files)?;
     for path in files {
         let relative = path.strip_prefix(root).expect("candidate path");
-        if !is_catalog_generated_surface(relative) {
-            continue;
-        }
         let rendered = if path.extension().and_then(|extension| extension.to_str()) == Some("webp")
         {
             relative.display().to_string()
@@ -1181,10 +1179,15 @@ fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Resu
                 .map_err(|error| format!("read candidate source privacy scan: {error}"))?;
             format!("{}\n{}", relative.display(), String::from_utf8_lossy(&text))
         };
-        if denied
+        if high_confidence_denied
             .iter()
             .filter(|value| !value.is_empty())
             .any(|value| rendered.contains(value))
+            || (is_catalog_generated_surface(relative)
+                && low_confidence_denied
+                    .iter()
+                    .filter(|value| !value.is_empty())
+                    .any(|value| rendered.contains(value)))
         {
             return Err("candidate privacy scan rejected private source reference".to_owned());
         }
