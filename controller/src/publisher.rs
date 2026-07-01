@@ -1201,7 +1201,24 @@ fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Resu
 }
 
 fn is_catalog_content_surface(relative: &Path) -> bool {
-    relative.starts_with("data") || relative.starts_with("items")
+    if relative == Path::new("data/collection.json") || relative == Path::new("data/facets.json") {
+        return true;
+    }
+
+    if relative
+        .strip_prefix("data/items")
+        .ok()
+        .is_some_and(|path| {
+            path.components().count() == 1 && path.extension().is_some_and(|ext| ext == "json")
+        })
+    {
+        return true;
+    }
+
+    relative.strip_prefix("items").ok().is_some_and(|path| {
+        let components = path.components().collect::<Vec<_>>();
+        components.len() == 2 && components[1].as_os_str() == "index.html"
+    })
 }
 
 fn contains_low_confidence_source_value(text: &str, denied: &[String]) -> bool {
@@ -1209,7 +1226,7 @@ fn contains_low_confidence_source_value(text: &str, denied: &[String]) -> bool {
         .iter()
         .filter(|value| !value.is_empty())
         .filter(|value| is_actionable_low_confidence_value(value))
-        .any(|value| contains_standalone_value(text, value))
+        .any(|value| text.contains(value))
 }
 
 fn is_actionable_low_confidence_value(value: &str) -> bool {
@@ -1217,19 +1234,6 @@ fn is_actionable_low_confidence_value(value: &str) -> bool {
         value.trim().to_ascii_lowercase().as_str(),
         "media" | "image" | "images" | "detail" | "thumbnail" | "upload"
     )
-}
-
-fn contains_standalone_value(text: &str, value: &str) -> bool {
-    text.match_indices(value).any(|(index, _)| {
-        let before = text[..index].chars().next_back();
-        let after = text[index + value.len()..].chars().next();
-        !before.is_some_and(is_filename_or_path_char)
-            && !after.is_some_and(is_filename_or_path_char)
-    })
-}
-
-fn is_filename_or_path_char(value: char) -> bool {
-    value.is_ascii_alphanumeric() || matches!(value, '_' | '-' | '.' | '/')
 }
 
 fn is_webp_path(path: &Path) -> bool {
