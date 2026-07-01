@@ -1170,6 +1170,9 @@ fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Resu
     collect_paths(root, &mut files)?;
     for path in files {
         let relative = path.strip_prefix(root).expect("candidate path");
+        if !is_catalog_generated_surface(relative) {
+            continue;
+        }
         let rendered = if path.extension().and_then(|extension| extension.to_str()) == Some("webp")
         {
             relative.display().to_string()
@@ -1187,6 +1190,10 @@ fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Resu
         }
     }
     Ok(())
+}
+
+fn is_catalog_generated_surface(relative: &Path) -> bool {
+    relative.starts_with("data") || relative.starts_with("items") || relative.starts_with("media")
 }
 
 fn collect_paths(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {

@@ -286,6 +286,68 @@ async fn publisher_public_browse_surfaces_do_not_execute_operator_markup() {
 }
 
 #[tokio::test]
+async fn publisher_allows_generic_private_filenames_in_admin_shell_copy() {
+    let root = tempdir().unwrap();
+    let media_root = tempdir().unwrap();
+    let repository = MemoryCatalogRepository::default();
+    let media = LocalMediaStore::new(media_root.path());
+    let item = repository
+        .create(AutographItemInput {
+            title: "Generic Filename Card".to_owned(),
+            signer: "Admin Copy".to_owned(),
+            description: Some("A published item with a generic private file name.".to_owned()),
+            category: "Cards".to_owned(),
+            tags: vec!["generic".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+    let image_id = Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    let bytes = png_bytes();
+    media.write(&object_key, &bytes).await.unwrap();
+    repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: image_id,
+                object_key,
+                original_filename: "upload".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: bytes.len(),
+                is_primary: true,
+                sort_order: 0,
+                alt_text: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    LocalPublisher::new(root.path())
+        .publish(&repository, &media, PublishMode::Full)
+        .await
+        .unwrap();
+
+    let current = root.path().join("current");
+    assert!(current.join("admin/admin.js").is_file());
+    assert!(
+        fs::read_to_string(current.join("admin/admin.js"))
+            .unwrap()
+            .contains("uploadImages")
+    );
+    let public_catalog = read_tree(&current.join("data")) + &read_tree(&current.join("items"));
+    assert!(!public_catalog.contains("upload"));
+}
+
+#[tokio::test]
 async fn publisher_detail_template_tokens_in_operator_content_render_literally() {
     let root = tempdir().unwrap();
     let media_root = tempdir().unwrap();
