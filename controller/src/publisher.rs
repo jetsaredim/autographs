@@ -1197,16 +1197,18 @@ fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Resu
 }
 
 fn contains_low_confidence_source_value(text: &str, denied: &[String]) -> bool {
+    let normalized_text = normalize_original_filename_scan_text(text);
     denied
         .iter()
         .filter(|value| !value.is_empty())
         .filter(|value| is_actionable_low_confidence_value(value))
-        .any(|value| text.contains(value))
+        .flat_map(|value| normalized_original_filename_values(value))
+        .any(|value| normalized_text.contains(&value))
 }
 
 fn is_actionable_low_confidence_value(value: &str) -> bool {
-    let lower = value.trim().replace('\\', "/").to_ascii_lowercase();
-    let file_name = lower.rsplit('/').next().unwrap_or(lower.as_str());
+    let normalized = normalize_original_filename_scan_text(value.trim());
+    let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
     let (stem, extension) = file_name
         .rsplit_once('.')
         .map_or((file_name, None), |(stem, extension)| {
@@ -1235,6 +1237,53 @@ fn is_generic_original_filename_term(value: &str) -> bool {
             | "png"
             | "webp"
     )
+}
+
+fn normalized_original_filename_values(value: &str) -> Vec<String> {
+    let normalized = normalize_original_filename_scan_text(value.trim());
+    let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+    let mut values = Vec::new();
+    for candidate in [normalized.as_str(), file_name] {
+        if !candidate.is_empty() && !values.iter().any(|value| value == candidate) {
+            values.push(candidate.to_owned());
+        }
+    }
+    values
+}
+
+fn normalize_original_filename_scan_text(value: &str) -> String {
+    percent_decode_lossy(value)
+        .replace('\\', "/")
+        .to_ascii_lowercase()
+}
+
+fn percent_decode_lossy(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%'
+            && index + 2 < bytes.len()
+            && let (Some(high), Some(low)) =
+                (hex_value(bytes[index + 1]), hex_value(bytes[index + 2]))
+        {
+            decoded.push(high << 4 | low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
+const fn hex_value(value: u8) -> Option<u8> {
+    match value {
+        b'0'..=b'9' => Some(value - b'0'),
+        b'a'..=b'f' => Some(value - b'a' + 10),
+        b'A'..=b'F' => Some(value - b'A' + 10),
+        _ => None,
+    }
 }
 
 fn is_webp_path(path: &Path) -> bool {
