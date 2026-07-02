@@ -265,8 +265,8 @@ async fn admin_health(State(state): State<AppState>) -> Json<AdminHealthResponse
 }
 
 async fn admin_status(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    if authenticate(&state, &headers).is_none() {
-        return StatusCode::UNAUTHORIZED.into_response();
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        return status.into_response();
     }
 
     let pending_changes = match state.repository.pending_changes().await {

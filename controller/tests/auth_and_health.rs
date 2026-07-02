@@ -235,6 +235,23 @@ async fn bearer_token_cannot_manage_collection() {
 }
 
 #[tokio::test]
+async fn bearer_token_cannot_read_admin_status() {
+    let app = router(ControllerConfig::for_test(true));
+
+    let response = app
+        .oneshot(
+            Request::get("/admin/api/status")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn session_cookie_can_manage_collection() {
     let app = router(ControllerConfig::for_test(true));
     let login = login(&app, "local-test-password").await;
