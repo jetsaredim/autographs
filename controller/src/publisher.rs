@@ -1029,17 +1029,29 @@ fn collect_files(
                 .map_err(|error| format!("inspect candidate artifact: {error}"))?
                 .len() as usize,
             content_type: derivative.then(|| "image/webp".to_owned()),
-            variant: derivative.then(|| {
-                let path = path.to_string_lossy();
-                if path.contains("-thumbnail-") {
-                    ImageVariantName::Thumbnail
-                } else {
-                    ImageVariantName::Detail
-                }
-            }),
+            variant: derivative.then(|| media_variant_from_path(&path)),
         });
     }
     Ok(())
+}
+
+fn media_variant_from_path(path: &Path) -> ImageVariantName {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    let stem = file_name.strip_suffix(".webp").unwrap_or(file_name);
+    let Some((before_fingerprint, _fingerprint)) = stem.rsplit_once('-') else {
+        return ImageVariantName::Detail;
+    };
+    match before_fingerprint
+        .rsplit_once('-')
+        .map(|(_, variant)| variant)
+    {
+        Some("thumbnail") => ImageVariantName::Thumbnail,
+        Some("detail") => ImageVariantName::Detail,
+        _ => ImageVariantName::Detail,
+    }
 }
 
 fn public_facets(items: &[PublicSourceItem]) -> PublicFacets {

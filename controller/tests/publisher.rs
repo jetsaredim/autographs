@@ -327,6 +327,81 @@ async fn publisher_validation_rejects_derivative_fingerprint_mismatch() {
 }
 
 #[tokio::test]
+async fn publisher_validates_detail_derivatives_when_item_slug_contains_thumbnail() {
+    let fixture = fixture().await;
+    let item = fixture
+        .repository
+        .create(AutographItemInput {
+            title: "Star Thumbnail Card".to_owned(),
+            signer: "Carrie Fisher".to_owned(),
+            description: Some("A title with thumbnail in the generated slug.".to_owned()),
+            category: "Cards".to_owned(),
+            tags: vec!["thumbnail-edge".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+    let image_id = Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    let bytes = png_bytes_with_color([12, 120, 200]);
+    fixture.media.write(&object_key, &bytes).await.unwrap();
+    fixture
+        .repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: image_id,
+                object_key,
+                original_filename: "thumbnail-title.png".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: bytes.len(),
+                is_primary: true,
+                sort_order: 0,
+                alt_text: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    let publisher = LocalPublisher::new(fixture.root.path());
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+
+    let current = fixture.root.path().join("current");
+    let detail: PublicItemDetail = read_json(&current.join("data/items/star-thumbnail-card.json"));
+    let detail_path = detail.images[0]
+        .variants
+        .iter()
+        .find(|variant| variant.name == ImageVariantName::Detail)
+        .unwrap()
+        .path
+        .trim_start_matches('/')
+        .to_owned();
+    assert!(
+        detail_path.starts_with("media/star-thumbnail-card/image-1-detail-"),
+        "unexpected detail derivative path: {detail_path}"
+    );
+    let manifest: PublishManifest = read_json(&current.join("manifest.json"));
+    let artifact = manifest
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.path == detail_path)
+        .unwrap();
+    assert_eq!(artifact.variant, Some(ImageVariantName::Detail));
+    validate_candidate(&current).unwrap();
+}
+
+#[tokio::test]
 async fn publisher_changes_public_media_paths_when_image_content_changes() {
     let fixture = fixture().await;
     let publisher = LocalPublisher::new(fixture.root.path());
