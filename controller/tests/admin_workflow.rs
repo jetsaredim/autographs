@@ -108,11 +108,13 @@ async fn update_blank_required_field_returns_bad_request() {
     );
 
     let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("PATCH")
                 .uri(format!("/admin/api/items/{}", item.id))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(r#"{"title":""}"#))
                 .unwrap(),
@@ -175,7 +177,8 @@ async fn admin_can_list_get_update_and_read_history() {
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/items?query=mark&tag=jedi&publicationStatus=draft")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -197,7 +200,8 @@ async fn admin_can_list_get_update_and_read_history() {
             Request::builder()
                 .method("GET")
                 .uri(format!("/admin/api/items/{}", hamill.id))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -220,7 +224,8 @@ async fn admin_can_list_get_update_and_read_history() {
             Request::builder()
                 .method("PATCH")
                 .uri(format!("/admin/api/items/{}", hamill.id))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     json!({
@@ -245,7 +250,8 @@ async fn admin_can_list_get_update_and_read_history() {
             Request::builder()
                 .method("GET")
                 .uri(format!("/admin/api/items/{}/history", hamill.id))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -270,11 +276,13 @@ async fn admin_can_list_get_update_and_read_history() {
     );
 
     let fisher_list = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/items?signer=fisher&category=photos&publicationStatus=published")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -301,7 +309,8 @@ async fn save_does_not_publish() {
             Request::builder()
                 .method("POST")
                 .uri("/admin/api/items")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     json!({
@@ -328,7 +337,8 @@ async fn save_does_not_publish() {
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/publish/status")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -343,7 +353,8 @@ async fn save_does_not_publish() {
             Request::builder()
                 .method("PATCH")
                 .uri(format!("/admin/api/items/{item_id}"))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     json!({
@@ -362,11 +373,13 @@ async fn save_does_not_publish() {
     assert!(patch_json["pendingChanges"]["count"].as_u64().unwrap() >= 2);
 
     let status_after_patch = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/publish/status")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -415,11 +428,13 @@ async fn image_upload_response_includes_pending_changes() {
     body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
 
     let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri(format!("/admin/api/items/{}/images", item.id))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .header(
                     header::CONTENT_TYPE,
                     format!("multipart/form-data; boundary={boundary}"),
@@ -471,11 +486,13 @@ async fn admin_status_reports_pending_publish_cleanup_and_retention() {
     );
 
     let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/status")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -559,7 +576,8 @@ async fn publish_batches_saved_changes() {
             Request::builder()
                 .method("POST")
                 .uri("/admin/api/publish/incremental")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -578,7 +596,8 @@ async fn publish_batches_saved_changes() {
         app.clone()
             .oneshot(
                 Request::get("/admin/api/items")
-                    .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                    .header(header::COOKIE, admin_cookie(&app).await)
+                    .header(header::ORIGIN, "https://autographs.example.test")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -599,7 +618,8 @@ async fn publish_batches_saved_changes() {
             app.clone()
                 .oneshot(
                     Request::get(format!("/admin/api/items/{item_id}"))
-                        .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                        .header(header::COOKIE, admin_cookie(&app).await)
+                        .header(header::ORIGIN, "https://autographs.example.test")
                         .body(Body::empty())
                         .unwrap(),
                 )
@@ -636,7 +656,8 @@ async fn publish_clears_same_second_saved_change_included_in_release() {
             Request::builder()
                 .method("POST")
                 .uri("/admin/api/publish/full")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -649,14 +670,16 @@ async fn publish_clears_same_second_saved_change_included_in_release() {
     assert_eq!(status["pendingChanges"]["hasPendingChanges"], false);
 
     let detail = response_json(
-        app.oneshot(
-            Request::get(format!("/admin/api/items/{item_id}"))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap(),
+        app.clone()
+            .oneshot(
+                Request::get(format!("/admin/api/items/{item_id}"))
+                    .header(header::COOKIE, admin_cookie(&app).await)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap(),
     )
     .await;
     assert_eq!(detail["pendingChanges"]["count"], 0);
@@ -703,11 +726,13 @@ async fn publish_keeps_in_flight_same_second_edit_pending() {
     let app = router_with_stores(config, repository, media.clone());
 
     let publish_app = app.clone();
+    let publish_cookie = admin_cookie(&app).await;
     let publish = tokio::spawn(async move {
         publish_app
             .oneshot(
                 Request::post("/admin/api/publish/full")
-                    .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                    .header(header::COOKIE, publish_cookie)
+                    .header(header::ORIGIN, "https://autographs.example.test")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -726,14 +751,16 @@ async fn publish_keeps_in_flight_same_second_edit_pending() {
     assert_eq!(status["pendingChanges"]["hasPendingChanges"], true);
 
     let detail = response_json(
-        app.oneshot(
-            Request::get(format!("/admin/api/items/{}", item.id))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap(),
+        app.clone()
+            .oneshot(
+                Request::get(format!("/admin/api/items/{}", item.id))
+                    .header(header::COOKIE, admin_cookie(&app).await)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap(),
     )
     .await;
     assert_eq!(detail["title"], "In Flight Item Updated");
@@ -778,7 +805,8 @@ async fn admin_status_reports_safe_publish_error_without_private_media_details()
         .clone()
         .oneshot(
             Request::post("/admin/api/publish/full")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -787,9 +815,11 @@ async fn admin_status_reports_safe_publish_error_without_private_media_details()
     assert_eq!(publish.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
     let status = app
+        .clone()
         .oneshot(
             Request::get("/admin/api/status")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -971,7 +1001,8 @@ async fn create_item(app: &axum::Router, title: &str, signer: &str) -> uuid::Uui
             Request::builder()
                 .method("POST")
                 .uri("/admin/api/items")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     json!({
@@ -999,7 +1030,8 @@ async fn patch_item_title(app: &axum::Router, item_id: uuid::Uuid, title: &str) 
             Request::builder()
                 .method("PATCH")
                 .uri(format!("/admin/api/items/{item_id}"))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(json!({ "title": title }).to_string()))
                 .unwrap(),
@@ -1016,7 +1048,8 @@ async fn admin_status(app: &axum::Router) -> Value {
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/status")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1024,6 +1057,29 @@ async fn admin_status(app: &axum::Router) -> Value {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     response_json(response).await
+}
+
+async fn admin_cookie(app: &axum::Router) -> String {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post("/admin/api/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"password":"local-test-password"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    response
+        .headers()
+        .get(header::SET_COOKIE)
+        .expect("set-cookie")
+        .to_str()
+        .expect("set-cookie text")
+        .split(';')
+        .next()
+        .expect("cookie pair")
+        .to_owned()
 }
 
 async fn response_json(response: axum::response::Response) -> Value {

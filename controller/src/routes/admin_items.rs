@@ -1,7 +1,7 @@
 use axum::{
     Json,
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, Method, StatusCode},
     response::{IntoResponse, Response},
 };
 use serde::Serialize;
@@ -13,15 +13,15 @@ use crate::{
     catalog_admin::{AdminCatalogRepositoryExt, AdminItemFilter},
 };
 
-use super::{AppState, authenticate, item_response_with_state};
+use super::{AppState, authorize_admin_session, item_response_with_state};
 
 pub(super) async fn list_items(
     State(state): State<AppState>,
     headers: HeaderMap,
     Query(filter): Query<AdminItemFilter>,
 ) -> Response {
-    if authenticate(&state, &headers).is_none() {
-        return StatusCode::UNAUTHORIZED.into_response();
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        return status.into_response();
     }
 
     match state.repository.as_ref().list_admin_items(filter).await {
@@ -52,8 +52,8 @@ pub(super) async fn get_item(
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> Response {
-    if authenticate(&state, &headers).is_none() {
-        return StatusCode::UNAUTHORIZED.into_response();
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        return status.into_response();
     }
     let Ok(id) = Uuid::parse_str(&id) else {
         return StatusCode::BAD_REQUEST.into_response();
@@ -74,8 +74,8 @@ pub(super) async fn item_history(
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> Response {
-    if authenticate(&state, &headers).is_none() {
-        return StatusCode::UNAUTHORIZED.into_response();
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        return status.into_response();
     }
     let Ok(id) = Uuid::parse_str(&id) else {
         return StatusCode::BAD_REQUEST.into_response();

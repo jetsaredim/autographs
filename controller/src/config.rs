@@ -78,12 +78,9 @@ impl ControllerConfig {
     }
 
     pub fn validate_runtime_auth(&self) -> Result<(), String> {
-        if self.admin_password.is_none()
-            && self.admin_password_hash.is_none()
-            && self.operator_token.is_none()
-        {
+        if self.admin_password.is_none() && self.admin_password_hash.is_none() {
             return Err(
-                "configure a non-empty AUTOGRAPHS_ADMIN_PASSWORD, AUTOGRAPHS_ADMIN_PASSWORD_HASH, or AUTOGRAPHS_OPERATOR_API_TOKEN"
+                "configure a non-empty AUTOGRAPHS_ADMIN_PASSWORD_HASH or local AUTOGRAPHS_ADMIN_PASSWORD"
                     .to_owned(),
             );
         }
@@ -139,6 +136,16 @@ mod tests {
 
         assert!(config.validate_runtime_auth().is_ok());
         assert_eq!(config.admin_password_hash.as_deref(), Some("hash"));
+    }
+
+    #[test]
+    fn operator_token_alone_does_not_satisfy_runtime_validation() {
+        let mut config = ControllerConfig::for_test(true);
+        config.admin_password = None;
+        config.admin_password_hash = None;
+        config.operator_token = Some("operator-token".to_owned());
+
+        assert!(config.validate_runtime_auth().is_err());
     }
 
     #[test]

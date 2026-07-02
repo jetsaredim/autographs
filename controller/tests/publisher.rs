@@ -1321,7 +1321,8 @@ async fn publisher_routes_require_auth_and_report_redacted_status() {
         .clone()
         .oneshot(
             Request::post("/admin/api/publish/full")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1330,9 +1331,11 @@ async fn publisher_routes_require_auth_and_report_redacted_status() {
     assert_eq!(published.status(), StatusCode::CREATED);
 
     let status = app
+        .clone()
         .oneshot(
             Request::get("/admin/api/publish/status")
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1567,6 +1570,29 @@ fn read_tree(root: &Path) -> String {
 
 fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> T {
     serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
+}
+
+async fn admin_cookie(app: &axum::Router) -> String {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post("/admin/api/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"password":"local-test-password"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    response
+        .headers()
+        .get(header::SET_COOKIE)
+        .expect("set-cookie")
+        .to_str()
+        .expect("set-cookie text")
+        .split(';')
+        .next()
+        .expect("cookie pair")
+        .to_owned()
 }
 
 fn slug_for_test(value: &str) -> String {
