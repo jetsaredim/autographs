@@ -448,9 +448,11 @@ Expected `Cache-Control` behavior:
 - `/admin`, `/admin/*`, and `/admin/api/*`: `no-store`.
 
 If Cloudflare or another CDN is enabled later, keep admin shell/API routes out
-of CDN caching, preserve rollback by keeping HTML/JSON short-lived, and purge
-affected `/media/*` URLs after the rare image replacement publish. See
-`docs/dns-runbook.md` for the deferred Cloudflare checklist and purge guidance.
+of CDN caching, and preserve rollback by keeping HTML/JSON short-lived. Routine
+image replacement publishes a new fingerprinted `/media/*` URL; reserve CDN
+purges for emergency takedown, accidental public exposure, or CDN incident
+response. See `docs/dns-runbook.md` for the deferred Cloudflare checklist and
+purge guidance.
 
 ## Phase 6 Admin Live Smoke
 
