@@ -524,6 +524,60 @@ async fn publisher_rejects_original_filename_leak_with_case_normalization() {
 }
 
 #[tokio::test]
+async fn publisher_rejects_original_filename_leak_with_unicode_case_normalization() {
+    let root = tempdir().unwrap();
+    let media_root = tempdir().unwrap();
+    let repository = MemoryCatalogRepository::default();
+    let media = LocalMediaStore::new(media_root.path());
+    let item = repository
+        .create(AutographItemInput {
+            title: "Unicode Case Normalized Filename Leak".to_owned(),
+            signer: "Filename Scan".to_owned(),
+            description: Some("Rendered lower-case leak: \u{00e9}vidence.jpg".to_owned()),
+            category: "Cards".to_owned(),
+            tags: vec!["privacy".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+    let image_id = Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    let bytes = png_bytes();
+    media.write(&object_key, &bytes).await.unwrap();
+    repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: image_id,
+                object_key,
+                original_filename: "\u{00c9}vidence.JPG".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: bytes.len(),
+                is_primary: true,
+                sort_order: 0,
+                alt_text: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    let error = LocalPublisher::new(root.path())
+        .publish(&repository, &media, PublishMode::Full)
+        .await
+        .unwrap_err();
+
+    assert!(error.contains("private source reference"));
+}
+
+#[tokio::test]
 async fn publisher_rejects_original_filename_leak_with_url_escaped_basename() {
     let root = tempdir().unwrap();
     let media_root = tempdir().unwrap();

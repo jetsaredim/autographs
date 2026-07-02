@@ -1258,7 +1258,7 @@ fn normalized_original_filename_values(value: &str) -> Vec<String> {
 fn normalize_original_filename_scan_text(value: &str) -> String {
     percent_decode_lossy(value)
         .replace('\\', "/")
-        .to_ascii_lowercase()
+        .to_lowercase()
 }
 
 fn percent_decode_lossy(value: &str) -> String {
