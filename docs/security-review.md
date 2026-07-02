@@ -54,7 +54,7 @@ guidance.
 | SEC-06-09 | Operator-bridge retirement | Fixed | The old Node `/api/operator/*` data-entry bridge is documented as retired; routine create/edit/upload/delete/publish work now uses `/admin` and `/admin/api/*`. |
 | SEC-06-10 | Static public privacy boundary | Fixed | Public output remains generated static HTML, JSON, and WebP derivatives; private Oracle, Object Storage, object-key, and original-file details stay inside the controller/runtime boundary. |
 | SEC-06-11 | Live smoke guidance | Accepted | Local/CI checks verify the ignored live static smoke remains gated by default; operator-run live proof still requires real Oracle, private Object Storage, deployed controller, Caddy preview, and runtime admin credentials. |
-| SEC-06-12 | CDN/cache and image-size optimization | Follow-up | Phase 6 plan `06-09` will review Cloudflare/CDN posture, generated image sizing, deployed instance hygiene, and runtime/codebase cleanup before Phase 6 closes. |
+| SEC-06-12 | CDN/cache and image-size optimization | Fixed | Phase 6 plan `06-09` reduced detail derivative bounds, added Caddy cache headers, documented deferred Cloudflare/CDN enablement, and kept admin/API responses out of cache. |
 
 No high-severity Phase 6 admin finding remains without a fixed or documented
 mitigation. Phase 7 AI-assisted ingest is still future scope and is not

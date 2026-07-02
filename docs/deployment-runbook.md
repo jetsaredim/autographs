@@ -226,6 +226,24 @@ The mandatory Phase 5 live static publish smoke from [static-runtime-runbook.md]
 
 The public Caddy route serves the same generated static release. `/api/catalog/*` and `/api/operator/*` are no longer part of the public runtime contract.
 
+### Cache Headers
+
+Caddy now sets explicit origin cache headers for the deployed static runtime:
+
+- `/admin`, `/admin/*`, and `/admin/api/*`: `Cache-Control: no-store`.
+- Public assets and generated media such as `/assets/*`, `/media/*`,
+  `/favicon.ico`, `/icon.png`, and the architecture SVG:
+  `Cache-Control: public, max-age=3600`.
+- Public documents/data such as `/`, `/collection/*`, `/items/*`,
+  `/architecture/*`, `/data/*`, `/manifest.json`, `index.html`, and `404.html`:
+  `Cache-Control: public, max-age=60, must-revalidate`.
+
+The asset/media lifetime is intentionally moderate, not immutable, because
+current generated paths are slug-based rather than content-addressed. A rollback
+that repoints `current` can replace bytes at the same public path, so CDN rules
+must not make those paths effectively permanent until a future release-addressed
+or content-hashed path scheme exists.
+
 The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because controller publishing, image processing, and tools/smoke scripts can briefly exceed the VM's physical memory.
 
 The role also installs `python3-oci-cli` from the Oracle Linux 10 Development Packages repo for operator diagnostics. The application does not depend on the OCI CLI, but keeping it on the VM lets an operator verify instance-principal Object Storage access independently from the Rust controller, including emergency listing or deletion of orphaned private media objects.

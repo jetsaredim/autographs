@@ -429,6 +429,27 @@ preserving the sanitized `/media/...-detail.webp` path contract and WebP
 content type. Public artifact privacy scans and manifest byte-size validation
 remain mandatory for derivative changes.
 
+## Cache and CDN Verification
+
+After deploy, verify Caddy's origin cache posture from the public hostname:
+
+```bash
+curl -I "https://${AUTOGRAPHS_DOMAIN}/media/<item-slug>/<image-slug>-detail.webp"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/data/collection.json"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/api/health"
+```
+
+Expected `Cache-Control` behavior:
+
+- Public `/assets/*` and `/media/*`: `public, max-age=3600`.
+- Public HTML, JSON, and `manifest.json`: `public, max-age=60, must-revalidate`.
+- `/admin`, `/admin/*`, and `/admin/api/*`: `no-store`.
+
+If Cloudflare or another CDN is enabled later, keep admin shell/API routes out
+of CDN caching and preserve rollback by keeping HTML/JSON short-lived. See
+`docs/dns-runbook.md` for the deferred Cloudflare checklist and purge guidance.
+
 ## Phase 6 Admin Live Smoke
 
 Use this operator-run smoke when an admin workflow, publisher, retention, or
