@@ -442,12 +442,14 @@ curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/api/health"
 
 Expected `Cache-Control` behavior:
 
-- Public `/assets/*` and `/media/*`: `public, max-age=3600`.
+- Public `/media/*`: `public, max-age=86400`.
+- Public `/assets/*`: `public, max-age=3600`.
 - Public HTML, JSON, and `manifest.json`: `public, max-age=60, must-revalidate`.
 - `/admin`, `/admin/*`, and `/admin/api/*`: `no-store`.
 
 If Cloudflare or another CDN is enabled later, keep admin shell/API routes out
-of CDN caching and preserve rollback by keeping HTML/JSON short-lived. See
+of CDN caching, preserve rollback by keeping HTML/JSON short-lived, and purge
+affected `/media/*` URLs after the rare image replacement publish. See
 `docs/dns-runbook.md` for the deferred Cloudflare checklist and purge guidance.
 
 ## Phase 6 Admin Live Smoke

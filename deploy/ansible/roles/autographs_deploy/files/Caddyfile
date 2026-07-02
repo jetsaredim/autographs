@@ -25,7 +25,9 @@
 		file_server
 	}
 
-	@staticAssets path /assets/* /media/* /favicon.ico /icon.png /architecture/architecture-diagram.svg
+	@staticMedia path /media/*
+	header @staticMedia Cache-Control "public, max-age=86400"
+	@staticAssets path /assets/* /favicon.ico /icon.png /architecture/architecture-diagram.svg
 	header @staticAssets Cache-Control "public, max-age=3600"
 	@staticDocuments path / /index.html /404.html /collection/* /items/* /architecture/* /data/* /manifest.json
 	header @staticDocuments Cache-Control "public, max-age=60, must-revalidate"
@@ -41,7 +43,9 @@
 }
 
 http://:8081 {
-	@staticAssets path /assets/* /media/* /favicon.ico /icon.png /architecture/architecture-diagram.svg
+	@staticMedia path /media/*
+	header @staticMedia Cache-Control "public, max-age=86400"
+	@staticAssets path /assets/* /favicon.ico /icon.png /architecture/architecture-diagram.svg
 	header @staticAssets Cache-Control "public, max-age=3600"
 	@staticDocuments path / /index.html /404.html /collection/* /items/* /architecture/* /data/* /manifest.json
 	header @staticDocuments Cache-Control "public, max-age=60, must-revalidate"

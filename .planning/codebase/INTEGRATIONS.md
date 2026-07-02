@@ -41,8 +41,8 @@
 - Caddy serves generated public static output and routes private admin/API
   surfaces.
 - Caddy sets `Cache-Control: no-store` for `/admin` and `/admin/api/*`, short
-  cache lifetimes for public HTML/JSON/manifest paths, and moderate cache
-  lifetimes for public assets/media.
+  cache lifetimes for public HTML/JSON/manifest paths, one-hour public asset
+  caching, and one-day generated media caching.
 - Podman quadlets manage the controller/Caddy runtime on the OCI VM.
 - Ansible renders and deploys runtime files.
 - `deploy/ansible/roles/autographs_deploy/templates/controller.env.j2` renders

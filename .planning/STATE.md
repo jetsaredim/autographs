@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: ready
 stopped_at: Completed 06-09-PLAN.md
-last_updated: "2026-07-02T15:05:03.803Z"
-last_activity: 2026-07-02 -- Completed Phase 6 admin collection workflow
+last_updated: "2026-07-02T18:31:56.674Z"
+last_activity: 2026-07-02 -- Increased generated media cache TTL for CDN image relief
 progress:
   total_phases: 7
   completed_phases: 6
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 Phase: 07 (ai-assisted-ingest) — READY
 Plan: TBD
 Status: Ready to plan next phase
-Last activity: 2026-07-02 -- Completed Phase 6 admin collection workflow
+Last activity: 2026-07-02 -- Increased generated media cache TTL for CDN image relief
 
 Progress: [██████████] 100% of planned Phase 1-6 work complete; Phase 7 remains unplanned
 
@@ -148,5 +148,6 @@ Resume file: None
 | 2026-06-13 | remove-obsolete-tenancy-split-doc | Removed the historical Terraform tenancy split migration runbook from active operator docs. |
 | 2026-06-19 | reconcile-current-state-docs | Reconciled GSD and operator docs with the implemented Rust/static runtime foundation and production security patching workflow; follow-up review identified the remaining Phase 5 05-07 live static publish proof and closure summary checkpoint. |
 | 2026-06-20 | close-phase-5-static-runtime | Recorded the live static publish proof, public edge checks, cleanup verification, and Phase 5 closure summary. |
+| 2026-07-02 | increase-media-cache-ttl | Split generated `/media/*` cache headers from other assets and set media to `public, max-age=86400` for CDN/browser image caching while preserving admin no-store and short-lived HTML/JSON. |
 | 2026-07-01 | fix-catalog-filename-privacy-scan | Addressed PR #155 publisher privacy-scan review warnings by narrowing filename scan surfaces and adding filename/static-data regressions. |
 | 2026-07-02 | admin-ui-density-and-public-detail-clean | Simplified the admin hub, made dashboard/filter surfaces collapsible, added icon row actions and item sorting/filtering, and restored richer public item detail metadata. |

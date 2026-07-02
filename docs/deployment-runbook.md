@@ -231,18 +231,20 @@ The public Caddy route serves the same generated static release. `/api/catalog/*
 Caddy now sets explicit origin cache headers for the deployed static runtime:
 
 - `/admin`, `/admin/*`, and `/admin/api/*`: `Cache-Control: no-store`.
-- Public assets and generated media such as `/assets/*`, `/media/*`,
-  `/favicon.ico`, `/icon.png`, and the architecture SVG:
+- Generated public media under `/media/*`:
+  `Cache-Control: public, max-age=86400`.
+- Public assets such as `/assets/*`, `/favicon.ico`, `/icon.png`, and the architecture SVG:
   `Cache-Control: public, max-age=3600`.
 - Public documents/data such as `/`, `/collection/*`, `/items/*`,
   `/architecture/*`, `/data/*`, `/manifest.json`, `index.html`, and `404.html`:
   `Cache-Control: public, max-age=60, must-revalidate`.
 
-The asset/media lifetime is intentionally moderate, not immutable, because
-current generated paths are slug-based rather than content-addressed. A rollback
-that repoints `current` can replace bytes at the same public path, so CDN rules
-must not make those paths effectively permanent until a future release-addressed
-or content-hashed path scheme exists.
+The media lifetime is intentionally longer than HTML/JSON because images are
+large and rarely change after upload normalization. It is still not immutable
+because current generated paths are slug-based rather than content-addressed. A
+rollback or image replacement can replace bytes at the same public path, so CDN
+rules must support purging `/media/*` or affected files until a future
+release-addressed or content-hashed path scheme exists.
 
 The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because controller publishing, image processing, and tools/smoke scripts can briefly exceed the VM's physical memory.
 

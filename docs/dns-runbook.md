@@ -75,10 +75,11 @@ Cloudflare enablement checklist:
    and `Cache-Control: no-store`.
 5. Keep HTML, JSON, and `manifest.json` short-lived or origin-controlled so a
    rollback to a previous static release is visible quickly.
-6. Cache `/assets/*` and `/media/*` more aggressively only after generated paths
-   are content-addressed or release-addressed. Current slug-based paths can be
-   replaced by rollback, so the origin uses moderate cache lifetimes instead of
-   one-year immutable caching.
+6. Cache `/media/*` at the edge with the origin's one-day TTL to reduce image
+   traffic against the OCI VM. Current slug-based paths can be replaced by
+   rollback or image replacement, so keep purge access available and avoid
+   one-year immutable caching until media paths are content-addressed or
+   release-addressed.
 7. Document purge access before turning on proxying. Cloudflare single-file
    purge removes a cached URL from the CDN and the next request re-fetches it
    from origin; use exact UTF-8 URLs for single-file purge.
