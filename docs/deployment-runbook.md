@@ -240,11 +240,12 @@ Caddy now sets explicit origin cache headers for the deployed static runtime:
   `Cache-Control: public, max-age=60, must-revalidate`.
 
 The media lifetime is intentionally longer than HTML/JSON because images are
-large and rarely change after upload normalization. It is still not immutable
-because current generated paths are slug-based rather than content-addressed. A
-rollback or image replacement can replace bytes at the same public path, so CDN
-rules must support purging `/media/*` or affected files until a future
-release-addressed or content-hashed path scheme exists.
+large and generated derivative URLs include a 16-hex content fingerprint, for
+example `/media/<item-slug>/<image-slug>-detail-<fingerprint>.webp`. Replacement,
+rollback, and publish repair generate or restore the derivative filename that
+matches the WebP bytes instead of reusing a stale public path. Keep CDN purge
+access available for emergency takedown, accidental public exposure, or CDN
+incident response, but routine image replacement should not need a purge.
 
 The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because controller publishing, image processing, and tools/smoke scripts can briefly exceed the VM's physical memory.
 

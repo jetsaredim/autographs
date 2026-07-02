@@ -76,13 +76,16 @@ Cloudflare enablement checklist:
 5. Keep HTML, JSON, and `manifest.json` short-lived or origin-controlled so a
    rollback to a previous static release is visible quickly.
 6. Cache `/media/*` at the edge with the origin's one-day TTL to reduce image
-   traffic against the OCI VM. Current slug-based paths can be replaced by
-   rollback or image replacement, so keep purge access available and avoid
-   one-year immutable caching until media paths are content-addressed or
-   release-addressed.
+   traffic against the OCI VM. Generated derivative URLs include a 16-hex
+   content fingerprint, for example
+   `/media/<item-slug>/<image-slug>-detail-<fingerprint>.webp`, so replacement
+   and rollback publish paths matching the derivative bytes instead of reusing
+   the same public URL for different content.
 7. Document purge access before turning on proxying. Cloudflare single-file
    purge removes a cached URL from the CDN and the next request re-fetches it
-   from origin; use exact UTF-8 URLs for single-file purge.
+   from origin; reserve purge for emergency takedown, accidental public
+   exposure, or CDN incident response and use exact UTF-8 URLs for single-file
+   purge.
 
 Rollback if Cloudflare causes stale public content or admin issues:
 
