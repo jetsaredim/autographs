@@ -1158,35 +1158,179 @@ fn scan_privacy(root: &Path) -> Result<(), String> {
 }
 
 fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Result<(), String> {
-    let mut denied = Vec::new();
+    let mut high_confidence_denied = Vec::new();
+    let mut low_confidence_denied = Vec::new();
     for item in items {
         for image in &item.images {
-            denied.push(image.id.to_string());
-            denied.push(image.original_filename.clone());
-            denied.push(image.object_key.clone());
+            high_confidence_denied.push(image.id.to_string());
+            high_confidence_denied.push(image.object_key.clone());
+            low_confidence_denied.push(image.original_filename.clone());
         }
     }
     let mut files = Vec::new();
     collect_paths(root, &mut files)?;
     for path in files {
         let relative = path.strip_prefix(root).expect("candidate path");
-        let rendered = if path.extension().and_then(|extension| extension.to_str()) == Some("webp")
-        {
-            relative.display().to_string()
+        let text = if is_webp_path(&path) {
+            None
         } else {
-            let text = fs::read(&path)
+            let bytes = fs::read(&path)
                 .map_err(|error| format!("read candidate source privacy scan: {error}"))?;
-            format!("{}\n{}", relative.display(), String::from_utf8_lossy(&text))
+            Some(String::from_utf8_lossy(&bytes).into_owned())
         };
-        if denied
-            .iter()
-            .filter(|value| !value.is_empty())
-            .any(|value| rendered.contains(value))
-        {
+        let rendered = text
+            .as_ref()
+            .map(|text| format!("{}\n{}", relative.display(), text))
+            .unwrap_or_else(|| relative.display().to_string());
+        if contains_high_confidence_source_value(&rendered, &high_confidence_denied) {
+            return Err("candidate privacy scan rejected private source reference".to_owned());
+        }
+        if contains_low_confidence_source_value(&rendered, &low_confidence_denied) {
             return Err("candidate privacy scan rejected private source reference".to_owned());
         }
     }
     Ok(())
+}
+
+fn contains_high_confidence_source_value(text: &str, denied: &[String]) -> bool {
+    denied
+        .iter()
+        .filter(|value| !value.is_empty())
+        .any(|value| text.contains(value))
+        || {
+            let normalized_text = normalize_source_scan_text(text);
+            denied
+                .iter()
+                .filter(|value| !value.is_empty())
+                .map(|value| normalize_source_scan_text(value))
+                .filter(|value| !value.is_empty())
+                .any(|value| normalized_text.contains(&value))
+        }
+}
+
+fn contains_low_confidence_source_value(text: &str, denied: &[String]) -> bool {
+    let normalized_text = normalize_source_scan_text(text);
+    denied
+        .iter()
+        .filter(|value| !value.is_empty())
+        .flat_map(|value| normalized_original_filename_values(value))
+        .filter(|value| is_actionable_low_confidence_value(value))
+        .any(|value| normalized_text.contains(&value))
+}
+
+fn is_actionable_low_confidence_value(value: &str) -> bool {
+    let normalized = normalize_source_scan_text(value.trim());
+    if normalized.contains('/') {
+        return true;
+    }
+
+    let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+    let (stem, extension) = file_name
+        .rsplit_once('.')
+        .map_or((file_name, None), |(stem, extension)| {
+            (stem, Some(extension))
+        });
+
+    !(is_generic_original_filename_term(file_name)
+        || is_generic_original_filename_term(stem)
+            && extension.is_some_and(is_generic_original_filename_term))
+}
+
+fn is_generic_original_filename_term(value: &str) -> bool {
+    matches!(
+        value,
+        "upload"
+            | "image"
+            | "images"
+            | "detail"
+            | "thumbnail"
+            | "media"
+            | "original"
+            | "file"
+            | "photo"
+            | "jpg"
+            | "jpeg"
+            | "png"
+            | "webp"
+    )
+}
+
+fn normalized_original_filename_values(value: &str) -> Vec<String> {
+    let normalized = normalize_source_scan_text(value.trim());
+    let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+    let mut values = Vec::new();
+    for candidate in [normalized.as_str(), file_name] {
+        if !candidate.is_empty() && !values.iter().any(|value| value == candidate) {
+            values.push(candidate.to_owned());
+        }
+    }
+    values
+}
+
+fn normalize_source_scan_text(value: &str) -> String {
+    collapse_slash_runs(&iterative_percent_decode_lossy(value).replace('\\', "/")).to_lowercase()
+}
+
+fn iterative_percent_decode_lossy(value: &str) -> String {
+    let mut decoded = value.to_owned();
+    for _ in 0..4 {
+        let next = percent_decode_lossy(&decoded);
+        if next == decoded {
+            break;
+        }
+        decoded = next;
+    }
+    decoded
+}
+
+fn collapse_slash_runs(value: &str) -> String {
+    let mut collapsed = String::with_capacity(value.len());
+    let mut previous_was_slash = false;
+    for character in value.chars() {
+        if character == '/' {
+            if !previous_was_slash {
+                collapsed.push(character);
+            }
+            previous_was_slash = true;
+        } else {
+            collapsed.push(character);
+            previous_was_slash = false;
+        }
+    }
+    collapsed
+}
+
+fn percent_decode_lossy(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%'
+            && index + 2 < bytes.len()
+            && let (Some(high), Some(low)) =
+                (hex_value(bytes[index + 1]), hex_value(bytes[index + 2]))
+        {
+            decoded.push(high << 4 | low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
+const fn hex_value(value: u8) -> Option<u8> {
+    match value {
+        b'0'..=b'9' => Some(value - b'0'),
+        b'a'..=b'f' => Some(value - b'a' + 10),
+        b'A'..=b'F' => Some(value - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn is_webp_path(path: &Path) -> bool {
+    path.extension().and_then(|extension| extension.to_str()) == Some("webp")
 }
 
 fn collect_paths(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
