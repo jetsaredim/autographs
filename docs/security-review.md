@@ -29,10 +29,36 @@ Current accepted posture:
 
 Current follow-up scope:
 
-- Phase 6 must review polished admin workflow, edit-history UX, media cleanup,
-  and expanded admin route behavior.
+- Phase 6 admin workflow security review is recorded below.
 - Phase 7 must review OCR/AI providers, prompts, privacy boundaries, and model
   configuration.
+
+## Phase 6 Admin Collection Workflow
+
+Reviewed areas: session-cookie admin auth, absence of public accounts, route
+authorization, CSRF/origin checks, secret handling, redacted diagnostics, edit
+history privacy, media cleanup compensation, release retention/pruning,
+operator-bridge retirement, static public privacy boundary, and live-smoke
+guidance.
+
+| ID | Area | Disposition | Notes |
+|----|------|-------------|-------|
+| SEC-06-01 | Session-cookie admin auth | Fixed | Collection-management item, image, publication, and publish routes require the HTTP-only admin session created by `/admin/api/login`; bearer-token compatibility is limited to non-management diagnostics. |
+| SEC-06-02 | Public account surface | Accepted | v1 keeps a single-admin private controller and does not add public accounts, roles, or anonymous write paths. |
+| SEC-06-03 | Route authorization and CSRF/origin checks | Fixed | Browser mutations require a valid session cookie plus configured same-origin `Origin` or `Referer`, and tests cover bearer rejection for collection-management routes. |
+| SEC-06-04 | Secret handling | Accepted | Production uses `AUTOGRAPHS_ADMIN_PASSWORD_HASH`; plaintext `AUTOGRAPHS_ADMIN_PASSWORD` is documented as local/ignored-smoke-only, and real credentials stay in GitHub, VM-local, or operator secret stores. |
+| SEC-06-05 | Redacted diagnostics | Fixed | Admin health, item responses, publish status, and cleanup warnings avoid bucket names, namespaces, direct Object Storage URLs, raw object keys, Oracle internals, and original private filenames. |
+| SEC-06-06 | Edit history privacy | Fixed | Edit history records operational metadata, image events, cleanup events, publication changes, and publish snapshots without exposing private original bytes or direct storage coordinates. |
+| SEC-06-07 | Media cleanup compensation | Fixed | Image removal/replacement records cleanup events with retryable private targets, surfaces cleanup warnings to the admin workflow, and keeps public output generated from sanitized derivatives. |
+| SEC-06-08 | Release retention/pruning | Fixed | Promoted and failed static release retention are controller-configured, reported through redacted status, and keep the last valid `current` release when candidate validation fails. |
+| SEC-06-09 | Operator-bridge retirement | Fixed | The old Node `/api/operator/*` data-entry bridge is documented as retired; routine create/edit/upload/delete/publish work now uses `/admin` and `/admin/api/*`. |
+| SEC-06-10 | Static public privacy boundary | Fixed | Public output remains generated static HTML, JSON, and WebP derivatives; private Oracle, Object Storage, object-key, and original-file details stay inside the controller/runtime boundary. |
+| SEC-06-11 | Live smoke guidance | Accepted | Local/CI checks verify the ignored live static smoke remains gated by default; operator-run live proof still requires real Oracle, private Object Storage, deployed controller, Caddy preview, and runtime admin credentials. |
+| SEC-06-12 | CDN/cache and image-size optimization | Follow-up | Phase 6 plan `06-09` will review Cloudflare/CDN posture, generated image sizing, deployed instance hygiene, and runtime/codebase cleanup before Phase 6 closes. |
+
+No high-severity Phase 6 admin finding remains without a fixed or documented
+mitigation. Phase 7 AI-assisted ingest is still future scope and is not
+implemented by this review.
 
 ## Current Verification
 
