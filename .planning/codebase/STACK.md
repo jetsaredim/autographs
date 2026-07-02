@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Analysis Date:** 2026-06-19
+**Analysis Date:** 2026-07-02
 
 ## Languages
 
@@ -24,6 +24,9 @@
 - Public runtime: Caddy serves generated static releases.
 - Private runtime: Rust controller container runs admin/API and publishing
   behavior behind Caddy/private routes.
+- Admin runtime: plain static HTML/CSS/JavaScript under `controller/static-admin/`
+  uses same-origin `/admin/api/*` requests and HTTP-only session-cookie
+  authentication for collection management.
 - Persistence: Oracle Autonomous Database for catalog metadata.
 - Media: private OCI Object Storage originals plus generated public-safe
   derivatives.
@@ -36,6 +39,9 @@
   `cargo clippy`, and image builds.
 - Controller features include `production-persistence` for Oracle/OCI-backed
   production checks.
+- Phase 6 controller/admin surfaces include private item APIs, field-level edit
+  history, media cleanup compensation, pending-change status, explicit publish
+  controls, bounded release retention, and session-cookie collection management.
 - Terraform manages OCI infrastructure and state-backed runtime resources.
 - Ansible manages VM configuration, Caddy/controller quadlets, deployment,
   image cleanup, and production security patching.
@@ -60,6 +66,9 @@
   secret contract.
 - Ansible renders controller/Caddy runtime files from
   `deploy/ansible/roles/autographs_deploy/`.
+- Runtime static release retention values are rendered into `controller.env`
+  through Ansible, including `AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT`
+  and `AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT`.
 - Secrets such as Oracle wallet material, ADB password, OCI private key,
   operator/admin tokens, GHCR token, deploy SSH key, and GitHub tokens must
   stay in GitHub/environment/operator secret stores.
@@ -80,7 +89,9 @@
 - Phase 5 plans 05-01 through 05-07 are done, and the static runtime
   migration foundation is implemented in code, operator docs, live smoke proof,
   UAT, security review, and verification closeout artifacts.
-- Phase 6 polished admin workflow remains pending.
+- Phase 6 plans 06-01 through 06-07 are done, and the polished static admin
+  workflow, edit history, media cleanup, release retention, session-cookie auth,
+  operator docs, security review, and local closeout gates are implemented.
 - Phase 7 advisory AI-assisted ingest remains pending.
 
 ## Practical Guidance
@@ -92,7 +103,10 @@
 - Do not re-scaffold the retired Node/Next.js app or pnpm workspace.
 - Keep production security patching changes under the same review standard as
   deploy/runtime changes because they can affect the live VM.
+- Keep Phase 6 admin changes inside the Rust/static/Caddy/Oracle/Object Storage
+  architecture; do not introduce public accounts, multi-admin roles, bulk import,
+  direct Object Storage URLs, or a split public service for v1.
 
 ---
 
-*Stack analysis refreshed: 2026-06-20 after Phase 5 verification closeout*
+*Stack analysis refreshed: 2026-07-02 after Phase 6 admin docs/security closeout*

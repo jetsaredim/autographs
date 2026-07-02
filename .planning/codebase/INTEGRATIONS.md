@@ -1,6 +1,6 @@
 # External Integrations
 
-**Analysis Date:** 2026-06-19
+**Analysis Date:** 2026-07-02
 
 ## APIs and External Services
 
@@ -17,6 +17,9 @@
 - Schema lives in `controller/db/schema.sql`.
 - Production persistence lives in `controller/src/oracle_catalog.rs` and
   related schema/config modules.
+- Phase 6 persists edit history, publication changes, cleanup events,
+  pending-change timestamps, and publish snapshot/status data through the same
+  controller-owned Oracle boundary.
 
 **OCI Object Storage**
 - Private original autograph images are stored in a private Object Storage bucket.
@@ -24,6 +27,8 @@
   direct object URLs or object keys.
 - Controller media behavior lives in `controller/src/media.rs` and
   `controller/src/oci_media.rs`.
+- Phase 6 image replacement/removal uses media cleanup compensation and retry
+  events so private originals and Oracle metadata stay reconciled.
 
 **GitHub Actions and GHCR**
 - CI/deploy workflows live in `.github/workflows/`.
@@ -37,6 +42,10 @@
   surfaces.
 - Podman quadlets manage the controller/Caddy runtime on the OCI VM.
 - Ansible renders and deploys runtime files.
+- `deploy/ansible/roles/autographs_deploy/templates/controller.env.j2` renders
+  static release retention settings, including
+  `AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT` and
+  `AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT`.
 
 ## Authentication and Identity
 
@@ -44,12 +53,14 @@
 - Public gallery is anonymous and static.
 - Private admin/publish behavior uses the Rust controller under `/admin` and
   `/admin/api/*`.
+- Collection-management routes use the single-admin HTTP-only session-cookie
+  path from `/admin/api/login`; bearer-token compatibility is limited to
+  non-management diagnostics.
 - Retired operator APIs remain blocked at the public Caddy edge.
 - Production security update approval is GitHub-label based and restricted to
   `.github/production-patch-approvers.yml`.
 
 **Pending**
-- Polished Phase 6 admin workflow and edit-history UX.
 - Advisory Phase 7 AI/OCR provider integration.
 - There is intentionally no public account system, multi-admin role hierarchy,
   or social identity flow for v1.
@@ -99,10 +110,11 @@ functional.
 ## Practical Interpretation
 
 The repo contains real Rust/controller, static publishing, infrastructure,
-delivery, maintenance, and operator integration surfaces. Future work should
-extend these boundaries rather than treating OCI, Oracle, Object Storage,
-GitHub Actions, or Caddy as prompt-only intent.
+delivery, maintenance, Phase 6 admin workflow, edit history, media cleanup,
+release retention, and operator integration surfaces. Future work should extend
+these boundaries rather than treating OCI, Oracle, Object Storage, GitHub
+Actions, Caddy, or `/admin` as prompt-only intent.
 
 ---
 
-*Integration audit refreshed: 2026-06-19 after Phase 5 static runtime implementation and PR 129 production security patching merge*
+*Integration audit refreshed: 2026-07-02 after Phase 6 admin docs/security closeout*

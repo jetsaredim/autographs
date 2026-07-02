@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-06-19
+**Analysis Date:** 2026-07-02
 
 ## Directory Layout
 
@@ -10,7 +10,7 @@ autographs/
 │   ├── db/                         # Oracle schema
 │   ├── fixtures/                   # Static/publisher fixtures
 │   ├── src/                        # Controller, catalog, media, publisher modules
-│   ├── static-admin/               # Minimal private admin shell
+│   ├── static-admin/               # Phase 6 private admin workflow
 │   ├── static-public/              # Generated/public static artifact templates/assets
 │   └── tests/                      # Rust integration and contract tests
 ├── deploy/ansible/                 # OCI runtime VM configuration and maintenance roles
@@ -30,7 +30,10 @@ autographs/
 - `controller/src/main.rs`: controller entry point.
 - `controller/src/routes.rs`: admin/API route wiring.
 - `controller/src/auth.rs`: single-admin/private access foundation.
-- `controller/src/catalog.rs`: catalog domain behavior.
+- `controller/src/catalog.rs`: catalog domain behavior, edit history,
+  cleanup event, publication, and pending-change model.
+- `controller/src/catalog_admin.rs`: admin workflow DTOs and private catalog
+  service behavior.
 - `controller/src/oracle_catalog.rs`, `controller/src/oracle_schema.rs`:
   production persistence adapter and schema handling.
 - `controller/src/media.rs`, `controller/src/oci_media.rs`: media abstraction
@@ -41,14 +44,18 @@ autographs/
 
 **Static Assets**
 - `controller/static-public/`: public static release source/templates/assets.
-- `controller/static-admin/`: minimal admin shell.
+- `controller/static-admin/`: Phase 6 private admin workflow for item search,
+  create/edit, image primary/remove/replace, history, pending changes,
+  diagnostics, publish controls, cleanup warnings, and release retention status.
 - `controller/fixtures/`: fixtures for static contract and publisher tests.
 
 **Tests**
 - `controller/tests/auth_and_health.rs`
+- `controller/tests/admin_workflow.rs`
 - `controller/tests/caddy_static_routes.rs`
 - `controller/tests/live_persistence_smoke.rs`
 - `controller/tests/live_static_publish_smoke.rs`
+- `controller/tests/media_cleanup.rs`
 - `controller/tests/publisher.rs`
 - `controller/tests/seed_content.rs`
 - `controller/tests/static_admin.rs`
@@ -73,12 +80,14 @@ autographs/
 ## Where to Add New Code
 
 **Phase 6 Admin Workflow**
-- Extend `controller/static-admin/` and `controller/src/routes.rs` for polished
-  admin UX/API behavior.
-- Keep edit history, media cleanup, and publication controls in Rust/controller
-  boundaries rather than resurrecting the retired Next.js app.
-- Add persistence changes through `controller/db/schema.sql` and production
-  adapter tests where needed.
+- Continue extending `controller/static-admin/`, `controller/src/routes.rs`,
+  `controller/src/routes/admin_items.rs`, and `controller/src/catalog_admin.rs`
+  for admin workflow refinements.
+- Keep edit history, media cleanup, release retention, pending-change status,
+  and publication controls in Rust/controller boundaries rather than
+  resurrecting the retired Next.js app.
+- Add persistence changes through `controller/db/schema.sql`,
+  `controller/db/updates/`, and production adapter tests where needed.
 
 **Public Static Output**
 - Update `controller/static-public/`, `controller/src/contracts.rs`, and
@@ -98,9 +107,12 @@ autographs/
 - Treat `.prompts/001-autograph-gallery-bootstrap-do/` as historical product intent.
 - Treat Phase 5 static runtime/controller foundation as complete, including
   05-07 live static publish proof and closure evidence.
-- Treat Phase 6 as polished admin workflow on that completed foundation, and
-  Phase 7 as advisory AI ingest.
+- Treat Phase 6 plans 06-01 through 06-07 as implemented: polished admin
+  workflow, edit history, media cleanup, pending changes, release retention,
+  session-cookie collection-management auth, docs, and security review are
+  current-state surfaces.
+- Treat Phase 7 as advisory AI ingest.
 
 ---
 
-*Structure analysis refreshed: 2026-06-20 after Phase 5 verification closeout*
+*Structure analysis refreshed: 2026-07-02 after Phase 6 admin docs/security closeout*
