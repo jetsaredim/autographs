@@ -1201,13 +1201,17 @@ fn contains_low_confidence_source_value(text: &str, denied: &[String]) -> bool {
     denied
         .iter()
         .filter(|value| !value.is_empty())
-        .filter(|value| is_actionable_low_confidence_value(value))
         .flat_map(|value| normalized_original_filename_values(value))
+        .filter(|value| is_actionable_low_confidence_value(value))
         .any(|value| normalized_text.contains(&value))
 }
 
 fn is_actionable_low_confidence_value(value: &str) -> bool {
     let normalized = normalize_original_filename_scan_text(value.trim());
+    if normalized.contains('/') {
+        return true;
+    }
+
     let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
     let (stem, extension) = file_name
         .rsplit_once('.')
