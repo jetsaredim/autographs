@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 06-08-PLAN.md
-last_updated: "2026-07-02T14:55:09.019Z"
-last_activity: 2026-07-02 -- Completed 06-08 codebase map refresh
+status: ready
+stopped_at: Completed 06-09-PLAN.md
+last_updated: "2026-07-02T15:05:03.803Z"
+last_activity: 2026-07-02 -- Completed Phase 6 admin collection workflow
 progress:
   total_phases: 7
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 34
-  completed_plans: 33
-  percent: 97
+  completed_plans: 34
+  percent: 100
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 06 — admin-collection-workflow
+**Current focus:** Phase 07 — ai-assisted-ingest
 
 ## Current Position
 
-Phase: 06 (admin-collection-workflow) — EXECUTING
-Plan: 06-09
-Status: Ready to execute next wave
-Last activity: 2026-07-02 -- Completed 06-08 codebase map refresh
+Phase: 07 (ai-assisted-ingest) — READY
+Plan: TBD
+Status: Ready to plan next phase
+Last activity: 2026-07-02 -- Completed Phase 6 admin collection workflow
 
-Progress: [██████████] 97% overall; Phase 6 plans 1-8 complete
+Progress: [██████████] 100% of planned Phase 1-6 work complete; Phase 7 remains unplanned
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 33 of 34
+- Total plans completed: 34 of 34
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -49,12 +49,12 @@ Progress: [██████████] 97% overall; Phase 6 plans 1-8 comple
 | 03 | 5 | - | - |
 | 04 | 5/5 | 54 min | 11 min |
 | 05 | 7/7 | - | - |
-| 06 | 8/9 | - | - |
+| 06 | 9/9 | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: 06-04, 06-05, 06-06, 06-07, 06-08
-- Trend: Positive; Phase 6 now has edit-history, private admin item APIs, retryable media cleanup foundations, publish-status retention, a polished static admin workflow, a single session-cookie collection-management auth path, completed admin docs/security closeout, and refreshed codebase maps
+- Last 5 plans: 06-05, 06-06, 06-07, 06-08, 06-09
+- Trend: Positive; Phase 6 is complete with edit-history, private admin item APIs, retryable media cleanup foundations, publish-status retention, a polished static admin workflow, a single session-cookie collection-management auth path, admin docs/security closeout, refreshed codebase maps, and optimized static delivery/cache posture
 
 | Phase 04 P01 | 38 min | 3 tasks | 4 files |
 | Phase 04 P02 | 4 min | 3 tasks | 5 files |
@@ -72,6 +72,7 @@ Progress: [██████████] 97% overall; Phase 6 plans 1-8 comple
 | Phase 06 P06 | live session | 2 tasks | 10 files |
 | Phase 06 P07 | live session | 3 tasks | 7 files |
 | Phase 06 P08 | live session | 2 tasks | 6 files |
+| Phase 06 P09 | live session | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -115,8 +116,8 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- Phase 6 needs formal planning for polished admin collection workflow, edit history, media cleanup ergonomics, controller-owned deletion behavior, and admin hardening on top of the implemented Rust/static foundation.
-- Phase 7 remains advisory AI-assisted ingest after manual admin workflows exist.
+- Phase 6 is complete; keep its admin workflow, session auth, media cleanup, cache posture, and runtime cleanup guidance intact while planning Phase 7.
+- Phase 7 remains advisory AI-assisted ingest after manual admin workflows exist, with OCR/AI provider, prompt, privacy, and configuration-security review still required.
 - Keep production security patching action pins, approval allowlist, and Ansible role behavior reviewed with deploy/runtime changes.
 
 ### Roadmap Evolution
@@ -127,7 +128,7 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-06-28T13:03:41.624Z
-Stopped at: Completed 06-05-PLAN.md
+Stopped at: Completed 06-09-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed
