@@ -20,7 +20,7 @@ impl DerivativeVariant {
     const fn max_dimensions(self) -> (u32, u32) {
         match self {
             Self::Thumbnail => (480, 640),
-            Self::Detail => (1200, 1600),
+            Self::Detail => (960, 1280),
         }
     }
 }

@@ -12,6 +12,7 @@ use autographs_controller::{
     },
     config::ControllerConfig,
     contracts::{ImageVariantName, PublicCatalog, PublicItemDetail, PublishManifest},
+    derivatives::{DerivativeVariant, generate_derivative},
     media::{LocalMediaStore, PrivateMediaStore},
     publisher::{
         LocalPublisher, PublishChange, PublishMode, ReleaseRetentionPolicy, artifact_impact_for,
@@ -112,6 +113,20 @@ async fn publisher_generates_candidate_release_and_derivatives() {
                 Some(ImageVariantName::Thumbnail | ImageVariantName::Detail)
             )
     }));
+    for entry in derivatives {
+        let derivative = image::open(current.join(&entry.path)).unwrap();
+        match entry.variant {
+            Some(ImageVariantName::Thumbnail) => {
+                assert!(derivative.width() <= 480);
+                assert!(derivative.height() <= 640);
+            }
+            Some(ImageVariantName::Detail) => {
+                assert!(derivative.width() <= 960);
+                assert!(derivative.height() <= 1280);
+            }
+            None => unreachable!("derivative entries always have a variant"),
+        }
+    }
 
     let catalog: PublicCatalog = read_json(&current.join("data/collection.json"));
     let selected = catalog
@@ -231,6 +246,32 @@ async fn publisher_validation_rejects_missing_derivatives_and_private_terms() {
         validate_candidate(&release)
             .unwrap_err()
             .contains("privacy scan")
+    );
+}
+
+#[test]
+fn publisher_detail_derivative_cap_reduces_existing_large_public_sample() {
+    let source = include_bytes!("../static-public/media/ahsoka-tano/image-1-detail.webp");
+    let derivative = generate_derivative(source, DerivativeVariant::Detail).unwrap();
+    if std::env::var_os("AUTOGRAPHS_PRINT_DERIVATIVE_MEASUREMENT").is_some() {
+        eprintln!(
+            "detail derivative sample before={} after={} width={} height={}",
+            source.len(),
+            derivative.bytes.len(),
+            derivative.width,
+            derivative.height
+        );
+    }
+
+    assert_eq!(derivative.content_type, "image/webp");
+    assert_eq!(derivative.variant, DerivativeVariant::Detail);
+    assert!(derivative.width <= 960);
+    assert!(derivative.height <= 1280);
+    assert!(
+        derivative.bytes.len() < source.len(),
+        "expected capped detail derivative to shrink from {} bytes, got {} bytes",
+        source.len(),
+        derivative.bytes.len()
     );
 }
 

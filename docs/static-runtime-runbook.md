@@ -400,6 +400,35 @@ Check `/var/lib/autographs/static/failed/` inside the controller container when 
 retains only the latest failed candidate for diagnosis and leaves `current`
 pointing at the last validated release.
 
+## Phase 6 Public Artifact Size Review
+
+The Phase 6 optimization pass measured the checked-in generated public sample
+before changing derivative bounds. Largest current sample artifacts were:
+
+| Artifact | Bytes | Notes |
+|----------|-------|-------|
+| `controller/static-public/media/ahsoka-tano/image-1-detail.webp` | 2,615,114 | Lossless WebP detail derivative, previously generated at about 1600x1200. |
+| `controller/static-public/media/ahsoka-tano/image-2-detail.webp` | 578,396 | Lossless WebP detail derivative. |
+| `controller/static-public/media/ahsoka-tano/image-1-thumbnail.webp` | 485,934 | Lossless WebP thumbnail derivative. |
+| `controller/static-public/assets/site.css` | 17,417 | Largest static text asset. |
+| `controller/static-public/assets/browse.js` | 8,092 | Largest public JavaScript asset. |
+
+The active Rust `image` crate WebP encoder is lossless-only in this repository,
+so Phase 6 avoided adding a new image encoder dependency. Instead, detail
+derivatives are capped to the current public UI need: thumbnails remain bounded
+at `480x640`, and detail derivatives are bounded at `960x1280`. A regression
+uses the large public sample above and the production `generate_derivative`
+function:
+
+```text
+detail derivative sample before=2615114 after=1777658 width=960 height=1276
+```
+
+That is a 837,456 byte reduction for the large sample detail derivative while
+preserving the sanitized `/media/...-detail.webp` path contract and WebP
+content type. Public artifact privacy scans and manifest byte-size validation
+remain mandatory for derivative changes.
+
 ## Phase 6 Admin Live Smoke
 
 Use this operator-run smoke when an admin workflow, publisher, retention, or
