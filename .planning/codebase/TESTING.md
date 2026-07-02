@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-06-19
+**Analysis Date:** 2026-07-02
 
 ## Validation Contract
 
@@ -15,6 +15,7 @@ cargo test --manifest-path controller/Cargo.toml
 cargo check --manifest-path controller/Cargo.toml --features production-persistence
 cargo build --manifest-path controller/Cargo.toml --features production-persistence
 cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
+node --check controller/static-admin/admin.js
 terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff
 ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml deploy/ansible/playbooks/system-cleanup.yml deploy/ansible/playbooks/security-scan.yml deploy/ansible/playbooks/security-patch.yml deploy/ansible/playbooks/security-patch-cleanup.yml
 ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/
@@ -29,10 +30,21 @@ Do not use retired pnpm/Next.js commands as current gates.
 Covered areas include:
 
 - Auth and health behavior.
+- `auth_and_health`: session-cookie login, bearer rejection for collection
+  management, CSRF/origin checks, lockout behavior, and redacted health.
+- `admin_workflow`: item list/detail/create/edit, field-level history,
+  pending-change status, explicit publish batching, retention status, and
+  redacted diagnostics.
+- `media_cleanup`: image primary selection, replacement/removal, retryable
+  cleanup events, rollback behavior, and cleanup warning visibility.
 - Static artifact contracts for collection/detail/facet data and manifests.
-- Static admin shell behavior.
-- Seed content path.
-- Publisher generation, validation, and promotion behavior.
+- `static_admin`: static admin source privacy, same-origin privileged calls,
+  shared save/publish action paths, accessibility labels, and no browser-storage
+  credential assumptions.
+- `seed_content`: local create/upload/publication behavior through the current
+  session-cookie route shape.
+- `publisher`: generation, validation, promotion, privacy scans, incremental
+  stale cleanup, and promoted/failed release retention behavior.
 - Caddy static route expectations.
 - Production-persistence compile coverage.
 - Live persistence and live static publish smoke paths where real credentials
@@ -55,10 +67,15 @@ Covered areas include:
   credentials for every run.
 - Live smoke runbooks prove Oracle/Object Storage and deployed Caddy/controller
   behavior with real secrets.
+- `cargo test --manifest-path controller/Cargo.toml --features live-persistence live_static_publish_smoke -- --ignored --nocapture`
+  is a local/CI compile-and-skip gate unless `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true`
+  and real runtime credentials are supplied by an operator.
 - Public output privacy is validated at artifact/publisher boundaries rather
   than through retired app-mediated image routes.
 - Deployment validation is tied to the actual runtime model: controller image,
   static release, Caddy, Podman, and health checks.
+- Run Ansible deploy syntax checks when env templates, quadlets, Caddy wiring,
+  retention variables, cleanup roles, or security patching roles change.
 
 ## Fixtures
 
@@ -69,14 +86,6 @@ Covered areas include:
   should not be treated as routine PR checks.
 
 ## Coverage Gaps
-
-### Pending Phase 6 Areas
-
-- Polished admin session UX and hardening beyond the Phase 5 foundation.
-- Daily-use admin create/edit/publish workflow.
-- Edit history persistence and rendering.
-- Media replacement/orphan cleanup guarantees.
-- Admin route, secret, and edit-history documentation checks.
 
 ### Pending Phase 7 Areas
 
@@ -90,8 +99,9 @@ Covered areas include:
 - Treat production security patching playbook changes like deploy/runtime
   changes, not ordinary docs-only updates.
 - Keep local-mode, CI, and live OCI smoke evidence distinct.
-- Re-run this map after major Phase 6/7 implementation shifts.
+- Re-run this map after major Phase 6 optimization or Phase 7 implementation
+  shifts.
 
 ---
 
-*Testing analysis refreshed: 2026-06-19 after Phase 5 static runtime implementation and PR 129 production security patching merge*
+*Testing analysis refreshed: 2026-07-02 after Phase 6 admin docs/security closeout*

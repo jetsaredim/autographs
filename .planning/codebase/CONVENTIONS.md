@@ -1,6 +1,6 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-06-19
+**Analysis Date:** 2026-07-02
 
 ## Naming Patterns
 
@@ -37,8 +37,12 @@
   unpublished records.
 - Keep persistence/media details in controller adapters and service modules, not
   scattered through route handlers or static assets.
-- Use plain static HTML/CSS/JavaScript for the minimal admin/public static
-  surfaces unless a later phase intentionally changes that constraint.
+- Use plain static HTML/CSS/JavaScript for the admin/public static surfaces
+  unless a later phase intentionally changes that constraint.
+- Phase 6 admin UI copy should be concise, operational, and private-safe:
+  same-origin `/admin/api/*` calls, no browser storage for credentials, redacted
+  diagnostics, field-level history, cautious cleanup warnings, explicit publish
+  batching, and bounded retention status.
 - Keep Ansible playbooks thin and put reusable behavior in roles.
 
 ## Error Handling
@@ -47,6 +51,9 @@
   than publish incomplete or privacy-leaking artifacts.
 - Controller routes should avoid leaking internal OCI, Oracle, or filesystem
   details in public/admin responses.
+- Admin diagnostics, publish status, edit history, and cleanup warnings should
+  stay redacted: no bucket names, namespaces, direct Object Storage URLs, raw
+  object keys, original private filenames, Oracle internals, or secrets.
 - Security patching apply runs must refuse drifted package sets and remove stale
   approval labels on failure.
 
@@ -69,17 +76,21 @@
   secret handling, approval labels, and live-smoke requirements.
 - Update `.planning/codebase/*` after substantial codebase drift so future
   agents do not resurrect retired architecture.
+- Keep local/CI verification distinct from operator-run live Oracle/Object
+  Storage smoke evidence.
 
 ## Current Guidance
 
 - Phase 5 foundation is complete; do not rebuild finished 05-01 through 05-07
   work, and treat the Rust/static cutover and Next.js retirement as validated.
-- Phase 6 owns polished admin workflow, edit history, and media cleanup
-  ergonomics on the completed Rust/static foundation.
+- Phase 6 plans 06-01 through 06-07 are complete: polished admin workflow,
+  session-cookie collection-management auth, field-level history, media cleanup
+  ergonomics, pending-change status, explicit publish controls, release
+  retention, operator docs, and security review are current-state behavior.
 - Phase 7 owns advisory AI-assisted ingest.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage
   URLs, or a split multi-service architecture for v1.
 
 ---
 
-*Conventions refreshed: 2026-06-20 after Phase 5 verification closeout*
+*Conventions refreshed: 2026-07-02 after Phase 6 admin docs/security closeout*
