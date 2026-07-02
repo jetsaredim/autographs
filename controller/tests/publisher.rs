@@ -286,6 +286,47 @@ async fn publisher_validation_rejects_missing_derivatives_and_private_terms() {
 }
 
 #[tokio::test]
+async fn publisher_validation_rejects_derivative_fingerprint_mismatch() {
+    let fixture = fixture().await;
+    let publisher = LocalPublisher::new(fixture.root.path());
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+    let current = fixture.root.path().join("current");
+    let detail_path = current.join("data/items/signed-jedi-card.json");
+    let mut detail: PublicItemDetail = read_json(&detail_path);
+    let variant = detail.images[0]
+        .variants
+        .iter_mut()
+        .find(|variant| variant.name == ImageVariantName::Detail)
+        .unwrap();
+    let original_path = variant.path.trim_start_matches('/').to_owned();
+    let bad_path = tamper_media_fingerprint(&original_path);
+
+    fs::rename(current.join(&original_path), current.join(&bad_path)).unwrap();
+    variant.path = format!("/{bad_path}");
+    fs::write(&detail_path, serde_json::to_vec_pretty(&detail).unwrap()).unwrap();
+
+    let manifest_path = current.join("manifest.json");
+    let mut manifest: Value = read_json(&manifest_path);
+    let artifact = manifest["artifacts"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|entry| entry["path"] == original_path)
+        .unwrap();
+    artifact["path"] = Value::from(bad_path);
+    fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+
+    assert!(
+        validate_candidate(&current)
+            .unwrap_err()
+            .contains("fingerprint mismatch")
+    );
+}
+
+#[tokio::test]
 async fn publisher_changes_public_media_paths_when_image_content_changes() {
     let fixture = fixture().await;
     let publisher = LocalPublisher::new(fixture.root.path());
@@ -353,9 +394,9 @@ async fn publisher_changes_public_media_paths_when_image_content_changes() {
 }
 
 #[test]
-fn publisher_detail_derivative_cap_reduces_existing_large_public_sample() {
-    let source = include_bytes!("../static-public/media/ahsoka-tano/image-1-detail.webp");
-    let derivative = generate_derivative(source, DerivativeVariant::Detail).unwrap();
+fn publisher_detail_derivative_cap_reduces_large_sample() {
+    let source = large_png_bytes();
+    let derivative = generate_derivative(&source, DerivativeVariant::Detail).unwrap();
     if std::env::var_os("AUTOGRAPHS_PRINT_DERIVATIVE_MEASUREMENT").is_some() {
         eprintln!(
             "detail derivative sample before={} after={} width={} height={}",
@@ -1734,6 +1775,21 @@ fn png_bytes_with_color(rgb: [u8; 3]) -> Vec<u8> {
     bytes.into_inner()
 }
 
+fn large_png_bytes() -> Vec<u8> {
+    let mut image = RgbImage::new(1800, 1400);
+    for (x, y, pixel) in image.enumerate_pixels_mut() {
+        *pixel = Rgb([
+            ((x * 31 + y * 17) % 256) as u8,
+            ((x * 13 + y * 47) % 256) as u8,
+            ((x * 61 + y * 7) % 256) as u8,
+        ]);
+    }
+    let image = DynamicImage::ImageRgb8(image);
+    let mut bytes = Cursor::new(Vec::new());
+    image.write_to(&mut bytes, ImageFormat::Png).unwrap();
+    bytes.into_inner()
+}
+
 fn assert_versioned_media_file(
     current: &Path,
     path: &str,
@@ -1768,6 +1824,22 @@ fn assert_versioned_media_file(
         current.join(path.trim_start_matches('/')).is_file(),
         "missing versioned media file: {path}"
     );
+}
+
+fn tamper_media_fingerprint(path: &str) -> String {
+    let (prefix, suffix) = path
+        .rsplit_once('-')
+        .expect("fingerprinted media path separator");
+    let (_, extension) = suffix
+        .rsplit_once('.')
+        .expect("fingerprinted media path extension");
+    let replacement = if suffix.starts_with("0000000000000000") {
+        "ffffffffffffffff"
+    } else {
+        "0000000000000000"
+    };
+
+    format!("{prefix}-{replacement}.{extension}")
 }
 
 fn read_tree(root: &Path) -> String {
