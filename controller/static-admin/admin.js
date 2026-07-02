@@ -902,6 +902,12 @@ const loadItem = async (id, historyFirst = false) => {
   }
 };
 
+function openNewItemEditor() {
+  if (ensureSavedBeforeOpeningAnotherItem()) {
+    renderEditor();
+  }
+}
+
 const markDirty = (event) => {
   if (uploadOnlyFieldNames.has(event?.target?.name)) {
     return;
@@ -967,7 +973,13 @@ elements.logout.addEventListener("click", async () => {
 });
 
 for (const tab of elements.tabs) {
-  tab.addEventListener("click", () => setView(tab.dataset.view));
+  tab.addEventListener("click", () => {
+    if (tab.dataset.view === "add-item-view") {
+      openNewItemEditor();
+      return;
+    }
+    setView(tab.dataset.view);
+  });
 }
 
 $("#refresh-status").addEventListener("click", renderHub);
@@ -975,11 +987,7 @@ $("#refresh-diagnostics").addEventListener("click", renderHub);
 $("#refresh-items").addEventListener("click", renderItemList);
 $("#refresh-history").addEventListener("click", () => renderHistory());
 $("#back-to-hub").addEventListener("click", () => setView("hub-view"));
-$("#add-another-item").addEventListener("click", () => {
-  if (ensureSavedBeforeOpeningAnotherItem()) {
-    renderEditor();
-  }
-});
+$("#add-another-item").addEventListener("click", openNewItemEditor);
 $("#discard-unsaved").addEventListener("click", () => renderEditor(state.currentItem));
 $("#upload-more-images").addEventListener("click", () => uploadImages());
 $("#publish-from-editor").addEventListener("click", publishFromEditor);
