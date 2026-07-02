@@ -1268,7 +1268,19 @@ fn normalized_original_filename_values(value: &str) -> Vec<String> {
 }
 
 fn normalize_source_scan_text(value: &str) -> String {
-    collapse_slash_runs(&percent_decode_lossy(value).replace('\\', "/")).to_lowercase()
+    collapse_slash_runs(&iterative_percent_decode_lossy(value).replace('\\', "/")).to_lowercase()
+}
+
+fn iterative_percent_decode_lossy(value: &str) -> String {
+    let mut decoded = value.to_owned();
+    for _ in 0..4 {
+        let next = percent_decode_lossy(&decoded);
+        if next == decoded {
+            break;
+        }
+        decoded = next;
+    }
+    decoded
 }
 
 fn collapse_slash_runs(value: &str) -> String {

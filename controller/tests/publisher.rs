@@ -634,6 +634,119 @@ async fn publisher_rejects_original_filename_leak_with_url_escaped_basename() {
 }
 
 #[tokio::test]
+async fn publisher_rejects_original_filename_leak_with_double_url_escaped_basename() {
+    let root = tempdir().unwrap();
+    let media_root = tempdir().unwrap();
+    let repository = MemoryCatalogRepository::default();
+    let media = LocalMediaStore::new(media_root.path());
+    let item = repository
+        .create(AutographItemInput {
+            title: "Double Escaped Filename Leak".to_owned(),
+            signer: "Filename Scan".to_owned(),
+            description: Some(
+                "Rendered escaped basename leak: /public/original%2520private%2520scan.png"
+                    .to_owned(),
+            ),
+            category: "Cards".to_owned(),
+            tags: vec!["privacy".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+    let image_id = Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    let bytes = png_bytes();
+    media.write(&object_key, &bytes).await.unwrap();
+    repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: image_id,
+                object_key,
+                original_filename: "incoming/private/original private scan.png".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: bytes.len(),
+                is_primary: true,
+                sort_order: 0,
+                alt_text: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    let error = LocalPublisher::new(root.path())
+        .publish(&repository, &media, PublishMode::Full)
+        .await
+        .unwrap_err();
+
+    assert!(error.contains("private source reference"));
+}
+
+#[tokio::test]
+async fn publisher_rejects_original_filename_path_leak_with_double_url_escaping() {
+    let root = tempdir().unwrap();
+    let media_root = tempdir().unwrap();
+    let repository = MemoryCatalogRepository::default();
+    let media = LocalMediaStore::new(media_root.path());
+    let item = repository
+        .create(AutographItemInput {
+            title: "Double Escaped Path Leak".to_owned(),
+            signer: "Filename Scan".to_owned(),
+            description: Some(
+                "Rendered private path leak: incoming%252Fprivate%252Fimage.jpg".to_owned(),
+            ),
+            category: "Cards".to_owned(),
+            tags: vec!["privacy".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+    let image_id = Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    let bytes = png_bytes();
+    media.write(&object_key, &bytes).await.unwrap();
+    repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: image_id,
+                object_key,
+                original_filename: "incoming/private/image.jpg".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: bytes.len(),
+                is_primary: true,
+                sort_order: 0,
+                alt_text: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    let error = LocalPublisher::new(root.path())
+        .publish(&repository, &media, PublishMode::Full)
+        .await
+        .unwrap_err();
+
+    assert!(error.contains("private source reference"));
+}
+
+#[tokio::test]
 async fn publisher_rejects_original_filename_path_leak_with_generic_basename() {
     let root = tempdir().unwrap();
     let media_root = tempdir().unwrap();
@@ -814,6 +927,63 @@ async fn publisher_rejects_percent_encoded_private_object_key() {
             description: Some(format!(
                 "A published item with a private object key: {}",
                 object_key.replace('/', "%2F")
+            )),
+            category: "Cards".to_owned(),
+            tags: vec!["private-key".to_owned()],
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+    let bytes = png_bytes();
+    media.write(&object_key, &bytes).await.unwrap();
+    repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: image_id,
+                object_key,
+                original_filename: "private-key.png".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: bytes.len(),
+                is_primary: true,
+                sort_order: 0,
+                alt_text: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    let error = LocalPublisher::new(root.path())
+        .publish(&repository, &media, PublishMode::Full)
+        .await
+        .unwrap_err();
+
+    assert!(error.contains("private source reference"));
+}
+
+#[tokio::test]
+async fn publisher_rejects_double_percent_encoded_private_object_key() {
+    let root = tempdir().unwrap();
+    let media_root = tempdir().unwrap();
+    let repository = MemoryCatalogRepository::default();
+    let media = LocalMediaStore::new(media_root.path());
+    let image_id = Uuid::new_v4();
+    let object_key = format!("originals/{}/{}", Uuid::new_v4(), image_id);
+    let item = repository
+        .create(AutographItemInput {
+            title: "Double Encoded Private Key Card".to_owned(),
+            signer: "Admin Copy".to_owned(),
+            description: Some(format!(
+                "A published item with a private object key: {}",
+                object_key.replace('/', "%252F")
             )),
             category: "Cards".to_owned(),
             tags: vec!["private-key".to_owned()],
