@@ -141,6 +141,8 @@ h4 {
 .view-panel,
 .form-section,
 .status-panel,
+.status-section,
+.filter-panel,
 .diagnostics-panel,
 .image-tile,
 .history-entry {
@@ -233,47 +235,25 @@ h4 {
   padding: 16px;
 }
 
-.workflow-split {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 16px;
-  margin: 24px 0;
-}
-
-.primary-path,
-.secondary-path,
 .primary-action,
 .secondary-action,
 .text-action,
+.icon-action,
 .destructive {
   min-height: 44px;
   border-radius: 8px;
 }
 
-.primary-path,
 .primary-action {
   border-color: #25636a;
   background: #25636a;
   color: #ffffff;
 }
 
-.primary-path {
-  min-height: 72px;
-  font-size: 20px;
-  line-height: 1.25;
-}
-
-.secondary-path,
 .secondary-action,
 .text-action {
   background: #ffffff;
   color: #25636a;
-}
-
-.secondary-path {
-  min-height: 72px;
-  font-size: 20px;
-  line-height: 1.25;
 }
 
 .warning-action {
@@ -298,6 +278,79 @@ h4 {
 .compact-diagnostics {
   display: grid;
   gap: 16px;
+}
+
+.dashboard-sections {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.status-section,
+.filter-panel {
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.status-section summary,
+.filter-panel summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.status-section summary::-webkit-details-marker,
+.filter-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.status-section summary::after,
+.filter-panel summary::after {
+  content: "+";
+  color: #25636a;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.status-section[open] summary::after,
+.filter-panel[open] summary::after {
+  content: "−";
+}
+
+.summary-value {
+  color: #626862;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+}
+
+.section-body {
+  border-top: 1px solid #d7ddd5;
+  padding: 12px 16px 16px;
+}
+
+.status-table td:first-child {
+  width: 12rem;
+  color: #626862;
+  font-weight: 600;
+}
+
+.empty-table-cell {
+  color: #626862;
+}
+
+.filter-panel {
+  margin: 20px 0 16px;
+}
+
+.filter-toolbar {
+  border-top: 1px solid #d7ddd5;
+  padding: 16px;
 }
 
 .editor-form,
@@ -333,6 +386,36 @@ h4 {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.row-actions {
+  flex-wrap: nowrap;
+}
+
+.icon-action {
+  width: 44px;
+  padding: 8px;
+  background: #ffffff;
+  color: #25636a;
+}
+
+.icon-action svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.sort-button {
+  min-height: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #25636a;
+  font: inherit;
 }
 
 .image-grid {

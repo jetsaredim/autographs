@@ -155,6 +155,15 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     assert!(detail.contains(r#"<section class="image-viewer">"#));
     assert!(detail.contains(r#"class="focused-image-button" type="button" aria-expanded="false""#));
     assert!(detail.contains(r#"class="detail-metadata-panel" aria-hidden="true""#));
+    assert!(detail.contains("<h2>Story</h2>"));
+    assert!(detail.contains("A public description."));
+    assert!(detail.contains("For the rebellion"));
+    assert!(detail.contains("<h2>Provenance</h2>"));
+    assert!(detail.contains("Example Convention"));
+    assert!(detail.contains("Vendor table"));
+    assert!(detail.contains("<h2>Certification</h2>"));
+    assert!(detail.contains("PSA"));
+    assert!(detail.contains("Card #1138"));
     assert!(detail.contains(r#"<script src="/assets/detail.js"></script>"#));
     assert!(detail.contains("public-footer"));
     assert!(architecture.contains("Autographs system overview"));
@@ -298,14 +307,14 @@ async fn publisher_allows_generic_private_filenames_in_admin_shell_copy() {
             description: Some("A published item with a generic private file name.".to_owned()),
             category: "Cards".to_owned(),
             tags: vec!["generic".to_owned()],
-            object_reference: None,
-            event_name: None,
-            event_location: None,
-            source: None,
-            inscription: None,
-            certification_company: None,
-            certification_id: None,
-            estimated_year: None,
+            object_reference: Some("Card #1138".to_owned()),
+            event_name: Some("Example Convention".to_owned()),
+            event_location: Some("Orlando".to_owned()),
+            source: Some("Vendor table".to_owned()),
+            inscription: Some("For the rebellion".to_owned()),
+            certification_company: Some("PSA".to_owned()),
+            certification_id: Some("ABC123".to_owned()),
+            estimated_year: Some(2026),
             publication_status: PublicationStatus::Published,
         })
         .await
@@ -1470,14 +1479,14 @@ async fn fixture() -> Fixture {
             description: Some("A public description.".to_owned()),
             category: "Cards".to_owned(),
             tags: vec!["jedi".to_owned(), "star-wars".to_owned()],
-            object_reference: None,
-            event_name: None,
-            event_location: None,
-            source: None,
-            inscription: None,
-            certification_company: None,
-            certification_id: None,
-            estimated_year: None,
+            object_reference: Some("Card #1138".to_owned()),
+            event_name: Some("Example Convention".to_owned()),
+            event_location: Some("Orlando".to_owned()),
+            source: Some("Vendor table".to_owned()),
+            inscription: Some("For the rebellion".to_owned()),
+            certification_company: Some("PSA".to_owned()),
+            certification_id: Some("ABC123".to_owned()),
+            estimated_year: Some(2026),
             publication_status: PublicationStatus::Published,
         })
         .await

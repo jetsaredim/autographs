@@ -42,8 +42,12 @@ fn static_admin_source_references_collection_workflow_contract() {
     }
     for workflow_copy in [
         "Admin hub",
-        "Add new item",
-        "Find or modify existing items",
+        "Add item",
+        "Items",
+        "Pending changes",
+        "Cleanup warnings",
+        "Redacted diagnostics",
+        "Filters",
         "Identity",
         "Story",
         "Provenance",
@@ -59,6 +63,30 @@ fn static_admin_source_references_collection_workflow_contract() {
         assert!(
             source.contains(workflow_copy),
             "static admin source is missing workflow copy {workflow_copy}"
+        );
+    }
+    for workflow_structure in [
+        "class=\"tab-button\" data-view=\"add-item-view\"",
+        "class=\"tab-button\" data-view=\"items-view\"",
+        "<details class=\"status-section\"",
+        "<details class=\"filter-panel\" id=\"item-filter-panel\">",
+        "icon-action",
+        "const iconPaths",
+        "iconButton(\"Edit item\", \"edit\"",
+        "iconButton(\"View history\", \"history\"",
+        "iconButton(\"Publish status\", \"status\"",
+        "function compareItems",
+        "function updateSort",
+        "function openNewItemEditor()",
+        "tab.dataset.view === \"add-item-view\"",
+        "$(\"#add-another-item\").addEventListener(\"click\", openNewItemEditor)",
+        "button.addEventListener(\"click\", () =>",
+        "elements.itemFilters.addEventListener(\"submit\", (event) =>",
+        "name=\"changes\"",
+    ] {
+        assert!(
+            source.contains(workflow_structure),
+            "static admin source is missing workflow structure {workflow_structure}"
         );
     }
     for field in [

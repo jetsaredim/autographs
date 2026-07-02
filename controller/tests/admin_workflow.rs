@@ -508,6 +508,17 @@ async fn admin_status_reports_pending_publish_cleanup_and_retention() {
     assert_eq!(json["publish"]["state"], "idle");
     assert!(json["pendingChanges"]["count"].as_u64().unwrap() > 0);
     assert_eq!(json["cleanup"]["warningCount"], 1);
+    assert_eq!(
+        json["cleanup"]["warnings"][0]["title"],
+        "Status Pending Item"
+    );
+    assert_eq!(json["cleanup"]["warnings"][0]["operation"], "delete");
+    assert_eq!(json["cleanup"]["warnings"][0]["status"], "deleteFailed");
+    assert_eq!(
+        json["cleanup"]["warnings"][0]["adminMessage"],
+        "Cleanup needs attention. Review the affected item before publishing again."
+    );
+    assert!(json["cleanup"]["warnings"][0]["imageId"].is_string());
     assert_eq!(json["releaseRetention"]["promotedReleaseRetainCount"], 5);
     assert_eq!(json["releaseRetention"]["failedCandidateRetainCount"], 1);
     assert_eq!(

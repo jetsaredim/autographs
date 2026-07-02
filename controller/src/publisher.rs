@@ -669,23 +669,76 @@ async fn build_public_items(
             category: item.category.clone(),
             tags: item.tags.clone(),
             images,
-            detail_groups: vec![PublicDetailGroup {
-                label: "Essentials".to_owned(),
-                fields: vec![
-                    PublicDetailField {
-                        label: "Signer".to_owned(),
-                        value: item.signer.clone(),
-                    },
-                    PublicDetailField {
-                        label: "Category".to_owned(),
-                        value: item.category.clone(),
-                    },
-                ],
-            }],
+            detail_groups: public_detail_groups(item),
         };
         public_items.push(PublicSourceItem { gallery, detail });
     }
     Ok(public_items)
+}
+
+fn public_detail_groups(item: &AutographItem) -> Vec<PublicDetailGroup> {
+    let mut groups = vec![PublicDetailGroup {
+        label: "Essentials".to_owned(),
+        fields: compact_detail_fields(vec![
+            ("Signer", Some(item.signer.clone())),
+            ("Category", Some(item.category.clone())),
+            (
+                "Estimated year",
+                item.estimated_year.as_ref().map(|year| year.to_string()),
+            ),
+            ("Object reference", item.object_reference.clone()),
+        ]),
+    }];
+
+    let story = compact_detail_fields(vec![
+        ("Description", item.description.clone()),
+        ("Inscription", item.inscription.clone()),
+    ]);
+    if !story.is_empty() {
+        groups.push(PublicDetailGroup {
+            label: "Story".to_owned(),
+            fields: story,
+        });
+    }
+
+    let provenance = compact_detail_fields(vec![
+        ("Event", item.event_name.clone()),
+        ("Event location", item.event_location.clone()),
+        ("Source", item.source.clone()),
+    ]);
+    if !provenance.is_empty() {
+        groups.push(PublicDetailGroup {
+            label: "Provenance".to_owned(),
+            fields: provenance,
+        });
+    }
+
+    let certification = compact_detail_fields(vec![
+        ("Company", item.certification_company.clone()),
+        ("Certification ID", item.certification_id.clone()),
+    ]);
+    if !certification.is_empty() {
+        groups.push(PublicDetailGroup {
+            label: "Certification".to_owned(),
+            fields: certification,
+        });
+    }
+
+    groups
+}
+
+fn compact_detail_fields(fields: Vec<(&str, Option<String>)>) -> Vec<PublicDetailField> {
+    fields
+        .into_iter()
+        .filter_map(|(label, value)| {
+            let value = value?;
+            let value = value.trim();
+            (!value.is_empty()).then(|| PublicDetailField {
+                label: label.to_owned(),
+                value: value.to_owned(),
+            })
+        })
+        .collect()
 }
 
 fn primary_first_images(images: &[AutographImage]) -> Vec<&AutographImage> {
