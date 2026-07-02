@@ -248,13 +248,12 @@
         or (
           autographs_deploy_admin_password_hash_resolved | default('', true) | trim | length
         ) > 0
-        or (
-          autographs_operator_api_token | default(lookup('env', 'AUTOGRAPHS_OPERATOR_API_TOKEN') | default('', true), true) | trim | length
-        ) > 0
     fail_msg: >-
       Set a non-empty autographs_deploy_admin_password,
-      autographs_deploy_admin_password_hash, or autographs_operator_api_token
-      for deployed admin routes.
+      autographs_deploy_admin_password_hash, AUTOGRAPHS_ADMIN_PASSWORD,
+      or AUTOGRAPHS_ADMIN_PASSWORD_HASH for deployed admin routes.
+      AUTOGRAPHS_OPERATOR_API_TOKEN is diagnostic-only and does not satisfy
+      controller admin authentication.
   no_log: true
 
 - name: Write app environment file
