@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-06-PLAN.md
-last_updated: "2026-07-02T14:29:16.943Z"
-last_activity: 2026-07-02 -- Completed 06-06 single-session admin auth boundary
+stopped_at: Completed 06-07-PLAN.md
+last_updated: "2026-07-02T14:50:42.369Z"
+last_activity: 2026-07-02 -- Completed 06-07 admin docs and security closeout
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 34
-  completed_plans: 31
-  percent: 91
+  completed_plans: 32
+  percent: 94
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 ## Current Position
 
 Phase: 06 (admin-collection-workflow) — EXECUTING
-Plan: 06-07
+Plan: 06-08
 Status: Ready to execute next wave
-Last activity: 2026-07-02 -- Completed 06-06 single-session admin auth boundary
+Last activity: 2026-07-02 -- Completed 06-07 admin docs and security closeout
 
-Progress: [█████████░] 91% overall; Phase 6 plans 1-6 complete
+Progress: [█████████░] 94% overall; Phase 6 plans 1-7 complete
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 31 of 34
+- Total plans completed: 32 of 34
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -49,12 +49,12 @@ Progress: [█████████░] 91% overall; Phase 6 plans 1-6 comple
 | 03 | 5 | - | - |
 | 04 | 5/5 | 54 min | 11 min |
 | 05 | 7/7 | - | - |
-| 06 | 6/9 | - | - |
+| 06 | 7/9 | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: 06-02, 06-03, 06-04, 06-05, 06-06
-- Trend: Positive; Phase 6 now has edit-history, private admin item APIs, retryable media cleanup foundations, publish-status retention, a polished static admin workflow, and a single session-cookie collection-management auth path with full controller verification
+- Last 5 plans: 06-03, 06-04, 06-05, 06-06, 06-07
+- Trend: Positive; Phase 6 now has edit-history, private admin item APIs, retryable media cleanup foundations, publish-status retention, a polished static admin workflow, a single session-cookie collection-management auth path, and completed admin docs/security closeout
 
 | Phase 04 P01 | 38 min | 3 tasks | 4 files |
 | Phase 04 P02 | 4 min | 3 tasks | 5 files |
@@ -70,6 +70,7 @@ Progress: [█████████░] 91% overall; Phase 6 plans 1-6 comple
 | Phase 06 P04 | 10 min | 3 tasks | 10 files |
 | Phase 06 P05 | 10min | 3 tasks | 4 files |
 | Phase 06 P06 | live session | 2 tasks | 10 files |
+| Phase 06 P07 | live session | 3 tasks | 7 files |
 
 ## Accumulated Context
 
