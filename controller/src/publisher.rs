@@ -1189,36 +1189,11 @@ fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Resu
         {
             return Err("candidate privacy scan rejected private source reference".to_owned());
         }
-        if is_catalog_content_surface(relative)
-            && text.as_deref().is_some_and(|text| {
-                contains_low_confidence_source_value(text, &low_confidence_denied)
-            })
-        {
+        if contains_low_confidence_source_value(&rendered, &low_confidence_denied) {
             return Err("candidate privacy scan rejected private source reference".to_owned());
         }
     }
     Ok(())
-}
-
-fn is_catalog_content_surface(relative: &Path) -> bool {
-    if relative == Path::new("data/collection.json") || relative == Path::new("data/facets.json") {
-        return true;
-    }
-
-    if relative
-        .strip_prefix("data/items")
-        .ok()
-        .is_some_and(|path| {
-            path.components().count() == 1 && path.extension().is_some_and(|ext| ext == "json")
-        })
-    {
-        return true;
-    }
-
-    relative.strip_prefix("items").ok().is_some_and(|path| {
-        let components = path.components().collect::<Vec<_>>();
-        components.len() == 2 && components[1].as_os_str() == "index.html"
-    })
 }
 
 fn contains_low_confidence_source_value(text: &str, denied: &[String]) -> bool {
@@ -1230,9 +1205,35 @@ fn contains_low_confidence_source_value(text: &str, denied: &[String]) -> bool {
 }
 
 fn is_actionable_low_confidence_value(value: &str) -> bool {
-    !matches!(
-        value.trim().to_ascii_lowercase().as_str(),
-        "media" | "image" | "images" | "detail" | "thumbnail" | "upload"
+    let lower = value.trim().replace('\\', "/").to_ascii_lowercase();
+    let file_name = lower.rsplit('/').next().unwrap_or(lower.as_str());
+    let (stem, extension) = file_name
+        .rsplit_once('.')
+        .map_or((file_name, None), |(stem, extension)| {
+            (stem, Some(extension))
+        });
+
+    !(is_generic_original_filename_term(file_name)
+        || is_generic_original_filename_term(stem)
+            && extension.is_some_and(is_generic_original_filename_term))
+}
+
+fn is_generic_original_filename_term(value: &str) -> bool {
+    matches!(
+        value,
+        "upload"
+            | "image"
+            | "images"
+            | "detail"
+            | "thumbnail"
+            | "media"
+            | "original"
+            | "file"
+            | "photo"
+            | "jpg"
+            | "jpeg"
+            | "png"
+            | "webp"
     )
 }
 

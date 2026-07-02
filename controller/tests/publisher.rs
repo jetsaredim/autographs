@@ -470,7 +470,7 @@ async fn publisher_rejects_original_filename_embedded_in_catalog_path_token() {
 }
 
 #[tokio::test]
-async fn publisher_allows_no_extension_original_filename_matching_static_not_found_quotes() {
+async fn publisher_rejects_original_filename_matching_static_not_found_quotes() {
     let root = tempdir().unwrap();
     let media_root = tempdir().unwrap();
     let repository = MemoryCatalogRepository::default();
@@ -517,19 +517,12 @@ async fn publisher_allows_no_extension_original_filename_matching_static_not_fou
         .await
         .unwrap();
 
-    LocalPublisher::new(root.path())
+    let error = LocalPublisher::new(root.path())
         .publish(&repository, &media, PublishMode::Full)
         .await
-        .unwrap();
+        .unwrap_err();
 
-    let current = root.path().join("current");
-    let static_quotes = fs::read_to_string(current.join("data/not-found-quotes.json")).unwrap();
-    assert!(static_quotes.contains("Star Wars"));
-    let catalog_content = read_tree(&current.join("data/items"))
-        + &fs::read_to_string(current.join("data/collection.json")).unwrap()
-        + &fs::read_to_string(current.join("data/facets.json")).unwrap()
-        + &read_tree(&current.join("items"));
-    assert!(!catalog_content.contains("Star Wars"));
+    assert!(error.contains("private source reference"));
 }
 
 #[tokio::test]
