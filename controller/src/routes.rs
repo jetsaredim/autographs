@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    auth::AuthState,
+    auth::{AuthState, LoginError},
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
         CleanupStatus, CleanupWarning, ImageCleanupEvent, ImageReplacementInput,
@@ -338,7 +338,14 @@ async fn login(State(state): State<AppState>, Json(payload): Json<LoginRequest>)
             );
             response
         }
-        Err(_) => StatusCode::UNAUTHORIZED.into_response(),
+        Err(LoginError::InvalidCredential) => {
+            (StatusCode::UNAUTHORIZED, "Invalid admin credentials.").into_response()
+        }
+        Err(LoginError::Locked) => (
+            StatusCode::TOO_MANY_REQUESTS,
+            "Too many login attempts. Wait and try again.",
+        )
+            .into_response(),
     }
 }
 

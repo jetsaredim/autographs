@@ -32,7 +32,8 @@ mod live {
 
         let controller = required("AUTOGRAPHS_CONTROLLER_BASE_URL");
         let preview = required("AUTOGRAPHS_STATIC_PREVIEW_BASE_URL");
-        let operator_token = required("AUTOGRAPHS_OPERATOR_API_TOKEN");
+        let admin_password = required("AUTOGRAPHS_ADMIN_PASSWORD");
+        let admin_cookie = login_cookie(&controller, &admin_password);
         let _static_release_root = required("AUTOGRAPHS_STATIC_RELEASE_ROOT");
         let oracle_user = required("ORACLE_DB_USER");
         let oracle_password = required("ORACLE_DB_PASSWORD");
@@ -71,7 +72,7 @@ mod live {
         let created: Value = json_request(
             "POST",
             &format!("{controller}/admin/api/items"),
-            &operator_token,
+            &admin_cookie,
             Some(&create_body),
         );
         let item_id = uuid_field(&created, "id");
@@ -83,7 +84,7 @@ mod live {
             storage_namespace: storage_namespace.clone(),
             bucket_name: bucket_name.clone(),
             controller: controller.clone(),
-            operator_token: operator_token.clone(),
+            admin_cookie: admin_cookie.clone(),
             published: false,
         };
 
@@ -95,7 +96,9 @@ mod live {
                 "--request".to_owned(),
                 "POST".to_owned(),
                 "--header".to_owned(),
-                format!("Authorization: Bearer {operator_token}"),
+                format!("Cookie: {admin_cookie}"),
+                "--header".to_owned(),
+                "Origin: https://autographs.jetsaredim.net".to_owned(),
                 "--form".to_owned(),
                 format!("image=@{};type=image/png", upload.path().display()),
                 "--form".to_owned(),
@@ -124,7 +127,7 @@ mod live {
         let publication = json_request(
             "POST",
             &format!("{controller}/admin/api/items/{item_id}/publication"),
-            &operator_token,
+            &admin_cookie,
             Some(r#"{"publicationStatus":"published"}"#),
         );
         assert_eq!(publication["publicationStatus"], "published");
@@ -142,7 +145,7 @@ mod live {
         let published = json_request(
             "POST",
             &format!("{controller}/admin/api/publish/full"),
-            &operator_token,
+            &admin_cookie,
             None,
         );
         assert_eq!(published["state"], "succeeded");
@@ -226,13 +229,13 @@ mod live {
         json_request(
             "POST",
             &format!("{controller}/admin/api/items/{item_id}/publication"),
-            &operator_token,
+            &admin_cookie,
             Some(r#"{"publicationStatus":"draft"}"#),
         );
         let unpublished = json_request(
             "POST",
             &format!("{controller}/admin/api/publish/incremental"),
-            &operator_token,
+            &admin_cookie,
             None,
         );
         assert_eq!(unpublished["state"], "succeeded");
@@ -257,7 +260,7 @@ mod live {
         storage_namespace: String,
         bucket_name: String,
         controller: String,
-        operator_token: String,
+        admin_cookie: String,
         published: bool,
     }
 
@@ -274,7 +277,7 @@ mod live {
                         "{}/admin/api/items/{}/publication",
                         self.controller, self.item_id
                     ),
-                    &self.operator_token,
+                    &self.admin_cookie,
                     Some(r#"{"publicationStatus":"draft"}"#),
                 )
                 .is_some();
@@ -282,7 +285,7 @@ mod live {
                     best_effort_json_request(
                         "POST",
                         &format!("{}/admin/api/publish/incremental", self.controller),
-                        &self.operator_token,
+                        &self.admin_cookie,
                         None,
                     )
                     .is_some_and(|unpublished| unpublished["state"] == "succeeded")
@@ -393,15 +396,15 @@ mod live {
         Err(last_error.unwrap_or_else(|| format!("delete OCI object failed: {object_key}")))
     }
 
-    fn json_request(method: &str, url: &str, token: &str, body: Option<&str>) -> Value {
-        let args = json_request_args(method, url, token, body);
+    fn json_request(method: &str, url: &str, cookie: &str, body: Option<&str>) -> Value {
+        let args = json_request_args(method, url, cookie, body);
         curl_json(args, &format!("{method} {url}"))
     }
 
     fn best_effort_json_request(
         method: &str,
         url: &str,
-        token: &str,
+        cookie: &str,
         body: Option<&str>,
     ) -> Option<Value> {
         let output = Command::new("curl")
@@ -414,7 +417,7 @@ mod live {
                 "--max-time",
                 "60",
             ])
-            .args(json_request_args(method, url, token, body))
+            .args(json_request_args(method, url, cookie, body))
             .output()
             .ok()?;
         if !output.status.success() {
@@ -423,12 +426,14 @@ mod live {
         serde_json::from_slice(&output.stdout).ok()
     }
 
-    fn json_request_args(method: &str, url: &str, token: &str, body: Option<&str>) -> Vec<String> {
+    fn json_request_args(method: &str, url: &str, cookie: &str, body: Option<&str>) -> Vec<String> {
         let mut args = vec![
             "--request".to_owned(),
             method.to_owned(),
             "--header".to_owned(),
-            format!("Authorization: Bearer {token}"),
+            format!("Cookie: {cookie}"),
+            "--header".to_owned(),
+            "Origin: https://autographs.jetsaredim.net".to_owned(),
         ];
         if let Some(body) = body {
             args.extend([
@@ -440,6 +445,45 @@ mod live {
         }
         args.push(url.to_owned());
         args
+    }
+
+    fn login_cookie(controller: &str, password: &str) -> String {
+        let body = json!({ "password": password }).to_string();
+        let output = Command::new("curl")
+            .args([
+                "--fail-with-body",
+                "--silent",
+                "--show-error",
+                "--include",
+                "--connect-timeout",
+                "5",
+                "--max-time",
+                "60",
+                "--request",
+                "POST",
+                "--header",
+                "Content-Type: application/json",
+                "--data",
+                &body,
+            ])
+            .arg(format!("{controller}/admin/api/login"))
+            .output()
+            .unwrap_or_else(|error| panic!("run curl for live smoke login: {error}"));
+        assert!(
+            output.status.success(),
+            "live smoke login: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .find_map(|line| {
+                line.strip_prefix("set-cookie:")
+                    .or_else(|| line.strip_prefix("Set-Cookie:"))
+                    .and_then(|value| value.trim().split(';').next())
+                    .map(str::to_owned)
+            })
+            .expect("live smoke login returned session cookie")
     }
 
     fn curl_json(args: Vec<String>, context: &str) -> Value {
