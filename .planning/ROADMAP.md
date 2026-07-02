@@ -184,7 +184,7 @@ Plans:
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 06-08-PLAN.md - Refresh codebase maps after the completed admin workflow closeout.
+- [x] 06-08-PLAN.md - Refresh codebase maps after the completed admin workflow closeout.
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
@@ -219,5 +219,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
-| 6. Admin Collection Workflow | 7/9 | In progress | - |
+| 6. Admin Collection Workflow | 8/9 | In progress | - |
 | 7. AI-Assisted Ingest | 0/TBD | Not started | - |
