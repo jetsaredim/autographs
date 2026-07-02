@@ -16,6 +16,11 @@ the metadata source of truth, and OCI Object Storage remains the private media
 source of truth. The controller publishes public-safe pages, JSON, manifests,
 and derived media from those private sources.
 
+Phase 6 optimization adds explicit Caddy cache headers: admin routes are
+`no-store`, public HTML/JSON stay short-lived for rollback, and public
+assets/media use moderate cache lifetimes until paths become content-addressed
+or release-addressed.
+
 ## Layers
 
 **Static Public Layer**
@@ -110,7 +115,9 @@ polished static admin workflow, private item APIs, field-level edit history,
 multi-image maintenance, retryable media cleanup, pending-change status,
 explicit incremental/full publish controls, bounded release retention, a
 session-cookie-only collection-management auth path, operator docs, and security
-review. Phase 7 remains advisory AI-assisted ingest.
+review. Plan 06-09 adds public detail derivative size reduction, explicit cache
+headers, deferred Cloudflare/CDN guidance, and post-Phase 6 runtime cleanup
+guidance. Phase 7 remains advisory AI-assisted ingest.
 
 ## Notable Absences
 
@@ -118,4 +125,4 @@ review. Phase 7 remains advisory AI-assisted ingest.
 
 ---
 
-*Architecture analysis refreshed: 2026-07-02 after Phase 6 admin docs/security closeout*
+*Architecture analysis refreshed: 2026-07-02 after Phase 6 optimization closeout*

@@ -55,6 +55,7 @@ guidance.
 | SEC-06-10 | Static public privacy boundary | Fixed | Public output remains generated static HTML, JSON, and WebP derivatives; private Oracle, Object Storage, object-key, and original-file details stay inside the controller/runtime boundary. |
 | SEC-06-11 | Live smoke guidance | Accepted | Local/CI checks verify the ignored live static smoke remains gated by default; operator-run live proof still requires real Oracle, private Object Storage, deployed controller, Caddy preview, and runtime admin credentials. |
 | SEC-06-12 | CDN/cache and image-size optimization | Fixed | Phase 6 plan `06-09` reduced detail derivative bounds, added Caddy cache headers, documented deferred Cloudflare/CDN enablement, and kept admin/API responses out of cache. |
+| SEC-06-13 | Post-Phase 6 runtime cleanup posture | Accepted | Deployment docs now include operator-run checks for VM-local image cleanup dry-run, retired service absence, static release retention, failed candidate retention, route shape, and cache headers; destructive live cleanup remains operator-approved only. |
 
 No high-severity Phase 6 admin finding remains without a fixed or documented
 mitigation. Phase 7 AI-assisted ingest is still future scope and is not
@@ -128,5 +129,5 @@ Reviewed then:
 | SEC-04-07 | CI/CD permissions | Accepted/current | Workflows use explicit permissions for validation, package publish/cleanup, deploy, issue-writing security patch scans, and apply workflows. |
 | SEC-04-08 | Runtime image cleanup | Fixed historically | Cleanup behavior was hardened after the multi-tag Podman deletion failure. |
 | SEC-04-09 | Static/admin foundation | Complete for Phase 5 foundation | Rust private controller, static publisher, generated derivatives, and operator-bridge retirement landed in Phase 5. |
-| SEC-04-10 | Admin workflow security | Deferred to Phase 6 | Polished admin workflow, edit-history UX, and advanced media cleanup ergonomics remain Phase 6 security work. |
+| SEC-04-10 | Admin workflow security | Superseded by Phase 6 review | Phase 6 admin workflow, edit-history UX, media cleanup ergonomics, cache posture, and runtime cleanup guidance are reviewed above. |
 | SEC-04-11 | AI/OCR security | Deferred to Phase 7 | Provider selection, prompts, privacy boundaries, and AI/OCR failure modes remain Phase 7 security work. |

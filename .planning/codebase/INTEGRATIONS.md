@@ -40,6 +40,9 @@
 **Caddy and Podman**
 - Caddy serves generated public static output and routes private admin/API
   surfaces.
+- Caddy sets `Cache-Control: no-store` for `/admin` and `/admin/api/*`, short
+  cache lifetimes for public HTML/JSON/manifest paths, and moderate cache
+  lifetimes for public assets/media.
 - Podman quadlets manage the controller/Caddy runtime on the OCI VM.
 - Ansible renders and deploys runtime files.
 - `deploy/ansible/roles/autographs_deploy/templates/controller.env.j2` renders
@@ -59,6 +62,9 @@
 - Retired operator APIs remain blocked at the public Caddy edge.
 - Production security update approval is GitHub-label based and restricted to
   `.github/production-patch-approvers.yml`.
+- Cloudflare/CDN fronting is documented as deferred. If enabled later, admin/API
+  caching must be bypassed and rollback must be protected by conservative
+  HTML/JSON freshness or content-addressed public paths.
 
 **Pending**
 - Advisory Phase 7 AI/OCR provider integration.
@@ -117,4 +123,4 @@ Actions, Caddy, or `/admin` as prompt-only intent.
 
 ---
 
-*Integration audit refreshed: 2026-07-02 after Phase 6 admin docs/security closeout*
+*Integration audit refreshed: 2026-07-02 after Phase 6 optimization closeout*

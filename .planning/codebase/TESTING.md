@@ -45,6 +45,8 @@ Covered areas include:
   session-cookie route shape.
 - `publisher`: generation, validation, promotion, privacy scans, incremental
   stale cleanup, and promoted/failed release retention behavior.
+- `caddy_static_routes`: public/admin route shape, retired operator blocking,
+  localhost preview binding, and Cache-Control header contract.
 - Caddy static route expectations.
 - Production-persistence compile coverage.
 - Live persistence and live static publish smoke paths where real credentials
@@ -76,6 +78,9 @@ Covered areas include:
   static release, Caddy, Podman, and health checks.
 - Run Ansible deploy syntax checks when env templates, quadlets, Caddy wiring,
   retention variables, cleanup roles, or security patching roles change.
+- Operator-run post-Phase 6 VM cleanup checks are documented in
+  `docs/deployment-runbook.md`; local validation does not claim live VM cleanup
+  ran.
 
 ## Fixtures
 
@@ -104,4 +109,4 @@ Covered areas include:
 
 ---
 
-*Testing analysis refreshed: 2026-07-02 after Phase 6 admin docs/security closeout*
+*Testing analysis refreshed: 2026-07-02 after Phase 6 optimization closeout*

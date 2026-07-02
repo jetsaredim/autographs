@@ -254,6 +254,58 @@ Terraform no longer embeds the runtime bootstrap state in cloud-init. If a clean
 
 Image cleanup runs separately through `.github/workflows/image-cleanup.yml` on a weekly schedule and by manual dispatch. One job prunes old VM-local controller images while keeping the active controller image from `${DEPLOY_PATH}/env/app.env`, `latest`, `GHCR_CLEANUP_PROTECTED_TAGS`, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` matching images per repository. Another job prunes old GHCR controller package versions while keeping `latest`, protected tags, the newest `GHCR_CLEANUP_RETAIN_TAGGED` versions, and versions newer than `GHCR_CLEANUP_MIN_AGE_DAYS`. Use the manual `dry_run=true` input to preview deletions.
 
+### Post-Phase 6 Runtime Cleanup Checklist
+
+Use this checklist after deploying Phase 6 optimization changes. These are
+operator-run checks; the repository closeout only validates code and playbook
+shape.
+
+1. Preview VM-local image cleanup before deleting anything:
+
+   ```bash
+   ANSIBLE_LOCAL_TEMP=/tmp/ansible-local \
+   ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote \
+   ANSIBLE_CONFIG=deploy/ansible/ansible.cfg \
+   ansible-playbook -i deploy/ansible/inventory/ci.ini \
+     deploy/ansible/playbooks/system-cleanup.yml \
+     --extra-vars autographs_system_cleanup_dry_run=true
+   ```
+
+2. Confirm the active controller image in `${DEPLOY_PATH}/env/app.env` is not in
+   the removal set, then rerun without dry-run only if the preview is correct.
+3. Confirm retired service absence on the VM:
+
+   ```bash
+   sudo systemctl status autographs-app.service || true
+   sudo podman ps --all --filter name=autographs-app
+   ```
+
+   The service/container should be absent or inactive; do not recreate the
+   retired Next.js runtime.
+4. Verify static release retention from the controller publish status and VM
+   filesystem:
+
+   ```bash
+   curl --fail --silent "https://${AUTOGRAPHS_DOMAIN}/admin/api/health"
+   sudo find /var/lib/autographs/static/releases -maxdepth 1 -mindepth 1 -type d | wc -l
+   sudo find /var/lib/autographs/static/failed -maxdepth 1 -mindepth 1 -type d | wc -l
+   ```
+
+   The expected defaults are five promoted releases and one failed candidate
+   unless the Ansible-rendered retention variables were intentionally changed.
+5. Verify Caddy route shape and cache headers:
+
+   ```bash
+   curl -I "https://${AUTOGRAPHS_DOMAIN}/media/<item-slug>/<image-slug>-detail.webp"
+   curl -I "https://${AUTOGRAPHS_DOMAIN}/data/collection.json"
+   curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/"
+   curl --fail --silent "https://${AUTOGRAPHS_DOMAIN}/api/operator/catalog"
+   ```
+
+   Public media/assets should be cacheable, HTML/JSON should be short-lived,
+   admin routes should be `no-store`, and retired operator paths should remain
+   unavailable.
+
 ## Manual Smoke Path
 
 After deployment, verify from your workstation:
