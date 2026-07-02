@@ -31,6 +31,7 @@ credential values from an untracked environment file:
 
 ```bash
 export AUTOGRAPHS_ADMIN_SECURE_COOKIES=false
+export AUTOGRAPHS_PUBLIC_ORIGIN=http://127.0.0.1:8080
 export AUTOGRAPHS_ADMIN_PASSWORD=replace-with-local-password
 cargo run --manifest-path controller/Cargo.toml
 ```
