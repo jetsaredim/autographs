@@ -40,6 +40,7 @@ const state = {
   items: [],
   diagnostics: null,
   dirty: false,
+  itemSort: { key: "title", direction: "asc" },
 };
 
 const uploadOnlyFieldNames = new Set(["images", "replacementImage", "altText"]);
@@ -70,6 +71,10 @@ const elements = {
   diagnosticsOutput: $("#diagnostics-output"),
   hubDiagnostics: $("#hub-diagnostics"),
   publishStatus: $("#publish-status"),
+  publishStatusRows: $("#publish-status-rows"),
+  pendingChangeRows: $("#pending-change-rows"),
+  cleanupWarningRows: $("#cleanup-warning-rows"),
+  runtimeStatusRows: $("#runtime-status-rows"),
   dirtyState: $("#dirty-state"),
   discardUnsaved: $("#discard-unsaved"),
   publishFromEditor: $("#publish-from-editor"),
@@ -100,6 +105,23 @@ const buttonNode = (text, className, onClick) => {
   return button;
 };
 
+const iconPaths = {
+  edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
+  history: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle>',
+  status: '<path d="M22 12h-4l-3 7-6-14-3 7H2"></path>',
+};
+
+const iconButton = (label, icon, onClick) => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "icon-action";
+  button.setAttribute("aria-label", label);
+  button.title = label;
+  button.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24">${iconPaths[icon]}</svg>`;
+  button.addEventListener("click", onClick);
+  return button;
+};
+
 const formatEpoch = (seconds) => {
   if (!seconds) {
     return "Not recorded";
@@ -123,6 +145,9 @@ const formatValue = (value) => {
 const buildQuery = (form) => {
   const params = new URLSearchParams();
   for (const [key, value] of new FormData(form).entries()) {
+    if (key === "changes") {
+      continue;
+    }
     const trimmed = String(value).trim();
     if (trimmed) {
       params.set(key, trimmed);
@@ -231,6 +256,8 @@ const nextDestination = () => normalizeNextPath(new URLSearchParams(window.locat
 async function renderHub({ allowAnonymous = false } = {}) {
   try {
     const diagnostics = await request(endpoints.status, { allowAnonymous });
+    const items = await request(endpoints.items, { allowAnonymous });
+    state.items = Array.isArray(items) ? items : [];
     state.diagnostics = diagnostics;
     const pendingCount = diagnostics.pendingChanges?.count || 0;
     const cleanupCount = diagnostics.cleanup?.warningCount || 0;
@@ -252,6 +279,7 @@ async function renderHub({ allowAnonymous = false } = {}) {
     );
     setText("#publish-pending-summary", pendingCopy(pendingCount));
     elements.hubDiagnostics.textContent = JSON.stringify(diagnostics, null, 2);
+    renderHubStatusSections(diagnostics);
     renderDiagnostics();
     return true;
   } catch (error) {
@@ -260,6 +288,91 @@ async function renderHub({ allowAnonymous = false } = {}) {
     }
     return false;
   }
+}
+
+function renderHubStatusSections(diagnostics) {
+  replaceRows(elements.publishStatusRows, [
+    ["State", diagnostics.publish?.state || "idle"],
+    ["Release", diagnostics.publish?.releaseId || "Not recorded"],
+    ["Artifacts", String(diagnostics.publish?.artifactCount || 0)],
+    ["Bytes", String(diagnostics.publish?.byteSize || 0)],
+    ["Finished", formatEpoch(diagnostics.publish?.finishedAtEpochSeconds)],
+  ]);
+
+  const pendingItems = state.items.filter((item) => item.hasPendingChanges);
+  elements.pendingChangeRows.replaceChildren();
+  if (pendingItems.length === 0) {
+    appendTableMessage(elements.pendingChangeRows, "No pending item changes.", 4);
+  } else {
+    for (const item of pendingItems) {
+      appendRow(elements.pendingChangeRows, [
+        item.title,
+        item.signer,
+        item.publicationStatus,
+        formatEpoch(item.updatedAtEpochSeconds),
+      ]);
+    }
+  }
+
+  const cleanupWarnings = diagnostics.cleanup?.warnings || [];
+  elements.cleanupWarningRows.replaceChildren();
+  if (cleanupWarnings.length === 0) {
+    appendTableMessage(elements.cleanupWarningRows, "No cleanup warnings.", 4);
+  } else {
+    for (const warning of cleanupWarnings) {
+      appendRow(elements.cleanupWarningRows, [
+        warning.title || warning.itemId || "Item",
+        warning.operation,
+        warning.status,
+        warning.adminMessage,
+      ]);
+    }
+  }
+
+  replaceRows(elements.runtimeStatusRows, [
+    ["Controller", diagnostics.controller?.ok ? "Healthy" : "Needs attention"],
+    ["Database provider", diagnostics.providers?.database || "Unknown"],
+    ["Media provider", diagnostics.providers?.media || "Unknown"],
+    [
+      "Promoted releases",
+      `${diagnostics.releaseRetention?.promotedReleaseCount || 0} of ${
+        diagnostics.releaseRetention?.promotedReleaseRetainCount || 0
+      } retained`,
+    ],
+    [
+      "Failed candidates",
+      `${diagnostics.releaseRetention?.failedCandidateCount || 0} of ${
+        diagnostics.releaseRetention?.failedCandidateRetainCount || 0
+      } retained`,
+    ],
+  ]);
+}
+
+function replaceRows(body, rows) {
+  body.replaceChildren();
+  for (const row of rows) {
+    appendRow(body, row);
+  }
+}
+
+function appendRow(body, values) {
+  const row = document.createElement("tr");
+  for (const value of values) {
+    const cell = document.createElement("td");
+    cell.textContent = value || "Empty";
+    row.append(cell);
+  }
+  body.append(row);
+}
+
+function appendTableMessage(body, message, columns) {
+  const row = document.createElement("tr");
+  const cell = document.createElement("td");
+  cell.colSpan = columns;
+  cell.className = "empty-table-cell";
+  cell.textContent = message;
+  row.append(cell);
+  body.append(row);
 }
 
 const publishSummaryText = (publish) => {
@@ -277,7 +390,18 @@ const publishSummaryText = (publish) => {
 async function renderItemList() {
   try {
     const items = await request(`${endpoints.items}${buildQuery(elements.itemFilters)}`);
-    state.items = Array.isArray(items) ? items : [];
+    const changeFilter = elements.itemFilters.elements.changes.value;
+    state.items = (Array.isArray(items) ? items : [])
+      .filter((item) => {
+        if (changeFilter === "pending") {
+          return item.hasPendingChanges;
+        }
+        if (changeFilter === "clean") {
+          return !item.hasPendingChanges;
+        }
+        return true;
+      })
+      .sort(compareItems);
     elements.itemList.replaceChildren();
     if (state.items.length === 0) {
       const empty = document.createElement("div");
@@ -312,9 +436,9 @@ async function renderItemList() {
       const actions = document.createElement("td");
       actions.className = "row-actions";
       actions.append(
-        buttonNode("Edit item", "text-action", () => loadItem(item.id)),
-        buttonNode("View history", "text-action", () => loadItem(item.id, true)),
-        buttonNode("Publish status", "text-action", () => setView("publish-view"))
+        iconButton("Edit item", "edit", () => loadItem(item.id)),
+        iconButton("View history", "history", () => loadItem(item.id, true)),
+        iconButton("Publish status", "status", () => setView("publish-view"))
       );
       row.append(actions);
       body.append(row);
@@ -331,12 +455,59 @@ async function renderItemList() {
 const itemTableHead = () => {
   const head = document.createElement("thead");
   const row = document.createElement("tr");
-  for (const label of ["Title", "Signer", "Status", "Images", "Changes", "Updated", "Actions"]) {
-    row.append(textNode("th", label));
+  for (const column of [
+    { label: "Title", key: "title" },
+    { label: "Signer", key: "signer" },
+    { label: "Status" },
+    { label: "Images" },
+    { label: "Changes" },
+    { label: "Updated" },
+    { label: "Actions" },
+  ]) {
+    const header = document.createElement("th");
+    if (column.key) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "sort-button";
+      button.textContent = sortLabel(column.label, column.key);
+      button.addEventListener("click", () => {
+        updateSort(column.key);
+        renderItemList();
+      });
+      header.append(button);
+    } else {
+      header.textContent = column.label;
+    }
+    row.append(header);
   }
   head.append(row);
   return head;
 };
+
+function sortLabel(label, key) {
+  if (state.itemSort.key !== key) {
+    return label;
+  }
+  return `${label} ${state.itemSort.direction === "asc" ? "↑" : "↓"}`;
+}
+
+function updateSort(key) {
+  if (state.itemSort.key === key) {
+    state.itemSort.direction = state.itemSort.direction === "asc" ? "desc" : "asc";
+  } else {
+    state.itemSort = { key, direction: "asc" };
+  }
+}
+
+function compareItems(left, right) {
+  const direction = state.itemSort.direction === "asc" ? 1 : -1;
+  const leftValue = String(left[state.itemSort.key] || "").toLowerCase();
+  const rightValue = String(right[state.itemSort.key] || "").toLowerCase();
+  return (
+    leftValue.localeCompare(rightValue) * direction ||
+    String(left.id || "").localeCompare(String(right.id || ""))
+  );
+}
 
 function renderEditor(item = null) {
   state.currentItem = item;
@@ -774,6 +945,7 @@ elements.loginForm.addEventListener("submit", async (event) => {
     event.currentTarget.reset();
     if (window.location.pathname === adminRootPath && next === adminRootPath) {
       showWorkflow();
+      await renderHub();
       return;
     }
     window.location.replace(next);
@@ -798,12 +970,6 @@ for (const tab of elements.tabs) {
   tab.addEventListener("click", () => setView(tab.dataset.view));
 }
 
-$("#add-new-item").addEventListener("click", () => {
-  if (ensureSavedBeforeOpeningAnotherItem()) {
-    renderEditor();
-  }
-});
-$("#find-existing-items").addEventListener("click", () => setView("items-view"));
 $("#refresh-status").addEventListener("click", renderHub);
 $("#refresh-diagnostics").addEventListener("click", renderHub);
 $("#refresh-items").addEventListener("click", renderItemList);

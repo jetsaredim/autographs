@@ -276,8 +276,8 @@ async fn admin_status(State(state): State<AppState>, headers: HeaderMap) -> Resp
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let cleanup_warning_count = match cleanup_warning_count(&state).await {
-        Ok(count) => count,
+    let cleanup_warnings = match cleanup_warning_entries(&state).await {
+        Ok(warnings) => warnings,
         Err(error) => {
             tracing::error!(error = %error, "failed to load cleanup warnings for admin status");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -309,8 +309,9 @@ async fn admin_status(State(state): State<AppState>, headers: HeaderMap) -> Resp
             has_pending_changes: pending_changes.count > 0,
         },
         cleanup: CleanupSummaryResponse {
-            warning_count: cleanup_warning_count,
-            has_warnings: cleanup_warning_count > 0,
+            warning_count: cleanup_warnings.len(),
+            has_warnings: !cleanup_warnings.is_empty(),
+            warnings: cleanup_warnings,
         },
         release_retention: ReleaseRetentionResponse {
             active_release_id: release_retention.active_release_id,
@@ -1078,13 +1079,24 @@ fn publish_mode_label(mode: PublishMode) -> &'static str {
     }
 }
 
-async fn cleanup_warning_count(state: &AppState) -> Result<usize, String> {
+async fn cleanup_warning_entries(
+    state: &AppState,
+) -> Result<Vec<CleanupWarningSummaryResponse>, String> {
     let items = state.repository.list().await?;
-    let mut count = 0;
+    let mut warnings = Vec::new();
     for item in items {
-        count += state.repository.cleanup_warnings(item.id).await?.len();
+        for warning in state.repository.cleanup_warnings(item.id).await? {
+            warnings.push(CleanupWarningSummaryResponse {
+                item_id: item.id,
+                title: item.title.clone(),
+                image_id: warning.image_id,
+                operation: warning.operation,
+                status: warning.status,
+                admin_message: warning.admin_message,
+            });
+        }
     }
-    Ok(count)
+    Ok(warnings)
 }
 
 fn authorize_mutation(
@@ -1228,6 +1240,18 @@ struct PendingChangesResponse {
 struct CleanupSummaryResponse {
     warning_count: usize,
     has_warnings: bool,
+    warnings: Vec<CleanupWarningSummaryResponse>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CleanupWarningSummaryResponse {
+    item_id: Uuid,
+    title: String,
+    image_id: Uuid,
+    operation: String,
+    status: CleanupStatus,
+    admin_message: String,
 }
 
 #[derive(Serialize)]

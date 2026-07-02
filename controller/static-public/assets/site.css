@@ -376,7 +376,11 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding-bottom: 12px;
+  padding-bottom: 0;
+}
+
+.selected-filters:empty {
+  display: none;
 }
 
 .filter-chip {

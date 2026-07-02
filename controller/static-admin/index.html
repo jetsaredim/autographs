@@ -61,45 +61,81 @@
             <button id="refresh-status" type="button" class="secondary-action">Refresh status</button>
           </div>
 
-          <div id="hub-status-grid" class="status-grid" aria-live="polite">
-            <article class="status-panel">
-              <h3>Controller</h3>
-              <p id="controller-health">Loading status.</p>
-            </article>
-            <article class="status-panel status-warning">
-              <h3>Pending changes</h3>
-              <p id="pending-summary">0 saved change(s) have not been published yet.</p>
-            </article>
-            <article class="status-panel">
-              <h3>Last publish result</h3>
-              <p id="publish-summary">Idle</p>
-            </article>
-            <article class="status-panel">
-              <h3>Cleanup warnings</h3>
-              <p id="cleanup-summary">0 cleanup warnings</p>
-            </article>
-            <article class="status-panel">
-              <h3>Release retention</h3>
-              <p id="retention-summary">Loading retention status.</p>
-            </article>
-            <article class="status-panel">
-              <h3>Session</h3>
-              <p>Logged in. Use Log out when you finish managing the collection.</p>
-            </article>
-          </div>
+          <div id="hub-status-grid" class="dashboard-sections" aria-live="polite">
+            <details class="status-section" open>
+              <summary>
+                <span>Publish state</span>
+                <span id="publish-summary" class="summary-value">Idle</span>
+              </summary>
+              <div class="section-body">
+                <table class="status-table">
+                  <tbody id="publish-status-rows"></tbody>
+                </table>
+              </div>
+            </details>
 
-          <div class="workflow-split">
-            <button id="add-new-item" type="button" class="primary-path">Add new item</button>
-            <button id="find-existing-items" type="button" class="secondary-path">Find or modify existing items</button>
-          </div>
+            <details class="status-section" open>
+              <summary>
+                <span>Pending changes</span>
+                <span id="pending-summary" class="summary-value">0 saved change(s) have not been published yet.</span>
+              </summary>
+              <div class="section-body">
+                <table class="status-table">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Signer</th>
+                      <th>Status</th>
+                      <th>Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pending-change-rows"></tbody>
+                </table>
+              </div>
+            </details>
 
-          <section class="diagnostics-panel compact-diagnostics" aria-labelledby="hub-diagnostics-title">
-            <div class="panel-heading">
-              <h3 id="hub-diagnostics-title">Redacted diagnostics</h3>
-              <p class="helper-text">Provider modes, publish state, cleanup warnings, retention, and live-smoke guidance only.</p>
-            </div>
-            <pre id="hub-diagnostics">Loading diagnostics.</pre>
-          </section>
+            <details class="status-section">
+              <summary>
+                <span>Cleanup warnings</span>
+                <span id="cleanup-summary" class="summary-value">0 cleanup warnings</span>
+              </summary>
+              <div class="section-body">
+                <table class="status-table">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Operation</th>
+                      <th>Status</th>
+                      <th>Message</th>
+                    </tr>
+                  </thead>
+                  <tbody id="cleanup-warning-rows"></tbody>
+                </table>
+              </div>
+            </details>
+
+            <details class="status-section">
+              <summary>
+                <span>Runtime and retention</span>
+                <span id="controller-health" class="summary-value">Loading status.</span>
+              </summary>
+              <div class="section-body">
+                <table class="status-table">
+                  <tbody id="runtime-status-rows"></tbody>
+                </table>
+              </div>
+            </details>
+
+            <details class="status-section">
+              <summary>
+                <span id="hub-diagnostics-title">Redacted diagnostics</span>
+                <span class="summary-value">JSON</span>
+              </summary>
+              <div class="section-body">
+                <pre id="hub-diagnostics">Loading diagnostics.</pre>
+              </div>
+            </details>
+          </div>
         </section>
 
         <section id="add-item-view" class="view-panel" aria-labelledby="editor-title" hidden>
@@ -263,34 +299,45 @@
             <button id="refresh-items" type="button" class="secondary-action">Refresh items</button>
           </div>
 
-          <form id="item-filters" class="filter-toolbar">
-            <div class="field">
-              <label for="filter-signer">Signer</label>
-              <input id="filter-signer" name="signer">
-            </div>
-            <div class="field">
-              <label for="filter-title">Title</label>
-              <input id="filter-title" name="title">
-            </div>
-            <div class="field">
-              <label for="filter-category">Category</label>
-              <input id="filter-category" name="category">
-            </div>
-            <div class="field">
-              <label for="filter-tag">Tag</label>
-              <input id="filter-tag" name="tag">
-            </div>
-            <div class="field">
-              <label for="filter-publication-status">Publication status</label>
-              <select id="filter-publication-status" name="publicationStatus">
-                <option value="">Any status</option>
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-                <option value="archived">Archived</option>
-              </select>
-            </div>
-            <button type="submit" class="primary-action">Find items</button>
-          </form>
+          <details class="filter-panel" id="item-filter-panel">
+            <summary>Filters</summary>
+            <form id="item-filters" class="filter-toolbar">
+              <div class="field">
+                <label for="filter-signer">Signer</label>
+                <input id="filter-signer" name="signer">
+              </div>
+              <div class="field">
+                <label for="filter-title">Title</label>
+                <input id="filter-title" name="title">
+              </div>
+              <div class="field">
+                <label for="filter-category">Category</label>
+                <input id="filter-category" name="category">
+              </div>
+              <div class="field">
+                <label for="filter-tag">Tag</label>
+                <input id="filter-tag" name="tag">
+              </div>
+              <div class="field">
+                <label for="filter-publication-status">Publication status</label>
+                <select id="filter-publication-status" name="publicationStatus">
+                  <option value="">Any status</option>
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="filter-changes">Changes</label>
+                <select id="filter-changes" name="changes">
+                  <option value="">Any changes</option>
+                  <option value="pending">Pending changes</option>
+                  <option value="clean">No pending changes</option>
+                </select>
+              </div>
+              <button type="submit" class="primary-action">Find items</button>
+            </form>
+          </details>
 
           <div id="item-list" class="item-table" aria-live="polite">
             <div class="empty-state">
