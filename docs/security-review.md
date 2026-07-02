@@ -69,10 +69,28 @@ cargo fmt --manifest-path controller/Cargo.toml --check
 cargo test --manifest-path controller/Cargo.toml
 cargo check --manifest-path controller/Cargo.toml --features production-persistence
 cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
+node --check controller/static-admin/admin.js
+cargo test --manifest-path controller/Cargo.toml --features live-persistence live_static_publish_smoke -- --ignored --nocapture
 terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff
 ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml deploy/ansible/playbooks/system-cleanup.yml deploy/ansible/playbooks/security-scan.yml deploy/ansible/playbooks/security-patch.yml deploy/ansible/playbooks/security-patch-cleanup.yml
 ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/
 ```
+
+Phase 6 admin closeout on 2026-07-02 ran the Rust/admin subset of that bundle:
+
+```bash
+cargo fmt --manifest-path controller/Cargo.toml --check
+cargo test --manifest-path controller/Cargo.toml
+cargo check --manifest-path controller/Cargo.toml --features production-persistence
+cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
+node --check controller/static-admin/admin.js
+cargo test --manifest-path controller/Cargo.toml --features live-persistence live_static_publish_smoke -- --ignored --nocapture
+```
+
+All local commands exited zero. The live static publish smoke compiled and
+reported the expected default skip because `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE`
+was not set to `true`; this is not a claim that the operator-run Oracle/Object
+Storage smoke passed.
 
 Live proof:
 
