@@ -193,6 +193,13 @@ Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 
 The VM pulls images built by GitHub Actions. The VM does not build application code or generate catalog content during deploy.
 
+Deploys intentionally ship code, infrastructure configuration, Caddy wiring,
+quadlet shape, and runtime secrets only. They do not generate or export catalog
+content from GitHub-hosted runners. Catalog reads, private original access,
+derivative generation, candidate validation, and static release promotion remain
+inside the OCI/runtime boundary through the Rust controller and shared static
+volume.
+
 The retired Next.js source tree has been removed from the active repository. Public behavior now lives in `controller/static-public/` and the Rust publisher/controller code.
 
 ### Static Preview

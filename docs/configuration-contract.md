@@ -29,7 +29,7 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `ORACLE_DB_PASSWORD` | deploy workflow / runtime | Runtime database password passed to the Rust controller container |
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / runtime | Base64-encoded ADB wallet zip used for mTLS connections |
 | `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Optional wallet password retained for wallet compatibility |
-| `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Compatibility admin token accepted by the Rust controller while browser admin auth is finalized |
+| `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Optional compatibility token for non-management diagnostics; not a collection-management credential |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | Rust controller runtime | Argon2 hash for the single-admin browser login |
 
 The current OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the controller image build, Terraform, or VM deployment steps.
@@ -115,10 +115,11 @@ Runtime controller settings:
 | `AUTOGRAPHS_ADMIN_SECURE_COOKIES` | runtime coordinate | Keep `true` in deployment; `false` is an explicit local HTTP exception |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | runtime secret | Argon2 single-admin password hash |
 | `AUTOGRAPHS_ADMIN_PASSWORD` | local-development secret only | Optional local plaintext shortcut; never deploy it |
-| `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime/operator secret | CLI-friendly bearer token for tunnel and maintenance calls |
+| `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime/operator secret | Optional CLI-friendly bearer token for non-management diagnostics such as protected auth probes; item create/edit/publish operations use `/admin/api/login` |
 | `AUTOGRAPHS_STATIC_RELEASE_ROOT` | runtime coordinate | Static root containing `releases/`, `failed/`, and the active `current` pointer |
 | `AUTOGRAPHS_STATIC_CURRENT_LINK` | runtime coordinate | Active static release pointer |
-| `AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT` | runtime coordinate | Number of failed candidates retained for diagnostics |
+| `AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT` | runtime coordinate | Number of promoted releases retained after successful publish; defaults to `5` |
+| `AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT` | runtime coordinate | Number of failed candidates retained for diagnostics; defaults to `1` |
 | `AUTOGRAPHS_PUBLISH_MODE` | runtime coordinate | Defaults to incremental publishing |
 | `OCI_AUTH_MODE` | runtime coordinate | Controller value must be `instance_principal` when media provider is `oci-instance-principal` |
 | `OCI_MEDIA_NAMESPACE` | runtime coordinate | Object Storage namespace containing the private media bucket |
@@ -129,6 +130,10 @@ The runtime dynamic group matches compute instances in the project compartment, 
 The controller media adapter uses native OCI Object Storage requests signed with runtime instance-principal credentials. Do not create new Terraform-managed IAM users, Vault secrets, or Customer Secret keys for controller media access.
 
 The static release root and current pointer live on the runtime VM. Public artifacts are generated inside the OCI boundary from Oracle metadata and private originals. GitHub-hosted jobs may receive deploy secrets needed to render the private controller environment, but must not publish generated static release content outside the VM.
+
+Collection management has one supported admin authentication path: `POST /admin/api/login` validates the configured single-admin password or Argon2 hash and returns HTTP-only session cookies. Browser collection-management requests to item, image, publication, and publish routes must use that session cookie plus the configured same-origin `Origin` or `Referer`. `AUTOGRAPHS_ADMIN_PASSWORD_HASH` is the production credential source. `AUTOGRAPHS_ADMIN_PASSWORD` exists only for local development and ignored operator smoke tests; do not deploy it. `AUTOGRAPHS_OPERATOR_API_TOKEN` remains a compatibility secret for non-management diagnostics and must not be used as a create/edit/publish path.
+
+Static release retention is controller-owned. `AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT` defaults to `5` and prunes older promoted releases after successful publishes. `AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT` defaults to `1` and keeps only the newest failed candidate for diagnosis while preserving the last valid `current` release.
 
 The operator-run live static publish smoke also uses these VM-local values:
 

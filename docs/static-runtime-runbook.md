@@ -1,12 +1,12 @@
 # Static Runtime Foundation Runbook
 
-## Local Controller Seed Path
+## Local Controller Admin Path
 
-The Phase 5 static admin shell is served at `/admin` by the private controller
-routing path once Caddy wiring is deployed. It is a minimal seed/publish tool,
-not the polished Phase 6 admin workflow. Keep `/admin` and `/admin/api/*`
-behind the authenticated private-controller boundary; the browser shell relies
-on the HTTP-only session cookie and same-origin mutation checks.
+The static admin shell is served at `/admin` by the private controller routing
+path once Caddy wiring is deployed. It is the current Phase 6 collection
+workflow. Keep `/admin` and `/admin/api/*` behind the authenticated
+private-controller boundary; collection-management calls rely on the HTTP-only
+session cookie and same-origin mutation checks.
 
 The GitHub production deploy starts the controller with persistent Oracle and
 OCI instance-principal media adapters. Configure these repo-level values before
@@ -31,15 +31,25 @@ credential values from an untracked environment file:
 
 ```bash
 export AUTOGRAPHS_ADMIN_SECURE_COOKIES=false
-export AUTOGRAPHS_OPERATOR_API_TOKEN=local-operator-token
+export AUTOGRAPHS_ADMIN_PASSWORD=replace-with-local-password
 cargo run --manifest-path controller/Cargo.toml
 ```
 
-Create a draft item through the private bearer-token boundary:
+Create a session cookie through the same login path the browser shell uses:
+
+```bash
+curl -fsS -c /tmp/autographs-admin.cookies \
+  http://127.0.0.1:8080/admin/api/login \
+  -H "Content-Type: application/json" \
+  --data "{\"password\":\"${AUTOGRAPHS_ADMIN_PASSWORD}\"}"
+```
+
+Create a draft item through the private session boundary:
 
 ```bash
 curl -fsS http://127.0.0.1:8080/admin/api/items \
-  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}" \
+  -b /tmp/autographs-admin.cookies \
+  -H "Origin: http://127.0.0.1:8080" \
   -H "Content-Type: application/json" \
   --data '{"title":"Signed card","signer":"Example Signer","category":"Cards","tags":["fixture"]}'
 ```
@@ -48,7 +58,8 @@ Upload one private original using the returned item ID:
 
 ```bash
 curl -fsS "http://127.0.0.1:8080/admin/api/items/${ITEM_ID}/images" \
-  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}" \
+  -b /tmp/autographs-admin.cookies \
+  -H "Origin: http://127.0.0.1:8080" \
   -F "image=@./example.jpg;type=image/jpeg"
 ```
 
@@ -56,7 +67,8 @@ Update publication status:
 
 ```bash
 curl -fsS "http://127.0.0.1:8080/admin/api/items/${ITEM_ID}/publication" \
-  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}" \
+  -b /tmp/autographs-admin.cookies \
+  -H "Origin: http://127.0.0.1:8080" \
   -H "Content-Type: application/json" \
   --data '{"publicationStatus":"published"}'
 ```
@@ -65,11 +77,13 @@ Publish and inspect the generated static release:
 
 ```bash
 curl -fsS http://127.0.0.1:8080/admin/api/publish/incremental \
-  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}" \
+  -b /tmp/autographs-admin.cookies \
+  -H "Origin: http://127.0.0.1:8080" \
   --request POST
 
 curl -fsS http://127.0.0.1:8080/admin/api/publish/status \
-  -H "Authorization: Bearer ${AUTOGRAPHS_OPERATOR_API_TOKEN}"
+  -b /tmp/autographs-admin.cookies \
+  -H "Origin: http://127.0.0.1:8080"
 ```
 
 Use `POST /admin/api/publish/full` for an explicit full rebuild. Successful
@@ -293,7 +307,7 @@ AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true
 AUTOGRAPHS_CONTROLLER_BASE_URL=http://autographs-controller:8080
 AUTOGRAPHS_STATIC_PREVIEW_BASE_URL=http://autographs-caddy:8081
 AUTOGRAPHS_STATIC_RELEASE_ROOT=/var/lib/autographs/static
-AUTOGRAPHS_OPERATOR_API_TOKEN=replace-with-runtime-operator-token
+AUTOGRAPHS_ADMIN_PASSWORD=replace-with-runtime-admin-password
 ```
 
 Keep the Oracle and instance-principal media values from the live persistence
@@ -385,5 +399,39 @@ curl --fail --silent http://127.0.0.1:8081/data/facets.json
 Check `/var/lib/autographs/static/failed/` inside the controller container when a candidate fails. The publisher
 retains only the latest failed candidate for diagnosis and leaves `current`
 pointing at the last validated release.
+
+## Phase 6 Admin Live Smoke
+
+Use this operator-run smoke when an admin workflow, publisher, retention, or
+cleanup change needs live Oracle/Object Storage proof. Local and CI runs only
+prove that the ignored smoke remains gated by
+`AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true`.
+
+1. Log in through `/admin/api/login` and save the HTTP-only session cookie.
+2. Create or edit a private smoke item through `/admin/api/items`.
+3. Upload at least one private original, then replace or remove one image when
+   validating cleanup behavior.
+4. Read item history and confirm metadata, image, cleanup, and publication
+   events are visible without private Object Storage details.
+5. Confirm pending-change status reflects saved private edits before publish.
+6. Run incremental publish, then verify `/collection/`, item HTML, item JSON,
+   facets, and generated WebP derivatives through the static Caddy preview.
+7. Confirm publish status reports promoted-release and failed-candidate
+   retention counts without exposing filesystem internals.
+8. Unpublish or delete the smoke item, publish again, and verify stale public
+   item pages and media derivatives no longer resolve.
+9. Check Oracle rows and Object Storage objects for cleanup residue. Use the
+   live persistence cleanup mode only for interrupted smoke residue.
+
+The bundled ignored test implements the same black-box shape:
+
+```bash
+AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true \
+  cargo test --manifest-path controller/Cargo.toml \
+  --features live-persistence live_static_publish_smoke -- --ignored --nocapture
+```
+
+Do not record this as passed unless it ran with real Oracle, private Object
+Storage, deployed controller, Caddy static preview, and a runtime admin password.
 
 ## Full Rebuild

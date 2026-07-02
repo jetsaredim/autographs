@@ -8,7 +8,7 @@ harness.
 
 It is the completed controller foundation from Phase 5, and the old Next.js
 runtime has been retired from the active repo/runtime path. The 05-07 production
-live static publish proof and closure summary are recorded; Phase 6 will add the
+live static publish proof and closure summary are recorded. Phase 6 adds the
 polished daily-use collection workflow on top of this foundation.
 
 ## Startup
@@ -50,7 +50,7 @@ single-admin authentication state in memory:
 - Passwords can be checked directly for local development or through Argon2
   hashes.
 - Logout removes the active session.
-- CLI and operator calls can use a bearer token instead of browser cookies.
+- A bearer token remains available only for non-management diagnostics.
 
 This is intentionally simple for one-admin personal operation. Restarting the
 controller invalidates browser sessions.
@@ -74,9 +74,10 @@ API:
 | `POST /admin/api/publish/full` | Build and promote a full static release |
 | `GET /admin/api/publish/status` | Read the last redacted publish result |
 
-Browser mutations require a valid cookie plus a matching `Origin` or `Referer`.
-Bearer-token calls bypass CSRF checks because tokens are explicit credentials
-rather than ambient cookies.
+Collection-management routes require the single-admin session cookie created by
+`/admin/api/login`. Browser mutations also require a matching `Origin` or
+`Referer`. Bearer-token compatibility remains only on non-management diagnostic
+routes and cannot create, edit, upload, publish, or read item-management data.
 
 Responses are converted into redacted DTOs in
 [`controller/src/routes.rs`](../controller/src/routes.rs). They omit bucket
@@ -89,7 +90,7 @@ The private image flow lives in
 
 ```text
 POST multipart image
-  -> authenticate and authorize mutation
+  -> authenticate a session cookie and authorize mutation
   -> allow JPEG, PNG, or WebP only
   -> reject files over 20 MiB
   -> generate image UUID
@@ -200,13 +201,42 @@ The local-mode publisher foundation is implemented. It now:
 The final recorded live static publish proof and phase closure summary are
 captured in the Phase 5 05-07 closeout artifacts.
 
+## Phase 6 Admin Workflow
+
+[`controller/static-admin/`](../controller/static-admin/) now contains the
+daily-use Phase 6 admin workflow. The browser shell is still plain static
+HTML/CSS/JavaScript, but it has moved beyond the Phase 5 seed tool:
+
+- The admin hub shows health, diagnostics, pending-change status, release
+  retention counts, and the latest publish result without exposing secrets,
+  bucket names, namespaces, object keys, or Oracle internals.
+- The collection surface lists saved items, supports search/sort filters, and
+  opens create/edit forms backed by the private item APIs.
+- Create and edit forms save metadata, publication status, tags, and optional
+  provenance/certification fields before public publication.
+- Image controls upload private originals, pick the primary image, replace or
+  remove supporting images, and surface cleanup warnings when private-media
+  deletion needs retry.
+- The history panel shows item metadata changes, image events, cleanup events,
+  publication changes, and publish snapshots for operational troubleshooting.
+- Pending-change status separates saved private edits from promoted public
+  output, so an operator can publish intentionally after reviewing changes.
+- Incremental publish is the normal path. Full rebuild is available as a repair
+  action when generated output needs reconciliation.
+- Release retention and failed-candidate retention are reported through the
+  redacted publish status DTO so operators can confirm pruning behavior without
+  inspecting private filesystem details.
+
+All collection-management actions use the session-cookie flow. The shell does
+not store credentials in browser storage, does not use direct Object Storage
+URLs, and does not depend on the retired Node operator bridge.
+
 ## Static Admin Shell
 
 [`controller/static-admin/`](../controller/static-admin/) contains the minimal
-Phase 5 browser shell. It logs in through the HTTP-only cookie flow, creates or
-updates metadata, uploads one original with alt text, changes publication
-status, triggers incremental or full publishing, and displays redacted publish
-status. Phase 6 still owns polished daily-use workflow and media ergonomics.
+browser admin shell. It logs in through the HTTP-only cookie flow, manages item
+metadata and images, changes publication status, triggers incremental or full
+publishing, and displays redacted diagnostics and publish status.
 
 ## Tests
 
