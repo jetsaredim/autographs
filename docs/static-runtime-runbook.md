@@ -425,16 +425,16 @@ detail derivative sample before=2615114 after=1777658 width=960 height=1276
 ```
 
 That is a 837,456 byte reduction for the large sample detail derivative while
-preserving the sanitized `/media/...-detail.webp` path contract and WebP
-content type. Public artifact privacy scans and manifest byte-size validation
-remain mandatory for derivative changes.
+preserving the sanitized `/media/...-detail-<fingerprint>.webp` path contract
+and WebP content type. Public artifact privacy scans and manifest byte-size
+validation remain mandatory for derivative changes.
 
 ## Cache and CDN Verification
 
 After deploy, verify Caddy's origin cache posture from the public hostname:
 
 ```bash
-curl -I "https://${AUTOGRAPHS_DOMAIN}/media/<item-slug>/<image-slug>-detail.webp"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/media/<item-slug>/<image-slug>-detail-<fingerprint>.webp"
 curl -I "https://${AUTOGRAPHS_DOMAIN}/data/collection.json"
 curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/"
 curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/api/health"

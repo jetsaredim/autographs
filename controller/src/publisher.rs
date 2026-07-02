@@ -7,6 +7,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
@@ -273,6 +274,11 @@ fn to_public_image(item: &FixtureItem, image: &FixtureImage) -> PublicImage {
                 &item.slug,
                 &image.public_slug,
                 ImageVariantName::Thumbnail,
+                &fixture_derivative_fingerprint(
+                    &item.slug,
+                    &image.public_slug,
+                    ImageVariantName::Thumbnail,
+                ),
                 "webp",
                 480,
                 640,
@@ -282,6 +288,11 @@ fn to_public_image(item: &FixtureItem, image: &FixtureImage) -> PublicImage {
                 &item.slug,
                 &image.public_slug,
                 ImageVariantName::Detail,
+                &fixture_derivative_fingerprint(
+                    &item.slug,
+                    &image.public_slug,
+                    ImageVariantName::Detail,
+                ),
                 "webp",
                 1200,
                 1600,
@@ -289,6 +300,15 @@ fn to_public_image(item: &FixtureItem, image: &FixtureImage) -> PublicImage {
             ),
         ],
     }
+}
+
+fn fixture_derivative_fingerprint(
+    item_slug: &str,
+    image_slug: &str,
+    variant: ImageVariantName,
+) -> String {
+    let seed = format!("{item_slug}/{image_slug}/{}", variant.as_path_segment());
+    public_derivative_fingerprint(seed.as_bytes())
 }
 
 fn derive_facets(catalog: &FixtureCatalog) -> Vec<PublicFacetGroup> {
@@ -627,9 +647,10 @@ async fn build_public_items(
             let mut variants = Vec::new();
             for variant in [DerivativeVariant::Thumbnail, DerivativeVariant::Detail] {
                 let derivative = generate_derivative(&source, variant)?;
+                let fingerprint = public_derivative_fingerprint(&derivative.bytes);
                 let relative_path = format!(
-                    "media/{slug}/{image_slug}-{}.webp",
-                    derivative.variant.path_segment()
+                    "media/{slug}/{image_slug}-{}-{fingerprint}.webp",
+                    derivative.variant.path_segment(),
                 );
                 write_bytes(candidate, &relative_path, &derivative.bytes)?;
                 variants.push(PublicImageVariant {
@@ -674,6 +695,38 @@ async fn build_public_items(
         public_items.push(PublicSourceItem { gallery, detail });
     }
     Ok(public_items)
+}
+
+fn public_derivative_fingerprint(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    digest[..8]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn derivative_fingerprint_from_path(
+    path: &str,
+    variant: ImageVariantName,
+) -> Result<String, String> {
+    let marker = format!("-{}-", variant.as_path_segment());
+    let fingerprint = path
+        .strip_suffix(".webp")
+        .and_then(|path| {
+            path.rsplit_once(marker.as_str())
+                .map(|(_, fingerprint)| fingerprint)
+        })
+        .ok_or_else(|| format!("candidate derivative path is not fingerprinted: {path}"))?;
+    if fingerprint.len() != 16
+        || !fingerprint
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+    {
+        return Err(format!(
+            "candidate derivative fingerprint is malformed: {path}"
+        ));
+    }
+    Ok(fingerprint.to_owned())
 }
 
 fn public_detail_groups(item: &AutographItem) -> Vec<PublicDetailGroup> {
@@ -883,26 +936,34 @@ pub fn validate_candidate(candidate: &Path) -> Result<PublishManifest, String> {
                 artifact.path
             ));
         }
-        if artifact.variant.is_some()
-            && (artifact.content_type.as_deref() != Some("image/webp")
-                || !artifact.path.ends_with(".webp"))
-        {
-            return Err(format!(
-                "candidate derivative type mismatch: {}",
-                artifact.path
-            ));
-        }
-        if artifact.variant.is_some()
-            && image::guess_format(
-                &fs::read(&path).map_err(|error| format!("read derivative artifact: {error}"))?,
-            )
-            .map_err(|error| format!("detect derivative artifact type: {error}"))?
+        if let Some(variant) = artifact.variant {
+            if artifact.content_type.as_deref() != Some("image/webp")
+                || !artifact.path.ends_with(".webp")
+            {
+                return Err(format!(
+                    "candidate derivative type mismatch: {}",
+                    artifact.path
+                ));
+            }
+            let derivative_bytes =
+                fs::read(&path).map_err(|error| format!("read derivative artifact: {error}"))?;
+            if image::guess_format(&derivative_bytes)
+                .map_err(|error| format!("detect derivative artifact type: {error}"))?
                 != image::ImageFormat::WebP
-        {
-            return Err(format!(
-                "candidate derivative is not WebP: {}",
-                artifact.path
-            ));
+            {
+                return Err(format!(
+                    "candidate derivative is not WebP: {}",
+                    artifact.path
+                ));
+            }
+            let path_fingerprint = derivative_fingerprint_from_path(&artifact.path, variant)?;
+            let byte_fingerprint = public_derivative_fingerprint(&derivative_bytes);
+            if path_fingerprint != byte_fingerprint {
+                return Err(format!(
+                    "candidate derivative fingerprint mismatch: {}",
+                    artifact.path
+                ));
+            }
         }
     }
     let manifest_paths = manifest
@@ -969,7 +1030,8 @@ fn collect_files(
                 .len() as usize,
             content_type: derivative.then(|| "image/webp".to_owned()),
             variant: derivative.then(|| {
-                if path.to_string_lossy().contains("-thumbnail.webp") {
+                let path = path.to_string_lossy();
+                if path.contains("-thumbnail-") {
                     ImageVariantName::Thumbnail
                 } else {
                     ImageVariantName::Detail

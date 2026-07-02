@@ -4,7 +4,7 @@ mod live {
 
     use autographs_controller::{
         catalog::{CatalogRepository, PublicationStatus},
-        contracts::{PublicCatalog, PublicFacets, PublicItemDetail},
+        contracts::{ImageVariantName, PublicCatalog, PublicFacets, PublicItemDetail},
         media::PrivateMediaStore,
         oci_media::OciInstancePrincipalMediaStore,
         oracle_catalog::OracleCatalogRepository,
@@ -180,13 +180,27 @@ mod live {
 
         let item_html = fetch(&format!("{preview}/items/{generated_slug}/"));
         let item_json = fetch(&format!("{preview}/data/items/{generated_slug}.json"));
-        let thumbnail_url = format!("{preview}/media/{generated_slug}/image-1-thumbnail.webp");
-        let detail_url = format!("{preview}/media/{generated_slug}/image-1-detail.webp");
-        let thumbnail = fetch_bytes(&thumbnail_url);
-        let detail = fetch_bytes(&detail_url);
-
         let public_item: PublicItemDetail =
             serde_json::from_str(&item_json).expect("decode generated item JSON");
+        let thumbnail_path = public_item.images[0]
+            .variants
+            .iter()
+            .find(|variant| variant.name == ImageVariantName::Thumbnail)
+            .expect("thumbnail variant")
+            .path
+            .clone();
+        let detail_path = public_item.images[0]
+            .variants
+            .iter()
+            .find(|variant| variant.name == ImageVariantName::Detail)
+            .expect("detail variant")
+            .path
+            .clone();
+        assert!(thumbnail_path.contains("-thumbnail-"));
+        assert!(detail_path.contains("-detail-"));
+        let thumbnail = fetch_bytes(&format!("{preview}{thumbnail_path}"));
+        let detail = fetch_bytes(&format!("{preview}{detail_path}"));
+
         assert_eq!(public_item.slug, slug);
         assert_eq!(image::guess_format(&thumbnail).unwrap(), ImageFormat::WebP);
         assert_eq!(image::guess_format(&detail).unwrap(), ImageFormat::WebP);

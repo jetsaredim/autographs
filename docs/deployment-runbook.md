@@ -298,7 +298,7 @@ shape.
 5. Verify Caddy route shape and cache headers:
 
    ```bash
-   curl -I "https://${AUTOGRAPHS_DOMAIN}/media/<item-slug>/<image-slug>-detail.webp"
+   curl -I "https://${AUTOGRAPHS_DOMAIN}/media/<item-slug>/<image-slug>-detail-<fingerprint>.webp"
    curl -I "https://${AUTOGRAPHS_DOMAIN}/data/collection.json"
    curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/"
    curl --fail --silent "https://${AUTOGRAPHS_DOMAIN}/api/operator/catalog"

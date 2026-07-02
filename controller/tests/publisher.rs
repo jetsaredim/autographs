@@ -8,7 +8,7 @@ use std::{
 use autographs_controller::{
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
-        MemoryCatalogRepository, PublicationStatus,
+        ImageReplacementInput, MemoryCatalogRepository, PublicationStatus,
     },
     config::ControllerConfig,
     contracts::{ImageVariantName, PublicCatalog, PublicItemDetail, PublishManifest},
@@ -25,7 +25,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
-use image::{DynamicImage, ImageFormat};
+use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 use serde_json::Value;
 use tempfile::{TempDir, tempdir};
 use tower::ServiceExt;
@@ -80,8 +80,6 @@ async fn publisher_generates_candidate_release_and_derivatives() {
         "data/items/signed-jedi-card.json",
         "items/signed-jedi-card/index.html",
         "manifest.json",
-        "media/signed-jedi-card/image-1-thumbnail.webp",
-        "media/signed-jedi-card/image-1-detail.webp",
     ] {
         assert!(current.join(path).is_file(), "missing {path}");
     }
@@ -129,6 +127,35 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     }
 
     let catalog: PublicCatalog = read_json(&current.join("data/collection.json"));
+    let detail_json: PublicItemDetail =
+        read_json(&current.join("data/items/signed-jedi-card.json"));
+    assert_versioned_media_file(
+        &current,
+        &catalog.items[0]
+            .primary_image
+            .as_ref()
+            .unwrap()
+            .variants
+            .iter()
+            .find(|variant| variant.name == ImageVariantName::Thumbnail)
+            .unwrap()
+            .path,
+        "signed-jedi-card",
+        "image-1",
+        ImageVariantName::Thumbnail,
+    );
+    assert_versioned_media_file(
+        &current,
+        &detail_json.images[0]
+            .variants
+            .iter()
+            .find(|variant| variant.name == ImageVariantName::Detail)
+            .unwrap()
+            .path,
+        "signed-jedi-card",
+        "image-1",
+        ImageVariantName::Detail,
+    );
     let selected = catalog
         .items
         .iter()
@@ -209,7 +236,16 @@ async fn publisher_validation_rejects_missing_derivatives_and_private_terms() {
         .await
         .unwrap();
     let current = fixture.root.path().join("current");
-    let derivative = current.join("media/signed-jedi-card/image-1-detail.webp");
+    let detail: PublicItemDetail = read_json(&current.join("data/items/signed-jedi-card.json"));
+    let derivative_path = detail.images[0]
+        .variants
+        .iter()
+        .find(|variant| variant.name == ImageVariantName::Detail)
+        .unwrap()
+        .path
+        .trim_start_matches('/')
+        .to_owned();
+    let derivative = current.join(&derivative_path);
     let generated_webp = fs::read(&derivative).unwrap();
 
     fs::remove_file(&derivative).unwrap();
@@ -247,6 +283,73 @@ async fn publisher_validation_rejects_missing_derivatives_and_private_terms() {
             .unwrap_err()
             .contains("privacy scan")
     );
+}
+
+#[tokio::test]
+async fn publisher_changes_public_media_paths_when_image_content_changes() {
+    let fixture = fixture().await;
+    let publisher = LocalPublisher::new(fixture.root.path());
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+    let current = fixture.root.path().join("current");
+    let first_detail: PublicItemDetail =
+        read_json(&current.join("data/items/signed-jedi-card.json"));
+    let first_detail_path = first_detail.images[0]
+        .variants
+        .iter()
+        .find(|variant| variant.name == ImageVariantName::Detail)
+        .unwrap()
+        .path
+        .clone();
+
+    let replacement_id = Uuid::new_v4();
+    let replacement_key = build_original_object_key(fixture.published.id, replacement_id);
+    let replacement_bytes = png_bytes_with_color([220, 24, 24]);
+    fixture
+        .media
+        .write(&replacement_key, &replacement_bytes)
+        .await
+        .unwrap();
+    fixture
+        .repository
+        .replace_image_metadata(
+            fixture.published.id,
+            fixture.private_image_id,
+            ImageReplacementInput {
+                image: AutographImage {
+                    id: replacement_id,
+                    object_key: replacement_key,
+                    original_filename: "replacement.png".to_owned(),
+                    content_type: "image/png".to_owned(),
+                    byte_size: replacement_bytes.len(),
+                    is_primary: false,
+                    sort_order: 99,
+                    alt_text: None,
+                },
+            },
+        )
+        .await
+        .unwrap();
+
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+    let second_detail: PublicItemDetail =
+        read_json(&current.join("data/items/signed-jedi-card.json"));
+    let second_detail_path = second_detail.images[0]
+        .variants
+        .iter()
+        .find(|variant| variant.name == ImageVariantName::Detail)
+        .unwrap()
+        .path
+        .clone();
+
+    assert!(first_detail_path.starts_with("/media/signed-jedi-card/image-1-detail-"));
+    assert!(second_detail_path.starts_with("/media/signed-jedi-card/image-1-detail-"));
+    assert_ne!(first_detail_path, second_detail_path);
 }
 
 #[test]
@@ -453,15 +556,31 @@ async fn publisher_allows_original_filenames_that_only_match_generated_media_pat
         .unwrap();
 
     let current = root.path().join("current");
-    assert!(
-        current
-            .join("media/generated-media-path-card/image-1-detail.webp")
-            .is_file()
+    let detail: PublicItemDetail =
+        read_json(&current.join("data/items/generated-media-path-card.json"));
+    assert_versioned_media_file(
+        &current,
+        &detail.images[0]
+            .variants
+            .iter()
+            .find(|variant| variant.name == ImageVariantName::Detail)
+            .unwrap()
+            .path,
+        "generated-media-path-card",
+        "image-1",
+        ImageVariantName::Detail,
     );
-    assert!(
-        current
-            .join("media/generated-media-path-card/image-2-thumbnail.webp")
-            .is_file()
+    assert_versioned_media_file(
+        &current,
+        &detail.images[1]
+            .variants
+            .iter()
+            .find(|variant| variant.name == ImageVariantName::Thumbnail)
+            .unwrap()
+            .path,
+        "generated-media-path-card",
+        "image-2",
+        ImageVariantName::Thumbnail,
     );
 }
 
@@ -1268,18 +1387,32 @@ async fn publisher_uses_primary_image_first_for_gallery_and_derivatives() {
         fs::read_to_string(current.join("items/primary-selection-card/index.html")).unwrap();
     assert!(detail_html.contains("Primary image"));
     assert!(detail_html.contains("Supporting image"));
-    assert!(detail_html.contains("image-1-detail.webp"));
-    assert!(detail_html.contains("image-2-detail.webp"));
+    assert!(detail_html.contains("image-1-detail-"));
+    assert!(detail_html.contains("image-2-detail-"));
     assert!(detail_html.contains("image-thumbnails"));
-    assert!(
-        current
-            .join("media/primary-selection-card/image-1-thumbnail.webp")
-            .is_file()
+    assert_versioned_media_file(
+        &current,
+        &detail.images[0]
+            .variants
+            .iter()
+            .find(|variant| variant.name == ImageVariantName::Thumbnail)
+            .unwrap()
+            .path,
+        "primary-selection-card",
+        "image-1",
+        ImageVariantName::Thumbnail,
     );
-    assert!(
-        current
-            .join("media/primary-selection-card/image-2-thumbnail.webp")
-            .is_file()
+    assert_versioned_media_file(
+        &current,
+        &detail.images[1]
+            .variants
+            .iter()
+            .find(|variant| variant.name == ImageVariantName::Thumbnail)
+            .unwrap()
+            .path,
+        "primary-selection-card",
+        "image-2",
+        ImageVariantName::Thumbnail,
     );
 }
 
@@ -1587,10 +1720,54 @@ async fn fixture() -> Fixture {
 }
 
 fn png_bytes() -> Vec<u8> {
-    let image = DynamicImage::new_rgb8(32, 24);
+    png_bytes_with_color([0, 0, 0])
+}
+
+fn png_bytes_with_color(rgb: [u8; 3]) -> Vec<u8> {
+    let mut image = RgbImage::new(32, 24);
+    for pixel in image.pixels_mut() {
+        *pixel = Rgb(rgb);
+    }
+    let image = DynamicImage::ImageRgb8(image);
     let mut bytes = Cursor::new(Vec::new());
     image.write_to(&mut bytes, ImageFormat::Png).unwrap();
     bytes.into_inner()
+}
+
+fn assert_versioned_media_file(
+    current: &Path,
+    path: &str,
+    item_slug: &str,
+    image_slug: &str,
+    variant: ImageVariantName,
+) {
+    let prefix = format!(
+        "/media/{item_slug}/{image_slug}-{}-",
+        variant.as_path_segment()
+    );
+    assert!(path.starts_with(&prefix), "unexpected media path: {path}");
+    assert!(
+        path.ends_with(".webp"),
+        "unexpected media extension: {path}"
+    );
+    let fingerprint = path
+        .trim_start_matches(prefix.as_str())
+        .trim_end_matches(".webp");
+    assert_eq!(
+        fingerprint.len(),
+        16,
+        "unexpected media fingerprint length: {path}"
+    );
+    assert!(
+        fingerprint
+            .chars()
+            .all(|character| character.is_ascii_hexdigit()),
+        "unexpected media fingerprint: {path}"
+    );
+    assert!(
+        current.join(path.trim_start_matches('/')).is_file(),
+        "missing versioned media file: {path}"
+    );
 }
 
 fn read_tree(root: &Path) -> String {

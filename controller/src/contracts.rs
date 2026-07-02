@@ -66,6 +66,7 @@ impl PublicImageVariant {
         item_slug: &str,
         image_slug: &str,
         name: ImageVariantName,
+        fingerprint: &str,
         extension: &str,
         width: u32,
         height: u32,
@@ -73,7 +74,7 @@ impl PublicImageVariant {
     ) -> Self {
         Self {
             path: format!(
-                "/media/{item_slug}/{image_slug}-{}.{}",
+                "/media/{item_slug}/{image_slug}-{}-{fingerprint}.{}",
                 name.as_path_segment(),
                 extension
             ),
@@ -199,6 +200,7 @@ mod tests {
             "signed-jedi-card",
             "front",
             ImageVariantName::Thumbnail,
+            "0123456789abcdef",
             "webp",
             480,
             640,
@@ -220,6 +222,6 @@ mod tests {
         let json = serde_json::to_string(&catalog).expect("serialize public catalog");
 
         assert!(json.contains(r#""schemaVersion":1"#));
-        assert!(json.contains("/media/signed-jedi-card/front-thumbnail.webp"));
+        assert!(json.contains("/media/signed-jedi-card/front-thumbnail-0123456789abcdef.webp"));
     }
 }

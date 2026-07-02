@@ -176,9 +176,12 @@ public-safe JSON schema:
 Public media paths look like:
 
 ```text
-/media/{item-slug}/{image-slug}-thumbnail.webp
-/media/{item-slug}/{image-slug}-detail.webp
+/media/{item-slug}/{image-slug}-thumbnail-{derivative-fingerprint}.webp
+/media/{item-slug}/{image-slug}-detail-{derivative-fingerprint}.webp
 ```
+
+The derivative fingerprint comes from the generated public WebP bytes, not from
+private Object Storage coordinates, original filenames, or private image IDs.
 
 [`controller/src/publisher.rs`](../controller/src/publisher.rs) currently
 contains both the fixture contract profiler and the local-mode runtime
