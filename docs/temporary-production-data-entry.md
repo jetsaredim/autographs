@@ -31,7 +31,8 @@ For current verification, publish through the Rust controller/publisher path and
 open the generated public pages through the deployed static site:
 
 - `/collection`
-- `/collection/<item-id>`
+- `/items/<item-slug>/`
+- `/data/items/<item-slug>.json`
 - generated derivative URLs under `/media/...`
 
 The browser should never need a direct Object Storage URL, and retired
