@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Public Gallery MVP** - Deliver anonymous browse, filter, and detail views for published autograph items. Complete; anonymous public gallery, filters, detail pages, image viewer, quote states, and privacy gates are implemented.
 - [x] **Phase 4: Public Showcase and Hardening** - Tie up loose ends, audit the current security posture, polish documentation, and prepare the current repository state to be public as a human+AI showcase. (completed 2026-05-25)
 - [x] **Phase 5: Static Runtime Migration Foundation** - Complete; the Rust/static runtime foundation is deployed and backed by recorded live static publish proof through Oracle, OCI Object Storage, generated static output, Caddy, and cleanup.
-- [ ] **Phase 6: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, and edit-history loop on top of the private publisher foundation.
+- [ ] **Phase 6: Admin Collection Workflow** - Complete the single-admin create, edit, publish, multi-image, edit-history, and optimized public delivery/runtime posture loop on top of the private publisher foundation.
 - [ ] **Phase 7: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
 
 ## Phase Details
@@ -150,8 +150,9 @@ Plans:
   3. Admin can edit an existing autograph item's metadata and associated images, and can review an edit history showing what changed over time.
   4. Admin can publish changes so items become visible in the public gallery without leaving orphaned metadata references or image files in normal operation.
   5. Admin routes, secrets, edit-history behavior, media cleanup, and operator-bridge retirement are reviewed for security and documented before Phase 6 is marked complete.
+  6. Public delivery, generated image derivatives, CDN/cache posture, deployed instance hygiene, and codebase/runtime cleanup are reviewed and optimized before Phase 6 closes.
 
-**Plans**: 8 plans
+**Plans**: 9 plans
 Plans:
 **Wave 1**
 
@@ -175,7 +176,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 06-06-PLAN.md - Harden collection management to the single session-cookie admin auth path.
+- [x] 06-06-PLAN.md - Harden collection management to the single session-cookie admin auth path.
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
@@ -184,6 +185,10 @@ Plans:
 **Wave 8** *(blocked on Wave 7 completion)*
 
 - [ ] 06-08-PLAN.md - Refresh codebase maps after the completed admin workflow closeout.
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 06-09-PLAN.md - Optimize public delivery, generated image size, CDN/cache posture, and deployed instance/codebase hygiene.
 
 **UI hint**: yes
 
@@ -214,5 +219,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Public Gallery MVP | 5/5 | Complete | 2026-05-21 |
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
-| 6. Admin Collection Workflow | 5/8 | In progress | - |
+| 6. Admin Collection Workflow | 6/9 | In progress | - |
 | 7. AI-Assisted Ingest | 0/TBD | Not started | - |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-05-PLAN.md
-last_updated: "2026-06-28T13:03:41.633Z"
-last_activity: 2026-06-28 -- Completed 06-05 static admin collection workflow
+stopped_at: Completed 06-06-PLAN.md
+last_updated: "2026-07-02T14:29:16.943Z"
+last_activity: 2026-07-02 -- Completed 06-06 single-session admin auth boundary
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 33
-  completed_plans: 30
+  total_plans: 34
+  completed_plans: 31
   percent: 91
 ---
 
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 ## Current Position
 
 Phase: 06 (admin-collection-workflow) — EXECUTING
-Plan: 06-06
+Plan: 06-07
 Status: Ready to execute next wave
-Last activity: 2026-06-28 -- Completed 06-05 static admin collection workflow
+Last activity: 2026-07-02 -- Completed 06-06 single-session admin auth boundary
 
-Progress: [█████████░] 91% overall; Phase 6 plans 1-5 complete
+Progress: [█████████░] 91% overall; Phase 6 plans 1-6 complete
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 30 of 33
+- Total plans completed: 31 of 34
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -49,12 +49,12 @@ Progress: [█████████░] 91% overall; Phase 6 plans 1-5 comple
 | 03 | 5 | - | - |
 | 04 | 5/5 | 54 min | 11 min |
 | 05 | 7/7 | - | - |
-| 06 | 5/8 | - | - |
+| 06 | 6/9 | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: 06-01, 06-02, 06-03, 06-04, 06-05
-- Trend: Positive; Phase 6 now has edit-history, private admin item APIs, retryable media cleanup foundations, publish-status retention, and a polished static admin workflow merged locally with full controller verification
+- Last 5 plans: 06-02, 06-03, 06-04, 06-05, 06-06
+- Trend: Positive; Phase 6 now has edit-history, private admin item APIs, retryable media cleanup foundations, publish-status retention, a polished static admin workflow, and a single session-cookie collection-management auth path with full controller verification
 
 | Phase 04 P01 | 38 min | 3 tasks | 4 files |
 | Phase 04 P02 | 4 min | 3 tasks | 5 files |
@@ -69,6 +69,7 @@ Progress: [█████████░] 91% overall; Phase 6 plans 1-5 comple
 | Phase 06 P03 | 45 min | 2 tasks | 8 files |
 | Phase 06 P04 | 10 min | 3 tasks | 10 files |
 | Phase 06 P05 | 10min | 3 tasks | 4 files |
+| Phase 06 P06 | live session | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,7 @@ Recent decisions affecting current work:
 ### Roadmap Evolution
 
 - Phase 5 inserted: Static Runtime Migration Foundation; former Admin Collection Workflow moved to Phase 6 and AI-Assisted Ingest moved to Phase 7.
+- Phase 6 edited: added 06-09 optimization wave for public delivery, image size, CDN/cache posture, and deployed instance/codebase cleanup before Phase 6 closeout.
 
 ## Session Continuity
 
@@ -143,3 +145,5 @@ Resume file: None
 | 2026-06-13 | remove-obsolete-tenancy-split-doc | Removed the historical Terraform tenancy split migration runbook from active operator docs. |
 | 2026-06-19 | reconcile-current-state-docs | Reconciled GSD and operator docs with the implemented Rust/static runtime foundation and production security patching workflow; follow-up review identified the remaining Phase 5 05-07 live static publish proof and closure summary checkpoint. |
 | 2026-06-20 | close-phase-5-static-runtime | Recorded the live static publish proof, public edge checks, cleanup verification, and Phase 5 closure summary. |
+| 2026-07-01 | fix-catalog-filename-privacy-scan | Addressed PR #155 publisher privacy-scan review warnings by narrowing filename scan surfaces and adding filename/static-data regressions. |
+| 2026-07-02 | admin-ui-density-and-public-detail-clean | Simplified the admin hub, made dashboard/filter surfaces collapsible, added icon row actions and item sorting/filtering, and restored richer public item detail metadata. |
