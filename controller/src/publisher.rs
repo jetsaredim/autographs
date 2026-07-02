@@ -1182,11 +1182,7 @@ fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Resu
             .as_ref()
             .map(|text| format!("{}\n{}", relative.display(), text))
             .unwrap_or_else(|| relative.display().to_string());
-        if high_confidence_denied
-            .iter()
-            .filter(|value| !value.is_empty())
-            .any(|value| rendered.contains(value))
-        {
+        if contains_high_confidence_source_value(&rendered, &high_confidence_denied) {
             return Err("candidate privacy scan rejected private source reference".to_owned());
         }
         if contains_low_confidence_source_value(&rendered, &low_confidence_denied) {
@@ -1196,8 +1192,24 @@ fn validate_private_source_absence(root: &Path, items: &[AutographItem]) -> Resu
     Ok(())
 }
 
+fn contains_high_confidence_source_value(text: &str, denied: &[String]) -> bool {
+    denied
+        .iter()
+        .filter(|value| !value.is_empty())
+        .any(|value| text.contains(value))
+        || {
+            let normalized_text = normalize_source_scan_text(text);
+            denied
+                .iter()
+                .filter(|value| !value.is_empty())
+                .map(|value| normalize_source_scan_text(value))
+                .filter(|value| !value.is_empty())
+                .any(|value| normalized_text.contains(&value))
+        }
+}
+
 fn contains_low_confidence_source_value(text: &str, denied: &[String]) -> bool {
-    let normalized_text = normalize_original_filename_scan_text(text);
+    let normalized_text = normalize_source_scan_text(text);
     denied
         .iter()
         .filter(|value| !value.is_empty())
@@ -1207,7 +1219,7 @@ fn contains_low_confidence_source_value(text: &str, denied: &[String]) -> bool {
 }
 
 fn is_actionable_low_confidence_value(value: &str) -> bool {
-    let normalized = normalize_original_filename_scan_text(value.trim());
+    let normalized = normalize_source_scan_text(value.trim());
     if normalized.contains('/') {
         return true;
     }
@@ -1244,7 +1256,7 @@ fn is_generic_original_filename_term(value: &str) -> bool {
 }
 
 fn normalized_original_filename_values(value: &str) -> Vec<String> {
-    let normalized = normalize_original_filename_scan_text(value.trim());
+    let normalized = normalize_source_scan_text(value.trim());
     let file_name = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
     let mut values = Vec::new();
     for candidate in [normalized.as_str(), file_name] {
@@ -1255,10 +1267,25 @@ fn normalized_original_filename_values(value: &str) -> Vec<String> {
     values
 }
 
-fn normalize_original_filename_scan_text(value: &str) -> String {
-    percent_decode_lossy(value)
-        .replace('\\', "/")
-        .to_lowercase()
+fn normalize_source_scan_text(value: &str) -> String {
+    collapse_slash_runs(&percent_decode_lossy(value).replace('\\', "/")).to_lowercase()
+}
+
+fn collapse_slash_runs(value: &str) -> String {
+    let mut collapsed = String::with_capacity(value.len());
+    let mut previous_was_slash = false;
+    for character in value.chars() {
+        if character == '/' {
+            if !previous_was_slash {
+                collapsed.push(character);
+            }
+            previous_was_slash = true;
+        } else {
+            collapsed.push(character);
+            previous_was_slash = false;
+        }
+    }
+    collapsed
 }
 
 fn percent_decode_lossy(value: &str) -> String {
