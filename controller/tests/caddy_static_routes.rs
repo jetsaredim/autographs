@@ -17,6 +17,13 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
     assert!(caddyfile.contains("http://:8081"));
     assert!(caddyfile.contains("root * /srv/autographs/static/current"));
     assert!(caddyfile.contains("file_server"));
+    assert!(caddyfile.matches("Cache-Control \"no-store\"").count() >= 3);
+    assert!(caddyfile.contains("@staticMedia path /media/*"));
+    assert!(caddyfile.contains("Cache-Control \"public, max-age=86400\""));
+    assert!(caddyfile.contains("@staticAssets path /assets/*"));
+    assert!(caddyfile.contains("Cache-Control \"public, max-age=3600\""));
+    assert!(caddyfile.contains("@staticDocuments path / /index.html /404.html"));
+    assert!(caddyfile.contains("Cache-Control \"public, max-age=60, must-revalidate\""));
     assert!(!caddyfile.contains("reverse_proxy autographs-app:3000"));
 
     assert!(caddy_quadlet.contains("Volume=autographs-static.volume:/srv/autographs/static:ro"));

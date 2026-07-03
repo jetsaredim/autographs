@@ -61,26 +61,33 @@ pub struct PublicImageVariant {
     pub content_type: String,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PublicImageVariantParams<'a> {
+    pub item_slug: &'a str,
+    pub image_slug: &'a str,
+    pub name: ImageVariantName,
+    pub fingerprint: &'a str,
+    pub extension: &'a str,
+    pub width: u32,
+    pub height: u32,
+    pub content_type: &'a str,
+}
+
 impl PublicImageVariant {
-    pub fn new(
-        item_slug: &str,
-        image_slug: &str,
-        name: ImageVariantName,
-        extension: &str,
-        width: u32,
-        height: u32,
-        content_type: &str,
-    ) -> Self {
+    pub fn new(params: PublicImageVariantParams<'_>) -> Self {
         Self {
             path: format!(
-                "/media/{item_slug}/{image_slug}-{}.{}",
-                name.as_path_segment(),
-                extension
+                "/media/{}/{}-{}-{}.{}",
+                params.item_slug,
+                params.image_slug,
+                params.name.as_path_segment(),
+                params.fingerprint,
+                params.extension
             ),
-            name,
-            width,
-            height,
-            content_type: content_type.to_owned(),
+            name: params.name,
+            width: params.width,
+            height: params.height,
+            content_type: params.content_type.to_owned(),
         }
     }
 }
@@ -195,15 +202,16 @@ mod tests {
 
     #[test]
     fn public_contract_serializes_camel_case_version_and_media_paths() {
-        let variant = PublicImageVariant::new(
-            "signed-jedi-card",
-            "front",
-            ImageVariantName::Thumbnail,
-            "webp",
-            480,
-            640,
-            "image/webp",
-        );
+        let variant = PublicImageVariant::new(PublicImageVariantParams {
+            item_slug: "signed-jedi-card",
+            image_slug: "front",
+            name: ImageVariantName::Thumbnail,
+            fingerprint: "0123456789abcdef",
+            extension: "webp",
+            width: 480,
+            height: 640,
+            content_type: "image/webp",
+        });
         let catalog = PublicCatalog::new(vec![PublicGalleryItem {
             slug: "signed-jedi-card".to_owned(),
             title: "Signed Jedi Card".to_owned(),
@@ -220,6 +228,6 @@ mod tests {
         let json = serde_json::to_string(&catalog).expect("serialize public catalog");
 
         assert!(json.contains(r#""schemaVersion":1"#));
-        assert!(json.contains("/media/signed-jedi-card/front-thumbnail.webp"));
+        assert!(json.contains("/media/signed-jedi-card/front-thumbnail-0123456789abcdef.webp"));
     }
 }

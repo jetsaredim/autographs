@@ -9,18 +9,28 @@
 	respond @operator 404
 
 	handle /admin {
+		header Cache-Control "no-store"
 		redir /admin/ permanent
 	}
 
 	handle /admin/api/* {
+		header Cache-Control "no-store"
 		reverse_proxy autographs-controller:8080
 	}
 
 	handle_path /admin/* {
+		header Cache-Control "no-store"
 		root * /srv/autographs/static/current/admin
 		try_files {path} /index.html
 		file_server
 	}
+
+	@staticMedia path /media/*
+	header @staticMedia Cache-Control "public, max-age=86400"
+	@staticAssets path /assets/* /favicon.ico /icon.png /architecture/architecture-diagram.svg
+	header @staticAssets Cache-Control "public, max-age=3600"
+	@staticDocuments path / /index.html /404.html /collection/* /items/* /architecture/* /data/* /manifest.json
+	header @staticDocuments Cache-Control "public, max-age=60, must-revalidate"
 
 	root * /srv/autographs/static/current
 	file_server
@@ -33,6 +43,13 @@
 }
 
 http://:8081 {
+	@staticMedia path /media/*
+	header @staticMedia Cache-Control "public, max-age=86400"
+	@staticAssets path /assets/* /favicon.ico /icon.png /architecture/architecture-diagram.svg
+	header @staticAssets Cache-Control "public, max-age=3600"
+	@staticDocuments path / /index.html /404.html /collection/* /items/* /architecture/* /data/* /manifest.json
+	header @staticDocuments Cache-Control "public, max-age=60, must-revalidate"
+
 	root * /srv/autographs/static/current
 	file_server
 

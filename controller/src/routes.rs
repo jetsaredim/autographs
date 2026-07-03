@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    auth::AuthState,
+    auth::{AuthState, LoginError},
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
         CleanupStatus, CleanupWarning, ImageCleanupEvent, ImageReplacementInput,
@@ -265,8 +265,8 @@ async fn admin_health(State(state): State<AppState>) -> Json<AdminHealthResponse
 }
 
 async fn admin_status(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    if authenticate(&state, &headers).is_none() {
-        return StatusCode::UNAUTHORIZED.into_response();
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        return status.into_response();
     }
 
     let pending_changes = match state.repository.pending_changes().await {
@@ -338,7 +338,14 @@ async fn login(State(state): State<AppState>, Json(payload): Json<LoginRequest>)
             );
             response
         }
-        Err(_) => StatusCode::UNAUTHORIZED.into_response(),
+        Err(LoginError::InvalidCredential) => {
+            (StatusCode::UNAUTHORIZED, "Invalid admin credentials.").into_response()
+        }
+        Err(LoginError::Locked) => (
+            StatusCode::TOO_MANY_REQUESTS,
+            "Too many login attempts. Wait and try again.",
+        )
+            .into_response(),
     }
 }
 
@@ -391,7 +398,7 @@ async fn create_item(
     headers: HeaderMap,
     Json(input): Json<AutographItemInput>,
 ) -> Response {
-    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         tracing::warn!(status = %status, "rejected create catalog item request");
         return status.into_response();
     }
@@ -428,7 +435,7 @@ async fn update_item(
     headers: HeaderMap,
     Json(input): Json<AutographItemUpdate>,
 ) -> Response {
-    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         tracing::warn!(status = %status, "rejected update catalog item request");
         return status.into_response();
     }
@@ -462,7 +469,7 @@ async fn upload_image(
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Response {
-    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         tracing::warn!(status = %status, item_id = %id, "rejected upload image request");
         return status.into_response();
     }
@@ -568,7 +575,7 @@ async fn set_primary_image(
     method: Method,
     headers: HeaderMap,
 ) -> Response {
-    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
@@ -586,7 +593,7 @@ async fn delete_image(
     method: Method,
     headers: HeaderMap,
 ) -> Response {
-    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
@@ -635,7 +642,7 @@ async fn replace_image(
     headers: HeaderMap,
     multipart: Multipart,
 ) -> Response {
-    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
@@ -749,7 +756,7 @@ async fn retry_image_cleanup(
     method: Method,
     headers: HeaderMap,
 ) -> Response {
-    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
@@ -941,7 +948,7 @@ async fn set_publication(
     headers: HeaderMap,
     Json(input): Json<PublicationRequest>,
 ) -> Response {
-    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         tracing::warn!(status = %status, item_id = %id, "rejected publication update request");
         return status.into_response();
     }
@@ -1007,7 +1014,7 @@ async fn publish(
     headers: HeaderMap,
     mode: PublishMode,
 ) -> Response {
-    if let Err(status) = authorize_mutation(&state, &method, &headers) {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         tracing::warn!(status = %status, mode = ?mode, "rejected static publish request");
         return status.into_response();
     }
@@ -1066,8 +1073,8 @@ async fn publish(
 }
 
 async fn publish_status(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    if authenticate(&state, &headers).is_none() {
-        return StatusCode::UNAUTHORIZED.into_response();
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        return status.into_response();
     }
     Json(state.publisher.status()).into_response()
 }
@@ -1099,14 +1106,17 @@ async fn cleanup_warning_entries(
     Ok(warnings)
 }
 
-fn authorize_mutation(
+pub(super) fn authorize_admin_session(
     state: &AppState,
     method: &Method,
     headers: &HeaderMap,
-) -> Result<AuthKind, StatusCode> {
+) -> Result<String, StatusCode> {
     let auth = authenticate(state, headers).ok_or(StatusCode::UNAUTHORIZED)?;
+    let AuthKind::Session(session) = &auth else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
     csrf_allowed(state, method, headers, &auth)
-        .then_some(auth)
+        .then_some(session.clone())
         .ok_or(StatusCode::FORBIDDEN)
 }
 

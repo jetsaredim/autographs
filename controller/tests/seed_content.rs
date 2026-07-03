@@ -87,13 +87,15 @@ async fn seed_content_private_api_persists_redacted_item_and_image_response() {
         repository.clone(),
         media.clone(),
     );
-    let token = "Bearer operator-test-token";
+    let login = login(&app).await;
+    let cookie = login_cookie(&login);
 
     let create = app
         .clone()
         .oneshot(
             Request::post("/admin/api/items")
-                .header(header::AUTHORIZATION, token)
+                .header(header::COOKIE, cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     r#"{"title":"Signed Jedi Card","signer":"Mark Hamill","category":"Cards","tags":["jedi"],"eventName":"Example Convention","source":"Private collection","estimatedYear":2024}"#,
@@ -117,7 +119,7 @@ async fn seed_content_private_api_persists_redacted_item_and_image_response() {
 
     let uploaded = app
         .clone()
-        .oneshot(upload_request(item_id, Some(token)))
+        .oneshot(upload_request(item_id, Some(cookie)))
         .await
         .unwrap();
     assert_eq!(uploaded.status(), StatusCode::CREATED);
@@ -158,7 +160,8 @@ async fn seed_content_private_api_persists_redacted_item_and_image_response() {
         .clone()
         .oneshot(
             Request::post(format!("/admin/api/items/{item_id}/publication"))
-                .header(header::AUTHORIZATION, token)
+                .header(header::COOKIE, cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(r#"{"publicationStatus":"published"}"#))
                 .unwrap(),
@@ -198,9 +201,11 @@ async fn seed_content_upload_does_not_leave_orphan_media_when_attachment_fails()
     let repository = Arc::new(FailingAttachRepository { item: item.clone() });
     let media = Arc::new(LocalMediaStore::new(root.path()));
     let app = router_with_stores(ControllerConfig::for_test(true), repository, media);
+    let login = login(&app).await;
+    let cookie = login_cookie(&login);
 
     let uploaded = app
-        .oneshot(upload_request(item.id, Some("Bearer operator-test-token")))
+        .oneshot(upload_request(item.id, Some(cookie)))
         .await
         .unwrap();
 
@@ -237,11 +242,13 @@ async fn seed_content_upload_rejects_spoofed_image_bytes_before_media_write() {
         })
         .await
         .unwrap();
+    let login = login(&app).await;
+    let cookie = login_cookie(&login);
 
     let uploaded = app
         .oneshot(upload_request_with_body(
             item.id,
-            Some("Bearer operator-test-token"),
+            Some(cookie),
             "image/jpeg",
             b"not-an-image",
         ))
@@ -261,14 +268,14 @@ async fn seed_content_upload_rejects_spoofed_image_bytes_before_media_write() {
     );
 }
 
-fn upload_request(item_id: Uuid, authorization: Option<&str>) -> Request<Body> {
+fn upload_request(item_id: Uuid, cookie: Option<&str>) -> Request<Body> {
     let fixture = png_fixture();
-    upload_request_with_body(item_id, authorization, "image/png", &fixture)
+    upload_request_with_body(item_id, cookie, "image/png", &fixture)
 }
 
 fn upload_request_with_body(
     item_id: Uuid,
-    authorization: Option<&str>,
+    cookie: Option<&str>,
     content_type: &str,
     image_body: &[u8],
 ) -> Request<Body> {
@@ -289,13 +296,42 @@ fn upload_request_with_body(
         )
         .body(Body::from(body))
         .unwrap();
-    if let Some(authorization) = authorization {
+    if let Some(cookie) = cookie {
+        request
+            .headers_mut()
+            .insert(header::COOKIE, cookie.parse().expect("cookie header"));
         request.headers_mut().insert(
-            header::AUTHORIZATION,
-            authorization.parse().expect("authorization header"),
+            header::ORIGIN,
+            "https://autographs.example.test"
+                .parse()
+                .expect("origin header"),
         );
     }
     request
+}
+
+async fn login(app: &axum::Router) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::post("/admin/api/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"password":"local-test-password"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+fn login_cookie(response: &axum::response::Response) -> &str {
+    response
+        .headers()
+        .get(header::SET_COOKIE)
+        .expect("set-cookie")
+        .to_str()
+        .expect("set-cookie text")
+        .split(';')
+        .next()
+        .expect("cookie pair")
 }
 
 fn png_fixture() -> Vec<u8> {

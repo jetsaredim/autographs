@@ -214,6 +214,105 @@ async fn blank_operator_token_configuration_does_not_authorize_bearer_requests()
     assert_eq!(blank_bearer.status(), StatusCode::UNAUTHORIZED);
 }
 
+#[tokio::test]
+async fn bearer_token_cannot_manage_collection() {
+    let app = router(ControllerConfig::for_test(true));
+
+    let response = app
+        .oneshot(
+            Request::post("/admin/api/items")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"title":"Signed Jedi Card","signer":"Mark Hamill","category":"Cards","tags":["jedi"]}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn bearer_token_cannot_read_admin_status() {
+    let app = router(ControllerConfig::for_test(true));
+
+    let response = app
+        .oneshot(
+            Request::get("/admin/api/status")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn session_cookie_can_manage_collection() {
+    let app = router(ControllerConfig::for_test(true));
+    let login = login(&app, "local-test-password").await;
+    let cookie = login_cookie(&login);
+
+    let response = app
+        .oneshot(
+            Request::post("/admin/api/items")
+                .header(header::COOKIE, cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"title":"Signed Jedi Card","signer":"Mark Hamill","category":"Cards","tags":["jedi"]}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn lockout_message_is_generic() {
+    let app = router(ControllerConfig::for_test(true));
+
+    for _ in 0..5 {
+        let response = login(&app, "wrong").await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let body = String::from_utf8(
+            to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
+        assert_eq!(body, "Invalid admin credentials.");
+    }
+
+    let locked = login(&app, "local-test-password").await;
+    assert_eq!(locked.status(), StatusCode::TOO_MANY_REQUESTS);
+    let body = String::from_utf8(
+        to_bytes(locked.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .to_vec(),
+    )
+    .unwrap();
+    assert_eq!(body, "Too many login attempts. Wait and try again.");
+    for denied in [
+        "hash",
+        "password hash",
+        "operator",
+        "token",
+        "provider",
+        "local-test-password",
+    ] {
+        assert!(!body.contains(denied), "lockout message leaked {denied}");
+    }
+}
+
 async fn login(app: &axum::Router, password: &str) -> axum::response::Response {
     app.clone()
         .oneshot(
@@ -224,4 +323,16 @@ async fn login(app: &axum::Router, password: &str) -> axum::response::Response {
         )
         .await
         .unwrap()
+}
+
+fn login_cookie(response: &axum::response::Response) -> &str {
+    response
+        .headers()
+        .get(header::SET_COOKIE)
+        .expect("set-cookie")
+        .to_str()
+        .expect("set-cookie text")
+        .split(';')
+        .next()
+        .expect("cookie pair")
 }

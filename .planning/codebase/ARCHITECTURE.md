@@ -1,6 +1,6 @@
 # Architecture
 
-**Analysis Date:** 2026-06-19
+**Analysis Date:** 2026-07-02
 
 ## Pattern Overview
 
@@ -16,6 +16,11 @@ the metadata source of truth, and OCI Object Storage remains the private media
 source of truth. The controller publishes public-safe pages, JSON, manifests,
 and derived media from those private sources.
 
+Phase 6 optimization adds explicit Caddy cache headers: admin routes are
+`no-store`, public HTML/JSON stay short-lived for rollback, and public
+assets/media use moderate cache lifetimes until paths become content-addressed
+or release-addressed.
+
 ## Layers
 
 **Static Public Layer**
@@ -28,14 +33,18 @@ and derived media from those private sources.
 
 **Static Admin Shell**
 - Location: `controller/static-admin/`
-- Purpose: Minimal private browser shell for seed/publish operations. It is the
-  Phase 5 foundation, not the polished Phase 6 collection-management UX.
+- Purpose: Phase 6 private browser workflow for single-admin catalog
+  management: health/diagnostics, item search/list, create/edit forms, image
+  upload/primary/remove/replace controls, edit history, pending changes,
+  publish actions, cleanup warnings, and release retention status.
 
 **Rust Controller**
 - Location: `controller/src/`
-- Purpose: Private admin health/auth routes, minimal content seed APIs, Oracle
-  catalog access, private media access, static publishing, derivative
-  generation, candidate validation, and release promotion.
+- Purpose: Private admin health/auth routes, session-cookie collection
+  management APIs, Oracle catalog and edit history access, private media
+  access, media cleanup compensation/retry, pending-change status, static
+  publishing, derivative generation, candidate validation, release retention,
+  and release promotion.
 - Key modules: `auth.rs`, `catalog.rs`, `config.rs`, `contracts.rs`,
   `derivatives.rs`, `media.rs`, `oci_media.rs`, `oracle_catalog.rs`,
   `publisher.rs`, `routes.rs`, and `storage_keys.rs`.
@@ -75,9 +84,10 @@ and derived media from those private sources.
 2. Caddy serves the current generated static release: HTML, public-safe JSON,
    static assets, and generated media derivatives.
 3. Operators use the private admin shell and `/admin/api/*` controller routes
-   for health, minimal seed, and publish operations.
-4. The controller reads and writes Oracle catalog metadata and private OCI
-   Object Storage media.
+   for session-cookie collection management, health, diagnostics, edit history,
+   image maintenance, pending changes, and publish operations.
+4. The controller reads and writes Oracle catalog metadata, edit history,
+   cleanup events, and private OCI Object Storage media.
 5. The publisher generates candidate static output inside the runtime/OCI
    boundary, validates privacy and completeness, then promotes the release.
 6. GitHub Actions validates code, builds/publishes the controller image,
@@ -85,36 +95,34 @@ and derived media from those private sources.
 
 ## Key Abstractions
 
-- Rust controller routes: private admin/API boundary.
+- Rust controller routes: private admin/API boundary with session-cookie
+  collection-management authorization.
 - Static artifact contracts: public-safe gallery/detail/search/facet data and
   publish manifests.
 - Publisher: candidate generation, validation, derivative creation, and release
-  promotion.
-- Oracle catalog adapter: metadata persistence for production.
-- OCI media adapter: private original media access.
+  promotion with bounded release retention.
+- Oracle catalog adapter: metadata, edit history, cleanup events, publication
+  status, and publish status persistence for production.
+- OCI media adapter: private original media access and retryable cleanup.
 - Security patching role: scan, issue rendering, approval validation, patching,
   result reporting, and failure cleanup.
 
 ## Current Phase Boundary
 
-Phase 5 static runtime migration foundation is complete in the checked-out
-code: Rust controller, static public artifacts, static admin shell, publisher,
-deployment wiring, live/static runbooks, retired Node/Next.js runtime guidance,
-live static publish proof, UAT, security review, and verification closeout are
-present.
-
-Phase 6 should focus on the polished daily-use admin collection workflow:
-create/edit forms, publication controls, edit history, richer media cleanup,
-and admin UX hardening on top of the Rust/static foundation. Phase 7 remains
-advisory AI-assisted ingest.
+Phase 6 admin collection workflow is implemented through Plan 06-07 on top of
+the completed Phase 5 Rust/static foundation. Current behavior includes the
+polished static admin workflow, private item APIs, field-level edit history,
+multi-image maintenance, retryable media cleanup, pending-change status,
+explicit incremental/full publish controls, bounded release retention, a
+session-cookie-only collection-management auth path, operator docs, and security
+review. Plan 06-09 adds public detail derivative size reduction, explicit cache
+headers, deferred Cloudflare/CDN guidance, and post-Phase 6 runtime cleanup
+guidance. Phase 7 remains advisory AI-assisted ingest.
 
 ## Notable Absences
 
-- Polished Phase 6 admin collection workflow is not implemented yet.
-- Edit history persistence/rendering is not implemented yet.
-- Full media replacement/orphan cleanup ergonomics are not implemented yet.
 - AI-assisted metadata suggestions are not implemented yet.
 
 ---
 
-*Architecture analysis refreshed: 2026-06-20 after Phase 5 verification closeout*
+*Architecture analysis refreshed: 2026-07-02 after Phase 6 optimization closeout*

@@ -27,7 +27,7 @@ Phase 5 uses split collection data plus per-item detail JSON:
 | Item page | `/items/{item-slug}/index.html` | Static item detail shell |
 | Item detail data | `/data/items/{item-slug}.json` | Full public-safe item detail DTO |
 | Publish manifest | `/manifest.json` | Release ID, generation timestamp, artifact paths, and byte sizes |
-| Generated media | `/media/{item-slug}/{image-slug}-{variant}.{ext}` | Public thumbnail and detail derivatives |
+| Generated media | `/media/{item-slug}/{image-slug}-{variant}-{derivative-fingerprint}.{ext}` | Public thumbnail and detail derivatives |
 
 The 500-item fixture profiles three shapes:
 
@@ -80,13 +80,16 @@ Manifest entries contain:
 Public derivatives use sanitized deterministic paths:
 
 ```text
-/media/{item-slug}/{image-slug}-thumbnail.webp
-/media/{item-slug}/{image-slug}-detail.webp
+/media/{item-slug}/{image-slug}-thumbnail-{derivative-fingerprint}.webp
+/media/{item-slug}/{image-slug}-detail-{derivative-fingerprint}.webp
 ```
 
 The path is independent from the private original filename, private Object
-Storage key, and private image UUID. Thumbnail and detail derivatives are
-generated output and may be rebuilt from durable private originals.
+Storage key, and private image UUID. The fingerprint is derived from the public
+WebP derivative bytes, so replacing an image changes the public URL even when
+the image slot and private image ID are preserved. Thumbnail and detail
+derivatives are generated output and may be rebuilt from durable private
+originals.
 
 ## Privacy Deny-List
 

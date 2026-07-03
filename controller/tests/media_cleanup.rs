@@ -57,7 +57,7 @@ async fn supporting_upload_preserves_primary_and_primary_route_selects_one_image
 
     let first = response_json(
         app.clone()
-            .oneshot(upload_request(item.id, None))
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
             .await
             .unwrap(),
     )
@@ -66,7 +66,7 @@ async fn supporting_upload_preserves_primary_and_primary_route_selects_one_image
 
     let second = response_json(
         app.clone()
-            .oneshot(upload_request(item.id, None))
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
             .await
             .unwrap(),
     )
@@ -90,12 +90,14 @@ async fn supporting_upload_preserves_primary_and_primary_route_selects_one_image
     );
 
     let primary = app
+        .clone()
         .oneshot(
             Request::post(format!(
                 "/admin/api/items/{}/images/{second_id}/primary",
                 item.id
             ))
-            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
             .body(Body::empty())
             .unwrap(),
         )
@@ -133,7 +135,12 @@ async fn first_upload_is_primary_even_when_false_is_requested() {
     let item = repository.create(item_input()).await.unwrap();
 
     let first = response_json(
-        app.oneshot(upload_request(item.id, Some(false)))
+        app.clone()
+            .oneshot(upload_request(
+                item.id,
+                Some(false),
+                &admin_cookie(&app).await,
+            ))
             .await
             .unwrap(),
     )
@@ -155,7 +162,7 @@ async fn delete_image_removes_private_object_and_metadata() {
     let item = repository.create(item_input()).await.unwrap();
     let uploaded = response_json(
         app.clone()
-            .oneshot(upload_request(item.id, None))
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
             .await
             .unwrap(),
     )
@@ -165,9 +172,11 @@ async fn delete_image_removes_private_object_and_metadata() {
     assert_eq!(media.read(&object_key).await.unwrap(), png_fixture());
 
     let deleted = app
+        .clone()
         .oneshot(
             Request::delete(format!("/admin/api/items/{}/images/{image_id}", item.id))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -201,7 +210,7 @@ async fn delete_image_failure_keeps_metadata_and_returns_redacted_cleanup_warnin
     let item = repository.create(item_input()).await.unwrap();
     let uploaded = response_json(
         app.clone()
-            .oneshot(upload_request(item.id, None))
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
             .await
             .unwrap(),
     )
@@ -210,9 +219,11 @@ async fn delete_image_failure_keeps_metadata_and_returns_redacted_cleanup_warnin
     media.fail_deletes(true);
 
     let deleted = app
+        .clone()
         .oneshot(
             Request::delete(format!("/admin/api/items/{}/images/{image_id}", item.id))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -268,9 +279,11 @@ async fn delete_metadata_failure_after_media_delete_records_retryable_warning() 
     );
 
     let deleted = app
+        .clone()
         .oneshot(
             Request::delete(format!("/admin/api/items/{item_id}/images/{image_id}"))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -323,7 +336,12 @@ async fn replacement_rolls_back_new_object_when_metadata_swap_fails() {
     let app = router_with_stores(ControllerConfig::for_test(true), repository, media);
 
     let replaced = app
-        .oneshot(replace_request(item_id, image_id))
+        .clone()
+        .oneshot(replace_request(
+            item_id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
         .await
         .unwrap();
 
@@ -344,7 +362,7 @@ async fn replacement_cleanup_warning_is_visible_and_retryable_by_old_image_id() 
     let item = repository.create(item_input()).await.unwrap();
     let uploaded = response_json(
         app.clone()
-            .oneshot(upload_request(item.id, None))
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
             .await
             .unwrap(),
     )
@@ -354,7 +372,11 @@ async fn replacement_cleanup_warning_is_visible_and_retryable_by_old_image_id() 
 
     let replaced = app
         .clone()
-        .oneshot(replace_request(item.id, old_image_id))
+        .oneshot(replace_request(
+            item.id,
+            old_image_id,
+            &admin_cookie(&app).await,
+        ))
         .await
         .unwrap();
 
@@ -378,7 +400,8 @@ async fn replacement_cleanup_warning_is_visible_and_retryable_by_old_image_id() 
         app.clone()
             .oneshot(
                 Request::get(format!("/admin/api/items/{}", item.id))
-                    .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                    .header(header::COOKIE, admin_cookie(&app).await)
+                    .header(header::ORIGIN, "https://autographs.example.test")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -397,12 +420,14 @@ async fn replacement_cleanup_warning_is_visible_and_retryable_by_old_image_id() 
         .await
         .unwrap();
     let retried = app
+        .clone()
         .oneshot(
             Request::post(format!(
                 "/admin/api/items/{}/images/{old_image_id}/cleanup/retry",
                 item.id
             ))
-            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
             .body(Body::empty())
             .unwrap(),
         )
@@ -436,7 +461,7 @@ async fn replacement_upload_rejects_images_over_twenty_mebibytes() {
     let item = repository.create(item_input()).await.unwrap();
     let uploaded = response_json(
         app.clone()
-            .oneshot(upload_request(item.id, None))
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
             .await
             .unwrap(),
     )
@@ -444,10 +469,12 @@ async fn replacement_upload_rejects_images_over_twenty_mebibytes() {
     let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
 
     let rejected = app
+        .clone()
         .oneshot(replace_request_with_body(
             item.id,
             image_id,
             vec![0_u8; 20 * 1024 * 1024 + 1],
+            &admin_cookie(&app).await,
         ))
         .await
         .unwrap();
@@ -472,7 +499,7 @@ async fn failed_replacement_cleanup_retry_preserves_replacement_target() {
     let item = repository.create(item_input()).await.unwrap();
     let uploaded = response_json(
         app.clone()
-            .oneshot(upload_request(item.id, None))
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
             .await
             .unwrap(),
     )
@@ -481,7 +508,11 @@ async fn failed_replacement_cleanup_retry_preserves_replacement_target() {
     media.fail_deletes(true);
     let replaced = app
         .clone()
-        .oneshot(replace_request(item.id, image_id))
+        .oneshot(replace_request(
+            item.id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
         .await
         .unwrap();
     assert_eq!(replaced.status(), StatusCode::OK);
@@ -496,7 +527,8 @@ async fn failed_replacement_cleanup_retry_preserves_replacement_target() {
                 "/admin/api/items/{}/images/{image_id}/cleanup/retry",
                 item.id
             ))
-            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
             .body(Body::empty())
             .unwrap(),
         )
@@ -514,12 +546,14 @@ async fn failed_replacement_cleanup_retry_preserves_replacement_target() {
 
     media.fail_deletes(false);
     let succeeded_retry = app
+        .clone()
         .oneshot(
             Request::post(format!(
                 "/admin/api/items/{}/images/{image_id}/cleanup/retry",
                 item.id
             ))
-            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
             .body(Body::empty())
             .unwrap(),
         )
@@ -554,7 +588,7 @@ async fn second_replacement_cleanup_retry_deletes_previous_replacement_object() 
     let item = repository.create(item_input()).await.unwrap();
     let uploaded = response_json(
         app.clone()
-            .oneshot(upload_request(item.id, None))
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
             .await
             .unwrap(),
     )
@@ -563,7 +597,11 @@ async fn second_replacement_cleanup_retry_deletes_previous_replacement_object() 
 
     let first_replacement = app
         .clone()
-        .oneshot(replace_request(item.id, image_id))
+        .oneshot(replace_request(
+            item.id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
         .await
         .unwrap();
     assert_eq!(first_replacement.status(), StatusCode::OK);
@@ -575,7 +613,11 @@ async fn second_replacement_cleanup_retry_deletes_previous_replacement_object() 
     media.fail_deletes(true);
     let second_replacement = app
         .clone()
-        .oneshot(replace_request(item.id, image_id))
+        .oneshot(replace_request(
+            item.id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
         .await
         .unwrap();
     assert_eq!(second_replacement.status(), StatusCode::OK);
@@ -586,12 +628,14 @@ async fn second_replacement_cleanup_retry_deletes_previous_replacement_object() 
 
     media.fail_deletes(false);
     let retried = app
+        .clone()
         .oneshot(
             Request::post(format!(
                 "/admin/api/items/{}/images/{image_id}/cleanup/retry",
                 item.id
             ))
-            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
             .body(Body::empty())
             .unwrap(),
         )
@@ -625,7 +669,7 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
     let item = repository.create(item_input()).await.unwrap();
     let uploaded = response_json(
         app.clone()
-            .oneshot(upload_request(item.id, None))
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
             .await
             .unwrap(),
     )
@@ -637,7 +681,12 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
     media.fail_deletes(true);
 
     let replaced = app
-        .oneshot(replace_request(item.id, old_image_id))
+        .clone()
+        .oneshot(replace_request(
+            item.id,
+            old_image_id,
+            &admin_cookie(&app).await,
+        ))
         .await
         .unwrap();
 
@@ -668,7 +717,7 @@ async fn cleanup_retry_is_idempotent_when_object_is_already_gone() {
     let item = repository.create(item_input()).await.unwrap();
     let uploaded = response_json(
         app.clone()
-            .oneshot(upload_request(item.id, None))
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
             .await
             .unwrap(),
     )
@@ -679,7 +728,8 @@ async fn cleanup_retry_is_idempotent_when_object_is_already_gone() {
         .clone()
         .oneshot(
             Request::delete(format!("/admin/api/items/{}/images/{image_id}", item.id))
-                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -693,12 +743,14 @@ async fn cleanup_retry_is_idempotent_when_object_is_already_gone() {
         .unwrap();
 
     let retried = app
+        .clone()
         .oneshot(
             Request::post(format!(
                 "/admin/api/items/{}/images/{image_id}/cleanup/retry",
                 item.id
             ))
-            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
             .body(Body::empty())
             .unwrap(),
         )
@@ -737,7 +789,7 @@ async fn cleanup_retry_without_warning_does_not_delete_healthy_image() {
     let item = repository.create(item_input()).await.unwrap();
     let uploaded = response_json(
         app.clone()
-            .oneshot(upload_request(item.id, None))
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
             .await
             .unwrap(),
     )
@@ -746,12 +798,14 @@ async fn cleanup_retry_without_warning_does_not_delete_healthy_image() {
     let object_key = build_original_object_key(item.id, image_id);
 
     let retried = app
+        .clone()
         .oneshot(
             Request::post(format!(
                 "/admin/api/items/{}/images/{image_id}/cleanup/retry",
                 item.id
             ))
-            .header(header::AUTHORIZATION, "Bearer operator-test-token")
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
             .body(Body::empty())
             .unwrap(),
         )
@@ -792,7 +846,7 @@ fn item_input() -> AutographItemInput {
     }
 }
 
-fn upload_request(item_id: Uuid, primary: Option<bool>) -> Request<Body> {
+fn upload_request(item_id: Uuid, primary: Option<bool>, cookie: &str) -> Request<Body> {
     let boundary = "cleanup-boundary";
     let mut body = Vec::new();
     if let Some(primary) = primary {
@@ -802,7 +856,8 @@ fn upload_request(item_id: Uuid, primary: Option<bool>) -> Request<Body> {
     body.extend_from_slice(&png_fixture());
     body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
     Request::post(format!("/admin/api/items/{item_id}/images"))
-        .header(header::AUTHORIZATION, "Bearer operator-test-token")
+        .header(header::COOKIE, cookie)
+        .header(header::ORIGIN, "https://autographs.example.test")
         .header(
             header::CONTENT_TYPE,
             format!("multipart/form-data; boundary={boundary}"),
@@ -811,24 +866,53 @@ fn upload_request(item_id: Uuid, primary: Option<bool>) -> Request<Body> {
         .unwrap()
 }
 
-fn replace_request(item_id: Uuid, image_id: Uuid) -> Request<Body> {
-    replace_request_with_body(item_id, image_id, png_fixture())
+fn replace_request(item_id: Uuid, image_id: Uuid, cookie: &str) -> Request<Body> {
+    replace_request_with_body(item_id, image_id, png_fixture(), cookie)
 }
 
-fn replace_request_with_body(item_id: Uuid, image_id: Uuid, image_body: Vec<u8>) -> Request<Body> {
+fn replace_request_with_body(
+    item_id: Uuid,
+    image_id: Uuid,
+    image_body: Vec<u8>,
+    cookie: &str,
+) -> Request<Body> {
     let boundary = "cleanup-replace-boundary";
     let mut body = Vec::new();
     body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"replacement.png\"\r\nContent-Type: image/png\r\n\r\n").as_bytes());
     body.extend_from_slice(&image_body);
     body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
     Request::put(format!("/admin/api/items/{item_id}/images/{image_id}"))
-        .header(header::AUTHORIZATION, "Bearer operator-test-token")
+        .header(header::COOKIE, cookie)
+        .header(header::ORIGIN, "https://autographs.example.test")
         .header(
             header::CONTENT_TYPE,
             format!("multipart/form-data; boundary={boundary}"),
         )
         .body(Body::from(body))
         .unwrap()
+}
+
+async fn admin_cookie(app: &axum::Router) -> String {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post("/admin/api/login")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"password":"local-test-password"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    response
+        .headers()
+        .get(header::SET_COOKIE)
+        .expect("set-cookie")
+        .to_str()
+        .expect("set-cookie text")
+        .split(';')
+        .next()
+        .expect("cookie pair")
+        .to_owned()
 }
 
 fn item_with_image(item_id: Uuid, image_id: Uuid, object_key: String) -> AutographItem {

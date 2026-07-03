@@ -193,6 +193,13 @@ Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
 
 The VM pulls images built by GitHub Actions. The VM does not build application code or generate catalog content during deploy.
 
+Deploys intentionally ship code, infrastructure configuration, Caddy wiring,
+quadlet shape, and runtime secrets only. They do not generate or export catalog
+content from GitHub-hosted runners. Catalog reads, private original access,
+derivative generation, candidate validation, and static release promotion remain
+inside the OCI/runtime boundary through the Rust controller and shared static
+volume.
+
 The retired Next.js source tree has been removed from the active repository. Public behavior now lives in `controller/static-public/` and the Rust publisher/controller code.
 
 ### Static Preview
@@ -219,6 +226,27 @@ The mandatory Phase 5 live static publish smoke from [static-runtime-runbook.md]
 
 The public Caddy route serves the same generated static release. `/api/catalog/*` and `/api/operator/*` are no longer part of the public runtime contract.
 
+### Cache Headers
+
+Caddy now sets explicit origin cache headers for the deployed static runtime:
+
+- `/admin`, `/admin/*`, and `/admin/api/*`: `Cache-Control: no-store`.
+- Generated public media under `/media/*`:
+  `Cache-Control: public, max-age=86400`.
+- Public assets such as `/assets/*`, `/favicon.ico`, `/icon.png`, and the architecture SVG:
+  `Cache-Control: public, max-age=3600`.
+- Public documents/data such as `/`, `/collection/*`, `/items/*`,
+  `/architecture/*`, `/data/*`, `/manifest.json`, `index.html`, and `404.html`:
+  `Cache-Control: public, max-age=60, must-revalidate`.
+
+The media lifetime is intentionally longer than HTML/JSON because images are
+large and generated derivative URLs include a 16-hex content fingerprint, for
+example `/media/<item-slug>/<image-slug>-detail-<fingerprint>.webp`. Replacement,
+rollback, and publish repair generate or restore the derivative filename that
+matches the WebP bytes instead of reusing a stale public path. Keep CDN purge
+access available for emergency takedown, accidental public exposure, or CDN
+incident response, but routine image replacement should not need a purge.
+
 The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because controller publishing, image processing, and tools/smoke scripts can briefly exceed the VM's physical memory.
 
 The role also installs `python3-oci-cli` from the Oracle Linux 10 Development Packages repo for operator diagnostics. The application does not depend on the OCI CLI, but keeping it on the VM lets an operator verify instance-principal Object Storage access independently from the Rust controller, including emergency listing or deletion of orphaned private media objects.
@@ -228,6 +256,58 @@ The role also installs `python3-oci-cli` from the Oracle Linux 10 Development Pa
 Terraform no longer embeds the runtime bootstrap state in cloud-init. If a clean VM is needed, manually run the deploy workflow with `recreate_runtime_instance=true`. The workflow taints `module.compute.oci_core_instance.runtime[0]` before `terraform apply`, forcing OCI to recreate the runtime VM and then letting Ansible converge the full production state onto the replacement instance.
 
 Image cleanup runs separately through `.github/workflows/image-cleanup.yml` on a weekly schedule and by manual dispatch. One job prunes old VM-local controller images while keeping the active controller image from `${DEPLOY_PATH}/env/app.env`, `latest`, `GHCR_CLEANUP_PROTECTED_TAGS`, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` matching images per repository. Another job prunes old GHCR controller package versions while keeping `latest`, protected tags, the newest `GHCR_CLEANUP_RETAIN_TAGGED` versions, and versions newer than `GHCR_CLEANUP_MIN_AGE_DAYS`. Use the manual `dry_run=true` input to preview deletions.
+
+### Post-Phase 6 Runtime Cleanup Checklist
+
+Use this checklist after deploying Phase 6 optimization changes. These are
+operator-run checks; the repository closeout only validates code and playbook
+shape.
+
+1. Preview VM-local image cleanup before deleting anything:
+
+   ```bash
+   ANSIBLE_LOCAL_TEMP=/tmp/ansible-local \
+   ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote \
+   ANSIBLE_CONFIG=deploy/ansible/ansible.cfg \
+   ansible-playbook -i deploy/ansible/inventory/ci.ini \
+     deploy/ansible/playbooks/system-cleanup.yml \
+     --extra-vars autographs_system_cleanup_dry_run=true
+   ```
+
+2. Confirm the active controller image in `${DEPLOY_PATH}/env/app.env` is not in
+   the removal set, then rerun without dry-run only if the preview is correct.
+3. Confirm retired service absence on the VM:
+
+   ```bash
+   sudo systemctl status autographs-app.service || true
+   sudo podman ps --all --filter name=autographs-app
+   ```
+
+   The service/container should be absent or inactive; do not recreate the
+   retired Next.js runtime.
+4. Verify static release retention from the controller publish status and VM
+   filesystem:
+
+   ```bash
+   curl --fail --silent "https://${AUTOGRAPHS_DOMAIN}/admin/api/health"
+   sudo find /var/lib/autographs/static/releases -maxdepth 1 -mindepth 1 -type d | wc -l
+   sudo find /var/lib/autographs/static/failed -maxdepth 1 -mindepth 1 -type d | wc -l
+   ```
+
+   The expected defaults are five promoted releases and one failed candidate
+   unless the Ansible-rendered retention variables were intentionally changed.
+5. Verify Caddy route shape and cache headers:
+
+   ```bash
+   curl -I "https://${AUTOGRAPHS_DOMAIN}/media/<item-slug>/<image-slug>-detail-<fingerprint>.webp"
+   curl -I "https://${AUTOGRAPHS_DOMAIN}/data/collection.json"
+   curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/"
+   test "$(curl --silent --output /dev/null --write-out '%{http_code}' "https://${AUTOGRAPHS_DOMAIN}/api/operator/catalog")" = "404"
+   ```
+
+   Public media/assets should be cacheable, HTML/JSON should be short-lived,
+   admin routes should be `no-store`, and retired operator paths should remain
+   unavailable.
 
 ## Manual Smoke Path
 

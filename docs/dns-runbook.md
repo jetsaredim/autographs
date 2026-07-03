@@ -52,6 +52,57 @@ requires all of the following before the deploy runs:
 OCI NSG and VM firewall rules are already managed for ports 80 and 443 by the
 committed Terraform and bootstrap scripts.
 
+## Cloudflare/CDN Decision
+
+Phase 6 reviewed Cloudflare as an optional CDN front door and deferred enabling
+it for v1 operations. The current direct Porkbun `A` record keeps the low-cost
+OCI/Caddy path simple while the site is small, and the origin now sends explicit
+cache headers for public static output. Cloudflare remains a good future option
+when the operator wants edge analytics, WAF controls, or broader geographic
+cache reach.
+
+Cloudflare enablement checklist:
+
+1. Move DNS for `autographs.jetsaredim.net` behind a proxied Cloudflare record.
+2. Use Cloudflare SSL/TLS Full (strict) so Cloudflare validates the Caddy origin
+   certificate; Cloudflare documents that Full (strict) requires an unexpired
+   origin certificate whose hostname matches the request.
+3. Add Cache Rules only for anonymous public paths. Cloudflare Cache Rules can
+   control eligibility and TTL, and Cloudflare documents bypassing cache when a
+   request cookie matches a rule.
+4. Bypass caching for `/admin`, `/admin/*`, `/admin/api/*`, and any request with
+   the admin session cookie. Admin shell/API responses must remain origin-only
+   and `Cache-Control: no-store`.
+5. Keep HTML, JSON, and `manifest.json` short-lived or origin-controlled so a
+   rollback to a previous static release is visible quickly.
+6. Cache `/media/*` at the edge with the origin's one-day TTL to reduce image
+   traffic against the OCI VM. Generated derivative URLs include a 16-hex
+   content fingerprint, for example
+   `/media/<item-slug>/<image-slug>-detail-<fingerprint>.webp`, so replacement
+   and rollback publish paths matching the derivative bytes instead of reusing
+   the same public URL for different content.
+7. Document purge access before turning on proxying. Cloudflare single-file
+   purge removes a cached URL from the CDN and the next request re-fetches it
+   from origin; reserve purge for emergency takedown, accidental public
+   exposure, or CDN incident response and use exact UTF-8 URLs for single-file
+   purge.
+
+Rollback if Cloudflare causes stale public content or admin issues:
+
+1. Set the Cloudflare DNS record to DNS-only, or move the hostname back to the
+   direct Porkbun `A` record.
+2. Purge the affected public URLs or the hostname cache before/after the DNS
+   change.
+3. Verify origin behavior directly with `curl --resolve` against the runtime VM
+   IP and then through public DNS.
+
+References checked during this decision:
+
+- <https://developers.cloudflare.com/cache/how-to/cache-rules/>
+- <https://developers.cloudflare.com/cache/how-to/cache-rules/examples/bypass-cache-on-cookie/>
+- <https://developers.cloudflare.com/cache/how-to/purge-cache/purge-by-single-file/>
+- <https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/full-strict/>
+
 ## Verification
 
 After Porkbun is updated and the deploy workflow has completed, verify DNS,
