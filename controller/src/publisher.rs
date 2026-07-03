@@ -16,7 +16,8 @@ use crate::{
     contracts::{
         FacetId, ImageVariantName, PUBLIC_SCHEMA_VERSION, PublicCatalog, PublicDetailField,
         PublicDetailGroup, PublicFacetGroup, PublicFacetOption, PublicFacets, PublicGalleryItem,
-        PublicImage, PublicImageVariant, PublicItemDetail, PublishManifest, PublishManifestEntry,
+        PublicImage, PublicImageVariant, PublicImageVariantParams, PublicItemDetail,
+        PublishManifest, PublishManifestEntry,
     },
     derivatives::{DerivativeVariant, generate_derivative},
     media::PrivateMediaStore,
@@ -267,37 +268,34 @@ fn to_public_detail(item: &FixtureItem) -> PublicItemDetail {
 }
 
 fn to_public_image(item: &FixtureItem, image: &FixtureImage) -> PublicImage {
+    let thumbnail_fingerprint =
+        fixture_derivative_fingerprint(&item.slug, &image.public_slug, ImageVariantName::Thumbnail);
+    let detail_fingerprint =
+        fixture_derivative_fingerprint(&item.slug, &image.public_slug, ImageVariantName::Detail);
+
     PublicImage {
         alt_text: format!("{} signed by {}", item.title, item.signer),
         variants: vec![
-            PublicImageVariant::new(
-                &item.slug,
-                &image.public_slug,
-                ImageVariantName::Thumbnail,
-                &fixture_derivative_fingerprint(
-                    &item.slug,
-                    &image.public_slug,
-                    ImageVariantName::Thumbnail,
-                ),
-                "webp",
-                480,
-                640,
-                "image/webp",
-            ),
-            PublicImageVariant::new(
-                &item.slug,
-                &image.public_slug,
-                ImageVariantName::Detail,
-                &fixture_derivative_fingerprint(
-                    &item.slug,
-                    &image.public_slug,
-                    ImageVariantName::Detail,
-                ),
-                "webp",
-                1200,
-                1600,
-                "image/webp",
-            ),
+            PublicImageVariant::new(PublicImageVariantParams {
+                item_slug: &item.slug,
+                image_slug: &image.public_slug,
+                name: ImageVariantName::Thumbnail,
+                fingerprint: &thumbnail_fingerprint,
+                extension: "webp",
+                width: 480,
+                height: 640,
+                content_type: "image/webp",
+            }),
+            PublicImageVariant::new(PublicImageVariantParams {
+                item_slug: &item.slug,
+                image_slug: &image.public_slug,
+                name: ImageVariantName::Detail,
+                fingerprint: &detail_fingerprint,
+                extension: "webp",
+                width: 1200,
+                height: 1600,
+                content_type: "image/webp",
+            }),
         ],
     }
 }
