@@ -32,6 +32,7 @@ mod live {
 
         let controller = required("AUTOGRAPHS_CONTROLLER_BASE_URL");
         let preview = required("AUTOGRAPHS_STATIC_PREVIEW_BASE_URL");
+        let public_origin = public_origin();
         let admin_password = required("AUTOGRAPHS_ADMIN_PASSWORD");
         let admin_cookie = login_cookie(&controller, &admin_password);
         let _static_release_root = required("AUTOGRAPHS_STATIC_RELEASE_ROOT");
@@ -72,6 +73,7 @@ mod live {
         let created: Value = json_request(
             "POST",
             &format!("{controller}/admin/api/items"),
+            &public_origin,
             &admin_cookie,
             Some(&create_body),
         );
@@ -84,6 +86,7 @@ mod live {
             storage_namespace: storage_namespace.clone(),
             bucket_name: bucket_name.clone(),
             controller: controller.clone(),
+            public_origin: public_origin.clone(),
             admin_cookie: admin_cookie.clone(),
             published: false,
         };
@@ -98,7 +101,7 @@ mod live {
                 "--header".to_owned(),
                 format!("Cookie: {admin_cookie}"),
                 "--header".to_owned(),
-                "Origin: https://autographs.jetsaredim.net".to_owned(),
+                format!("Origin: {public_origin}"),
                 "--form".to_owned(),
                 format!("image=@{};type=image/png", upload.path().display()),
                 "--form".to_owned(),
@@ -127,6 +130,7 @@ mod live {
         let publication = json_request(
             "POST",
             &format!("{controller}/admin/api/items/{item_id}/publication"),
+            &public_origin,
             &admin_cookie,
             Some(r#"{"publicationStatus":"published"}"#),
         );
@@ -145,6 +149,7 @@ mod live {
         let published = json_request(
             "POST",
             &format!("{controller}/admin/api/publish/full"),
+            &public_origin,
             &admin_cookie,
             None,
         );
@@ -245,12 +250,14 @@ mod live {
         json_request(
             "POST",
             &format!("{controller}/admin/api/items/{item_id}/publication"),
+            &public_origin,
             &admin_cookie,
             Some(r#"{"publicationStatus":"draft"}"#),
         );
         let unpublished = json_request(
             "POST",
             &format!("{controller}/admin/api/publish/incremental"),
+            &public_origin,
             &admin_cookie,
             None,
         );
@@ -276,6 +283,7 @@ mod live {
         storage_namespace: String,
         bucket_name: String,
         controller: String,
+        public_origin: String,
         admin_cookie: String,
         published: bool,
     }
@@ -293,6 +301,7 @@ mod live {
                         "{}/admin/api/items/{}/publication",
                         self.controller, self.item_id
                     ),
+                    &self.public_origin,
                     &self.admin_cookie,
                     Some(r#"{"publicationStatus":"draft"}"#),
                 )
@@ -301,6 +310,7 @@ mod live {
                     best_effort_json_request(
                         "POST",
                         &format!("{}/admin/api/publish/incremental", self.controller),
+                        &self.public_origin,
                         &self.admin_cookie,
                         None,
                     )
@@ -412,14 +422,21 @@ mod live {
         Err(last_error.unwrap_or_else(|| format!("delete OCI object failed: {object_key}")))
     }
 
-    fn json_request(method: &str, url: &str, cookie: &str, body: Option<&str>) -> Value {
-        let args = json_request_args(method, url, cookie, body);
+    fn json_request(
+        method: &str,
+        url: &str,
+        origin: &str,
+        cookie: &str,
+        body: Option<&str>,
+    ) -> Value {
+        let args = json_request_args(method, url, origin, cookie, body);
         curl_json(args, &format!("{method} {url}"))
     }
 
     fn best_effort_json_request(
         method: &str,
         url: &str,
+        origin: &str,
         cookie: &str,
         body: Option<&str>,
     ) -> Option<Value> {
@@ -433,7 +450,7 @@ mod live {
                 "--max-time",
                 "60",
             ])
-            .args(json_request_args(method, url, cookie, body))
+            .args(json_request_args(method, url, origin, cookie, body))
             .output()
             .ok()?;
         if !output.status.success() {
@@ -442,14 +459,20 @@ mod live {
         serde_json::from_slice(&output.stdout).ok()
     }
 
-    fn json_request_args(method: &str, url: &str, cookie: &str, body: Option<&str>) -> Vec<String> {
+    fn json_request_args(
+        method: &str,
+        url: &str,
+        origin: &str,
+        cookie: &str,
+        body: Option<&str>,
+    ) -> Vec<String> {
         let mut args = vec![
             "--request".to_owned(),
             method.to_owned(),
             "--header".to_owned(),
             format!("Cookie: {cookie}"),
             "--header".to_owned(),
-            "Origin: https://autographs.jetsaredim.net".to_owned(),
+            format!("Origin: {origin}"),
         ];
         if let Some(body) = body {
             args.extend([
@@ -461,6 +484,22 @@ mod live {
         }
         args.push(url.to_owned());
         args
+    }
+
+    fn public_origin() -> String {
+        env::var("AUTOGRAPHS_PUBLIC_ORIGIN")
+            .ok()
+            .map(|origin| origin.trim_end_matches('/').to_owned())
+            .filter(|origin| !origin.is_empty())
+            .unwrap_or_else(|| {
+                let domain = required("AUTOGRAPHS_DOMAIN");
+                let domain = domain.trim_end_matches('/');
+                if domain.starts_with("http://") || domain.starts_with("https://") {
+                    domain.to_owned()
+                } else {
+                    format!("https://{domain}")
+                }
+            })
     }
 
     fn login_cookie(controller: &str, password: &str) -> String {
