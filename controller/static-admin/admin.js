@@ -943,24 +943,33 @@ async function bootstrapSession() {
 elements.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   elements.loginMessage.textContent = "";
+  const form = event.currentTarget;
   try {
     await jsonRequest(endpoints.login, "POST", {
-      password: event.currentTarget.elements.password.value,
+      password: form.elements.password.value,
     });
-    const next = nextDestination();
-    event.currentTarget.reset();
-    if (window.location.pathname === adminRootPath && next === adminRootPath) {
-      showWorkflow();
-      await renderHub();
+  } catch (error) {
+    if (error.status === 401) {
+      window.location.replace(publicHomePath);
       return;
     }
+    elements.loginMessage.textContent = error.status === 429 ? copy.lockout : "Login failed.";
+    return;
+  }
+
+  const next = nextDestination();
+  form.reset();
+  if (window.location.pathname === adminRootPath && next === adminRootPath) {
+    showWorkflow();
+    await renderHub();
+    return;
+  }
+
+  try {
     window.location.replace(next);
   } catch (error) {
-    if (error.status === 401 || error.status === 429) {
-      window.location.replace(publicHomePath);
-    } else {
-      elements.loginMessage.textContent = error.status === 429 ? copy.lockout : "Login failed.";
-    }
+    showWorkflow();
+    elements.globalMessage.textContent = `Logged in, but navigation failed: ${error.message}`;
   }
 });
 
