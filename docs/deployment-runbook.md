@@ -302,7 +302,7 @@ shape.
    curl -I "https://${AUTOGRAPHS_DOMAIN}/media/<item-slug>/<image-slug>-detail-<fingerprint>.webp"
    curl -I "https://${AUTOGRAPHS_DOMAIN}/data/collection.json"
    curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/"
-   curl --fail --silent "https://${AUTOGRAPHS_DOMAIN}/api/operator/catalog"
+   test "$(curl --silent --output /dev/null --write-out '%{http_code}' "https://${AUTOGRAPHS_DOMAIN}/api/operator/catalog")" = "404"
    ```
 
    Public media/assets should be cacheable, HTML/JSON should be short-lived,
