@@ -198,8 +198,10 @@ mod live {
             .clone();
         assert!(thumbnail_path.contains("-thumbnail-"));
         assert!(detail_path.contains("-detail-"));
-        let thumbnail = fetch_bytes(&format!("{preview}{thumbnail_path}"));
-        let detail = fetch_bytes(&format!("{preview}{detail_path}"));
+        let thumbnail_url = format!("{preview}{thumbnail_path}");
+        let detail_url = format!("{preview}{detail_path}");
+        let thumbnail = fetch_bytes(&thumbnail_url);
+        let detail = fetch_bytes(&detail_url);
 
         assert_eq!(public_item.slug, slug);
         assert_eq!(image::guess_format(&thumbnail).unwrap(), ImageFormat::WebP);
