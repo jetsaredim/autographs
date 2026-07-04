@@ -252,6 +252,8 @@ fn static_admin_bootstraps_existing_sessions_without_expired_copy() {
         "window.location.replace(loginRedirectUrl());",
         "window.location.replace(nextDestination());",
         "window.location.replace(publicHomePath);",
+        "elements.loginMessage.textContent = error.status === 429 ? copy.lockout : \"Login failed.\";",
+        "const form = event.currentTarget;",
         "showWorkflow();",
         "showLogin();",
         "bootstrapSession();",
