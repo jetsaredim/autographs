@@ -14,3 +14,4 @@ pub mod oracle_schema;
 pub mod publisher;
 pub mod routes;
 pub mod storage_keys;
+pub mod taxonomy_migration;

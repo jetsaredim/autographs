@@ -1,0 +1,87 @@
+{
+  "values": {
+    "Comic Book": {
+      "targetField": "format",
+      "targetValue": "Comic Book"
+    },
+    "Disney": {
+      "targetField": "franchise",
+      "targetValue": "Disney"
+    },
+    "Force Attax": {
+      "targetField": "productLine",
+      "targetValue": "Force Attax"
+    },
+    "Japanese": {
+      "targetField": "language",
+      "targetValue": "Japanese"
+    },
+    "Lorcana": {
+      "targetField": "productLine",
+      "targetValue": "Lorcana"
+    },
+    "Magic: The Gathering": {
+      "targetField": "productLine",
+      "targetValue": "Magic: The Gathering"
+    },
+    "Monty Python": {
+      "targetField": "franchise",
+      "targetValue": "Monty Python"
+    },
+    "Star Trek": {
+      "targetField": "franchise",
+      "targetValue": "Star Trek"
+    },
+    "Star Wars": {
+      "targetField": "franchise",
+      "targetValue": "Star Wars"
+    },
+    "Star Wars CCG": {
+      "targetField": "productLine",
+      "targetValue": "Star Wars CCG"
+    },
+    "Tr": {
+      "targetField": "format",
+      "targetValue": "Trading Card"
+    },
+    "Tra": {
+      "targetField": "format",
+      "targetValue": "Trading Card"
+    },
+    "Trading Card": {
+      "targetField": "format",
+      "targetValue": "Trading Card"
+    },
+    "Young Jedi": {
+      "targetField": "productLine",
+      "targetValue": "Young Jedi"
+    },
+    "actor": {
+      "targetField": "role",
+      "targetValue": "actor"
+    },
+    "artist": {
+      "targetField": "role",
+      "targetValue": "artist"
+    },
+    "author": {
+      "targetField": "role",
+      "targetValue": "author"
+    },
+    "custom": {
+      "targetField": "origin",
+      "targetValue": "Custom"
+    },
+    "game designer": {
+      "targetField": "role",
+      "targetValue": "game designer"
+    },
+    "voice actor": {
+      "targetField": "role",
+      "targetValue": "voice actor"
+    }
+  },
+  "reportOnlyValues": {
+    "possible duplicate physical item": "Likely duplicate physical item; review manually before merging records."
+  }
+}
