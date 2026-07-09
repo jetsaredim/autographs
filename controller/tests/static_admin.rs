@@ -49,15 +49,15 @@ fn static_admin_source_references_collection_workflow_contract() {
         "Redacted diagnostics",
         "Filters",
         "Identity",
-        "Story",
-        "Provenance",
+        "Classification",
+        "Details",
         "Publication",
         "Publish changes",
         "Full rebuild",
         "No history recorded yet",
         "No saved items yet",
         "Start with the backlog: add an autograph item, upload its images, save it privately, then publish when the batch is ready.",
-        "Run a full rebuild only for repair or structural changes. Continue?",
+        "Run a full rebuild after schema or taxonomy migration changes. Continue?",
         "Remove image: Remove this image from the item and queue cleanup of the private original? This cannot be undone from the admin UI.",
     ] {
         assert!(
