@@ -9,6 +9,7 @@ use autographs_controller::{
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
         ImageReplacementInput, ItemOrigin, MemoryCatalogRepository, PublicationStatus,
+        SignerCreditInput,
     },
     config::ControllerConfig,
     contracts::{ImageVariantName, PublicCatalog, PublicItemDetail, PublishManifest},
@@ -159,7 +160,9 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     let selected = catalog
         .items
         .iter()
-        .filter(|item| item.category == "Cards" && item.tags.contains(&"jedi".to_owned()))
+        .filter(|item| {
+            item.format == "Trading Card" && item.tags.contains(&"jedi".to_owned())
+        })
         .collect::<Vec<_>>();
     assert_eq!(selected.len(), 1);
     let script = fs::read_to_string(current.join("assets/browse.js")).unwrap();
@@ -225,6 +228,165 @@ async fn publisher_generates_candidate_release_and_derivatives() {
             "{label} contains unresolved template token"
         );
     }
+}
+
+#[tokio::test]
+async fn publisher_generates_phase7_signer_taxonomy_facets_and_detail_links() {
+    let root = tempdir().unwrap();
+    let media_root = tempdir().unwrap();
+    let repository = MemoryCatalogRepository::default();
+    let media = LocalMediaStore::new(media_root.path());
+
+    repository
+        .create(AutographItemInput {
+            title: "Two Signer Card".to_owned(),
+            signer: "Legacy Two".to_owned(),
+            description: Some("A two-signer item.".to_owned()),
+            category: "Cards".to_owned(),
+            tags: vec!["animated".to_owned()],
+            signer_credits: vec![
+                SignerCreditInput {
+                    display_name: Some("Ashley Eckstein".to_owned()),
+                    default_role: Some("Actor".to_owned()),
+                    item_role: Some("Voice actor".to_owned()),
+                    item_context: Some("Ahsoka Tano".to_owned()),
+                    wikipedia_url: Some("https://en.wikipedia.org/wiki/Ashley_Eckstein".to_owned()),
+                    imdb_url: None,
+                    ..Default::default()
+                },
+                SignerCreditInput {
+                    display_name: Some("Dave Filoni".to_owned()),
+                    default_role: Some("Producer".to_owned()),
+                    item_role: Some("Creator".to_owned()),
+                    item_context: Some("The Clone Wars".to_owned()),
+                    wikipedia_url: None,
+                    imdb_url: Some("https://www.imdb.com/name/nm1396048/".to_owned()),
+                    ..Default::default()
+                },
+            ],
+            characters: vec!["Ahsoka Tano".to_owned()],
+            format: "Trading Card".to_owned(),
+            origin: ItemOrigin::Official,
+            franchises: vec!["Star Wars".to_owned()],
+            product_line: Some("Clone Wars".to_owned()),
+            set_name: Some("Season One".to_owned()),
+            language: "English".to_owned(),
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+    repository
+        .create(AutographItemInput {
+            title: "Three Signer Custom".to_owned(),
+            signer: "Legacy Three".to_owned(),
+            description: Some("A three-signer custom item.".to_owned()),
+            category: "Comics".to_owned(),
+            tags: vec!["convention".to_owned()],
+            signer_credits: vec![
+                SignerCreditInput {
+                    display_name: Some("Alpha Artist".to_owned()),
+                    item_role: Some("Artist".to_owned()),
+                    ..Default::default()
+                },
+                SignerCreditInput {
+                    display_name: Some("Beta Writer".to_owned()),
+                    item_role: Some("Writer".to_owned()),
+                    ..Default::default()
+                },
+                SignerCreditInput {
+                    display_name: Some("Gamma Editor".to_owned()),
+                    item_role: Some("Editor".to_owned()),
+                    ..Default::default()
+                },
+            ],
+            characters: vec!["Original Hero".to_owned()],
+            format: "Comic Book".to_owned(),
+            origin: ItemOrigin::Custom,
+            franchises: vec!["Originals".to_owned()],
+            product_line: None,
+            set_name: Some("Custom".to_owned()),
+            language: "Japanese".to_owned(),
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Published,
+        })
+        .await
+        .unwrap();
+
+    LocalPublisher::new(root.path())
+        .publish(&repository, &media, PublishMode::Full)
+        .await
+        .unwrap();
+    let current = root.path().join("current");
+
+    let catalog: PublicCatalog = read_json(&current.join("data/collection.json"));
+    let two = catalog
+        .items
+        .iter()
+        .find(|item| item.slug == "two-signer-card")
+        .unwrap();
+    let three = catalog
+        .items
+        .iter()
+        .find(|item| item.slug == "three-signer-custom")
+        .unwrap();
+    assert_eq!(two.signer_text, "Ashley Eckstein + Dave Filoni");
+    assert_eq!(three.signer_text, "Alpha Artist, Beta Writer + 1 more");
+
+    let facets: Value = read_json(&current.join("data/facets.json"));
+    let facet_ids = facets["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|group| group["id"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    for expected in [
+        "signer",
+        "franchise",
+        "productLine",
+        "format",
+        "language",
+        "origin",
+        "role",
+        "tag",
+    ] {
+        assert!(facet_ids.contains(&expected), "missing facet {expected}");
+    }
+    assert!(!facet_ids.contains(&"category"));
+
+    let collection_json = fs::read_to_string(current.join("data/collection.json")).unwrap();
+    assert!(!collection_json.contains("wikipedia.org"));
+    assert!(!collection_json.contains("imdb.com"));
+
+    let two_html = fs::read_to_string(current.join("items/two-signer-card/index.html")).unwrap();
+    assert!(two_html.contains(r#"class="profile-link profile-link-wikipedia""#));
+    assert!(two_html.contains(r#"class="profile-link profile-link-imdb""#));
+    assert!(two_html.contains(r#"aria-label="Open Wikipedia profile for Ashley Eckstein""#));
+    assert!(two_html.contains(r#"aria-label="Open IMDb profile for Dave Filoni""#));
+    assert!(two_html.contains(r#"rel="noopener noreferrer""#));
+    assert!(!two_html.contains("https://en.wikipedia.org/wiki/Ashley_Eckstein</"));
+    assert!(!two_html.contains("https://www.imdb.com/name/nm1396048/</"));
+    assert!(!two_html.contains("Language</dt><dd>English"));
+    assert!(!two_html.contains("Origin</dt><dd>Official"));
+
+    let three_html =
+        fs::read_to_string(current.join("items/three-signer-custom/index.html")).unwrap();
+    assert!(three_html.contains("Language</dt><dd>Japanese"));
+    assert!(three_html.contains("Origin</dt><dd>Custom"));
 }
 
 #[tokio::test]
