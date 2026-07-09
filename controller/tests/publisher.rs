@@ -160,9 +160,7 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     let selected = catalog
         .items
         .iter()
-        .filter(|item| {
-            item.format == "Trading Card" && item.tags.contains(&"jedi".to_owned())
-        })
+        .filter(|item| item.format == "Trading Card" && item.tags.contains(&"jedi".to_owned()))
         .collect::<Vec<_>>();
     assert_eq!(selected.len(), 1);
     let script = fs::read_to_string(current.join("assets/browse.js")).unwrap();

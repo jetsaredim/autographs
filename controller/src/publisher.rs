@@ -873,10 +873,28 @@ fn derivative_fingerprint_from_path(
 
 fn public_detail_groups(item: &AutographItem) -> Vec<PublicDetailGroup> {
     let mut groups = vec![PublicDetailGroup {
-        label: "Essentials".to_owned(),
+        label: "Details".to_owned(),
         fields: compact_detail_fields(vec![
-            ("Signer", Some(item.signer.clone())),
-            ("Category", Some(item.category.clone())),
+            ("Format", Some(item.format.clone())),
+            (
+                "Language",
+                (item.language != "English").then(|| item.language.clone()),
+            ),
+            (
+                "Origin",
+                (item.origin != crate::catalog::ItemOrigin::Official)
+                    .then(|| format!("{:?}", item.origin)),
+            ),
+            (
+                "Characters",
+                (!item.characters.is_empty()).then(|| item.characters.join(", ")),
+            ),
+            (
+                "Franchise",
+                (!item.franchises.is_empty()).then(|| item.franchises.join(", ")),
+            ),
+            ("Product Line", item.product_line.clone()),
+            ("Set", item.set_name.clone()),
             (
                 "Estimated year",
                 item.estimated_year.as_ref().map(|year| year.to_string()),
@@ -1816,27 +1834,97 @@ fn detail_facts(item: &PublicItemDetail) -> String {
 }
 
 fn detail_groups(item: &PublicItemDetail) -> String {
-    item.detail_groups
+    let mut rendered = signer_detail_group(item);
+    rendered.push_str(
+        &item
+            .detail_groups
+            .iter()
+            .map(|group| {
+                let fields = group
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        format!(
+                            "<div><dt>{}</dt><dd>{}</dd></div>",
+                            escape_html(&field.label),
+                            escape_html(&field.value)
+                        )
+                    })
+                    .collect::<String>();
+                format!(
+                    "<section class=\"metadata-group\"><h2>{}</h2><dl>{}</dl></section>",
+                    escape_html(&group.label),
+                    fields
+                )
+            })
+            .collect::<String>(),
+    );
+    rendered
+}
+
+fn signer_detail_group(item: &PublicItemDetail) -> String {
+    if item.signers.is_empty() {
+        return String::new();
+    }
+    let rows = item
+        .signers
         .iter()
-        .map(|group| {
-            let fields = group
-                .fields
-                .iter()
-                .map(|field| {
-                    format!(
-                        "<div><dt>{}</dt><dd>{}</dd></div>",
-                        escape_html(&field.label),
-                        escape_html(&field.value)
-                    )
-                })
-                .collect::<String>();
-            format!(
-                "<section class=\"metadata-group\"><h2>{}</h2><dl>{}</dl></section>",
-                escape_html(&group.label),
-                fields
-            )
+        .map(|signer| {
+            let mut name = format!(
+                "<span class=\"signer-name\">{}</span>",
+                escape_html(&signer.display_name)
+            );
+            let links = signer_profile_links(signer);
+            if !links.is_empty() {
+                name.push_str(&format!("<span class=\"profile-links\">{links}</span>"));
+            }
+            let role_context = [signer.role.as_deref(), signer.context.as_deref()]
+                .into_iter()
+                .flatten()
+                .filter(|value| !value.trim().is_empty())
+                .map(escape_html)
+                .collect::<Vec<_>>()
+                .join(" - ");
+            let meta = if role_context.is_empty() {
+                String::new()
+            } else {
+                format!("<span class=\"signer-context\">{role_context}</span>")
+            };
+            format!("<div class=\"signer-credit-row\"><dt>{name}</dt><dd>{meta}</dd></div>")
         })
-        .collect::<String>()
+        .collect::<String>();
+    format!(
+        "<section class=\"metadata-group signer-metadata-group\"><h2>Signers</h2><dl>{rows}</dl></section>"
+    )
+}
+
+fn signer_profile_links(signer: &PublicSignerCredit) -> String {
+    let mut links = String::new();
+    if let Some(url) = signer
+        .links
+        .wikipedia
+        .as_deref()
+        .filter(|url| !url.trim().is_empty())
+    {
+        links.push_str(&format!(
+            "<a class=\"profile-link profile-link-wikipedia\" href=\"{}\" aria-label=\"Open Wikipedia profile for {}\" rel=\"noopener noreferrer\">W</a>",
+            escape_html(url),
+            escape_html(&signer.display_name)
+        ));
+    }
+    if let Some(url) = signer
+        .links
+        .imdb
+        .as_deref()
+        .filter(|url| !url.trim().is_empty())
+    {
+        links.push_str(&format!(
+            "<a class=\"profile-link profile-link-imdb\" href=\"{}\" aria-label=\"Open IMDb profile for {}\" rel=\"noopener noreferrer\">IMDb</a>",
+            escape_html(url),
+            escape_html(&signer.display_name)
+        ));
+    }
+    links
 }
 
 fn escape_html(value: &str) -> String {
