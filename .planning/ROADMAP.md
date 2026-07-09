@@ -208,7 +208,14 @@ Plans:
   6. Admin create/edit workflow remains fast for the common case, with controlled format/origin fields, repeatable signer rows, optional signer profile links, and advanced loose tags kept out of the primary path.
   7. Migration, backfill review, full static rebuild, docs, and security/privacy verification are complete before AI-assisted ingest work starts.
 
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+
+- [ ] 07-01-PLAN.md - Create the Oracle schema, domain model, memory repository, and schema preflight foundation for reusable signers and taxonomy fields.
+- [ ] 07-02-PLAN.md - Wire Oracle persistence, signer suggestions/merge repair, and repeatable taxonomy backfill review artifacts.
+- [ ] 07-03-PLAN.md - Upgrade the private admin create/edit workflow with signer rows, controlled taxonomy fields, duplicate warnings, and merge repair.
+- [ ] 07-04-PLAN.md - Publish schema version 2 static JSON, detail pages, and public browse facets from the richer metadata model.
+- [ ] 07-05-PLAN.md - Complete rollout docs, live-smoke checks, security review, codebase-map refresh, and source coverage audit.
 **UI hint**: yes
 
 ### Phase 8: AI-Assisted Ingest
