@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-07-09T14:31:01.490Z"
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-07-09T19:15:12.777Z"
 last_activity: 2026-07-09 -- Phase 07 execution started
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 39
-  completed_plans: 36
-  percent: 92
+  completed_plans: 37
+  percent: 95
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 ## Current Position
 
 Phase: 07 (Metadata Taxonomy and Public Facets) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-07-09 -- Phase 07 execution started
 
-Progress: [█████████░] 92% of planned work complete; Phase 7 is in progress
+Progress: [██████████] 95% of planned work complete; Phase 7 is in progress
 
 ## Performance Metrics
 
@@ -75,6 +75,7 @@ Progress: [█████████░] 92% of planned work complete; Phase 7
 | Phase 06 P09 | live session | 3 tasks | 11 files |
 | Phase 07 P01 | 14min | 3 tasks | 9 files |
 | Phase 07 P02 | 15min | 3 tasks | 11 files |
+| Phase 07 P03 | 35min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Oracle now writes legacy signer as compact signer text and legacy category as format while Phase 7 keeps rollback/reference fields.
 - [Phase 07]: Signer profile edits and merges record item-level metadataUpdated events for every linked item.
 - [Phase 07]: Likely duplicate physical items stay report-only in backfill output and are not auto-merged by generated PL/SQL.
+- [Phase 07]: Admin signer/taxonomy management routes use the same session-cookie-only boundary as collection management and reject bearer operator tokens.
+- [Phase 07]: Admin item summaries now prioritize signerText, signerNames, format, franchises, productLine, language, publication status, image count, pending-change state, and update time over legacy category.
+- [Phase 07]: The static admin editor keeps legacy signer/category compatibility in save payloads while making signerCredits and first-class taxonomy fields the primary editing path.
 
 ### Pending Todos
 
@@ -138,8 +142,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-09T14:31:01.480Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-07-09T19:15:12.768Z
+Stopped at: Completed 07-03-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed
