@@ -210,12 +210,23 @@ Plans:
 
 **Plans**: 5 plans
 Plans:
+**Wave 1**
 
 - [ ] 07-01-PLAN.md - Create the Oracle schema, domain model, memory repository, and schema preflight foundation for reusable signers and taxonomy fields.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 07-02-PLAN.md - Wire Oracle persistence, signer suggestions/merge repair, and repeatable taxonomy backfill review artifacts.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 07-03-PLAN.md - Upgrade the private admin create/edit workflow with signer rows, controlled taxonomy fields, duplicate warnings, and merge repair.
 - [ ] 07-04-PLAN.md - Publish schema version 2 static JSON, detail pages, and public browse facets from the richer metadata model.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 07-05-PLAN.md - Complete rollout docs, live-smoke checks, security review, codebase-map refresh, and source coverage audit.
+
 **UI hint**: yes
 
 ### Phase 8: AI-Assisted Ingest

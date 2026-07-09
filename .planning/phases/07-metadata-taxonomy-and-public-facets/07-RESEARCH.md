@@ -440,22 +440,19 @@ Report only: likely duplicate physical item records that should not be auto-merg
 | A3 | Diff labels for new taxonomy fields should be human-readable and not raw JSON. | Common Pitfalls | History may be less useful if planner omits rendering work. |
 | A4 | Public filter warning signs such as empty facet options imply schema/JS mismatch. | Common Pitfalls | Debug path may differ, but test coverage should catch contract mismatch. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Where should the temporary mapping artifact live?**
    - What we know: The mapping file should be committed temporarily and archived or summarized after live migration. [VERIFIED: 07-CONTEXT.md]
-   - What's unclear: Exact path and lifetime convention are discretionary. [VERIFIED: 07-CONTEXT.md]
-   - Recommendation: Put it under `.planning/phases/07-metadata-taxonomy-and-public-facets/` or `controller/db/updates/` depending on whether it is operator evidence or executable SQL. [ASSUMED]
+   - Resolution: Put the committed temporary mapping artifact at `.planning/phases/07-metadata-taxonomy-and-public-facets/taxonomy-backfill-mapping.json`. Keep executable/review SQL under `controller/db/updates/` as `07-02-taxonomy-backfill-review.sql` and `07-03-taxonomy-backfill-apply.sql`. This treats the JSON as phase-scoped operator evidence per D-07-18 and keeps SQL artifacts in the existing database update location. [RESOLVED: 07-02-PLAN.md]
 
 2. **How strict should signer near-duplicate detection be?**
    - What we know: It must warn without blocking deliberate creation. [VERIFIED: 07-CONTEXT.md]
-   - What's unclear: Exact algorithm is delegated to the agent. [VERIFIED: 07-CONTEXT.md]
-   - Recommendation: Start with normalized case/spacing/punctuation comparison plus substring/token similarity; avoid adding a crate unless tests show unacceptable misses. [ASSUMED]
+   - Resolution: Use deterministic no-new-crate matching: normalize by trimming, lowercasing, collapsing whitespace, and removing punctuation for exact duplicate checks; then warn on prefix, token, and substring near matches. Exact normalized duplicates are rejected where they would create duplicate signer credits on one item, while near matches only set `possible_duplicate` and keep deliberate new signer creation available per D-07-06. [RESOLVED: 07-01-PLAN.md; 07-02-PLAN.md]
 
 3. **Should signer profile merge record one event or per-item events?**
    - What we know: DATA-03 requires useful edit history and D-07-06 requires merge repair. [VERIFIED: REQUIREMENTS.md] [VERIFIED: 07-CONTEXT.md]
-   - What's unclear: Existing history is item-scoped, while signer merge is profile-scoped. [VERIFIED: codebase grep]
-   - Recommendation: Record a signer merge event plus item metadata-updated events for affected items if item credits change. [ASSUMED]
+   - Resolution: Preserve the existing item-scoped history model for Phase 7. `merge_signer_profiles` records item-level metadata events for every affected item, summarizing `Merged signer {source} into {target}`. `update_signer_profile` also records reviewable item-level metadata events for linked items when profile fields that affect displayed item metadata change, including display name, default role, Wikipedia URL, and IMDb URL. A separate profile-history surface is not added in Phase 7 because DATA-03 is item-history scoped and the admin already reviews item history. [RESOLVED: 07-02-PLAN.md]
 
 ## Environment Availability
 
