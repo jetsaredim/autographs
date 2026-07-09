@@ -311,6 +311,249 @@ async fn admin_can_list_get_update_and_read_history() {
 }
 
 #[tokio::test]
+async fn admin_signer_and_taxonomy_routes_require_session_and_return_redacted_payloads() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let typo_item = repository
+        .create(test_item_input(
+            "Typo Signed Card",
+            "Mark Hamel",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let target_item = repository
+        .create(test_item_input(
+            "Correct Signed Card",
+            "Mark Hamill",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let source_signer_id = typo_item.signer_credits[0].signer.id;
+    let target_signer_id = target_item.signer_credits[0].signer.id;
+    let media_root = tempfile::tempdir().unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+
+    for (method, uri, body) in [
+        ("GET", "/admin/api/signers?query=mark", Body::empty()),
+        (
+            "GET",
+            "/admin/api/taxonomy/suggestions",
+            Body::empty(),
+        ),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(uri)
+                    .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                    .body(body)
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    let bearer_patch = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/admin/api/signers/{target_signer_id}"))
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"defaultRole":"actor"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bearer_patch.status(), StatusCode::UNAUTHORIZED);
+
+    let bearer_merge = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/signers/merge")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "sourceSignerId": source_signer_id,
+                        "targetSignerId": target_signer_id
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bearer_merge.status(), StatusCode::UNAUTHORIZED);
+
+    let cookie = admin_cookie(&app).await;
+    let suggestions = app
+        .clone()
+        .oneshot(
+            Request::get("/admin/api/signers?query=Mark%20Hamel")
+                .header(header::COOKIE, cookie.as_str())
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(suggestions.status(), StatusCode::OK);
+    let suggestions_body = response_string(suggestions).await;
+    assert_redacted(&suggestions_body);
+    let suggestions_json: Value = serde_json::from_str(&suggestions_body).unwrap();
+    assert_eq!(suggestions_json["suggestions"][0]["profile"]["displayName"], "Mark Hamel");
+    assert_json_true(&suggestions_json["suggestions"][0]["possibleDuplicate"]);
+
+    let taxonomy = app
+        .clone()
+        .oneshot(
+            Request::get("/admin/api/taxonomy/suggestions")
+                .header(header::COOKIE, cookie.as_str())
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(taxonomy.status(), StatusCode::OK);
+    let taxonomy_body = response_string(taxonomy).await;
+    assert_redacted(&taxonomy_body);
+    let taxonomy_json: Value = serde_json::from_str(&taxonomy_body).unwrap();
+    assert!(taxonomy_json["formats"].as_array().unwrap().contains(&json!("Trading Card")));
+    assert!(taxonomy_json["languages"].as_array().unwrap().contains(&json!("English")));
+
+    let merge = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/signers/merge")
+                .header(header::COOKIE, cookie.as_str())
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "sourceSignerId": source_signer_id,
+                        "targetSignerId": target_signer_id
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(merge.status(), StatusCode::OK);
+    let merge_body = response_string(merge).await;
+    assert_redacted(&merge_body);
+    let merge_json: Value = serde_json::from_str(&merge_body).unwrap();
+    assert_eq!(merge_json["sourceSignerId"], source_signer_id.to_string());
+    assert_eq!(merge_json["targetSignerId"], target_signer_id.to_string());
+    assert_eq!(merge_json["updatedItemCount"], 1);
+}
+
+#[tokio::test]
+async fn admin_item_list_filters_and_summaries_use_taxonomy_fields() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let hamill = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Mark Hamill".to_owned()),
+                default_role: Some("actor".to_owned()),
+                ..Default::default()
+            }],
+            characters: vec!["Luke Skywalker".to_owned()],
+            franchises: vec!["Star Wars".to_owned()],
+            product_line: Some("Star Wars CCG".to_owned()),
+            set_name: Some("Premiere".to_owned()),
+            format: "Trading Card".to_owned(),
+            language: "Japanese".to_owned(),
+            tags: vec!["jedi".to_owned()],
+            ..test_item_input(
+                "Signed Jedi Card",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+    repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Carrie Fisher".to_owned()),
+                default_role: Some("actor".to_owned()),
+                ..Default::default()
+            }],
+            franchises: vec!["Star Wars".to_owned()],
+            product_line: Some("Galactic Files".to_owned()),
+            format: "Comic Book".to_owned(),
+            language: "English".to_owned(),
+            ..test_item_input(
+                "Signed Rebel Comic",
+                "Carrie Fisher",
+                "Comics",
+                Vec::new(),
+                PublicationStatus::Published,
+            )
+        })
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(false),
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/items?signer=hamill&franchise=star&productLine=ccg&format=trading&language=japanese")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_string(response).await;
+    assert_redacted(&body);
+    let json: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json.as_array().unwrap().len(), 1);
+    let summary = &json[0];
+    assert_eq!(summary["id"], hamill.id.to_string());
+    assert_eq!(summary["signerText"], "Mark Hamill");
+    assert_eq!(summary["signerNames"], json!(["Mark Hamill"]));
+    assert_eq!(summary["franchises"], json!(["Star Wars"]));
+    assert_eq!(summary["productLine"], "Star Wars CCG");
+    assert_eq!(summary["format"], "Trading Card");
+    assert_eq!(summary["language"], "Japanese");
+    assert_eq!(summary["publicationStatus"], "draft");
+    assert!(summary.get("category").is_none());
+}
+
+#[tokio::test]
 async fn save_does_not_publish() {
     let repository = Arc::new(MemoryCatalogRepository::default());
     let media_root = tempfile::tempdir().unwrap();
