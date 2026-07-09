@@ -10,36 +10,35 @@
     return;
   }
 
-  const [catalog, facets] = await Promise.all([
-    fetch("/data/collection.json").then((response) => response.json()),
-    fetch("/data/facets.json").then((response) => response.json()),
-  ]);
+  const filterIds = ["signer", "franchise", "productLine", "format", "language", "origin", "role", "tag"];
+  const primaryFilterIds = ["signer", "franchise", "productLine", "format", "language"];
+  const secondaryFilterIds = ["origin", "role", "tag"];
   const params = new URLSearchParams(window.location.search);
-  const state = {
-    signer: normalizedFilter(params.get("signer")),
-    category: normalizedFilter(params.get("category")),
-    tag: normalizedFilter(params.get("tag")),
-  };
+  const state = Object.fromEntries(filterIds.map((id) => [id, normalizedFilter(params.get(id))]));
   const selects = new Map();
+  let catalog;
+  let facets;
 
-  const filterPanelStorageKey = "collection.filters.open";
-
-  const readStoredOpenState = () => {
-    try {
-      const value = window.sessionStorage.getItem(filterPanelStorageKey);
-      return value === null ? null : value === "true";
-    } catch {
-      return null;
-    }
-  };
-
-  const writeStoredOpenState = (open) => {
-    try {
-      window.sessionStorage.setItem(filterPanelStorageKey, String(open));
-    } catch {
-      // Ignore storage failures, such as private browsing restrictions.
-    }
-  };
+  try {
+    [catalog, facets] = await Promise.all([
+      fetch("/data/collection.json").then((response) => {
+        if (!response.ok) {
+          throw new Error("collection failed");
+        }
+        return response.json();
+      }),
+      fetch("/data/facets.json").then((response) => {
+        if (!response.ok) {
+          throw new Error("facets failed");
+        }
+        return response.json();
+      }),
+    ]);
+  } catch {
+    count.textContent = "Collection unavailable";
+    root.replaceChildren(facetLoadError());
+    return;
+  }
 
   const activeFilterCount = () => Object.values(state).filter(Boolean).length;
 
@@ -66,6 +65,9 @@
     const node = document.createElement("option");
     node.value = value;
     node.textContent = label;
+    if (label) {
+      node.title = label;
+    }
     return node;
   };
   const select = (group) => {
@@ -80,11 +82,20 @@
     selects.set(group.id, node);
     return node;
   };
+  const filterGroup = (label, ids) => {
+    const section = Object.assign(document.createElement("div"), { className: "filter-group" });
+    const heading = text(document.createElement("span"), label);
+    heading.className = "filter-group-label";
+    const controls = Object.assign(document.createElement("div"), { className: "filter-controls" });
+    controls.replaceChildren(...ids.map((id) => select(facet(id))));
+    section.append(heading, controls);
+    return section;
+  };
   const syncUrl = () => {
     const next = new URLSearchParams();
-    Object.entries(state).forEach(([key, value]) => {
-      if (value) {
-        next.set(key, value);
+    filterIds.forEach((key) => {
+      if (state[key]) {
+        next.set(key, state[key]);
       }
     });
     const query = next.toString();
@@ -96,7 +107,18 @@
     syncUrl();
     render();
   };
-  const setOpen = (open, persist = false) => {
+  const clearFilters = () => {
+    filterIds.forEach((id) => {
+      state[id] = "";
+      const node = selects.get(id);
+      if (node) {
+        node.value = "all";
+      }
+    });
+    syncUrl();
+    render();
+  };
+  const setOpen = (open) => {
     panel.classList.toggle("is-collapsed", !open);
     panel.setAttribute("aria-hidden", String(!open));
     panel.inert = !open;
@@ -105,49 +127,53 @@
     toggle.setAttribute("aria-label", open ? "Close filters" : "Open filters");
     setToggleIcon(open);
     syncToggleHint();
-
-    if (persist) {
-      writeStoredOpenState(open);
-    }
   };
 
-  menu.replaceChildren(select(facet("signer")), select(facet("category")), select(facet("tag")));
+  menu.replaceChildren(
+    filterGroup("Primary facets", primaryFilterIds),
+    filterGroup("Secondary facets", secondaryFilterIds),
+  );
 
-  const storedOpenState = readStoredOpenState();
-  setOpen(storedOpenState ?? Object.values(state).some(Boolean));
+  setOpen(Object.values(state).some(Boolean));
 
   toggle.addEventListener("click", () => {
-    setOpen(panel.classList.contains("is-collapsed"), true);
+    setOpen(panel.classList.contains("is-collapsed"));
   });
   window.addEventListener("popstate", () => {
     const next = new URLSearchParams(window.location.search);
-    state.signer = normalizedFilter(next.get("signer"));
-    state.category = normalizedFilter(next.get("category"));
-    state.tag = normalizedFilter(next.get("tag"));
-    for (const [id, node] of selects) {
-      node.value = state[id] || "all";
-    }
+    filterIds.forEach((id) => {
+      state[id] = normalizedFilter(next.get(id));
+      const node = selects.get(id);
+      if (node) {
+        node.value = state[id] || "all";
+      }
+    });
     setOpen(Object.values(state).some(Boolean));
     render();
   });
 
   function render() {
-    const filtered = catalog.items.filter(
-      (item) =>
-        (!state.signer || item.signer === state.signer) &&
-        (!state.category || item.category === state.category) &&
-        (!state.tag || item.tags.includes(state.tag)),
-    );
+    const filtered = catalog.items.filter(matchesFilters);
     count.textContent =
       filtered.length === 1 ? "1 published autograph" : `${filtered.length} published autographs`;
     chips.replaceChildren(
-      ...Object.entries(state)
-        .filter(([, value]) => value)
-        .map(([id, value]) => filterChip(facet(id), value)),
+      ...filterIds
+        .filter((id) => state[id])
+        .map((id) => filterChip(facet(id), state[id])),
     );
     syncToggleHint();
-    root.replaceChildren(...(filtered.length > 0 ? filtered.map(card) : [emptyState()]));
+    root.replaceChildren(...(filtered.length > 0 ? filtered.map(card) : [emptyState(clearFilters)]));
   }
+
+  const matchesFilters = (item) =>
+    (!state.signer || values(item.signerNames).includes(state.signer)) &&
+    (!state.franchise || values(item.franchises).includes(state.franchise)) &&
+    (!state.productLine || item.productLine === state.productLine) &&
+    (!state.format || item.format === state.format) &&
+    (!state.language || item.language === state.language) &&
+    (!state.origin || item.origin === state.origin) &&
+    (!state.role || values(item.signerRoles).includes(state.role)) &&
+    (!state.tag || values(item.tags).includes(state.tag));
 
   const filterChip = (group, value) => {
     const label = (group.options.find((item) => item.value === value) || { label: value }).label;
@@ -155,6 +181,7 @@
     chip.className = "filter-chip";
     chip.type = "button";
     chip.textContent = `${group.label}: ${label}`;
+    chip.title = `${group.label}: ${label}`;
     chip.addEventListener("click", () => {
       const selectNode = selects.get(group.id);
       if (selectNode) {
@@ -166,11 +193,13 @@
   };
 
   const card = (item) => {
+    const signerText = item.signerText || values(item.signerNames).join(", ");
+    const signerNames = values(item.signerNames);
     const link = Object.assign(document.createElement("a"), {
       className: "gallery-card-link",
       href: `/items/${encodeURIComponent(item.slug)}/`,
     });
-    link.setAttribute("aria-label", `${item.title} signed by ${item.signer}`);
+    link.setAttribute("aria-label", `${item.title} signed by ${signerNames.join(", ") || signerText}`);
     const article = Object.assign(document.createElement("article"), { className: "gallery-card" });
     const media = Object.assign(document.createElement("div"), { className: "gallery-card-media" });
     media.addEventListener("contextmenu", (event) => event.preventDefault());
@@ -188,7 +217,7 @@
       media.append(text(document.createElement("span"), "No image published yet"));
     }
     const overlay = Object.assign(document.createElement("div"), { className: "gallery-card-overlay" });
-    overlay.append(text(document.createElement("span"), item.signer));
+    overlay.append(text(document.createElement("span"), signerText));
     media.append(overlay);
     article.append(media);
     link.append(article);
@@ -199,24 +228,58 @@
 })();
 
 const normalizedFilter = (value) => (value && value !== "all" ? value : "");
+const values = (value) => (Array.isArray(value) ? value : []);
 const text = (node, value) => {
   node.textContent = value;
   return node;
 };
 const variant = (item, name) =>
   item.primaryImage?.variants?.find((entry) => entry.name === name) || item.primaryImage?.variants?.[0];
-const emptyState = () => {
+const emptyState = (clearFilters) => {
   const section = Object.assign(document.createElement("section"), { className: "empty-state" });
   section.dataset.emptyState = "no-results";
   const copy = Object.assign(document.createElement("div"), { className: "empty-state-copy" });
   const title = text(document.createElement("h2"), "No autographs match those filters.");
-  const body = text(document.createElement("p"), "Clear a filter or return to the full collection.");
+  const body = text(document.createElement("p"), "Clear filters or return to the full collection.");
+  const actions = Object.assign(document.createElement("div"), { className: "empty-state-actions" });
+  const clear = Object.assign(document.createElement("button"), {
+    className: "button-secondary",
+    type: "button",
+    textContent: "Clear filters",
+  });
+  clear.addEventListener("click", clearFilters);
   const link = Object.assign(document.createElement("a"), {
     className: "button-secondary",
     href: "/collection/",
     textContent: "View collection",
   });
-  copy.append(title, body, link);
+  actions.append(clear, link);
+  copy.append(title, body, actions);
+  section.append(copy);
+  return section;
+};
+const facetLoadError = () => {
+  const section = Object.assign(document.createElement("section"), { className: "empty-state" });
+  section.dataset.emptyState = "facet-error";
+  const copy = Object.assign(document.createElement("div"), { className: "empty-state-copy" });
+  const message = text(
+    document.createElement("p"),
+    "The collection facets could not be loaded. Refresh the page or return to the full collection.",
+  );
+  const actions = Object.assign(document.createElement("div"), { className: "empty-state-actions" });
+  const refresh = Object.assign(document.createElement("button"), {
+    className: "button-secondary",
+    type: "button",
+    textContent: "Refresh",
+  });
+  refresh.addEventListener("click", () => window.location.reload());
+  const link = Object.assign(document.createElement("a"), {
+    className: "button-secondary",
+    href: "/collection/",
+    textContent: "View collection",
+  });
+  actions.append(refresh, link);
+  copy.append(message, actions);
   section.append(copy);
   return section;
 };
