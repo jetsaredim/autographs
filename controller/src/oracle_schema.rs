@@ -6,6 +6,10 @@ const SCHEMA_SQL: &str = include_str!("../db/schema.sql");
 const EXPECTED_TABLES: &[&str] = &[
     "AUTOGRAPH_ITEMS",
     "AUTOGRAPH_ITEM_TAGS",
+    "AUTOGRAPH_SIGNERS",
+    "AUTOGRAPH_ITEM_SIGNERS",
+    "AUTOGRAPH_ITEM_CHARACTERS",
+    "AUTOGRAPH_ITEM_FRANCHISES",
     "AUTOGRAPH_IMAGES",
     "AUTOGRAPH_PUBLISH_JOBS",
     "AUTOGRAPH_EDIT_EVENTS",
@@ -15,6 +19,16 @@ const EXPECTED_TABLES: &[&str] = &[
 ];
 const REQUIRED_COLUMNS: &[(&str, &str)] = &[
     ("AUTOGRAPH_ITEMS", "PUBLICATION_STATUS"),
+    ("AUTOGRAPH_ITEMS", "FORMAT"),
+    ("AUTOGRAPH_ITEMS", "ORIGIN"),
+    ("AUTOGRAPH_ITEMS", "LANGUAGE"),
+    ("AUTOGRAPH_ITEMS", "PRODUCT_LINE"),
+    ("AUTOGRAPH_ITEMS", "SET_NAME"),
+    ("AUTOGRAPH_SIGNERS", "NORMALIZED_NAME"),
+    ("AUTOGRAPH_SIGNERS", "WIKIPEDIA_URL"),
+    ("AUTOGRAPH_SIGNERS", "IMDB_URL"),
+    ("AUTOGRAPH_ITEM_SIGNERS", "ITEM_ROLE"),
+    ("AUTOGRAPH_ITEM_SIGNERS", "ITEM_CONTEXT"),
     ("AUTOGRAPH_IMAGES", "ORIGINAL_FILENAME"),
     ("AUTOGRAPH_PUBLISH_JOBS", "STATUS"),
     ("AUTOGRAPH_PUBLISH_JOBS", "SNAPSHOT_EVENT_COUNT"),
@@ -113,6 +127,10 @@ fn existing_autograph_tables(connection: &Connection) -> Result<HashSet<String>,
             "select table_name from user_tables where table_name in (
                 'AUTOGRAPH_ITEMS',
                 'AUTOGRAPH_ITEM_TAGS',
+                'AUTOGRAPH_SIGNERS',
+                'AUTOGRAPH_ITEM_SIGNERS',
+                'AUTOGRAPH_ITEM_CHARACTERS',
+                'AUTOGRAPH_ITEM_FRANCHISES',
                 'AUTOGRAPH_IMAGES',
                 'AUTOGRAPH_PUBLISH_JOBS',
                 'AUTOGRAPH_EDIT_EVENTS',
@@ -294,7 +312,10 @@ mod tests {
             "AUTOGRAPH_ITEM_CHARACTERS",
             "AUTOGRAPH_ITEM_FRANCHISES",
         ] {
-            assert!(EXPECTED_TABLES.contains(&table), "missing expected table {table}");
+            assert!(
+                EXPECTED_TABLES.contains(&table),
+                "missing expected table {table}"
+            );
         }
 
         for required_column in [
