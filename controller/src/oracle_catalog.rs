@@ -9,9 +9,18 @@ use crate::catalog::{
     AutographEditEvent, AutographImage, AutographItem, AutographItemInput, AutographItemUpdate,
     CatalogRepository, CleanupStatus, CleanupWarning, EditEventKind, FieldDiff, ImageCleanupEvent,
     ImageReplacementInput, ItemOrigin, PendingChangeSummary, PublicationStatus, PublishBoundary,
-    SignerCredit, SignerProfile, apply_update, event_kind_for_diffs, event_summary,
-    normalize_signer_name, now_epoch_seconds, validate_required_fields,
+    SignerCredit, SignerCreditInput, SignerProfile, apply_update, event_kind_for_diffs,
+    event_summary, normalize_signer_name, now_epoch_seconds, validate_required_fields,
 };
+
+const LOAD_ITEM_SQL: &str = "select
+    title, signer, description, category, object_reference,
+    event_name, event_location, source, inscription,
+    certification_company, certification_id, estimated_year,
+    publication_status, format, origin, language, product_line, set_name,
+    cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
+    cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
+from autograph_items where id = :1";
 
 const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish as (
     select id, started_at, snapshot_event_count
@@ -112,24 +121,41 @@ impl CatalogRepository for OracleCatalogRepository {
         validate_required_fields(&input.title, &input.signer, &input.category)?;
         let id = Uuid::new_v4();
         self.with_connection(move |connection| {
+            let signer_credits =
+                resolve_oracle_signer_credits(&connection, &input.signer_credits, &input.signer)?;
+            let legacy_signer = compact_signer_text(&signer_credits);
+            let legacy_category = input.format.clone();
+            let characters = normalize_string_list(input.characters);
+            let franchises = normalize_string_list(input.franchises);
+            let product_line = normalize_optional_string(input.product_line);
+            let set_name = normalize_optional_string(input.set_name);
+            if input.format.trim().is_empty() {
+                return Err("format is required".to_owned());
+            }
+            if !matches!(input.language.as_str(), "English" | "Japanese" | "Chinese") {
+                return Err("language must be English, Japanese, or Chinese".to_owned());
+            }
             let id_text = id.to_string();
             let status = publication_status_text(input.publication_status);
+            let origin = item_origin_text(input.origin);
             connection
                 .execute(
                     "insert into autograph_items (
                         id, title, signer, description, category, object_reference,
                         event_name, event_location, source, inscription,
                         certification_company, certification_id, estimated_year,
+                        format, origin, language, product_line, set_name,
                         publication_status
                     ) values (
-                        :1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12, :13, :14
+                        :1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12, :13,
+                        :14, :15, :16, :17, :18, :19
                     )",
                     &[
                         &id_text,
                         &input.title,
-                        &input.signer,
+                        &legacy_signer,
                         &input.description,
-                        &input.category,
+                        &legacy_category,
                         &input.object_reference,
                         &input.event_name,
                         &input.event_location,
@@ -138,11 +164,19 @@ impl CatalogRepository for OracleCatalogRepository {
                         &input.certification_company,
                         &input.certification_id,
                         &input.estimated_year,
+                        &input.format,
+                        &origin,
+                        &input.language,
+                        &product_line,
+                        &set_name,
                         &status,
                     ],
                 )
                 .map_err(|error| format!("insert Oracle catalog item: {error}"))?;
             replace_tags(&connection, id, &input.tags)?;
+            replace_signer_credits(&connection, id, &signer_credits)?;
+            replace_characters(&connection, id, &characters)?;
+            replace_franchises(&connection, id, &franchises)?;
             let event = AutographEditEvent::new(
                 id,
                 EditEventKind::Created,
@@ -164,13 +198,32 @@ impl CatalogRepository for OracleCatalogRepository {
         self.with_connection(move |connection| {
             let mut item = load_item(&connection, id)?
                 .ok_or_else(|| "autograph item was not found".to_owned())?;
-            let field_diffs = apply_update(&mut item, input, None);
+            let resolved_signer_credits = if let Some(signer_inputs) = input.signer_credits.as_ref()
+            {
+                Some(resolve_oracle_signer_credits(
+                    &connection,
+                    signer_inputs,
+                    &item.signer,
+                )?)
+            } else {
+                None
+            };
+            let field_diffs = apply_update(&mut item, input, resolved_signer_credits);
+            item.signer = compact_signer_text(&item.signer_credits);
+            item.category = item.format.clone();
             validate_required_fields(&item.title, &item.signer, &item.category)?;
+            if item.format.trim().is_empty() {
+                return Err("format is required".to_owned());
+            }
+            if !matches!(item.language.as_str(), "English" | "Japanese" | "Chinese") {
+                return Err("language must be English, Japanese, or Chinese".to_owned());
+            }
             if field_diffs.is_empty() {
                 return Ok(item);
             }
             let id_text = id.to_string();
             let status = publication_status_text(item.publication_status);
+            let origin = item_origin_text(item.origin);
             let statement = connection
                 .execute(
                     "update autograph_items set
@@ -178,8 +231,10 @@ impl CatalogRepository for OracleCatalogRepository {
                         object_reference = :5, event_name = :6, event_location = :7,
                         source = :8, inscription = :9, certification_company = :10,
                         certification_id = :11, estimated_year = :12,
-                        publication_status = :13, updated_at = current_timestamp
-                    where id = :14",
+                        format = :13, origin = :14, language = :15,
+                        product_line = :16, set_name = :17,
+                        publication_status = :18, updated_at = current_timestamp
+                    where id = :19",
                     &[
                         &item.title,
                         &item.signer,
@@ -193,6 +248,11 @@ impl CatalogRepository for OracleCatalogRepository {
                         &item.certification_company,
                         &item.certification_id,
                         &item.estimated_year,
+                        &item.format,
+                        &origin,
+                        &item.language,
+                        &item.product_line,
+                        &item.set_name,
                         &status,
                         &id_text,
                     ],
@@ -205,6 +265,9 @@ impl CatalogRepository for OracleCatalogRepository {
                 return Err("autograph item was not found".to_owned());
             }
             replace_tags(&connection, id, &item.tags)?;
+            replace_signer_credits(&connection, id, &item.signer_credits)?;
+            replace_characters(&connection, id, &item.characters)?;
+            replace_franchises(&connection, id, &item.franchises)?;
             let kind = event_kind_for_diffs(&field_diffs);
             let event = AutographEditEvent::new(
                 id,
@@ -671,17 +734,7 @@ impl CatalogRepository for OracleCatalogRepository {
 fn load_item(connection: &Connection, id: Uuid) -> Result<Option<AutographItem>, String> {
     let id_text = id.to_string();
     let mut rows = connection
-        .query(
-            "select
-                title, signer, description, category, object_reference,
-                event_name, event_location, source, inscription,
-                certification_company, certification_id, estimated_year,
-                publication_status,
-                cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
-                cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
-            from autograph_items where id = :1",
-            &[&id_text],
-        )
+        .query(LOAD_ITEM_SQL, &[&id_text])
         .map_err(|error| format!("read Oracle catalog item: {error}"))?;
     let Some(row) = rows.next() else {
         return Ok(None);
@@ -689,6 +742,12 @@ fn load_item(connection: &Connection, id: Uuid) -> Result<Option<AutographItem>,
     let row = row.map_err(|error| format!("read Oracle catalog item row: {error}"))?;
     let mut item = item_from_row(id, &row)?;
     item.tags = load_tags(connection, id)?;
+    item.signer_credits = load_signer_credits(connection, id)?;
+    if item.signer_credits.is_empty() {
+        item.signer_credits = legacy_signer_credits(&item.signer, item.created_at_epoch_seconds);
+    }
+    item.characters = load_characters(connection, id)?;
+    item.franchises = load_franchises(connection, id)?;
     item.images = load_images(connection, id)?;
     Ok(Some(item))
 }
@@ -696,21 +755,21 @@ fn load_item(connection: &Connection, id: Uuid) -> Result<Option<AutographItem>,
 fn item_from_row(id: Uuid, row: &Row) -> Result<AutographItem, String> {
     let signer: String = row_value(row, 1, "signer")?;
     let created_at_epoch_seconds =
-        row_value::<Option<i64>>(row, 13, "created at")?.unwrap_or_default();
+        row_value::<Option<i64>>(row, 18, "created at")?.unwrap_or_default();
     Ok(AutographItem {
         id,
         title: row_value(row, 0, "title")?,
         signer: signer.clone(),
         description: row_value(row, 2, "description")?,
         category: row_value(row, 3, "category")?,
-        signer_credits: legacy_signer_credits(&signer, created_at_epoch_seconds),
+        signer_credits: Vec::new(),
         characters: Vec::new(),
-        format: "Trading Card".to_owned(),
-        origin: ItemOrigin::Official,
+        format: row_value(row, 13, "format")?,
+        origin: parse_item_origin(&row_value::<String>(row, 14, "origin")?)?,
         franchises: Vec::new(),
-        product_line: None,
-        set_name: None,
-        language: "English".to_owned(),
+        product_line: row_value(row, 16, "product line")?,
+        set_name: row_value(row, 17, "set name")?,
+        language: row_value(row, 15, "language")?,
         object_reference: row_value(row, 4, "object reference")?,
         event_name: row_value(row, 5, "event name")?,
         event_location: row_value(row, 6, "event location")?,
@@ -727,7 +786,7 @@ fn item_from_row(id: Uuid, row: &Row) -> Result<AutographItem, String> {
         tags: Vec::new(),
         images: Vec::new(),
         created_at_epoch_seconds,
-        updated_at_epoch_seconds: row_value::<Option<i64>>(row, 14, "updated at")?
+        updated_at_epoch_seconds: row_value::<Option<i64>>(row, 19, "updated at")?
             .unwrap_or_default(),
     })
 }
@@ -750,6 +809,194 @@ fn legacy_signer_credits(signer: &str, created_at_epoch_seconds: i64) -> Vec<Sig
     }]
 }
 
+fn resolve_oracle_signer_credits(
+    connection: &Connection,
+    inputs: &[SignerCreditInput],
+    fallback_signer: &str,
+) -> Result<Vec<SignerCredit>, String> {
+    let now = now_epoch_seconds();
+    let inputs = if inputs.is_empty() {
+        vec![SignerCreditInput {
+            display_name: Some(fallback_signer.to_owned()),
+            ..Default::default()
+        }]
+    } else {
+        inputs.to_vec()
+    };
+    let mut seen = BTreeSet::new();
+    let mut credits = Vec::with_capacity(inputs.len());
+    for (index, input) in inputs.iter().enumerate() {
+        let profile = resolve_oracle_signer_profile(connection, input, now)?;
+        if !seen.insert(profile.normalized_name.clone()) {
+            return Err("duplicate signer credits are not allowed".to_owned());
+        }
+        credits.push(SignerCredit {
+            signer: profile,
+            sort_order: index as i32,
+            item_role: normalize_optional_string(input.item_role.clone()),
+            item_context: normalize_optional_string(input.item_context.clone()),
+        });
+    }
+    Ok(credits)
+}
+
+fn resolve_oracle_signer_profile(
+    connection: &Connection,
+    input: &SignerCreditInput,
+    now: i64,
+) -> Result<SignerProfile, String> {
+    if let Some(signer_id) = input.signer_id
+        && let Some(mut profile) = load_signer_profile_by_id(connection, signer_id)?
+    {
+        apply_signer_input_to_profile(&mut profile, input, now)?;
+        return upsert_signer_profile(
+            connection,
+            &SignerCredit {
+                signer: profile,
+                sort_order: 0,
+                item_role: None,
+                item_context: None,
+            },
+        );
+    }
+
+    let display_name = input
+        .display_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "signer displayName is required".to_owned())?;
+    let normalized_name = normalize_signer_name(display_name);
+    if normalized_name.is_empty() {
+        return Err("signer displayName is required".to_owned());
+    }
+    let mut profile = load_signer_profile_by_normalized_name(connection, &normalized_name)?
+        .unwrap_or_else(|| SignerProfile {
+            id: input.signer_id.unwrap_or_else(Uuid::new_v4),
+            display_name: display_name.to_owned(),
+            normalized_name,
+            default_role: None,
+            wikipedia_url: None,
+            imdb_url: None,
+            created_at_epoch_seconds: now,
+            updated_at_epoch_seconds: now,
+        });
+    apply_signer_input_to_profile(&mut profile, input, now)?;
+    upsert_signer_profile(
+        connection,
+        &SignerCredit {
+            signer: profile,
+            sort_order: 0,
+            item_role: None,
+            item_context: None,
+        },
+    )
+}
+
+fn load_signer_profile_by_id(
+    connection: &Connection,
+    signer_id: Uuid,
+) -> Result<Option<SignerProfile>, String> {
+    let signer_id = signer_id.to_string();
+    load_signer_profile_by_query(
+        connection,
+        "select
+            id, display_name, normalized_name, default_role, wikipedia_url, imdb_url,
+            cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
+            cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
+        from autograph_signers where id = :1",
+        &[&signer_id],
+        "id",
+    )
+}
+
+fn load_signer_profile_by_normalized_name(
+    connection: &Connection,
+    normalized_name: &str,
+) -> Result<Option<SignerProfile>, String> {
+    load_signer_profile_by_query(
+        connection,
+        "select
+            id, display_name, normalized_name, default_role, wikipedia_url, imdb_url,
+            cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
+            cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
+        from autograph_signers where normalized_name = :1",
+        &[&normalized_name],
+        "normalized name",
+    )
+}
+
+fn load_signer_profile_by_query(
+    connection: &Connection,
+    sql: &str,
+    params: &[&dyn oracle::sql_type::ToSql],
+    lookup: &str,
+) -> Result<Option<SignerProfile>, String> {
+    let mut rows = connection
+        .query(sql, params)
+        .map_err(|error| format!("read Oracle signer profile by {lookup}: {error}"))?;
+    let Some(row) = rows.next() else {
+        return Ok(None);
+    };
+    let row = row.map_err(|error| format!("read Oracle signer profile row: {error}"))?;
+    Ok(Some(signer_profile_from_row(&row, 0)?))
+}
+
+fn apply_signer_input_to_profile(
+    profile: &mut SignerProfile,
+    input: &SignerCreditInput,
+    now: i64,
+) -> Result<(), String> {
+    validate_profile_url(input.wikipedia_url.as_deref(), "wikipediaUrl")?;
+    validate_profile_url(input.imdb_url.as_deref(), "imdbUrl")?;
+    let mut changed = false;
+    if let Some(display_name) = normalize_optional_string(input.display_name.clone()) {
+        let normalized_name = normalize_signer_name(&display_name);
+        if profile.display_name != display_name || profile.normalized_name != normalized_name {
+            profile.display_name = display_name;
+            profile.normalized_name = normalized_name;
+            changed = true;
+        }
+    }
+    for (current, incoming) in [
+        (&mut profile.default_role, input.default_role.clone()),
+        (&mut profile.wikipedia_url, input.wikipedia_url.clone()),
+        (&mut profile.imdb_url, input.imdb_url.clone()),
+    ] {
+        let normalized = normalize_optional_string(incoming);
+        if *current != normalized {
+            *current = normalized;
+            changed = true;
+        }
+    }
+    if changed {
+        profile.updated_at_epoch_seconds = now;
+    }
+    Ok(())
+}
+
+fn validate_profile_url(value: Option<&str>, field: &str) -> Result<(), String> {
+    if value.is_some_and(|value| value.len() > 1000) {
+        return Err(format!("{field} must be 1000 characters or fewer"));
+    }
+    Ok(())
+}
+
+fn signer_profile_from_row(row: &Row, offset: usize) -> Result<SignerProfile, String> {
+    Ok(SignerProfile {
+        id: parse_uuid(&row_value::<String>(row, offset, "signer id")?)?,
+        display_name: row_value(row, offset + 1, "signer display name")?,
+        normalized_name: row_value(row, offset + 2, "signer normalized name")?,
+        default_role: row_value(row, offset + 3, "signer default role")?,
+        wikipedia_url: row_value(row, offset + 4, "signer wikipedia url")?,
+        imdb_url: row_value(row, offset + 5, "signer imdb url")?,
+        created_at_epoch_seconds: row_value::<Option<i64>>(row, offset + 6, "signer created at")?
+            .unwrap_or_default(),
+        updated_at_epoch_seconds: row_value::<Option<i64>>(row, offset + 7, "signer updated at")?
+            .unwrap_or_default(),
+    })
+}
+
 fn load_tags(connection: &Connection, id: Uuid) -> Result<Vec<String>, String> {
     let id_text = id.to_string();
     let mut rows = connection
@@ -767,6 +1014,75 @@ fn load_tags(connection: &Connection, id: Uuid) -> Result<Vec<String>, String> {
         );
     }
     Ok(tags)
+}
+
+fn load_signer_credits(connection: &Connection, id: Uuid) -> Result<Vec<SignerCredit>, String> {
+    let id_text = id.to_string();
+    let mut rows = connection
+        .query(
+            "select
+                s.id, s.display_name, s.normalized_name, s.default_role,
+                s.wikipedia_url, s.imdb_url,
+                cast(round((cast(s.created_at as date) - date '1970-01-01') * 86400) as number(19)),
+                cast(round((cast(s.updated_at as date) - date '1970-01-01') * 86400) as number(19)),
+                cis.sort_order, cis.item_role, cis.item_context
+            from autograph_item_signers cis
+            join autograph_signers s on s.id = cis.signer_id
+            where cis.item_id = :1
+            order by cis.sort_order, s.display_name, s.id",
+            &[&id_text],
+        )
+        .map_err(|error| format!("read Oracle catalog signer credits: {error}"))?;
+    let mut credits = Vec::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("read Oracle signer credit row: {error}"))?;
+        credits.push(SignerCredit {
+            signer: signer_profile_from_row(&row, 0)?,
+            sort_order: row_value(&row, 8, "signer credit sort order")?,
+            item_role: row_value(&row, 9, "signer credit item role")?,
+            item_context: row_value(&row, 10, "signer credit item context")?,
+        });
+    }
+    Ok(credits)
+}
+
+fn load_characters(connection: &Connection, id: Uuid) -> Result<Vec<String>, String> {
+    load_ordered_values(
+        connection,
+        id,
+        "select character_name from autograph_item_characters where item_id = :1 order by sort_order, character_name",
+        "characters",
+    )
+}
+
+fn load_franchises(connection: &Connection, id: Uuid) -> Result<Vec<String>, String> {
+    load_ordered_values(
+        connection,
+        id,
+        "select franchise from autograph_item_franchises where item_id = :1 order by sort_order, franchise",
+        "franchises",
+    )
+}
+
+fn load_ordered_values(
+    connection: &Connection,
+    id: Uuid,
+    sql: &str,
+    label: &str,
+) -> Result<Vec<String>, String> {
+    let id_text = id.to_string();
+    let mut rows = connection
+        .query(sql, &[&id_text])
+        .map_err(|error| format!("read Oracle catalog {label}: {error}"))?;
+    let mut values = Vec::new();
+    for row in &mut rows {
+        values.push(
+            row.map_err(|error| format!("read Oracle catalog {label} row: {error}"))?
+                .get(0)
+                .map_err(|error| format!("read Oracle catalog {label} value: {error}"))?,
+        );
+    }
+    Ok(values)
 }
 
 fn load_images(connection: &Connection, id: Uuid) -> Result<Vec<AutographImage>, String> {
@@ -937,6 +1253,174 @@ fn replace_tags(connection: &Connection, id: Uuid, tags: &[String]) -> Result<()
     Ok(())
 }
 
+fn replace_signer_credits(
+    connection: &Connection,
+    id: Uuid,
+    credits: &[SignerCredit],
+) -> Result<(), String> {
+    let id_text = id.to_string();
+    connection
+        .execute(
+            "delete from autograph_item_signers where item_id = :1",
+            &[&id_text],
+        )
+        .map_err(|error| format!("clear Oracle catalog signer credits: {error}"))?;
+    for (index, credit) in credits.iter().enumerate() {
+        let profile = upsert_signer_profile(connection, credit)?;
+        let signer_id = profile.id.to_string();
+        let sort_order = index as i32;
+        connection
+            .execute(
+                "insert into autograph_item_signers (
+                    item_id, signer_id, sort_order, item_role, item_context
+                ) values (
+                    :1, :2, :3, :4, :5
+                )",
+                &[
+                    &id_text,
+                    &signer_id,
+                    &sort_order,
+                    &credit.item_role,
+                    &credit.item_context,
+                ],
+            )
+            .map_err(|error| format!("insert Oracle catalog signer credit: {error}"))?;
+    }
+    Ok(())
+}
+
+fn upsert_signer_profile(
+    connection: &Connection,
+    credit: &SignerCredit,
+) -> Result<SignerProfile, String> {
+    let normalized_name = normalize_signer_name(&credit.signer.display_name);
+    if normalized_name.is_empty() {
+        return Err("signer displayName is required".to_owned());
+    }
+    let requested_id = credit.signer.id.to_string();
+    let mut rows = connection
+        .query(
+            "select
+                id, display_name, normalized_name, default_role, wikipedia_url, imdb_url,
+                cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
+                cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
+            from autograph_signers
+            where id = :1 or normalized_name = :2
+            order by case when id = :1 then 0 else 1 end
+            fetch first 1 row only",
+            &[&requested_id, &normalized_name],
+        )
+        .map_err(|error| format!("read Oracle signer profile: {error}"))?;
+    if let Some(row) = rows.next() {
+        let row = row.map_err(|error| format!("read Oracle signer profile row: {error}"))?;
+        let existing = signer_profile_from_row(&row, 0)?;
+        let id_text = existing.id.to_string();
+        connection
+            .execute(
+                "update autograph_signers set
+                    display_name = :1,
+                    normalized_name = :2,
+                    default_role = :3,
+                    wikipedia_url = :4,
+                    imdb_url = :5,
+                    updated_at = current_timestamp
+                where id = :6",
+                &[
+                    &credit.signer.display_name,
+                    &normalized_name,
+                    &credit.signer.default_role,
+                    &credit.signer.wikipedia_url,
+                    &credit.signer.imdb_url,
+                    &id_text,
+                ],
+            )
+            .map_err(|error| format!("update Oracle signer profile: {error}"))?;
+        return Ok(SignerProfile {
+            id: existing.id,
+            display_name: credit.signer.display_name.clone(),
+            normalized_name,
+            default_role: credit.signer.default_role.clone(),
+            wikipedia_url: credit.signer.wikipedia_url.clone(),
+            imdb_url: credit.signer.imdb_url.clone(),
+            created_at_epoch_seconds: existing.created_at_epoch_seconds,
+            updated_at_epoch_seconds: now_epoch_seconds(),
+        });
+    }
+
+    connection
+        .execute(
+            "insert into autograph_signers (
+                id, display_name, normalized_name, default_role, wikipedia_url, imdb_url
+            ) values (
+                :1, :2, :3, :4, :5, :6
+            )",
+            &[
+                &requested_id,
+                &credit.signer.display_name,
+                &normalized_name,
+                &credit.signer.default_role,
+                &credit.signer.wikipedia_url,
+                &credit.signer.imdb_url,
+            ],
+        )
+        .map_err(|error| format!("insert Oracle signer profile: {error}"))?;
+    Ok(SignerProfile {
+        normalized_name,
+        ..credit.signer.clone()
+    })
+}
+
+fn replace_characters(
+    connection: &Connection,
+    id: Uuid,
+    characters: &[String],
+) -> Result<(), String> {
+    replace_ordered_values(
+        connection,
+        id,
+        characters,
+        "delete from autograph_item_characters where item_id = :1",
+        "insert into autograph_item_characters (item_id, character_name, sort_order) values (:1, :2, :3)",
+        "characters",
+    )
+}
+
+fn replace_franchises(
+    connection: &Connection,
+    id: Uuid,
+    franchises: &[String],
+) -> Result<(), String> {
+    replace_ordered_values(
+        connection,
+        id,
+        franchises,
+        "delete from autograph_item_franchises where item_id = :1",
+        "insert into autograph_item_franchises (item_id, franchise, sort_order) values (:1, :2, :3)",
+        "franchises",
+    )
+}
+
+fn replace_ordered_values(
+    connection: &Connection,
+    id: Uuid,
+    values: &[String],
+    delete_sql: &str,
+    insert_sql: &str,
+    label: &str,
+) -> Result<(), String> {
+    let id_text = id.to_string();
+    connection
+        .execute(delete_sql, &[&id_text])
+        .map_err(|error| format!("clear Oracle catalog {label}: {error}"))?;
+    for (index, value) in values.iter().enumerate() {
+        let sort_order = index as i32;
+        connection
+            .execute(insert_sql, &[&id_text, value, &sort_order])
+            .map_err(|error| format!("insert Oracle catalog {label}: {error}"))?;
+    }
+    Ok(())
+}
+
 fn insert_edit_event(connection: &Connection, event: &AutographEditEvent) -> Result<(), String> {
     let id_text = event.id.to_string();
     let item_id_text = event.item_id.to_string();
@@ -1032,6 +1516,21 @@ fn parse_publication_status(status: &str) -> Result<PublicationStatus, String> {
     }
 }
 
+fn item_origin_text(origin: ItemOrigin) -> &'static str {
+    match origin {
+        ItemOrigin::Official => "Official",
+        ItemOrigin::Custom => "Custom",
+    }
+}
+
+fn parse_item_origin(origin: &str) -> Result<ItemOrigin, String> {
+    match origin {
+        "Official" => Ok(ItemOrigin::Official),
+        "Custom" => Ok(ItemOrigin::Custom),
+        _ => Err(format!("unsupported Oracle item origin: {origin}")),
+    }
+}
+
 fn parse_uuid(value: &str) -> Result<Uuid, String> {
     Uuid::parse_str(value).map_err(|error| format!("parse Oracle UUID: {error}"))
 }
@@ -1043,6 +1542,31 @@ fn row_value<T: oracle::sql_type::FromSql>(
 ) -> Result<T, String> {
     row.get(index)
         .map_err(|error| format!("read Oracle catalog {name}: {error}"))
+}
+
+fn compact_signer_text(credits: &[SignerCredit]) -> String {
+    credits
+        .iter()
+        .map(|credit| credit.signer.display_name.as_str())
+        .collect::<Vec<_>>()
+        .join(" + ")
+}
+
+fn normalize_optional_string(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let value = value.trim().to_owned();
+        if value.is_empty() { None } else { Some(value) }
+    })
+}
+
+fn normalize_string_list(values: Vec<String>) -> Vec<String> {
+    values
+        .into_iter()
+        .filter_map(|value| {
+            let value = value.trim().to_owned();
+            if value.is_empty() { None } else { Some(value) }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -1064,13 +1588,7 @@ mod tests {
 
     #[test]
     fn oracle_load_item_selects_phase7_taxonomy_fields() {
-        for required_fragment in [
-            "format",
-            "origin",
-            "language",
-            "product_line",
-            "set_name",
-        ] {
+        for required_fragment in ["format", "origin", "language", "product_line", "set_name"] {
             assert!(
                 LOAD_ITEM_SQL.contains(required_fragment),
                 "Oracle load item SQL missing `{required_fragment}`"
