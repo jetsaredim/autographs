@@ -8,8 +8,9 @@ use uuid::Uuid;
 use crate::catalog::{
     AutographEditEvent, AutographImage, AutographItem, AutographItemInput, AutographItemUpdate,
     CatalogRepository, CleanupStatus, CleanupWarning, EditEventKind, FieldDiff, ImageCleanupEvent,
-    ImageReplacementInput, PendingChangeSummary, PublicationStatus, PublishBoundary, apply_update,
-    event_kind_for_diffs, event_summary, now_epoch_seconds, validate_required_fields,
+    ImageReplacementInput, ItemOrigin, PendingChangeSummary, PublicationStatus, PublishBoundary,
+    SignerCredit, SignerProfile, apply_update, event_kind_for_diffs, event_summary,
+    normalize_signer_name, now_epoch_seconds, validate_required_fields,
 };
 
 const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish as (
@@ -163,7 +164,7 @@ impl CatalogRepository for OracleCatalogRepository {
         self.with_connection(move |connection| {
             let mut item = load_item(&connection, id)?
                 .ok_or_else(|| "autograph item was not found".to_owned())?;
-            let field_diffs = apply_update(&mut item, input);
+            let field_diffs = apply_update(&mut item, input, None);
             validate_required_fields(&item.title, &item.signer, &item.category)?;
             if field_diffs.is_empty() {
                 return Ok(item);
@@ -693,12 +694,23 @@ fn load_item(connection: &Connection, id: Uuid) -> Result<Option<AutographItem>,
 }
 
 fn item_from_row(id: Uuid, row: &Row) -> Result<AutographItem, String> {
+    let signer: String = row_value(row, 1, "signer")?;
+    let created_at_epoch_seconds =
+        row_value::<Option<i64>>(row, 13, "created at")?.unwrap_or_default();
     Ok(AutographItem {
         id,
         title: row_value(row, 0, "title")?,
-        signer: row_value(row, 1, "signer")?,
+        signer: signer.clone(),
         description: row_value(row, 2, "description")?,
         category: row_value(row, 3, "category")?,
+        signer_credits: legacy_signer_credits(&signer, created_at_epoch_seconds),
+        characters: Vec::new(),
+        format: "Trading Card".to_owned(),
+        origin: ItemOrigin::Official,
+        franchises: Vec::new(),
+        product_line: None,
+        set_name: None,
+        language: "English".to_owned(),
         object_reference: row_value(row, 4, "object reference")?,
         event_name: row_value(row, 5, "event name")?,
         event_location: row_value(row, 6, "event location")?,
@@ -714,11 +726,28 @@ fn item_from_row(id: Uuid, row: &Row) -> Result<AutographItem, String> {
         )?)?,
         tags: Vec::new(),
         images: Vec::new(),
-        created_at_epoch_seconds: row_value::<Option<i64>>(row, 13, "created at")?
-            .unwrap_or_default(),
+        created_at_epoch_seconds,
         updated_at_epoch_seconds: row_value::<Option<i64>>(row, 14, "updated at")?
             .unwrap_or_default(),
     })
+}
+
+fn legacy_signer_credits(signer: &str, created_at_epoch_seconds: i64) -> Vec<SignerCredit> {
+    vec![SignerCredit {
+        signer: SignerProfile {
+            id: Uuid::nil(),
+            display_name: signer.to_owned(),
+            normalized_name: normalize_signer_name(signer),
+            default_role: None,
+            wikipedia_url: None,
+            imdb_url: None,
+            created_at_epoch_seconds,
+            updated_at_epoch_seconds: created_at_epoch_seconds,
+        },
+        sort_order: 0,
+        item_role: None,
+        item_context: None,
+    }]
 }
 
 fn load_tags(connection: &Connection, id: Uuid) -> Result<Vec<String>, String> {
