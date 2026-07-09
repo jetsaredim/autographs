@@ -17,7 +17,7 @@ use crate::{
         FacetId, ImageVariantName, PUBLIC_SCHEMA_VERSION, PublicCatalog, PublicDetailField,
         PublicDetailGroup, PublicFacetGroup, PublicFacetOption, PublicFacets, PublicGalleryItem,
         PublicImage, PublicImageVariant, PublicImageVariantParams, PublicItemDetail,
-        PublishManifest, PublishManifestEntry,
+        PublicSignerCredit, PublicSignerLink, PublishManifest, PublishManifestEntry,
     },
     derivatives::{DerivativeVariant, generate_derivative},
     media::PrivateMediaStore,
@@ -226,9 +226,17 @@ fn to_public_gallery_item(item: &FixtureItem) -> PublicGalleryItem {
     PublicGalleryItem {
         slug: item.slug.clone(),
         title: item.title.clone(),
-        signer: item.signer.clone(),
+        signer_text: item.signer.clone(),
+        signer_names: vec![item.signer.clone()],
+        signer_roles: vec!["Signer".to_owned()],
         description: Some(item.description.clone()),
-        category: item.category.clone(),
+        characters: vec![item.title.clone()],
+        franchises: item.tags.first().cloned().into_iter().collect(),
+        product_line: Some(item.category.clone()),
+        set_name: None,
+        format: item.category.clone(),
+        origin: "Official".to_owned(),
+        language: "English".to_owned(),
         tags: item.tags.clone(),
         primary_image: item
             .images
@@ -242,9 +250,26 @@ fn to_public_detail(item: &FixtureItem) -> PublicItemDetail {
         schema_version: PUBLIC_SCHEMA_VERSION,
         slug: item.slug.clone(),
         title: item.title.clone(),
-        signer: item.signer.clone(),
+        signer_text: item.signer.clone(),
+        signer_names: vec![item.signer.clone()],
+        signer_roles: vec!["Signer".to_owned()],
+        signers: vec![PublicSignerCredit {
+            display_name: item.signer.clone(),
+            role: Some("Signer".to_owned()),
+            context: None,
+            links: PublicSignerLink {
+                wikipedia: None,
+                imdb: None,
+            },
+        }],
         description: Some(item.description.clone()),
-        category: item.category.clone(),
+        characters: vec![item.title.clone()],
+        franchises: item.tags.first().cloned().into_iter().collect(),
+        product_line: Some(item.category.clone()),
+        set_name: None,
+        format: item.category.clone(),
+        origin: "Official".to_owned(),
+        language: "English".to_owned(),
         tags: item.tags.clone(),
         images: item
             .images
@@ -317,9 +342,37 @@ fn derive_facets(catalog: &FixtureCatalog) -> Vec<PublicFacetGroup> {
             catalog.items.iter().map(|item| item.signer.clone()),
         ),
         facet_group(
-            FacetId::Category,
-            "Category",
+            FacetId::Franchise,
+            "Franchise",
+            catalog
+                .items
+                .iter()
+                .filter_map(|item| item.tags.first().cloned()),
+        ),
+        facet_group(
+            FacetId::ProductLine,
+            "Product Line",
             catalog.items.iter().map(|item| item.category.clone()),
+        ),
+        facet_group(
+            FacetId::Format,
+            "Format",
+            catalog.items.iter().map(|item| item.category.clone()),
+        ),
+        facet_group(
+            FacetId::Language,
+            "Language",
+            catalog.items.iter().map(|_| "English".to_owned()),
+        ),
+        facet_group(
+            FacetId::Origin,
+            "Origin",
+            catalog.items.iter().map(|_| "Official".to_owned()),
+        ),
+        facet_group(
+            FacetId::Role,
+            "Role",
+            catalog.items.iter().map(|_| "Signer".to_owned()),
         ),
         facet_group(
             FacetId::Tag,
@@ -673,9 +726,17 @@ async fn build_public_items(
         let gallery = PublicGalleryItem {
             slug: slug.clone(),
             title: item.title.clone(),
-            signer: item.signer.clone(),
+            signer_text: public_signer_text(item),
+            signer_names: public_signer_names(item),
+            signer_roles: public_signer_roles(item),
             description: item.description.clone(),
-            category: item.category.clone(),
+            characters: item.characters.clone(),
+            franchises: item.franchises.clone(),
+            product_line: item.product_line.clone(),
+            set_name: item.set_name.clone(),
+            format: item.format.clone(),
+            origin: format!("{:?}", item.origin),
+            language: item.language.clone(),
             tags: item.tags.clone(),
             primary_image: images.first().cloned(),
         };
@@ -683,9 +744,18 @@ async fn build_public_items(
             schema_version: PUBLIC_SCHEMA_VERSION,
             slug,
             title: item.title.clone(),
-            signer: item.signer.clone(),
+            signer_text: public_signer_text(item),
+            signer_names: public_signer_names(item),
+            signer_roles: public_signer_roles(item),
+            signers: public_signer_credits(item),
             description: item.description.clone(),
-            category: item.category.clone(),
+            characters: item.characters.clone(),
+            franchises: item.franchises.clone(),
+            product_line: item.product_line.clone(),
+            set_name: item.set_name.clone(),
+            format: item.format.clone(),
+            origin: format!("{:?}", item.origin),
+            language: item.language.clone(),
             tags: item.tags.clone(),
             images,
             detail_groups: public_detail_groups(item),
@@ -693,6 +763,80 @@ async fn build_public_items(
         public_items.push(PublicSourceItem { gallery, detail });
     }
     Ok(public_items)
+}
+
+fn public_signer_names(item: &AutographItem) -> Vec<String> {
+    let names = item
+        .signer_credits
+        .iter()
+        .map(|credit| credit.signer.display_name.clone())
+        .filter(|name| !name.trim().is_empty())
+        .collect::<Vec<_>>();
+    if names.is_empty() {
+        vec![item.signer.clone()]
+    } else {
+        names
+    }
+}
+
+fn public_signer_roles(item: &AutographItem) -> Vec<String> {
+    item.signer_credits
+        .iter()
+        .filter_map(|credit| {
+            credit
+                .item_role
+                .clone()
+                .or_else(|| credit.signer.default_role.clone())
+        })
+        .filter(|role| !role.trim().is_empty())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn public_signer_text(item: &AutographItem) -> String {
+    compact_signer_text(&public_signer_names(item))
+}
+
+fn compact_signer_text(names: &[String]) -> String {
+    match names {
+        [] => String::new(),
+        [one] => one.clone(),
+        [one, two] => format!("{one} + {two}"),
+        [one, two, rest @ ..] => format!("{one}, {two} + {} more", rest.len()),
+    }
+}
+
+fn public_signer_credits(item: &AutographItem) -> Vec<PublicSignerCredit> {
+    let credits = item
+        .signer_credits
+        .iter()
+        .map(|credit| PublicSignerCredit {
+            display_name: credit.signer.display_name.clone(),
+            role: credit
+                .item_role
+                .clone()
+                .or_else(|| credit.signer.default_role.clone()),
+            context: credit.item_context.clone(),
+            links: PublicSignerLink {
+                wikipedia: credit.signer.wikipedia_url.clone(),
+                imdb: credit.signer.imdb_url.clone(),
+            },
+        })
+        .collect::<Vec<_>>();
+    if credits.is_empty() {
+        vec![PublicSignerCredit {
+            display_name: item.signer.clone(),
+            role: None,
+            context: None,
+            links: PublicSignerLink {
+                wikipedia: None,
+                imdb: None,
+            },
+        }]
+    } else {
+        credits
+    }
 }
 
 fn public_derivative_fingerprint(bytes: &[u8]) -> String {
@@ -1057,16 +1201,49 @@ fn public_facets(items: &[PublicSourceItem]) -> PublicFacets {
         public_facet_group(
             FacetId::Signer,
             "Signer",
-            items.iter().map(|item| item.gallery.signer.clone()),
+            items
+                .iter()
+                .flat_map(|item| item.gallery.signer_names.clone()),
         ),
         public_facet_group(
-            FacetId::Category,
-            "Category",
-            items.iter().map(|item| item.gallery.category.clone()),
+            FacetId::Franchise,
+            "Franchise",
+            items
+                .iter()
+                .flat_map(|item| item.gallery.franchises.clone()),
+        ),
+        public_facet_group(
+            FacetId::ProductLine,
+            "Product Line",
+            items
+                .iter()
+                .filter_map(|item| item.gallery.product_line.clone()),
+        ),
+        public_facet_group(
+            FacetId::Format,
+            "Format",
+            items.iter().map(|item| item.gallery.format.clone()),
+        ),
+        public_facet_group(
+            FacetId::Language,
+            "Language",
+            items.iter().map(|item| item.gallery.language.clone()),
+        ),
+        public_facet_group(
+            FacetId::Origin,
+            "Origin",
+            items.iter().map(|item| item.gallery.origin.clone()),
+        ),
+        public_facet_group(
+            FacetId::Role,
+            "Role",
+            items
+                .iter()
+                .flat_map(|item| item.gallery.signer_roles.clone()),
         ),
         public_facet_group(
             FacetId::Tag,
-            "IP / Genre",
+            "Tags",
             items.iter().flat_map(|item| item.gallery.tags.clone()),
         ),
     ])
@@ -1531,7 +1708,7 @@ fn detail_html(item: &PublicItemDetail) -> String {
         DETAIL_TEMPLATE,
         &[
             ("item_title", escape_html(&item.title)),
-            ("item_signer", escape_html(&item.signer)),
+            ("item_signer", escape_html(&item.signer_text)),
             ("image_viewer", images),
             ("detail_facts", facts),
             ("detail_groups", groups),
@@ -1615,7 +1792,7 @@ fn image_viewer(item: &PublicItemDetail) -> String {
         variant.width,
         variant.height,
         escape_html(&item.title),
-        escape_html(&item.signer),
+        escape_html(&item.signer_text),
         thumbnails
     )
 }
@@ -1629,7 +1806,8 @@ fn image_variant(image: &PublicImage, name: ImageVariantName) -> Option<&PublicI
 }
 
 fn detail_facts(item: &PublicItemDetail) -> String {
-    let mut facts = vec![item.signer.clone(), item.category.clone()];
+    let mut facts = vec![item.signer_text.clone(), item.format.clone()];
+    facts.extend(item.franchises.clone());
     facts.extend(item.tags.clone());
     facts
         .into_iter()

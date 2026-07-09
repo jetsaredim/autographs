@@ -59,7 +59,7 @@ fn static_contract_profiles_shapes_and_generates_public_safe_split_artifacts() {
         );
     }
 
-    assert!(rendered.contains(r#""schemaVersion": 1"#));
+    assert!(rendered.contains(r#""schemaVersion": 2"#));
     assert!(rendered.contains("/media/signed-collectible-001/image-1-thumbnail-"));
     assert!(rendered.contains("/media/signed-collectible-001/image-1-detail-"));
 }
