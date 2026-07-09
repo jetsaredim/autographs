@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready
-stopped_at: Completed 06-09-PLAN.md
-last_updated: "2026-07-02T18:31:56.674Z"
-last_activity: 2026-07-02 -- Increased generated media cache TTL for CDN image relief
+status: planning
+stopped_at: Phase 7 context gathered
+last_updated: "2026-07-05T19:41:15.646Z"
+last_activity: 2026-07-05 -- Captured Phase 7 metadata taxonomy and public facet brief
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 6
   total_plans: 34
   completed_plans: 34
-  percent: 100
+  percent: 75
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 07 — ai-assisted-ingest
+**Current focus:** Phase 07 — metadata-taxonomy-and-public-facets
 
 ## Current Position
 
-Phase: 07 (ai-assisted-ingest) — READY
+Phase: 07 (metadata-taxonomy-and-public-facets) — READY
 Plan: TBD
 Status: Ready to plan next phase
-Last activity: 2026-07-02 -- Increased generated media cache TTL for CDN image relief
+Last activity: 2026-07-05 -- Captured Phase 7 metadata taxonomy and public facet brief
 
 Progress: [██████████] 100% of planned Phase 1-6 work complete; Phase 7 remains unplanned
 
@@ -93,8 +93,9 @@ Recent decisions affecting current work:
 - Phase 4: Run public-readiness and hardening before adding admin and AI surfaces, focused on the current public-gallery/deployment system.
 - Phase 5: Prove the static public runtime plus a minimal private seed/publish path into Oracle/Object Storage before expanding admin CRUD.
 - Phase 6: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
-- Phase 7: Add advisory AI-assisted ingest after the admin workflow exists, without making manual entry dependent on AI.
-- Review follow-up: Phase 6 and Phase 7 now carry explicit security/documentation completion criteria for the new admin and AI surfaces they introduce.
+- Phase 7: Add a metadata taxonomy and public facet upgrade before advisory AI-assisted ingest so signer credits, reusable signer profiles, franchise, product line, format, and origin exist as stable suggestion targets.
+- Phase 8: Add advisory AI-assisted ingest after the admin workflow and richer metadata model exist, without making manual entry dependent on AI.
+- Review follow-up: Phase 6, Phase 7, and Phase 8 now carry explicit security/documentation completion criteria for the new admin, metadata, and AI surfaces they introduce.
 - Pivot outcome: The former live Next.js public runtime and data-smoke path were replaced by the static public catalog, static admin shell, and thin private admin/publisher API that generate content inside the OCI boundary.
 - Static-runtime boundary: GitHub Actions should build and deploy code artifacts only; catalog content generation should not expose private OCI object identifiers, URLs, Oracle data, or image UUIDs through GitHub-hosted workflows.
 - Phase 5 proof outcome: The static publishing contract, Rust private controller, minimal static admin seed/publish path, and local/private Caddy candidate validation are planned, implemented, and closed as the foundation for Phase 6 admin polish.
@@ -117,19 +118,21 @@ Recent decisions affecting current work:
 ### Blockers/Concerns
 
 - Phase 6 is complete; keep its admin workflow, session auth, media cleanup, cache posture, and runtime cleanup guidance intact while planning Phase 7.
-- Phase 7 remains advisory AI-assisted ingest after manual admin workflows exist, with OCR/AI provider, prompt, privacy, and configuration-security review still required.
+- Phase 7 should replace overloaded signer/category/tag assumptions with first-class multi-signer records, reusable signer profiles, optional Wikipedia/IMDb links, format/origin/franchise/product-line fields, public facet updates, and a reviewed backfill path from current live tags.
+- Phase 8 remains advisory AI-assisted ingest after manual admin workflows and richer taxonomy exist, with OCR/AI provider, prompt, privacy, and configuration-security review still required.
 - Keep production security patching action pins, approval allowlist, and Ansible role behavior reviewed with deploy/runtime changes.
 
 ### Roadmap Evolution
 
 - Phase 5 inserted: Static Runtime Migration Foundation; former Admin Collection Workflow moved to Phase 6 and AI-Assisted Ingest moved to Phase 7.
 - Phase 6 edited: added 06-09 optimization wave for public delivery, image size, CDN/cache posture, and deployed instance/codebase cleanup before Phase 6 closeout.
+- Phase 7 inserted: Metadata Taxonomy and Public Facets; former AI-Assisted Ingest moved to Phase 8 so AI suggestions target the richer manual metadata model.
 
 ## Session Continuity
 
-Last session: 2026-06-28T13:03:41.624Z
-Stopped at: Completed 06-09-PLAN.md
-Resume file: None
+Last session: 2026-07-05T19:41:15.637Z
+Stopped at: Phase 7 context gathered
+Resume file: .planning/phases/07-metadata-taxonomy-and-public-facets/07-CONTEXT.md
 
 ## Quick Tasks Completed
 

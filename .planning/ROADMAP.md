@@ -2,7 +2,7 @@
 
 ## Overview
 
-Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery. Before adding the larger admin and AI surfaces, the roadmap now runs a public-showcase and hardening pass to make the current system safe, understandable, and presentable. It then proves a static public runtime and private publishing foundation, completes the single-admin collection workflow with multi-image management and edit history, and finally adds advisory AI-assisted ingest.
+Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery. Before adding the larger admin and AI surfaces, the roadmap now runs a public-showcase and hardening pass to make the current system safe, understandable, and presentable. It then proves a static public runtime and private publishing foundation, completes the single-admin collection workflow with multi-image management and edit history, upgrades the catalog metadata taxonomy and public facets, and finally adds advisory AI-assisted ingest.
 
 ## Phases
 
@@ -19,7 +19,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Public Showcase and Hardening** - Tie up loose ends, audit the current security posture, polish documentation, and prepare the current repository state to be public as a human+AI showcase. (completed 2026-05-25)
 - [x] **Phase 5: Static Runtime Migration Foundation** - Complete; the Rust/static runtime foundation is deployed and backed by recorded live static publish proof through Oracle, OCI Object Storage, generated static output, Caddy, and cleanup.
 - [x] **Phase 6: Admin Collection Workflow** - Complete; the single-admin create, edit, publish, multi-image, edit-history, session-auth, docs/security, and optimized public delivery/runtime posture loop is implemented on top of the private publisher foundation.
-- [ ] **Phase 7: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
+- [ ] **Phase 7: Metadata Taxonomy and Public Facets** - Replace overloaded signer/category/tag assumptions with first-class multi-signer records, collector taxonomy fields, and public facets generated from the richer model.
+- [ ] **Phase 8: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
 
 ## Phase Details
 
@@ -98,7 +99,7 @@ Plans:
   4. Repository badges and public-facing project metadata accurately reflect CI, linting, type checking, test/coverage posture, deployment or release status, and other useful quality signals.
   5. Loose-end issues, docs gaps, stale planning artifacts, and operational warnings for the current system have been triaged so the public repository tells a coherent story.
 
-**Boundary Note**: This phase hardens and presents the current public-gallery/deployment surface before static-runtime, admin, and AI changes are added. Phase 5, Phase 6, and Phase 7 must still include their own security and documentation updates for the new runtime, admin, and AI surfaces they introduce.
+**Boundary Note**: This phase hardens and presents the current public-gallery/deployment surface before static-runtime, admin, taxonomy, and AI changes are added. Phase 5, Phase 6, Phase 7, and Phase 8 must still include their own security and documentation updates for the new runtime, admin, metadata, and AI surfaces they introduce.
 **Plans**: 5 plans
 Plans:
 
@@ -192,17 +193,35 @@ Plans:
 
 **UI hint**: yes
 
-### Phase 7: AI-Assisted Ingest
+### Phase 7: Metadata Taxonomy and Public Facets
+
+**Goal**: The collection owner can model real autograph items without duplicating records or overloading tags, and anonymous visitors can browse by natural collector facets generated from that richer metadata.
+**Depends on**: Phase 6
+**Requirements**: DATA-03, ADMIN-02, ADMIN-03
+**Success Criteria** (what must be TRUE):
+
+  1. Catalog metadata supports multiple signers on one physical item without duplicating item records, and a single signer record can link to multiple signed items.
+  2. Signer records can carry reusable enrichment fields such as Wikipedia and IMDb URLs where appropriate, without requiring those links for every signer.
+  3. Item metadata separates display title/character-style names from signer records and supports first-class fields for format, origin, franchise, product line, signer role, and loose tags.
+  4. Current live tag/category drift can be reviewed and backfilled into the new taxonomy, including `custom` as a custom-origin item flag and `Tr`/`Tra`/`Trading Card` as `Trading Card` format.
+  5. Public static JSON and collection/detail pages expose useful facets such as signer, franchise, format, origin, and product line while preserving privacy and generated-static fail-closed behavior.
+  6. Admin create/edit workflow remains fast for the common case, with controlled format/origin fields, repeatable signer rows, optional signer profile links, and advanced loose tags kept out of the primary path.
+  7. Migration, backfill review, full static rebuild, docs, and security/privacy verification are complete before AI-assisted ingest work starts.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 8: AI-Assisted Ingest
 
 **Goal**: The admin workflow gains advisory OCR/AI metadata suggestions that speed up cataloging without blocking manual control.
-**Depends on**: Phase 6
+**Depends on**: Phase 7
 **Requirements**: AI-01, AI-02, AI-03, AI-04
 **Success Criteria** (what must be TRUE):
 
-  1. Upload workflow can generate AI-assisted metadata suggestions for relevant autograph fields such as signer, item type, tags, or inscription text.
+  1. Upload workflow can generate AI-assisted metadata suggestions for relevant autograph fields such as signer credits, franchise, product line, format, origin, loose tags, or inscription text.
   2. Admin can review, correct, or ignore OCR and AI suggestions before saving the item.
   3. Upload workflow still succeeds with fully manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
-  4. AI/OCR providers, prompts, failure modes, privacy boundaries, and configuration/secrets are reviewed for security and documented before Phase 7 is marked complete.
+  4. AI/OCR providers, prompts, failure modes, privacy boundaries, and configuration/secrets are reviewed for security and documented before Phase 8 is marked complete.
 
 **Plans**: TBD
 **UI hint**: yes
@@ -210,7 +229,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -220,4 +239,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
 | 6. Admin Collection Workflow | 9/9 | Complete | 2026-07-02 |
-| 7. AI-Assisted Ingest | 0/TBD | Not started | - |
+| 7. Metadata Taxonomy and Public Facets | 0/TBD | Not started | - |
+| 8. AI-Assisted Ingest | 0/TBD | Not started | - |
