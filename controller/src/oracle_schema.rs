@@ -233,4 +233,56 @@ mod tests {
         assert!(script.contains("references autograph_edit_events(id) on delete cascade"));
         assert!(script.contains("create index autograph_publish_job_events_event_idx"));
     }
+
+    #[test]
+    fn phase7_schema_includes_signer_and_taxonomy_tables() {
+        let statements = schema_statements();
+
+        for table in [
+            "create table autograph_signers",
+            "create table autograph_item_signers",
+            "create table autograph_item_characters",
+            "create table autograph_item_franchises",
+        ] {
+            assert!(
+                statements
+                    .iter()
+                    .any(|statement| statement.starts_with(table)),
+                "missing schema statement for {table}"
+            );
+        }
+
+        let items_statement = statements
+            .iter()
+            .find(|statement| statement.starts_with("create table autograph_items"))
+            .expect("autograph_items statement is present");
+        for column in [
+            "format varchar2(80)",
+            "origin varchar2(24)",
+            "language varchar2(40)",
+            "product_line varchar2(160)",
+            "set_name varchar2(160)",
+            "signer varchar2",
+            "category varchar2",
+        ] {
+            assert!(items_statement.contains(column), "missing {column}");
+        }
+    }
+
+    #[test]
+    fn phase7_taxonomy_update_script_is_additive() {
+        let script = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/db/updates/07-01-taxonomy-schema.sql"
+        ))
+        .expect("phase 7 taxonomy update script is readable");
+        let lower_script = script.to_ascii_lowercase();
+
+        assert!(script.contains("autograph_items_origin_ck"));
+        assert!(script.contains("autograph_items_language_ck"));
+        assert!(script.contains("autograph_item_signers"));
+        assert!(!lower_script.contains("drop column signer"));
+        assert!(!lower_script.contains("drop column category"));
+        assert!(!lower_script.contains("drop table autograph_item_tags"));
+    }
 }
