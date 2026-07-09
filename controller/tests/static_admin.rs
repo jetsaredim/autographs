@@ -112,6 +112,79 @@ fn static_admin_source_references_collection_workflow_contract() {
 }
 
 #[test]
+fn static_admin_source_references_taxonomy_editor_contract() {
+    let source = static_admin_source();
+    let html = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("static-admin")
+            .join("index.html"),
+    )
+    .expect("read static admin markup");
+
+    let mut previous = 0;
+    for heading in [
+        ">Identity<",
+        ">Classification<",
+        ">Details<",
+        ">Publication<",
+        ">Images<",
+        ">History<",
+    ] {
+        let position = html
+            .find(heading)
+            .unwrap_or_else(|| panic!("static admin markup is missing heading {heading}"));
+        assert!(
+            position >= previous,
+            "static admin heading {heading} appears out of order"
+        );
+        previous = position;
+    }
+
+    for expected in [
+        "signer-rows",
+        "signer-warning-summary",
+        "signer-merge-panel",
+        "classification-section",
+        "details-section",
+        "Possible duplicate signer. Review the existing profile before saving a new signer.",
+        "Type a name to create a new signer, or choose an existing signer.",
+        "Wikipedia and IMDb links are optional and appear only on public item detail pages.",
+        "Custom item",
+        "Use loose tags only for details that do not fit signer, franchise, product line, format, origin, language, role, or set.",
+        "renderSignerRows",
+        "loadSignerSuggestions",
+        "renderDuplicateWarnings",
+        "renderTaxonomySuggestions",
+        "taxonomyPayload",
+        "mergeSignerProfiles",
+        "signerSuggestions",
+        "credentials: \"same-origin\"",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin source is missing taxonomy editor contract {expected}"
+        );
+    }
+
+    for payload_field in [
+        "signerCredits",
+        "characters",
+        "franchises",
+        "productLine",
+        "setName",
+        "format",
+        "origin",
+        "language",
+        "tags",
+    ] {
+        assert!(
+            source.contains(payload_field),
+            "static admin form payload is missing {payload_field}"
+        );
+    }
+}
+
+#[test]
 fn static_admin_markup_labels_every_form_control() {
     let html = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
