@@ -188,7 +188,7 @@ fn schema_statements() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::schema_statements;
+    use super::{EXPECTED_TABLES, REQUIRED_COLUMNS, schema_statements};
 
     #[test]
     fn schema_parser_discards_comments_and_statement_terminators() {
@@ -284,5 +284,37 @@ mod tests {
         assert!(!lower_script.contains("drop column signer"));
         assert!(!lower_script.contains("drop column category"));
         assert!(!lower_script.contains("drop table autograph_item_tags"));
+    }
+
+    #[test]
+    fn phase7_preflight_expects_taxonomy_tables_and_columns() {
+        for table in [
+            "AUTOGRAPH_SIGNERS",
+            "AUTOGRAPH_ITEM_SIGNERS",
+            "AUTOGRAPH_ITEM_CHARACTERS",
+            "AUTOGRAPH_ITEM_FRANCHISES",
+        ] {
+            assert!(EXPECTED_TABLES.contains(&table), "missing expected table {table}");
+        }
+
+        for required_column in [
+            ("AUTOGRAPH_ITEMS", "FORMAT"),
+            ("AUTOGRAPH_ITEMS", "ORIGIN"),
+            ("AUTOGRAPH_ITEMS", "LANGUAGE"),
+            ("AUTOGRAPH_ITEMS", "PRODUCT_LINE"),
+            ("AUTOGRAPH_ITEMS", "SET_NAME"),
+            ("AUTOGRAPH_SIGNERS", "NORMALIZED_NAME"),
+            ("AUTOGRAPH_SIGNERS", "WIKIPEDIA_URL"),
+            ("AUTOGRAPH_SIGNERS", "IMDB_URL"),
+            ("AUTOGRAPH_ITEM_SIGNERS", "ITEM_ROLE"),
+            ("AUTOGRAPH_ITEM_SIGNERS", "ITEM_CONTEXT"),
+        ] {
+            assert!(
+                REQUIRED_COLUMNS.contains(&required_column),
+                "missing required column {}.{}",
+                required_column.0,
+                required_column.1
+            );
+        }
     }
 }
