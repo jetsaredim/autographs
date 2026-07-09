@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use async_trait::async_trait;
 use oracle::{Connection, Row};
+use serde_json::Value;
 use tokio::task;
 use uuid::Uuid;
 
@@ -9,8 +10,10 @@ use crate::catalog::{
     AutographEditEvent, AutographImage, AutographItem, AutographItemInput, AutographItemUpdate,
     CatalogRepository, CleanupStatus, CleanupWarning, EditEventKind, FieldDiff, ImageCleanupEvent,
     ImageReplacementInput, ItemOrigin, PendingChangeSummary, PublicationStatus, PublishBoundary,
-    SignerCredit, SignerCreditInput, SignerProfile, apply_update, event_kind_for_diffs,
-    event_summary, normalize_signer_name, now_epoch_seconds, validate_required_fields,
+    SignerCredit, SignerCreditInput, SignerMergeResult, SignerProfile, SignerProfileUpdateInput,
+    SignerSuggestion, TaxonomySuggestions, apply_signer_profile_update, apply_update,
+    event_kind_for_diffs, event_summary, normalize_signer_name, now_epoch_seconds,
+    signer_match_rank, signer_profile_field_diffs, validate_required_fields,
 };
 
 const LOAD_ITEM_SQL: &str = "select
@@ -729,6 +732,155 @@ impl CatalogRepository for OracleCatalogRepository {
         })
         .await
     }
+
+    async fn signer_suggestions(&self, query: String) -> Result<Vec<SignerSuggestion>, String> {
+        self.with_connection(move |connection| {
+            let normalized_query = normalize_signer_name(&query);
+            if normalized_query.is_empty() {
+                return Ok(Vec::new());
+            }
+            let mut suggestions = load_all_signer_profiles(&connection)?
+                .into_iter()
+                .filter_map(|profile| {
+                    signer_match_rank(&normalized_query, &profile.normalized_name).map(|rank| {
+                        (
+                            rank,
+                            profile.display_name.clone(),
+                            SignerSuggestion {
+                                profile,
+                                possible_duplicate: rank == 0 || rank >= 2,
+                            },
+                        )
+                    })
+                })
+                .collect::<Vec<_>>();
+            suggestions
+                .sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+            Ok(suggestions
+                .into_iter()
+                .map(|(_, _, suggestion)| suggestion)
+                .take(10)
+                .collect())
+        })
+        .await
+    }
+
+    async fn taxonomy_suggestions(&self) -> Result<TaxonomySuggestions, String> {
+        self.with_connection(move |connection| load_taxonomy_suggestions(&connection))
+            .await
+    }
+
+    async fn update_signer_profile(
+        &self,
+        signer_id: Uuid,
+        input: SignerProfileUpdateInput,
+    ) -> Result<SignerProfile, String> {
+        self.with_connection(move |connection| {
+            let before = load_signer_profile_by_id(&connection, signer_id)?
+                .ok_or_else(|| "signer profile was not found".to_owned())?;
+            let mut updated = before.clone();
+            apply_signer_profile_update(&mut updated, input, now_epoch_seconds())?;
+            if let Some(conflict) =
+                load_signer_profile_by_normalized_name(&connection, &updated.normalized_name)?
+                && conflict.id != signer_id
+            {
+                return Err("signer normalized name already exists".to_owned());
+            }
+            let field_diffs = signer_profile_field_diffs(&before, &updated);
+            let credit = SignerCredit {
+                signer: updated.clone(),
+                sort_order: 0,
+                item_role: None,
+                item_context: None,
+            };
+            upsert_signer_profile(&connection, &credit)?;
+            if !field_diffs.is_empty() {
+                let summary = format!(
+                    "Updated signer profile {} -> {}",
+                    before.display_name, updated.display_name
+                );
+                for item_id in load_item_ids_for_signer(&connection, signer_id)? {
+                    touch_item_legacy_signer_and_history(
+                        &connection,
+                        item_id,
+                        &summary,
+                        field_diffs.clone(),
+                    )?;
+                }
+            }
+            connection
+                .commit()
+                .map_err(|error| format!("commit Oracle signer profile update: {error}"))?;
+            Ok(updated)
+        })
+        .await
+    }
+
+    async fn merge_signer_profiles(
+        &self,
+        source_signer_id: Uuid,
+        target_signer_id: Uuid,
+    ) -> Result<SignerMergeResult, String> {
+        self.with_connection(move |connection| {
+            if source_signer_id == target_signer_id {
+                return Err("source and target signer profiles must differ".to_owned());
+            }
+            let source = load_signer_profile_by_id(&connection, source_signer_id)?
+                .ok_or_else(|| "source signer profile was not found".to_owned())?;
+            let target = load_signer_profile_by_id(&connection, target_signer_id)?
+                .ok_or_else(|| "target signer profile was not found".to_owned())?;
+            let affected_item_ids = load_item_ids_for_signer(&connection, source_signer_id)?;
+            let source_id = source_signer_id.to_string();
+            let target_id = target_signer_id.to_string();
+            connection
+                .execute(
+                    "delete from autograph_item_signers source_credit
+                    where source_credit.signer_id = :1
+                      and exists (
+                        select 1 from autograph_item_signers target_credit
+                        where target_credit.item_id = source_credit.item_id
+                          and target_credit.signer_id = :2
+                      )",
+                    &[&source_id, &target_id],
+                )
+                .map_err(|error| format!("delete duplicate Oracle signer credits: {error}"))?;
+            connection
+                .execute(
+                    "update autograph_item_signers set signer_id = :1 where signer_id = :2",
+                    &[&target_id, &source_id],
+                )
+                .map_err(|error| format!("merge Oracle signer credits: {error}"))?;
+            connection
+                .execute("delete from autograph_signers where id = :1", &[&source_id])
+                .map_err(|error| format!("delete merged Oracle signer profile: {error}"))?;
+            let summary = format!(
+                "Merged signer {} into {}",
+                source.display_name, target.display_name
+            );
+            let field_diffs = vec![FieldDiff {
+                field: "signers".to_owned(),
+                before: serde_json::to_value(&source).unwrap_or(Value::Null),
+                after: serde_json::to_value(&target).unwrap_or(Value::Null),
+            }];
+            for item_id in &affected_item_ids {
+                touch_item_legacy_signer_and_history(
+                    &connection,
+                    *item_id,
+                    &summary,
+                    field_diffs.clone(),
+                )?;
+            }
+            connection
+                .commit()
+                .map_err(|error| format!("commit Oracle signer merge: {error}"))?;
+            Ok(SignerMergeResult {
+                source_signer_id,
+                target_signer_id,
+                updated_item_count: affected_item_ids.len(),
+            })
+        })
+        .await
+    }
 }
 
 fn load_item(connection: &Connection, id: Uuid) -> Result<Option<AutographItem>, String> {
@@ -940,6 +1092,144 @@ fn load_signer_profile_by_query(
     };
     let row = row.map_err(|error| format!("read Oracle signer profile row: {error}"))?;
     Ok(Some(signer_profile_from_row(&row, 0)?))
+}
+
+fn load_all_signer_profiles(connection: &Connection) -> Result<Vec<SignerProfile>, String> {
+    let mut rows = connection
+        .query(
+            "select
+                id, display_name, normalized_name, default_role, wikipedia_url, imdb_url,
+                cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
+                cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
+            from autograph_signers
+            order by display_name, id
+            fetch first 50 rows only",
+            &[],
+        )
+        .map_err(|error| format!("read Oracle signer profiles: {error}"))?;
+    let mut profiles = Vec::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("read Oracle signer profile row: {error}"))?;
+        profiles.push(signer_profile_from_row(&row, 0)?);
+    }
+    Ok(profiles)
+}
+
+fn load_item_ids_for_signer(connection: &Connection, signer_id: Uuid) -> Result<Vec<Uuid>, String> {
+    let signer_id = signer_id.to_string();
+    let mut rows = connection
+        .query(
+            "select item_id from autograph_item_signers where signer_id = :1 order by item_id",
+            &[&signer_id],
+        )
+        .map_err(|error| format!("read Oracle signer linked items: {error}"))?;
+    let mut item_ids = Vec::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("read Oracle signer linked item row: {error}"))?;
+        item_ids.push(parse_uuid(&row_value::<String>(
+            &row,
+            0,
+            "signer linked item id",
+        )?)?);
+    }
+    Ok(item_ids)
+}
+
+fn touch_item_legacy_signer_and_history(
+    connection: &Connection,
+    item_id: Uuid,
+    summary: &str,
+    field_diffs: Vec<FieldDiff>,
+) -> Result<(), String> {
+    let item = load_item(connection, item_id)?
+        .ok_or_else(|| "linked Oracle signer item was not found".to_owned())?;
+    let item_id_text = item_id.to_string();
+    let signer = compact_signer_text(&item.signer_credits);
+    connection
+        .execute(
+            "update autograph_items set signer = :1, updated_at = current_timestamp where id = :2",
+            &[&signer, &item_id_text],
+        )
+        .map_err(|error| format!("touch Oracle signer linked item: {error}"))?;
+    insert_edit_event(
+        connection,
+        &AutographEditEvent::new(
+            item_id,
+            EditEventKind::MetadataUpdated,
+            summary.to_owned(),
+            field_diffs,
+            now_epoch_seconds(),
+        ),
+    )
+}
+
+fn load_taxonomy_suggestions(connection: &Connection) -> Result<TaxonomySuggestions, String> {
+    let mut suggestions = TaxonomySuggestions {
+        signers: load_all_signer_profiles(connection)?,
+        origins: vec![ItemOrigin::Official, ItemOrigin::Custom],
+        ..Default::default()
+    };
+    suggestions.characters = load_distinct_strings(
+        connection,
+        "select distinct character_name from autograph_item_characters order by character_name",
+        "characters",
+    )?;
+    suggestions.formats = load_distinct_strings(
+        connection,
+        "select distinct format from autograph_items where format is not null order by format",
+        "formats",
+    )?;
+    suggestions.franchises = load_distinct_strings(
+        connection,
+        "select distinct franchise from autograph_item_franchises order by franchise",
+        "franchises",
+    )?;
+    suggestions.product_lines = load_distinct_strings(
+        connection,
+        "select distinct product_line from autograph_items where product_line is not null order by product_line",
+        "product lines",
+    )?;
+    suggestions.set_names = load_distinct_strings(
+        connection,
+        "select distinct set_name from autograph_items where set_name is not null order by set_name",
+        "set names",
+    )?;
+    suggestions.languages = load_distinct_strings(
+        connection,
+        "select distinct language from autograph_items where language is not null order by language",
+        "languages",
+    )?;
+    suggestions.roles = load_distinct_strings(
+        connection,
+        "select distinct role_value from (
+            select default_role as role_value from autograph_signers where default_role is not null
+            union
+            select item_role as role_value from autograph_item_signers where item_role is not null
+        ) order by role_value",
+        "roles",
+    )?;
+    suggestions.tags = load_distinct_strings(
+        connection,
+        "select distinct tag from autograph_item_tags order by tag",
+        "tags",
+    )?;
+    Ok(suggestions)
+}
+
+fn load_distinct_strings(
+    connection: &Connection,
+    sql: &str,
+    label: &str,
+) -> Result<Vec<String>, String> {
+    let mut rows = connection
+        .query(sql, &[])
+        .map_err(|error| format!("read Oracle taxonomy {label}: {error}"))?;
+    let mut values = Vec::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("read Oracle taxonomy {label} row: {error}"))?;
+        values.push(row_value(&row, 0, label)?);
+    }
+    Ok(values)
 }
 
 fn apply_signer_input_to_profile(

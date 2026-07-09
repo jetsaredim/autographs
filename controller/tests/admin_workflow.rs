@@ -1125,15 +1125,24 @@ async fn signer_suggestions_rank_duplicates_without_blocking_new_names() {
         .await
         .unwrap();
 
-    let exact = repository.signer_suggestions("Mark Hamill".to_owned()).await.unwrap();
+    let exact = repository
+        .signer_suggestions("Mark Hamill".to_owned())
+        .await
+        .unwrap();
     assert_eq!(exact[0].profile.id, item.signer_credits[0].signer.id);
     assert!(exact[0].possible_duplicate);
 
-    let near = repository.signer_suggestions("Mark Hamel".to_owned()).await.unwrap();
+    let near = repository
+        .signer_suggestions("Mark Hamel".to_owned())
+        .await
+        .unwrap();
     assert_eq!(near[0].profile.display_name, "Mark Hamill");
     assert!(near[0].possible_duplicate);
 
-    let deliberate_new = repository.signer_suggestions("Ahmed Best".to_owned()).await.unwrap();
+    let deliberate_new = repository
+        .signer_suggestions("Ahmed Best".to_owned())
+        .await
+        .unwrap();
     assert!(deliberate_new.is_empty());
 }
 
@@ -1195,7 +1204,11 @@ async fn signer_profile_edits_record_history_for_linked_items_only() {
         let history = repository.history(item_id).await.unwrap();
         let event = history
             .iter()
-            .find(|event| event.summary.contains("Updated signer profile Mark Hamill -> Mark Richard Hamill"))
+            .find(|event| {
+                event
+                    .summary
+                    .contains("Updated signer profile Mark Hamill -> Mark Richard Hamill")
+            })
             .expect("linked item signer profile event");
         for field in [
             "signerProfile.displayName",
