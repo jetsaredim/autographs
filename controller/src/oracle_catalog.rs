@@ -1047,7 +1047,36 @@ fn row_value<T: oracle::sql_type::FromSql>(
 
 #[cfg(test)]
 mod tests {
-    use super::{GLOBAL_PENDING_CHANGES_SQL, ITEM_PENDING_CHANGES_SQL};
+    use super::*;
+
+    #[test]
+    fn oracle_phase7_helper_functions_are_available() {
+        let _: fn(&Connection, Uuid) -> Result<Vec<SignerCredit>, String> = load_signer_credits;
+        let _: fn(&Connection, Uuid, &[SignerCredit]) -> Result<(), String> =
+            replace_signer_credits;
+        let _: fn(&Connection, &SignerCredit) -> Result<SignerProfile, String> =
+            upsert_signer_profile;
+        let _: fn(&Connection, Uuid) -> Result<Vec<String>, String> = load_characters;
+        let _: fn(&Connection, Uuid, &[String]) -> Result<(), String> = replace_characters;
+        let _: fn(&Connection, Uuid) -> Result<Vec<String>, String> = load_franchises;
+        let _: fn(&Connection, Uuid, &[String]) -> Result<(), String> = replace_franchises;
+    }
+
+    #[test]
+    fn oracle_load_item_selects_phase7_taxonomy_fields() {
+        for required_fragment in [
+            "format",
+            "origin",
+            "language",
+            "product_line",
+            "set_name",
+        ] {
+            assert!(
+                LOAD_ITEM_SQL.contains(required_fragment),
+                "Oracle load item SQL missing `{required_fragment}`"
+            );
+        }
+    }
 
     #[test]
     fn oracle_pending_queries_use_snapshot_membership_before_timestamp_fallback() {
