@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 7 context gathered
-last_updated: "2026-07-09T13:54:29.168Z"
+last_updated: "2026-07-09T14:11:20.194Z"
 last_activity: 2026-07-09 -- Phase 07 execution started
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 39
-  completed_plans: 34
-  percent: 75
+  completed_plans: 35
+  percent: 90
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 ## Current Position
 
 Phase: 07 (Metadata Taxonomy and Public Facets) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 07
+Plan: 2 of 5
+Status: Ready to execute
 Last activity: 2026-07-09 -- Phase 07 execution started
 
-Progress: [██████████] 100% of planned Phase 1-6 work complete; Phase 7 remains unplanned
+Progress: [█████████░] 90% of planned work complete; Phase 7 is in progress
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 34 of 34
+- Total plans completed: 35 of 39
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -73,6 +73,7 @@ Progress: [██████████] 100% of planned Phase 1-6 work comple
 | Phase 06 P07 | live session | 3 tasks | 7 files |
 | Phase 06 P08 | live session | 2 tasks | 6 files |
 | Phase 06 P09 | live session | 3 tasks | 11 files |
+| Phase 07 P01 | 14min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,9 @@ Recent decisions affecting current work:
 - [Phase 06]: The browser client renders catalog, history, image, publish, and diagnostics values through DOM node creation and textContent.
 - [Phase 06]: Image tiles show safe metadata and actions only; private originals are managed through same-origin admin API calls, not direct object URLs.
 - [Phase 06]: The Phase 6 admin workflow remains plain static HTML/CSS/JavaScript with no frontend build system or browser storage.
+- [Phase 07]: [Phase 07-01]: Phase 7 schema changes are additive and retain legacy signer, category, and autograph_item_tags through migration.
+- [Phase 07]: [Phase 07-01]: Memory repository signer credits reuse normalized signer profiles and derive a legacy credit from signer when older inputs omit signerCredits.
+- [Phase 07]: [Phase 07-01]: Oracle persistence keeps a legacy taxonomy fallback in this plan; later Phase 7 adapter work should wire full signer/taxonomy table reads and writes.
 
 ### Pending Todos
 
@@ -130,7 +134,7 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-05T19:41:15.637Z
+Last session: 2026-07-09T14:10:55.128Z
 Stopped at: Phase 7 context gathered
 Resume file: .planning/phases/07-metadata-taxonomy-and-public-facets/07-CONTEXT.md
 

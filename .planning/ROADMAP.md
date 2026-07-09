@@ -212,7 +212,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 07-01-PLAN.md - Create the Oracle schema, domain model, memory repository, and schema preflight foundation for reusable signers and taxonomy fields.
+- [x] 07-01-PLAN.md - Create the Oracle schema, domain model, memory repository, and schema preflight foundation for reusable signers and taxonomy fields.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -257,5 +257,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
 | 6. Admin Collection Workflow | 9/9 | Complete | 2026-07-02 |
-| 7. Metadata Taxonomy and Public Facets | 0/TBD | Not started | - |
+| 7. Metadata Taxonomy and Public Facets | 1/5 | In Progress | - |
 | 8. AI-Assisted Ingest | 0/TBD | Not started | - |
