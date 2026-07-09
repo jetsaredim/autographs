@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-07-09T19:15:12.777Z"
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-07-09T19:33:15.370Z"
 last_activity: 2026-07-09 -- Phase 07 execution started
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 39
-  completed_plans: 37
-  percent: 95
+  completed_plans: 38
+  percent: 75
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 ## Current Position
 
 Phase: 07 (Metadata Taxonomy and Public Facets) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-07-09 -- Phase 07 execution started
 
@@ -76,6 +76,7 @@ Progress: [██████████] 95% of planned work complete; Phase 7
 | Phase 07 P01 | 14min | 3 tasks | 9 files |
 | Phase 07 P02 | 15min | 3 tasks | 11 files |
 | Phase 07 P03 | 35min | 3 tasks | 8 files |
+| Phase 07 P04 | 14min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Admin signer/taxonomy management routes use the same session-cookie-only boundary as collection management and reject bearer operator tokens.
 - [Phase 07]: Admin item summaries now prioritize signerText, signerNames, format, franchises, productLine, language, publication status, image count, pending-change state, and update time over legacy category.
 - [Phase 07]: The static admin editor keeps legacy signer/category compatibility in save payloads while making signerCredits and first-class taxonomy fields the primary editing path.
+- [Phase 07]: Public static artifacts now use schema version 2 and no longer expose Category as a public facet identifier.
+- [Phase 07]: Collection cards expose compact signer text and full signer names, while detail pages alone render optional Wikipedia/IMDb profile icon links.
+- [Phase 07]: Public browse filters use single-select semantic query params with AND behavior across signer, franchise, productLine, format, language, origin, role, and tag.
 
 ### Pending Todos
 
@@ -142,8 +146,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-09T19:15:12.768Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-07-09T19:33:15.361Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed
