@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use autographs_controller::{
     catalog::{
         AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository, CleanupStatus,
-        EditEventKind, ImageCleanupEvent, MemoryCatalogRepository, PublicationStatus,
+        EditEventKind, ImageCleanupEvent, ItemOrigin, MemoryCatalogRepository, PublicationStatus,
+        SignerCreditInput,
     },
     config::ControllerConfig,
     media::{LocalMediaStore, PrivateMediaStore},
@@ -928,6 +929,141 @@ async fn history_metadata_and_publication_updates_record_field_level_diffs() {
         json!("Signed Jedi Card"),
         json!("Published Jedi Card"),
     );
+}
+
+#[tokio::test]
+async fn taxonomy_updates_record_metadata_diffs() {
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(AutographItemInput {
+            title: "Signed Jedi Card".to_owned(),
+            signer: "Mark Hamill".to_owned(),
+            description: None,
+            category: "Cards".to_owned(),
+            tags: vec!["jedi".to_owned()],
+            signer_credits: vec![SignerCreditInput {
+                signer_id: None,
+                display_name: Some("Mark Hamill".to_owned()),
+                default_role: Some("actor".to_owned()),
+                item_role: Some("actor".to_owned()),
+                item_context: Some("Luke Skywalker".to_owned()),
+                wikipedia_url: None,
+                imdb_url: None,
+            }],
+            characters: vec!["Luke Skywalker".to_owned()],
+            format: "Trading Card".to_owned(),
+            origin: ItemOrigin::Official,
+            franchises: vec!["Star Wars".to_owned()],
+            product_line: Some("Star Wars CCG".to_owned()),
+            set_name: Some("Premiere".to_owned()),
+            language: "English".to_owned(),
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Draft,
+        })
+        .await
+        .unwrap();
+
+    let update: AutographItemUpdate = serde_json::from_value(json!({
+        "signerCredits": [{
+            "displayName": "Carrie Fisher",
+            "defaultRole": "actor",
+            "itemRole": "actor",
+            "itemContext": "Princess Leia"
+        }],
+        "characters": ["Princess Leia"],
+        "franchises": ["Star Wars", "Star Wars Legends"],
+        "productLine": "Star Wars Galactic Files",
+        "setName": "Custom",
+        "format": "Comic Book",
+        "origin": "Custom",
+        "language": "Japanese",
+        "tags": ["rebellion"]
+    }))
+    .unwrap();
+    let updated = repository.update(item.id, update).await.unwrap();
+
+    assert_eq!(updated.signer_credits[0].signer.display_name, "Carrie Fisher");
+    assert_eq!(updated.characters, vec!["Princess Leia"]);
+    assert_eq!(updated.franchises, vec!["Star Wars", "Star Wars Legends"]);
+    assert_eq!(
+        updated.product_line.as_deref(),
+        Some("Star Wars Galactic Files")
+    );
+    assert_eq!(updated.set_name.as_deref(), Some("Custom"));
+    assert_eq!(updated.format, "Comic Book");
+    assert_eq!(updated.origin, ItemOrigin::Custom);
+    assert_eq!(updated.language, "Japanese");
+
+    let history = repository.history(item.id).await.unwrap();
+    let metadata_event = history
+        .iter()
+        .find(|event| {
+            event.kind == EditEventKind::MetadataUpdated
+                && event.field_diffs.iter().any(|diff| diff.field == "signers")
+        })
+        .expect("taxonomy metadata history event");
+
+    for field in [
+        "signers",
+        "characters",
+        "franchises",
+        "productLine",
+        "setName",
+        "format",
+        "origin",
+        "language",
+        "tags",
+    ] {
+        assert!(
+            metadata_event
+                .field_diffs
+                .iter()
+                .any(|diff| diff.field == field),
+            "missing taxonomy diff for {field}"
+        );
+    }
+    assert!(metadata_event.summary.contains("signers"));
+}
+
+#[test]
+fn autograph_item_input_deserializes_camel_case_taxonomy_fields() {
+    let input: AutographItemInput = serde_json::from_value(json!({
+        "title": "Signed Jedi Card",
+        "signer": "Mark Hamill",
+        "category": "Cards",
+        "signerCredits": [{
+            "displayName": "Mark Hamill",
+            "defaultRole": "actor",
+            "itemRole": "actor",
+            "itemContext": "Luke Skywalker"
+        }],
+        "characters": ["Luke Skywalker"],
+        "productLine": "Star Wars CCG",
+        "setName": "Premiere",
+        "format": "Trading Card",
+        "origin": "Official",
+        "language": "English",
+        "franchises": ["Star Wars"],
+        "tags": ["jedi"]
+    }))
+    .unwrap();
+
+    assert_eq!(input.signer_credits.len(), 1);
+    assert_eq!(input.characters, vec!["Luke Skywalker"]);
+    assert_eq!(input.product_line.as_deref(), Some("Star Wars CCG"));
+    assert_eq!(input.set_name.as_deref(), Some("Premiere"));
+    assert_eq!(input.format, "Trading Card");
+    assert_eq!(input.origin, ItemOrigin::Official);
+    assert_eq!(input.language, "English");
+    assert_eq!(input.franchises, vec!["Star Wars"]);
+    assert_eq!(input.tags, vec!["jedi"]);
 }
 
 #[tokio::test]
