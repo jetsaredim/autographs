@@ -548,6 +548,7 @@ function signerRow(credit, index) {
   const row = document.createElement("article");
   row.className = "signer-row";
   row.dataset.index = String(index);
+  row.setAttribute("aria-label", `Signer row ${index + 1}`);
   if (credit?.signer?.id) {
     row.dataset.signerId = credit.signer.id;
   }
@@ -565,11 +566,28 @@ function signerRow(credit, index) {
       required: true,
     }),
     labeledInput(`signer-role-${index}`, "Role", "text", credit?.itemRole || credit?.item_role || ""),
-    labeledInput(`signer-context-${index}`, "Context", "text", credit?.itemContext || credit?.item_context || ""),
+    labeledInput(`signer-context-${index}`, "Context", "text", credit?.itemContext || credit?.item_context || "")
+  );
+  row.append(grid);
+
+  const profilePanelId = `signer-profile-links-${index}`;
+  const profileToggle = buttonNode("Signer profile links", "secondary-action", () => {
+    const expanded = profileToggle.getAttribute("aria-expanded") === "true";
+    profileToggle.setAttribute("aria-expanded", String(!expanded));
+    profileLinks.hidden = expanded;
+  });
+  profileToggle.setAttribute("aria-expanded", "false");
+  profileToggle.setAttribute("aria-controls", profilePanelId);
+  const profileLinks = document.createElement("div");
+  profileLinks.id = profilePanelId;
+  profileLinks.className = "signer-profile-links";
+  profileLinks.hidden = true;
+  profileLinks.append(
+    textNode("p", copy.signerLinks, "helper-text"),
     labeledInput(`signer-wikipedia-${index}`, "Wikipedia URL", "url", profileValue(credit, "wikipediaUrl")),
     labeledInput(`signer-imdb-${index}`, "IMDb URL", "url", profileValue(credit, "imdbUrl"))
   );
-  row.append(grid, textNode("p", copy.signerLinks, "helper-text"));
+  row.append(profileToggle, profileLinks);
 
   const actions = document.createElement("div");
   actions.className = "inline-actions";

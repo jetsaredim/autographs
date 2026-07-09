@@ -167,7 +167,7 @@
                   <label for="title">Title</label>
                   <input id="title" name="title" required>
                 </div>
-                <div class="field full-width">
+                <div class="field full-width token-editor">
                   <label for="characters">Characters</label>
                   <input id="characters" name="characters" list="character-suggestions" placeholder="Luke Skywalker, Princess Leia">
                 </div>
@@ -206,7 +206,7 @@
                     <option value="Chinese">Chinese</option>
                   </select>
                 </div>
-                <div class="field full-width">
+                <div class="field full-width token-editor">
                   <label for="franchises">Franchise</label>
                   <input id="franchises" name="franchises" list="franchise-suggestions" placeholder="Star Wars, Star Trek">
                 </div>
@@ -265,7 +265,7 @@
                   <label for="object-reference">Object reference</label>
                   <input id="object-reference" name="objectReference">
                 </div>
-                <div class="field full-width loose-tags-field">
+                <div class="field full-width loose-tags-field token-editor">
                   <label for="tags">Loose tags</label>
                   <input id="tags" name="tags" placeholder="convention, signed">
                   <p class="helper-text">Use loose tags only for details that do not fit signer, franchise, product line, format, origin, language, role, or set.</p>
@@ -395,11 +395,11 @@
             </form>
           </details>
 
-          <datalist id="signer-suggestions"></datalist>
-          <datalist id="character-suggestions"></datalist>
-          <datalist id="franchise-suggestions"></datalist>
-          <datalist id="product-line-suggestions"></datalist>
-          <datalist id="set-name-suggestions"></datalist>
+          <datalist id="signer-suggestions" class="taxonomy-suggestions"></datalist>
+          <datalist id="character-suggestions" class="taxonomy-suggestions"></datalist>
+          <datalist id="franchise-suggestions" class="taxonomy-suggestions"></datalist>
+          <datalist id="product-line-suggestions" class="taxonomy-suggestions"></datalist>
+          <datalist id="set-name-suggestions" class="taxonomy-suggestions"></datalist>
 
           <div id="item-list" class="item-table" aria-live="polite">
             <div class="empty-state">

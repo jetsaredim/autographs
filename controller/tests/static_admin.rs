@@ -348,6 +348,56 @@ fn static_admin_css_keeps_hidden_sections_hidden() {
 }
 
 #[test]
+fn static_admin_taxonomy_styles_and_accessibility_states_are_present() {
+    let source = static_admin_source();
+    for selector in [
+        ".signer-row",
+        ".signer-row-grid",
+        ".warning-summary",
+        ".merge-panel",
+        ".token-editor",
+        ".taxonomy-suggestions",
+        ".loose-tags-field",
+        "#classification-section",
+        "#details-section",
+    ] {
+        assert!(
+            source.contains(selector),
+            "static admin source is missing taxonomy style selector {selector}"
+        );
+    }
+
+    for expected in [
+        "Merge signer: Merge these signer profiles and update linked items? Review the target profile first; this cannot be undone from the admin UI.",
+        "role=\"status\"",
+        "role=\"alert\"",
+        "aria-expanded",
+        "aria-label",
+        "focus-visible",
+        "outline: 2px solid #25636a;",
+        "#9a6700",
+        "#b42318",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin source is missing accessibility/style contract {expected}"
+        );
+    }
+
+    for denied in [
+        "linear-gradient",
+        "radial-gradient",
+        "localStorage",
+        "sessionStorage",
+    ] {
+        assert!(
+            !source.contains(denied),
+            "static admin source should not contain {denied}"
+        );
+    }
+}
+
+#[test]
 fn static_admin_login_keeps_expired_sessions_in_place_when_root_redirects_back_home() {
     let source = static_admin_source();
     for expected in [
