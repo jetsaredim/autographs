@@ -4,12 +4,16 @@ use axum::{
     http::{HeaderMap, Method, StatusCode},
     response::{IntoResponse, Response},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    catalog::{AutographEditEvent, AutographItem, FieldDiff, PendingChangeSummary},
+    catalog::{
+        AutographEditEvent, AutographItem, FieldDiff, ItemOrigin, PendingChangeSummary,
+        SignerMergeResult, SignerProfile, SignerProfileUpdateInput, SignerSuggestion,
+        TaxonomySuggestions,
+    },
     catalog_admin::{AdminCatalogRepositoryExt, AdminItemFilter},
 };
 
@@ -24,6 +28,7 @@ pub(super) async fn list_items(
         return status.into_response();
     }
 
+    let changes_filter = filter.changes.clone();
     match state.repository.as_ref().list_admin_items(filter).await {
         Ok(items) => {
             let mut summaries = Vec::with_capacity(items.len());
@@ -32,10 +37,13 @@ pub(super) async fn list_items(
             // catalog; a future publish-boundary store can replace this with a bulk
             // repository query when the catalog size makes the N+1 lookup material.
             for item in items {
-                let has_pending_changes = pending_marker(&state, item.id).await.has_pending_changes;
+                let pending = pending_marker(&state, item.id).await;
+                if !changes_filter_matches(pending.has_pending_changes, &changes_filter) {
+                    continue;
+                }
                 summaries.push(AdminItemSummaryResponse::from_item(
                     item,
-                    has_pending_changes,
+                    pending.has_pending_changes,
                 ));
             }
             Json(summaries).into_response()
@@ -111,6 +119,108 @@ pub(super) async fn item_history(
     }
 }
 
+pub(super) async fn list_signers(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<AdminSignerQuery>,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        return status.into_response();
+    }
+
+    match state
+        .repository
+        .signer_suggestions(query.query.unwrap_or_default())
+        .await
+    {
+        Ok(suggestions) => Json(AdminSignerSuggestionsResponse {
+            suggestions: suggestions
+                .into_iter()
+                .map(AdminSignerSuggestionResponse::from)
+                .collect(),
+        })
+        .into_response(),
+        Err(error) => {
+            tracing::error!(error = %error, "failed to load signer suggestions");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+pub(super) async fn update_signer(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    method: Method,
+    headers: HeaderMap,
+    Json(input): Json<AdminSignerUpdateRequest>,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        return status.into_response();
+    }
+    let Ok(id) = Uuid::parse_str(&id) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+
+    match state
+        .repository
+        .update_signer_profile(id, input.into())
+        .await
+    {
+        Ok(profile) => Json(AdminSignerProfileResponse::from(profile)).into_response(),
+        Err(error) if error.contains("not found") => StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(signer_id = %id, error = %error, "failed to update signer profile");
+            StatusCode::BAD_REQUEST.into_response()
+        }
+    }
+}
+
+pub(super) async fn merge_signers(
+    State(state): State<AppState>,
+    method: Method,
+    headers: HeaderMap,
+    Json(input): Json<AdminSignerMergeRequest>,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        return status.into_response();
+    }
+    if input.source_signer_id == input.target_signer_id {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+
+    match state
+        .repository
+        .merge_signer_profiles(input.source_signer_id, input.target_signer_id)
+        .await
+    {
+        Ok(result) => Json(AdminSignerMergeResponse::from(result)).into_response(),
+        Err(error) if error.contains("not found") => StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(error = %error, "failed to merge signer profiles");
+            StatusCode::BAD_REQUEST.into_response()
+        }
+    }
+}
+
+pub(super) async fn taxonomy_suggestions(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        return status.into_response();
+    }
+
+    match state.repository.taxonomy_suggestions().await {
+        Ok(suggestions) => {
+            Json(AdminTaxonomySuggestionsResponse::from(suggestions)).into_response()
+        }
+        Err(error) => {
+            tracing::error!(error = %error, "failed to load taxonomy suggestions");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 pub(super) async fn pending_marker(state: &AppState, item_id: Uuid) -> PendingMarkerResponse {
     match state.repository.pending_changes_for_item(item_id).await {
         Ok(summary) => PendingMarkerResponse::from_summary(summary),
@@ -143,13 +253,154 @@ impl PendingMarkerResponse {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct AdminSignerQuery {
+    query: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdminSignerSuggestionsResponse {
+    suggestions: Vec<AdminSignerSuggestionResponse>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdminSignerSuggestionResponse {
+    profile: AdminSignerProfileResponse,
+    possible_duplicate: bool,
+}
+
+impl From<SignerSuggestion> for AdminSignerSuggestionResponse {
+    fn from(suggestion: SignerSuggestion) -> Self {
+        Self {
+            profile: AdminSignerProfileResponse::from(suggestion.profile),
+            possible_duplicate: suggestion.possible_duplicate,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct AdminSignerUpdateRequest {
+    display_name: Option<String>,
+    default_role: Option<String>,
+    wikipedia_url: Option<String>,
+    imdb_url: Option<String>,
+}
+
+impl From<AdminSignerUpdateRequest> for SignerProfileUpdateInput {
+    fn from(request: AdminSignerUpdateRequest) -> Self {
+        Self {
+            display_name: request.display_name,
+            default_role: request.default_role,
+            wikipedia_url: request.wikipedia_url,
+            imdb_url: request.imdb_url,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct AdminSignerMergeRequest {
+    source_signer_id: Uuid,
+    target_signer_id: Uuid,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdminSignerMergeResponse {
+    source_signer_id: Uuid,
+    target_signer_id: Uuid,
+    updated_item_count: usize,
+}
+
+impl From<SignerMergeResult> for AdminSignerMergeResponse {
+    fn from(result: SignerMergeResult) -> Self {
+        Self {
+            source_signer_id: result.source_signer_id,
+            target_signer_id: result.target_signer_id,
+            updated_item_count: result.updated_item_count,
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct AdminSignerProfileResponse {
+    id: Uuid,
+    display_name: String,
+    normalized_name: String,
+    default_role: Option<String>,
+    wikipedia_url: Option<String>,
+    imdb_url: Option<String>,
+    created_at_epoch_seconds: i64,
+    updated_at_epoch_seconds: i64,
+}
+
+impl From<SignerProfile> for AdminSignerProfileResponse {
+    fn from(profile: SignerProfile) -> Self {
+        Self {
+            id: profile.id,
+            display_name: profile.display_name,
+            normalized_name: profile.normalized_name,
+            default_role: profile.default_role,
+            wikipedia_url: profile.wikipedia_url,
+            imdb_url: profile.imdb_url,
+            created_at_epoch_seconds: profile.created_at_epoch_seconds,
+            updated_at_epoch_seconds: profile.updated_at_epoch_seconds,
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdminTaxonomySuggestionsResponse {
+    signers: Vec<AdminSignerProfileResponse>,
+    characters: Vec<String>,
+    formats: Vec<String>,
+    origins: Vec<ItemOrigin>,
+    franchises: Vec<String>,
+    product_lines: Vec<String>,
+    set_names: Vec<String>,
+    languages: Vec<String>,
+    roles: Vec<String>,
+    tags: Vec<String>,
+}
+
+impl From<TaxonomySuggestions> for AdminTaxonomySuggestionsResponse {
+    fn from(suggestions: TaxonomySuggestions) -> Self {
+        Self {
+            signers: suggestions
+                .signers
+                .into_iter()
+                .map(AdminSignerProfileResponse::from)
+                .collect(),
+            characters: suggestions.characters,
+            formats: suggestions.formats,
+            origins: suggestions.origins,
+            franchises: suggestions.franchises,
+            product_lines: suggestions.product_lines,
+            set_names: suggestions.set_names,
+            languages: suggestions.languages,
+            roles: suggestions.roles,
+            tags: suggestions.tags,
+        }
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AdminItemSummaryResponse {
     id: Uuid,
     title: String,
-    signer: String,
-    category: String,
+    signer_text: String,
+    signer_names: Vec<String>,
+    format: String,
+    franchises: Vec<String>,
+    product_line: Option<String>,
+    language: String,
     tags: Vec<String>,
     publication_status: crate::catalog::PublicationStatus,
     image_count: usize,
@@ -162,14 +413,37 @@ impl AdminItemSummaryResponse {
         Self {
             id: item.id,
             title: item.title,
-            signer: item.signer,
-            category: item.category,
+            signer_text: item.signer,
+            signer_names: item
+                .signer_credits
+                .iter()
+                .map(|credit| credit.signer.display_name.clone())
+                .collect(),
+            format: item.format,
+            franchises: item.franchises,
+            product_line: item.product_line,
+            language: item.language,
             tags: item.tags,
             publication_status: item.publication_status,
             image_count: item.images.len(),
             has_pending_changes,
             updated_at_epoch_seconds: item.updated_at_epoch_seconds,
         }
+    }
+}
+
+fn changes_filter_matches(has_pending_changes: bool, query: &Option<String>) -> bool {
+    let Some(query) = query
+        .as_deref()
+        .map(str::trim)
+        .filter(|query| !query.is_empty())
+    else {
+        return true;
+    };
+    match query.to_lowercase().as_str() {
+        "pending" | "changed" | "true" | "yes" | "1" => has_pending_changes,
+        "none" | "clean" | "false" | "no" | "0" => !has_pending_changes,
+        _ => true,
     }
 }
 

@@ -344,11 +344,7 @@ async fn admin_signer_and_taxonomy_routes_require_session_and_return_redacted_pa
 
     for (method, uri, body) in [
         ("GET", "/admin/api/signers?query=mark", Body::empty()),
-        (
-            "GET",
-            "/admin/api/taxonomy/suggestions",
-            Body::empty(),
-        ),
+        ("GET", "/admin/api/taxonomy/suggestions", Body::empty()),
     ] {
         let response = app
             .clone()
@@ -417,7 +413,10 @@ async fn admin_signer_and_taxonomy_routes_require_session_and_return_redacted_pa
     let suggestions_body = response_string(suggestions).await;
     assert_redacted(&suggestions_body);
     let suggestions_json: Value = serde_json::from_str(&suggestions_body).unwrap();
-    assert_eq!(suggestions_json["suggestions"][0]["profile"]["displayName"], "Mark Hamel");
+    assert_eq!(
+        suggestions_json["suggestions"][0]["profile"]["displayName"],
+        "Mark Hamel"
+    );
     assert_json_true(&suggestions_json["suggestions"][0]["possibleDuplicate"]);
 
     let taxonomy = app
@@ -435,8 +434,18 @@ async fn admin_signer_and_taxonomy_routes_require_session_and_return_redacted_pa
     let taxonomy_body = response_string(taxonomy).await;
     assert_redacted(&taxonomy_body);
     let taxonomy_json: Value = serde_json::from_str(&taxonomy_body).unwrap();
-    assert!(taxonomy_json["formats"].as_array().unwrap().contains(&json!("Trading Card")));
-    assert!(taxonomy_json["languages"].as_array().unwrap().contains(&json!("English")));
+    assert!(
+        taxonomy_json["formats"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("Trading Card"))
+    );
+    assert!(
+        taxonomy_json["languages"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("English"))
+    );
 
     let merge = app
         .clone()

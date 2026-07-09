@@ -5,7 +5,7 @@ use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
 };
 use image::ImageFormat;
 use serde::{Deserialize, Serialize};
@@ -223,6 +223,13 @@ pub fn router_with_services(
         .route(
             "/admin/api/items/{id}/history",
             get(admin_items::item_history),
+        )
+        .route("/admin/api/signers", get(admin_items::list_signers))
+        .route("/admin/api/signers/{id}", patch(admin_items::update_signer))
+        .route("/admin/api/signers/merge", post(admin_items::merge_signers))
+        .route(
+            "/admin/api/taxonomy/suggestions",
+            get(admin_items::taxonomy_suggestions),
         )
         .route("/admin/api/items/{id}/images", post(upload_image))
         .route(
@@ -1145,6 +1152,14 @@ pub(super) struct ItemResponse {
     description: Option<String>,
     category: String,
     tags: Vec<String>,
+    signer_credits: Vec<SignerCreditResponse>,
+    characters: Vec<String>,
+    format: String,
+    origin: crate::catalog::ItemOrigin,
+    franchises: Vec<String>,
+    product_line: Option<String>,
+    set_name: Option<String>,
+    language: String,
     object_reference: Option<String>,
     event_name: Option<String>,
     event_location: Option<String>,
@@ -1159,6 +1174,15 @@ pub(super) struct ItemResponse {
     pending_changes: Option<admin_items::PendingMarkerResponse>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     cleanup_warnings: Vec<CleanupWarningResponse>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SignerCreditResponse {
+    signer: admin_items::AdminSignerProfileResponse,
+    sort_order: i32,
+    item_role: Option<String>,
+    item_context: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1316,6 +1340,23 @@ impl ItemResponse {
             description: item.description,
             category: item.category,
             tags: item.tags,
+            signer_credits: item
+                .signer_credits
+                .into_iter()
+                .map(|credit| SignerCreditResponse {
+                    signer: admin_items::AdminSignerProfileResponse::from(credit.signer),
+                    sort_order: credit.sort_order,
+                    item_role: credit.item_role,
+                    item_context: credit.item_context,
+                })
+                .collect(),
+            characters: item.characters,
+            format: item.format,
+            origin: item.origin,
+            franchises: item.franchises,
+            product_line: item.product_line,
+            set_name: item.set_name,
+            language: item.language,
             object_reference: item.object_reference,
             event_name: item.event_name,
             event_location: item.event_location,
