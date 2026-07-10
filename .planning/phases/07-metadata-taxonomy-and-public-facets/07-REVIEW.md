@@ -1,6 +1,6 @@
 ---
 phase: 07-metadata-taxonomy-and-public-facets
-reviewed: 2026-07-10T03:18:01Z
+reviewed: 2026-07-10T03:29:20Z
 depth: standard
 files_reviewed: 37
 files_reviewed_list:
@@ -42,92 +42,114 @@ files_reviewed_list:
   - docs/static-artifact-contract.md
   - docs/static-runtime-runbook.md
 findings:
-  critical: 1
+  critical: 2
   warning: 1
   info: 0
-  total: 2
+  total: 3
 status: issues_found
 ---
 
 # Phase 07: Code Review Report
 
-**Reviewed:** 2026-07-10T03:18:01Z
+**Reviewed:** 2026-07-10T03:29:20Z
 **Depth:** standard
 **Files Reviewed:** 37
 **Status:** issues_found
 
+## Narrative Findings (AI reviewer)
+
 ## Summary
 
-Re-reviewed the Phase 7 taxonomy/schema/admin/public/docs scope after commit `561d840`. Previous findings CR-02, CR-03, WR-01, and WR-03 are resolved in the submitted fixes. Previous CR-01 is only fixed in the memory repository and remains open in the Oracle repository, which is the production persistence path. Previous WR-02 is only fixed in the browser payload path and remains open for direct API callers and Oracle persistence.
+Reviewed the full Phase 7 schema, Rust controller, static admin/public, test, and documentation scope at standard depth. The follow-up commits appear to have resolved the earlier direct profile URL validation and duplicate taxonomy-list persistence findings: both memory and Oracle paths now validate profile hosts, and both create/update paths normalize duplicate tag/character/franchise lists before persistence. The remaining issues are in the signer identity handoff, the live backfill script shape, and production signer suggestion completeness.
 
-Validation run:
-
-- `cargo test --manifest-path controller/Cargo.toml` passed.
-- Targeted regression tests for memory-mode profile URL validation, admin validation status mapping, and static-admin row-scoped signer payloads passed.
-
-## Narrative Findings (AI reviewer)
+No tests were run during this review; this was a read-through code review.
 
 ## Critical Issues
 
-### CR-01: Oracle Profile URL Validation Still Allows Unsafe Public `href` Values
+### CR-01: Editing A Signer Name Can Rename The Existing Reusable Profile
 
 **Severity:** BLOCKER
-**File:** `controller/src/oracle_catalog.rs:1268`
-**Issue:** Commit `561d840` tightened `validate_profile_url()` in the memory repository, but the Oracle repository still only checks profile URL length at lines 1268-1273. Production create/update calls resolve signer credits through `resolve_oracle_signer_credits()` and `apply_signer_input_to_profile()`, so an admin or direct API caller can still persist `javascript:alert(1)` or `data:` values in Oracle signer profile links. The publisher renders non-empty profile links into public detail-page `href` attributes at `controller/src/publisher.rs:1909` and `controller/src/publisher.rs:1921`, so this remains a public XSS/security issue in production mode.
+**File:** `controller/static-admin/admin.js:556`
+**Issue:** Loaded signer rows store the existing profile ID in `row.dataset.signerId` at lines 556-558, but the `input` handler at lines 617-620 never clears that hidden ID when the visible signer name changes. The save payload then sends both the stale `signerId` and the newly typed `displayName` at lines 981-994. Both repository implementations trust `signerId` first (`controller/src/catalog.rs:1478` and `controller/src/oracle_catalog.rs:1001`), apply the new display name to that existing profile, and persist it through `upsert_signer_profile()` (`controller/src/oracle_catalog.rs:1633`). A routine item edit can therefore rename a shared signer profile and change every item linked to that signer instead of assigning this item to a new or different signer.
 **Fix:**
-```rust
-fn validate_profile_url(value: Option<&str>, field: &str) -> Result<(), String> {
-    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
-        return Ok(());
-    };
-    if value.len() > 1000 {
-        return Err(format!("{field} must be 1000 characters or fewer"));
-    }
-    let Some(rest) = value.strip_prefix("https://") else {
-        return Err(format!("{field} must be an https URL"));
-    };
-    let host = rest
-        .split(['/', '?', '#', ':'])
-        .next()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    let allowed = match field {
-        "wikipediaUrl" => host == "wikipedia.org" || host.ends_with(".wikipedia.org"),
-        "imdbUrl" => host == "imdb.com" || host.ends_with(".imdb.com"),
-        _ => false,
-    };
-    if !allowed {
-        return Err(format!(
-            "{field} must point to {}",
-            if field == "wikipediaUrl" { "wikipedia.org" } else { "imdb.com" }
-        ));
-    }
-    Ok(())
-}
+```javascript
+let selectedSignerName = profileValue(credit, "displayName").trim();
+
+nameInput.addEventListener("input", async () => {
+  if (nameInput.value.trim() !== selectedSignerName) {
+    delete row.dataset.signerId;
+  }
+  await loadSignerSuggestions(nameInput.value);
+  renderDuplicateWarnings();
+});
+
+nameInput.addEventListener("change", () => {
+  const selected = state.signerSuggestions.find(
+    (suggestion) => suggestion.profile.displayName === nameInput.value.trim()
+  );
+  if (selected) {
+    row.dataset.signerId = selected.profile.id;
+    selectedSignerName = selected.profile.displayName;
+  } else {
+    delete row.dataset.signerId;
+    selectedSignerName = "";
+  }
+  renderDuplicateWarnings();
+});
 ```
-Prefer sharing one validator between `catalog.rs` and `oracle_catalog.rs`, and add an Oracle/live-persistence or unit-seam regression test so production persistence cannot drift from memory-mode validation again.
+Also harden the API boundary by rejecting a payload that includes `signerId` plus a conflicting `displayName` unless the normalized name matches the loaded profile, reserving profile renames for the explicit signer-profile update route.
+
+### CR-02: Taxonomy Backfill Does Not Materialize Legacy Signers Into The New Signer Tables
+
+**Severity:** BLOCKER
+**File:** `controller/src/taxonomy_migration.rs:178`
+**Issue:** The schema migration creates empty `autograph_signers` and `autograph_item_signers` tables (`controller/db/updates/07-01-taxonomy-schema.sql:151` and `controller/db/updates/07-01-taxonomy-schema.sql:183`), but the generated apply script only updates `autograph_item_signers.item_role` for existing rows (`controller/src/taxonomy_migration.rs:237` and `controller/db/updates/07-03-taxonomy-backfill-apply.sql:18`). Existing live items have only legacy `autograph_items.signer` values, so those role updates affect zero rows and no reusable signer profiles are created. The controller can fall back to ephemeral legacy signer credits when loading an item (`controller/src/oracle_catalog.rs:897`), but taxonomy suggestions remain empty/incomplete and the migrated role data is lost until each item is manually saved.
+**Fix:**
+```sql
+merge into autograph_signers signer
+using (
+  select '<stable-signer-uuid>' id,
+         'Mark Hamill' display_name,
+         'mark hamill' normalized_name
+  from dual
+) incoming
+on (signer.normalized_name = incoming.normalized_name)
+when not matched then
+  insert (id, display_name, normalized_name)
+  values (incoming.id, incoming.display_name, incoming.normalized_name);
+
+insert into autograph_item_signers (item_id, signer_id, sort_order, item_role)
+select '<item-id>', signer.id, 0, 'actor'
+from autograph_signers signer
+where signer.normalized_name = 'mark hamill'
+  and not exists (
+    select 1 from autograph_item_signers existing
+    where existing.item_id = '<item-id>' and existing.signer_id = signer.id
+  );
+```
+Generate those signer/profile statements from the legacy export before role updates, and keep ambiguous multi-signer strings such as slash-delimited names in the report/manual-review bucket unless they can be split safely. Add a regression that asserts generated PL/SQL inserts or merges signer profiles and item signer credits, not only item-level taxonomy fields.
 
 ## Warnings
 
-### WR-01: Oracle Saves Still Fail On Duplicate Direct-API Taxonomy Values
+### WR-01: Oracle Signer Suggestions Only Search The First 50 Profiles
 
 **Severity:** WARNING
-**File:** `controller/src/oracle_catalog.rs:1527`, `controller/src/oracle_catalog.rs:1693`
-**Issue:** The browser `splitList()` now deduplicates admin-entered taxonomy lists, but Oracle persistence still inserts the caller-provided `tags`, normalized `characters`, and normalized `franchises` vectors directly into tables whose primary keys are `(item_id, tag)`, `(item_id, character_name)`, and `(item_id, franchise)`. Direct API callers, tests, migration tools, or any non-browser client can still submit duplicate taxonomy values and trigger Oracle constraint errors during `replace_tags()` or `replace_ordered_values()`, while memory mode accepts the same payload. This leaves the previous duplicate-token production robustness issue unresolved outside the static admin UI.
-**Fix:** Deduplicate in the Rust persistence/service boundary before Oracle insert loops, not only in browser JavaScript. For example:
-```rust
-fn normalize_unique_string_list(values: Vec<String>) -> Vec<String> {
-    let mut seen = std::collections::BTreeSet::new();
-    normalize_string_list(values)
-        .into_iter()
-        .filter(|value| seen.insert(value.clone()))
-        .collect()
-}
+**File:** `controller/src/oracle_catalog.rs:1098`
+**Issue:** `load_all_signer_profiles()` applies `fetch first 50 rows only` before any caller-specific filtering. `signer_suggestions()` then searches only those 50 rows at lines 737-764, so a production collection with more than 50 signers can miss exact or near matches that sort after the cap. `taxonomy_suggestions()` also exposes only that capped list at lines 1167-1170, which undermines the Phase 7 requirement that reusable profiles and duplicate warnings work before save/publish.
+**Fix:**
+```sql
+select id, display_name, normalized_name, default_role, wikipedia_url, imdb_url, ...
+from autograph_signers
+where normalized_name = :exact
+   or normalized_name like :prefix
+   or normalized_name like :contains
+order by case when normalized_name = :exact then 0 else 1 end, display_name, id
+fetch first 10 rows only
 ```
-Use that for tags, characters, and franchises on create/update before calling `replace_tags()`, `replace_characters()`, and `replace_franchises()`, and add an Oracle-path regression test for duplicate direct-API taxonomy values.
+Use a query-specific SQL search for `signer_suggestions()` and either return all signer profiles for taxonomy suggestions or make the endpoint explicitly paginated/capped with UI handling so missing profiles are not silently treated as absent.
 
 ---
 
-_Reviewed: 2026-07-10T03:18:01Z_
+_Reviewed: 2026-07-10T03:29:20Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
