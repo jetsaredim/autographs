@@ -189,6 +189,8 @@ fn static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only() {
     let source = static_admin_source();
     for expected in [
         "row.querySelector(`[data-signer-field=\"${field}\"]`)",
+        "delete row.dataset.signerId",
+        "selectedSignerName = selected.profile.displayName",
         "itemRole: value(\"role\")",
         "wikipediaUrl: value(\"wikipedia\")",
         "imdbUrl: value(\"imdb\")",

@@ -1567,6 +1567,39 @@ async fn signer_profile_edits_record_history_for_linked_items_only() {
 }
 
 #[tokio::test]
+async fn item_signer_credit_rejects_conflicting_profile_id_and_display_name() {
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(test_item_input(
+            "Signed Jedi Card",
+            "Mark Hamill",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let signer_id = item.signer_credits[0].signer.id;
+
+    let update: AutographItemUpdate = serde_json::from_value(json!({
+        "signerCredits": [{
+            "signerId": signer_id,
+            "displayName": "Carrie Fisher",
+            "itemRole": "actor"
+        }]
+    }))
+    .unwrap();
+    let error = repository.update(item.id, update).await.unwrap_err();
+    assert!(error.contains("signerId cannot be combined with a conflicting displayName"));
+
+    let unchanged = repository.get(item.id).await.unwrap().unwrap();
+    assert_eq!(
+        unchanged.signer_credits[0].signer.display_name,
+        "Mark Hamill"
+    );
+}
+
+#[tokio::test]
 async fn merge_signer_profiles_moves_credits_and_records_history() {
     let repository = MemoryCatalogRepository::default();
     let source_item = repository

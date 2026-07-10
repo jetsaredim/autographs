@@ -614,13 +614,25 @@ function signerRow(credit, index) {
   row.append(actions);
 
   const nameInput = grid.querySelector(".signer-name-input");
+  let selectedSignerName = profileValue(credit, "displayName").trim();
   nameInput.addEventListener("input", async () => {
+    if (nameInput.value.trim() !== selectedSignerName) {
+      delete row.dataset.signerId;
+    }
     await loadSignerSuggestions(nameInput.value);
     renderDuplicateWarnings();
   });
   nameInput.addEventListener("change", () => {
-    const selected = state.signerSuggestions.find((suggestion) => suggestion.profile.displayName === nameInput.value);
-    row.dataset.signerId = selected?.profile?.id || "";
+    const selected = state.signerSuggestions.find(
+      (suggestion) => suggestion.profile.displayName === nameInput.value.trim()
+    );
+    if (selected?.profile?.id) {
+      row.dataset.signerId = selected.profile.id;
+      selectedSignerName = selected.profile.displayName;
+    } else {
+      delete row.dataset.signerId;
+      selectedSignerName = "";
+    }
     renderDuplicateWarnings();
   });
 

@@ -1134,6 +1134,7 @@ fn repository_update_error_status(error: &str) -> StatusCode {
         || error.contains("must point to")
         || error.contains("duplicate signer credits")
         || error.contains("not allowed")
+        || error.contains("cannot be")
     {
         StatusCode::BAD_REQUEST
     } else if error.contains("not found") {

@@ -69,6 +69,17 @@ fn generated_plsql_maps_known_values_without_private_identifiers() {
     assert!(script.contains("format = 'Trading Card'"));
     assert!(script.contains("legacy value: Tr"));
     assert!(script.contains("legacy value: Tra") || script.contains("legacy value: Trading Card"));
+    assert!(script.contains("merge into autograph_signers signer"));
+    assert!(script.contains(
+        "insert into autograph_item_signers (item_id, signer_id, sort_order, item_role)"
+    ));
+    assert!(script.contains("'Mark Hamill' display_name"));
+    assert!(script.contains("'mark hamill' normalized_name"));
+    assert!(script.contains("signer.normalized_name = 'mark hamill'"));
+    assert!(
+        script.contains("select '11111111-1111-4111-8111-111111111111', signer.id, 0, 'actor'")
+    );
+    assert!(!script.contains("'Mark Hamill / Carrie Fisher' display_name"));
     assert!(!script.contains("possible duplicate physical item"));
 
     for forbidden in [

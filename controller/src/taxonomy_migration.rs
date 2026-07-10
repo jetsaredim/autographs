@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -161,6 +161,17 @@ pub fn generate_backfill_report(
 ) -> BackfillReport {
     let mut report_rows = Vec::new();
     for row in rows {
+        if signer_needs_review(&row.signer) {
+            report_rows.push(report_row(
+                row,
+                "legacy signer",
+                &row.signer,
+                BackfillDisposition::NeedsReview,
+                None,
+                None,
+                Some("Signer contains a possible multi-signer delimiter; create signer credits manually.".to_owned()),
+            ));
+        }
         classify_value(
             mapping,
             row,
@@ -187,6 +198,55 @@ pub fn generate_plsql_script(
     output.push_str("-- Mapping source: ");
     output.push_str(mapping_source);
     output.push_str("\n\nbegin\n");
+    let signer_roles = mapped_roles_by_item(&report);
+    let mut emitted_signers = BTreeSet::new();
+    for row in rows
+        .iter()
+        .filter(|row| !row.signer.trim().is_empty() && !signer_needs_review(&row.signer))
+    {
+        let display_name = row.signer.trim();
+        let normalized_name = normalize_signer_name(display_name);
+        if normalized_name.is_empty() {
+            continue;
+        }
+        let signer_id = stable_signer_id(&normalized_name);
+        if emitted_signers.insert(normalized_name.clone()) {
+            output.push_str("  merge into autograph_signers signer\n");
+            output.push_str("    using (select '");
+            output.push_str(&signer_id);
+            output.push_str("' id, '");
+            output.push_str(&sql_literal(display_name));
+            output.push_str("' display_name, '");
+            output.push_str(&sql_literal(&normalized_name));
+            output.push_str("' normalized_name from dual) incoming\n");
+            output.push_str("    on (signer.normalized_name = incoming.normalized_name)\n");
+            output
+                .push_str("    when not matched then insert (id, display_name, normalized_name)\n");
+            output.push_str(
+                "      values (incoming.id, incoming.display_name, incoming.normalized_name);\n",
+            );
+        }
+        output.push_str(
+            "  insert into autograph_item_signers (item_id, signer_id, sort_order, item_role)\n",
+        );
+        output.push_str("    select '");
+        output.push_str(&sql_literal(&row.id));
+        output.push_str("', signer.id, 0, ");
+        if let Some(role) = signer_roles.get(&row.id) {
+            output.push('\'');
+            output.push_str(&sql_literal(role));
+            output.push('\'');
+        } else {
+            output.push_str("cast(null as varchar2(128))");
+        }
+        output.push_str(" from autograph_signers signer\n");
+        output.push_str("    where signer.normalized_name = '");
+        output.push_str(&sql_literal(&normalized_name));
+        output.push_str("'\n");
+        output.push_str("      and not exists (select 1 from autograph_item_signers existing where existing.item_id = '");
+        output.push_str(&sql_literal(&row.id));
+        output.push_str("' and existing.signer_id = signer.id);\n");
+    }
     for row in report
         .rows
         .iter()
@@ -249,6 +309,18 @@ pub fn generate_plsql_script(
     }
     output.push_str("end;\n/\n");
     output
+}
+
+fn mapped_roles_by_item(report: &BackfillReport) -> BTreeMap<String, String> {
+    report
+        .rows
+        .iter()
+        .filter(|row| {
+            row.disposition == BackfillDisposition::Mapped
+                && row.target_field.as_deref() == Some("role")
+        })
+        .filter_map(|row| Some((row.item_id.clone(), row.target_value.as_ref()?.clone())))
+        .collect()
 }
 
 fn classify_value(
@@ -323,4 +395,64 @@ fn sql_literal(value: &str) -> String {
 
 fn sql_comment_safe(value: &str) -> String {
     value.replace('\n', " ").replace('\r', " ")
+}
+
+fn signer_needs_review(value: &str) -> bool {
+    let value = value.trim();
+    value.contains('/') || value.contains(" + ") || value.contains(" & ")
+}
+
+fn normalize_signer_name(value: &str) -> String {
+    value
+        .trim()
+        .chars()
+        .map(|character| {
+            if character.is_alphanumeric() || character.is_whitespace() {
+                character.to_lowercase().collect::<String>()
+            } else {
+                " ".to_owned()
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn stable_signer_id(normalized_name: &str) -> String {
+    let first = fnv1a64(normalized_name.as_bytes());
+    let second = fnv1a64(format!("autographs:{normalized_name}").as_bytes());
+    let mut bytes = [0_u8; 16];
+    bytes[..8].copy_from_slice(&first.to_be_bytes());
+    bytes[8..].copy_from_slice(&second.to_be_bytes());
+    bytes[6] = (bytes[6] & 0x0f) | 0x50;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        bytes[0],
+        bytes[1],
+        bytes[2],
+        bytes[3],
+        bytes[4],
+        bytes[5],
+        bytes[6],
+        bytes[7],
+        bytes[8],
+        bytes[9],
+        bytes[10],
+        bytes[11],
+        bytes[12],
+        bytes[13],
+        bytes[14],
+        bytes[15]
+    )
+}
+
+fn fnv1a64(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325_u64;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
 }

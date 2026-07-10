@@ -740,7 +740,7 @@ impl CatalogRepository for OracleCatalogRepository {
             if normalized_query.is_empty() {
                 return Ok(Vec::new());
             }
-            let mut suggestions = load_all_signer_profiles(&connection)?
+            let mut suggestions = load_signer_suggestion_profiles(&connection, &normalized_query)?
                 .into_iter()
                 .filter_map(|profile| {
                     signer_match_rank(&normalized_query, &profile.normalized_name).map(|rank| {
@@ -1001,6 +1001,7 @@ fn resolve_oracle_signer_profile(
     if let Some(signer_id) = input.signer_id
         && let Some(mut profile) = load_signer_profile_by_id(connection, signer_id)?
     {
+        validate_signer_id_display_name(&profile, input)?;
         apply_signer_input_to_profile(&mut profile, input, now)?;
         return upsert_signer_profile(
             connection,
@@ -1044,6 +1045,26 @@ fn resolve_oracle_signer_profile(
             item_context: None,
         },
     )
+}
+
+fn validate_signer_id_display_name(
+    profile: &SignerProfile,
+    input: &SignerCreditInput,
+) -> Result<(), String> {
+    let Some(display_name) = input.display_name.as_deref().map(str::trim) else {
+        return Ok(());
+    };
+    if display_name.is_empty() {
+        return Ok(());
+    }
+    let normalized_name = normalize_signer_name(display_name);
+    if normalized_name != profile.normalized_name {
+        return Err(
+            "signerId cannot be combined with a conflicting displayName; choose the matching signer or create a new signer"
+                .to_owned(),
+        );
+    }
+    Ok(())
 }
 
 fn load_signer_profile_by_id(
@@ -1095,6 +1116,35 @@ fn load_signer_profile_by_query(
     Ok(Some(signer_profile_from_row(&row, 0)?))
 }
 
+fn load_signer_suggestion_profiles(
+    connection: &Connection,
+    normalized_query: &str,
+) -> Result<Vec<SignerProfile>, String> {
+    let prefix_query = format!("{normalized_query}%");
+    let contains_query = format!("%{normalized_query}%");
+    let mut rows = connection
+        .query(
+            "select
+                id, display_name, normalized_name, default_role, wikipedia_url, imdb_url,
+                cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
+                cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
+            from autograph_signers
+            where normalized_name = :1
+               or normalized_name like :2
+               or normalized_name like :3
+            order by case when normalized_name = :1 then 0 else 1 end, display_name, id
+            fetch first 10 rows only",
+            &[&normalized_query, &prefix_query, &contains_query],
+        )
+        .map_err(|error| format!("read Oracle signer suggestion profiles: {error}"))?;
+    let mut profiles = Vec::new();
+    while let Some(row) = rows.next() {
+        let row = row.map_err(|error| format!("read Oracle signer suggestion row: {error}"))?;
+        profiles.push(signer_profile_from_row(&row, 0)?);
+    }
+    Ok(profiles)
+}
+
 fn load_all_signer_profiles(connection: &Connection) -> Result<Vec<SignerProfile>, String> {
     let mut rows = connection
         .query(
@@ -1103,8 +1153,7 @@ fn load_all_signer_profiles(connection: &Connection) -> Result<Vec<SignerProfile
                 cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
                 cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
             from autograph_signers
-            order by display_name, id
-            fetch first 50 rows only",
+            order by display_name, id",
             &[],
         )
         .map_err(|error| format!("read Oracle signer profiles: {error}"))?;

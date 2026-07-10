@@ -1478,6 +1478,7 @@ fn resolve_signer_profile(
     if let Some(signer_id) = input.signer_id
         && let Some(profile) = signers.get_mut(&signer_id)
     {
+        validate_signer_id_display_name(profile, input)?;
         update_signer_profile(profile, input, now);
         return Ok(profile.clone());
     }
@@ -1515,6 +1516,26 @@ fn resolve_signer_profile(
     };
     signers.insert(profile.id, profile.clone());
     Ok(profile)
+}
+
+fn validate_signer_id_display_name(
+    profile: &SignerProfile,
+    input: &SignerCreditInput,
+) -> Result<(), String> {
+    let Some(display_name) = input.display_name.as_deref().map(str::trim) else {
+        return Ok(());
+    };
+    if display_name.is_empty() {
+        return Ok(());
+    }
+    let normalized_name = normalize_signer_name(display_name);
+    if normalized_name != profile.normalized_name {
+        return Err(
+            "signerId cannot be combined with a conflicting displayName; choose the matching signer or create a new signer"
+                .to_owned(),
+        );
+    }
+    Ok(())
 }
 
 fn update_signer_profile(profile: &mut SignerProfile, input: &SignerCreditInput, now: i64) {
