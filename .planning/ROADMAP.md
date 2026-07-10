@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Public Showcase and Hardening** - Tie up loose ends, audit the current security posture, polish documentation, and prepare the current repository state to be public as a human+AI showcase. (completed 2026-05-25)
 - [x] **Phase 5: Static Runtime Migration Foundation** - Complete; the Rust/static runtime foundation is deployed and backed by recorded live static publish proof through Oracle, OCI Object Storage, generated static output, Caddy, and cleanup.
 - [x] **Phase 6: Admin Collection Workflow** - Complete; the single-admin create, edit, publish, multi-image, edit-history, session-auth, docs/security, and optimized public delivery/runtime posture loop is implemented on top of the private publisher foundation.
-- [ ] **Phase 7: Metadata Taxonomy and Public Facets** - Replace overloaded signer/category/tag assumptions with first-class multi-signer records, collector taxonomy fields, and public facets generated from the richer model.
+- [x] **Phase 7: Metadata Taxonomy and Public Facets** - Replace overloaded signer/category/tag assumptions with first-class multi-signer records, collector taxonomy fields, and public facets generated from the richer model. (completed 2026-07-10)
 - [ ] **Phase 8: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
 
 ## Phase Details
@@ -225,7 +225,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 07-05-PLAN.md - Complete rollout docs, live-smoke checks, security review, codebase-map refresh, and source coverage audit.
+- [x] 07-05-PLAN.md - Complete rollout docs, live-smoke checks, security review, codebase-map refresh, and source coverage audit.
 
 **UI hint**: yes
 
@@ -257,5 +257,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 4. Public Showcase and Hardening | 5/5 | Complete | 2026-05-25 |
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
 | 6. Admin Collection Workflow | 9/9 | Complete | 2026-07-02 |
-| 7. Metadata Taxonomy and Public Facets | 4/5 | In Progress|  |
+| 7. Metadata Taxonomy and Public Facets | 5/5 | Complete   | 2026-07-10 |
 | 8. AI-Assisted Ingest | 0/TBD | Not started | - |
