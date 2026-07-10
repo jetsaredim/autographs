@@ -1,6 +1,6 @@
 # Architecture
 
-**Analysis Date:** 2026-07-02
+**Analysis Date:** 2026-07-10
 
 ## Pattern Overview
 
@@ -21,6 +21,13 @@ Phase 6 optimization adds explicit Caddy cache headers: admin routes are
 assets/media use moderate cache lifetimes until paths become content-addressed
 or release-addressed.
 
+Phase 7 metadata taxonomy and public facets are implemented on this same
+Rust/static foundation. The catalog now supports reusable signer profiles,
+item signer credits, first-class item taxonomy, schema version 2 public JSON,
+and generated public facets for signer, franchise, productLine, format,
+language, origin, role, and tag. Phase 8 remains the pending advisory
+AI-assisted ingest layer on top of this richer manual model.
+
 ## Layers
 
 **Static Public Layer**
@@ -37,6 +44,9 @@ or release-addressed.
   management: health/diagnostics, item search/list, create/edit forms, image
   upload/primary/remove/replace controls, edit history, pending changes,
   publish actions, cleanup warnings, and release retention status.
+- Phase 7 adds Identity, Classification, and Details taxonomy sections,
+  repeatable signer rows, inline suggestions, `Possible duplicate signer`
+  warnings, and `Merge signer` repair.
 
 **Rust Controller**
 - Location: `controller/src/`
@@ -47,11 +57,15 @@ or release-addressed.
   and release promotion.
 - Key modules: `auth.rs`, `catalog.rs`, `config.rs`, `contracts.rs`,
   `derivatives.rs`, `media.rs`, `oci_media.rs`, `oracle_catalog.rs`,
-  `publisher.rs`, `routes.rs`, and `storage_keys.rs`.
+  `publisher.rs`, `routes.rs`, `taxonomy_migration.rs`, and
+  `storage_keys.rs`.
 
 **Database Layer**
 - Location: `controller/db/schema.sql`
 - Purpose: Oracle schema used by the Rust controller and static publisher.
+- Phase 7 schema includes signer profile tables, item signer credits,
+  character/franchise joins, item taxonomy columns, and temporary legacy
+  `signer`, `category`, and tag fields retained for rollback/reference.
 
 **Media Layer**
 - Location: `controller/src/media.rs`, `controller/src/oci_media.rs`
@@ -87,9 +101,11 @@ or release-addressed.
    for session-cookie collection management, health, diagnostics, edit history,
    image maintenance, pending changes, and publish operations.
 4. The controller reads and writes Oracle catalog metadata, edit history,
-   cleanup events, and private OCI Object Storage media.
+   cleanup events, signer profiles, item signer credits, taxonomy fields, and
+   private OCI Object Storage media.
 5. The publisher generates candidate static output inside the runtime/OCI
-   boundary, validates privacy and completeness, then promotes the release.
+   boundary, validates privacy and completeness, emits schema version 2
+   collection/detail/facet artifacts, then promotes the release.
 6. GitHub Actions validates code, builds/publishes the controller image,
    deploys runtime changes, and runs production maintenance workflows.
 
@@ -98,31 +114,33 @@ or release-addressed.
 - Rust controller routes: private admin/API boundary with session-cookie
   collection-management authorization.
 - Static artifact contracts: public-safe gallery/detail/search/facet data and
-  publish manifests.
+  publish manifests, currently schema version 2 for the Phase 7 taxonomy.
 - Publisher: candidate generation, validation, derivative creation, and release
   promotion with bounded release retention.
 - Oracle catalog adapter: metadata, edit history, cleanup events, publication
-  status, and publish status persistence for production.
+  status, publish status, signer profiles, item signer credits, and taxonomy
+  persistence for production.
 - OCI media adapter: private original media access and retryable cleanup.
 - Security patching role: scan, issue rendering, approval validation, patching,
   result reporting, and failure cleanup.
 
 ## Current Phase Boundary
 
-Phase 6 admin collection workflow is implemented through Plan 06-07 on top of
-the completed Phase 5 Rust/static foundation. Current behavior includes the
-polished static admin workflow, private item APIs, field-level edit history,
-multi-image maintenance, retryable media cleanup, pending-change status,
-explicit incremental/full publish controls, bounded release retention, a
-session-cookie-only collection-management auth path, operator docs, and security
-review. Plan 06-09 adds public detail derivative size reduction, explicit cache
-headers, deferred Cloudflare/CDN guidance, and post-Phase 6 runtime cleanup
-guidance. Phase 7 remains advisory AI-assisted ingest.
+Phase 7 metadata taxonomy and public facets are implemented through Plan 07-05
+on top of the completed Phase 6 admin workflow. Current behavior includes
+reusable signer profiles, item signer credits, signer suggestions, signer merge
+repair, first-class character/franchise/productLine/setName/format/origin/
+language taxonomy, reviewed backfill artifacts, schema version 2 public static
+facets, rollout docs, security review, and live static publish smoke taxonomy
+assertions. Phase 8 is the pending advisory AI-assisted ingest phase.
 
 ## Notable Absences
 
-- AI-assisted metadata suggestions are not implemented yet.
+- AI-assisted metadata suggestions are not implemented yet; they are Phase 8
+  scope after the taxonomy/manual admin model.
+- Legacy signer/category/tag cleanup is not complete yet; Phase 7 documents
+  temporary retention and a later deprecation path.
 
 ---
 
-*Architecture analysis refreshed: 2026-07-02 after Phase 6 optimization closeout*
+*Architecture analysis refreshed: 2026-07-10 after Phase 7 taxonomy closeout*

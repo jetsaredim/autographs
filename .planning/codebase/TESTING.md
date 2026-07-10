@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-07-02
+**Analysis Date:** 2026-07-10
 
 ## Validation Contract
 
@@ -34,17 +34,24 @@ Covered areas include:
   management, CSRF/origin checks, lockout behavior, and redacted health.
 - `admin_workflow`: item list/detail/create/edit, field-level history,
   pending-change status, explicit publish batching, retention status, and
-  redacted diagnostics.
+  redacted diagnostics; Phase 7 signer/taxonomy route auth, signer
+  suggestions, signer profile edits, signer merge repair, taxonomy suggestions,
+  and taxonomy-aware item filters.
 - `media_cleanup`: image primary selection, replacement/removal, retryable
   cleanup events, rollback behavior, and cleanup warning visibility.
 - Static artifact contracts for collection/detail/facet data and manifests.
+- Schema version 2 static contract tests for signer text, signer names, signer
+  roles, signer credits, characters, franchises, productLine, setName, format,
+  origin, language, tags, and public facet ids.
 - `static_admin`: static admin source privacy, same-origin privileged calls,
   shared save/publish action paths, accessibility labels, and no browser-storage
   credential assumptions.
 - `seed_content`: local create/upload/publication behavior through the current
   session-cookie route shape.
 - `publisher`: generation, validation, promotion, privacy scans, incremental
-  stale cleanup, and promoted/failed release retention behavior.
+  stale cleanup, promoted/failed release retention behavior, schema version 2
+  public facets, detail signer rows, optional profile links, and default
+  language/origin hiding.
 - `caddy_static_routes`: public/admin route shape, retired operator blocking,
   localhost preview binding, and Cache-Control header contract.
 - Caddy static route expectations.
@@ -72,6 +79,11 @@ Covered areas include:
 - `cargo test --manifest-path controller/Cargo.toml --features live-persistence live_static_publish_smoke -- --ignored --nocapture`
   is a local/CI compile-and-skip gate unless `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true`
   and real runtime credentials are supplied by an operator.
+- Live static publish smoke taxonomy assertions check schema version 2
+  collection/facets, signer/franchise/productLine/format/language/origin/role/tag
+  facet groups, absence of a category facet, public detail taxonomy values,
+  generated WebP derivatives, stale artifact cleanup, and exclusion of private
+  Object Storage identifiers or original filenames when the smoke is enabled.
 - Public output privacy is validated at artifact/publisher boundaries rather
   than through retired app-mediated image routes.
 - Deployment validation is tied to the actual runtime model: controller image,
@@ -92,7 +104,7 @@ Covered areas include:
 
 ## Coverage Gaps
 
-### Pending Phase 7 Areas
+### Pending Phase 8 Areas
 
 - OCR/AI-assisted ingest validation.
 - AI/OCR provider, prompt, failure-mode, privacy-boundary, and configuration
@@ -104,9 +116,8 @@ Covered areas include:
 - Treat production security patching playbook changes like deploy/runtime
   changes, not ordinary docs-only updates.
 - Keep local-mode, CI, and live OCI smoke evidence distinct.
-- Re-run this map after major Phase 6 optimization or Phase 7 implementation
-  shifts.
+- Re-run this map after major Phase 8 implementation shifts.
 
 ---
 
-*Testing analysis refreshed: 2026-07-02 after Phase 6 optimization closeout*
+*Testing analysis refreshed: 2026-07-10 after Phase 7 taxonomy closeout*

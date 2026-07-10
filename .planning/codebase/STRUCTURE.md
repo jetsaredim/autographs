@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-07-02
+**Analysis Date:** 2026-07-10
 
 ## Directory Layout
 
@@ -8,10 +8,10 @@
 autographs/
 ├── controller/                    # Rust private controller and static publisher
 │   ├── db/                         # Oracle schema
-│   ├── fixtures/                   # Static/publisher fixtures
+│   ├── fixtures/                   # Static/publisher and taxonomy migration fixtures
 │   ├── src/                        # Controller, catalog, media, publisher modules
-│   ├── static-admin/               # Phase 6 private admin workflow
-│   ├── static-public/              # Generated/public static artifact templates/assets
+│   ├── static-admin/               # Private admin workflow with Phase 7 taxonomy editor
+│   ├── static-public/              # Generated/public schema v2 templates/assets/fixtures
 │   └── tests/                      # Rust integration and contract tests
 ├── deploy/ansible/                 # OCI runtime VM configuration and maintenance roles
 │   ├── playbooks/                  # deploy, cleanup, security scan/patch playbooks
@@ -31,23 +31,37 @@ autographs/
 - `controller/src/routes.rs`: admin/API route wiring.
 - `controller/src/auth.rs`: single-admin/private access foundation.
 - `controller/src/catalog.rs`: catalog domain behavior, edit history,
-  cleanup event, publication, and pending-change model.
+  cleanup event, publication, pending-change model, signer profiles, item
+  signer credits, taxonomy validation, signer suggestions, and merge repair.
 - `controller/src/catalog_admin.rs`: admin workflow DTOs and private catalog
   service behavior.
 - `controller/src/oracle_catalog.rs`, `controller/src/oracle_schema.rs`:
-  production persistence adapter and schema handling.
+  production persistence adapter and schema handling, including signer profile
+  tables, item signer credits, characters, franchises, and item taxonomy fields.
 - `controller/src/media.rs`, `controller/src/oci_media.rs`: media abstraction
   and OCI Object Storage implementation.
 - `controller/src/publisher.rs`, `controller/src/contracts.rs`,
   `controller/src/derivatives.rs`: static artifact generation, validation,
-  derivative creation, and release behavior.
+  derivative creation, schema version 2 public facets, and release behavior.
+- `controller/src/taxonomy_migration.rs` and
+  `controller/src/bin/taxonomy_backfill.rs`: Phase 7 mapping/report/PLSQL
+  generation from legacy category/tag values.
+- `controller/db/updates/07-01-taxonomy-schema.sql`,
+  `controller/db/updates/07-02-taxonomy-backfill-review.sql`, and
+  `controller/db/updates/07-03-taxonomy-backfill-apply.sql`: additive schema,
+  review SQL, and operator-reviewable taxonomy backfill artifacts.
 
 **Static Assets**
-- `controller/static-public/`: public static release source/templates/assets.
-- `controller/static-admin/`: Phase 6 private admin workflow for item search,
+- `controller/static-public/`: public static release source/templates/assets,
+  including checked-in schema version 2 collection/facet/detail fixtures.
+- `controller/static-admin/`: private admin workflow for item search,
   create/edit, image primary/remove/replace, history, pending changes,
-  diagnostics, publish controls, cleanup warnings, and release retention status.
+  diagnostics, publish controls, cleanup warnings, release retention status,
+  Identity/Classification/Details taxonomy sections, signer rows, duplicate
+  warnings, and `Merge signer` repair.
 - `controller/fixtures/`: fixtures for static contract and publisher tests.
+- `.planning/phases/07-metadata-taxonomy-and-public-facets/taxonomy-backfill-mapping.json`:
+  temporary Phase 7 migration mapping artifact for repeatable review/backfill.
 
 **Tests**
 - `controller/tests/auth_and_health.rs`
@@ -89,11 +103,26 @@ autographs/
 - Add persistence changes through `controller/db/schema.sql`,
   `controller/db/updates/`, and production adapter tests where needed.
 
+**Phase 7 Metadata Taxonomy and Public Facets**
+- Phase 7 is implemented across `controller/src/catalog.rs`,
+  `controller/src/oracle_catalog.rs`, `controller/src/contracts.rs`,
+  `controller/src/publisher.rs`, `controller/src/routes/admin_items.rs`,
+  `controller/static-admin/`, `controller/static-public/`,
+  `controller/tests/admin_workflow.rs`, `controller/tests/publisher.rs`,
+  `controller/tests/static_contract.rs`, and
+  `controller/tests/live_static_publish_smoke.rs`.
+- Keep legacy `signer`, `category`, and `autograph_item_tags` cleanup as a
+  later deprecation path until live rollout and full static publish verification
+  are complete.
+
 **Public Static Output**
 - Update `controller/static-public/`, `controller/src/contracts.rs`, and
   `controller/src/publisher.rs`.
 - Preserve public-safe output: no private object keys, bucket names,
   namespaces, signed URLs, Oracle internals, image UUIDs, or unpublished data.
+- Public static artifacts now use schema version 2 and facets for signer,
+  franchise, productLine, format, language, origin, role, and tag. Do not
+  reintroduce category as a public facet.
 
 **Infrastructure and Operations**
 - Use `infra/terraform/` for OCI resources and `deploy/ansible/` for VM/runtime
@@ -111,8 +140,10 @@ autographs/
   workflow, edit history, media cleanup, pending changes, release retention,
   session-cookie collection-management auth, docs, and security review are
   current-state surfaces.
-- Treat Phase 7 as advisory AI ingest.
+- Treat Phase 7 metadata taxonomy/public facets as implemented current-state
+  surfaces.
+- Treat Phase 8 as pending advisory AI-assisted ingest.
 
 ---
 
-*Structure analysis refreshed: 2026-07-02 after Phase 6 admin docs/security closeout*
+*Structure analysis refreshed: 2026-07-10 after Phase 7 taxonomy closeout*

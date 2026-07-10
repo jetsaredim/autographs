@@ -1,6 +1,6 @@
 # External Integrations
 
-**Analysis Date:** 2026-07-02
+**Analysis Date:** 2026-07-10
 
 ## APIs and External Services
 
@@ -20,6 +20,9 @@
 - Phase 6 persists edit history, publication changes, cleanup events,
   pending-change timestamps, and publish snapshot/status data through the same
   controller-owned Oracle boundary.
+- Phase 7 adds signer profile tables, item signer credits, character/franchise
+  joins, item taxonomy fields, signer profile edit history, signer merge
+  history, and reviewed taxonomy backfill artifacts for live rollout.
 
 **OCI Object Storage**
 - Private original autograph images are stored in a private Object Storage bucket.
@@ -29,6 +32,9 @@
   `controller/src/oci_media.rs`.
 - Phase 6 image replacement/removal uses media cleanup compensation and retry
   events so private originals and Oracle metadata stay reconciled.
+- Phase 7 public schema version 2 artifacts and live smoke assertions continue
+  to exclude Object Storage identifiers, object keys, bucket names, and original
+  filenames from public JSON/HTML/media paths.
 
 **GitHub Actions and GHCR**
 - CI/deploy workflows live in `.github/workflows/`.
@@ -67,7 +73,7 @@
   HTML/JSON freshness or content-addressed public paths.
 
 **Pending**
-- Advisory Phase 7 AI/OCR provider integration.
+- Advisory Phase 8 AI/OCR provider integration.
 - There is intentionally no public account system, multi-admin role hierarchy,
   or social identity flow for v1.
 
@@ -110,17 +116,18 @@
 ## AI Integrations
 
 No OCR or AI-assisted metadata suggestion integration is implemented yet. That
-remains Phase 7 scope and should be advisory, with manual entry remaining fully
-functional.
+remains Phase 8 scope and should be advisory, with manual entry remaining fully
+functional against the Phase 7 signer/taxonomy model.
 
 ## Practical Interpretation
 
 The repo contains real Rust/controller, static publishing, infrastructure,
 delivery, maintenance, Phase 6 admin workflow, edit history, media cleanup,
-release retention, and operator integration surfaces. Future work should extend
-these boundaries rather than treating OCI, Oracle, Object Storage, GitHub
-Actions, Caddy, or `/admin` as prompt-only intent.
+release retention, Phase 7 metadata taxonomy/public facets, and operator
+integration surfaces. Future work should extend these boundaries rather than
+treating OCI, Oracle, Object Storage, GitHub Actions, Caddy, or `/admin` as
+prompt-only intent.
 
 ---
 
-*Integration audit refreshed: 2026-07-02 after Phase 6 optimization closeout*
+*Integration audit refreshed: 2026-07-10 after Phase 7 taxonomy closeout*

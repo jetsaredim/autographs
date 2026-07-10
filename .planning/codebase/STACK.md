@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Analysis Date:** 2026-07-02
+**Analysis Date:** 2026-07-10
 
 ## Languages
 
@@ -42,6 +42,9 @@
 - Phase 6 controller/admin surfaces include private item APIs, field-level edit
   history, media cleanup compensation, pending-change status, explicit publish
   controls, bounded release retention, and session-cookie collection management.
+- Phase 7 controller/admin/public surfaces include reusable signer profiles,
+  item signer credits, taxonomy suggestions, signer merge repair, schema
+  version 2 public DTOs/facets, and a no-new-dependency taxonomy backfill CLI.
 - Terraform manages OCI infrastructure and state-backed runtime resources.
 - Ansible manages VM configuration, Caddy/controller quadlets, deployment,
   image cleanup, and production security patching.
@@ -56,6 +59,9 @@
 - GHCR as the controller image registry.
 - GitHub Actions for PR validation, image build/publish, deploy, cleanup, and
   production security patching workflows.
+- `controller/src/bin/taxonomy_backfill.rs` for Phase 7 migration report and
+  operator-reviewable PL/SQL generation from the committed
+  `taxonomy-backfill-mapping.json` artifact.
 
 ## Configuration
 
@@ -80,6 +86,10 @@
   validation, workflow linting, secret scanning, and Ansible syntax/lint.
 - Live Oracle/Object Storage proof remains an operator-run smoke path because
   real secrets and tenancy state are required.
+- Schema version 2 static contract tests cover public signer/taxonomy DTOs and
+  generated facets, and the ignored live static publish smoke now checks
+  schema version 2 facets while remaining gated by
+  `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true`.
 - Production security patching playbooks are syntax/lint covered and documented
   in `docs/security-patching.md`.
 
@@ -92,7 +102,11 @@
 - Phase 6 plans 06-01 through 06-07 are done, and the polished static admin
   workflow, edit history, media cleanup, release retention, session-cookie auth,
   operator docs, security review, and local closeout gates are implemented.
-- Phase 7 advisory AI-assisted ingest remains pending.
+- Phase 7 metadata taxonomy and public facets are implemented, including
+  signer profile tables, item signer credits, admin signer merge repair,
+  taxonomy backfill artifacts, schema version 2 public facets, rollout docs,
+  security review, and live smoke taxonomy assertions.
+- Phase 8 advisory AI-assisted ingest remains pending.
 
 ## Practical Guidance
 
@@ -106,7 +120,9 @@
 - Keep Phase 6 admin changes inside the Rust/static/Caddy/Oracle/Object Storage
   architecture; do not introduce public accounts, multi-admin roles, bulk import,
   direct Object Storage URLs, or a split public service for v1.
+- Keep Phase 8 AI work advisory and grounded in the Phase 7 taxonomy model; do
+  not move cataloging control away from the manual admin workflow.
 
 ---
 
-*Stack analysis refreshed: 2026-07-02 after Phase 6 admin docs/security closeout*
+*Stack analysis refreshed: 2026-07-10 after Phase 7 taxonomy closeout*
