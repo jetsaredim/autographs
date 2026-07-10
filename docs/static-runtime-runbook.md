@@ -445,9 +445,9 @@ before changing derivative bounds. Largest current sample artifacts were:
 
 | Artifact | Bytes | Notes |
 |----------|-------|-------|
-| `controller/static-public/media/ahsoka-tano/image-1-detail.webp` | 2,615,114 | Lossless WebP detail derivative, previously generated at about 1600x1200. |
-| `controller/static-public/media/ahsoka-tano/image-2-detail.webp` | 578,396 | Lossless WebP detail derivative. |
-| `controller/static-public/media/ahsoka-tano/image-1-thumbnail.webp` | 485,934 | Lossless WebP thumbnail derivative. |
+| `controller/static-public/media/ahsoka-tano/image-1-detail-eaa984e2fa19.webp` | 2,615,114 | Lossless WebP detail derivative, previously generated at about 1600x1200. |
+| `controller/static-public/media/ahsoka-tano/image-2-detail-66e63732ffc3.webp` | 578,396 | Lossless WebP detail derivative. |
+| `controller/static-public/media/ahsoka-tano/image-1-thumbnail-8781173feb10.webp` | 485,934 | Lossless WebP thumbnail derivative. |
 | `controller/static-public/assets/site.css` | 17,417 | Largest static text asset. |
 | `controller/static-public/assets/browse.js` | 8,092 | Largest public JavaScript asset. |
 

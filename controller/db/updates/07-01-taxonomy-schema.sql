@@ -357,19 +357,6 @@ declare
   index_count number;
 begin
   select count(*) into index_count from user_indexes
-   where index_name = 'AUTOGRAPH_SIGNERS_NORMALIZED_NAME_IDX';
-
-  if index_count = 0 then
-    execute immediate
-      'create index autograph_signers_normalized_name_idx on autograph_signers(normalized_name)';
-  end if;
-end;
-/
-
-declare
-  index_count number;
-begin
-  select count(*) into index_count from user_indexes
    where index_name = 'AUTOGRAPH_ITEM_SIGNERS_ITEM_ORDER_IDX';
 
   if index_count = 0 then

@@ -190,6 +190,8 @@ fn static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only() {
     for expected in [
         "row.querySelector(`[data-signer-field=\"${field}\"]`)",
         "delete row.dataset.signerId",
+        "setExistingSignerProfileControls(row)",
+        "input.disabled = disabled",
         "selectedSignerName = selected.profile.displayName",
         "itemRole: value(\"role\")",
         "wikipediaUrl: value(\"wikipedia\")",

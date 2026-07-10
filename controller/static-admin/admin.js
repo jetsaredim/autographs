@@ -601,6 +601,7 @@ function signerRow(credit, index) {
     })
   );
   row.append(profileToggle, profileLinks);
+  setExistingSignerProfileControls(row);
 
   const actions = document.createElement("div");
   actions.className = "inline-actions";
@@ -618,6 +619,7 @@ function signerRow(credit, index) {
   nameInput.addEventListener("input", async () => {
     if (nameInput.value.trim() !== selectedSignerName) {
       delete row.dataset.signerId;
+      setExistingSignerProfileControls(row);
     }
     await loadSignerSuggestions(nameInput.value);
     renderDuplicateWarnings();
@@ -633,10 +635,18 @@ function signerRow(credit, index) {
       delete row.dataset.signerId;
       selectedSignerName = "";
     }
+    setExistingSignerProfileControls(row);
     renderDuplicateWarnings();
   });
 
   return row;
+}
+
+function setExistingSignerProfileControls(row) {
+  const disabled = Boolean(row.dataset.signerId);
+  row.querySelectorAll('[data-signer-field="wikipedia"], [data-signer-field="imdb"]').forEach((input) => {
+    input.disabled = disabled;
+  });
 }
 
 function labeledInput(id, labelText, type, value, options = {}) {

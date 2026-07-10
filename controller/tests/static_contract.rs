@@ -172,6 +172,20 @@ fn checked_in_static_fixtures_are_schema_v2_taxonomy_examples() {
     assert!(items.iter().any(|item| item["origin"] == "Custom"));
     assert!(items.iter().any(|item| item["language"] == "Japanese"));
     assert!(items.iter().any(|item| item["language"] == "Chinese"));
+    let rendered_collection = serde_json::to_string(&collection).expect("render static collection");
+    assert!(rendered_collection.contains("/media/ahsoka-tano/image-1-thumbnail-"));
+    assert!(rendered_collection.contains("/media/ahsoka-tano/image-1-detail-"));
+    for stale_path in [
+        "image-1-thumbnail.webp",
+        "image-1-detail.webp",
+        "image-2-thumbnail.webp",
+        "image-2-detail.webp",
+    ] {
+        assert!(
+            !rendered_collection.contains(stale_path),
+            "static collection contains unfingerprinted media path {stale_path}"
+        );
+    }
 
     let facet_ids = facets["groups"]
         .as_array()
@@ -195,6 +209,10 @@ fn checked_in_static_fixtures_are_schema_v2_taxonomy_examples() {
 
     assert!(AHSOKA_DETAIL.contains("profile-link profile-link-wikipedia"));
     assert!(AHSOKA_DETAIL.contains("profile-link profile-link-imdb"));
+    assert!(AHSOKA_DETAIL.contains("/media/ahsoka-tano/image-1-detail-"));
+    assert!(AHSOKA_DETAIL.contains("/media/ahsoka-tano/image-1-thumbnail-"));
+    assert!(!AHSOKA_DETAIL.contains("/media/ahsoka-tano/image-1-detail.webp"));
+    assert!(!AHSOKA_DETAIL.contains("/media/ahsoka-tano/image-1-thumbnail.webp"));
     assert!(AHSOKA_DETAIL.contains("Origin</dt>"));
     assert!(AHSOKA_DETAIL.contains("Custom</dd>"));
     assert!(!AHSOKA_DETAIL.contains("Language</dt>"));

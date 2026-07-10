@@ -226,9 +226,6 @@ create index autograph_items_product_line_idx on autograph_items(product_line);
 
 create index autograph_items_publication_idx on autograph_items(publication_status);
 
-create index autograph_signers_normalized_name_idx
-  on autograph_signers(normalized_name);
-
 create index autograph_item_signers_item_order_idx
   on autograph_item_signers(item_id, sort_order);
 
