@@ -30,8 +30,9 @@ Current accepted posture:
 Current follow-up scope:
 
 - Phase 6 admin workflow security review is recorded below.
-- Phase 7 must review OCR/AI providers, prompts, privacy boundaries, and model
-  configuration.
+- Phase 7 Metadata Taxonomy Security Review is recorded below.
+- Phase 8 must review OCR/AI providers, prompts, privacy boundaries, and model
+  configuration before advisory AI-assisted ingest ships.
 
 ## Phase 6 Admin Collection Workflow
 
@@ -60,6 +61,29 @@ guidance.
 No high-severity Phase 6 admin finding remains without a fixed or documented
 mitigation. Phase 7 AI-assisted ingest is still future scope and is not
 implemented by this review.
+
+## Phase 7 Metadata Taxonomy Security Review
+
+Reviewed with ASVS L1 framing for the Phase 7 metadata taxonomy and public
+facet changes: admin auth, signer merge tampering, taxonomy input validation,
+public static privacy, Oracle migration/backfill, private Object Storage
+identifiers, generated artifact fail-closed behavior, and operator review of
+live PL/SQL.
+
+| ID | Area | Disposition | Notes |
+|----|------|-------------|-------|
+| SEC-07-01 | admin auth | Fixed | Signer suggestions, signer profile edits, signer merge repair, taxonomy suggestions, item save, image, publication, and publish routes stay behind the HTTP-only admin session and same-origin mutation checks. Bearer tokens remain diagnostic-only and cannot manage collection metadata. |
+| SEC-07-02 | Signer merge tampering | Fixed | Merge repair is a private admin operation, validates source/target signer IDs through the repository boundary, records item-level edit history for affected items, and keeps public output unchanged until an explicit publish. |
+| SEC-07-03 | Taxonomy input validation | Fixed | The controller validates required signer credits, format, origin, and supported language values, normalizes string lists, and keeps loose tags secondary instead of using arbitrary tags as primary public facets. |
+| SEC-07-04 | Public artifact information disclosure | Fixed | Schema version 2 public JSON/HTML exposes display taxonomy only: signer text/names/roles, public-safe signer links, characters, franchise, productLine, setName, format, origin, language, and tags. It does not expose private Oracle internals, unpublished records, raw image IDs, original filenames, object keys, bucket names, or direct Object Storage URLs. |
+| SEC-07-05 | Oracle migration and backfill | Accepted | Rollout requires a generated report, mapping review, generated PL/SQL review, optional SQL Developer application, deploy, full static publish, and verification. Duplicate physical items remain report-only, and legacy fields are retained temporarily for rollback/reference. |
+| SEC-07-06 | Migration artifact privacy | Fixed | Backfill mapping/report/PLSQL artifacts are reviewed for credential-like values, Object Storage identifiers, bucket names, object keys, Oracle connection strings, and private keys before use. |
+| SEC-07-07 | Live PL/SQL operator review | Accepted | Generated PL/SQL is intentionally not an automatic deployment side effect. The operator may run the reviewed script manually through SQL Developer against live Oracle when ready. |
+| SEC-07-08 | Generated artifact fail-closed behavior | Fixed | Static candidates must validate schema version 2 artifacts, required derivatives, manifest entries, and privacy deny-list terms before promotion; failed candidates leave the last valid `current` release in place. |
+| SEC-07-09 | Live static smoke taxonomy checks | Fixed | The ignored live smoke remains gated by `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true`; when enabled it publishes through the current session-cookie admin path and checks schema version 2 collection/facets, required taxonomy facets, absence of the category facet, generated derivatives, and stale artifact cleanup. |
+
+No unmitigated high-severity Phase 7 taxonomy finding remains. Phase 8
+AI-assisted ingest is still future scope and is not implemented by this review.
 
 ## Current Verification
 

@@ -62,13 +62,29 @@ mod live {
         let marker = Uuid::new_v4().simple().to_string();
         let title = format!("Live Static Smoke {marker}");
         let slug = format!("live-static-smoke-{marker}");
-        let category = format!("Live Smoke Category {marker}");
+        let signer_name = format!("Live Static Smoke Signer {marker}");
+        let signer_role = "actor";
+        let format_name = "Trading Card";
+        let legacy_category = format_name;
+        let franchise = format!("Live Smoke Franchise {marker}");
+        let product_line = format!("Live Smoke Product Line {marker}");
+        let language = "Japanese";
+        let origin = "Custom";
         let tag = format!("live-smoke-tag-{marker}");
         let create_body = json!({
             "title": title,
-            "signer": "Live Static Smoke Signer",
+            "signer": signer_name,
             "description": "Temporary Phase 5 live static publish proof",
-            "category": category,
+            "category": legacy_category,
+            "signerCredits": [{
+                "displayName": signer_name,
+                "itemRole": signer_role
+            }],
+            "format": format_name,
+            "origin": origin,
+            "franchises": [franchise],
+            "productLine": product_line,
+            "language": language,
             "tags": [tag],
             "publicationStatus": "draft"
         })
@@ -97,6 +113,12 @@ mod live {
         let image_body = png_fixture();
         let mut upload = NamedTempFile::new().expect("create temporary live smoke image");
         std::io::Write::write_all(&mut upload, &image_body).expect("write live smoke image");
+        let original_filename = upload
+            .path()
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("temporary upload filename")
+            .to_owned();
         let uploaded = curl_json(
             vec![
                 "--request".to_owned(),
@@ -192,11 +214,23 @@ mod live {
                 "generated facets missing {expected:?} in release {release_id}"
             );
         }
+        assert!(
+            !facets_json.contains(r#""id":"category""#),
+            "schema version 2 facets must not include legacy category"
+        );
         let matches = catalog
             .items
             .iter()
             .filter(|item| {
-                item.title == title && item.category == category && item.tags.contains(&tag)
+                item.title == title
+                    && item.signer_names.contains(&signer_name)
+                    && item.signer_roles.contains(&signer_role.to_owned())
+                    && item.format == format_name
+                    && item.origin == origin
+                    && item.language == language
+                    && item.franchises.contains(&franchise)
+                    && item.product_line.as_deref() == Some(product_line.as_str())
+                    && item.tags.contains(&tag)
             })
             .collect::<Vec<_>>();
         assert_eq!(
@@ -212,6 +246,18 @@ mod live {
         let item_json = fetch(&format!("{preview}/data/items/{generated_slug}.json"));
         let public_item: PublicItemDetail =
             serde_json::from_str(&item_json).expect("decode generated item JSON");
+        assert_eq!(public_item.schema_version, PUBLIC_SCHEMA_VERSION);
+        assert_eq!(public_item.signer_names, vec![signer_name.clone()]);
+        assert_eq!(public_item.signer_roles, vec![signer_role.to_owned()]);
+        assert_eq!(public_item.format, format_name);
+        assert_eq!(public_item.origin, origin);
+        assert_eq!(public_item.language, language);
+        assert_eq!(public_item.franchises, vec![franchise.clone()]);
+        assert_eq!(
+            public_item.product_line.as_deref(),
+            Some(product_line.as_str())
+        );
+        assert!(public_item.tags.contains(&tag));
         let thumbnail_path = public_item.images[0]
             .variants
             .iter()
@@ -238,18 +284,20 @@ mod live {
         assert_eq!(image::guess_format(&detail).unwrap(), ImageFormat::WebP);
         assert!(item_html.contains(&title));
         assert!(collection_html.contains("Collection"));
-        assert!(facets.groups.iter().any(|group| {
-            group
-                .options
-                .iter()
-                .any(|option| option.value == category || option.value == tag)
-        }));
+        assert_facet_contains(&facets, FacetId::Signer, &signer_name);
+        assert_facet_contains(&facets, FacetId::Franchise, &franchise);
+        assert_facet_contains(&facets, FacetId::ProductLine, &product_line);
+        assert_facet_contains(&facets, FacetId::Format, format_name);
+        assert_facet_contains(&facets, FacetId::Language, language);
+        assert_facet_contains(&facets, FacetId::Origin, origin);
+        assert_facet_contains(&facets, FacetId::Role, signer_role);
+        assert_facet_contains(&facets, FacetId::Tag, &tag);
 
         assert!(
             catalog
                 .items
                 .iter()
-                .filter(|item| item.category == "not-the-smoke-category")
+                .filter(|item| item.format == "not-the-smoke-format")
                 .all(|item| item.slug != slug)
         );
         assert!(
@@ -270,6 +318,8 @@ mod live {
                 &detail_url,
             ],
             image_id,
+            &object_key,
+            &original_filename,
         );
 
         json_request(
@@ -659,7 +709,24 @@ mod live {
         assert_eq!(stored_key, object_key);
     }
 
-    fn scan_public_text(values: &[&str], image_id: Uuid) {
+    fn assert_facet_contains(facets: &PublicFacets, id: FacetId, value: &str) {
+        let group = facets
+            .groups
+            .iter()
+            .find(|group| group.id == id)
+            .unwrap_or_else(|| panic!("missing facet group {id:?}"));
+        assert!(
+            group.options.iter().any(|option| option.value == value),
+            "facet {id:?} missing option {value}"
+        );
+    }
+
+    fn scan_public_text(
+        values: &[&str],
+        image_id: Uuid,
+        object_key: &str,
+        original_filename: &str,
+    ) {
         let private_image_id = image_id.to_string();
         for value in values {
             for denied in [
@@ -669,6 +736,8 @@ mod live {
                 "https://objectstorage",
                 "objectstorage",
                 &private_image_id,
+                object_key,
+                original_filename,
             ] {
                 assert!(!value.contains(denied), "public output leaked {denied}");
             }
