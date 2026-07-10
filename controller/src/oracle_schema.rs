@@ -40,41 +40,42 @@ const REQUIRED_COLUMNS: &[(&str, &str)] = &[
     ("AUTOGRAPH_CLEANUP_EVENTS", "RESOLVED_AT"),
     ("AUTOGRAPH_PUBLIC_DERIVATIVES", "PUBLIC_PATH"),
 ];
-const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &str, &str)] = &[
+const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[
     (
         "AUTOGRAPH_EDIT_EVENTS",
         "AUTOGRAPH_EDIT_EVENTS_TYPE_CK",
-        "cleanupChanged",
+        &["cleanupChanged"],
         "controller/db/updates/06-03-media-cleanup.sql",
     ),
     (
         "AUTOGRAPH_ITEMS",
         "AUTOGRAPH_ITEMS_FORMAT_CK",
-        "trim(format) is not null",
+        &["trim(format) is not null"],
         "controller/db/updates/07-01-taxonomy-schema.sql",
     ),
     (
         "AUTOGRAPH_ITEMS",
         "AUTOGRAPH_ITEMS_ORIGIN_CK",
-        "Official",
+        &["Official", "Custom"],
         "controller/db/updates/07-01-taxonomy-schema.sql",
     ),
     (
         "AUTOGRAPH_ITEMS",
         "AUTOGRAPH_ITEMS_LANGUAGE_CK",
-        "English",
+        &["English", "Japanese", "Chinese"],
         "controller/db/updates/07-01-taxonomy-schema.sql",
     ),
     (
         "AUTOGRAPH_SIGNERS",
         "AUTOGRAPH_SIGNERS_NORMALIZED_NAME_CK",
-        "trim(normalized_name) is not null",
+        &["trim(normalized_name) is not null"],
         "controller/db/updates/07-01-taxonomy-schema.sql",
     ),
 ];
-const REQUIRED_UNIQUE_CONSTRAINTS: &[(&str, &str, &str)] = &[(
+const REQUIRED_UNIQUE_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[(
     "AUTOGRAPH_SIGNERS",
     "AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ",
+    &["NORMALIZED_NAME"],
     "controller/db/updates/07-01-taxonomy-schema.sql",
 )];
 
@@ -128,36 +129,50 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
         }
     }
 
-    for (table, constraint, required_text, update_script) in REQUIRED_CHECK_CONSTRAINTS {
-        let count: i64 = connection
-            .query_row_as(
-                "select count(*) from user_constraints
-                  where table_name = :1
-                    and constraint_name = :2
-                    and constraint_type = 'C'
-                    and status = 'ENABLED'
-                    and search_condition_vc like '%' || :3 || '%'",
-                &[table, constraint, required_text],
-            )
-            .map_err(|error| {
-                format!("inspect Oracle catalog schema constraint {table}.{constraint}: {error}")
-            })?;
-        if count != 1 {
-            return Err(format!(
-                "Oracle catalog schema is partially initialized; constraint {table}.{constraint} is missing required value {required_text}; run {update_script} before deploying this controller"
-            ));
+    for (table, constraint, required_texts, update_script) in REQUIRED_CHECK_CONSTRAINTS {
+        for required_text in *required_texts {
+            let count: i64 = connection
+                .query_row_as(
+                    "select count(*) from user_constraints
+                      where table_name = :1
+                        and constraint_name = :2
+                        and constraint_type = 'C'
+                        and status = 'ENABLED'
+                        and search_condition_vc like '%' || :3 || '%'",
+                    &[table, constraint, required_text],
+                )
+                .map_err(|error| {
+                    format!(
+                        "inspect Oracle catalog schema constraint {table}.{constraint}: {error}"
+                    )
+                })?;
+            if count != 1 {
+                return Err(format!(
+                    "Oracle catalog schema is partially initialized; constraint {table}.{constraint} is missing required value {required_text}; run {update_script} before deploying this controller"
+                ));
+            }
         }
     }
 
-    for (table, constraint, update_script) in REQUIRED_UNIQUE_CONSTRAINTS {
+    for (table, constraint, columns, update_script) in REQUIRED_UNIQUE_CONSTRAINTS {
+        let expected_columns = columns.join(",");
         let count: i64 = connection
             .query_row_as(
-                "select count(*) from user_constraints
-                  where table_name = :1
-                    and constraint_name = :2
-                    and constraint_type = 'U'
-                    and status = 'ENABLED'",
-                &[table, constraint],
+                "select count(*)
+                   from (
+                     select c.constraint_name
+                       from user_constraints c
+                       join user_cons_columns col
+                         on col.table_name = c.table_name
+                        and col.constraint_name = c.constraint_name
+                      where c.table_name = :1
+                        and c.constraint_name = :2
+                        and c.constraint_type = 'U'
+                        and c.status = 'ENABLED'
+                      group by c.constraint_name
+                     having listagg(col.column_name, ',') within group (order by col.position) = :3
+                   )",
+                &[table, constraint, &expected_columns],
             )
             .map_err(|error| {
                 format!(
@@ -166,7 +181,7 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
             })?;
         if count != 1 {
             return Err(format!(
-                "Oracle catalog schema is partially initialized; unique constraint {table}.{constraint} is missing; run {update_script} before deploying this controller"
+                "Oracle catalog schema is partially initialized; unique constraint {table}.{constraint} is missing expected column set {expected_columns}; run {update_script} before deploying this controller"
             ));
         }
     }
@@ -355,6 +370,9 @@ mod tests {
 
         assert!(script.contains("autograph_items_origin_ck"));
         assert!(script.contains("autograph_items_language_ck"));
+        assert!(script.contains("autograph_signers_normalized_name_ck"));
+        assert!(script.contains("autograph_signers_normalized_name_uq"));
+        assert!(script.contains("duplicate normalized_name values exist"));
         assert!(script.contains("autograph_item_signers"));
         assert!(!lower_script.contains("drop column signer"));
         assert!(!lower_script.contains("drop column category"));
@@ -399,25 +417,25 @@ mod tests {
             (
                 "AUTOGRAPH_ITEMS",
                 "AUTOGRAPH_ITEMS_FORMAT_CK",
-                "trim(format) is not null",
+                &["trim(format) is not null"][..],
                 "controller/db/updates/07-01-taxonomy-schema.sql",
             ),
             (
                 "AUTOGRAPH_ITEMS",
                 "AUTOGRAPH_ITEMS_ORIGIN_CK",
-                "Official",
+                &["Official", "Custom"][..],
                 "controller/db/updates/07-01-taxonomy-schema.sql",
             ),
             (
                 "AUTOGRAPH_ITEMS",
                 "AUTOGRAPH_ITEMS_LANGUAGE_CK",
-                "English",
+                &["English", "Japanese", "Chinese"][..],
                 "controller/db/updates/07-01-taxonomy-schema.sql",
             ),
             (
                 "AUTOGRAPH_SIGNERS",
                 "AUTOGRAPH_SIGNERS_NORMALIZED_NAME_CK",
-                "trim(normalized_name) is not null",
+                &["trim(normalized_name) is not null"][..],
                 "controller/db/updates/07-01-taxonomy-schema.sql",
             ),
         ] {
@@ -433,6 +451,7 @@ mod tests {
             REQUIRED_UNIQUE_CONSTRAINTS.contains(&(
                 "AUTOGRAPH_SIGNERS",
                 "AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ",
+                &["NORMALIZED_NAME"][..],
                 "controller/db/updates/07-01-taxonomy-schema.sql",
             )),
             "missing signer normalized-name unique constraint preflight"

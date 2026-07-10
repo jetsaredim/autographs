@@ -202,6 +202,8 @@ impl CatalogRepository for OracleCatalogRepository {
         self.with_connection(move |connection| {
             let mut item = load_item(&connection, id)?
                 .ok_or_else(|| "autograph item was not found".to_owned())?;
+            let input_updates_signer_credits = input.signer_credits.is_some();
+            let has_persisted_signer_credits = has_persisted_signer_credits(&connection, id)?;
             let resolved_signer_credits = if let Some(signer_inputs) = input.signer_credits.as_ref()
             {
                 Some(resolve_oracle_signer_credits(
@@ -269,7 +271,12 @@ impl CatalogRepository for OracleCatalogRepository {
                 return Err("autograph item was not found".to_owned());
             }
             replace_tags(&connection, id, &item.tags)?;
-            replace_signer_credits(&connection, id, &item.signer_credits)?;
+            if should_replace_signer_credits(
+                input_updates_signer_credits,
+                has_persisted_signer_credits,
+            ) {
+                replace_signer_credits(&connection, id, &item.signer_credits)?;
+            }
             replace_characters(&connection, id, &item.characters)?;
             replace_franchises(&connection, id, &item.franchises)?;
             let kind = event_kind_for_diffs(&field_diffs);
@@ -1405,6 +1412,24 @@ fn load_signer_credits(connection: &Connection, id: Uuid) -> Result<Vec<SignerCr
     Ok(credits)
 }
 
+fn has_persisted_signer_credits(connection: &Connection, id: Uuid) -> Result<bool, String> {
+    let id_text = id.to_string();
+    let count: i64 = connection
+        .query_row_as(
+            "select count(*) from autograph_item_signers where item_id = :1",
+            &[&id_text],
+        )
+        .map_err(|error| format!("read Oracle catalog signer credit count: {error}"))?;
+    Ok(count > 0)
+}
+
+fn should_replace_signer_credits(
+    input_updates_signer_credits: bool,
+    has_persisted_signer_credits: bool,
+) -> bool {
+    input_updates_signer_credits || has_persisted_signer_credits
+}
+
 fn load_characters(connection: &Connection, id: Uuid) -> Result<Vec<String>, String> {
     load_ordered_values(
         connection,
@@ -2003,6 +2028,14 @@ mod tests {
                 .unwrap_err(),
             "imdbUrl must point to imdb.com"
         );
+    }
+
+    #[test]
+    fn oracle_skips_synthetic_legacy_signer_credit_writeback() {
+        assert!(!should_replace_signer_credits(false, false));
+        assert!(should_replace_signer_credits(true, false));
+        assert!(should_replace_signer_credits(false, true));
+        assert!(should_replace_signer_credits(true, true));
     }
 
     #[test]

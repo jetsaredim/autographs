@@ -141,6 +141,59 @@ end;
 /
 
 declare
+  constraint_count number;
+begin
+  select count(*)
+    into constraint_count
+    from user_constraints
+   where table_name = 'AUTOGRAPH_SIGNERS'
+     and constraint_name = 'AUTOGRAPH_SIGNERS_NORMALIZED_NAME_CK';
+
+  if constraint_count = 0 then
+    execute immediate q'[
+      alter table autograph_signers add constraint autograph_signers_normalized_name_ck
+        check (trim(normalized_name) is not null)
+    ]';
+  end if;
+end;
+/
+
+declare
+  duplicate_count number;
+  constraint_count number;
+begin
+  select count(*)
+    into constraint_count
+    from user_constraints
+   where table_name = 'AUTOGRAPH_SIGNERS'
+     and constraint_name = 'AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ';
+
+  if constraint_count = 0 then
+    select count(*)
+      into duplicate_count
+      from (
+        select normalized_name
+          from autograph_signers
+         group by normalized_name
+        having count(*) > 1
+      );
+
+    if duplicate_count > 0 then
+      raise_application_error(
+        -20071,
+        'Cannot add autograph_signers_normalized_name_uq while duplicate normalized_name values exist.'
+      );
+    end if;
+
+    execute immediate q'[
+      alter table autograph_signers add constraint autograph_signers_normalized_name_uq
+        unique (normalized_name)
+    ]';
+  end if;
+end;
+/
+
+declare
   table_count number;
 begin
   select count(*)
