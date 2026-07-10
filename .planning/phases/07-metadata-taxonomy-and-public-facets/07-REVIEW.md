@@ -1,6 +1,6 @@
 ---
 phase: 07-metadata-taxonomy-and-public-facets
-reviewed: 2026-07-10T10:52:15Z
+reviewed: 2026-07-10T11:00:09Z
 depth: standard
 files_reviewed: 37
 files_reviewed_list:
@@ -51,7 +51,7 @@ status: issues_found
 
 # Phase 07: Code Review Report
 
-**Reviewed:** 2026-07-10T10:52:15Z
+**Reviewed:** 2026-07-10T11:00:09Z
 **Depth:** standard
 **Files Reviewed:** 37
 **Status:** issues_found
@@ -60,33 +60,32 @@ status: issues_found
 
 ## Summary
 
-Reviewed the listed Phase 7 schema, Rust controller, static admin/public, test, and documentation files at standard depth. Commit `d7fb1a1` appears to resolve the prior backfill signer materialization and Oracle signer suggestion cap findings: the generated/apply PL/SQL now merges simple legacy signers into `autograph_signers` and inserts `autograph_item_signers`, while the Oracle signer suggestion query is SQL-filtered and capped with `fetch first 10 rows only`.
+Reviewed the listed Phase 7 schema, Rust controller, static admin/public, test, and documentation files at standard depth. Commit `c069a4d` does resolve the stale/deleted `signerId` recreation issue: both the memory and Oracle repositories now fail closed when a supplied signer ID no longer exists, while requests without `signerId` still create or reuse profiles by display name. The merge cleanup regression is also covered by the new memory repository test at `controller/tests/admin_workflow.rs:1603`.
 
-The remaining issue is a signer identity regression at the repository boundary. Stale or deleted signer IDs can be treated as authority to create a new profile, which can resurrect merged typo profiles and undo signer merge cleanup. No tests were run during this review; this was a read-through code review.
+The remaining blocker is adjacent to signer selection. The admin create-or-select path can still submit partial signer profile fields for an existing signer, and both repository implementations treat missing optional fields as authoritative clears. That can erase reusable profile metadata such as Wikipedia/IMDb links and default roles while saving an item.
 
 ## Critical Issues
 
-### CR-01: Stale Signer IDs Can Recreate Deleted/Merged Signer Profiles
+### CR-01: Existing Signer Selection Can Clear Profile Metadata
 
 **Severity:** BLOCKER
-**File:** `controller/src/catalog.rs:1478`
-**Affected:** `controller/src/oracle_catalog.rs:1001`
-**Issue:** Both repository implementations only validate `signerId` when the ID currently resolves. If a request includes a stale/deleted `signerId`, `resolve_signer_profile()` falls through to display-name creation at `controller/src/catalog.rs:1486`, and `resolve_oracle_signer_profile()` does the same at `controller/src/oracle_catalog.rs:1017`. After merging typo profile `Mark Hamel` into canonical `Mark Hamill`, any stale admin form or API client still carrying the deleted source ID plus display name `Mark Hamel` can save an item and silently recreate the deleted typo profile. That breaks the signer merge repair workflow and reintroduces duplicate signer identity after it has been explicitly consolidated.
+**File:** `controller/static-admin/admin.js:997`
+**Affected:** `controller/static-admin/admin.js:629`, `controller/src/catalog.rs:1478`, `controller/src/catalog.rs:1552`, `controller/src/oracle_catalog.rs:1001`, `controller/src/oracle_catalog.rs:1301`
+**Issue:** Selecting an existing signer from suggestions only stores `row.dataset.signerId`; it does not hydrate that row with the selected profile's existing Wikipedia/IMDb/default-role metadata. The save payload then always sends `wikipediaUrl` and `imdbUrl`, using `null` when those row fields are empty. On the server, the `signerId` branch calls `update_signer_profile()` / `apply_signer_input_to_profile()`, and those helpers normalize every missing optional profile field to `None` and write it back. A normal "select existing signer, save item" flow can therefore clear public signer profile links/default roles in both local and Oracle persistence without the operator intending to edit that profile.
 **Fix:**
 ```rust
 if let Some(signer_id) = input.signer_id {
-    let Some(profile) = signers.get_mut(&signer_id) else {
-        return Err("signer profile was not found".to_owned());
-    };
+    let profile = signers
+        .get(&signer_id)
+        .ok_or_else(|| "signer profile was not found".to_owned())?;
     validate_signer_id_display_name(profile, input)?;
-    update_signer_profile(profile, input, now);
     return Ok(profile.clone());
 }
 ```
-Apply the same fail-closed branch in `resolve_oracle_signer_profile()` before falling back to display-name lookup/creation. Keep create-or-select behavior only for requests without `signerId`, and add a regression that merges a typo signer, then verifies saving with the deleted source ID returns an error and does not recreate that source profile.
+Do the same in `resolve_oracle_signer_profile()`: when an existing profile is selected by `signerId`, validate it and return it without applying item-credit optional fields to the reusable profile. For the no-`signerId` path, reuse an existing normalized-name profile without clearing optional metadata; only initialize optional profile fields when creating a brand-new signer profile. Add regressions that first create a signer with role and profile links, then save another item using that signer's ID or exact display name with no profile fields, and assert the existing profile metadata is retained.
 
 ---
 
-_Reviewed: 2026-07-10T10:52:15Z_
+_Reviewed: 2026-07-10T11:00:09Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
