@@ -52,7 +52,7 @@ curl -fsS http://127.0.0.1:8080/admin/api/items \
   -b /tmp/autographs-admin.cookies \
   -H "Origin: http://127.0.0.1:8080" \
   -H "Content-Type: application/json" \
-  --data '{"title":"Signed card","signer":"Example Signer","category":"Cards","tags":["fixture"]}'
+  --data '{"title":"Signed card","signerCredits":[{"displayName":"Example Signer","role":"actor"}],"format":"Trading Card","origin":"Official","language":"English","franchises":["Example Franchise"],"tags":["fixture"]}'
 ```
 
 Upload one private original using the returned item ID:
@@ -108,6 +108,43 @@ Storage URLs. Private original keys are generated as:
 ```text
 originals/{item-uuid}/{image-uuid}
 ```
+
+## Phase 7 Taxonomy Rollout
+
+Use this sequence when applying the Phase 7 metadata taxonomy to live data. The
+goal is to review the migration, keep the operator in control of live Oracle
+changes, then publish a fresh schema version 2 static release from the runtime
+boundary.
+
+1. Generate the taxonomy migration report from the committed
+   `.planning/phases/07-metadata-taxonomy-and-public-facets/taxonomy-backfill-mapping.json`
+   mapping and the current legacy export. Review the `Mapped`, `Needs review`,
+   and `Report only` sections before changing live data.
+2. Generate the operator-reviewable PL/SQL and read it alongside
+   `controller/db/updates/07-02-taxonomy-backfill-review.sql`. Confirm that
+   `custom` maps to `Origin: Custom`, `Tr`/`Tra`/`Trading Card` map to
+   `Format: Trading Card`, duplicate physical items remain report-only, and no
+   private Object Storage identifiers or credentials appear in the artifacts.
+3. Optionally run the reviewed PL/SQL manually through SQL Developer against
+   live Oracle per D-07-17. Do not treat generated SQL as an automatic deploy
+   step; the operator review is part of the safety boundary.
+4. Deploy the controller/admin/public code and configuration through the normal
+   GitHub/Ansible path after the schema and reviewed data migration are ready.
+5. Run a full static publish with `POST /admin/api/publish/full`. A full static
+   publish is required after the schema/taxonomy migration so
+   `collection.json`, `facets.json`, item detail JSON, and rendered item pages
+   all use `schemaVersion: 2`.
+6. Verify admin editing through `/admin`: Identity, Classification, and Details
+   sections should load migrated data; signer suggestions should show reusable
+   profiles; `Possible duplicate signer` warnings and `Merge signer` repair
+   should work before save/publish.
+7. Verify public facets and detail pages through Caddy: `/data/collection.json`
+   and `/data/facets.json` should report `schemaVersion: 2`, facets should
+   include signer/franchise/productLine/format/language/origin/role/tag, and no
+   category facet should be present.
+8. Keep legacy `signer`, `category`, and `autograph_item_tags` fields through
+   Phase 7 for rollback/reference. Cleanup is a later planned step after live
+   schema version 2 verification, not part of the initial rollout.
 
 ## Live Persistence Smoke
 
