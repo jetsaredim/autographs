@@ -1645,6 +1645,50 @@ async fn taxonomy_suggestions_aggregate_existing_values() {
     assert_eq!(suggestions.tags, vec!["jedi"]);
 }
 
+#[tokio::test]
+async fn direct_taxonomy_payloads_are_trimmed_and_deduplicated() {
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(AutographItemInput {
+            characters: vec![
+                "Luke Skywalker".to_owned(),
+                " Luke Skywalker ".to_owned(),
+                " ".to_owned(),
+            ],
+            franchises: vec![
+                "Star Wars".to_owned(),
+                "Star Wars".to_owned(),
+                "Star Wars Legends".to_owned(),
+            ],
+            tags: vec!["jedi".to_owned(), "jedi".to_owned(), " hero ".to_owned()],
+            ..test_item_input(
+                "Signed Jedi Card",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(item.characters, vec!["Luke Skywalker"]);
+    assert_eq!(item.franchises, vec!["Star Wars", "Star Wars Legends"]);
+    assert_eq!(item.tags, vec!["jedi", "hero"]);
+
+    let update: AutographItemUpdate = serde_json::from_value(json!({
+        "characters": ["Princess Leia", " Princess Leia ", "General Organa"],
+        "franchises": ["Star Wars", "Star Wars"],
+        "tags": ["rebellion", "rebellion", " hero "]
+    }))
+    .unwrap();
+    let updated = repository.update(item.id, update).await.unwrap();
+
+    assert_eq!(updated.characters, vec!["Princess Leia", "General Organa"]);
+    assert_eq!(updated.franchises, vec!["Star Wars"]);
+    assert_eq!(updated.tags, vec!["rebellion", "hero"]);
+}
+
 #[test]
 fn autograph_item_input_deserializes_camel_case_taxonomy_fields() {
     let input: AutographItemInput = serde_json::from_value(json!({

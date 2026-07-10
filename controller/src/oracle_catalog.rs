@@ -128,8 +128,9 @@ impl CatalogRepository for OracleCatalogRepository {
                 resolve_oracle_signer_credits(&connection, &input.signer_credits, &input.signer)?;
             let legacy_signer = compact_signer_text(&signer_credits);
             let legacy_category = input.format.clone();
-            let characters = normalize_string_list(input.characters);
-            let franchises = normalize_string_list(input.franchises);
+            let tags = normalize_unique_string_list(input.tags);
+            let characters = normalize_unique_string_list(input.characters);
+            let franchises = normalize_unique_string_list(input.franchises);
             let product_line = normalize_optional_string(input.product_line);
             let set_name = normalize_optional_string(input.set_name);
             if input.format.trim().is_empty() {
@@ -176,7 +177,7 @@ impl CatalogRepository for OracleCatalogRepository {
                     ],
                 )
                 .map_err(|error| format!("insert Oracle catalog item: {error}"))?;
-            replace_tags(&connection, id, &input.tags)?;
+            replace_tags(&connection, id, &tags)?;
             replace_signer_credits(&connection, id, &signer_credits)?;
             replace_characters(&connection, id, &characters)?;
             replace_franchises(&connection, id, &franchises)?;
@@ -1266,8 +1267,32 @@ fn apply_signer_input_to_profile(
 }
 
 fn validate_profile_url(value: Option<&str>, field: &str) -> Result<(), String> {
-    if value.is_some_and(|value| value.len() > 1000) {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+    if value.len() > 1000 {
         return Err(format!("{field} must be 1000 characters or fewer"));
+    }
+    let Some(rest) = value.strip_prefix("https://") else {
+        return Err(format!("{field} must be an https URL"));
+    };
+    let host = rest
+        .split(['/', '?', '#', ':'])
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let allowed = match field {
+        "wikipediaUrl" => host == "wikipedia.org" || host.ends_with(".wikipedia.org"),
+        "imdbUrl" => host == "imdb.com" || host.ends_with(".imdb.com"),
+        _ => false,
+    };
+    if !allowed {
+        let expected_host = match field {
+            "wikipediaUrl" => "wikipedia.org",
+            "imdbUrl" => "imdb.com",
+            _ => "the expected profile host",
+        };
+        return Err(format!("{field} must point to {expected_host}"));
     }
     Ok(())
 }
@@ -1859,6 +1884,14 @@ fn normalize_string_list(values: Vec<String>) -> Vec<String> {
         .collect()
 }
 
+fn normalize_unique_string_list(values: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    normalize_string_list(values)
+        .into_iter()
+        .filter(|value| seen.insert(value.clone()))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1884,6 +1917,48 @@ mod tests {
                 "Oracle load item SQL missing `{required_fragment}`"
             );
         }
+    }
+
+    #[test]
+    fn oracle_profile_urls_require_https_expected_hosts() {
+        assert!(validate_profile_url(None, "wikipediaUrl").is_ok());
+        assert!(validate_profile_url(Some(""), "imdbUrl").is_ok());
+        assert!(
+            validate_profile_url(
+                Some("https://en.wikipedia.org/wiki/Mark_Hamill"),
+                "wikipediaUrl"
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_profile_url(Some("https://www.imdb.com/name/nm0000434/"), "imdbUrl").is_ok()
+        );
+
+        assert_eq!(
+            validate_profile_url(Some("javascript:alert(1)"), "wikipediaUrl").unwrap_err(),
+            "wikipediaUrl must be an https URL"
+        );
+        assert_eq!(
+            validate_profile_url(
+                Some("https://example.test/wiki/Mark_Hamill"),
+                "wikipediaUrl"
+            )
+            .unwrap_err(),
+            "wikipediaUrl must point to wikipedia.org"
+        );
+        assert_eq!(
+            validate_profile_url(
+                Some("https://wikipedia.org.example.test/name"),
+                "wikipediaUrl"
+            )
+            .unwrap_err(),
+            "wikipediaUrl must point to wikipedia.org"
+        );
+        assert_eq!(
+            validate_profile_url(Some("https://example.test/name/nm0000434/"), "imdbUrl")
+                .unwrap_err(),
+            "imdbUrl must point to imdb.com"
+        );
     }
 
     #[test]

@@ -613,12 +613,12 @@ impl CatalogRepository for MemoryCatalogRepository {
             signer: input.signer,
             description: input.description,
             category: input.category,
-            tags: input.tags,
+            tags: normalize_unique_string_list(input.tags),
             signer_credits,
-            characters: normalize_string_list(input.characters),
+            characters: normalize_unique_string_list(input.characters),
             format: input.format,
             origin: input.origin,
-            franchises: normalize_string_list(input.franchises),
+            franchises: normalize_unique_string_list(input.franchises),
             product_line: normalize_optional_string(input.product_line),
             set_name: normalize_optional_string(input.set_name),
             language: input.language,
@@ -1307,7 +1307,12 @@ pub(crate) fn apply_update(
         input.category,
         &mut field_diffs,
     );
-    apply_required_update("tags", &mut item.tags, input.tags, &mut field_diffs);
+    apply_required_update(
+        "tags",
+        &mut item.tags,
+        input.tags.map(normalize_unique_string_list),
+        &mut field_diffs,
+    );
     apply_required_update(
         "signers",
         &mut item.signer_credits,
@@ -1317,7 +1322,7 @@ pub(crate) fn apply_update(
     apply_required_update(
         "characters",
         &mut item.characters,
-        input.characters.map(normalize_string_list),
+        input.characters.map(normalize_unique_string_list),
         &mut field_diffs,
     );
     apply_required_update("format", &mut item.format, input.format, &mut field_diffs);
@@ -1325,7 +1330,7 @@ pub(crate) fn apply_update(
     apply_required_update(
         "franchises",
         &mut item.franchises,
-        input.franchises.map(normalize_string_list),
+        input.franchises.map(normalize_unique_string_list),
         &mut field_diffs,
     );
     apply_optional_update(
@@ -1706,6 +1711,14 @@ fn normalize_string_list(values: Vec<String>) -> Vec<String> {
             let value = normalize_string(value);
             if value.is_empty() { None } else { Some(value) }
         })
+        .collect()
+}
+
+fn normalize_unique_string_list(values: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    normalize_string_list(values)
+        .into_iter()
+        .filter(|value| seen.insert(value.clone()))
         .collect()
 }
 
