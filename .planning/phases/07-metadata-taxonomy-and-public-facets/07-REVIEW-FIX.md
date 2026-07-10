@@ -13,6 +13,7 @@ commits:
   - 91a519c
   - d4c1489
   - 3d79fb4
+  - 2edb3d1
 ---
 
 # Phase 07 Review Fix Report
@@ -66,6 +67,10 @@ the follow-up fixes requested by the re-review.
 - `CR-03`: prevented Oracle metadata saves from writing synthetic legacy fallback signer credits with the nil UUID.
 - `WR-01`: made `07-01-taxonomy-schema.sql` idempotently repair signer normalized-name constraints on existing signer tables after duplicate detection.
 
+## Eighth Follow-up Fix
+
+- `CR-01`: moved signer constraint remediation after the signer table creation block so normal Phase 6-to-Phase 7 upgrades do not alter a missing table.
+
 ## Verification
 
 - `node --check controller/static-admin/admin.js`
@@ -88,3 +93,5 @@ the follow-up fixes requested by the re-review.
 - `cargo test --manifest-path controller/Cargo.toml phase7_preflight_expects_taxonomy_tables_and_columns`
 - `cargo test --manifest-path controller/Cargo.toml --features production-persistence phase7_preflight_expects_taxonomy_tables_and_columns`
 - `cargo test --manifest-path controller/Cargo.toml --features production-persistence oracle_skips_synthetic_legacy_signer_credit_writeback`
+- `cargo test --manifest-path controller/Cargo.toml phase7_taxonomy_update_script_is_additive`
+- `cargo test --manifest-path controller/Cargo.toml --features production-persistence phase7_taxonomy_update_script_is_additive`
