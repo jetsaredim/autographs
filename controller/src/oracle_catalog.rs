@@ -979,6 +979,8 @@ fn resolve_oracle_signer_credits(
     let mut seen = BTreeSet::new();
     let mut credits = Vec::with_capacity(inputs.len());
     for (index, input) in inputs.iter().enumerate() {
+        validate_profile_url(input.wikipedia_url.as_deref(), "wikipediaUrl")?;
+        validate_profile_url(input.imdb_url.as_deref(), "imdbUrl")?;
         let profile = resolve_oracle_signer_profile(connection, input, now)?;
         if !seen.insert(profile.normalized_name.clone()) {
             return Err("duplicate signer credits are not allowed".to_owned());
@@ -999,19 +1001,10 @@ fn resolve_oracle_signer_profile(
     now: i64,
 ) -> Result<SignerProfile, String> {
     if let Some(signer_id) = input.signer_id {
-        let mut profile = load_signer_profile_by_id(connection, signer_id)?
+        let profile = load_signer_profile_by_id(connection, signer_id)?
             .ok_or_else(|| "signer profile was not found".to_owned())?;
         validate_signer_id_display_name(&profile, input)?;
-        apply_signer_input_to_profile(&mut profile, input, now)?;
-        return upsert_signer_profile(
-            connection,
-            &SignerCredit {
-                signer: profile,
-                sort_order: 0,
-                item_role: None,
-                item_context: None,
-            },
-        );
+        return Ok(profile);
     }
 
     let display_name = input
@@ -1024,17 +1017,19 @@ fn resolve_oracle_signer_profile(
     if normalized_name.is_empty() {
         return Err("signer displayName is required".to_owned());
     }
-    let mut profile = load_signer_profile_by_normalized_name(connection, &normalized_name)?
-        .unwrap_or_else(|| SignerProfile {
-            id: input.signer_id.unwrap_or_else(Uuid::new_v4),
-            display_name: display_name.to_owned(),
-            normalized_name,
-            default_role: None,
-            wikipedia_url: None,
-            imdb_url: None,
-            created_at_epoch_seconds: now,
-            updated_at_epoch_seconds: now,
-        });
+    if let Some(profile) = load_signer_profile_by_normalized_name(connection, &normalized_name)? {
+        return Ok(profile);
+    }
+    let mut profile = SignerProfile {
+        id: Uuid::new_v4(),
+        display_name: display_name.to_owned(),
+        normalized_name,
+        default_role: None,
+        wikipedia_url: None,
+        imdb_url: None,
+        created_at_epoch_seconds: now,
+        updated_at_epoch_seconds: now,
+    };
     apply_signer_input_to_profile(&mut profile, input, now)?;
     upsert_signer_profile(
         connection,

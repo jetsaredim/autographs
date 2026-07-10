@@ -1477,10 +1477,9 @@ fn resolve_signer_profile(
 ) -> Result<SignerProfile, String> {
     if let Some(signer_id) = input.signer_id {
         let profile = signers
-            .get_mut(&signer_id)
+            .get(&signer_id)
             .ok_or_else(|| "signer profile was not found".to_owned())?;
         validate_signer_id_display_name(profile, input)?;
-        update_signer_profile(profile, input, now);
         return Ok(profile.clone());
     }
 
@@ -1499,9 +1498,8 @@ fn resolve_signer_profile(
         .values()
         .find(|profile| profile.normalized_name == normalized_name)
         .map(|profile| profile.id)
-        && let Some(profile) = signers.get_mut(&existing_id)
+        && let Some(profile) = signers.get(&existing_id)
     {
-        update_signer_profile(profile, input, now);
         return Ok(profile.clone());
     }
 
@@ -1537,32 +1535,6 @@ fn validate_signer_id_display_name(
         );
     }
     Ok(())
-}
-
-fn update_signer_profile(profile: &mut SignerProfile, input: &SignerCreditInput, now: i64) {
-    let mut changed = false;
-    if let Some(display_name) = normalize_optional_string(input.display_name.clone()) {
-        let normalized_name = normalize_signer_name(&display_name);
-        if profile.display_name != display_name || profile.normalized_name != normalized_name {
-            profile.display_name = display_name;
-            profile.normalized_name = normalized_name;
-            changed = true;
-        }
-    }
-    for (current, incoming) in [
-        (&mut profile.default_role, input.default_role.clone()),
-        (&mut profile.wikipedia_url, input.wikipedia_url.clone()),
-        (&mut profile.imdb_url, input.imdb_url.clone()),
-    ] {
-        let normalized = normalize_optional_string(incoming);
-        if *current != normalized {
-            *current = normalized;
-            changed = true;
-        }
-    }
-    if changed {
-        profile.updated_at_epoch_seconds = now;
-    }
 }
 
 fn validate_profile_url(value: Option<&str>, field: &str) -> Result<(), String> {

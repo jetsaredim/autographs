@@ -1600,6 +1600,85 @@ async fn item_signer_credit_rejects_conflicting_profile_id_and_display_name() {
 }
 
 #[tokio::test]
+async fn item_signer_reuse_preserves_existing_profile_metadata() {
+    let repository = MemoryCatalogRepository::default();
+    let original = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Mark Hamill".to_owned()),
+                default_role: Some("actor".to_owned()),
+                wikipedia_url: Some("https://en.wikipedia.org/wiki/Mark_Hamill".to_owned()),
+                imdb_url: Some("https://www.imdb.com/name/nm0000434/".to_owned()),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Signed Jedi Card",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+    let signer_id = original.signer_credits[0].signer.id;
+
+    let selected = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                signer_id: Some(signer_id),
+                display_name: Some("Mark Hamill".to_owned()),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Selected Existing Signer",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        selected.signer_credits[0].signer.wikipedia_url.as_deref(),
+        Some("https://en.wikipedia.org/wiki/Mark_Hamill")
+    );
+    assert_eq!(
+        selected.signer_credits[0].signer.imdb_url.as_deref(),
+        Some("https://www.imdb.com/name/nm0000434/")
+    );
+    assert_eq!(
+        selected.signer_credits[0].signer.default_role.as_deref(),
+        Some("actor")
+    );
+
+    let exact_name = repository
+        .create(test_item_input(
+            "Exact Name Existing Signer",
+            "Mark Hamill",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(exact_name.signer_credits[0].signer.id, signer_id);
+    assert_eq!(
+        exact_name.signer_credits[0].signer.wikipedia_url.as_deref(),
+        Some("https://en.wikipedia.org/wiki/Mark_Hamill")
+    );
+    assert_eq!(
+        exact_name.signer_credits[0].signer.imdb_url.as_deref(),
+        Some("https://www.imdb.com/name/nm0000434/")
+    );
+    assert_eq!(
+        exact_name.signer_credits[0].signer.default_role.as_deref(),
+        Some("actor")
+    );
+}
+
+#[tokio::test]
 async fn stale_signer_id_after_merge_does_not_recreate_source_profile() {
     let repository = MemoryCatalogRepository::default();
     let source_item = repository
