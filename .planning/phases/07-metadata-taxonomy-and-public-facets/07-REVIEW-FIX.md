@@ -8,6 +8,7 @@ commits:
   - 561d840
   - 27731f2
   - d7fb1a1
+  - c069a4d
 ---
 
 # Phase 07 Review Fix Report
@@ -37,6 +38,10 @@ the follow-up fixes requested by the re-review.
 - `CR-02`: updated the taxonomy backfill generator and checked-in apply SQL to merge unambiguous legacy signers into `autograph_signers` and link items through `autograph_item_signers` before role updates.
 - `WR-01`: changed Oracle signer suggestions to query matching profiles in SQL instead of filtering the first 50 rows, and removed the silent 50-profile cap from taxonomy suggestions.
 
+## Third Follow-up Fix
+
+- `CR-01`: made provided signer IDs fail closed when the referenced profile is missing, preventing stale clients from recreating signer profiles that were deleted by merge cleanup.
+
 ## Verification
 
 - `node --check controller/static-admin/admin.js`
@@ -52,3 +57,4 @@ the follow-up fixes requested by the re-review.
 - `cargo test --manifest-path controller/Cargo.toml item_signer_credit_rejects_conflicting_profile_id_and_display_name`
 - `cargo test --manifest-path controller/Cargo.toml --test taxonomy_migration`
 - `cargo test --manifest-path controller/Cargo.toml --test static_admin static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only`
+- `cargo test --manifest-path controller/Cargo.toml stale_signer_id_after_merge_does_not_recreate_source_profile`
