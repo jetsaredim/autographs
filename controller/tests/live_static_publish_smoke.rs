@@ -4,7 +4,10 @@ mod live {
 
     use autographs_controller::{
         catalog::{CatalogRepository, PublicationStatus},
-        contracts::{ImageVariantName, PublicCatalog, PublicFacets, PublicItemDetail},
+        contracts::{
+            FacetId, ImageVariantName, PUBLIC_SCHEMA_VERSION, PublicCatalog, PublicFacets,
+            PublicItemDetail,
+        },
         media::PrivateMediaStore,
         oci_media::OciInstancePrincipalMediaStore,
         oracle_catalog::OracleCatalogRepository,
@@ -167,6 +170,28 @@ mod live {
             serde_json::from_str(&collection_json).expect("decode generated collection JSON");
         let facets: PublicFacets =
             serde_json::from_str(&facets_json).expect("decode generated facets JSON");
+        assert_eq!(catalog.schema_version, PUBLIC_SCHEMA_VERSION);
+        assert_eq!(facets.schema_version, PUBLIC_SCHEMA_VERSION);
+        let facet_ids = facets
+            .groups
+            .iter()
+            .map(|group| group.id)
+            .collect::<Vec<_>>();
+        for expected in [
+            FacetId::Signer,
+            FacetId::Franchise,
+            FacetId::ProductLine,
+            FacetId::Format,
+            FacetId::Language,
+            FacetId::Origin,
+            FacetId::Role,
+            FacetId::Tag,
+        ] {
+            assert!(
+                facet_ids.contains(&expected),
+                "generated facets missing {expected:?} in release {release_id}"
+            );
+        }
         let matches = catalog
             .items
             .iter()
