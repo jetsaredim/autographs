@@ -526,10 +526,14 @@ function compareItems(left, right) {
 }
 
 const splitList = (value) =>
-  String(value || "")
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  [
+    ...new Set(
+      String(value || "")
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+    ),
+  ];
 
 const signerCreditsFromLegacy = (signer) => {
   const displayName = String(signer || "").trim();
@@ -562,11 +566,16 @@ function signerRow(credit, index) {
   grid.append(
     labeledInput(`signer-name-${index}`, "Signer name", "text", profileValue(credit, "displayName"), {
       className: "signer-name-input",
+      field: "name",
       list: "signer-suggestions",
       required: true,
     }),
-    labeledInput(`signer-role-${index}`, "Role", "text", credit?.itemRole || credit?.item_role || ""),
-    labeledInput(`signer-context-${index}`, "Context", "text", credit?.itemContext || credit?.item_context || "")
+    labeledInput(`signer-role-${index}`, "Role", "text", credit?.itemRole || credit?.item_role || "", {
+      field: "role",
+    }),
+    labeledInput(`signer-context-${index}`, "Context", "text", credit?.itemContext || credit?.item_context || "", {
+      field: "context",
+    })
   );
   row.append(grid);
 
@@ -584,8 +593,12 @@ function signerRow(credit, index) {
   profileLinks.hidden = true;
   profileLinks.append(
     textNode("p", copy.signerLinks, "helper-text"),
-    labeledInput(`signer-wikipedia-${index}`, "Wikipedia URL", "url", profileValue(credit, "wikipediaUrl")),
-    labeledInput(`signer-imdb-${index}`, "IMDb URL", "url", profileValue(credit, "imdbUrl"))
+    labeledInput(`signer-wikipedia-${index}`, "Wikipedia URL", "url", profileValue(credit, "wikipediaUrl"), {
+      field: "wikipedia",
+    }),
+    labeledInput(`signer-imdb-${index}`, "IMDb URL", "url", profileValue(credit, "imdbUrl"), {
+      field: "imdb",
+    })
   );
   row.append(profileToggle, profileLinks);
 
@@ -627,6 +640,9 @@ function labeledInput(id, labelText, type, value, options = {}) {
   input.value = value || "";
   if (options.className) {
     input.className = options.className;
+  }
+  if (options.field) {
+    input.dataset.signerField = options.field;
   }
   if (options.list) {
     input.setAttribute("list", options.list);
@@ -964,12 +980,11 @@ const formPayload = () => {
 
 function signerCreditPayload() {
   return Array.from(elements.signerRows.children)
-    .map((row, index) => {
-      const value = (suffix) => row.querySelector(`[id="signer-${suffix}-${index}"]`)?.value.trim() || null;
+    .map((row) => {
+      const value = (field) => row.querySelector(`[data-signer-field="${field}"]`)?.value.trim() || null;
       return {
         signerId: row.dataset.signerId || null,
         displayName: value("name"),
-        defaultRole: value("role"),
         itemRole: value("role"),
         itemContext: value("context"),
         wikipediaUrl: value("wikipedia"),

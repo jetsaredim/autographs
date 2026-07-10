@@ -143,6 +143,88 @@ async fn update_blank_required_field_returns_bad_request() {
 }
 
 #[tokio::test]
+async fn admin_item_validation_errors_return_bad_request() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Signed Jedi Card",
+            "Mark Hamill",
+            "Cards",
+            vec!["jedi"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(false),
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/admin/api/items/{}", item.id))
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"language":"Klingon"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn signer_profile_urls_must_be_https_profile_hosts() {
+    let repository = MemoryCatalogRepository::default();
+
+    let javascript_url = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Example Signer".to_owned()),
+                wikipedia_url: Some("javascript:alert(1)".to_owned()),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Signed Card",
+                "Example Signer",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await;
+    assert_eq!(
+        javascript_url.unwrap_err(),
+        "wikipediaUrl must be an https URL"
+    );
+
+    let wrong_host = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Example Signer".to_owned()),
+                imdb_url: Some("https://example.test/name/nm0000000/".to_owned()),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Signed Card",
+                "Example Signer",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await;
+    assert_eq!(wrong_host.unwrap_err(), "imdbUrl must point to imdb.com");
+}
+
+#[tokio::test]
 async fn admin_can_list_get_update_and_read_history() {
     let repository = Arc::new(MemoryCatalogRepository::default());
     let hamill = repository

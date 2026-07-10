@@ -1539,10 +1539,34 @@ fn update_signer_profile(profile: &mut SignerProfile, input: &SignerCreditInput,
 }
 
 fn validate_profile_url(value: Option<&str>, field: &str) -> Result<(), String> {
-    if value.is_some_and(|value| value.len() > MAX_PROFILE_URL_LENGTH) {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+    if value.len() > MAX_PROFILE_URL_LENGTH {
         return Err(format!(
             "{field} must be {MAX_PROFILE_URL_LENGTH} characters or fewer"
         ));
+    }
+    let Some(rest) = value.strip_prefix("https://") else {
+        return Err(format!("{field} must be an https URL"));
+    };
+    let host = rest
+        .split(['/', '?', '#', ':'])
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let allowed = match field {
+        "wikipediaUrl" => host == "wikipedia.org" || host.ends_with(".wikipedia.org"),
+        "imdbUrl" => host == "imdb.com" || host.ends_with(".imdb.com"),
+        _ => false,
+    };
+    if !allowed {
+        let expected_host = match field {
+            "wikipediaUrl" => "wikipedia.org",
+            "imdbUrl" => "imdb.com",
+            _ => "the expected profile host",
+        };
+        return Err(format!("{field} must point to {expected_host}"));
     }
     Ok(())
 }

@@ -185,6 +185,27 @@ fn static_admin_source_references_taxonomy_editor_contract() {
 }
 
 #[test]
+fn static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only() {
+    let source = static_admin_source();
+    for expected in [
+        "row.querySelector(`[data-signer-field=\"${field}\"]`)",
+        "itemRole: value(\"role\")",
+        "wikipediaUrl: value(\"wikipedia\")",
+        "imdbUrl: value(\"imdb\")",
+        "...new Set(",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin signer/taxonomy payload should include {expected}"
+        );
+    }
+    assert!(
+        !source.contains("defaultRole: value(\"role\")"),
+        "item-level signer role must not mutate the reusable signer default role"
+    );
+}
+
+#[test]
 fn static_admin_markup_labels_every_form_control() {
     let html = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))

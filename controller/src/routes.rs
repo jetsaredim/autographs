@@ -1128,7 +1128,13 @@ pub(super) fn authorize_admin_session(
 }
 
 fn repository_update_error_status(error: &str) -> StatusCode {
-    if error == REQUIRED_FIELDS_ERROR {
+    if error == REQUIRED_FIELDS_ERROR
+        || error.contains("required")
+        || error.contains("must be")
+        || error.contains("must point to")
+        || error.contains("duplicate signer credits")
+        || error.contains("not allowed")
+    {
         StatusCode::BAD_REQUEST
     } else if error.contains("not found") {
         StatusCode::NOT_FOUND

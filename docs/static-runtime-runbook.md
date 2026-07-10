@@ -52,7 +52,7 @@ curl -fsS http://127.0.0.1:8080/admin/api/items \
   -b /tmp/autographs-admin.cookies \
   -H "Origin: http://127.0.0.1:8080" \
   -H "Content-Type: application/json" \
-  --data '{"title":"Signed card","signerCredits":[{"displayName":"Example Signer","role":"actor"}],"format":"Trading Card","origin":"Official","language":"English","franchises":["Example Franchise"],"tags":["fixture"]}'
+  --data '{"title":"Signed card","signer":"Example Signer","category":"Trading Card","signerCredits":[{"displayName":"Example Signer","itemRole":"actor"}],"format":"Trading Card","origin":"Official","language":"English","franchises":["Example Franchise"],"tags":["fixture"]}'
 ```
 
 Upload one private original using the returned item ID:
