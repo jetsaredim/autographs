@@ -1,8 +1,8 @@
 ---
 phase: 07-metadata-taxonomy-and-public-facets
-reviewed: 2026-07-10T15:55:38Z
+reviewed: 2026-07-10T16:04:36Z
 depth: standard
-files_reviewed: 37
+files_reviewed: 38
 files_reviewed_list:
   - controller/db/schema.sql
   - controller/db/updates/07-01-taxonomy-schema.sql
@@ -42,127 +42,56 @@ files_reviewed_list:
   - docs/static-artifact-contract.md
   - docs/static-runtime-runbook.md
 findings:
-  critical: 3
-  warning: 1
+  critical: 1
+  warning: 0
   info: 0
-  total: 4
+  total: 1
 status: issues_found
 ---
 
 # Phase 07: Code Review Report
 
-**Reviewed:** 2026-07-10T15:55:38Z
+**Reviewed:** 2026-07-10T16:04:36Z
 **Depth:** standard
-**Files Reviewed:** 37
+**Files Reviewed:** 38
 **Status:** issues_found
-
-## Narrative Findings (AI reviewer)
 
 ## Summary
 
-Reviewed the listed Phase 7 schema, taxonomy backfill, Rust controller, Oracle adapter, static admin/public artifacts, tests, and documentation at standard depth. Commit `d4c1489` improves the Oracle preflight by adding Phase 7 constraint checks, but it does not fully resolve the missing schema-guarantee warning: incompatible constraints can still pass, the signer uniqueness check does not prove the required column, and legacy rows left for manual taxonomy review can be persisted back through Oracle with a nil signer UUID.
+Reviewed the Phase 7 schema updates, taxonomy backfill tooling, Rust catalog/Oracle/publisher/routes changes, static admin/public assets, tests, and docs at standard depth. Commit `3d79fb4` appears to resolve the Oracle preflight checks for all Phase 7 enum/check values, exact one-column `NORMALIZED_NAME` unique constraint verification, and the synthetic nil UUID legacy signer credit writeback path. One migration-order blocker remains in `07-01`, so the phase is not ready to ship.
+
+## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: BLOCKER - Phase 7 Preflight Accepts Constraints That Still Reject Valid Phase 7 Values
+### CR-01: 07-01 Alters Signer Constraints Before Creating The Signer Table
 
-**Severity:** BLOCKER
-**File:** `controller/src/oracle_schema.rs:58`
-**Issue:** The new preflight entries only search for one token inside each check constraint. `AUTOGRAPH_ITEMS_ORIGIN_CK` requires text containing `Official`, and `AUTOGRAPH_ITEMS_LANGUAGE_CK` requires text containing `English`, while the query at `controller/src/oracle_schema.rs:139` uses `search_condition_vc like '%' || :3 || '%'`. A live schema with enabled constraints such as `origin in ('Official')` or `language in ('English')` will pass startup preflight, but the runtime accepts and writes `Custom`, `Japanese`, and `Chinese` values in `controller/src/oracle_catalog.rs:136` and `controller/src/catalog.rs:1421`. That means the controller can boot successfully and then fail valid Phase 7 admin saves or live publish smoke data at Oracle DML time.
-**Fix:** Validate every allowed enum value for each required check constraint instead of one representative fragment. Add a regression test or fixture proving that `origin in ('Official')` and `language in ('English')` are rejected by preflight.
-
-```rust
-const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[
-    (
-        "AUTOGRAPH_ITEMS",
-        "AUTOGRAPH_ITEMS_ORIGIN_CK",
-        &["Official", "Custom"],
-        "controller/db/updates/07-01-taxonomy-schema.sql",
-    ),
-    (
-        "AUTOGRAPH_ITEMS",
-        "AUTOGRAPH_ITEMS_LANGUAGE_CK",
-        &["English", "Japanese", "Chinese"],
-        "controller/db/updates/07-01-taxonomy-schema.sql",
-    ),
-];
-```
-
-### CR-02: BLOCKER - Signer Unique Constraint Preflight Does Not Verify `NORMALIZED_NAME`
-
-**Severity:** BLOCKER
-**File:** `controller/src/oracle_schema.rs:152`
-**Issue:** `REQUIRED_UNIQUE_CONSTRAINTS` verifies only that an enabled unique constraint named `AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ` exists on `AUTOGRAPH_SIGNERS`; it never checks the constrained column list. A wrongly recreated constraint with the expected name but backed by `ID`, `DISPLAY_NAME`, or multiple columns will pass preflight even though the backfill SQL and runtime assume uniqueness on `NORMALIZED_NAME`. The Phase 7 migration uses `merge into autograph_signers ... on (signer.normalized_name = incoming.normalized_name)` in `controller/db/updates/07-03-taxonomy-backfill-apply.sql:6`, and the Oracle adapter resolves profiles by `normalized_name` in `controller/src/oracle_catalog.rs:1660`, so missing normalized-name uniqueness can produce duplicate signer profiles or unstable merge/upsert behavior.
-**Fix:** Join `USER_CONS_COLUMNS` and verify the expected column set exactly, not just the constraint name/type/status. Also reject constraints with additional columns.
-
-```sql
-select c.constraint_name
-from user_constraints c
-join user_cons_columns col
-  on col.table_name = c.table_name
- and col.constraint_name = c.constraint_name
-where c.table_name = :1
-  and c.constraint_name = :2
-  and c.constraint_type = 'U'
-  and c.status = 'ENABLED'
-group by c.constraint_name
-having count(*) = 1
-   and max(case when col.position = 1 and col.column_name = 'NORMALIZED_NAME' then 1 else 0 end) = 1
-```
-
-### CR-03: BLOCKER - Legacy Items Without Signer Joins Can Be Saved Back With A Nil Signer UUID
-
-**Severity:** BLOCKER
-**File:** `controller/src/oracle_catalog.rs:900`
-**Issue:** `load_item()` synthesizes fallback signer credits for legacy rows with no `AUTOGRAPH_ITEM_SIGNERS` joins, and `legacy_signer_credits()` assigns `Uuid::nil()` at `controller/src/oracle_catalog.rs:947`. `update()` then always calls `replace_signer_credits()` after a metadata save at `controller/src/oracle_catalog.rs:271`. Phase 7 intentionally leaves some rows for manual review, such as the multi-signer fixture row `Mark Hamill / Carrie Fisher` in `controller/fixtures/taxonomy-legacy-export.json:27`, and the backfill generator skips those multi-signer rows in `controller/src/taxonomy_migration.rs:204`. Editing any unrelated field on one of those legacy rows can therefore delete real joins and upsert a persisted signer with `00000000-0000-0000-0000-000000000000`; editing another legacy row can reuse/update that same nil signer and corrupt signer-to-item associations.
-**Fix:** Do not persist synthetic fallback credits. Preserve a separate flag for whether credits came from the join table before applying the display-only fallback, and only replace signer credits when the request explicitly updates signer credits or the item already has real persisted credits. If a legacy fallback must be migrated during an edit, allocate a real signer UUID through the same profile resolver and never use `Uuid::nil()` for a row that can be written.
-
-```rust
-let persisted_signer_credits = load_signer_credits(&connection, id)?;
-let has_persisted_signer_credits = !persisted_signer_credits.is_empty();
-item.signer_credits = if has_persisted_signer_credits {
-    persisted_signer_credits
-} else {
-    legacy_signer_credits(&item.signer, &item.signing_role, &item.format)
-};
-
-if input.signer_credits.is_some() || has_persisted_signer_credits {
-    replace_signer_credits(&connection, id, &item.signer_credits)?;
-}
-```
-
-## Warnings
-
-### WR-01: WARNING - Preflight Remediation Script Cannot Repair Existing Signer Constraint Drift
-
-**Severity:** WARNING
+**Classification:** BLOCKER
 **File:** `controller/db/updates/07-01-taxonomy-schema.sql:143`
-**Issue:** The new preflight failure messages point operators at `controller/db/updates/07-01-taxonomy-schema.sql`, but that script only creates `AUTOGRAPH_SIGNERS` constraints inside the `if table_count = 0` branch. If a live database already has the `AUTOGRAPH_SIGNERS` table and columns but is missing `AUTOGRAPH_SIGNERS_NORMALIZED_NAME_CK` or `AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ`, rerunning the recommended script will not add them. The deployment remains blocked after following the remediation, or worse, an operator may manually patch the schema inconsistently.
-**Fix:** Make the Phase 7 schema update idempotently repair signer constraints on existing tables, with duplicate detection before adding the unique constraint.
+**Issue:** On an existing Phase 6 production schema, `AUTOGRAPH_ITEMS` exists but `AUTOGRAPH_SIGNERS` does not. The migration attempts to inspect and add `AUTOGRAPH_SIGNERS_NORMALIZED_NAME_CK` and `AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ` before the `create table autograph_signers` block later in the file. Because those constraint counts are zero on upgrade, Oracle executes `alter table autograph_signers ...` against a missing table and aborts the update before the Phase 7 signer tables are created. This means the intended idempotent signer constraint remediation in `07-01` still fails for the normal Phase 6-to-Phase 7 path.
+**Fix:** Move the existing `AUTOGRAPH_SIGNERS` create-table block before any signer constraint remediation, or guard the remediation so it only runs after the table exists. Keep duplicate normalized-name detection and the exact unique-constraint add/verify path after the table is known to exist.
 
 ```sql
+-- Run the AUTOGRAPH_SIGNERS create-table block before constraint remediation.
+-- Then run remediation only once the table is present.
 declare
-  constraint_count number;
+  table_count number;
 begin
-  select count(*) into constraint_count
-  from user_constraints
-  where table_name = 'AUTOGRAPH_SIGNERS'
-    and constraint_name = 'AUTOGRAPH_SIGNERS_NORMALIZED_NAME_CK';
+  select count(*) into table_count
+  from user_tables
+  where table_name = 'AUTOGRAPH_SIGNERS';
 
-  if constraint_count = 0 then
-    execute immediate q'[
-      alter table autograph_signers add constraint autograph_signers_normalized_name_ck
-      check (trim(normalized_name) is not null)
-    ]';
+  if table_count = 1 then
+    -- inspect existing normalized_name constraints, check duplicates,
+    -- then add/verify AUTOGRAPH_SIGNERS_NORMALIZED_NAME_CK and _UQ
+    null;
   end if;
 end;
 /
 ```
 
-Add a similar guarded block for `AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ` after failing closed if duplicate `normalized_name` values already exist.
-
 ---
 
-_Reviewed: 2026-07-10T15:55:38Z_
+_Reviewed: 2026-07-10T16:04:36Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
