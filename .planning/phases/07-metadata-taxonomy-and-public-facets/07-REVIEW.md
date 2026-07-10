@@ -1,6 +1,6 @@
 ---
 phase: 07-metadata-taxonomy-and-public-facets
-reviewed: 2026-07-10T11:07:36Z
+reviewed: 2026-07-10T11:18:35Z
 depth: standard
 files_reviewed: 37
 files_reviewed_list:
@@ -42,16 +42,16 @@ files_reviewed_list:
   - docs/static-artifact-contract.md
   - docs/static-runtime-runbook.md
 findings:
-  critical: 1
+  critical: 0
   warning: 1
   info: 0
-  total: 2
+  total: 1
 status: issues_found
 ---
 
 # Phase 07: Code Review Report
 
-**Reviewed:** 2026-07-10T11:07:36Z
+**Reviewed:** 2026-07-10T11:18:35Z
 **Depth:** standard
 **Files Reviewed:** 37
 **Status:** issues_found
@@ -60,46 +60,56 @@ status: issues_found
 
 ## Summary
 
-Reviewed the listed Phase 7 schema, Rust controller, static admin/public, tests, and documentation at standard depth. Commit `bd6ae3b` does resolve the specific item-save regression where selecting an existing signer or reusing an exact signer name cleared profile metadata: the item signer-credit resolution paths now return the existing profile instead of applying blank item-row optional fields, and `controller/tests/admin_workflow.rs:1603` covers both selected-ID reuse and exact-name reuse while preserving new signer creation with optional links/default role.
+Reviewed the listed Phase 7 schema, Rust controller, static admin/public artifacts, tests, and documentation at standard depth. Commit `91a519c` resolves the two called-out regressions in the reviewed code: signer profile PATCH now uses `FieldPatch` so omitted optional fields are preserved while explicit `null` clears them, and taxonomy backfill generation now marks items with multiple mapped role rows as `NeedsReview` instead of auto-collapsing to one role.
 
-The remaining issues are adjacent data-loss paths: the signer-profile PATCH endpoint still clears omitted optional profile fields, and the generated taxonomy backfill can silently collapse multiple role mappings for one legacy item.
-
-## Critical Issues
-
-### CR-01: Partial Signer Profile PATCH Clears Omitted Profile Metadata
-
-**Severity:** BLOCKER
-**File:** `controller/src/catalog.rs:1592`
-**Affected:** `controller/src/routes/admin_items.rs:284`, `controller/src/routes/admin_items.rs:293`, `controller/src/oracle_catalog.rs:783`
-**Issue:** `PATCH /admin/api/signers/{id}` cannot distinguish omitted optional fields from intentional clears. `AdminSignerUpdateRequest` uses plain `Option<String>` fields, so a request body such as `{"displayName":"Mark Richard Hamill"}` deserializes `defaultRole`, `wikipediaUrl`, and `imdbUrl` as `None`. `apply_signer_profile_update()` then normalizes each `None` to `None` and writes it over the existing reusable profile. A partial profile edit can erase the default role and public profile links across both memory and Oracle repositories.
-**Fix:**
-```rust
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SignerProfileUpdateInput {
-    #[serde(default)]
-    pub display_name: FieldPatch<String>,
-    #[serde(default)]
-    pub default_role: FieldPatch<String>,
-    #[serde(default)]
-    pub wikipedia_url: FieldPatch<String>,
-    #[serde(default)]
-    pub imdb_url: FieldPatch<String>,
-}
-```
-Then update `apply_signer_profile_update()` so `FieldPatch::Unchanged` preserves the current value, `FieldPatch::Clear` clears it, and `FieldPatch::Set(value)` validates/normalizes and writes it. Add a regression that creates a signer with `default_role`, `wikipedia_url`, and `imdb_url`, calls `update_signer_profile()` with only `display_name`, and asserts the three optional fields remain unchanged.
+One deployment-safety issue remains in the Oracle schema preflight: it recognizes the new Phase 7 tables and columns but does not verify the Phase 7 constraint/index guarantees that the controller and migration assume.
 
 ## Warnings
 
-### WR-01: Backfill Generator Silently Drops Multiple Role Mappings Per Item
+### WR-01: Oracle Preflight Misses Phase 7 Schema Guarantees
 
 **Severity:** WARNING
-**File:** `controller/src/taxonomy_migration.rs:314`
-**Issue:** `mapped_roles_by_item()` collects mapped `role` rows into `BTreeMap<String, String>`, so if a legacy row has more than one role-like category/tag, the later role overwrites the earlier one without being reported. The generated PL/SQL then inserts the signer credit with only that single surviving role at `controller/src/taxonomy_migration.rs:235`, and the later role update statements only run when `item_role is null` at `controller/src/taxonomy_migration.rs:301`, so the discarded role never reaches the new signer-credit taxonomy. The original loose tags remain, but schema-v2 role facets and signer credits lose one of the operator-reviewed mappings.
-**Fix:** Detect more than one mapped role per `item_id` during report generation and classify those rows as `NeedsReview` instead of emitting an automatic `item_role`. Alternatively, model roles as signer-specific review input before generating PL/SQL, so the script never chooses an arbitrary winner.
+**File:** `controller/src/oracle_schema.rs:43`
+**Issue:** `ensure_initialized_on_connection()` treats the Phase 7 schema as valid once the expected tables and columns exist, but `REQUIRED_CHECK_CONSTRAINTS` still only verifies the older `AUTOGRAPH_EDIT_EVENTS_TYPE_CK` cleanup value. A live schema where `07-01-taxonomy-schema.sql` was interrupted after adding tables/columns, or manually changed without the Phase 7 checks and uniqueness guarantees, will pass controller startup preflight. That allows invalid taxonomy enum values or duplicate signer normalized names into the Oracle catalog despite the canonical schema requiring constraints such as `autograph_items_format_ck`, `autograph_items_origin_ck`, `autograph_items_language_ck`, and `autograph_signers_normalized_name_uq`.
+**Fix:** Extend the schema preflight to validate the Phase 7 constraints and unique indexes/constraints, and point failures at `controller/db/updates/07-01-taxonomy-schema.sql` rather than only the Phase 6 cleanup script. For example:
+
+```rust
+const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &str, &str)] = &[
+    (
+        "AUTOGRAPH_EDIT_EVENTS",
+        "AUTOGRAPH_EDIT_EVENTS_TYPE_CK",
+        "cleanupChanged",
+        "controller/db/updates/06-03-media-cleanup.sql",
+    ),
+    (
+        "AUTOGRAPH_ITEMS",
+        "AUTOGRAPH_ITEMS_FORMAT_CK",
+        "trim(format) is not null",
+        "controller/db/updates/07-01-taxonomy-schema.sql",
+    ),
+    (
+        "AUTOGRAPH_ITEMS",
+        "AUTOGRAPH_ITEMS_ORIGIN_CK",
+        "Official",
+        "controller/db/updates/07-01-taxonomy-schema.sql",
+    ),
+    (
+        "AUTOGRAPH_ITEMS",
+        "AUTOGRAPH_ITEMS_LANGUAGE_CK",
+        "English",
+        "controller/db/updates/07-01-taxonomy-schema.sql",
+    ),
+];
+
+const REQUIRED_UNIQUE_CONSTRAINTS: &[(&str, &str, &str)] = &[(
+    "AUTOGRAPH_SIGNERS",
+    "AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ",
+    "controller/db/updates/07-01-taxonomy-schema.sql",
+)];
+```
 
 ---
 
-_Reviewed: 2026-07-10T11:07:36Z_
+_Reviewed: 2026-07-10T11:18:35Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
