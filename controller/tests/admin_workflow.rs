@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use autographs_controller::{
     catalog::{
         AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository, CleanupStatus,
-        EditEventKind, ImageCleanupEvent, ItemOrigin, MemoryCatalogRepository, PublicationStatus,
-        SignerCreditInput, SignerProfileUpdateInput,
+        EditEventKind, FieldPatch, ImageCleanupEvent, ItemOrigin, MemoryCatalogRepository,
+        PublicationStatus, SignerCreditInput, SignerProfileUpdateInput,
     },
     config::ControllerConfig,
     media::{LocalMediaStore, PrivateMediaStore},
@@ -1525,10 +1525,12 @@ async fn signer_profile_edits_record_history_for_linked_items_only() {
         .update_signer_profile(
             signer_id,
             SignerProfileUpdateInput {
-                display_name: Some("Mark Richard Hamill".to_owned()),
-                default_role: Some("voice actor".to_owned()),
-                wikipedia_url: Some("https://en.wikipedia.org/wiki/Mark_Hamill".to_owned()),
-                imdb_url: Some("https://www.imdb.com/name/nm0000434/".to_owned()),
+                display_name: FieldPatch::Set("Mark Richard Hamill".to_owned()),
+                default_role: FieldPatch::Set("voice actor".to_owned()),
+                wikipedia_url: FieldPatch::Set(
+                    "https://en.wikipedia.org/wiki/Mark_Hamill".to_owned(),
+                ),
+                imdb_url: FieldPatch::Set("https://www.imdb.com/name/nm0000434/".to_owned()),
             },
         )
         .await
@@ -1563,6 +1565,53 @@ async fn signer_profile_edits_record_history_for_linked_items_only() {
             .unwrap()
             .iter()
             .all(|event| !event.summary.contains("Updated signer profile"))
+    );
+}
+
+#[tokio::test]
+async fn partial_signer_profile_update_preserves_omitted_optional_fields() {
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Mark Hamill".to_owned()),
+                default_role: Some("actor".to_owned()),
+                wikipedia_url: Some("https://en.wikipedia.org/wiki/Mark_Hamill".to_owned()),
+                imdb_url: Some("https://www.imdb.com/name/nm0000434/".to_owned()),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Signed Jedi Card",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+    let signer_id = item.signer_credits[0].signer.id;
+
+    let updated = repository
+        .update_signer_profile(
+            signer_id,
+            SignerProfileUpdateInput {
+                display_name: FieldPatch::Set("Mark Richard Hamill".to_owned()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(updated.display_name, "Mark Richard Hamill");
+    assert_eq!(updated.default_role.as_deref(), Some("actor"));
+    assert_eq!(
+        updated.wikipedia_url.as_deref(),
+        Some("https://en.wikipedia.org/wiki/Mark_Hamill")
+    );
+    assert_eq!(
+        updated.imdb_url.as_deref(),
+        Some("https://www.imdb.com/name/nm0000434/")
     );
 }
 

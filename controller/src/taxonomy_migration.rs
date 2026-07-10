@@ -183,6 +183,7 @@ pub fn generate_backfill_report(
             classify_value(mapping, row, "legacy tag", tag, &mut report_rows);
         }
     }
+    flag_conflicting_role_mappings(&mut report_rows);
     BackfillReport { rows: report_rows }
 }
 
@@ -321,6 +322,29 @@ fn mapped_roles_by_item(report: &BackfillReport) -> BTreeMap<String, String> {
         })
         .filter_map(|row| Some((row.item_id.clone(), row.target_value.as_ref()?.clone())))
         .collect()
+}
+
+fn flag_conflicting_role_mappings(report_rows: &mut [BackfillReportRow]) {
+    let mut role_counts = BTreeMap::<String, usize>::new();
+    for row in report_rows.iter().filter(|row| {
+        row.disposition == BackfillDisposition::Mapped
+            && row.target_field.as_deref() == Some("role")
+    }) {
+        *role_counts.entry(row.item_id.clone()).or_default() += 1;
+    }
+    for row in report_rows.iter_mut().filter(|row| {
+        row.disposition == BackfillDisposition::Mapped
+            && row.target_field.as_deref() == Some("role")
+            && role_counts.get(&row.item_id).copied().unwrap_or_default() > 1
+    }) {
+        row.disposition = BackfillDisposition::NeedsReview;
+        row.target_field = None;
+        row.target_value = None;
+        row.note = Some(
+            "Multiple mapped signer roles exist for this item; choose the item role manually."
+                .to_owned(),
+        );
+    }
 }
 
 fn classify_value(

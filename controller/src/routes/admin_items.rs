@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     catalog::{
-        AutographEditEvent, AutographItem, FieldDiff, ItemOrigin, PendingChangeSummary,
+        AutographEditEvent, AutographItem, FieldDiff, FieldPatch, ItemOrigin, PendingChangeSummary,
         SignerMergeResult, SignerProfile, SignerProfileUpdateInput, SignerSuggestion,
         TaxonomySuggestions,
     },
@@ -284,10 +284,14 @@ impl From<SignerSuggestion> for AdminSignerSuggestionResponse {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct AdminSignerUpdateRequest {
-    display_name: Option<String>,
-    default_role: Option<String>,
-    wikipedia_url: Option<String>,
-    imdb_url: Option<String>,
+    #[serde(default)]
+    display_name: FieldPatch<String>,
+    #[serde(default)]
+    default_role: FieldPatch<String>,
+    #[serde(default)]
+    wikipedia_url: FieldPatch<String>,
+    #[serde(default)]
+    imdb_url: FieldPatch<String>,
 }
 
 impl From<AdminSignerUpdateRequest> for SignerProfileUpdateInput {

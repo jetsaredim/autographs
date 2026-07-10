@@ -83,13 +83,17 @@ pub struct SignerSuggestion {
     pub possible_duplicate: bool,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SignerProfileUpdateInput {
-    pub display_name: Option<String>,
-    pub default_role: Option<String>,
-    pub wikipedia_url: Option<String>,
-    pub imdb_url: Option<String>,
+    #[serde(default)]
+    pub display_name: FieldPatch<String>,
+    #[serde(default)]
+    pub default_role: FieldPatch<String>,
+    #[serde(default)]
+    pub wikipedia_url: FieldPatch<String>,
+    #[serde(default)]
+    pub imdb_url: FieldPatch<String>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
@@ -1575,35 +1579,68 @@ pub(crate) fn apply_signer_profile_update(
     input: SignerProfileUpdateInput,
     now: i64,
 ) -> Result<(), String> {
-    validate_profile_url(input.wikipedia_url.as_deref(), "wikipediaUrl")?;
-    validate_profile_url(input.imdb_url.as_deref(), "imdbUrl")?;
     let mut changed = false;
-    if let Some(display_name) = normalize_optional_string(input.display_name) {
-        let normalized_name = normalize_signer_name(&display_name);
-        if normalized_name.is_empty() {
-            return Err("signer displayName is required".to_owned());
-        }
-        if profile.display_name != display_name || profile.normalized_name != normalized_name {
-            profile.display_name = display_name;
-            profile.normalized_name = normalized_name;
-            changed = true;
-        }
-    }
-    for (current, incoming) in [
-        (&mut profile.default_role, input.default_role),
-        (&mut profile.wikipedia_url, input.wikipedia_url),
-        (&mut profile.imdb_url, input.imdb_url),
-    ] {
-        let normalized = normalize_optional_string(incoming);
-        if *current != normalized {
-            *current = normalized;
-            changed = true;
+    match input.display_name {
+        FieldPatch::Unchanged => {}
+        FieldPatch::Clear => return Err("signer displayName is required".to_owned()),
+        FieldPatch::Set(display_name) => {
+            let display_name = normalize_string(display_name);
+            let normalized_name = normalize_signer_name(&display_name);
+            if normalized_name.is_empty() {
+                return Err("signer displayName is required".to_owned());
+            }
+            if profile.display_name != display_name || profile.normalized_name != normalized_name {
+                profile.display_name = display_name;
+                profile.normalized_name = normalized_name;
+                changed = true;
+            }
         }
     }
+    changed |= apply_profile_optional_patch(&mut profile.default_role, input.default_role);
+    changed |= apply_profile_url_patch(
+        &mut profile.wikipedia_url,
+        input.wikipedia_url,
+        "wikipediaUrl",
+    )?;
+    changed |= apply_profile_url_patch(&mut profile.imdb_url, input.imdb_url, "imdbUrl")?;
     if changed {
         profile.updated_at_epoch_seconds = now;
     }
     Ok(())
+}
+
+fn apply_profile_optional_patch(current: &mut Option<String>, patch: FieldPatch<String>) -> bool {
+    match patch {
+        FieldPatch::Unchanged => false,
+        FieldPatch::Clear => {
+            if current.is_none() {
+                false
+            } else {
+                *current = None;
+                true
+            }
+        }
+        FieldPatch::Set(value) => {
+            let normalized = normalize_optional_string(Some(value));
+            if *current == normalized {
+                false
+            } else {
+                *current = normalized;
+                true
+            }
+        }
+    }
+}
+
+fn apply_profile_url_patch(
+    current: &mut Option<String>,
+    patch: FieldPatch<String>,
+    field: &str,
+) -> Result<bool, String> {
+    if let FieldPatch::Set(value) = &patch {
+        validate_profile_url(Some(value.as_str()), field)?;
+    }
+    Ok(apply_profile_optional_patch(current, patch))
 }
 
 pub(crate) fn signer_profile_field_diffs(
