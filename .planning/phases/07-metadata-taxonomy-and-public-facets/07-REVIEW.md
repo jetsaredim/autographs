@@ -1,6 +1,6 @@
 ---
 phase: 07-metadata-taxonomy-and-public-facets
-reviewed: 2026-07-10T11:00:09Z
+reviewed: 2026-07-10T11:07:36Z
 depth: standard
 files_reviewed: 37
 files_reviewed_list:
@@ -43,15 +43,15 @@ files_reviewed_list:
   - docs/static-runtime-runbook.md
 findings:
   critical: 1
-  warning: 0
+  warning: 1
   info: 0
-  total: 1
+  total: 2
 status: issues_found
 ---
 
 # Phase 07: Code Review Report
 
-**Reviewed:** 2026-07-10T11:00:09Z
+**Reviewed:** 2026-07-10T11:07:36Z
 **Depth:** standard
 **Files Reviewed:** 37
 **Status:** issues_found
@@ -60,32 +60,46 @@ status: issues_found
 
 ## Summary
 
-Reviewed the listed Phase 7 schema, Rust controller, static admin/public, test, and documentation files at standard depth. Commit `c069a4d` does resolve the stale/deleted `signerId` recreation issue: both the memory and Oracle repositories now fail closed when a supplied signer ID no longer exists, while requests without `signerId` still create or reuse profiles by display name. The merge cleanup regression is also covered by the new memory repository test at `controller/tests/admin_workflow.rs:1603`.
+Reviewed the listed Phase 7 schema, Rust controller, static admin/public, tests, and documentation at standard depth. Commit `bd6ae3b` does resolve the specific item-save regression where selecting an existing signer or reusing an exact signer name cleared profile metadata: the item signer-credit resolution paths now return the existing profile instead of applying blank item-row optional fields, and `controller/tests/admin_workflow.rs:1603` covers both selected-ID reuse and exact-name reuse while preserving new signer creation with optional links/default role.
 
-The remaining blocker is adjacent to signer selection. The admin create-or-select path can still submit partial signer profile fields for an existing signer, and both repository implementations treat missing optional fields as authoritative clears. That can erase reusable profile metadata such as Wikipedia/IMDb links and default roles while saving an item.
+The remaining issues are adjacent data-loss paths: the signer-profile PATCH endpoint still clears omitted optional profile fields, and the generated taxonomy backfill can silently collapse multiple role mappings for one legacy item.
 
 ## Critical Issues
 
-### CR-01: Existing Signer Selection Can Clear Profile Metadata
+### CR-01: Partial Signer Profile PATCH Clears Omitted Profile Metadata
 
 **Severity:** BLOCKER
-**File:** `controller/static-admin/admin.js:997`
-**Affected:** `controller/static-admin/admin.js:629`, `controller/src/catalog.rs:1478`, `controller/src/catalog.rs:1552`, `controller/src/oracle_catalog.rs:1001`, `controller/src/oracle_catalog.rs:1301`
-**Issue:** Selecting an existing signer from suggestions only stores `row.dataset.signerId`; it does not hydrate that row with the selected profile's existing Wikipedia/IMDb/default-role metadata. The save payload then always sends `wikipediaUrl` and `imdbUrl`, using `null` when those row fields are empty. On the server, the `signerId` branch calls `update_signer_profile()` / `apply_signer_input_to_profile()`, and those helpers normalize every missing optional profile field to `None` and write it back. A normal "select existing signer, save item" flow can therefore clear public signer profile links/default roles in both local and Oracle persistence without the operator intending to edit that profile.
+**File:** `controller/src/catalog.rs:1592`
+**Affected:** `controller/src/routes/admin_items.rs:284`, `controller/src/routes/admin_items.rs:293`, `controller/src/oracle_catalog.rs:783`
+**Issue:** `PATCH /admin/api/signers/{id}` cannot distinguish omitted optional fields from intentional clears. `AdminSignerUpdateRequest` uses plain `Option<String>` fields, so a request body such as `{"displayName":"Mark Richard Hamill"}` deserializes `defaultRole`, `wikipediaUrl`, and `imdbUrl` as `None`. `apply_signer_profile_update()` then normalizes each `None` to `None` and writes it over the existing reusable profile. A partial profile edit can erase the default role and public profile links across both memory and Oracle repositories.
 **Fix:**
 ```rust
-if let Some(signer_id) = input.signer_id {
-    let profile = signers
-        .get(&signer_id)
-        .ok_or_else(|| "signer profile was not found".to_owned())?;
-    validate_signer_id_display_name(profile, input)?;
-    return Ok(profile.clone());
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignerProfileUpdateInput {
+    #[serde(default)]
+    pub display_name: FieldPatch<String>,
+    #[serde(default)]
+    pub default_role: FieldPatch<String>,
+    #[serde(default)]
+    pub wikipedia_url: FieldPatch<String>,
+    #[serde(default)]
+    pub imdb_url: FieldPatch<String>,
 }
 ```
-Do the same in `resolve_oracle_signer_profile()`: when an existing profile is selected by `signerId`, validate it and return it without applying item-credit optional fields to the reusable profile. For the no-`signerId` path, reuse an existing normalized-name profile without clearing optional metadata; only initialize optional profile fields when creating a brand-new signer profile. Add regressions that first create a signer with role and profile links, then save another item using that signer's ID or exact display name with no profile fields, and assert the existing profile metadata is retained.
+Then update `apply_signer_profile_update()` so `FieldPatch::Unchanged` preserves the current value, `FieldPatch::Clear` clears it, and `FieldPatch::Set(value)` validates/normalizes and writes it. Add a regression that creates a signer with `default_role`, `wikipedia_url`, and `imdb_url`, calls `update_signer_profile()` with only `display_name`, and asserts the three optional fields remain unchanged.
+
+## Warnings
+
+### WR-01: Backfill Generator Silently Drops Multiple Role Mappings Per Item
+
+**Severity:** WARNING
+**File:** `controller/src/taxonomy_migration.rs:314`
+**Issue:** `mapped_roles_by_item()` collects mapped `role` rows into `BTreeMap<String, String>`, so if a legacy row has more than one role-like category/tag, the later role overwrites the earlier one without being reported. The generated PL/SQL then inserts the signer credit with only that single surviving role at `controller/src/taxonomy_migration.rs:235`, and the later role update statements only run when `item_role is null` at `controller/src/taxonomy_migration.rs:301`, so the discarded role never reaches the new signer-credit taxonomy. The original loose tags remain, but schema-v2 role facets and signer credits lose one of the operator-reviewed mappings.
+**Fix:** Detect more than one mapped role per `item_id` during report generation and classify those rows as `NeedsReview` instead of emitting an automatic `item_role`. Alternatively, model roles as signer-specific review input before generating PL/SQL, so the script never chooses an arbitrary winner.
 
 ---
 
-_Reviewed: 2026-07-10T11:00:09Z_
+_Reviewed: 2026-07-10T11:07:36Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
