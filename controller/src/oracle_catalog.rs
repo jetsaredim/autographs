@@ -998,9 +998,9 @@ fn resolve_oracle_signer_profile(
     input: &SignerCreditInput,
     now: i64,
 ) -> Result<SignerProfile, String> {
-    if let Some(signer_id) = input.signer_id
-        && let Some(mut profile) = load_signer_profile_by_id(connection, signer_id)?
-    {
+    if let Some(signer_id) = input.signer_id {
+        let mut profile = load_signer_profile_by_id(connection, signer_id)?
+            .ok_or_else(|| "signer profile was not found".to_owned())?;
         validate_signer_id_display_name(&profile, input)?;
         apply_signer_input_to_profile(&mut profile, input, now)?;
         return upsert_signer_profile(

@@ -1600,6 +1600,62 @@ async fn item_signer_credit_rejects_conflicting_profile_id_and_display_name() {
 }
 
 #[tokio::test]
+async fn stale_signer_id_after_merge_does_not_recreate_source_profile() {
+    let repository = MemoryCatalogRepository::default();
+    let source_item = repository
+        .create(test_item_input(
+            "Typo Signed Card",
+            "Mark Hamel",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let target_item = repository
+        .create(test_item_input(
+            "Canonical Signed Card",
+            "Mark Hamill",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let source_signer_id = source_item.signer_credits[0].signer.id;
+    let target_signer_id = target_item.signer_credits[0].signer.id;
+
+    repository
+        .merge_signer_profiles(source_signer_id, target_signer_id)
+        .await
+        .unwrap();
+
+    let stale_update: AutographItemUpdate = serde_json::from_value(json!({
+        "signerCredits": [{
+            "signerId": source_signer_id,
+            "displayName": "Mark Hamel",
+            "itemRole": "actor"
+        }]
+    }))
+    .unwrap();
+    let error = repository
+        .update(source_item.id, stale_update)
+        .await
+        .unwrap_err();
+    assert_eq!(error, "signer profile was not found");
+
+    let suggestions = repository
+        .signer_suggestions("Mark Hamel".to_owned())
+        .await
+        .unwrap();
+    assert!(
+        suggestions
+            .iter()
+            .all(|suggestion| suggestion.profile.id != source_signer_id)
+    );
+}
+
+#[tokio::test]
 async fn merge_signer_profiles_moves_credits_and_records_history() {
     let repository = MemoryCatalogRepository::default();
     let source_item = repository

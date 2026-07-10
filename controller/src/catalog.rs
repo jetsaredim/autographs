@@ -1475,9 +1475,10 @@ fn resolve_signer_profile(
     input: &SignerCreditInput,
     now: i64,
 ) -> Result<SignerProfile, String> {
-    if let Some(signer_id) = input.signer_id
-        && let Some(profile) = signers.get_mut(&signer_id)
-    {
+    if let Some(signer_id) = input.signer_id {
+        let profile = signers
+            .get_mut(&signer_id)
+            .ok_or_else(|| "signer profile was not found".to_owned())?;
         validate_signer_id_display_name(profile, input)?;
         update_signer_profile(profile, input, now);
         return Ok(profile.clone());
