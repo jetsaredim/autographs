@@ -1,6 +1,6 @@
 ---
 phase: 07-metadata-taxonomy-and-public-facets
-reviewed: 2026-07-10T02:09:58Z
+reviewed: 2026-07-10T03:18:01Z
 depth: standard
 files_reviewed: 37
 files_reviewed_list:
@@ -42,165 +42,92 @@ files_reviewed_list:
   - docs/static-artifact-contract.md
   - docs/static-runtime-runbook.md
 findings:
-  critical: 3
-  warning: 3
+  critical: 1
+  warning: 1
   info: 0
-  total: 6
+  total: 2
 status: issues_found
 ---
 
 # Phase 07: Code Review Report
 
-**Reviewed:** 2026-07-10T02:09:58Z
+**Reviewed:** 2026-07-10T03:18:01Z
 **Depth:** standard
 **Files Reviewed:** 37
 **Status:** issues_found
 
 ## Summary
 
-Reviewed the Phase 7 taxonomy schema, Rust catalog/controller/publisher paths, static admin/public assets, tests, generated fixture artifacts, and operator docs. The main risks are unsafe public signer profile links, admin signer-row saves that can drop remaining credits after row removal, and item-level role edits mutating shared signer defaults.
+Re-reviewed the Phase 7 taxonomy/schema/admin/public/docs scope after commit `561d840`. Previous findings CR-02, CR-03, WR-01, and WR-03 are resolved in the submitted fixes. Previous CR-01 is only fixed in the memory repository and remains open in the Oracle repository, which is the production persistence path. Previous WR-02 is only fixed in the browser payload path and remains open for direct API callers and Oracle persistence.
+
+Validation run:
+
+- `cargo test --manifest-path controller/Cargo.toml` passed.
+- Targeted regression tests for memory-mode profile URL validation, admin validation status mapping, and static-admin row-scoped signer payloads passed.
 
 ## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: Unsafe Signer Profile URLs Reach Public `href` Attributes
+### CR-01: Oracle Profile URL Validation Still Allows Unsafe Public `href` Values
 
 **Severity:** BLOCKER
-**File:** `controller/src/catalog.rs:1541`, `controller/src/oracle_catalog.rs:1268`, `controller/src/publisher.rs:1909`
-**Issue:** Signer profile URL validation only checks length. The publisher then renders non-empty `wikipediaUrl` and `imdbUrl` directly into public detail-page `href` attributes. HTML escaping prevents tag injection, but it does not make schemes like `javascript:alert(1)` or `data:text/html,...` safe; a malicious or mistaken admin value can become an executable public link.
+**File:** `controller/src/oracle_catalog.rs:1268`
+**Issue:** Commit `561d840` tightened `validate_profile_url()` in the memory repository, but the Oracle repository still only checks profile URL length at lines 1268-1273. Production create/update calls resolve signer credits through `resolve_oracle_signer_credits()` and `apply_signer_input_to_profile()`, so an admin or direct API caller can still persist `javascript:alert(1)` or `data:` values in Oracle signer profile links. The publisher renders non-empty profile links into public detail-page `href` attributes at `controller/src/publisher.rs:1909` and `controller/src/publisher.rs:1921`, so this remains a public XSS/security issue in production mode.
 **Fix:**
 ```rust
 fn validate_profile_url(value: Option<&str>, field: &str) -> Result<(), String> {
     let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
         return Ok(());
     };
-    if value.len() > MAX_PROFILE_URL_LENGTH {
-        return Err(format!("{field} must be {MAX_PROFILE_URL_LENGTH} characters or fewer"));
+    if value.len() > 1000 {
+        return Err(format!("{field} must be 1000 characters or fewer"));
     }
-    let url = url::Url::parse(value).map_err(|_| format!("{field} must be a valid HTTPS URL"))?;
-    if url.scheme() != "https" {
-        return Err(format!("{field} must use https"));
-    }
-    match field {
-        "wikipediaUrl" if !url.domain().is_some_and(|d| d.ends_with("wikipedia.org")) => {
-            return Err("wikipediaUrl must point to wikipedia.org".to_owned());
-        }
-        "imdbUrl" if !url.domain().is_some_and(|d| d.ends_with("imdb.com")) => {
-            return Err("imdbUrl must point to imdb.com".to_owned());
-        }
-        _ => {}
+    let Some(rest) = value.strip_prefix("https://") else {
+        return Err(format!("{field} must be an https URL"));
+    };
+    let host = rest
+        .split(['/', '?', '#', ':'])
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let allowed = match field {
+        "wikipediaUrl" => host == "wikipedia.org" || host.ends_with(".wikipedia.org"),
+        "imdbUrl" => host == "imdb.com" || host.ends_with(".imdb.com"),
+        _ => false,
+    };
+    if !allowed {
+        return Err(format!(
+            "{field} must point to {}",
+            if field == "wikipediaUrl" { "wikipedia.org" } else { "imdb.com" }
+        ));
     }
     Ok(())
 }
 ```
-Share this validation between memory and Oracle paths, and add publisher/API tests that reject `javascript:` and non-HTTPS profile URLs.
-
-### CR-02: Removing A Signer Row Can Drop Remaining Signers On Save
-
-**Severity:** BLOCKER
-**File:** `controller/static-admin/admin.js:595`
-**Issue:** The remove handler deletes a row and calls `normalizeSignerRowHeadings()`, but that function only updates `data-index` and the visible heading. `signerCreditPayload()` later reads each row by index-specific IDs such as `signer-name-0`. After removing the first signer, the remaining row still contains `signer-name-1`, so the payload for row index `0` reads `null` fields and filters the signer out. Saving after a row removal can silently remove the wrong signer credits from the item.
-**Fix:**
-```javascript
-function signerCreditPayload() {
-  return Array.from(elements.signerRows.children)
-    .map((row) => {
-      const value = (selector) => row.querySelector(selector)?.value.trim() || null;
-      return {
-        signerId: row.dataset.signerId || null,
-        displayName: value(".signer-name-input"),
-        itemRole: value(".signer-role-input"),
-        itemContext: value(".signer-context-input"),
-        wikipediaUrl: value(".signer-wikipedia-input"),
-        imdbUrl: value(".signer-imdb-input"),
-      };
-    })
-    .filter((credit) => credit.displayName || credit.signerId);
-}
-```
-Alternatively, fully renumber every input `id`, `name`, `label[for]`, and profile panel ID after remove/reorder. Add a static admin test that removes the first of two signer rows and verifies the second signer remains in the payload.
-
-### CR-03: Item Role Edits Mutate Shared Signer Defaults
-
-**Severity:** BLOCKER
-**File:** `controller/static-admin/admin.js:968`
-**Issue:** The admin payload sends the same Role input as both `defaultRole` and `itemRole`. Repository code treats `defaultRole` as signer-profile metadata, so editing a signer role for one item can overwrite the reusable signer's default role for every linked and future item. This is cross-item metadata corruption from an item editor field.
-**Fix:**
-```javascript
-return {
-  signerId: row.dataset.signerId || null,
-  displayName: value("name"),
-  itemRole: value("role"),
-  itemContext: value("context"),
-  wikipediaUrl: value("wikipedia"),
-  imdbUrl: value("imdb"),
-};
-```
-Only send `defaultRole` from a clearly separate signer-profile edit control, or only when creating a new profile and the UI labels it as the reusable default.
+Prefer sharing one validator between `catalog.rs` and `oracle_catalog.rs`, and add an Oracle/live-persistence or unit-seam regression test so production persistence cannot drift from memory-mode validation again.
 
 ## Warnings
 
-### WR-01: Update Validation Failures Are Reported As 500s
+### WR-01: Oracle Saves Still Fail On Duplicate Direct-API Taxonomy Values
 
 **Severity:** WARNING
-**File:** `controller/src/routes.rs:1130`
-**Issue:** `repository_update_error_status()` maps only the shared required-fields error to `400`; other validation failures such as unsupported language, blank format, duplicate signer credits, or overlong profile URLs become `500 Internal Server Error` on item update/publication routes. These are client-correctable validation errors, and treating them as server failures hides actionable feedback and pollutes operational error logs.
-**Fix:** Return typed repository errors, or extend the mapper for known validation messages:
+**File:** `controller/src/oracle_catalog.rs:1527`, `controller/src/oracle_catalog.rs:1693`
+**Issue:** The browser `splitList()` now deduplicates admin-entered taxonomy lists, but Oracle persistence still inserts the caller-provided `tags`, normalized `characters`, and normalized `franchises` vectors directly into tables whose primary keys are `(item_id, tag)`, `(item_id, character_name)`, and `(item_id, franchise)`. Direct API callers, tests, migration tools, or any non-browser client can still submit duplicate taxonomy values and trigger Oracle constraint errors during `replace_tags()` or `replace_ordered_values()`, while memory mode accepts the same payload. This leaves the previous duplicate-token production robustness issue unresolved outside the static admin UI.
+**Fix:** Deduplicate in the Rust persistence/service boundary before Oracle insert loops, not only in browser JavaScript. For example:
 ```rust
-fn repository_update_error_status(error: &str) -> StatusCode {
-    if error == REQUIRED_FIELDS_ERROR
-        || error.contains("required")
-        || error.contains("must be")
-        || error.contains("duplicate signer credits")
-        || error.contains("not allowed")
-    {
-        StatusCode::BAD_REQUEST
-    } else if error.contains("not found") {
-        StatusCode::NOT_FOUND
-    } else {
-        StatusCode::INTERNAL_SERVER_ERROR
-    }
+fn normalize_unique_string_list(values: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::BTreeSet::new();
+    normalize_string_list(values)
+        .into_iter()
+        .filter(|value| seen.insert(value.clone()))
+        .collect()
 }
 ```
-
-### WR-02: Duplicate Taxonomy Tokens Can Fail Oracle Saves
-
-**Severity:** WARNING
-**File:** `controller/static-admin/admin.js:528`, `controller/src/oracle_catalog.rs:1535`, `controller/src/oracle_catalog.rs:1705`
-**Issue:** The admin `splitList()` trims but does not deduplicate values, and the Oracle persistence layer inserts tags, characters, and franchises directly into tables whose primary keys include the value. A user entering `Star Wars, Star Wars` or duplicate tags can make the Oracle save fail with a constraint error, while memory mode accepts the same payload.
-**Fix:** Normalize and deduplicate list fields before persistence and in the admin payload:
-```javascript
-const splitList = (value) =>
-  [...new Set(String(value || "")
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean))];
-```
-Mirror the same dedupe in Rust before `replace_tags()` and `replace_ordered_values()` so direct API callers behave consistently.
-
-### WR-03: Static Runtime Runbook Create Payload No Longer Matches The API
-
-**Severity:** WARNING
-**File:** `docs/static-runtime-runbook.md:55`
-**Issue:** The documented `POST /admin/api/items` payload omits required `signer` and `category` compatibility fields and uses `role` inside `signerCredits`, but the API expects `itemRole` and ignores unknown `role`. An operator following this smoke step will fail item creation or create an item without the intended signer role.
-**Fix:**
-```json
-{
-  "title": "Signed card",
-  "signer": "Example Signer",
-  "category": "Trading Card",
-  "signerCredits": [{"displayName": "Example Signer", "itemRole": "actor"}],
-  "format": "Trading Card",
-  "origin": "Official",
-  "language": "English",
-  "franchises": ["Example Franchise"],
-  "tags": ["fixture"]
-}
-```
+Use that for tags, characters, and franchises on create/update before calling `replace_tags()`, `replace_characters()`, and `replace_franchises()`, and add an Oracle-path regression test for duplicate direct-API taxonomy values.
 
 ---
 
-_Reviewed: 2026-07-10T02:09:58Z_
+_Reviewed: 2026-07-10T03:18:01Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
