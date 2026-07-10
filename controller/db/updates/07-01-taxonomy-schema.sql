@@ -141,6 +141,37 @@ end;
 /
 
 declare
+  table_count number;
+begin
+  select count(*)
+    into table_count
+    from user_tables
+   where table_name = 'AUTOGRAPH_SIGNERS';
+
+  if table_count = 0 then
+    execute immediate q'[
+      create table autograph_signers (
+        id varchar2(36) primary key,
+        display_name varchar2(255) not null,
+        normalized_name varchar2(255) not null,
+        default_role varchar2(80),
+        wikipedia_url varchar2(1000),
+        imdb_url varchar2(1000),
+        created_at timestamp default current_timestamp not null,
+        updated_at timestamp default current_timestamp not null,
+        constraint autograph_signers_display_name_ck
+          check (trim(display_name) is not null),
+        constraint autograph_signers_normalized_name_ck
+          check (trim(normalized_name) is not null),
+        constraint autograph_signers_normalized_name_uq
+          unique (normalized_name)
+      )
+    ]';
+  end if;
+end;
+/
+
+declare
   constraint_count number;
 begin
   select count(*)
@@ -188,37 +219,6 @@ begin
     execute immediate q'[
       alter table autograph_signers add constraint autograph_signers_normalized_name_uq
         unique (normalized_name)
-    ]';
-  end if;
-end;
-/
-
-declare
-  table_count number;
-begin
-  select count(*)
-    into table_count
-    from user_tables
-   where table_name = 'AUTOGRAPH_SIGNERS';
-
-  if table_count = 0 then
-    execute immediate q'[
-      create table autograph_signers (
-        id varchar2(36) primary key,
-        display_name varchar2(255) not null,
-        normalized_name varchar2(255) not null,
-        default_role varchar2(80),
-        wikipedia_url varchar2(1000),
-        imdb_url varchar2(1000),
-        created_at timestamp default current_timestamp not null,
-        updated_at timestamp default current_timestamp not null,
-        constraint autograph_signers_display_name_ck
-          check (trim(display_name) is not null),
-        constraint autograph_signers_normalized_name_ck
-          check (trim(normalized_name) is not null),
-        constraint autograph_signers_normalized_name_uq
-          unique (normalized_name)
-      )
     ]';
   end if;
 end;

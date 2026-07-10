@@ -374,6 +374,14 @@ mod tests {
         assert!(script.contains("autograph_signers_normalized_name_uq"));
         assert!(script.contains("duplicate normalized_name values exist"));
         assert!(script.contains("autograph_item_signers"));
+        assert!(
+            script
+                .find("create table autograph_signers")
+                .expect("signer table create statement is present")
+                < script
+                    .find("alter table autograph_signers add constraint autograph_signers_normalized_name_ck")
+                    .expect("signer constraint repair statement is present")
+        );
         assert!(!lower_script.contains("drop column signer"));
         assert!(!lower_script.contains("drop column category"));
         assert!(!lower_script.contains("drop table autograph_item_tags"));
