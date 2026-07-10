@@ -7,6 +7,7 @@ fix_scope: critical_warning
 commits:
   - 561d840
   - 27731f2
+  - d7fb1a1
 ---
 
 # Phase 07 Review Fix Report
@@ -30,6 +31,12 @@ the follow-up fixes requested by the re-review.
 - `CR-01`: mirrored HTTPS/host signer profile URL validation in the Oracle repository so production persistence rejects unsafe public detail-page link values.
 - `WR-01`: deduplicated direct API taxonomy lists at the Rust repository boundary and before Oracle insert loops so duplicate tags, characters, and franchises do not trigger Oracle key collisions.
 
+## Second Follow-up Fixes
+
+- `CR-01`: cleared stale signer IDs in the admin item editor when the visible signer name diverges, and rejected direct/stale payloads that combine a signer ID with a conflicting display name.
+- `CR-02`: updated the taxonomy backfill generator and checked-in apply SQL to merge unambiguous legacy signers into `autograph_signers` and link items through `autograph_item_signers` before role updates.
+- `WR-01`: changed Oracle signer suggestions to query matching profiles in SQL instead of filtering the first 50 rows, and removed the silent 50-profile cap from taxonomy suggestions.
+
 ## Verification
 
 - `node --check controller/static-admin/admin.js`
@@ -41,3 +48,7 @@ the follow-up fixes requested by the re-review.
 - `cargo test --manifest-path controller/Cargo.toml`
 - `cargo test --manifest-path controller/Cargo.toml direct_taxonomy_payloads_are_trimmed_and_deduplicated`
 - `cargo test --manifest-path controller/Cargo.toml --features production-persistence oracle_profile_urls_require_https_expected_hosts`
+- `cargo run --manifest-path controller/Cargo.toml --bin taxonomy_backfill -- plsql --mapping .planning/phases/07-metadata-taxonomy-and-public-facets/taxonomy-backfill-mapping.json --input controller/fixtures/taxonomy-legacy-export.json --out controller/db/updates/07-03-taxonomy-backfill-apply.sql`
+- `cargo test --manifest-path controller/Cargo.toml item_signer_credit_rejects_conflicting_profile_id_and_display_name`
+- `cargo test --manifest-path controller/Cargo.toml --test taxonomy_migration`
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only`
