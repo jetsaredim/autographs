@@ -9,6 +9,7 @@ commits:
   - 27731f2
   - d7fb1a1
   - c069a4d
+  - bd6ae3b
 ---
 
 # Phase 07 Review Fix Report
@@ -42,6 +43,10 @@ the follow-up fixes requested by the re-review.
 
 - `CR-01`: made provided signer IDs fail closed when the referenced profile is missing, preventing stale clients from recreating signer profiles that were deleted by merge cleanup.
 
+## Fourth Follow-up Fix
+
+- `CR-01`: made item-save signer reuse non-mutating for existing profiles, preserving reusable profile metadata while still allowing brand-new signer creation to initialize profile links/default roles.
+
 ## Verification
 
 - `node --check controller/static-admin/admin.js`
@@ -58,3 +63,4 @@ the follow-up fixes requested by the re-review.
 - `cargo test --manifest-path controller/Cargo.toml --test taxonomy_migration`
 - `cargo test --manifest-path controller/Cargo.toml --test static_admin static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only`
 - `cargo test --manifest-path controller/Cargo.toml stale_signer_id_after_merge_does_not_recreate_source_profile`
+- `cargo test --manifest-path controller/Cargo.toml item_signer_reuse_preserves_existing_profile_metadata`
