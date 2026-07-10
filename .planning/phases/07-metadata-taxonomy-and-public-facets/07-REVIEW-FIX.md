@@ -12,6 +12,7 @@ commits:
   - bd6ae3b
   - 91a519c
   - d4c1489
+  - 3d79fb4
 ---
 
 # Phase 07 Review Fix Report
@@ -58,6 +59,13 @@ the follow-up fixes requested by the re-review.
 
 - `WR-01`: extended Oracle schema preflight to verify Phase 7 check and unique constraints, with failure messages pointing at `07-01-taxonomy-schema.sql`.
 
+## Seventh Follow-up Fixes
+
+- `CR-01`: made Phase 7 Oracle check-constraint preflight verify every accepted enum value, not just one representative token.
+- `CR-02`: made signer unique-constraint preflight verify the exact `NORMALIZED_NAME` column set.
+- `CR-03`: prevented Oracle metadata saves from writing synthetic legacy fallback signer credits with the nil UUID.
+- `WR-01`: made `07-01-taxonomy-schema.sql` idempotently repair signer normalized-name constraints on existing signer tables after duplicate detection.
+
 ## Verification
 
 - `node --check controller/static-admin/admin.js`
@@ -79,3 +87,4 @@ the follow-up fixes requested by the re-review.
 - `cargo test --manifest-path controller/Cargo.toml --test taxonomy_migration`
 - `cargo test --manifest-path controller/Cargo.toml phase7_preflight_expects_taxonomy_tables_and_columns`
 - `cargo test --manifest-path controller/Cargo.toml --features production-persistence phase7_preflight_expects_taxonomy_tables_and_columns`
+- `cargo test --manifest-path controller/Cargo.toml --features production-persistence oracle_skips_synthetic_legacy_signer_credit_writeback`
