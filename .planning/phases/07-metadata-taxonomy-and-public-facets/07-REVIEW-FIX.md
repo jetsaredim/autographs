@@ -11,6 +11,7 @@ commits:
   - c069a4d
   - bd6ae3b
   - 91a519c
+  - d4c1489
 ---
 
 # Phase 07 Review Fix Report
@@ -53,6 +54,10 @@ the follow-up fixes requested by the re-review.
 - `CR-01`: changed signer profile PATCH input to explicit patch semantics so omitted fields are preserved, JSON `null` clears optional fields, and display name remains required.
 - `WR-01`: marked multiple mapped signer-role values for the same legacy item as `NeedsReview` so backfill generation does not silently choose one role.
 
+## Sixth Follow-up Fix
+
+- `WR-01`: extended Oracle schema preflight to verify Phase 7 check and unique constraints, with failure messages pointing at `07-01-taxonomy-schema.sql`.
+
 ## Verification
 
 - `node --check controller/static-admin/admin.js`
@@ -72,3 +77,5 @@ the follow-up fixes requested by the re-review.
 - `cargo test --manifest-path controller/Cargo.toml item_signer_reuse_preserves_existing_profile_metadata`
 - `cargo test --manifest-path controller/Cargo.toml partial_signer_profile_update_preserves_omitted_optional_fields`
 - `cargo test --manifest-path controller/Cargo.toml --test taxonomy_migration`
+- `cargo test --manifest-path controller/Cargo.toml phase7_preflight_expects_taxonomy_tables_and_columns`
+- `cargo test --manifest-path controller/Cargo.toml --features production-persistence phase7_preflight_expects_taxonomy_tables_and_columns`
