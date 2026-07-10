@@ -14,6 +14,7 @@ commits:
   - d4c1489
   - 3d79fb4
   - 2edb3d1
+  - 1e1aed2
 ---
 
 # Phase 07 Review Fix Report
@@ -71,6 +72,12 @@ the follow-up fixes requested by the re-review.
 
 - `CR-01`: moved signer constraint remediation after the signer table creation block so normal Phase 6-to-Phase 7 upgrades do not alter a missing table.
 
+## Ninth Follow-up Fixes
+
+- `CR-01`: removed the redundant `AUTOGRAPH_SIGNERS(NORMALIZED_NAME)` index because the unique constraint already supplies the lookup index.
+- `CR-02`: disabled item-editor profile-link fields for existing signer rows so reusable profile metadata is edited through the signer profile route rather than silently ignored by item saves.
+- `WR-01`: updated checked-in static fixtures to use schema v2 fingerprinted media paths and added assertions preventing unfingerprinted fixture paths.
+
 ## Verification
 
 - `node --check controller/static-admin/admin.js`
@@ -95,3 +102,5 @@ the follow-up fixes requested by the re-review.
 - `cargo test --manifest-path controller/Cargo.toml --features production-persistence oracle_skips_synthetic_legacy_signer_credit_writeback`
 - `cargo test --manifest-path controller/Cargo.toml phase7_taxonomy_update_script_is_additive`
 - `cargo test --manifest-path controller/Cargo.toml --features production-persistence phase7_taxonomy_update_script_is_additive`
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only`
+- `cargo test --manifest-path controller/Cargo.toml --test static_contract checked_in_static_fixtures_are_schema_v2_taxonomy_examples`
