@@ -10,6 +10,7 @@ commits:
   - d7fb1a1
   - c069a4d
   - bd6ae3b
+  - 91a519c
 ---
 
 # Phase 07 Review Fix Report
@@ -47,6 +48,11 @@ the follow-up fixes requested by the re-review.
 
 - `CR-01`: made item-save signer reuse non-mutating for existing profiles, preserving reusable profile metadata while still allowing brand-new signer creation to initialize profile links/default roles.
 
+## Fifth Follow-up Fixes
+
+- `CR-01`: changed signer profile PATCH input to explicit patch semantics so omitted fields are preserved, JSON `null` clears optional fields, and display name remains required.
+- `WR-01`: marked multiple mapped signer-role values for the same legacy item as `NeedsReview` so backfill generation does not silently choose one role.
+
 ## Verification
 
 - `node --check controller/static-admin/admin.js`
@@ -64,3 +70,5 @@ the follow-up fixes requested by the re-review.
 - `cargo test --manifest-path controller/Cargo.toml --test static_admin static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only`
 - `cargo test --manifest-path controller/Cargo.toml stale_signer_id_after_merge_does_not_recreate_source_profile`
 - `cargo test --manifest-path controller/Cargo.toml item_signer_reuse_preserves_existing_profile_metadata`
+- `cargo test --manifest-path controller/Cargo.toml partial_signer_profile_update_preserves_omitted_optional_fields`
+- `cargo test --manifest-path controller/Cargo.toml --test taxonomy_migration`
