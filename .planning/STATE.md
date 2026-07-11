@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 07-05-PLAN.md
-last_updated: "2026-07-10T02:03:16.587Z"
-last_activity: 2026-07-10 -- Completed Phase 07 Plan 05
+status: ready-for-next-phase
+stopped_at: Phase 07 complete; Phase 08 not started
+last_updated: "2026-07-11T01:35:40.725Z"
+last_activity: 2026-07-11
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 39
   completed_plans: 39
-  percent: 100
+  percent: 88
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 07 — Metadata Taxonomy and Public Facets
+**Current focus:** Phase 08 — AI-Assisted Ingest
 
 ## Current Position
 
-Phase: 07 (Metadata Taxonomy and Public Facets) — VERIFYING
-Plan: 5 of 5
-Status: Phase complete — ready for verification
-Last activity: 2026-07-10 -- Completed Phase 07 Plan 05
+Phase: 8
+Plan: Not started
+Status: Phase 7 complete; Phase 8 not started
+Last activity: 2026-07-11
 
-Progress: [██████████] 100% of planned work complete; Phase 7 is ready for verification
+Progress: [████████░░] 88% of milestone phases complete; Phase 8 is next
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 35 of 39
+- Total plans completed: 39 of 39
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -50,11 +50,12 @@ Progress: [██████████] 100% of planned work complete; Phase 
 | 04 | 5/5 | 54 min | 11 min |
 | 05 | 7/7 | - | - |
 | 06 | 9/9 | - | - |
+| 07 | 5/5 | - | - |
 
 **Recent Trend:**
 
-- Last 5 plans: 06-05, 06-06, 06-07, 06-08, 06-09
-- Trend: Positive; Phase 6 is complete with edit-history, private admin item APIs, retryable media cleanup foundations, publish-status retention, a polished static admin workflow, a single session-cookie collection-management auth path, admin docs/security closeout, refreshed codebase maps, and optimized static delivery/cache posture
+- Last 5 plans: 07-01, 07-02, 07-03, 07-04, 07-05
+- Trend: Positive; Phase 7 is complete with reusable signer profiles, multi-signer item credits, first-class taxonomy fields, schema version 2 public facets, admin taxonomy editing, rollout docs, and security verification
 
 | Phase 04 P01 | 38 min | 3 tasks | 4 files |
 | Phase 04 P02 | 4 min | 3 tasks | 5 files |
