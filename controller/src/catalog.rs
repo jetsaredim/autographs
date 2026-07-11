@@ -22,16 +22,11 @@ pub enum PublicationStatus {
     Archived,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub enum ItemOrigin {
+    #[default]
     Official,
     Custom,
-}
-
-impl Default for ItemOrigin {
-    fn default() -> Self {
-        Self::Official
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

@@ -418,7 +418,7 @@ fn sql_literal(value: &str) -> String {
 }
 
 fn sql_comment_safe(value: &str) -> String {
-    value.replace('\n', " ").replace('\r', " ")
+    value.replace(['\n', '\r'], " ")
 }
 
 fn signer_needs_review(value: &str) -> bool {
