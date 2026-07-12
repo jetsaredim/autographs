@@ -1650,8 +1650,7 @@ fn replace_signer_credits(
         )
         .map_err(|error| format!("clear Oracle catalog signer credits: {error}"))?;
     for (index, credit) in credits.iter().enumerate() {
-        let profile = upsert_signer_profile(connection, credit)?;
-        let signer_id = profile.id.to_string();
+        let signer_id = credit.signer.id.to_string();
         let sort_order = index as i32;
         connection
             .execute(
