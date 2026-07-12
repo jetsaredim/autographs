@@ -152,6 +152,10 @@ fn static_public_browse_source_uses_phase7_filter_contract() {
     assert!(BROWSE_JS.contains(
         "The collection facets could not be loaded. Refresh the page or return to the full collection."
     ));
+    assert!(BROWSE_JS.contains("function normalizedFilter(value)"));
+    assert!(BROWSE_JS.contains("function icon(pathData)"));
+    assert!(!BROWSE_JS.contains("const normalizedFilter ="));
+    assert!(!BROWSE_JS.contains("const icon ="));
 }
 
 #[test]
