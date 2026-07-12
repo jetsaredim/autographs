@@ -18,7 +18,7 @@
     },
     "Lorcana": {
       "targetField": "productLine",
-      "targetValue": "Lorcana"
+      "targetValue": "Disney Lorcana TCG"
     },
     "Magic: The Gathering": {
       "targetField": "productLine",
@@ -40,6 +40,54 @@
       "targetField": "productLine",
       "targetValue": "Star Wars CCG"
     },
+    "24 The Show": {
+      "targetField": "franchise",
+      "targetValue": "24"
+    },
+    "Dragon Ball": {
+      "targetField": "franchise",
+      "targetValue": "Dragon Ball"
+    },
+    "X-Files": {
+      "targetField": "franchise",
+      "targetValue": "X-Files"
+    },
+    "Highlander": {
+      "targetField": "franchise",
+      "targetValue": "Highlander"
+    },
+    "The Silence of the Lambs": {
+      "targetField": "franchise",
+      "targetValue": "The Silence of the Lambs"
+    },
+    "Fight Klub": {
+      "targetField": "productLine",
+      "targetValue": "Fight Club TCG"
+    },
+    "Aliens": {
+      "targetField": "franchise",
+      "targetValue": "Aliens"
+    },
+    "Aliens VS Predator": {
+      "targetField": "productLine",
+      "targetValue": "Aliens VS Predator CCG"
+    },
+    "The Crow": {
+      "targetField": "franchise",
+      "targetValue": "The Crow"
+    },
+    "Stargate": {
+      "targetField": "franchise",
+      "targetValue": "Stargate"
+    },
+    "The Terminator": {
+      "targetField": "franchise",
+      "targetValue": "The Terminator"
+    },
+    "Lord of the Rings": {
+      "targetField": "franchise",
+      "targetValue": "Lord of the Rings"
+    },
     "Tr": {
       "targetField": "format",
       "targetValue": "Trading Card"
@@ -54,7 +102,7 @@
     },
     "Young Jedi": {
       "targetField": "productLine",
-      "targetValue": "Young Jedi"
+      "targetValue": "Young Jedi CCG"
     },
     "actor": {
       "targetField": "role",
