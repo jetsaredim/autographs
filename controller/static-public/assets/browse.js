@@ -227,15 +227,24 @@
   render();
 })();
 
-const normalizedFilter = (value) => (value && value !== "all" ? value : "");
-const values = (value) => (Array.isArray(value) ? value : []);
-const text = (node, value) => {
+function normalizedFilter(value) {
+  return value && value !== "all" ? value : "";
+}
+
+function values(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function text(node, value) {
   node.textContent = value;
   return node;
-};
-const variant = (item, name) =>
-  item.primaryImage?.variants?.find((entry) => entry.name === name) || item.primaryImage?.variants?.[0];
-const emptyState = (clearFilters) => {
+}
+
+function variant(item, name) {
+  return item.primaryImage?.variants?.find((entry) => entry.name === name) || item.primaryImage?.variants?.[0];
+}
+
+function emptyState(clearFilters) {
   const section = Object.assign(document.createElement("section"), { className: "empty-state" });
   section.dataset.emptyState = "no-results";
   const copy = Object.assign(document.createElement("div"), { className: "empty-state-copy" });
@@ -257,8 +266,9 @@ const emptyState = (clearFilters) => {
   copy.append(title, body, actions);
   section.append(copy);
   return section;
-};
-const facetLoadError = () => {
+}
+
+function facetLoadError() {
   const section = Object.assign(document.createElement("section"), { className: "empty-state" });
   section.dataset.emptyState = "facet-error";
   const copy = Object.assign(document.createElement("div"), { className: "empty-state-copy" });
@@ -282,8 +292,9 @@ const facetLoadError = () => {
   copy.append(message, actions);
   section.append(copy);
   return section;
-};
-const icon = (pathData) => {
+}
+
+function icon(pathData) {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
   svg.setAttribute("aria-hidden", "true");
@@ -291,4 +302,4 @@ const icon = (pathData) => {
   path.setAttribute("d", pathData);
   svg.append(path);
   return svg;
-};
+}
