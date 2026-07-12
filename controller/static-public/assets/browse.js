@@ -10,11 +10,16 @@
     return;
   }
 
-  const filterIds = ["signer", "franchise", "productLine", "format", "language", "origin", "role", "tag"];
-  const primaryFilterIds = ["signer", "franchise", "productLine", "format", "language"];
-  const secondaryFilterIds = ["origin", "role", "tag"];
+  const controlFilterIds = ["signer", "franchise", "productLine", "format", "language", "origin", "role"];
+  const queryFilterIds = [...controlFilterIds, "tag"];
+  const languageDisplay = new Map([
+    ["", { label: "🌐 All", title: "All languages" }],
+    ["English", { label: "🇺🇸 EN", title: "English" }],
+    ["Japanese", { label: "🇯🇵 JA", title: "Japanese" }],
+    ["Chinese", { label: "🇨🇳 ZH", title: "Chinese" }],
+  ]);
   const params = new URLSearchParams(window.location.search);
-  const state = Object.fromEntries(filterIds.map((id) => [id, normalizedFilter(params.get(id))]));
+  const state = Object.fromEntries(queryFilterIds.map((id) => [id, normalizedFilter(params.get(id))]));
   const selects = new Map();
   let catalog;
   let facets;
@@ -61,39 +66,47 @@
   };
 
   const facet = (id) => facets.groups.find((group) => group.id === id) || { id, label: id, options: [] };
-  const option = (value, label) => {
+  const languageOption = (value, label) => languageDisplay.get(value) || { label, title: label };
+  const option = (value, label, title = label) => {
     const node = document.createElement("option");
     node.value = value;
     node.textContent = label;
-    if (label) {
-      node.title = label;
+    if (title) {
+      node.setAttribute("aria-label", title);
+      node.title = title;
     }
     return node;
   };
   const select = (group) => {
     const node = document.createElement("select");
-    node.setAttribute("aria-label", group.label);
+    const isLanguage = group.id === "language";
+    const allLanguages = languageOption("", group.label);
+    node.setAttribute("aria-label", isLanguage ? "Item language" : group.label);
+    if (isLanguage) {
+      node.title = "Item language";
+    }
     node.replaceChildren(
-      option("all", group.label),
-      ...group.options.map((item) => option(item.value, item.label)),
+      isLanguage ? option("all", allLanguages.label, allLanguages.title) : option("all", group.label),
+      ...group.options.map((item) => {
+        const display = isLanguage
+          ? languageOption(item.value, item.label)
+          : { label: item.label, title: item.label };
+        return option(item.value, display.label, display.title);
+      }),
     );
     node.value = state[group.id] || "all";
     node.addEventListener("change", () => updateFilter(group.id, node.value));
     selects.set(group.id, node);
     return node;
   };
-  const filterGroup = (label, ids) => {
-    const section = Object.assign(document.createElement("div"), { className: "filter-group" });
-    const heading = text(document.createElement("span"), label);
-    heading.className = "filter-group-label";
+  const filterControls = (ids) => {
     const controls = Object.assign(document.createElement("div"), { className: "filter-controls" });
     controls.replaceChildren(...ids.map((id) => select(facet(id))));
-    section.append(heading, controls);
-    return section;
+    return controls;
   };
   const syncUrl = () => {
     const next = new URLSearchParams();
-    filterIds.forEach((key) => {
+    queryFilterIds.forEach((key) => {
       if (state[key]) {
         next.set(key, state[key]);
       }
@@ -108,7 +121,7 @@
     render();
   };
   const clearFilters = () => {
-    filterIds.forEach((id) => {
+    queryFilterIds.forEach((id) => {
       state[id] = "";
       const node = selects.get(id);
       if (node) {
@@ -129,10 +142,7 @@
     syncToggleHint();
   };
 
-  menu.replaceChildren(
-    filterGroup("Primary facets", primaryFilterIds),
-    filterGroup("Secondary facets", secondaryFilterIds),
-  );
+  menu.replaceChildren(filterControls(controlFilterIds));
 
   setOpen(Object.values(state).some(Boolean));
 
@@ -141,7 +151,7 @@
   });
   window.addEventListener("popstate", () => {
     const next = new URLSearchParams(window.location.search);
-    filterIds.forEach((id) => {
+    queryFilterIds.forEach((id) => {
       state[id] = normalizedFilter(next.get(id));
       const node = selects.get(id);
       if (node) {
@@ -157,7 +167,7 @@
     count.textContent =
       filtered.length === 1 ? "1 published autograph" : `${filtered.length} published autographs`;
     chips.replaceChildren(
-      ...filterIds
+      ...queryFilterIds
         .filter((id) => state[id])
         .map((id) => filterChip(facet(id), state[id])),
     );

@@ -141,10 +141,19 @@ fn static_public_browse_source_uses_phase7_filter_contract() {
         "language",
         "origin",
         "role",
-        "tag",
     ] {
         assert!(BROWSE_JS.contains(key), "browse.js missing {key}");
     }
+    assert!(!BROWSE_JS.contains("Primary facets"));
+    assert!(!BROWSE_JS.contains("Secondary facets"));
+    assert!(BROWSE_JS.contains("controlFilterIds"));
+    assert!(BROWSE_JS.contains("queryFilterIds"));
+    assert!(BROWSE_JS.contains("item.tags"));
+    assert!(BROWSE_JS.contains("Item language"));
+    assert!(BROWSE_JS.contains("🌐 All"));
+    assert!(BROWSE_JS.contains("🇺🇸 EN"));
+    assert!(BROWSE_JS.contains("🇯🇵 JA"));
+    assert!(BROWSE_JS.contains("aria-label"));
     assert!(!BROWSE_JS.contains("state.category"));
     assert!(!BROWSE_JS.contains("FacetId::Category"));
     assert!(BROWSE_JS.contains("Clear filters"));
