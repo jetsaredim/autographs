@@ -356,35 +356,13 @@ select {
 
 .filter-menu {
   display: grid;
-  gap: 16px;
   min-height: 44px;
-}
-
-.filter-group {
-  display: grid;
-  gap: 8px;
-}
-
-.filter-group-label {
-  color: #6b6861;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.35;
 }
 
 .filter-controls {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
   gap: 8px;
-}
-
-.filter-group + .filter-group {
-  border-top: 1px solid #dfd8cc;
-  padding-top: 16px;
-}
-
-.filter-group + .filter-group .filter-controls {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .filter-menu select {
@@ -791,8 +769,7 @@ select {
     padding-right: 60px;
   }
 
-  .filter-controls,
-  .filter-group + .filter-group .filter-controls {
+  .filter-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -803,8 +780,7 @@ select {
     padding-right: 52px;
   }
 
-  .filter-controls,
-  .filter-group + .filter-group .filter-controls {
+  .filter-controls {
     grid-template-columns: 1fr;
   }
 }
