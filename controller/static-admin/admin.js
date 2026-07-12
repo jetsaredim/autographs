@@ -6,6 +6,10 @@ const endpoints = {
   items: "/admin/api/items",
   item: (id) => `/admin/api/items/${encodeURIComponent(id)}`,
   history: (id) => `/admin/api/items/${encodeURIComponent(id)}/history`,
+  signers: (query) => `/admin/api/signers?query=${encodeURIComponent(query)}`,
+  signer: (id) => `/admin/api/signers/${encodeURIComponent(id)}`,
+  signerMerge: "/admin/api/signers/merge",
+  taxonomySuggestions: "/admin/api/taxonomy/suggestions",
   images: (id) => `/admin/api/items/${encodeURIComponent(id)}/images`,
   imagePrimary: (id, imageId) =>
     `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/primary`,
@@ -28,10 +32,15 @@ const copy = {
     "Something did not save. Review the highlighted fields, keep this page open, and try again. If the problem repeats, check the redacted diagnostics panel.",
   removeImage:
     "Remove image: Remove this image from the item and queue cleanup of the private original? This cannot be undone from the admin UI.",
-  fullRebuild: "Run a full rebuild only for repair or structural changes. Continue?",
-  saveSuccess: "Saved privately. Publish changes when this batch is ready for the public site.",
-  publishSuccess: "Published. The public static release is current.",
+  fullRebuild: "Run a full rebuild after schema or taxonomy migration changes. Continue?",
+  saveSuccess: "Saved privately. Publish changes when this taxonomy batch is ready for the public site.",
+  publishSuccess: "Published. Public facets now reflect the saved taxonomy.",
   cleanupWarning: "Cleanup needs attention. Review the affected item before publishing again.",
+  signerDuplicate: "Possible duplicate signer. Review the existing profile before saving a new signer.",
+  signerCreate: "Type a name to create a new signer, or choose an existing signer.",
+  signerLinks: "Wikipedia and IMDb links are optional and appear only on public item detail pages.",
+  mergeSigner:
+    "Merge signer: Merge these signer profiles and update linked items? Review the target profile first; this cannot be undone from the admin UI.",
 };
 
 const state = {
@@ -41,6 +50,8 @@ const state = {
   diagnostics: null,
   dirty: false,
   itemSort: { key: "title", direction: "asc" },
+  signerSuggestions: [],
+  taxonomySuggestions: {},
 };
 
 const uploadOnlyFieldNames = new Set(["images", "replacementImage", "altText"]);
@@ -78,6 +89,9 @@ const elements = {
   dirtyState: $("#dirty-state"),
   discardUnsaved: $("#discard-unsaved"),
   publishFromEditor: $("#publish-from-editor"),
+  signerRows: $("#signer-rows"),
+  signerWarningSummary: $("#signer-warning-summary"),
+  signerMergePanel: $("#signer-merge-panel"),
 };
 
 const setText = (selector, value) => {
@@ -145,9 +159,6 @@ const formatValue = (value) => {
 const buildQuery = (form) => {
   const params = new URLSearchParams();
   for (const [key, value] of new FormData(form).entries()) {
-    if (key === "changes") {
-      continue;
-    }
     const trimmed = String(value).trim();
     if (trimmed) {
       params.set(key, trimmed);
@@ -199,6 +210,7 @@ function showWorkflow() {
   elements.workflowView.hidden = false;
   elements.loginMessage.textContent = "";
   elements.sessionStatus.textContent = "Logged in. Private changes stay here until you publish.";
+  loadTaxonomySuggestions();
 }
 
 function showLogin(message = "") {
@@ -307,7 +319,7 @@ function renderHubStatusSections(diagnostics) {
     for (const item of pendingItems) {
       appendRow(elements.pendingChangeRows, [
         item.title,
-        item.signer,
+        item.signerText || item.signer,
         item.publicationStatus,
         formatEpoch(item.updatedAtEpochSeconds),
       ]);
@@ -423,7 +435,9 @@ async function renderItemList() {
       const row = document.createElement("tr");
       for (const value of [
         item.title,
-        item.signer,
+        item.signerText || item.signer,
+        item.format,
+        [item.franchises?.join(", "), item.productLine].filter(Boolean).join(" / "),
         item.publicationStatus,
         String(item.imageCount || 0),
         item.hasPendingChanges ? "Pending" : "Clean",
@@ -457,7 +471,9 @@ const itemTableHead = () => {
   const row = document.createElement("tr");
   for (const column of [
     { label: "Title", key: "title" },
-    { label: "Signer", key: "signer" },
+    { label: "Signer", key: "signerText" },
+    { label: "Format", key: "format" },
+    { label: "Franchise / Product Line" },
     { label: "Status" },
     { label: "Images" },
     { label: "Changes" },
@@ -509,6 +525,305 @@ function compareItems(left, right) {
   );
 }
 
+const splitList = (value) =>
+  [
+    ...new Set(
+      String(value || "")
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+    ),
+  ];
+
+const signerCreditsFromLegacy = (signer) => {
+  const displayName = String(signer || "").trim();
+  return displayName ? [{ signer: { displayName } }] : [{ signer: { displayName: "" } }];
+};
+
+const profileValue = (credit, key) => credit?.signer?.[key] || credit?.[key] || "";
+
+function renderSignerRows(credits = signerCreditsFromLegacy("")) {
+  elements.signerRows.replaceChildren();
+  const rows = credits.length ? credits : signerCreditsFromLegacy("");
+  rows.forEach((credit, index) => elements.signerRows.append(signerRow(credit, index)));
+}
+
+function signerRow(credit, index) {
+  const row = document.createElement("article");
+  row.className = "signer-row";
+  row.dataset.index = String(index);
+  row.setAttribute("aria-label", `Signer row ${index + 1}`);
+  if (credit?.signer?.id) {
+    row.dataset.signerId = credit.signer.id;
+  }
+
+  const title = textNode("h4", `Signer ${index + 1}`);
+  const hint = textNode("p", copy.signerCreate, "helper-text");
+  row.append(title, hint);
+
+  const grid = document.createElement("div");
+  grid.className = "signer-row-grid";
+  grid.append(
+    labeledInput(`signer-name-${index}`, "Signer name", "text", profileValue(credit, "displayName"), {
+      className: "signer-name-input",
+      field: "name",
+      list: "signer-suggestions",
+      required: true,
+    }),
+    labeledInput(`signer-role-${index}`, "Role", "text", credit?.itemRole || credit?.item_role || "", {
+      field: "role",
+    }),
+    labeledInput(`signer-context-${index}`, "Context", "text", credit?.itemContext || credit?.item_context || "", {
+      field: "context",
+    })
+  );
+  row.append(grid);
+
+  const profilePanelId = `signer-profile-links-${index}`;
+  const profileToggle = buttonNode("Signer profile links", "secondary-action", () => {
+    const expanded = profileToggle.getAttribute("aria-expanded") === "true";
+    profileToggle.setAttribute("aria-expanded", String(!expanded));
+    profileLinks.hidden = expanded;
+  });
+  profileToggle.setAttribute("aria-expanded", "false");
+  profileToggle.setAttribute("aria-controls", profilePanelId);
+  const profileLinks = document.createElement("div");
+  profileLinks.id = profilePanelId;
+  profileLinks.className = "signer-profile-links";
+  profileLinks.hidden = true;
+  profileLinks.append(
+    textNode("p", copy.signerLinks, "helper-text"),
+    labeledInput(`signer-wikipedia-${index}`, "Wikipedia URL", "url", profileValue(credit, "wikipediaUrl"), {
+      field: "wikipedia",
+    }),
+    labeledInput(`signer-imdb-${index}`, "IMDb URL", "url", profileValue(credit, "imdbUrl"), {
+      field: "imdb",
+    })
+  );
+  row.append(profileToggle, profileLinks);
+  setExistingSignerProfileControls(row);
+
+  const actions = document.createElement("div");
+  actions.className = "inline-actions";
+  actions.append(
+    buttonNode("Remove signer", "secondary-action", () => {
+      row.remove();
+      normalizeSignerRowHeadings();
+      markDirty();
+    })
+  );
+  row.append(actions);
+
+  const nameInput = grid.querySelector(".signer-name-input");
+  let selectedSignerName = profileValue(credit, "displayName").trim();
+  nameInput.addEventListener("input", async () => {
+    if (nameInput.value.trim() !== selectedSignerName) {
+      delete row.dataset.signerId;
+      setExistingSignerProfileControls(row);
+    }
+    await loadSignerSuggestions(nameInput.value);
+    renderDuplicateWarnings();
+  });
+  nameInput.addEventListener("change", () => {
+    const selected = state.signerSuggestions.find(
+      (suggestion) => suggestion.profile.displayName === nameInput.value.trim()
+    );
+    if (selected?.profile?.id) {
+      row.dataset.signerId = selected.profile.id;
+      selectedSignerName = selected.profile.displayName;
+    } else {
+      delete row.dataset.signerId;
+      selectedSignerName = "";
+    }
+    setExistingSignerProfileControls(row);
+    renderDuplicateWarnings();
+  });
+
+  return row;
+}
+
+function setExistingSignerProfileControls(row) {
+  const disabled = Boolean(row.dataset.signerId);
+  row.querySelectorAll('[data-signer-field="wikipedia"], [data-signer-field="imdb"]').forEach((input) => {
+    input.disabled = disabled;
+  });
+}
+
+function labeledInput(id, labelText, type, value, options = {}) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "field";
+  const label = document.createElement("label");
+  label.setAttribute("for", id);
+  label.textContent = labelText;
+  const input = document.createElement("input");
+  input.id = id;
+  input.name = id;
+  input.type = type;
+  input.value = value || "";
+  if (options.className) {
+    input.className = options.className;
+  }
+  if (options.field) {
+    input.dataset.signerField = options.field;
+  }
+  if (options.list) {
+    input.setAttribute("list", options.list);
+  }
+  if (options.required) {
+    input.required = true;
+  }
+  wrapper.append(label, input);
+  return wrapper;
+}
+
+function normalizeSignerRowHeadings() {
+  Array.from(elements.signerRows.children).forEach((row, index) => {
+    row.dataset.index = String(index);
+    row.querySelector("h4").textContent = `Signer ${index + 1}`;
+  });
+}
+
+async function loadSignerSuggestions(query) {
+  const trimmed = String(query || "").trim();
+  if (trimmed.length < 2) {
+    state.signerSuggestions = [];
+    renderSignerSuggestionDatalist();
+    return [];
+  }
+  try {
+    const result = await request(endpoints.signers(trimmed));
+    state.signerSuggestions = Array.isArray(result.suggestions) ? result.suggestions : [];
+    renderSignerSuggestionDatalist();
+    return state.signerSuggestions;
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.signerWarningSummary.hidden = false;
+      elements.signerWarningSummary.textContent = `Signer suggestions unavailable: ${error.message}`;
+    }
+    return [];
+  }
+}
+
+function renderSignerSuggestionDatalist() {
+  const list = $("#signer-suggestions");
+  if (!list) {
+    return;
+  }
+  list.replaceChildren(
+    ...state.signerSuggestions.map((suggestion) => {
+      const option = document.createElement("option");
+      option.value = suggestion.profile.displayName;
+      return option;
+    })
+  );
+}
+
+function renderDuplicateWarnings() {
+  const warnings = [];
+  for (const row of Array.from(elements.signerRows.children)) {
+    const input = row.querySelector(".signer-name-input");
+    const value = input?.value?.trim();
+    if (!value) {
+      continue;
+    }
+    const duplicate = state.signerSuggestions.find(
+      (suggestion) => suggestion.possibleDuplicate && suggestion.profile.displayName.toLowerCase() !== value.toLowerCase()
+    );
+    if (duplicate) {
+      warnings.push({ row, duplicate, value });
+    }
+  }
+
+  elements.signerWarningSummary.replaceChildren();
+  if (warnings.length === 0) {
+    elements.signerWarningSummary.hidden = true;
+    return;
+  }
+  elements.signerWarningSummary.hidden = false;
+  elements.signerWarningSummary.append(textNode("p", copy.signerDuplicate));
+  for (const warning of warnings) {
+    const action = document.createElement("div");
+    action.className = "inline-actions";
+    action.append(
+      textNode("span", `${warning.value} may match ${warning.duplicate.profile.displayName}.`),
+      buttonNode("Use existing signer", "secondary-action", () => {
+        const input = warning.row.querySelector(".signer-name-input");
+        input.value = warning.duplicate.profile.displayName;
+        warning.row.dataset.signerId = warning.duplicate.profile.id;
+        renderDuplicateWarnings();
+        markDirty();
+      })
+    );
+    if (warning.row.dataset.signerId) {
+      action.append(
+        buttonNode("Merge signer profiles", "destructive", () =>
+          mergeSignerProfiles(warning.row.dataset.signerId, warning.duplicate.profile.id)
+        )
+      );
+    }
+    elements.signerWarningSummary.append(action);
+  }
+}
+
+async function loadTaxonomySuggestions() {
+  try {
+    state.taxonomySuggestions = await request(endpoints.taxonomySuggestions);
+    renderTaxonomySuggestions();
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.globalMessage.textContent = `Taxonomy suggestions unavailable: ${error.message}`;
+    }
+  }
+}
+
+async function mergeSignerProfiles(sourceSignerId, targetSignerId) {
+  if (!sourceSignerId || !targetSignerId || sourceSignerId === targetSignerId) {
+    return;
+  }
+  if (!window.confirm(copy.mergeSigner)) {
+    return;
+  }
+  try {
+    const result = await jsonRequest(endpoints.signerMerge, "POST", {
+      sourceSignerId,
+      targetSignerId,
+    });
+    elements.signerMergePanel.hidden = false;
+    elements.signerMergePanel.textContent = `Merged signer profiles and updated ${result.updatedItemCount || 0} item(s).`;
+    await loadTaxonomySuggestions();
+    if (state.currentItem?.id) {
+      await loadItem(state.currentItem.id);
+    }
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.signerMergePanel.hidden = false;
+      elements.signerMergePanel.textContent = `Signer merge failed: ${error.message}`;
+    }
+  }
+}
+
+function renderTaxonomySuggestions() {
+  const suggestions = state.taxonomySuggestions || {};
+  fillDatalist("character-suggestions", suggestions.characters);
+  fillDatalist("franchise-suggestions", suggestions.franchises);
+  fillDatalist("product-line-suggestions", suggestions.productLines);
+  fillDatalist("set-name-suggestions", suggestions.setNames);
+}
+
+function fillDatalist(id, values = []) {
+  const list = $(`#${id}`);
+  if (!list) {
+    return;
+  }
+  list.replaceChildren(
+    ...(Array.isArray(values) ? values : []).map((value) => {
+      const option = document.createElement("option");
+      option.value = value;
+      return option;
+    })
+  );
+}
+
 function renderEditor(item = null) {
   state.currentItem = item;
   state.dirty = false;
@@ -527,8 +842,13 @@ function renderEditor(item = null) {
   for (const [name, value] of Object.entries({
     itemId: values.id || "",
     title: values.title || "",
-    signer: values.signer || "",
-    category: values.category || "",
+    characters: Array.isArray(values.characters) ? values.characters.join(", ") : "",
+    format: values.format || "Trading Card",
+    language: values.language || "English",
+    franchises: Array.isArray(values.franchises) ? values.franchises.join(", ") : "",
+    productLine: values.productLine || "",
+    setName: values.setName || "",
+    customItem: values.origin === "Custom",
     tags: Array.isArray(values.tags) ? values.tags.join(", ") : "",
     objectReference: values.objectReference || "",
     estimatedYear: values.estimatedYear || "",
@@ -542,9 +862,16 @@ function renderEditor(item = null) {
     publicationStatus: values.publicationStatus || "draft",
   })) {
     if (elements.itemForm.elements[name]) {
-      elements.itemForm.elements[name].value = value;
+      if (elements.itemForm.elements[name].type === "checkbox") {
+        elements.itemForm.elements[name].checked = Boolean(value);
+      } else {
+        elements.itemForm.elements[name].value = value;
+      }
     }
   }
+  renderSignerRows(values.signerCredits || signerCreditsFromLegacy(values.signer));
+  renderDuplicateWarnings();
+  renderTaxonomySuggestions();
   renderImages(values.images || [], values.cleanupWarnings || []);
   renderHistory(item?.id);
   setView("add-item-view");
@@ -651,12 +978,16 @@ const formPayload = () => {
     const value = form.elements[name].value.trim();
     return value || null;
   };
+  const taxonomy = taxonomyPayload();
+  const signerCredits = signerCreditPayload();
+  const signer = signerCredits.map((credit) => credit.displayName).filter(Boolean).join(" + ");
   return {
     title: form.elements.title.value.trim(),
-    signer: form.elements.signer.value.trim(),
+    signer,
     description: optional("description"),
-    category: form.elements.category.value.trim(),
-    tags: form.elements.tags.value.split(",").map((tag) => tag.trim()).filter(Boolean),
+    category: taxonomy.format,
+    signerCredits,
+    ...taxonomy,
     objectReference: optional("objectReference"),
     eventName: optional("eventName"),
     eventLocation: optional("eventLocation"),
@@ -667,6 +998,41 @@ const formPayload = () => {
     estimatedYear: estimatedYear ? Number(estimatedYear) : null,
     publicationStatus: form.elements.publicationStatus.value,
   };
+};
+
+function signerCreditPayload() {
+  return Array.from(elements.signerRows.children)
+    .map((row) => {
+      const value = (field) => row.querySelector(`[data-signer-field="${field}"]`)?.value.trim() || null;
+      return {
+        signerId: row.dataset.signerId || null,
+        displayName: value("name"),
+        itemRole: value("role"),
+        itemContext: value("context"),
+        wikipediaUrl: value("wikipedia"),
+        imdbUrl: value("imdb"),
+      };
+    })
+    .filter((credit) => credit.displayName || credit.signerId);
+}
+
+function taxonomyPayload() {
+  const form = elements.itemForm;
+  return {
+    characters: splitList(form.elements.characters.value),
+    franchises: splitList(form.elements.franchises.value),
+    productLine: optionalValue(form.elements.productLine.value),
+    setName: optionalValue(form.elements.setName.value),
+    format: form.elements.format.value,
+    origin: form.elements.customItem.checked ? "Custom" : "Official",
+    language: form.elements.language.value,
+    tags: splitList(form.elements.tags.value),
+  };
+}
+
+const optionalValue = (value) => {
+  const trimmed = String(value || "").trim();
+  return trimmed || null;
 };
 
 async function saveItem(event) {
@@ -997,6 +1363,11 @@ $("#refresh-items").addEventListener("click", renderItemList);
 $("#refresh-history").addEventListener("click", () => renderHistory());
 $("#back-to-hub").addEventListener("click", () => setView("hub-view"));
 $("#add-another-item").addEventListener("click", openNewItemEditor);
+$("#add-signer-row").addEventListener("click", () => {
+  const index = elements.signerRows.children.length;
+  elements.signerRows.append(signerRow({ signer: { displayName: "" } }, index));
+  markDirty();
+});
 $("#discard-unsaved").addEventListener("click", () => renderEditor(state.currentItem));
 $("#upload-more-images").addEventListener("click", () => uploadImages());
 $("#publish-from-editor").addEventListener("click", publishFromEditor);

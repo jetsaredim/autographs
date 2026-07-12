@@ -1,5 +1,6 @@
 .codex
 .codex/
+.planning/research/.cache/
 .tools/
 wallet.zip
 Wallet_*.zip

@@ -49,15 +49,15 @@ fn static_admin_source_references_collection_workflow_contract() {
         "Redacted diagnostics",
         "Filters",
         "Identity",
-        "Story",
-        "Provenance",
+        "Classification",
+        "Details",
         "Publication",
         "Publish changes",
         "Full rebuild",
         "No history recorded yet",
         "No saved items yet",
         "Start with the backlog: add an autograph item, upload its images, save it privately, then publish when the batch is ready.",
-        "Run a full rebuild only for repair or structural changes. Continue?",
+        "Run a full rebuild after schema or taxonomy migration changes. Continue?",
         "Remove image: Remove this image from the item and queue cleanup of the private original? This cannot be undone from the admin UI.",
     ] {
         assert!(
@@ -109,6 +109,104 @@ fn static_admin_source_references_collection_workflow_contract() {
     }
     assert!(source.contains("FormData"));
     assert!(!source.to_ascii_lowercase().contains("seed"));
+}
+
+#[test]
+fn static_admin_source_references_taxonomy_editor_contract() {
+    let source = static_admin_source();
+    let html = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("static-admin")
+            .join("index.html"),
+    )
+    .expect("read static admin markup");
+
+    let mut previous = 0;
+    for heading in [
+        ">Identity<",
+        ">Classification<",
+        ">Details<",
+        ">Publication<",
+        ">Images<",
+        ">History<",
+    ] {
+        let position = html
+            .find(heading)
+            .unwrap_or_else(|| panic!("static admin markup is missing heading {heading}"));
+        assert!(
+            position >= previous,
+            "static admin heading {heading} appears out of order"
+        );
+        previous = position;
+    }
+
+    for expected in [
+        "signer-rows",
+        "signer-warning-summary",
+        "signer-merge-panel",
+        "classification-section",
+        "details-section",
+        "Possible duplicate signer. Review the existing profile before saving a new signer.",
+        "Type a name to create a new signer, or choose an existing signer.",
+        "Wikipedia and IMDb links are optional and appear only on public item detail pages.",
+        "Custom item",
+        "Use loose tags only for details that do not fit signer, franchise, product line, format, origin, language, role, or set.",
+        "renderSignerRows",
+        "loadSignerSuggestions",
+        "renderDuplicateWarnings",
+        "renderTaxonomySuggestions",
+        "taxonomyPayload",
+        "mergeSignerProfiles",
+        "signerSuggestions",
+        "credentials: \"same-origin\"",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin source is missing taxonomy editor contract {expected}"
+        );
+    }
+
+    for payload_field in [
+        "signerCredits",
+        "characters",
+        "franchises",
+        "productLine",
+        "setName",
+        "format",
+        "origin",
+        "language",
+        "tags",
+    ] {
+        assert!(
+            source.contains(payload_field),
+            "static admin form payload is missing {payload_field}"
+        );
+    }
+}
+
+#[test]
+fn static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only() {
+    let source = static_admin_source();
+    for expected in [
+        "row.querySelector(`[data-signer-field=\"${field}\"]`)",
+        "delete row.dataset.signerId",
+        "setExistingSignerProfileControls(row)",
+        "input.disabled = disabled",
+        "selectedSignerName = selected.profile.displayName",
+        "itemRole: value(\"role\")",
+        "wikipediaUrl: value(\"wikipedia\")",
+        "imdbUrl: value(\"imdb\")",
+        "...new Set(",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin signer/taxonomy payload should include {expected}"
+        );
+    }
+    assert!(
+        !source.contains("defaultRole: value(\"role\")"),
+        "item-level signer role must not mutate the reusable signer default role"
+    );
 }
 
 #[test]
@@ -272,6 +370,56 @@ fn static_admin_css_keeps_hidden_sections_hidden() {
         source.contains("[hidden] {\n  display: none !important;\n}"),
         "static admin CSS should explicitly hide hidden sections"
     );
+}
+
+#[test]
+fn static_admin_taxonomy_styles_and_accessibility_states_are_present() {
+    let source = static_admin_source();
+    for selector in [
+        ".signer-row",
+        ".signer-row-grid",
+        ".warning-summary",
+        ".merge-panel",
+        ".token-editor",
+        ".taxonomy-suggestions",
+        ".loose-tags-field",
+        "#classification-section",
+        "#details-section",
+    ] {
+        assert!(
+            source.contains(selector),
+            "static admin source is missing taxonomy style selector {selector}"
+        );
+    }
+
+    for expected in [
+        "Merge signer: Merge these signer profiles and update linked items? Review the target profile first; this cannot be undone from the admin UI.",
+        "role=\"status\"",
+        "role=\"alert\"",
+        "aria-expanded",
+        "aria-label",
+        "focus-visible",
+        "outline: 2px solid #25636a;",
+        "#9a6700",
+        "#b42318",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin source is missing accessibility/style contract {expected}"
+        );
+    }
+
+    for denied in [
+        "linear-gradient",
+        "radial-gradient",
+        "localStorage",
+        "sessionStorage",
+    ] {
+        assert!(
+            !source.contains(denied),
+            "static admin source should not contain {denied}"
+        );
+    }
 }
 
 #[test]

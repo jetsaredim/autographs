@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use autographs_controller::{
     catalog::{
         AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository, CleanupStatus,
-        EditEventKind, ImageCleanupEvent, MemoryCatalogRepository, PublicationStatus,
+        EditEventKind, FieldPatch, ImageCleanupEvent, ItemOrigin, MemoryCatalogRepository,
+        PublicationStatus, SignerCreditInput, SignerProfileUpdateInput,
     },
     config::ControllerConfig,
     media::{LocalMediaStore, PrivateMediaStore},
@@ -35,6 +36,14 @@ async fn history_nullable_field_clear_records_before_and_after_values() {
             description: Some("signed at event".to_owned()),
             category: "Cards".to_owned(),
             tags: vec!["jedi".to_owned()],
+            signer_credits: Vec::new(),
+            characters: Vec::new(),
+            format: "Trading Card".to_owned(),
+            origin: ItemOrigin::Official,
+            franchises: Vec::new(),
+            product_line: None,
+            set_name: None,
+            language: "English".to_owned(),
             object_reference: None,
             event_name: Some("Example Convention".to_owned()),
             event_location: None,
@@ -88,6 +97,14 @@ async fn update_blank_required_field_returns_bad_request() {
             description: None,
             category: "Cards".to_owned(),
             tags: vec!["jedi".to_owned()],
+            signer_credits: Vec::new(),
+            characters: Vec::new(),
+            format: "Trading Card".to_owned(),
+            origin: ItemOrigin::Official,
+            franchises: Vec::new(),
+            product_line: None,
+            set_name: None,
+            language: "English".to_owned(),
             object_reference: None,
             event_name: None,
             event_location: None,
@@ -123,6 +140,88 @@ async fn update_blank_required_field_returns_bad_request() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn admin_item_validation_errors_return_bad_request() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Signed Jedi Card",
+            "Mark Hamill",
+            "Cards",
+            vec!["jedi"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(false),
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/admin/api/items/{}", item.id))
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"language":"Klingon"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn signer_profile_urls_must_be_https_profile_hosts() {
+    let repository = MemoryCatalogRepository::default();
+
+    let javascript_url = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Example Signer".to_owned()),
+                wikipedia_url: Some("javascript:alert(1)".to_owned()),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Signed Card",
+                "Example Signer",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await;
+    assert_eq!(
+        javascript_url.unwrap_err(),
+        "wikipediaUrl must be an https URL"
+    );
+
+    let wrong_host = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Example Signer".to_owned()),
+                imdb_url: Some("https://example.test/name/nm0000000/".to_owned()),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Signed Card",
+                "Example Signer",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await;
+    assert_eq!(wrong_host.unwrap_err(), "imdbUrl must point to imdb.com");
 }
 
 #[tokio::test]
@@ -291,6 +390,258 @@ async fn admin_can_list_get_update_and_read_history() {
     let fisher_json = response_json(fisher_list).await;
     assert_eq!(fisher_json.as_array().unwrap().len(), 1);
     assert_eq!(fisher_json[0]["id"], fisher.id.to_string());
+}
+
+#[tokio::test]
+async fn admin_signer_and_taxonomy_routes_require_session_and_return_redacted_payloads() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let typo_item = repository
+        .create(test_item_input(
+            "Typo Signed Card",
+            "Mark Hamel",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let target_item = repository
+        .create(test_item_input(
+            "Correct Signed Card",
+            "Mark Hamill",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let source_signer_id = typo_item.signer_credits[0].signer.id;
+    let target_signer_id = target_item.signer_credits[0].signer.id;
+    let media_root = tempfile::tempdir().unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+
+    for (method, uri, body) in [
+        ("GET", "/admin/api/signers?query=mark", Body::empty()),
+        ("GET", "/admin/api/taxonomy/suggestions", Body::empty()),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(uri)
+                    .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                    .body(body)
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    let bearer_patch = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/admin/api/signers/{target_signer_id}"))
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"defaultRole":"actor"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bearer_patch.status(), StatusCode::UNAUTHORIZED);
+
+    let bearer_merge = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/signers/merge")
+                .header(header::AUTHORIZATION, "Bearer operator-test-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "sourceSignerId": source_signer_id,
+                        "targetSignerId": target_signer_id
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bearer_merge.status(), StatusCode::UNAUTHORIZED);
+
+    let cookie = admin_cookie(&app).await;
+    let suggestions = app
+        .clone()
+        .oneshot(
+            Request::get("/admin/api/signers?query=Mark%20Hamel")
+                .header(header::COOKIE, cookie.as_str())
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(suggestions.status(), StatusCode::OK);
+    let suggestions_body = response_string(suggestions).await;
+    assert_redacted(&suggestions_body);
+    let suggestions_json: Value = serde_json::from_str(&suggestions_body).unwrap();
+    assert_eq!(
+        suggestions_json["suggestions"][0]["profile"]["displayName"],
+        "Mark Hamel"
+    );
+    assert_json_true(&suggestions_json["suggestions"][0]["possibleDuplicate"]);
+
+    let taxonomy = app
+        .clone()
+        .oneshot(
+            Request::get("/admin/api/taxonomy/suggestions")
+                .header(header::COOKIE, cookie.as_str())
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(taxonomy.status(), StatusCode::OK);
+    let taxonomy_body = response_string(taxonomy).await;
+    assert_redacted(&taxonomy_body);
+    let taxonomy_json: Value = serde_json::from_str(&taxonomy_body).unwrap();
+    assert!(
+        taxonomy_json["formats"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("Trading Card"))
+    );
+    assert!(
+        taxonomy_json["languages"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("English"))
+    );
+
+    let merge = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/signers/merge")
+                .header(header::COOKIE, cookie.as_str())
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "sourceSignerId": source_signer_id,
+                        "targetSignerId": target_signer_id
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(merge.status(), StatusCode::OK);
+    let merge_body = response_string(merge).await;
+    assert_redacted(&merge_body);
+    let merge_json: Value = serde_json::from_str(&merge_body).unwrap();
+    assert_eq!(merge_json["sourceSignerId"], source_signer_id.to_string());
+    assert_eq!(merge_json["targetSignerId"], target_signer_id.to_string());
+    assert_eq!(merge_json["updatedItemCount"], 1);
+}
+
+#[tokio::test]
+async fn admin_item_list_filters_and_summaries_use_taxonomy_fields() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let hamill = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Mark Hamill".to_owned()),
+                default_role: Some("actor".to_owned()),
+                ..Default::default()
+            }],
+            characters: vec!["Luke Skywalker".to_owned()],
+            franchises: vec!["Star Wars".to_owned()],
+            product_line: Some("Star Wars CCG".to_owned()),
+            set_name: Some("Premiere".to_owned()),
+            format: "Trading Card".to_owned(),
+            language: "Japanese".to_owned(),
+            tags: vec!["jedi".to_owned()],
+            ..test_item_input(
+                "Signed Jedi Card",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+    repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Carrie Fisher".to_owned()),
+                default_role: Some("actor".to_owned()),
+                ..Default::default()
+            }],
+            franchises: vec!["Star Wars".to_owned()],
+            product_line: Some("Galactic Files".to_owned()),
+            format: "Comic Book".to_owned(),
+            language: "English".to_owned(),
+            ..test_item_input(
+                "Signed Rebel Comic",
+                "Carrie Fisher",
+                "Comics",
+                Vec::new(),
+                PublicationStatus::Published,
+            )
+        })
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(false),
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/items?signer=hamill&franchise=star&productLine=ccg&format=trading&language=japanese")
+                .header(header::COOKIE, admin_cookie(&app).await)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_string(response).await;
+    assert_redacted(&body);
+    let json: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json.as_array().unwrap().len(), 1);
+    let summary = &json[0];
+    assert_eq!(summary["id"], hamill.id.to_string());
+    assert_eq!(summary["signerText"], "Mark Hamill");
+    assert_eq!(summary["signerNames"], json!(["Mark Hamill"]));
+    assert_eq!(summary["franchises"], json!(["Star Wars"]));
+    assert_eq!(summary["productLine"], "Star Wars CCG");
+    assert_eq!(summary["format"], "Trading Card");
+    assert_eq!(summary["language"], "Japanese");
+    assert_eq!(summary["publicationStatus"], "draft");
+    assert!(summary.get("category").is_none());
 }
 
 #[tokio::test]
@@ -856,6 +1207,14 @@ async fn history_metadata_and_publication_updates_record_field_level_diffs() {
             description: None,
             category: "Cards".to_owned(),
             tags: vec!["jedi".to_owned()],
+            signer_credits: Vec::new(),
+            characters: Vec::new(),
+            format: "Trading Card".to_owned(),
+            origin: ItemOrigin::Official,
+            franchises: Vec::new(),
+            product_line: None,
+            set_name: None,
+            language: "English".to_owned(),
             object_reference: None,
             event_name: None,
             event_location: None,
@@ -931,6 +1290,657 @@ async fn history_metadata_and_publication_updates_record_field_level_diffs() {
 }
 
 #[tokio::test]
+async fn taxonomy_updates_record_metadata_diffs() {
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(AutographItemInput {
+            title: "Signed Jedi Card".to_owned(),
+            signer: "Mark Hamill".to_owned(),
+            description: None,
+            category: "Cards".to_owned(),
+            tags: vec!["jedi".to_owned()],
+            signer_credits: vec![SignerCreditInput {
+                signer_id: None,
+                display_name: Some("Mark Hamill".to_owned()),
+                default_role: Some("actor".to_owned()),
+                item_role: Some("actor".to_owned()),
+                item_context: Some("Luke Skywalker".to_owned()),
+                wikipedia_url: None,
+                imdb_url: None,
+            }],
+            characters: vec!["Luke Skywalker".to_owned()],
+            format: "Trading Card".to_owned(),
+            origin: ItemOrigin::Official,
+            franchises: vec!["Star Wars".to_owned()],
+            product_line: Some("Star Wars CCG".to_owned()),
+            set_name: Some("Premiere".to_owned()),
+            language: "English".to_owned(),
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Draft,
+        })
+        .await
+        .unwrap();
+
+    let update: AutographItemUpdate = serde_json::from_value(json!({
+        "signerCredits": [{
+            "displayName": "Carrie Fisher",
+            "defaultRole": "actor",
+            "itemRole": "actor",
+            "itemContext": "Princess Leia"
+        }],
+        "characters": ["Princess Leia"],
+        "franchises": ["Star Wars", "Star Wars Legends"],
+        "productLine": "Star Wars Galactic Files",
+        "setName": "Custom",
+        "format": "Comic Book",
+        "origin": "Custom",
+        "language": "Japanese",
+        "tags": ["rebellion"]
+    }))
+    .unwrap();
+    let updated = repository.update(item.id, update).await.unwrap();
+
+    assert_eq!(
+        updated.signer_credits[0].signer.display_name,
+        "Carrie Fisher"
+    );
+    assert_eq!(updated.characters, vec!["Princess Leia"]);
+    assert_eq!(updated.franchises, vec!["Star Wars", "Star Wars Legends"]);
+    assert_eq!(
+        updated.product_line.as_deref(),
+        Some("Star Wars Galactic Files")
+    );
+    assert_eq!(updated.set_name.as_deref(), Some("Custom"));
+    assert_eq!(updated.format, "Comic Book");
+    assert_eq!(updated.origin, ItemOrigin::Custom);
+    assert_eq!(updated.language, "Japanese");
+
+    let history = repository.history(item.id).await.unwrap();
+    let metadata_event = history
+        .iter()
+        .find(|event| {
+            event.kind == EditEventKind::MetadataUpdated
+                && event.field_diffs.iter().any(|diff| diff.field == "signers")
+        })
+        .expect("taxonomy metadata history event");
+
+    for field in [
+        "signers",
+        "characters",
+        "franchises",
+        "productLine",
+        "setName",
+        "format",
+        "origin",
+        "language",
+        "tags",
+    ] {
+        assert!(
+            metadata_event
+                .field_diffs
+                .iter()
+                .any(|diff| diff.field == field),
+            "missing taxonomy diff for {field}"
+        );
+    }
+    assert!(metadata_event.summary.contains("signers"));
+}
+
+#[tokio::test]
+async fn signer_suggestions_rank_duplicates_without_blocking_new_names() {
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(AutographItemInput {
+            title: "Signed Jedi Card".to_owned(),
+            signer: "Mark Hamill".to_owned(),
+            description: None,
+            category: "Cards".to_owned(),
+            tags: Vec::new(),
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Mark Hamill".to_owned()),
+                default_role: Some("actor".to_owned()),
+                ..Default::default()
+            }],
+            characters: Vec::new(),
+            format: "Trading Card".to_owned(),
+            origin: ItemOrigin::Official,
+            franchises: Vec::new(),
+            product_line: None,
+            set_name: None,
+            language: "English".to_owned(),
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Draft,
+        })
+        .await
+        .unwrap();
+    repository
+        .create(AutographItemInput {
+            title: "Signed Rebel Card".to_owned(),
+            signer: "Carrie Fisher".to_owned(),
+            description: None,
+            category: "Cards".to_owned(),
+            tags: Vec::new(),
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Carrie Fisher".to_owned()),
+                default_role: Some("actor".to_owned()),
+                ..Default::default()
+            }],
+            characters: Vec::new(),
+            format: "Trading Card".to_owned(),
+            origin: ItemOrigin::Official,
+            franchises: Vec::new(),
+            product_line: None,
+            set_name: None,
+            language: "English".to_owned(),
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status: PublicationStatus::Draft,
+        })
+        .await
+        .unwrap();
+
+    let exact = repository
+        .signer_suggestions("Mark Hamill".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(exact[0].profile.id, item.signer_credits[0].signer.id);
+    assert!(exact[0].possible_duplicate);
+
+    let near = repository
+        .signer_suggestions("Mark Hamel".to_owned())
+        .await
+        .unwrap();
+    assert_eq!(near[0].profile.display_name, "Mark Hamill");
+    assert!(near[0].possible_duplicate);
+
+    let deliberate_new = repository
+        .signer_suggestions("Ahmed Best".to_owned())
+        .await
+        .unwrap();
+    assert!(deliberate_new.is_empty());
+}
+
+#[tokio::test]
+async fn signer_profile_edits_record_history_for_linked_items_only() {
+    let repository = MemoryCatalogRepository::default();
+    let first = repository
+        .create(test_item_input(
+            "Signed Jedi Card",
+            "Mark Hamill",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let signer_id = first.signer_credits[0].signer.id;
+    let second = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                signer_id: Some(signer_id),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Signed Pilot Card",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+    let unrelated = repository
+        .create(test_item_input(
+            "Signed Rebel Card",
+            "Carrie Fisher",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+
+    repository
+        .update_signer_profile(
+            signer_id,
+            SignerProfileUpdateInput {
+                display_name: FieldPatch::Set("Mark Richard Hamill".to_owned()),
+                default_role: FieldPatch::Set("voice actor".to_owned()),
+                wikipedia_url: FieldPatch::Set(
+                    "https://en.wikipedia.org/wiki/Mark_Hamill".to_owned(),
+                ),
+                imdb_url: FieldPatch::Set("https://www.imdb.com/name/nm0000434/".to_owned()),
+            },
+        )
+        .await
+        .unwrap();
+
+    for item_id in [first.id, second.id] {
+        let history = repository.history(item_id).await.unwrap();
+        let event = history
+            .iter()
+            .find(|event| {
+                event
+                    .summary
+                    .contains("Updated signer profile Mark Hamill -> Mark Richard Hamill")
+            })
+            .expect("linked item signer profile event");
+        for field in [
+            "signerProfile.displayName",
+            "signerProfile.defaultRole",
+            "signerProfile.wikipediaUrl",
+            "signerProfile.imdbUrl",
+        ] {
+            assert!(
+                event.field_diffs.iter().any(|diff| diff.field == field),
+                "missing profile edit diff for {field}"
+            );
+        }
+    }
+    assert!(
+        repository
+            .history(unrelated.id)
+            .await
+            .unwrap()
+            .iter()
+            .all(|event| !event.summary.contains("Updated signer profile"))
+    );
+}
+
+#[tokio::test]
+async fn partial_signer_profile_update_preserves_omitted_optional_fields() {
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Mark Hamill".to_owned()),
+                default_role: Some("actor".to_owned()),
+                wikipedia_url: Some("https://en.wikipedia.org/wiki/Mark_Hamill".to_owned()),
+                imdb_url: Some("https://www.imdb.com/name/nm0000434/".to_owned()),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Signed Jedi Card",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+    let signer_id = item.signer_credits[0].signer.id;
+
+    let updated = repository
+        .update_signer_profile(
+            signer_id,
+            SignerProfileUpdateInput {
+                display_name: FieldPatch::Set("Mark Richard Hamill".to_owned()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(updated.display_name, "Mark Richard Hamill");
+    assert_eq!(updated.default_role.as_deref(), Some("actor"));
+    assert_eq!(
+        updated.wikipedia_url.as_deref(),
+        Some("https://en.wikipedia.org/wiki/Mark_Hamill")
+    );
+    assert_eq!(
+        updated.imdb_url.as_deref(),
+        Some("https://www.imdb.com/name/nm0000434/")
+    );
+}
+
+#[tokio::test]
+async fn item_signer_credit_rejects_conflicting_profile_id_and_display_name() {
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(test_item_input(
+            "Signed Jedi Card",
+            "Mark Hamill",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let signer_id = item.signer_credits[0].signer.id;
+
+    let update: AutographItemUpdate = serde_json::from_value(json!({
+        "signerCredits": [{
+            "signerId": signer_id,
+            "displayName": "Carrie Fisher",
+            "itemRole": "actor"
+        }]
+    }))
+    .unwrap();
+    let error = repository.update(item.id, update).await.unwrap_err();
+    assert!(error.contains("signerId cannot be combined with a conflicting displayName"));
+
+    let unchanged = repository.get(item.id).await.unwrap().unwrap();
+    assert_eq!(
+        unchanged.signer_credits[0].signer.display_name,
+        "Mark Hamill"
+    );
+}
+
+#[tokio::test]
+async fn item_signer_reuse_preserves_existing_profile_metadata() {
+    let repository = MemoryCatalogRepository::default();
+    let original = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Mark Hamill".to_owned()),
+                default_role: Some("actor".to_owned()),
+                wikipedia_url: Some("https://en.wikipedia.org/wiki/Mark_Hamill".to_owned()),
+                imdb_url: Some("https://www.imdb.com/name/nm0000434/".to_owned()),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Signed Jedi Card",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+    let signer_id = original.signer_credits[0].signer.id;
+
+    let selected = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                signer_id: Some(signer_id),
+                display_name: Some("Mark Hamill".to_owned()),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Selected Existing Signer",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        selected.signer_credits[0].signer.wikipedia_url.as_deref(),
+        Some("https://en.wikipedia.org/wiki/Mark_Hamill")
+    );
+    assert_eq!(
+        selected.signer_credits[0].signer.imdb_url.as_deref(),
+        Some("https://www.imdb.com/name/nm0000434/")
+    );
+    assert_eq!(
+        selected.signer_credits[0].signer.default_role.as_deref(),
+        Some("actor")
+    );
+
+    let exact_name = repository
+        .create(test_item_input(
+            "Exact Name Existing Signer",
+            "Mark Hamill",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(exact_name.signer_credits[0].signer.id, signer_id);
+    assert_eq!(
+        exact_name.signer_credits[0].signer.wikipedia_url.as_deref(),
+        Some("https://en.wikipedia.org/wiki/Mark_Hamill")
+    );
+    assert_eq!(
+        exact_name.signer_credits[0].signer.imdb_url.as_deref(),
+        Some("https://www.imdb.com/name/nm0000434/")
+    );
+    assert_eq!(
+        exact_name.signer_credits[0].signer.default_role.as_deref(),
+        Some("actor")
+    );
+}
+
+#[tokio::test]
+async fn stale_signer_id_after_merge_does_not_recreate_source_profile() {
+    let repository = MemoryCatalogRepository::default();
+    let source_item = repository
+        .create(test_item_input(
+            "Typo Signed Card",
+            "Mark Hamel",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let target_item = repository
+        .create(test_item_input(
+            "Canonical Signed Card",
+            "Mark Hamill",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let source_signer_id = source_item.signer_credits[0].signer.id;
+    let target_signer_id = target_item.signer_credits[0].signer.id;
+
+    repository
+        .merge_signer_profiles(source_signer_id, target_signer_id)
+        .await
+        .unwrap();
+
+    let stale_update: AutographItemUpdate = serde_json::from_value(json!({
+        "signerCredits": [{
+            "signerId": source_signer_id,
+            "displayName": "Mark Hamel",
+            "itemRole": "actor"
+        }]
+    }))
+    .unwrap();
+    let error = repository
+        .update(source_item.id, stale_update)
+        .await
+        .unwrap_err();
+    assert_eq!(error, "signer profile was not found");
+
+    let suggestions = repository
+        .signer_suggestions("Mark Hamel".to_owned())
+        .await
+        .unwrap();
+    assert!(
+        suggestions
+            .iter()
+            .all(|suggestion| suggestion.profile.id != source_signer_id)
+    );
+}
+
+#[tokio::test]
+async fn merge_signer_profiles_moves_credits_and_records_history() {
+    let repository = MemoryCatalogRepository::default();
+    let source_item = repository
+        .create(test_item_input(
+            "Typo Signed Card",
+            "Mark Hamel",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let target_item = repository
+        .create(test_item_input(
+            "Correct Signed Card",
+            "Mark Hamill",
+            "Cards",
+            Vec::new(),
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let source_id = source_item.signer_credits[0].signer.id;
+    let target_id = target_item.signer_credits[0].signer.id;
+
+    let result = repository
+        .merge_signer_profiles(source_id, target_id)
+        .await
+        .unwrap();
+    assert_eq!(result.updated_item_count, 1);
+
+    let updated = repository.get(source_item.id).await.unwrap().unwrap();
+    assert_eq!(updated.signer_credits[0].signer.id, target_id);
+    let history = repository.history(source_item.id).await.unwrap();
+    assert!(history.iter().any(|event| {
+        event.summary == "Merged signer Mark Hamel into Mark Hamill"
+            && event.kind == EditEventKind::MetadataUpdated
+    }));
+}
+
+#[tokio::test]
+async fn taxonomy_suggestions_aggregate_existing_values() {
+    let repository = MemoryCatalogRepository::default();
+    repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Mark Hamill".to_owned()),
+                default_role: Some("actor".to_owned()),
+                ..Default::default()
+            }],
+            characters: vec!["Luke Skywalker".to_owned()],
+            franchises: vec!["Star Wars".to_owned()],
+            product_line: Some("Star Wars CCG".to_owned()),
+            set_name: Some("Premiere".to_owned()),
+            language: "Japanese".to_owned(),
+            tags: vec!["jedi".to_owned()],
+            ..test_item_input(
+                "Signed Jedi Card",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+
+    let suggestions = repository.taxonomy_suggestions().await.unwrap();
+    assert_eq!(suggestions.characters, vec!["Luke Skywalker"]);
+    assert_eq!(suggestions.franchises, vec!["Star Wars"]);
+    assert_eq!(suggestions.product_lines, vec!["Star Wars CCG"]);
+    assert_eq!(suggestions.set_names, vec!["Premiere"]);
+    assert!(suggestions.formats.contains(&"Trading Card".to_owned()));
+    assert!(suggestions.languages.contains(&"Japanese".to_owned()));
+    assert!(suggestions.roles.contains(&"actor".to_owned()));
+    assert_eq!(suggestions.tags, vec!["jedi"]);
+}
+
+#[tokio::test]
+async fn direct_taxonomy_payloads_are_trimmed_and_deduplicated() {
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(AutographItemInput {
+            characters: vec![
+                "Luke Skywalker".to_owned(),
+                " Luke Skywalker ".to_owned(),
+                " ".to_owned(),
+            ],
+            franchises: vec![
+                "Star Wars".to_owned(),
+                "Star Wars".to_owned(),
+                "Star Wars Legends".to_owned(),
+            ],
+            tags: vec!["jedi".to_owned(), "jedi".to_owned(), " hero ".to_owned()],
+            ..test_item_input(
+                "Signed Jedi Card",
+                "Mark Hamill",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(item.characters, vec!["Luke Skywalker"]);
+    assert_eq!(item.franchises, vec!["Star Wars", "Star Wars Legends"]);
+    assert_eq!(item.tags, vec!["jedi", "hero"]);
+
+    let update: AutographItemUpdate = serde_json::from_value(json!({
+        "characters": ["Princess Leia", " Princess Leia ", "General Organa"],
+        "franchises": ["Star Wars", "Star Wars"],
+        "tags": ["rebellion", "rebellion", " hero "]
+    }))
+    .unwrap();
+    let updated = repository.update(item.id, update).await.unwrap();
+
+    assert_eq!(updated.characters, vec!["Princess Leia", "General Organa"]);
+    assert_eq!(updated.franchises, vec!["Star Wars"]);
+    assert_eq!(updated.tags, vec!["rebellion", "hero"]);
+}
+
+#[test]
+fn autograph_item_input_deserializes_camel_case_taxonomy_fields() {
+    let input: AutographItemInput = serde_json::from_value(json!({
+        "title": "Signed Jedi Card",
+        "signer": "Mark Hamill",
+        "category": "Cards",
+        "signerCredits": [{
+            "displayName": "Mark Hamill",
+            "defaultRole": "actor",
+            "itemRole": "actor",
+            "itemContext": "Luke Skywalker"
+        }],
+        "characters": ["Luke Skywalker"],
+        "productLine": "Star Wars CCG",
+        "setName": "Premiere",
+        "format": "Trading Card",
+        "origin": "Official",
+        "language": "English",
+        "franchises": ["Star Wars"],
+        "tags": ["jedi"]
+    }))
+    .unwrap();
+
+    assert_eq!(input.signer_credits.len(), 1);
+    assert_eq!(input.characters, vec!["Luke Skywalker"]);
+    assert_eq!(input.product_line.as_deref(), Some("Star Wars CCG"));
+    assert_eq!(input.set_name.as_deref(), Some("Premiere"));
+    assert_eq!(input.format, "Trading Card");
+    assert_eq!(input.origin, ItemOrigin::Official);
+    assert_eq!(input.language, "English");
+    assert_eq!(input.franchises, vec!["Star Wars"]);
+    assert_eq!(input.tags, vec!["jedi"]);
+}
+
+#[tokio::test]
 async fn history_pending_changes_reports_count_and_oldest_change_timestamp() {
     let repository = MemoryCatalogRepository::default();
     let item = repository
@@ -940,6 +1950,14 @@ async fn history_pending_changes_reports_count_and_oldest_change_timestamp() {
             description: None,
             category: "Cards".to_owned(),
             tags: Vec::new(),
+            signer_credits: Vec::new(),
+            characters: Vec::new(),
+            format: "Trading Card".to_owned(),
+            origin: ItemOrigin::Official,
+            franchises: Vec::new(),
+            product_line: None,
+            set_name: None,
+            language: "English".to_owned(),
             object_reference: None,
             event_name: None,
             event_location: None,
@@ -982,6 +2000,14 @@ fn test_item_input(
         description: None,
         category: category.to_owned(),
         tags: tags.into_iter().map(str::to_owned).collect(),
+        signer_credits: Vec::new(),
+        characters: Vec::new(),
+        format: "Trading Card".to_owned(),
+        origin: ItemOrigin::Official,
+        franchises: Vec::new(),
+        product_line: None,
+        set_name: None,
+        language: "English".to_owned(),
         object_reference: None,
         event_name: None,
         event_location: None,

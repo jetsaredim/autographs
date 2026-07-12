@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 2,
+  "items": [
+    {
+      "slug": "ahsoka-tano",
+      "title": "Ahsoka Tano",
+      "signerText": "Rosario Dawson + Dave Filoni",
+      "signerNames": [
+        "Rosario Dawson",
+        "Dave Filoni"
+      ],
+      "signerRoles": [
+        "Actor",
+        "Creator"
+      ],
+      "description": "Custom Star Wars CCG",
+      "characters": [
+        "Ahsoka Tano"
+      ],
+      "franchises": [
+        "Star Wars"
+      ],
+      "productLine": "Star Wars CCG",
+      "setName": "Custom",
+      "format": "Trading Card",
+      "origin": "Custom",
+      "language": "English",
+      "tags": [
+        "ccg",
+        "star wars"
+      ],
+      "primaryImage": {
+        "altText": "Ahsoka Tano signed by Rosario Dawson and Dave Filoni",
+        "variants": [
+          {
+            "name": "thumbnail",
+            "path": "/media/ahsoka-tano/image-1-thumbnail-8781173feb10.webp",
+            "width": 480,
+            "height": 638,
+            "contentType": "image/webp"
+          },
+          {
+            "name": "detail",
+            "path": "/media/ahsoka-tano/image-1-detail-eaa984e2fa19.webp",
+            "width": 1200,
+            "height": 1595,
+            "contentType": "image/webp"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "alexis-drazen",
+      "title": "Alexis Drazen",
+      "signerText": "Misha Collins",
+      "signerNames": [
+        "Misha Collins"
+      ],
+      "signerRoles": [
+        "Actor"
+      ],
+      "description": null,
+      "characters": [
+        "Alexis Drazen"
+      ],
+      "franchises": [
+        "24"
+      ],
+      "productLine": null,
+      "setName": null,
+      "format": "Trading Card",
+      "origin": "Official",
+      "language": "Japanese",
+      "tags": [
+        "trading cards"
+      ],
+      "primaryImage": {
+        "altText": "Misha Collins as Alexis Drazen",
+        "variants": [
+          {
+            "name": "thumbnail",
+            "path": "/media/alexis-drazen/image-1-thumbnail-47b8c1d2e3f4.webp",
+            "width": 479,
+            "height": 640,
+            "contentType": "image/webp"
+          },
+          {
+            "name": "detail",
+            "path": "/media/alexis-drazen/image-1-detail-a1b2c3d4e5f6.webp",
+            "width": 1197,
+            "height": 1600,
+            "contentType": "image/webp"
+          }
+        ]
+      }
+    },
+    {
+      "slug": "sir-lancelot",
+      "title": "Sir Lancelot",
+      "signerText": "John Cleese, Terry Gilliam + 1 more",
+      "signerNames": [
+        "John Cleese",
+        "Terry Gilliam",
+        "Eric Idle"
+      ],
+      "signerRoles": [
+        "Actor",
+        "Artist",
+        "Writer"
+      ],
+      "description": null,
+      "characters": [
+        "Sir Lancelot"
+      ],
+      "franchises": [
+        "Monty Python"
+      ],
+      "productLine": null,
+      "setName": null,
+      "format": "Comic Book",
+      "origin": "Official",
+      "language": "Chinese",
+      "tags": [
+        "sketch",
+        "trading cards"
+      ],
+      "primaryImage": {
+        "altText": "John Cleese as Sir Lancelot",
+        "variants": [
+          {
+            "name": "thumbnail",
+            "path": "/media/sir-lancelot/image-1-thumbnail-b7c8d9e0f1a2.webp",
+            "width": 480,
+            "height": 640,
+            "contentType": "image/webp"
+          },
+          {
+            "name": "detail",
+            "path": "/media/sir-lancelot/image-1-detail-c3d4e5f6a7b8.webp",
+            "width": 1199,
+            "height": 1600,
+            "contentType": "image/webp"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -10,6 +10,9 @@ use serde_json::Value;
 use uuid::Uuid;
 
 pub(crate) const REQUIRED_FIELDS_ERROR: &str = "title, signer, and category are required";
+const DEFAULT_FORMAT: &str = "Trading Card";
+const DEFAULT_LANGUAGE: &str = "English";
+const MAX_PROFILE_URL_LENGTH: usize = 1000;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -17,6 +20,90 @@ pub enum PublicationStatus {
     Draft,
     Published,
     Archived,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub enum ItemOrigin {
+    #[default]
+    Official,
+    Custom,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignerProfile {
+    pub id: Uuid,
+    pub display_name: String,
+    pub normalized_name: String,
+    pub default_role: Option<String>,
+    pub wikipedia_url: Option<String>,
+    pub imdb_url: Option<String>,
+    pub created_at_epoch_seconds: i64,
+    pub updated_at_epoch_seconds: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignerCredit {
+    pub signer: SignerProfile,
+    pub sort_order: i32,
+    pub item_role: Option<String>,
+    pub item_context: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignerCreditInput {
+    pub signer_id: Option<Uuid>,
+    pub display_name: Option<String>,
+    pub default_role: Option<String>,
+    pub item_role: Option<String>,
+    pub item_context: Option<String>,
+    pub wikipedia_url: Option<String>,
+    pub imdb_url: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignerMergeResult {
+    pub source_signer_id: Uuid,
+    pub target_signer_id: Uuid,
+    pub updated_item_count: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignerSuggestion {
+    pub profile: SignerProfile,
+    pub possible_duplicate: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SignerProfileUpdateInput {
+    #[serde(default)]
+    pub display_name: FieldPatch<String>,
+    #[serde(default)]
+    pub default_role: FieldPatch<String>,
+    #[serde(default)]
+    pub wikipedia_url: FieldPatch<String>,
+    #[serde(default)]
+    pub imdb_url: FieldPatch<String>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaxonomySuggestions {
+    pub signers: Vec<SignerProfile>,
+    pub characters: Vec<String>,
+    pub formats: Vec<String>,
+    pub origins: Vec<ItemOrigin>,
+    pub franchises: Vec<String>,
+    pub product_lines: Vec<String>,
+    pub set_names: Vec<String>,
+    pub languages: Vec<String>,
+    pub roles: Vec<String>,
+    pub tags: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -28,6 +115,20 @@ pub struct AutographItemInput {
     pub category: String,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub signer_credits: Vec<SignerCreditInput>,
+    #[serde(default)]
+    pub characters: Vec<String>,
+    #[serde(default = "default_format")]
+    pub format: String,
+    #[serde(default)]
+    pub origin: ItemOrigin,
+    #[serde(default)]
+    pub franchises: Vec<String>,
+    pub product_line: Option<String>,
+    pub set_name: Option<String>,
+    #[serde(default = "default_language")]
+    pub language: String,
     pub object_reference: Option<String>,
     pub event_name: Option<String>,
     pub event_location: Option<String>,
@@ -63,6 +164,19 @@ where
     }
 }
 
+impl<T> FieldPatch<T> {
+    fn map<U, F>(self, map_value: F) -> FieldPatch<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        match self {
+            Self::Unchanged => FieldPatch::Unchanged,
+            Self::Clear => FieldPatch::Clear,
+            Self::Set(value) => FieldPatch::Set(map_value(value)),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct PublishBoundary {
     pub started_at_epoch_seconds: i64,
@@ -87,6 +201,16 @@ pub struct AutographItemUpdate {
     pub description: FieldPatch<String>,
     pub category: Option<String>,
     pub tags: Option<Vec<String>>,
+    pub signer_credits: Option<Vec<SignerCreditInput>>,
+    pub characters: Option<Vec<String>>,
+    pub format: Option<String>,
+    pub origin: Option<ItemOrigin>,
+    pub franchises: Option<Vec<String>>,
+    #[serde(default)]
+    pub product_line: FieldPatch<String>,
+    #[serde(default)]
+    pub set_name: FieldPatch<String>,
+    pub language: Option<String>,
     #[serde(default)]
     pub object_reference: FieldPatch<String>,
     #[serde(default)]
@@ -114,6 +238,14 @@ pub struct AutographItem {
     pub description: Option<String>,
     pub category: String,
     pub tags: Vec<String>,
+    pub signer_credits: Vec<SignerCredit>,
+    pub characters: Vec<String>,
+    pub format: String,
+    pub origin: ItemOrigin,
+    pub franchises: Vec<String>,
+    pub product_line: Option<String>,
+    pub set_name: Option<String>,
+    pub language: String,
     pub object_reference: Option<String>,
     pub event_name: Option<String>,
     pub event_location: Option<String>,
@@ -411,11 +543,36 @@ pub trait CatalogRepository: Send + Sync {
     async fn record_event(&self, event: AutographEditEvent) -> Result<AutographEditEvent, String> {
         Ok(event)
     }
+
+    async fn signer_suggestions(&self, _query: String) -> Result<Vec<SignerSuggestion>, String> {
+        Ok(Vec::new())
+    }
+
+    async fn taxonomy_suggestions(&self) -> Result<TaxonomySuggestions, String> {
+        Ok(TaxonomySuggestions::default())
+    }
+
+    async fn update_signer_profile(
+        &self,
+        _signer_id: Uuid,
+        _input: SignerProfileUpdateInput,
+    ) -> Result<SignerProfile, String> {
+        Err("signer profile updates are not supported by this repository".to_owned())
+    }
+
+    async fn merge_signer_profiles(
+        &self,
+        _source_signer_id: Uuid,
+        _target_signer_id: Uuid,
+    ) -> Result<SignerMergeResult, String> {
+        Err("signer profile merging is not supported by this repository".to_owned())
+    }
 }
 
 #[derive(Clone)]
 pub struct MemoryCatalogRepository {
     items: Arc<Mutex<HashMap<Uuid, AutographItem>>>,
+    signers: Arc<Mutex<HashMap<Uuid, SignerProfile>>>,
     events: Arc<Mutex<Vec<AutographEditEvent>>>,
     cleanup_events: Arc<Mutex<Vec<ImageCleanupEvent>>>,
     last_successful_publish_boundary: Arc<Mutex<Option<PublishBoundary>>>,
@@ -425,6 +582,7 @@ impl Default for MemoryCatalogRepository {
     fn default() -> Self {
         Self {
             items: Arc::new(Mutex::new(HashMap::new())),
+            signers: Arc::new(Mutex::new(HashMap::new())),
             events: Arc::new(Mutex::new(Vec::new())),
             cleanup_events: Arc::new(Mutex::new(Vec::new())),
             last_successful_publish_boundary: Arc::new(Mutex::new(None)),
@@ -435,15 +593,34 @@ impl Default for MemoryCatalogRepository {
 #[async_trait]
 impl CatalogRepository for MemoryCatalogRepository {
     async fn create(&self, input: AutographItemInput) -> Result<AutographItem, String> {
-        validate_required_fields(&input.title, &input.signer, &input.category)?;
         let now = now_epoch_seconds();
+        let signer_credits = {
+            let mut signers = self.signers.lock().expect("catalog signer lock");
+            resolve_signer_credits(&mut signers, &input.signer_credits, &input.signer, now)?
+        };
+        validate_item_taxonomy(
+            &input.title,
+            &input.signer,
+            &input.category,
+            &signer_credits,
+            &input.format,
+            &input.language,
+        )?;
         let item = AutographItem {
             id: Uuid::new_v4(),
             title: input.title,
             signer: input.signer,
             description: input.description,
             category: input.category,
-            tags: input.tags,
+            tags: normalize_unique_string_list(input.tags),
+            signer_credits,
+            characters: normalize_unique_string_list(input.characters),
+            format: input.format,
+            origin: input.origin,
+            franchises: normalize_unique_string_list(input.franchises),
+            product_line: normalize_optional_string(input.product_line),
+            set_name: normalize_optional_string(input.set_name),
+            language: input.language,
             object_reference: input.object_reference,
             event_name: input.event_name,
             event_location: input.event_location,
@@ -477,14 +654,39 @@ impl CatalogRepository for MemoryCatalogRepository {
     async fn update(&self, id: Uuid, input: AutographItemUpdate) -> Result<AutographItem, String> {
         let now = now_epoch_seconds();
         let mut event = None;
+        let resolved_signer_credits = if let Some(signer_inputs) = input.signer_credits.as_ref() {
+            let fallback_signer = {
+                let items = self.items.lock().expect("catalog state lock");
+                items
+                    .get(&id)
+                    .map(|item| item.signer.clone())
+                    .ok_or_else(|| "autograph item was not found".to_owned())?
+            };
+            let mut signers = self.signers.lock().expect("catalog signer lock");
+            Some(resolve_signer_credits(
+                &mut signers,
+                signer_inputs,
+                &fallback_signer,
+                now,
+            )?)
+        } else {
+            None
+        };
         let updated = {
             let mut items = self.items.lock().expect("catalog state lock");
             let item = items
                 .get_mut(&id)
                 .ok_or_else(|| "autograph item was not found".to_owned())?;
             let mut candidate = item.clone();
-            let field_diffs = apply_update(&mut candidate, input);
-            validate_required_fields(&candidate.title, &candidate.signer, &candidate.category)?;
+            let field_diffs = apply_update(&mut candidate, input, resolved_signer_credits);
+            validate_item_taxonomy(
+                &candidate.title,
+                &candidate.signer,
+                &candidate.category,
+                &candidate.signer_credits,
+                &candidate.format,
+                &candidate.language,
+            )?;
             if !field_diffs.is_empty() {
                 candidate.updated_at_epoch_seconds = now;
                 let kind = event_kind_for_diffs(&field_diffs);
@@ -842,6 +1044,237 @@ impl CatalogRepository for MemoryCatalogRepository {
             .push(event.clone());
         Ok(event)
     }
+
+    async fn signer_suggestions(&self, query: String) -> Result<Vec<SignerSuggestion>, String> {
+        let normalized_query = normalize_signer_name(&query);
+        if normalized_query.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut suggestions = self
+            .signers
+            .lock()
+            .expect("catalog signer lock")
+            .values()
+            .filter_map(|profile| {
+                signer_match_rank(&normalized_query, &profile.normalized_name).map(|rank| {
+                    (
+                        rank,
+                        profile.display_name.clone(),
+                        SignerSuggestion {
+                            profile: profile.clone(),
+                            possible_duplicate: rank == 0 || rank >= 2,
+                        },
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        suggestions.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+        Ok(suggestions
+            .into_iter()
+            .map(|(_, _, suggestion)| suggestion)
+            .take(10)
+            .collect())
+    }
+
+    async fn taxonomy_suggestions(&self) -> Result<TaxonomySuggestions, String> {
+        let items = self.items.lock().expect("catalog state lock");
+        let signers = self.signers.lock().expect("catalog signer lock");
+        let mut characters = BTreeSet::new();
+        let mut formats = BTreeSet::new();
+        let mut origins = BTreeSet::new();
+        let mut franchises = BTreeSet::new();
+        let mut product_lines = BTreeSet::new();
+        let mut set_names = BTreeSet::new();
+        let mut languages = BTreeSet::new();
+        let mut roles = BTreeSet::new();
+        let mut tags = BTreeSet::new();
+        for item in items.values() {
+            characters.extend(item.characters.iter().cloned());
+            formats.insert(item.format.clone());
+            origins.insert(item.origin);
+            franchises.extend(item.franchises.iter().cloned());
+            if let Some(product_line) = item.product_line.clone() {
+                product_lines.insert(product_line);
+            }
+            if let Some(set_name) = item.set_name.clone() {
+                set_names.insert(set_name);
+            }
+            languages.insert(item.language.clone());
+            tags.extend(item.tags.iter().cloned());
+            for credit in &item.signer_credits {
+                if let Some(role) = credit.item_role.clone() {
+                    roles.insert(role);
+                }
+            }
+        }
+        for profile in signers.values() {
+            if let Some(role) = profile.default_role.clone() {
+                roles.insert(role);
+            }
+        }
+        let mut signer_profiles = signers.values().cloned().collect::<Vec<_>>();
+        signer_profiles.sort_by(|left, right| {
+            left.display_name
+                .cmp(&right.display_name)
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        Ok(TaxonomySuggestions {
+            signers: signer_profiles,
+            characters: characters.into_iter().collect(),
+            formats: formats.into_iter().collect(),
+            origins: origins.into_iter().collect(),
+            franchises: franchises.into_iter().collect(),
+            product_lines: product_lines.into_iter().collect(),
+            set_names: set_names.into_iter().collect(),
+            languages: languages.into_iter().collect(),
+            roles: roles.into_iter().collect(),
+            tags: tags.into_iter().collect(),
+        })
+    }
+
+    async fn update_signer_profile(
+        &self,
+        signer_id: Uuid,
+        input: SignerProfileUpdateInput,
+    ) -> Result<SignerProfile, String> {
+        let now = now_epoch_seconds();
+        let (before, updated, field_diffs) = {
+            let mut signers = self.signers.lock().expect("catalog signer lock");
+            let before = signers
+                .get(&signer_id)
+                .cloned()
+                .ok_or_else(|| "signer profile was not found".to_owned())?;
+            let mut updated = before.clone();
+            apply_signer_profile_update(&mut updated, input, now)?;
+            if signers.values().any(|profile| {
+                profile.id != signer_id && profile.normalized_name == updated.normalized_name
+            }) {
+                return Err("signer normalized name already exists".to_owned());
+            }
+            let field_diffs = signer_profile_field_diffs(&before, &updated);
+            signers.insert(signer_id, updated.clone());
+            (before, updated, field_diffs)
+        };
+        if field_diffs.is_empty() {
+            return Ok(updated);
+        }
+        let linked_item_ids = {
+            let mut items = self.items.lock().expect("catalog state lock");
+            let mut linked_item_ids = Vec::new();
+            for item in items.values_mut() {
+                let mut changed = false;
+                for credit in &mut item.signer_credits {
+                    if credit.signer.id == signer_id {
+                        credit.signer = updated.clone();
+                        changed = true;
+                    }
+                }
+                if changed {
+                    item.signer = compact_signer_text(&item.signer_credits);
+                    item.updated_at_epoch_seconds = now;
+                    linked_item_ids.push(item.id);
+                }
+            }
+            linked_item_ids
+        };
+        let summary = format!(
+            "Updated signer profile {} -> {}",
+            before.display_name, updated.display_name
+        );
+        let mut events = self.events.lock().expect("catalog event lock");
+        for item_id in linked_item_ids {
+            events.push(AutographEditEvent::new(
+                item_id,
+                EditEventKind::MetadataUpdated,
+                summary.clone(),
+                field_diffs.clone(),
+                now,
+            ));
+        }
+        Ok(updated)
+    }
+
+    async fn merge_signer_profiles(
+        &self,
+        source_signer_id: Uuid,
+        target_signer_id: Uuid,
+    ) -> Result<SignerMergeResult, String> {
+        if source_signer_id == target_signer_id {
+            return Err("source and target signer profiles must differ".to_owned());
+        }
+        let (source, target) = {
+            let mut signers = self.signers.lock().expect("catalog signer lock");
+            let source = signers
+                .get(&source_signer_id)
+                .cloned()
+                .ok_or_else(|| "source signer profile was not found".to_owned())?;
+            let target = signers
+                .get(&target_signer_id)
+                .cloned()
+                .ok_or_else(|| "target signer profile was not found".to_owned())?;
+            signers.remove(&source_signer_id);
+            (source, target)
+        };
+        let now = now_epoch_seconds();
+        let linked_item_ids = {
+            let mut items = self.items.lock().expect("catalog state lock");
+            let mut linked_item_ids = Vec::new();
+            for item in items.values_mut() {
+                if !item
+                    .signer_credits
+                    .iter()
+                    .any(|credit| credit.signer.id == source_signer_id)
+                {
+                    continue;
+                }
+                let target_already_present = item
+                    .signer_credits
+                    .iter()
+                    .any(|credit| credit.signer.id == target_signer_id);
+                if target_already_present {
+                    item.signer_credits
+                        .retain(|credit| credit.signer.id != source_signer_id);
+                } else {
+                    for credit in &mut item.signer_credits {
+                        if credit.signer.id == source_signer_id {
+                            credit.signer = target.clone();
+                        }
+                    }
+                }
+                for (index, credit) in item.signer_credits.iter_mut().enumerate() {
+                    credit.sort_order = index as i32;
+                }
+                item.signer = compact_signer_text(&item.signer_credits);
+                item.updated_at_epoch_seconds = now;
+                linked_item_ids.push(item.id);
+            }
+            linked_item_ids
+        };
+        let summary = format!(
+            "Merged signer {} into {}",
+            source.display_name, target.display_name
+        );
+        let field_diffs = vec![FieldDiff {
+            field: "signers".to_owned(),
+            before: serde_json::to_value(&source).unwrap_or(Value::Null),
+            after: serde_json::to_value(&target).unwrap_or(Value::Null),
+        }];
+        let mut events = self.events.lock().expect("catalog event lock");
+        for item_id in &linked_item_ids {
+            events.push(AutographEditEvent::new(
+                *item_id,
+                EditEventKind::MetadataUpdated,
+                summary.clone(),
+                field_diffs.clone(),
+                now,
+            ));
+        }
+        Ok(SignerMergeResult {
+            source_signer_id,
+            target_signer_id,
+            updated_item_count: linked_item_ids.len(),
+        })
+    }
 }
 
 fn is_event_pending(event: &AutographEditEvent, boundary: Option<&PublishBoundary>) -> bool {
@@ -853,7 +1286,11 @@ fn is_event_pending(event: &AutographEditEvent, boundary: Option<&PublishBoundar
         .unwrap_or(true)
 }
 
-pub(crate) fn apply_update(item: &mut AutographItem, input: AutographItemUpdate) -> Vec<FieldDiff> {
+pub(crate) fn apply_update(
+    item: &mut AutographItem,
+    input: AutographItemUpdate,
+    resolved_signer_credits: Option<Vec<SignerCredit>>,
+) -> Vec<FieldDiff> {
     let mut field_diffs = Vec::new();
     apply_required_update("title", &mut item.title, input.title, &mut field_diffs);
     apply_required_update("signer", &mut item.signer, input.signer, &mut field_diffs);
@@ -869,7 +1306,50 @@ pub(crate) fn apply_update(item: &mut AutographItem, input: AutographItemUpdate)
         input.category,
         &mut field_diffs,
     );
-    apply_required_update("tags", &mut item.tags, input.tags, &mut field_diffs);
+    apply_required_update(
+        "tags",
+        &mut item.tags,
+        input.tags.map(normalize_unique_string_list),
+        &mut field_diffs,
+    );
+    apply_required_update(
+        "signers",
+        &mut item.signer_credits,
+        resolved_signer_credits,
+        &mut field_diffs,
+    );
+    apply_required_update(
+        "characters",
+        &mut item.characters,
+        input.characters.map(normalize_unique_string_list),
+        &mut field_diffs,
+    );
+    apply_required_update("format", &mut item.format, input.format, &mut field_diffs);
+    apply_required_update("origin", &mut item.origin, input.origin, &mut field_diffs);
+    apply_required_update(
+        "franchises",
+        &mut item.franchises,
+        input.franchises.map(normalize_unique_string_list),
+        &mut field_diffs,
+    );
+    apply_optional_update(
+        "productLine",
+        &mut item.product_line,
+        input.product_line.map(normalize_string),
+        &mut field_diffs,
+    );
+    apply_optional_update(
+        "setName",
+        &mut item.set_name,
+        input.set_name.map(normalize_string),
+        &mut field_diffs,
+    );
+    apply_required_update(
+        "language",
+        &mut item.language,
+        input.language,
+        &mut field_diffs,
+    );
     apply_optional_update(
         "objectReference",
         &mut item.object_reference,
@@ -931,6 +1411,358 @@ pub(crate) fn validate_required_fields(
         return Err(REQUIRED_FIELDS_ERROR.to_owned());
     }
     Ok(())
+}
+
+fn validate_item_taxonomy(
+    title: &str,
+    signer: &str,
+    category: &str,
+    signer_credits: &[SignerCredit],
+    format: &str,
+    language: &str,
+) -> Result<(), String> {
+    validate_required_fields(title, signer, category)?;
+    if signer_credits.is_empty() {
+        return Err("at least one signer credit is required".to_owned());
+    }
+    if format.trim().is_empty() {
+        return Err("format is required".to_owned());
+    }
+    if !matches!(language, "English" | "Japanese" | "Chinese") {
+        return Err("language must be English, Japanese, or Chinese".to_owned());
+    }
+    Ok(())
+}
+
+fn resolve_signer_credits(
+    signers: &mut HashMap<Uuid, SignerProfile>,
+    inputs: &[SignerCreditInput],
+    fallback_signer: &str,
+    now: i64,
+) -> Result<Vec<SignerCredit>, String> {
+    let inputs = if inputs.is_empty() {
+        vec![SignerCreditInput {
+            display_name: Some(fallback_signer.to_owned()),
+            ..Default::default()
+        }]
+    } else {
+        inputs.to_vec()
+    };
+
+    let mut seen = BTreeSet::new();
+    let mut credits = Vec::with_capacity(inputs.len());
+    for (index, input) in inputs.iter().enumerate() {
+        validate_profile_url(input.wikipedia_url.as_deref(), "wikipediaUrl")?;
+        validate_profile_url(input.imdb_url.as_deref(), "imdbUrl")?;
+        let profile = resolve_signer_profile(signers, input, now)?;
+        if !seen.insert(profile.normalized_name.clone()) {
+            return Err("duplicate signer credits are not allowed".to_owned());
+        }
+        credits.push(SignerCredit {
+            signer: profile,
+            sort_order: index as i32,
+            item_role: normalize_optional_string(input.item_role.clone()),
+            item_context: normalize_optional_string(input.item_context.clone()),
+        });
+    }
+
+    Ok(credits)
+}
+
+fn resolve_signer_profile(
+    signers: &mut HashMap<Uuid, SignerProfile>,
+    input: &SignerCreditInput,
+    now: i64,
+) -> Result<SignerProfile, String> {
+    if let Some(signer_id) = input.signer_id {
+        let profile = signers
+            .get(&signer_id)
+            .ok_or_else(|| "signer profile was not found".to_owned())?;
+        validate_signer_id_display_name(profile, input)?;
+        return Ok(profile.clone());
+    }
+
+    let display_name = input
+        .display_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "signer displayName is required".to_owned())?;
+    let normalized_name = normalize_signer_name(display_name);
+    if normalized_name.is_empty() {
+        return Err("signer displayName is required".to_owned());
+    }
+
+    if let Some(existing_id) = signers
+        .values()
+        .find(|profile| profile.normalized_name == normalized_name)
+        .map(|profile| profile.id)
+        && let Some(profile) = signers.get(&existing_id)
+    {
+        return Ok(profile.clone());
+    }
+
+    let profile = SignerProfile {
+        id: input.signer_id.unwrap_or_else(Uuid::new_v4),
+        display_name: display_name.to_owned(),
+        normalized_name,
+        default_role: normalize_optional_string(input.default_role.clone()),
+        wikipedia_url: normalize_optional_string(input.wikipedia_url.clone()),
+        imdb_url: normalize_optional_string(input.imdb_url.clone()),
+        created_at_epoch_seconds: now,
+        updated_at_epoch_seconds: now,
+    };
+    signers.insert(profile.id, profile.clone());
+    Ok(profile)
+}
+
+fn validate_signer_id_display_name(
+    profile: &SignerProfile,
+    input: &SignerCreditInput,
+) -> Result<(), String> {
+    let Some(display_name) = input.display_name.as_deref().map(str::trim) else {
+        return Ok(());
+    };
+    if display_name.is_empty() {
+        return Ok(());
+    }
+    let normalized_name = normalize_signer_name(display_name);
+    if normalized_name != profile.normalized_name {
+        return Err(
+            "signerId cannot be combined with a conflicting displayName; choose the matching signer or create a new signer"
+                .to_owned(),
+        );
+    }
+    Ok(())
+}
+
+fn validate_profile_url(value: Option<&str>, field: &str) -> Result<(), String> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+    if value.len() > MAX_PROFILE_URL_LENGTH {
+        return Err(format!(
+            "{field} must be {MAX_PROFILE_URL_LENGTH} characters or fewer"
+        ));
+    }
+    let Some(rest) = value.strip_prefix("https://") else {
+        return Err(format!("{field} must be an https URL"));
+    };
+    let host = rest
+        .split(['/', '?', '#', ':'])
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let allowed = match field {
+        "wikipediaUrl" => host == "wikipedia.org" || host.ends_with(".wikipedia.org"),
+        "imdbUrl" => host == "imdb.com" || host.ends_with(".imdb.com"),
+        _ => false,
+    };
+    if !allowed {
+        let expected_host = match field {
+            "wikipediaUrl" => "wikipedia.org",
+            "imdbUrl" => "imdb.com",
+            _ => "the expected profile host",
+        };
+        return Err(format!("{field} must point to {expected_host}"));
+    }
+    Ok(())
+}
+
+pub(crate) fn apply_signer_profile_update(
+    profile: &mut SignerProfile,
+    input: SignerProfileUpdateInput,
+    now: i64,
+) -> Result<(), String> {
+    let mut changed = false;
+    match input.display_name {
+        FieldPatch::Unchanged => {}
+        FieldPatch::Clear => return Err("signer displayName is required".to_owned()),
+        FieldPatch::Set(display_name) => {
+            let display_name = normalize_string(display_name);
+            let normalized_name = normalize_signer_name(&display_name);
+            if normalized_name.is_empty() {
+                return Err("signer displayName is required".to_owned());
+            }
+            if profile.display_name != display_name || profile.normalized_name != normalized_name {
+                profile.display_name = display_name;
+                profile.normalized_name = normalized_name;
+                changed = true;
+            }
+        }
+    }
+    changed |= apply_profile_optional_patch(&mut profile.default_role, input.default_role);
+    changed |= apply_profile_url_patch(
+        &mut profile.wikipedia_url,
+        input.wikipedia_url,
+        "wikipediaUrl",
+    )?;
+    changed |= apply_profile_url_patch(&mut profile.imdb_url, input.imdb_url, "imdbUrl")?;
+    if changed {
+        profile.updated_at_epoch_seconds = now;
+    }
+    Ok(())
+}
+
+fn apply_profile_optional_patch(current: &mut Option<String>, patch: FieldPatch<String>) -> bool {
+    match patch {
+        FieldPatch::Unchanged => false,
+        FieldPatch::Clear => {
+            if current.is_none() {
+                false
+            } else {
+                *current = None;
+                true
+            }
+        }
+        FieldPatch::Set(value) => {
+            let normalized = normalize_optional_string(Some(value));
+            if *current == normalized {
+                false
+            } else {
+                *current = normalized;
+                true
+            }
+        }
+    }
+}
+
+fn apply_profile_url_patch(
+    current: &mut Option<String>,
+    patch: FieldPatch<String>,
+    field: &str,
+) -> Result<bool, String> {
+    if let FieldPatch::Set(value) = &patch {
+        validate_profile_url(Some(value.as_str()), field)?;
+    }
+    Ok(apply_profile_optional_patch(current, patch))
+}
+
+pub(crate) fn signer_profile_field_diffs(
+    before: &SignerProfile,
+    after: &SignerProfile,
+) -> Vec<FieldDiff> {
+    let mut field_diffs = Vec::new();
+    push_diff_if_changed(
+        "signerProfile.displayName",
+        &before.display_name,
+        &after.display_name,
+        &mut field_diffs,
+    );
+    push_diff_if_changed(
+        "signerProfile.defaultRole",
+        &before.default_role,
+        &after.default_role,
+        &mut field_diffs,
+    );
+    push_diff_if_changed(
+        "signerProfile.wikipediaUrl",
+        &before.wikipedia_url,
+        &after.wikipedia_url,
+        &mut field_diffs,
+    );
+    push_diff_if_changed(
+        "signerProfile.imdbUrl",
+        &before.imdb_url,
+        &after.imdb_url,
+        &mut field_diffs,
+    );
+    field_diffs
+}
+
+pub(crate) fn signer_match_rank(query: &str, candidate: &str) -> Option<u8> {
+    if candidate == query {
+        return Some(0);
+    }
+    if candidate.starts_with(query) || query.starts_with(candidate) {
+        return Some(1);
+    }
+    if candidate.contains(query) || query.contains(candidate) {
+        return Some(2);
+    }
+    if query
+        .split_whitespace()
+        .any(|token| token.len() >= 3 && candidate.contains(token))
+        || candidate
+            .split_whitespace()
+            .any(|token| token.len() >= 3 && query.contains(token))
+    {
+        return Some(2);
+    }
+    if levenshtein_distance(query, candidate) <= 2 {
+        return Some(2);
+    }
+    None
+}
+
+fn levenshtein_distance(left: &str, right: &str) -> usize {
+    let mut costs = (0..=right.chars().count()).collect::<Vec<_>>();
+    for (left_index, left_char) in left.chars().enumerate() {
+        let mut previous = costs[0];
+        costs[0] = left_index + 1;
+        for (right_index, right_char) in right.chars().enumerate() {
+            let insertion = costs[right_index + 1] + 1;
+            let deletion = costs[right_index] + 1;
+            let replacement = previous + usize::from(left_char != right_char);
+            previous = costs[right_index + 1];
+            costs[right_index + 1] = insertion.min(deletion).min(replacement);
+        }
+    }
+    *costs.last().unwrap_or(&0)
+}
+
+fn compact_signer_text(credits: &[SignerCredit]) -> String {
+    credits
+        .iter()
+        .map(|credit| credit.signer.display_name.as_str())
+        .collect::<Vec<_>>()
+        .join(" + ")
+}
+
+fn normalize_optional_string(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let value = normalize_string(value);
+        if value.is_empty() { None } else { Some(value) }
+    })
+}
+
+fn normalize_string(value: String) -> String {
+    value.trim().to_owned()
+}
+
+fn normalize_string_list(values: Vec<String>) -> Vec<String> {
+    values
+        .into_iter()
+        .filter_map(|value| {
+            let value = normalize_string(value);
+            if value.is_empty() { None } else { Some(value) }
+        })
+        .collect()
+}
+
+fn normalize_unique_string_list(values: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    normalize_string_list(values)
+        .into_iter()
+        .filter(|value| seen.insert(value.clone()))
+        .collect()
+}
+
+pub fn normalize_signer_name(value: &str) -> String {
+    value
+        .trim()
+        .chars()
+        .map(|character| {
+            if character.is_alphanumeric() || character.is_whitespace() {
+                character.to_lowercase().collect::<String>()
+            } else {
+                " ".to_owned()
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub(crate) fn event_kind_for_diffs(field_diffs: &[FieldDiff]) -> EditEventKind {
@@ -1024,4 +1856,12 @@ where
 
 const fn draft() -> PublicationStatus {
     PublicationStatus::Draft
+}
+
+fn default_format() -> String {
+    DEFAULT_FORMAT.to_owned()
+}
+
+fn default_language() -> String {
+    DEFAULT_LANGUAGE.to_owned()
 }

@@ -6,6 +6,10 @@ const SCHEMA_SQL: &str = include_str!("../db/schema.sql");
 const EXPECTED_TABLES: &[&str] = &[
     "AUTOGRAPH_ITEMS",
     "AUTOGRAPH_ITEM_TAGS",
+    "AUTOGRAPH_SIGNERS",
+    "AUTOGRAPH_ITEM_SIGNERS",
+    "AUTOGRAPH_ITEM_CHARACTERS",
+    "AUTOGRAPH_ITEM_FRANCHISES",
     "AUTOGRAPH_IMAGES",
     "AUTOGRAPH_PUBLISH_JOBS",
     "AUTOGRAPH_EDIT_EVENTS",
@@ -15,6 +19,16 @@ const EXPECTED_TABLES: &[&str] = &[
 ];
 const REQUIRED_COLUMNS: &[(&str, &str)] = &[
     ("AUTOGRAPH_ITEMS", "PUBLICATION_STATUS"),
+    ("AUTOGRAPH_ITEMS", "FORMAT"),
+    ("AUTOGRAPH_ITEMS", "ORIGIN"),
+    ("AUTOGRAPH_ITEMS", "LANGUAGE"),
+    ("AUTOGRAPH_ITEMS", "PRODUCT_LINE"),
+    ("AUTOGRAPH_ITEMS", "SET_NAME"),
+    ("AUTOGRAPH_SIGNERS", "NORMALIZED_NAME"),
+    ("AUTOGRAPH_SIGNERS", "WIKIPEDIA_URL"),
+    ("AUTOGRAPH_SIGNERS", "IMDB_URL"),
+    ("AUTOGRAPH_ITEM_SIGNERS", "ITEM_ROLE"),
+    ("AUTOGRAPH_ITEM_SIGNERS", "ITEM_CONTEXT"),
     ("AUTOGRAPH_IMAGES", "ORIGINAL_FILENAME"),
     ("AUTOGRAPH_PUBLISH_JOBS", "STATUS"),
     ("AUTOGRAPH_PUBLISH_JOBS", "SNAPSHOT_EVENT_COUNT"),
@@ -26,10 +40,43 @@ const REQUIRED_COLUMNS: &[(&str, &str)] = &[
     ("AUTOGRAPH_CLEANUP_EVENTS", "RESOLVED_AT"),
     ("AUTOGRAPH_PUBLIC_DERIVATIVES", "PUBLIC_PATH"),
 ];
-const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &str)] = &[(
-    "AUTOGRAPH_EDIT_EVENTS",
-    "AUTOGRAPH_EDIT_EVENTS_TYPE_CK",
-    "cleanupChanged",
+const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[
+    (
+        "AUTOGRAPH_EDIT_EVENTS",
+        "AUTOGRAPH_EDIT_EVENTS_TYPE_CK",
+        &["cleanupChanged"],
+        "controller/db/updates/06-03-media-cleanup.sql",
+    ),
+    (
+        "AUTOGRAPH_ITEMS",
+        "AUTOGRAPH_ITEMS_FORMAT_CK",
+        &["trim(format) is not null"],
+        "controller/db/updates/07-01-taxonomy-schema.sql",
+    ),
+    (
+        "AUTOGRAPH_ITEMS",
+        "AUTOGRAPH_ITEMS_ORIGIN_CK",
+        &["Official", "Custom"],
+        "controller/db/updates/07-01-taxonomy-schema.sql",
+    ),
+    (
+        "AUTOGRAPH_ITEMS",
+        "AUTOGRAPH_ITEMS_LANGUAGE_CK",
+        &["English", "Japanese", "Chinese"],
+        "controller/db/updates/07-01-taxonomy-schema.sql",
+    ),
+    (
+        "AUTOGRAPH_SIGNERS",
+        "AUTOGRAPH_SIGNERS_NORMALIZED_NAME_CK",
+        &["trim(normalized_name) is not null"],
+        "controller/db/updates/07-01-taxonomy-schema.sql",
+    ),
+];
+const REQUIRED_UNIQUE_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[(
+    "AUTOGRAPH_SIGNERS",
+    "AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ",
+    &["NORMALIZED_NAME"],
+    "controller/db/updates/07-01-taxonomy-schema.sql",
 )];
 
 pub fn ensure_initialized(
@@ -82,23 +129,59 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
         }
     }
 
-    for (table, constraint, required_text) in REQUIRED_CHECK_CONSTRAINTS {
+    for (table, constraint, required_texts, update_script) in REQUIRED_CHECK_CONSTRAINTS {
+        for required_text in *required_texts {
+            let count: i64 = connection
+                .query_row_as(
+                    "select count(*) from user_constraints
+                      where table_name = :1
+                        and constraint_name = :2
+                        and constraint_type = 'C'
+                        and status = 'ENABLED'
+                        and search_condition_vc like '%' || :3 || '%'",
+                    &[table, constraint, required_text],
+                )
+                .map_err(|error| {
+                    format!(
+                        "inspect Oracle catalog schema constraint {table}.{constraint}: {error}"
+                    )
+                })?;
+            if count != 1 {
+                return Err(format!(
+                    "Oracle catalog schema is partially initialized; constraint {table}.{constraint} is missing required value {required_text}; run {update_script} before deploying this controller"
+                ));
+            }
+        }
+    }
+
+    for (table, constraint, columns, update_script) in REQUIRED_UNIQUE_CONSTRAINTS {
+        let expected_columns = columns.join(",");
         let count: i64 = connection
             .query_row_as(
-                "select count(*) from user_constraints
-                  where table_name = :1
-                    and constraint_name = :2
-                    and constraint_type = 'C'
-                    and status = 'ENABLED'
-                    and search_condition_vc like '%' || :3 || '%'",
-                &[table, constraint, required_text],
+                "select count(*)
+                   from (
+                     select c.constraint_name
+                       from user_constraints c
+                       join user_cons_columns col
+                         on col.table_name = c.table_name
+                        and col.constraint_name = c.constraint_name
+                      where c.table_name = :1
+                        and c.constraint_name = :2
+                        and c.constraint_type = 'U'
+                        and c.status = 'ENABLED'
+                      group by c.constraint_name
+                     having listagg(col.column_name, ',') within group (order by col.position) = :3
+                   )",
+                &[table, constraint, &expected_columns],
             )
             .map_err(|error| {
-                format!("inspect Oracle catalog schema constraint {table}.{constraint}: {error}")
+                format!(
+                    "inspect Oracle catalog schema unique constraint {table}.{constraint}: {error}"
+                )
             })?;
         if count != 1 {
             return Err(format!(
-                "Oracle catalog schema is partially initialized; constraint {table}.{constraint} is missing required value {required_text}; run controller/db/updates/06-03-media-cleanup.sql before deploying this controller"
+                "Oracle catalog schema is partially initialized; unique constraint {table}.{constraint} is missing expected column set {expected_columns}; run {update_script} before deploying this controller"
             ));
         }
     }
@@ -113,6 +196,10 @@ fn existing_autograph_tables(connection: &Connection) -> Result<HashSet<String>,
             "select table_name from user_tables where table_name in (
                 'AUTOGRAPH_ITEMS',
                 'AUTOGRAPH_ITEM_TAGS',
+                'AUTOGRAPH_SIGNERS',
+                'AUTOGRAPH_ITEM_SIGNERS',
+                'AUTOGRAPH_ITEM_CHARACTERS',
+                'AUTOGRAPH_ITEM_FRANCHISES',
                 'AUTOGRAPH_IMAGES',
                 'AUTOGRAPH_PUBLISH_JOBS',
                 'AUTOGRAPH_EDIT_EVENTS',
@@ -188,7 +275,10 @@ fn schema_statements() -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::schema_statements;
+    use super::{
+        EXPECTED_TABLES, REQUIRED_CHECK_CONSTRAINTS, REQUIRED_COLUMNS, REQUIRED_UNIQUE_CONSTRAINTS,
+        schema_statements,
+    };
 
     #[test]
     fn schema_parser_discards_comments_and_statement_terminators() {
@@ -232,5 +322,147 @@ mod tests {
         assert!(script.contains("references autograph_publish_jobs(id) on delete cascade"));
         assert!(script.contains("references autograph_edit_events(id) on delete cascade"));
         assert!(script.contains("create index autograph_publish_job_events_event_idx"));
+    }
+
+    #[test]
+    fn phase7_schema_includes_signer_and_taxonomy_tables() {
+        let statements = schema_statements();
+
+        for table in [
+            "create table autograph_signers",
+            "create table autograph_item_signers",
+            "create table autograph_item_characters",
+            "create table autograph_item_franchises",
+        ] {
+            assert!(
+                statements
+                    .iter()
+                    .any(|statement| statement.starts_with(table)),
+                "missing schema statement for {table}"
+            );
+        }
+
+        let items_statement = statements
+            .iter()
+            .find(|statement| statement.starts_with("create table autograph_items"))
+            .expect("autograph_items statement is present");
+        for column in [
+            "format varchar2(80)",
+            "origin varchar2(24)",
+            "language varchar2(40)",
+            "product_line varchar2(160)",
+            "set_name varchar2(160)",
+            "signer varchar2",
+            "category varchar2",
+        ] {
+            assert!(items_statement.contains(column), "missing {column}");
+        }
+    }
+
+    #[test]
+    fn phase7_taxonomy_update_script_is_additive() {
+        let script = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/db/updates/07-01-taxonomy-schema.sql"
+        ))
+        .expect("phase 7 taxonomy update script is readable");
+        let lower_script = script.to_ascii_lowercase();
+
+        assert!(script.contains("autograph_items_origin_ck"));
+        assert!(script.contains("autograph_items_language_ck"));
+        assert!(script.contains("autograph_signers_normalized_name_ck"));
+        assert!(script.contains("autograph_signers_normalized_name_uq"));
+        assert!(script.contains("duplicate normalized_name values exist"));
+        assert!(script.contains("autograph_item_signers"));
+        assert!(
+            script
+                .find("create table autograph_signers")
+                .expect("signer table create statement is present")
+                < script
+                    .find("alter table autograph_signers add constraint autograph_signers_normalized_name_ck")
+                    .expect("signer constraint repair statement is present")
+        );
+        assert!(!lower_script.contains("drop column signer"));
+        assert!(!lower_script.contains("drop column category"));
+        assert!(!lower_script.contains("drop table autograph_item_tags"));
+    }
+
+    #[test]
+    fn phase7_preflight_expects_taxonomy_tables_and_columns() {
+        for table in [
+            "AUTOGRAPH_SIGNERS",
+            "AUTOGRAPH_ITEM_SIGNERS",
+            "AUTOGRAPH_ITEM_CHARACTERS",
+            "AUTOGRAPH_ITEM_FRANCHISES",
+        ] {
+            assert!(
+                EXPECTED_TABLES.contains(&table),
+                "missing expected table {table}"
+            );
+        }
+
+        for required_column in [
+            ("AUTOGRAPH_ITEMS", "FORMAT"),
+            ("AUTOGRAPH_ITEMS", "ORIGIN"),
+            ("AUTOGRAPH_ITEMS", "LANGUAGE"),
+            ("AUTOGRAPH_ITEMS", "PRODUCT_LINE"),
+            ("AUTOGRAPH_ITEMS", "SET_NAME"),
+            ("AUTOGRAPH_SIGNERS", "NORMALIZED_NAME"),
+            ("AUTOGRAPH_SIGNERS", "WIKIPEDIA_URL"),
+            ("AUTOGRAPH_SIGNERS", "IMDB_URL"),
+            ("AUTOGRAPH_ITEM_SIGNERS", "ITEM_ROLE"),
+            ("AUTOGRAPH_ITEM_SIGNERS", "ITEM_CONTEXT"),
+        ] {
+            assert!(
+                REQUIRED_COLUMNS.contains(&required_column),
+                "missing required column {}.{}",
+                required_column.0,
+                required_column.1
+            );
+        }
+
+        for required_constraint in [
+            (
+                "AUTOGRAPH_ITEMS",
+                "AUTOGRAPH_ITEMS_FORMAT_CK",
+                &["trim(format) is not null"][..],
+                "controller/db/updates/07-01-taxonomy-schema.sql",
+            ),
+            (
+                "AUTOGRAPH_ITEMS",
+                "AUTOGRAPH_ITEMS_ORIGIN_CK",
+                &["Official", "Custom"][..],
+                "controller/db/updates/07-01-taxonomy-schema.sql",
+            ),
+            (
+                "AUTOGRAPH_ITEMS",
+                "AUTOGRAPH_ITEMS_LANGUAGE_CK",
+                &["English", "Japanese", "Chinese"][..],
+                "controller/db/updates/07-01-taxonomy-schema.sql",
+            ),
+            (
+                "AUTOGRAPH_SIGNERS",
+                "AUTOGRAPH_SIGNERS_NORMALIZED_NAME_CK",
+                &["trim(normalized_name) is not null"][..],
+                "controller/db/updates/07-01-taxonomy-schema.sql",
+            ),
+        ] {
+            assert!(
+                REQUIRED_CHECK_CONSTRAINTS.contains(&required_constraint),
+                "missing required check constraint {}.{}",
+                required_constraint.0,
+                required_constraint.1
+            );
+        }
+
+        assert!(
+            REQUIRED_UNIQUE_CONSTRAINTS.contains(&(
+                "AUTOGRAPH_SIGNERS",
+                "AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ",
+                &["NORMALIZED_NAME"][..],
+                "controller/db/updates/07-01-taxonomy-schema.sql",
+            )),
+            "missing signer normalized-name unique constraint preflight"
+        );
     }
 }

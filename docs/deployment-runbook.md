@@ -174,6 +174,16 @@ select constraint_name, search_condition_vc
    and constraint_name = 'AUTOGRAPH_EDIT_EVENTS_TYPE_CK';
 ```
 
+For the Phase 7 schema/taxonomy migration, apply the additive schema update and
+reviewed taxonomy backfill before relying on the schema version 2 admin/public
+code. Generate and review the migration report and PL/SQL from
+`.planning/phases/07-metadata-taxonomy-and-public-facets/taxonomy-backfill-mapping.json`,
+optionally run the reviewed PL/SQL manually through SQL Developer, then deploy
+the controller/admin/public code. A full rebuild is required after the
+schema/taxonomy migration so the promoted static release rewrites
+`collection.json`, `facets.json`, item detail JSON, and item pages with
+schemaVersion 2 taxonomy data.
+
 ## Workflow Behavior
 
 Pull requests run `.github/workflows/ci.yml`. The CI workflow checks the Rust controller, builds the controller image without pushing it, validates Terraform, and runs Ansible syntax/lint checks for the quadlet deployment.
@@ -198,7 +208,9 @@ quadlet shape, and runtime secrets only. They do not generate or export catalog
 content from GitHub-hosted runners. Catalog reads, private original access,
 derivative generation, candidate validation, and static release promotion remain
 inside the OCI/runtime boundary through the Rust controller and shared static
-volume.
+volume. After structural public-contract changes such as the Phase 7
+schema/taxonomy migration, deploy the code/config shape first and then trigger a
+runtime full rebuild through the private controller.
 
 The retired Next.js source tree has been removed from the active repository. Public behavior now lives in `controller/static-public/` and the Rust publisher/controller code.
 

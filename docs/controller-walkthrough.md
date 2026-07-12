@@ -8,8 +8,9 @@ harness.
 
 It is the completed controller foundation from Phase 5, and the old Next.js
 runtime has been retired from the active repo/runtime path. The 05-07 production
-live static publish proof and closure summary are recorded. Phase 6 adds the
-polished daily-use collection workflow on top of this foundation.
+live static publish proof and closure summary are recorded. Phase 6 added the
+polished daily-use collection workflow on top of this foundation, and Phase 7
+adds reusable signer profiles plus schema version 2 public taxonomy facets.
 
 ## Startup
 
@@ -119,6 +120,8 @@ never appear in storage paths.
 - Update item
 - Read item
 - Attach image
+- Signer suggestions, signer profile edits, and signer merge repair
+- Taxonomy suggestions for first-class item fields
 
 [`controller/src/media.rs`](../controller/src/media.rs) defines
 `PrivateMediaStore` with byte reads and writes.
@@ -152,6 +155,8 @@ originally planned as a migration from the retired Next.js app schema:
 - Adds generated derivative accounting
 - Restricts publish mode to `incremental` or `full`
 - Restricts derivatives to `thumbnail` or `detail`
+- Adds Phase 7 reusable signer profiles, item signer credits, character and
+  franchise joins, format, origin, language, product line, and set fields.
 
 For an existing deployed schema, do not replay the canonical full schema. Apply
 the relevant one-shot update from [`controller/db/updates/`](../controller/db/updates/)
@@ -182,6 +187,12 @@ Public media paths look like:
 
 The derivative fingerprint comes from the generated public WebP bytes, not from
 private Object Storage coordinates, original filenames, or private image IDs.
+The current public artifact schema is version 2. Collection and detail DTOs
+include compact signer text, signer names/roles, signer credits, characters,
+franchises, product line, set name, format, origin, language, and secondary
+tags. Public facets are generated for signer, franchise, productLine, format,
+language, origin, role, and tag; legacy category is not a schema version 2
+public facet.
 
 [`controller/src/publisher.rs`](../controller/src/publisher.rs) currently
 contains both the fixture contract profiler and the local-mode runtime
@@ -199,7 +210,8 @@ The local-mode publisher foundation is implemented. It now:
 - Promotes valid candidates atomically through the `current` pointer
 - Seeds incremental candidates from `current` and removes stale public output
 - Exposes authenticated full, incremental, and status publish endpoints
-- Generates minimal static category and tag filtering
+- Generates schema version 2 signer/taxonomy facets instead of minimal category
+  and tag filtering
 
 The final recorded live static publish proof and phase closure summary are
 captured in the Phase 5 05-07 closeout artifacts.
@@ -233,6 +245,28 @@ HTML/CSS/JavaScript, but it has moved beyond the Phase 5 seed tool:
 All collection-management actions use the session-cookie flow. The shell does
 not store credentials in browser storage, does not use direct Object Storage
 URLs, and does not depend on the retired Node operator bridge.
+
+## Phase 7 Admin Taxonomy Workflow
+
+[`controller/static-admin/`](../controller/static-admin/) now organizes item
+editing around the Phase 7 taxonomy model while preserving the Phase 6 image,
+history, pending-change, and publish workflow.
+
+- Identity contains the required title, character names, and repeatable signer
+  rows. Signer rows support inline suggestions, create-or-select behavior, and
+  optional Wikipedia/IMDb profile links.
+- Classification contains format, franchise, product line, set, language, and
+  the custom-item origin checkbox. Existing values are suggested inline without
+  requiring a separate taxonomy-management screen.
+- Details contains description, inscription, event/source/location/year,
+  certification fields, and loose secondary tags.
+- `Possible duplicate signer` warnings flag likely typos without blocking a
+  deliberate new signer.
+- `Merge signer` repair consolidates typo-created signer profiles and records
+  item-level history for linked items.
+- Save and publish remain separate. Saving writes private Oracle metadata and
+  edit history; publishing generates and promotes public-safe static artifacts
+  only after candidate validation passes.
 
 ## Static Admin Shell
 

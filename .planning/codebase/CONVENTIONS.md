@@ -1,6 +1,6 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-07-02
+**Analysis Date:** 2026-07-10
 
 ## Naming Patterns
 
@@ -29,6 +29,10 @@
   image, supporting images, publication status, static release, candidate
   release, generated derivative, private original, admin shell, publisher,
   controller, edit history, and security patching issue.
+- For Phase 7 work, prefer the richer taxonomy terms: signer profile, signer
+  credit, signer role, character, franchise, product line, set name, format,
+  origin, language, loose tags, schema version 2 facets, taxonomy backfill, and
+  legacy-field deprecation.
 
 ## Code Style
 
@@ -43,6 +47,10 @@
   same-origin `/admin/api/*` calls, no browser storage for credentials, redacted
   diagnostics, field-level history, cautious cleanup warnings, explicit publish
   batching, and bounded retention status.
+- Phase 7 admin taxonomy copy should keep Identity, Classification, and Details
+  as the main editor sections. Signer suggestions, duplicate warnings, and
+  merge repair should remain private admin workflow features, not public
+  taxonomy screens.
 - Keep Ansible playbooks thin and put reusable behavior in roles.
 
 ## Error Handling
@@ -63,6 +71,10 @@
   `cargo fmt`, `cargo test`, `cargo check --features production-persistence`,
   `cargo build --features production-persistence`, and `cargo clippy`.
 - Keep static contract/privacy tests mandatory for public artifact changes.
+- For Phase 7 public output changes, keep schema version 2 static contract
+  tests and live static publish smoke taxonomy assertions aligned with public
+  facets: signer, franchise, productLine, format, language, origin, role, and
+  tag. Category is not a schema version 2 public facet.
 - Use live smoke workflows/runbooks only when real Oracle/Object Storage
   credentials and tenancy state are required.
 - Run Ansible syntax/lint checks for deployment, cleanup, and security patching
@@ -78,6 +90,10 @@
   agents do not resurrect retired architecture.
 - Keep local/CI verification distinct from operator-run live Oracle/Object
   Storage smoke evidence.
+- Document migration/backfill steps as report review, PL/SQL review, optional
+  SQL Developer application, deploy, full static publish, and verification.
+  Keep legacy `signer`, `category`, and `autograph_item_tags` cleanup framed as
+  a later deprecation path until live schema version 2 verification is complete.
 
 ## Current Guidance
 
@@ -87,10 +103,15 @@
   session-cookie collection-management auth, field-level history, media cleanup
   ergonomics, pending-change status, explicit publish controls, release
   retention, operator docs, and security review are current-state behavior.
-- Phase 7 owns advisory AI-assisted ingest.
+- Phase 7 metadata taxonomy and public facets are implemented: reusable signer
+  profiles, item signer credits, first-class taxonomy fields, schema version 2
+  public facets, signer merge repair, taxonomy backfill artifacts, rollout docs,
+  and security review.
+- Phase 8 owns advisory AI-assisted ingest on top of the richer manual metadata
+  model.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage
   URLs, or a split multi-service architecture for v1.
 
 ---
 
-*Conventions refreshed: 2026-07-02 after Phase 6 admin docs/security closeout*
+*Conventions refreshed: 2026-07-10 after Phase 7 taxonomy closeout*

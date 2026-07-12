@@ -7,7 +7,8 @@ served as static output. GitHub Actions builds and deploys code artifacts only.
 It never reads Oracle catalog content, private Object Storage metadata, or
 private media, and it never generates catalog content.
 
-The initial public contract uses `schemaVersion: 1`. Public artifacts are
+The current public contract uses `schemaVersion: 2`; this is the schemaVersion 2
+public artifact contract. Public artifacts are
 display and filtering DTOs, not serialized database rows.
 
 ## Selected Shape
@@ -23,7 +24,7 @@ Phase 5 uses split collection data plus per-item detail JSON:
 | Architecture page | `/architecture/index.html` | Static copy of the public architecture/about route |
 | Architecture diagram | `/architecture/architecture-diagram.svg` | Static architecture diagram asset |
 | Collection data | `/data/collection.json` | Gallery cards and primary image variants |
-| Facets | `/data/facets.json` | Signer, category, and tag filtering values |
+| Facets | `/data/facets.json` | Signer, franchise, product line, format, language, origin, role, and tag filtering values |
 | Item page | `/items/{item-slug}/index.html` | Static item detail shell |
 | Item detail data | `/data/items/{item-slug}.json` | Full public-safe item detail DTO |
 | Publish manifest | `/manifest.json` | Release ID, generation timestamp, artifact paths, and byte sizes |
@@ -48,7 +49,7 @@ publisher detail template because their content varies with catalog records.
 ## Versioning
 
 `collection.json`, `facets.json`, each item detail JSON artifact, and
-`manifest.json` contain `schemaVersion: 1`.
+`manifest.json` contain `schemaVersion: 2`.
 
 Contract changes that break an existing static reader require a schema version
 increment and a full rebuild. Additive fields may remain within a version when
@@ -58,17 +59,28 @@ old readers can safely ignore them.
 
 Gallery DTOs contain:
 
-- Public item slug, title, signer, description, category, and curated tags.
+- Public item slug, title, `signerText`, `signerNames`, `signerRoles`,
+  `signers`, `characters`, `franchises`, `productLine`, `setName`, `format`,
+  `origin`, `language`, and secondary `tags`.
+- Compact signer text for collection cards and the complete signer list for
+  accessible labels and detail views.
 - An optional primary image with public derivative variants.
 
 Detail DTOs add:
 
 - Public derivative images.
 - Display-oriented detail groups.
+- Full signer credit rows, including optional role/context values and optional
+  public-safe signer profile links for Wikipedia or IMDb. Collection cards do
+  not expose those external profile links.
 
 Facet DTOs contain:
 
-- Signer, category, and tag options for filtering.
+- Facet groups with ids `signer`, `franchise`, `productLine`, `format`,
+  `language`, `origin`, `role`, and `tag`.
+- Category is not a schemaVersion 2 facet. Legacy `category` values may remain
+  in Oracle for rollback/reference during Phase 7, but generated public facets
+  come from the schema version 2 taxonomy fields.
 
 Manifest entries contain:
 

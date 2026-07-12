@@ -11,7 +11,12 @@ pub struct AdminItemFilter {
     pub title: Option<String>,
     pub category: Option<String>,
     pub tag: Option<String>,
+    pub franchise: Option<String>,
+    pub product_line: Option<String>,
+    pub format: Option<String>,
+    pub language: Option<String>,
     pub publication_status: Option<PublicationStatus>,
+    pub changes: Option<String>,
 }
 
 #[async_trait]
@@ -50,10 +55,14 @@ where
 
 fn admin_item_matches(item: &AutographItem, filter: &AdminItemFilter) -> bool {
     query_matches(item, &filter.query)
-        && text_matches(&item.signer, &filter.signer)
+        && signer_matches(item, &filter.signer)
         && text_matches(&item.title, &filter.title)
         && text_matches(&item.category, &filter.category)
         && tags_match(&item.tags, &filter.tag)
+        && list_matches(&item.franchises, &filter.franchise)
+        && option_text_matches(&item.product_line, &filter.product_line)
+        && text_matches(&item.format, &filter.format)
+        && text_matches(&item.language, &filter.language)
         && filter
             .publication_status
             .is_none_or(|status| item.publication_status == status)
@@ -66,12 +75,52 @@ fn query_matches(item: &AutographItem, query: &Option<String>) -> bool {
 
     contains_normalized(&item.title, &query)
         || contains_normalized(&item.signer, &query)
+        || item
+            .signer_credits
+            .iter()
+            .any(|credit| contains_normalized(&credit.signer.display_name, &query))
         || contains_normalized(&item.category, &query)
+        || contains_normalized(&item.format, &query)
+        || contains_normalized(&item.language, &query)
+        || item
+            .franchises
+            .iter()
+            .any(|value| contains_normalized(value, &query))
+        || item
+            .product_line
+            .as_ref()
+            .is_some_and(|value| contains_normalized(value, &query))
         || item.tags.iter().any(|tag| contains_normalized(tag, &query))
+}
+
+fn signer_matches(item: &AutographItem, query: &Option<String>) -> bool {
+    normalized_query(query).is_none_or(|query| {
+        contains_normalized(&item.signer, &query)
+            || item
+                .signer_credits
+                .iter()
+                .any(|credit| contains_normalized(&credit.signer.display_name, &query))
+    })
 }
 
 fn text_matches(value: &str, query: &Option<String>) -> bool {
     normalized_query(query).is_none_or(|query| contains_normalized(value, &query))
+}
+
+fn option_text_matches(value: &Option<String>, query: &Option<String>) -> bool {
+    normalized_query(query).is_none_or(|query| {
+        value
+            .as_ref()
+            .is_some_and(|value| contains_normalized(value, &query))
+    })
+}
+
+fn list_matches(values: &[String], query: &Option<String>) -> bool {
+    normalized_query(query).is_none_or(|query| {
+        values
+            .iter()
+            .any(|value| contains_normalized(value, &query))
+    })
 }
 
 fn tags_match(tags: &[String], query: &Option<String>) -> bool {

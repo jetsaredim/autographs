@@ -1,0 +1,106 @@
+---
+phase: 07-metadata-taxonomy-and-public-facets
+review: 07-REVIEW.md
+fixed: 2026-07-10T02:30:00Z
+status: fixed
+fix_scope: critical_warning
+commits:
+  - 561d840
+  - 27731f2
+  - d7fb1a1
+  - c069a4d
+  - bd6ae3b
+  - 91a519c
+  - d4c1489
+  - 3d79fb4
+  - 2edb3d1
+  - 1e1aed2
+---
+
+# Phase 07 Review Fix Report
+
+## Summary
+
+Applied fixes for all blocker and warning findings from `07-REVIEW.md`, then completed
+the follow-up fixes requested by the re-review.
+
+## Fixes
+
+- `CR-01`: tightened signer profile URL validation to allow only HTTPS Wikipedia and IMDb profile hosts before values can reach public detail-page links.
+- `CR-02`: changed admin signer payload collection to read row-scoped `data-signer-field` inputs so removing signer rows does not drop the remaining signer credits.
+- `CR-03`: stopped sending item role edits as reusable signer `defaultRole` updates from the item editor.
+- `WR-01`: mapped known validation failures to `400 Bad Request` instead of `500 Internal Server Error`.
+- `WR-02`: deduplicated comma-separated taxonomy token lists in the admin payload path.
+- `WR-03`: corrected the static runtime runbook create-item payload to include compatibility fields and `itemRole`.
+
+## Follow-up Fixes
+
+- `CR-01`: mirrored HTTPS/host signer profile URL validation in the Oracle repository so production persistence rejects unsafe public detail-page link values.
+- `WR-01`: deduplicated direct API taxonomy lists at the Rust repository boundary and before Oracle insert loops so duplicate tags, characters, and franchises do not trigger Oracle key collisions.
+
+## Second Follow-up Fixes
+
+- `CR-01`: cleared stale signer IDs in the admin item editor when the visible signer name diverges, and rejected direct/stale payloads that combine a signer ID with a conflicting display name.
+- `CR-02`: updated the taxonomy backfill generator and checked-in apply SQL to merge unambiguous legacy signers into `autograph_signers` and link items through `autograph_item_signers` before role updates.
+- `WR-01`: changed Oracle signer suggestions to query matching profiles in SQL instead of filtering the first 50 rows, and removed the silent 50-profile cap from taxonomy suggestions.
+
+## Third Follow-up Fix
+
+- `CR-01`: made provided signer IDs fail closed when the referenced profile is missing, preventing stale clients from recreating signer profiles that were deleted by merge cleanup.
+
+## Fourth Follow-up Fix
+
+- `CR-01`: made item-save signer reuse non-mutating for existing profiles, preserving reusable profile metadata while still allowing brand-new signer creation to initialize profile links/default roles.
+
+## Fifth Follow-up Fixes
+
+- `CR-01`: changed signer profile PATCH input to explicit patch semantics so omitted fields are preserved, JSON `null` clears optional fields, and display name remains required.
+- `WR-01`: marked multiple mapped signer-role values for the same legacy item as `NeedsReview` so backfill generation does not silently choose one role.
+
+## Sixth Follow-up Fix
+
+- `WR-01`: extended Oracle schema preflight to verify Phase 7 check and unique constraints, with failure messages pointing at `07-01-taxonomy-schema.sql`.
+
+## Seventh Follow-up Fixes
+
+- `CR-01`: made Phase 7 Oracle check-constraint preflight verify every accepted enum value, not just one representative token.
+- `CR-02`: made signer unique-constraint preflight verify the exact `NORMALIZED_NAME` column set.
+- `CR-03`: prevented Oracle metadata saves from writing synthetic legacy fallback signer credits with the nil UUID.
+- `WR-01`: made `07-01-taxonomy-schema.sql` idempotently repair signer normalized-name constraints on existing signer tables after duplicate detection.
+
+## Eighth Follow-up Fix
+
+- `CR-01`: moved signer constraint remediation after the signer table creation block so normal Phase 6-to-Phase 7 upgrades do not alter a missing table.
+
+## Ninth Follow-up Fixes
+
+- `CR-01`: removed the redundant `AUTOGRAPH_SIGNERS(NORMALIZED_NAME)` index because the unique constraint already supplies the lookup index.
+- `CR-02`: disabled item-editor profile-link fields for existing signer rows so reusable profile metadata is edited through the signer profile route rather than silently ignored by item saves.
+- `WR-01`: updated checked-in static fixtures to use schema v2 fingerprinted media paths and added assertions preventing unfingerprinted fixture paths.
+
+## Verification
+
+- `node --check controller/static-admin/admin.js`
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin -- --nocapture`
+- `cargo test --manifest-path controller/Cargo.toml --test admin_workflow -- --nocapture`
+- `cargo fmt --manifest-path controller/Cargo.toml --check`
+- `cargo check --manifest-path controller/Cargo.toml --features production-persistence`
+- `node --check controller/static-admin/admin.js && node --check controller/static-public/assets/browse.js`
+- `cargo test --manifest-path controller/Cargo.toml`
+- `cargo test --manifest-path controller/Cargo.toml direct_taxonomy_payloads_are_trimmed_and_deduplicated`
+- `cargo test --manifest-path controller/Cargo.toml --features production-persistence oracle_profile_urls_require_https_expected_hosts`
+- `cargo run --manifest-path controller/Cargo.toml --bin taxonomy_backfill -- plsql --mapping .planning/phases/07-metadata-taxonomy-and-public-facets/taxonomy-backfill-mapping.json --input controller/fixtures/taxonomy-legacy-export.json --out controller/db/updates/07-03-taxonomy-backfill-apply.sql`
+- `cargo test --manifest-path controller/Cargo.toml item_signer_credit_rejects_conflicting_profile_id_and_display_name`
+- `cargo test --manifest-path controller/Cargo.toml --test taxonomy_migration`
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only`
+- `cargo test --manifest-path controller/Cargo.toml stale_signer_id_after_merge_does_not_recreate_source_profile`
+- `cargo test --manifest-path controller/Cargo.toml item_signer_reuse_preserves_existing_profile_metadata`
+- `cargo test --manifest-path controller/Cargo.toml partial_signer_profile_update_preserves_omitted_optional_fields`
+- `cargo test --manifest-path controller/Cargo.toml --test taxonomy_migration`
+- `cargo test --manifest-path controller/Cargo.toml phase7_preflight_expects_taxonomy_tables_and_columns`
+- `cargo test --manifest-path controller/Cargo.toml --features production-persistence phase7_preflight_expects_taxonomy_tables_and_columns`
+- `cargo test --manifest-path controller/Cargo.toml --features production-persistence oracle_skips_synthetic_legacy_signer_credit_writeback`
+- `cargo test --manifest-path controller/Cargo.toml phase7_taxonomy_update_script_is_additive`
+- `cargo test --manifest-path controller/Cargo.toml --features production-persistence phase7_taxonomy_update_script_is_additive`
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only`
+- `cargo test --manifest-path controller/Cargo.toml --test static_contract checked_in_static_fixtures_are_schema_v2_taxonomy_examples`

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub const PUBLIC_SCHEMA_VERSION: u32 = 1;
+pub const PUBLIC_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -23,11 +23,35 @@ impl PublicCatalog {
 pub struct PublicGalleryItem {
     pub slug: String,
     pub title: String,
-    pub signer: String,
+    pub signer_text: String,
+    pub signer_names: Vec<String>,
+    pub signer_roles: Vec<String>,
     pub description: Option<String>,
-    pub category: String,
+    pub characters: Vec<String>,
+    pub franchises: Vec<String>,
+    pub product_line: Option<String>,
+    pub set_name: Option<String>,
+    pub format: String,
+    pub origin: String,
+    pub language: String,
     pub tags: Vec<String>,
     pub primary_image: Option<PublicImage>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicSignerLink {
+    pub wikipedia: Option<String>,
+    pub imdb: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicSignerCredit {
+    pub display_name: String,
+    pub role: Option<String>,
+    pub context: Option<String>,
+    pub links: PublicSignerLink,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -36,9 +60,18 @@ pub struct PublicItemDetail {
     pub schema_version: u32,
     pub slug: String,
     pub title: String,
-    pub signer: String,
+    pub signer_text: String,
+    pub signer_names: Vec<String>,
+    pub signer_roles: Vec<String>,
+    pub signers: Vec<PublicSignerCredit>,
     pub description: Option<String>,
-    pub category: String,
+    pub characters: Vec<String>,
+    pub franchises: Vec<String>,
+    pub product_line: Option<String>,
+    pub set_name: Option<String>,
+    pub format: String,
+    pub origin: String,
+    pub language: String,
     pub tags: Vec<String>,
     pub images: Vec<PublicImage>,
     pub detail_groups: Vec<PublicDetailGroup>,
@@ -150,7 +183,12 @@ impl PublicFacets {
 #[serde(rename_all = "camelCase")]
 pub enum FacetId {
     Signer,
-    Category,
+    Franchise,
+    ProductLine,
+    Format,
+    Language,
+    Origin,
+    Role,
     Tag,
 }
 
@@ -215,9 +253,17 @@ mod tests {
         let catalog = PublicCatalog::new(vec![PublicGalleryItem {
             slug: "signed-jedi-card".to_owned(),
             title: "Signed Jedi Card".to_owned(),
-            signer: "Mark Hamill".to_owned(),
+            signer_text: "Mark Hamill".to_owned(),
+            signer_names: vec!["Mark Hamill".to_owned()],
+            signer_roles: vec!["Actor".to_owned()],
             description: None,
-            category: "Star Wars CCG".to_owned(),
+            characters: vec!["Luke Skywalker".to_owned()],
+            franchises: vec!["Star Wars".to_owned()],
+            product_line: Some("Star Wars CCG".to_owned()),
+            set_name: Some("Premiere".to_owned()),
+            format: "Trading Card".to_owned(),
+            origin: "Official".to_owned(),
+            language: "English".to_owned(),
             tags: vec!["jedi".to_owned()],
             primary_image: Some(PublicImage {
                 alt_text: "Signed card front".to_owned(),
@@ -227,7 +273,9 @@ mod tests {
 
         let json = serde_json::to_string(&catalog).expect("serialize public catalog");
 
-        assert!(json.contains(r#""schemaVersion":1"#));
+        assert!(json.contains(r#""schemaVersion":2"#));
+        assert!(json.contains(r#""signerText":"Mark Hamill""#));
+        assert!(json.contains(r#""productLine":"Star Wars CCG""#));
         assert!(json.contains("/media/signed-jedi-card/front-thumbnail-0123456789abcdef.webp"));
     }
 }
