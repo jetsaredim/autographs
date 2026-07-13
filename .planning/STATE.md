@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: ready-for-next-phase
 stopped_at: Phase 07 complete; Phase 08 not started
-last_updated: "2026-07-11T01:35:40.725Z"
-last_activity: 2026-07-11
+last_updated: "2026-07-13T17:29:46.772Z"
+last_activity: 2026-07-13
 progress:
   total_phases: 8
   completed_phases: 7
@@ -178,3 +178,4 @@ Resume file: None
 | 2026-07-13 | improve-controller-publish-progress-logg | Added privacy-safe publish progress stages, safe public counts, redacted failure logging, and publisher/status regressions for issue 168. |
 | 2026-07-13 | add-privacy-safe-controller-operation-lo | Added broader privacy-safe controller operation logs and regression coverage preventing private object-key tracing. |
 | 2026-07-13 | address-issue-167-align-resolve-runtime- | Aligned the shared runtime-IP Terraform default with the production root and added CI validation to catch future version drift. |
+| 2026-07-13 | fix-admin-item-list-visual-alignment-and | Replaced admin item-list status/change words with accessible icon badges, fixed action-cell row-line alignment, and captured taxonomy thumbnail support as a follow-up recommendation. |

@@ -120,8 +120,14 @@ const buttonNode = (text, className, onClick) => {
 };
 
 const iconPaths = {
+  archived:
+    '<path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"></path><path d="M10 12h4"></path><path d="M1 3h22v5H1z"></path>',
+  clean: '<path d="M20 6 9 17l-5-5"></path>',
+  draft: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path>',
   edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
   history: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle>',
+  pending: '<path d="M12 9v4"></path><path d="M12 17h.01"></path><circle cx="12" cy="12" r="10"></circle>',
+  published: '<path d="M12 2v20"></path><path d="m17 5-5-3-5 3"></path><path d="m17 19-5 3-5-3"></path><path d="M2 12h20"></path><path d="m5 7-3 5 3 5"></path><path d="m19 7 3 5-3 5"></path>',
   status: '<path d="M22 12h-4l-3 7-6-14-3 7H2"></path>',
 };
 
@@ -135,6 +141,39 @@ const iconButton = (label, icon, onClick) => {
   button.addEventListener("click", onClick);
   return button;
 };
+
+const iconNode = (icon) => {
+  const wrapper = document.createElement("span");
+  wrapper.className = "status-icon-glyph";
+  wrapper.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24">${iconPaths[icon]}</svg>`;
+  return wrapper;
+};
+
+const iconBadge = (label, icon, tone) => {
+  const badge = document.createElement("span");
+  badge.className = `status-icon ${tone}`;
+  badge.setAttribute("role", "img");
+  badge.setAttribute("aria-label", label);
+  badge.title = label;
+  badge.append(iconNode(icon));
+  return badge;
+};
+
+const publicationStatusIcon = (status) => {
+  const normalized = String(status || "draft").toLowerCase();
+  if (normalized === "published") {
+    return iconBadge("Published", "published", "status-icon-success");
+  }
+  if (normalized === "archived") {
+    return iconBadge("Archived", "archived", "status-icon-muted");
+  }
+  return iconBadge("Draft", "draft", "status-icon-neutral");
+};
+
+const pendingChangesIcon = (hasPendingChanges) =>
+  hasPendingChanges
+    ? iconBadge("Pending changes", "pending", "status-icon-warning")
+    : iconBadge("No pending changes", "clean", "status-icon-success");
 
 const formatEpoch = (seconds) => {
   if (!seconds) {
@@ -438,22 +477,29 @@ async function renderItemList() {
         item.signerText || item.signer,
         item.format,
         [item.franchises?.join(", "), item.productLine].filter(Boolean).join(" / "),
-        item.publicationStatus,
         String(item.imageCount || 0),
-        item.hasPendingChanges ? "Pending" : "Clean",
         formatEpoch(item.updatedAtEpochSeconds),
       ]) {
         const cell = document.createElement("td");
         cell.textContent = value || "Empty";
         row.append(cell);
       }
+      const publicationCell = document.createElement("td");
+      publicationCell.append(publicationStatusIcon(item.publicationStatus));
+      row.insertBefore(publicationCell, row.children[4]);
+      const changesCell = document.createElement("td");
+      changesCell.append(pendingChangesIcon(item.hasPendingChanges));
+      row.insertBefore(changesCell, row.children[6]);
       const actions = document.createElement("td");
-      actions.className = "row-actions";
-      actions.append(
+      actions.className = "actions-cell";
+      const actionGroup = document.createElement("div");
+      actionGroup.className = "row-actions";
+      actionGroup.append(
         iconButton("Edit item", "edit", () => loadItem(item.id)),
         iconButton("View history", "history", () => loadItem(item.id, true)),
         iconButton("Publish status", "status", () => setView("publish-view"))
       );
+      actions.append(actionGroup);
       row.append(actions);
       body.append(row);
     }
