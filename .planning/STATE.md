@@ -176,3 +176,4 @@ Resume file: None
 | 2026-07-01 | fix-catalog-filename-privacy-scan | Addressed PR #155 publisher privacy-scan review warnings by narrowing filename scan surfaces and adding filename/static-data regressions. |
 | 2026-07-02 | admin-ui-density-and-public-detail-clean | Simplified the admin hub, made dashboard/filter surfaces collapsible, added icon row actions and item sorting/filtering, and restored richer public item detail metadata. |
 | 2026-07-13 | improve-controller-publish-progress-logg | Added privacy-safe publish progress stages, safe public counts, redacted failure logging, and publisher/status regressions for issue 168. |
+| 2026-07-13 | add-privacy-safe-controller-operation-lo | Added broader privacy-safe controller operation logs and regression coverage preventing private object-key tracing. |

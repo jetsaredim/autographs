@@ -273,9 +273,11 @@ async fn admin_health(State(state): State<AppState>) -> Json<AdminHealthResponse
 
 async fn admin_status(State(state): State<AppState>, headers: HeaderMap) -> Response {
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        tracing::warn!(status = %status, "rejected admin status request");
         return status.into_response();
     }
 
+    let started = Instant::now();
     let pending_changes = match state.repository.pending_changes().await {
         Ok(summary) => summary,
         Err(error) => {
@@ -297,6 +299,14 @@ async fn admin_status(State(state): State<AppState>, headers: HeaderMap) -> Resp
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
+    tracing::info!(
+        pending_change_count = pending_changes.count,
+        cleanup_warning_count = cleanup_warnings.len(),
+        promoted_release_count = release_retention.promoted_release_count,
+        failed_candidate_count = release_retention.failed_candidate_count,
+        elapsed_ms = started.elapsed().as_millis(),
+        "loaded admin status"
+    );
 
     Json(AdminStatusResponse {
         providers: ProviderModesResponse {
@@ -335,8 +345,14 @@ async fn admin_status(State(state): State<AppState>, headers: HeaderMap) -> Resp
 }
 
 async fn login(State(state): State<AppState>, Json(payload): Json<LoginRequest>) -> Response {
+    let started = Instant::now();
     match state.auth.login(&payload.password) {
         Ok(session) => {
+            tracing::info!(
+                elapsed_ms = started.elapsed().as_millis(),
+                secure_cookies = state.config.secure_cookies,
+                "admin login succeeded"
+            );
             let mut response = StatusCode::NO_CONTENT.into_response();
             response.headers_mut().insert(
                 header::SET_COOKIE,
@@ -346,10 +362,20 @@ async fn login(State(state): State<AppState>, Json(payload): Json<LoginRequest>)
             response
         }
         Err(LoginError::InvalidCredential) => {
+            tracing::warn!(
+                elapsed_ms = started.elapsed().as_millis(),
+                "admin login rejected"
+            );
             (StatusCode::UNAUTHORIZED, "Invalid admin credentials.").into_response()
         }
         Err(LoginError::Locked) => (
-            StatusCode::TOO_MANY_REQUESTS,
+            {
+                tracing::warn!(
+                    elapsed_ms = started.elapsed().as_millis(),
+                    "admin login rejected by lockout"
+                );
+                StatusCode::TOO_MANY_REQUESTS
+            },
             "Too many login attempts. Wait and try again.",
         )
             .into_response(),
@@ -359,14 +385,19 @@ async fn login(State(state): State<AppState>, Json(payload): Json<LoginRequest>)
 async fn logout(State(state): State<AppState>, method: Method, headers: HeaderMap) -> Response {
     let auth = match authenticate(&state, &headers) {
         Some(auth) => auth,
-        None => return StatusCode::UNAUTHORIZED.into_response(),
+        None => {
+            tracing::warn!("rejected admin logout request");
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
     };
     if !csrf_allowed(&state, &method, &headers, &auth) {
+        tracing::warn!("rejected admin logout request by csrf guard");
         return StatusCode::FORBIDDEN.into_response();
     }
     if let AuthKind::Session(session) = auth {
         state.auth.logout(&session);
     }
+    tracing::info!("admin logout succeeded");
     let mut response = StatusCode::NO_CONTENT.into_response();
     response.headers_mut().insert(
         header::SET_COOKIE,
@@ -412,8 +443,11 @@ async fn create_item(
 
     let started = Instant::now();
     tracing::info!(
-        title = %input.title,
-        category = %input.category,
+        tag_count = input.tags.len(),
+        signer_credit_count = input.signer_credits.len(),
+        character_count = input.characters.len(),
+        franchise_count = input.franchises.len(),
+        publication_status = ?input.publication_status,
         "creating catalog item"
     );
     match state.repository.create(input).await {
@@ -481,12 +515,19 @@ async fn upload_image(
         return status.into_response();
     }
     let Ok(item_id) = Uuid::parse_str(&id) else {
+        tracing::warn!("rejected upload image request with malformed item id");
         return StatusCode::BAD_REQUEST.into_response();
     };
     let existing_item = match state.repository.get(item_id).await {
         Ok(Some(item)) => item,
-        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        Ok(None) => {
+            tracing::warn!(%item_id, "rejected upload image request for missing item");
+            return StatusCode::NOT_FOUND.into_response();
+        }
+        Err(error) => {
+            tracing::error!(%item_id, error = %error, "failed to load item before image upload");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
     };
 
     let mut filename = None;
@@ -510,6 +551,7 @@ async fn upload_image(
         }
     }
     let Some(body) = body else {
+        tracing::warn!(%item_id, "rejected image upload without image body");
         return StatusCode::BAD_REQUEST.into_response();
     };
     let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_owned());
@@ -518,9 +560,21 @@ async fn upload_image(
         "image/jpeg" | "image/png" | "image/webp"
     ) || body.len() > MAX_IMAGE_UPLOAD_BYTES
     {
+        tracing::warn!(
+            %item_id,
+            content_type = %content_type,
+            byte_size = body.len(),
+            "rejected image upload by content type or size"
+        );
         return StatusCode::BAD_REQUEST.into_response();
     }
     if !valid_image_upload(&content_type, &body) {
+        tracing::warn!(
+            %item_id,
+            content_type = %content_type,
+            byte_size = body.len(),
+            "rejected image upload by image validation"
+        );
         return StatusCode::BAD_REQUEST.into_response();
     }
 
@@ -530,13 +584,18 @@ async fn upload_image(
     tracing::info!(
         %item_id,
         %image_id,
-        %object_key,
         content_type = %content_type,
         byte_size = body.len(),
+        requested_primary = requested_primary,
         "uploading catalog image"
     );
     if let Err(error) = state.media.write(&object_key, &body).await {
-        tracing::error!(%item_id, %image_id, %object_key, %error, "failed to write uploaded image to private media store");
+        tracing::error!(
+            %item_id,
+            %image_id,
+            error_kind = classify_media_error(&error),
+            "failed to write uploaded image to private media store"
+        );
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     let image = AutographImage {
@@ -560,7 +619,6 @@ async fn upload_image(
             tracing::info!(
                 %item_id,
                 %image_id,
-                %object_key,
                 image_count = item.images.len(),
                 elapsed_ms = started.elapsed().as_millis(),
                 "uploaded catalog image"
@@ -569,7 +627,7 @@ async fn upload_image(
             (StatusCode::CREATED, Json(response)).into_response()
         }
         Err(error) => {
-            tracing::error!(%item_id, %image_id, %object_key, ?error, "failed to attach uploaded image metadata");
+            tracing::error!(%item_id, %image_id, error = %error, "failed to attach uploaded image metadata");
             let _ = state.media.delete(&object_key).await;
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
@@ -583,14 +641,30 @@ async fn set_primary_image(
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, item_id = %id, image_id = %image_id, "rejected set primary image request");
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
+        tracing::warn!("rejected set primary image request with malformed id");
         return StatusCode::BAD_REQUEST.into_response();
     };
+    let started = Instant::now();
+    tracing::info!(%item_id, %image_id, "setting primary image");
     match state.repository.set_primary_image(item_id, image_id).await {
-        Ok(item) => Json(item_response_with_state(&state, item).await).into_response(),
-        Err(error) => repository_update_error_status(&error).into_response(),
+        Ok(item) => {
+            tracing::info!(
+                %item_id,
+                %image_id,
+                image_count = item.images.len(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "set primary image"
+            );
+            Json(item_response_with_state(&state, item).await).into_response()
+        }
+        Err(error) => {
+            tracing::error!(%item_id, %image_id, error = %error, "failed to set primary image");
+            repository_update_error_status(&error).into_response()
+        }
     }
 }
 
@@ -601,14 +675,21 @@ async fn delete_image(
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, item_id = %id, image_id = %image_id, "rejected delete image request");
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
+        tracing::warn!("rejected delete image request with malformed id");
         return StatusCode::BAD_REQUEST.into_response();
     };
+    let started = Instant::now();
+    tracing::info!(%item_id, %image_id, "deleting catalog image");
     let item = match state.repository.get(item_id).await {
         Ok(Some(item)) => item,
-        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Ok(None) => {
+            tracing::warn!(%item_id, %image_id, "rejected delete image request for missing item");
+            return StatusCode::NOT_FOUND.into_response();
+        }
         Err(error) => {
             tracing::error!(%item_id, error = %error, "failed to load item before image delete");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -620,11 +701,17 @@ async fn delete_image(
         .find(|image| image.id == image_id)
         .cloned()
     else {
+        tracing::warn!(%item_id, %image_id, "rejected delete image request for missing image");
         return StatusCode::NOT_FOUND.into_response();
     };
 
     if let Err(error) = state.media.delete(&image.object_key).await {
-        tracing::warn!(%item_id, %image_id, error = %error, "private image delete failed");
+        tracing::warn!(
+            %item_id,
+            %image_id,
+            error_kind = classify_media_error(&error),
+            "private image delete failed"
+        );
         return cleanup_warning_response(&state, item_id, image_id, &image.object_key, "delete")
             .await;
     }
@@ -634,7 +721,16 @@ async fn delete_image(
         .remove_image_metadata(item_id, image_id)
         .await
     {
-        Ok(item) => Json(item_response_with_state(&state, item).await).into_response(),
+        Ok(item) => {
+            tracing::info!(
+                %item_id,
+                %image_id,
+                image_count = item.images.len(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "deleted catalog image"
+            );
+            Json(item_response_with_state(&state, item).await).into_response()
+        }
         Err(error) => {
             tracing::error!(%item_id, %image_id, error = %error, "failed to remove image metadata after media delete");
             cleanup_warning_response(&state, item_id, image_id, &image.object_key, "delete").await
@@ -650,14 +746,21 @@ async fn replace_image(
     multipart: Multipart,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, item_id = %id, image_id = %image_id, "rejected replace image request");
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
+        tracing::warn!("rejected replace image request with malformed id");
         return StatusCode::BAD_REQUEST.into_response();
     };
+    let started = Instant::now();
+    tracing::info!(%item_id, %image_id, "replacing catalog image");
     let item = match state.repository.get(item_id).await {
         Ok(Some(item)) => item,
-        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Ok(None) => {
+            tracing::warn!(%item_id, %image_id, "rejected replace image request for missing item");
+            return StatusCode::NOT_FOUND.into_response();
+        }
         Err(error) => {
             tracing::error!(%item_id, error = %error, "failed to load item before image replacement");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -669,21 +772,43 @@ async fn replace_image(
         .find(|image| image.id == image_id)
         .cloned()
     else {
+        tracing::warn!(%item_id, %image_id, "rejected replace image request for missing image");
         return StatusCode::NOT_FOUND.into_response();
     };
     let Some(upload) = parse_image_multipart(multipart).await else {
+        tracing::warn!(%item_id, %image_id, "rejected replace image request without image body");
         return StatusCode::BAD_REQUEST.into_response();
     };
     if upload.body.len() > MAX_IMAGE_UPLOAD_BYTES
         || !valid_image_upload(&upload.content_type, &upload.body)
     {
+        tracing::warn!(
+            %item_id,
+            %image_id,
+            content_type = %upload.content_type,
+            byte_size = upload.body.len(),
+            "rejected replacement image by validation"
+        );
         return StatusCode::BAD_REQUEST.into_response();
     }
 
     let replacement_id = Uuid::new_v4();
     let replacement_key = build_original_object_key(item_id, replacement_id);
+    tracing::info!(
+        %item_id,
+        %image_id,
+        %replacement_id,
+        content_type = %upload.content_type,
+        byte_size = upload.body.len(),
+        "writing replacement image"
+    );
     if let Err(error) = state.media.write(&replacement_key, &upload.body).await {
-        tracing::error!(%item_id, %replacement_id, error = %error, "failed to write replacement image");
+        tracing::error!(
+            %item_id,
+            %replacement_id,
+            error_kind = classify_media_error(&error),
+            "failed to write replacement image"
+        );
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     let replacement = AutographImage {
@@ -715,7 +840,12 @@ async fn replace_image(
     };
 
     let warning = if let Err(error) = state.media.delete(&existing_image.object_key).await {
-        tracing::warn!(%item_id, %image_id, error = %error, "old private image cleanup failed after replacement");
+        tracing::warn!(
+            %item_id,
+            %image_id,
+            error_kind = classify_media_error(&error),
+            "old private image cleanup failed after replacement"
+        );
         match record_cleanup_warning(
             &state,
             item_id,
@@ -742,7 +872,12 @@ async fn replace_image(
                     tracing::error!(%item_id, %image_id, error = %rollback_error, "failed to roll back replacement metadata after cleanup warning persistence failure");
                 }
                 if let Err(delete_error) = state.media.delete(&replacement_key).await {
-                    tracing::warn!(%item_id, %image_id, error = %delete_error, "failed to delete replacement object after cleanup warning persistence failure");
+                    tracing::warn!(
+                        %item_id,
+                        %image_id,
+                        error_kind = classify_media_error(&delete_error),
+                        "failed to delete replacement object after cleanup warning persistence failure"
+                    );
                 }
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
@@ -754,6 +889,13 @@ async fn replace_image(
         item: item_response_with_state(&state, item).await,
         cleanup_warning: warning.map(CleanupWarningResponse::from),
     };
+    tracing::info!(
+        %item_id,
+        %image_id,
+        cleanup_warning_created = response.cleanup_warning.is_some(),
+        elapsed_ms = started.elapsed().as_millis(),
+        "replaced catalog image"
+    );
     Json(response).into_response()
 }
 
@@ -764,11 +906,15 @@ async fn retry_image_cleanup(
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, item_id = %id, image_id = %image_id, "rejected cleanup retry request");
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
+        tracing::warn!("rejected cleanup retry request with malformed id");
         return StatusCode::BAD_REQUEST.into_response();
     };
+    let started = Instant::now();
+    tracing::info!(%item_id, %image_id, "retrying private image cleanup");
     let item = match state.repository.get(item_id).await {
         Ok(item) => item,
         Err(error) => {
@@ -790,7 +936,13 @@ async fn retry_image_cleanup(
         return StatusCode::CONFLICT.into_response();
     };
     if let Err(error) = state.media.delete(&cleanup_warning.target_object_key).await {
-        tracing::warn!(%item_id, %image_id, error = %error, "private image cleanup retry failed");
+        tracing::warn!(
+            %item_id,
+            %image_id,
+            operation = %cleanup_warning.operation,
+            error_kind = classify_media_error(&error),
+            "private image cleanup retry failed"
+        );
         return cleanup_warning_response(
             &state,
             item_id,
@@ -834,6 +986,14 @@ async fn retry_image_cleanup(
         tracing::warn!(%item_id, %image_id, "cleanup retry succeeded but warning was already resolved");
         return StatusCode::CONFLICT.into_response();
     }
+    tracing::info!(
+        %item_id,
+        %image_id,
+        operation = %cleanup_warning.operation,
+        removed_metadata = removed.is_some(),
+        elapsed_ms = started.elapsed().as_millis(),
+        "private image cleanup retry succeeded"
+    );
     if let Some(item) = removed {
         Json(item_response_with_state(&state, item).await).into_response()
     } else {
@@ -1149,6 +1309,26 @@ fn repository_update_error_status(error: &str) -> StatusCode {
         StatusCode::NOT_FOUND
     } else {
         StatusCode::INTERNAL_SERVER_ERROR
+    }
+}
+
+fn classify_media_error(error: &str) -> &'static str {
+    let normalized = error.to_ascii_lowercase();
+    if normalized.contains("not found") || normalized.contains("404") {
+        "media_not_found"
+    } else if normalized.contains("unauthorized")
+        || normalized.contains("forbidden")
+        || normalized.contains("permission")
+        || normalized.contains("401")
+        || normalized.contains("403")
+    {
+        "media_auth"
+    } else if normalized.contains("timeout") || normalized.contains("timed out") {
+        "media_timeout"
+    } else if normalized.contains("image") || normalized.contains("content type") {
+        "media_validation"
+    } else {
+        "media_io"
     }
 }
 

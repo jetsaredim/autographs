@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -25,12 +27,15 @@ pub(super) async fn list_items(
     Query(filter): Query<AdminItemFilter>,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        tracing::warn!(status = %status, "rejected admin item list request");
         return status.into_response();
     }
 
+    let started = Instant::now();
     let changes_filter = filter.changes.clone();
     match state.repository.as_ref().list_admin_items(filter).await {
         Ok(items) => {
+            let loaded_count = items.len();
             let mut summaries = Vec::with_capacity(items.len());
             // Phase 06-02 intentionally derives per-item pending markers from existing
             // item history. This keeps the API simple for the current small admin
@@ -46,6 +51,12 @@ pub(super) async fn list_items(
                     pending.has_pending_changes,
                 ));
             }
+            tracing::info!(
+                loaded_count,
+                returned_count = summaries.len(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "listed admin catalog items"
+            );
             Json(summaries).into_response()
         }
         Err(error) => {
@@ -61,15 +72,29 @@ pub(super) async fn get_item(
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        tracing::warn!(status = %status, item_id = %id, "rejected admin item get request");
         return status.into_response();
     }
     let Ok(id) = Uuid::parse_str(&id) else {
+        tracing::warn!("rejected admin item get request with malformed item id");
         return StatusCode::BAD_REQUEST.into_response();
     };
 
+    let started = Instant::now();
     match state.repository.get(id).await {
-        Ok(Some(item)) => Json(item_response_with_state(&state, item).await).into_response(),
-        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Ok(Some(item)) => {
+            tracing::info!(
+                item_id = %id,
+                image_count = item.images.len(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "loaded admin catalog item"
+            );
+            Json(item_response_with_state(&state, item).await).into_response()
+        }
+        Ok(None) => {
+            tracing::warn!(item_id = %id, "admin catalog item not found");
+            StatusCode::NOT_FOUND.into_response()
+        }
         Err(error) => {
             tracing::error!(item_id = %id, error = %error, "failed to get admin catalog item");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -83,15 +108,21 @@ pub(super) async fn item_history(
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        tracing::warn!(status = %status, item_id = %id, "rejected item history request");
         return status.into_response();
     }
     let Ok(id) = Uuid::parse_str(&id) else {
+        tracing::warn!("rejected item history request with malformed item id");
         return StatusCode::BAD_REQUEST.into_response();
     };
 
+    let started = Instant::now();
     match state.repository.get(id).await {
         Ok(Some(_)) => {}
-        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Ok(None) => {
+            tracing::warn!(item_id = %id, "item history requested for missing item");
+            return StatusCode::NOT_FOUND.into_response();
+        }
         Err(error) => {
             tracing::error!(
                 item_id = %id,
@@ -103,11 +134,19 @@ pub(super) async fn item_history(
     }
 
     match state.repository.history(id).await {
-        Ok(events) => Json(ItemHistoryResponse {
-            item_id: id,
-            events: events.into_iter().map(EditEventResponse::from).collect(),
-        })
-        .into_response(),
+        Ok(events) => {
+            tracing::info!(
+                item_id = %id,
+                event_count = events.len(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "loaded admin catalog item history"
+            );
+            Json(ItemHistoryResponse {
+                item_id: id,
+                events: events.into_iter().map(EditEventResponse::from).collect(),
+            })
+            .into_response()
+        }
         Err(error) => {
             tracing::error!(
                 item_id = %id,
@@ -125,21 +164,30 @@ pub(super) async fn list_signers(
     Query(query): Query<AdminSignerQuery>,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        tracing::warn!(status = %status, "rejected signer suggestions request");
         return status.into_response();
     }
 
+    let started = Instant::now();
     match state
         .repository
         .signer_suggestions(query.query.unwrap_or_default())
         .await
     {
-        Ok(suggestions) => Json(AdminSignerSuggestionsResponse {
-            suggestions: suggestions
-                .into_iter()
-                .map(AdminSignerSuggestionResponse::from)
-                .collect(),
-        })
-        .into_response(),
+        Ok(suggestions) => {
+            tracing::info!(
+                suggestion_count = suggestions.len(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "loaded signer suggestions"
+            );
+            Json(AdminSignerSuggestionsResponse {
+                suggestions: suggestions
+                    .into_iter()
+                    .map(AdminSignerSuggestionResponse::from)
+                    .collect(),
+            })
+            .into_response()
+        }
         Err(error) => {
             tracing::error!(error = %error, "failed to load signer suggestions");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -155,19 +203,32 @@ pub(super) async fn update_signer(
     Json(input): Json<AdminSignerUpdateRequest>,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, signer_id = %id, "rejected signer profile update request");
         return status.into_response();
     }
     let Ok(id) = Uuid::parse_str(&id) else {
+        tracing::warn!("rejected signer profile update request with malformed signer id");
         return StatusCode::BAD_REQUEST.into_response();
     };
 
+    let started = Instant::now();
     match state
         .repository
         .update_signer_profile(id, input.into())
         .await
     {
-        Ok(profile) => Json(AdminSignerProfileResponse::from(profile)).into_response(),
-        Err(error) if error.contains("not found") => StatusCode::NOT_FOUND.into_response(),
+        Ok(profile) => {
+            tracing::info!(
+                signer_id = %id,
+                elapsed_ms = started.elapsed().as_millis(),
+                "updated signer profile"
+            );
+            Json(AdminSignerProfileResponse::from(profile)).into_response()
+        }
+        Err(error) if error.contains("not found") => {
+            tracing::warn!(signer_id = %id, "signer profile update requested for missing signer");
+            StatusCode::NOT_FOUND.into_response()
+        }
         Err(error) => {
             tracing::error!(signer_id = %id, error = %error, "failed to update signer profile");
             StatusCode::BAD_REQUEST.into_response()
@@ -182,19 +243,42 @@ pub(super) async fn merge_signers(
     Json(input): Json<AdminSignerMergeRequest>,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, "rejected signer merge request");
         return status.into_response();
     }
     if input.source_signer_id == input.target_signer_id {
+        tracing::warn!(
+            source_signer_id = %input.source_signer_id,
+            target_signer_id = %input.target_signer_id,
+            "rejected signer merge request with identical source and target"
+        );
         return StatusCode::BAD_REQUEST.into_response();
     }
 
+    let started = Instant::now();
     match state
         .repository
         .merge_signer_profiles(input.source_signer_id, input.target_signer_id)
         .await
     {
-        Ok(result) => Json(AdminSignerMergeResponse::from(result)).into_response(),
-        Err(error) if error.contains("not found") => StatusCode::NOT_FOUND.into_response(),
+        Ok(result) => {
+            tracing::info!(
+                source_signer_id = %result.source_signer_id,
+                target_signer_id = %result.target_signer_id,
+                affected_item_count = result.updated_item_count,
+                elapsed_ms = started.elapsed().as_millis(),
+                "merged signer profiles"
+            );
+            Json(AdminSignerMergeResponse::from(result)).into_response()
+        }
+        Err(error) if error.contains("not found") => {
+            tracing::warn!(
+                source_signer_id = %input.source_signer_id,
+                target_signer_id = %input.target_signer_id,
+                "signer merge requested for missing signer"
+            );
+            StatusCode::NOT_FOUND.into_response()
+        }
         Err(error) => {
             tracing::error!(error = %error, "failed to merge signer profiles");
             StatusCode::BAD_REQUEST.into_response()
@@ -207,11 +291,22 @@ pub(super) async fn taxonomy_suggestions(
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        tracing::warn!(status = %status, "rejected taxonomy suggestions request");
         return status.into_response();
     }
 
+    let started = Instant::now();
     match state.repository.taxonomy_suggestions().await {
         Ok(suggestions) => {
+            tracing::info!(
+                character_count = suggestions.characters.len(),
+                franchise_count = suggestions.franchises.len(),
+                product_line_count = suggestions.product_lines.len(),
+                format_count = suggestions.formats.len(),
+                tag_count = suggestions.tags.len(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "loaded taxonomy suggestions"
+            );
             Json(AdminTaxonomySuggestionsResponse::from(suggestions)).into_response()
         }
         Err(error) => {
