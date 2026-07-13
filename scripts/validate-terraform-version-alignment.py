@@ -11,20 +11,29 @@ TERRAFORM_VERSIONS_PATH = Path("infra/terraform/versions.tf")
 
 def main() -> int:
     required_version = read_terraform_required_version()
-    minimum_version = parse_minimum_version(required_version)
+    lower_bound = parse_bound(required_version, ">=")
+    upper_bound = parse_bound(required_version, "<")
     action_version = read_action_default_version()
 
-    if compare_versions(action_version, minimum_version) < 0:
+    if lower_bound and compare_versions(action_version, lower_bound) < 0:
         print(
             f"{ACTION_PATH} defaults terraform-version to {action_version}, "
-            f"but {TERRAFORM_VERSIONS_PATH} requires >= {minimum_version}.",
+            f"but {TERRAFORM_VERSIONS_PATH} requires >= {lower_bound}.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if upper_bound and compare_versions(action_version, upper_bound) >= 0:
+        print(
+            f"{ACTION_PATH} defaults terraform-version to {action_version}, "
+            f"but {TERRAFORM_VERSIONS_PATH} requires < {upper_bound}.",
             file=sys.stderr,
         )
         return 1
 
     print(
         f"resolve-runtime-ip Terraform default {action_version} satisfies "
-        f"infra/terraform minimum {minimum_version}."
+        f"infra/terraform required_version {required_version!r}."
     )
     return 0
 
@@ -37,11 +46,9 @@ def read_terraform_required_version() -> str:
     return match.group(1)
 
 
-def parse_minimum_version(required_version: str) -> str:
-    match = re.search(r">=\s*([0-9]+(?:\.[0-9]+){1,2})", required_version)
-    if not match:
-        raise RuntimeError(f"Could not find a >= lower bound in required_version {required_version!r}")
-    return match.group(1)
+def parse_bound(required_version: str, operator: str) -> str | None:
+    match = re.search(rf"{re.escape(operator)}\s*([0-9]+(?:\.[0-9]+){{1,2}})", required_version)
+    return match.group(1) if match else None
 
 
 def read_action_default_version() -> str:
