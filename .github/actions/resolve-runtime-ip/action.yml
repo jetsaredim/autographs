@@ -24,7 +24,7 @@ inputs:
   terraform-version:
     description: Terraform version to install.
     required: false
-    default: "1.15.7"
+    default: "1.15.8"
   terraform-working-directory:
     description: Terraform root directory.
     required: false
