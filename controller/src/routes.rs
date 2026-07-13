@@ -1072,11 +1072,14 @@ async fn publish(
             );
             (StatusCode::CREATED, Json(status)).into_response()
         }
-        Err(_error) => {
+        Err(error) => {
             let status = state.publisher.status();
+            let stage = status.stage.as_deref().unwrap_or("failed");
+            let error_kind = crate::publisher::classify_publish_error(stage, &error);
             tracing::error!(
                 mode = ?mode,
-                stage = status.stage.as_deref().unwrap_or("failed"),
+                stage,
+                error_kind,
                 "failed to publish static release"
             );
             (StatusCode::INTERNAL_SERVER_ERROR, Json(status)).into_response()

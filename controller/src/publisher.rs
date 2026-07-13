@@ -695,10 +695,12 @@ impl LocalPublisher {
                     .status()
                     .stage
                     .unwrap_or_else(|| PublishStage::Accepted.as_str().to_owned());
+                let error_kind = classify_publish_error(&failed_stage, &error);
                 tracing::error!(
                     release_id = %release_id,
                     mode = ?mode,
                     failed_stage = %failed_stage,
+                    error_kind,
                     "static publish failed"
                 );
                 retain_failed_candidates(&self.root, &candidate, self.retention_policy)?;
@@ -819,6 +821,46 @@ impl LocalPublisher {
             derivative_count = progress.derivative_count,
             "static publish stage started"
         );
+    }
+}
+
+pub(crate) fn classify_publish_error(stage: &str, error: &str) -> &'static str {
+    let normalized = error.to_ascii_lowercase();
+    if normalized.contains("privacy scan") || normalized.contains("private source reference") {
+        return "privacy_validation";
+    }
+    if normalized.contains("candidate")
+        && (normalized.contains("missing")
+            || normalized.contains("manifest")
+            || normalized.contains("fingerprint")
+            || normalized.contains("validation"))
+    {
+        return "candidate_validation";
+    }
+    if normalized.contains("derivative")
+        || normalized.contains("image")
+        || normalized.contains("webp")
+        || normalized.contains("media")
+    {
+        return "media_derivative";
+    }
+    if normalized.contains("promote") {
+        return "release_promotion";
+    }
+    if normalized.contains("prune") || normalized.contains("retain failed candidate") {
+        return "release_retention";
+    }
+    if normalized.contains("catalog") || normalized.contains("repository") {
+        return "catalog";
+    }
+
+    match stage {
+        "loadingCatalog" => "catalog",
+        "generatingDerivatives" => "media_derivative",
+        "writingCandidate" => "candidate_generation",
+        "validatingCandidate" => "candidate_validation",
+        "promotingRelease" => "release_promotion",
+        _ => "publish",
     }
 }
 
@@ -2129,6 +2171,42 @@ mod tests {
             .map(|release| release.name)
             .collect::<Vec<_>>();
         assert_eq!(names, vec!["aaa-newest", "mmm-middle", "zzz-oldest"]);
+    }
+
+    #[test]
+    fn publish_error_classifier_keeps_diagnostics_privacy_safe() {
+        assert_eq!(
+            classify_publish_error(
+                "generatingDerivatives",
+                "read private media from bucket autographs-media-prod/private/originals/example.jpg",
+            ),
+            "media_derivative"
+        );
+        assert_eq!(
+            classify_publish_error(
+                "validatingCandidate",
+                "candidate derivative fingerprint mismatch: media/item/image-detail-abcd.webp",
+            ),
+            "candidate_validation"
+        );
+        assert_eq!(
+            classify_publish_error(
+                "validatingCandidate",
+                "candidate privacy scan rejected private source reference",
+            ),
+            "privacy_validation"
+        );
+        assert_eq!(
+            classify_publish_error(
+                "promotingRelease",
+                "promote current pointer: permission denied"
+            ),
+            "release_promotion"
+        );
+        assert_eq!(
+            classify_publish_error("loadingCatalog", "connection failed"),
+            "catalog"
+        );
     }
 
     fn set_modified(path: &Path, nanos: u32) {

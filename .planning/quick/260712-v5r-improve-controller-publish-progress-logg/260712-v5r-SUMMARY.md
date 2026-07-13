@@ -12,7 +12,9 @@ Implemented issue 168 by adding privacy-safe publish progress stages and counts 
 - Added publish status fields for current stage, published item count, image count, and derivative count.
 - Logged accepted, catalog loading, derivative generation, candidate generation, validation, promotion, success, and failure stages with safe counts.
 - Removed raw publish error logging from the route-level failure path so private storage or persistence details are not emitted there.
+- Addressed review feedback by adding safe publish failure `error_kind` classification for controller logs without logging raw provider/storage errors.
 - Added publisher tests for the new status fields and redacted publish status response.
+- Added unit coverage for privacy-safe failure classification.
 
 ## Verification
 
