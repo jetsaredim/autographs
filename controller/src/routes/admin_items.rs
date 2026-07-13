@@ -72,7 +72,7 @@ pub(super) async fn get_item(
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
-        tracing::warn!(status = %status, item_id = %id, "rejected admin item get request");
+        tracing::warn!(status = %status, "rejected admin item get request");
         return status.into_response();
     }
     let Ok(id) = Uuid::parse_str(&id) else {
@@ -108,7 +108,7 @@ pub(super) async fn item_history(
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
-        tracing::warn!(status = %status, item_id = %id, "rejected item history request");
+        tracing::warn!(status = %status, "rejected item history request");
         return status.into_response();
     }
     let Ok(id) = Uuid::parse_str(&id) else {
@@ -203,7 +203,7 @@ pub(super) async fn update_signer(
     Json(input): Json<AdminSignerUpdateRequest>,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
-        tracing::warn!(status = %status, signer_id = %id, "rejected signer profile update request");
+        tracing::warn!(status = %status, "rejected signer profile update request");
         return status.into_response();
     }
     let Ok(id) = Uuid::parse_str(&id) else {

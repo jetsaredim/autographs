@@ -511,7 +511,7 @@ async fn upload_image(
     mut multipart: Multipart,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
-        tracing::warn!(status = %status, item_id = %id, "rejected upload image request");
+        tracing::warn!(status = %status, "rejected upload image request");
         return status.into_response();
     }
     let Ok(item_id) = Uuid::parse_str(&id) else {
@@ -641,7 +641,7 @@ async fn set_primary_image(
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
-        tracing::warn!(status = %status, item_id = %id, image_id = %image_id, "rejected set primary image request");
+        tracing::warn!(status = %status, "rejected set primary image request");
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
@@ -675,7 +675,7 @@ async fn delete_image(
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
-        tracing::warn!(status = %status, item_id = %id, image_id = %image_id, "rejected delete image request");
+        tracing::warn!(status = %status, "rejected delete image request");
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
@@ -746,7 +746,7 @@ async fn replace_image(
     multipart: Multipart,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
-        tracing::warn!(status = %status, item_id = %id, image_id = %image_id, "rejected replace image request");
+        tracing::warn!(status = %status, "rejected replace image request");
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {
@@ -906,7 +906,7 @@ async fn retry_image_cleanup(
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
-        tracing::warn!(status = %status, item_id = %id, image_id = %image_id, "rejected cleanup retry request");
+        tracing::warn!(status = %status, "rejected cleanup retry request");
         return status.into_response();
     }
     let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id)) else {

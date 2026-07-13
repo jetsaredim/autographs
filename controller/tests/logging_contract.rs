@@ -1,17 +1,42 @@
 use std::{fs, path::PathBuf};
 
 #[test]
-fn controller_route_tracing_does_not_log_private_object_keys() {
+fn controller_route_tracing_does_not_log_private_or_secret_terms() {
     for path in [
         "controller/src/routes.rs",
         "controller/src/routes/admin_items.rs",
     ] {
         let source = read_repo(path);
         for block in tracing_blocks(&source) {
-            for denied in ["object_key", "objectKey", "object key"] {
+            for denied in [
+                "object_key",
+                "objectKey",
+                "object key",
+                "original_filename",
+                "originalFilename",
+                "file_name",
+                "filename",
+                "bucket",
+                "namespace",
+                "secret",
+                "token",
+                "password",
+            ] {
                 assert!(
                     !block.contains(denied),
-                    "{path} tracing block must not log private media object keys: {block}"
+                    "{path} tracing block must not log private or secret terms: {block}"
+                );
+            }
+            if block.contains("private media") || block.contains("private image") {
+                assert!(
+                    !block.contains("error = %error")
+                        && !block.contains("error = ?error")
+                        && !block.contains("%error"),
+                    "{path} private media tracing block must use safe error categories: {block}"
+                );
+                assert!(
+                    block.contains("error_kind") || !block.contains("failed"),
+                    "{path} failed private media tracing block should include an error_kind category: {block}"
                 );
             }
         }
