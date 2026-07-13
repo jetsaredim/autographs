@@ -2353,11 +2353,13 @@ fn same_size_replacement_png_bytes(original: &[u8]) -> Vec<u8> {
 
 fn solid_png_bytes(width: u32, height: u32, rgb: [u8; 3]) -> Vec<u8> {
     let mut raw = Vec::with_capacity((height * (1 + width * 3)) as usize);
+    let mut row = Vec::with_capacity((1 + width * 3) as usize);
+    row.push(0);
+    for _ in 0..width {
+        row.extend_from_slice(&rgb);
+    }
     for _ in 0..height {
-        raw.push(0);
-        for _ in 0..width {
-            raw.extend_from_slice(&rgb);
-        }
+        raw.extend_from_slice(&row);
     }
 
     let mut zlib = vec![0x78, 0x01];
