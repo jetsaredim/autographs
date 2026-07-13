@@ -122,6 +122,57 @@ fn static_admin_source_references_collection_workflow_contract() {
 }
 
 #[test]
+fn static_admin_item_list_keeps_compact_icon_column_contract() {
+    let source = static_admin_source();
+    let render_start = source
+        .find("async function renderItemList()")
+        .expect("item list renderer exists");
+    let render_end = source[render_start..]
+        .find("const itemTableHead = () =>")
+        .map(|offset| render_start + offset)
+        .expect("item list header builder follows renderer");
+    let renderer = &source[render_start..render_end];
+
+    let renderer_fragments = [
+        "[item.franchises?.join(\", \"), item.productLine]",
+        "String(item.imageCount || 0)",
+        "formatEpoch(item.updatedAtEpochSeconds)",
+        "const publicationCell = document.createElement(\"td\");",
+        "publicationCell.append(publicationStatusIcon(item.publicationStatus));",
+        "row.insertBefore(publicationCell, row.children[4]);",
+        "const changesCell = document.createElement(\"td\");",
+        "changesCell.append(pendingChangesIcon(item.hasPendingChanges));",
+        "row.insertBefore(changesCell, row.children[6]);",
+        "actions.className = \"actions-cell\"",
+        "actionGroup.className = \"row-actions\"",
+        "iconButton(\"Edit item\", \"edit\"",
+        "iconButton(\"View history\", \"history\"",
+        "iconButton(\"Publish status\", \"status\"",
+        "actions.append(actionGroup);",
+    ];
+    let mut previous_position = 0;
+    for fragment in renderer_fragments {
+        let relative_position = renderer[previous_position..]
+            .find(fragment)
+            .unwrap_or_else(|| panic!("item list renderer is missing ordered fragment {fragment}"));
+        previous_position += relative_position;
+    }
+
+    for accessibility_fragment in [
+        "badge.setAttribute(\"role\", \"img\");",
+        "badge.setAttribute(\"aria-label\", label);",
+        "badge.title = label;",
+        "iconBadge(\"Draft\", \"draft\", \"status-icon-neutral\")",
+        "iconBadge(\"Archived\", \"archived\", \"status-icon-muted\")",
+    ] {
+        assert!(
+            source.contains(accessibility_fragment),
+            "compact item-list icons are missing accessibility contract {accessibility_fragment}"
+        );
+    }
+}
+
+#[test]
 fn static_admin_source_references_taxonomy_editor_contract() {
     let source = static_admin_source();
     let html = fs::read_to_string(

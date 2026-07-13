@@ -15,6 +15,7 @@ Fixed the admin item-list visual alignment and reduced list clutter by rendering
 - Kept row action buttons inside an inner `.row-actions` wrapper so the action `<td>` keeps the same table-cell border alignment as the rest of the row.
 - Added item-table column sizing and centered compact status/image/change/action columns.
 - Updated static admin source contract coverage for the new icon badge and action-cell structure.
+- Addressed review feedback by widening the action column and adding an order-sensitive item-list icon/accessibility contract test.
 
 ## Verification
 
