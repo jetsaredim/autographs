@@ -54,8 +54,12 @@ async fn publisher_generates_candidate_release_and_derivatives() {
     let current = fixture.root.path().join("current");
 
     assert_eq!(status.state, "succeeded");
+    assert_eq!(status.stage.as_deref(), Some("succeeded"));
     assert!(status.artifact_count > 0);
     assert!(status.byte_size > 0);
+    assert_eq!(status.item_count, 1);
+    assert_eq!(status.image_count, 1);
+    assert_eq!(status.derivative_count, 2);
     assert!(status.started_at_epoch_seconds.is_some());
     assert!(status.finished_at_epoch_seconds.is_some());
     for path in [
@@ -1944,6 +1948,10 @@ async fn publisher_routes_require_auth_and_report_redacted_status() {
     )
     .unwrap();
     assert!(rendered.contains(r#""state":"succeeded""#));
+    assert!(rendered.contains(r#""stage":"succeeded""#));
+    assert!(rendered.contains(r#""itemCount":1"#));
+    assert!(rendered.contains(r#""imageCount":1"#));
+    assert!(rendered.contains(r#""derivativeCount":2"#));
     for denied in ["objectKey", "bucketName", "objectstorage", "OCI_"] {
         assert!(!rendered.contains(denied));
     }
@@ -1976,6 +1984,7 @@ async fn publisher_failed_publish_retains_only_latest_candidate() {
     );
     let status = publisher.status();
     assert_eq!(status.state, "failed");
+    assert_eq!(status.stage.as_deref(), Some("failed"));
     assert_eq!(
         status.error.as_deref(),
         Some("Static publish failed. Check controller logs for details.")
