@@ -1061,20 +1061,25 @@ async fn publish(
             tracing::info!(
                 mode = ?mode,
                 release_id = status.release_id.as_deref().unwrap_or("<none>"),
+                stage = status.stage.as_deref().unwrap_or("succeeded"),
                 artifact_count = status.artifact_count,
                 byte_size = status.byte_size,
+                item_count = status.item_count,
+                image_count = status.image_count,
+                derivative_count = status.derivative_count,
                 elapsed_ms = started.elapsed().as_millis(),
                 "published static release"
             );
             (StatusCode::CREATED, Json(status)).into_response()
         }
-        Err(error) => {
-            tracing::error!(error = %error, "failed to publish static release");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(state.publisher.status()),
-            )
-                .into_response()
+        Err(_error) => {
+            let status = state.publisher.status();
+            tracing::error!(
+                mode = ?mode,
+                stage = status.stage.as_deref().unwrap_or("failed"),
+                "failed to publish static release"
+            );
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(status)).into_response()
         }
     }
 }

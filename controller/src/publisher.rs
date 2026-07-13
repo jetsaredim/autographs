@@ -428,9 +428,13 @@ pub enum PublishMode {
 #[serde(rename_all = "camelCase")]
 pub struct PublishStatus {
     pub state: String,
+    pub stage: Option<String>,
     pub release_id: Option<String>,
     pub artifact_count: usize,
     pub byte_size: usize,
+    pub item_count: usize,
+    pub image_count: usize,
+    pub derivative_count: usize,
     pub started_at_epoch_seconds: Option<i64>,
     pub finished_at_epoch_seconds: Option<i64>,
     pub error: Option<String>,
@@ -440,14 +444,57 @@ impl Default for PublishStatus {
     fn default() -> Self {
         Self {
             state: "idle".to_owned(),
+            stage: None,
             release_id: None,
             artifact_count: 0,
             byte_size: 0,
+            item_count: 0,
+            image_count: 0,
+            derivative_count: 0,
             started_at_epoch_seconds: None,
             finished_at_epoch_seconds: None,
             error: None,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PublishStage {
+    Accepted,
+    LoadingCatalog,
+    GeneratingDerivatives,
+    WritingCandidate,
+    ValidatingCandidate,
+    PromotingRelease,
+    Succeeded,
+    Failed,
+}
+
+impl PublishStage {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::LoadingCatalog => "loadingCatalog",
+            Self::GeneratingDerivatives => "generatingDerivatives",
+            Self::WritingCandidate => "writingCandidate",
+            Self::ValidatingCandidate => "validatingCandidate",
+            Self::PromotingRelease => "promotingRelease",
+            Self::Succeeded => "succeeded",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct PublishProgress {
+    item_count: usize,
+    image_count: usize,
+    derivative_count: usize,
+}
+
+struct BuildPublicItemsResult {
+    items: Vec<PublicSourceItem>,
+    progress: PublishProgress,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -580,25 +627,52 @@ impl LocalPublisher {
         let started_at_epoch_seconds = OffsetDateTime::now_utc().unix_timestamp();
         self.set_status(PublishStatus {
             state: "running".to_owned(),
+            stage: Some(PublishStage::Accepted.as_str().to_owned()),
             release_id: Some(release_id.clone()),
             started_at_epoch_seconds: Some(started_at_epoch_seconds),
             ..Default::default()
         });
+        tracing::info!(
+            release_id = %release_id,
+            mode = ?mode,
+            stage = PublishStage::Accepted.as_str(),
+            "static publish accepted"
+        );
 
         let result = self
             .build_candidate(repository, media, mode, &release_id, &candidate)
             .await
-            .and_then(|_| validate_candidate(&candidate))
-            .and_then(|manifest| {
+            .and_then(|progress| {
+                self.update_progress(&release_id, PublishStage::ValidatingCandidate, &progress);
+                let manifest = validate_candidate(&candidate)?;
+                tracing::info!(
+                    release_id = %release_id,
+                    mode = ?mode,
+                    stage = PublishStage::ValidatingCandidate.as_str(),
+                    artifact_count = manifest.artifacts.len(),
+                    byte_size = manifest.artifacts.iter().map(|artifact| artifact.byte_size).sum::<usize>(),
+                    "static publish validation completed"
+                );
+                Ok((manifest, progress))
+            })
+            .and_then(|(manifest, progress)| {
+                self.update_progress(&release_id, PublishStage::PromotingRelease, &progress);
                 promote_candidate(&self.root, &release_id)?;
                 prune_promoted_releases(&self.root, self.retention_policy)?;
-                Ok(manifest)
+                tracing::info!(
+                    release_id = %release_id,
+                    mode = ?mode,
+                    stage = PublishStage::PromotingRelease.as_str(),
+                    "static publish release promotion completed"
+                );
+                Ok((manifest, progress))
             });
 
         match result {
-            Ok(manifest) => {
+            Ok((manifest, progress)) => {
                 let status = PublishStatus {
                     state: "succeeded".to_owned(),
+                    stage: Some(PublishStage::Succeeded.as_str().to_owned()),
                     release_id: Some(release_id),
                     artifact_count: manifest.artifacts.len(),
                     byte_size: manifest
@@ -606,6 +680,9 @@ impl LocalPublisher {
                         .iter()
                         .map(|artifact| artifact.byte_size)
                         .sum(),
+                    item_count: progress.item_count,
+                    image_count: progress.image_count,
+                    derivative_count: progress.derivative_count,
                     started_at_epoch_seconds: Some(started_at_epoch_seconds),
                     finished_at_epoch_seconds: Some(OffsetDateTime::now_utc().unix_timestamp()),
                     error: None,
@@ -614,9 +691,20 @@ impl LocalPublisher {
                 Ok(status)
             }
             Err(error) => {
+                let failed_stage = self
+                    .status()
+                    .stage
+                    .unwrap_or_else(|| PublishStage::Accepted.as_str().to_owned());
+                tracing::error!(
+                    release_id = %release_id,
+                    mode = ?mode,
+                    failed_stage = %failed_stage,
+                    "static publish failed"
+                );
                 retain_failed_candidates(&self.root, &candidate, self.retention_policy)?;
                 let status = PublishStatus {
                     state: "failed".to_owned(),
+                    stage: Some(PublishStage::Failed.as_str().to_owned()),
                     release_id: Some(release_id),
                     started_at_epoch_seconds: Some(started_at_epoch_seconds),
                     finished_at_epoch_seconds: Some(OffsetDateTime::now_utc().unix_timestamp()),
@@ -636,7 +724,7 @@ impl LocalPublisher {
         mode: PublishMode,
         release_id: &str,
         candidate: &Path,
-    ) -> Result<(), String> {
+    ) -> Result<PublishProgress, String> {
         if candidate.exists() {
             fs::remove_dir_all(candidate).map_err(|error| format!("reset candidate: {error}"))?;
         }
@@ -654,25 +742,83 @@ impl LocalPublisher {
         fs::create_dir_all(candidate).map_err(|error| format!("create candidate: {error}"))?;
         clear_generated_surface(candidate)?;
 
+        self.update_progress(
+            release_id,
+            PublishStage::LoadingCatalog,
+            &PublishProgress::default(),
+        );
         let mut items = repository
             .list()
             .await?
             .into_iter()
             .filter(|item| item.publication_status == PublicationStatus::Published)
             .collect::<Vec<_>>();
+        let mut progress = PublishProgress {
+            item_count: items.len(),
+            ..Default::default()
+        };
+        tracing::info!(
+            release_id = %release_id,
+            mode = ?mode,
+            stage = PublishStage::LoadingCatalog.as_str(),
+            item_count = progress.item_count,
+            "static publish catalog load completed"
+        );
         items.sort_by(|left, right| {
             left.title
                 .cmp(&right.title)
                 .then_with(|| left.id.cmp(&right.id))
         });
+        self.update_progress(release_id, PublishStage::GeneratingDerivatives, &progress);
         let public_items = build_public_items(&items, media, candidate).await?;
-        write_release(candidate, release_id, &public_items)?;
+        progress.image_count = public_items.progress.image_count;
+        progress.derivative_count = public_items.progress.derivative_count;
+        tracing::info!(
+            release_id = %release_id,
+            mode = ?mode,
+            stage = PublishStage::GeneratingDerivatives.as_str(),
+            image_count = progress.image_count,
+            derivative_count = progress.derivative_count,
+            reused_derivative_count = 0usize,
+            skipped_derivative_count = 0usize,
+            "static publish derivative generation completed"
+        );
+        self.update_progress(release_id, PublishStage::WritingCandidate, &progress);
+        write_release(candidate, release_id, &public_items.items)?;
         validate_private_source_absence(candidate, &items)?;
-        Ok(())
+        tracing::info!(
+            release_id = %release_id,
+            mode = ?mode,
+            stage = PublishStage::WritingCandidate.as_str(),
+            item_count = progress.item_count,
+            image_count = progress.image_count,
+            derivative_count = progress.derivative_count,
+            "static publish candidate release generation completed"
+        );
+        Ok(progress)
     }
 
     fn set_status(&self, status: PublishStatus) {
         *self.status.lock().expect("publisher status lock") = status;
+    }
+
+    fn update_progress(&self, release_id: &str, stage: PublishStage, progress: &PublishProgress) {
+        let mut status = self.status();
+        status.state = "running".to_owned();
+        status.stage = Some(stage.as_str().to_owned());
+        status.release_id = Some(release_id.to_owned());
+        status.item_count = progress.item_count;
+        status.image_count = progress.image_count;
+        status.derivative_count = progress.derivative_count;
+        self.set_status(status);
+        tracing::info!(
+            release_id = %release_id,
+            stage = stage.as_str(),
+            item_count = progress.item_count,
+            image_count = progress.image_count,
+            derivative_count = progress.derivative_count,
+            "static publish stage started"
+        );
     }
 }
 
@@ -686,18 +832,24 @@ async fn build_public_items(
     items: &[AutographItem],
     media: &dyn PrivateMediaStore,
     candidate: &Path,
-) -> Result<Vec<PublicSourceItem>, String> {
+) -> Result<BuildPublicItemsResult, String> {
     let mut used_slugs = BTreeSet::new();
     let mut public_items = Vec::new();
+    let mut progress = PublishProgress {
+        item_count: items.len(),
+        ..Default::default()
+    };
     for item in items {
         let slug = unique_slug(&item.title, &mut used_slugs);
         let mut images = Vec::new();
         for (index, image) in primary_first_images(&item.images).into_iter().enumerate() {
+            progress.image_count += 1;
             let image_slug = format!("image-{}", index + 1);
             let source = media.read(&image.object_key).await?;
             let mut variants = Vec::new();
             for variant in [DerivativeVariant::Thumbnail, DerivativeVariant::Detail] {
                 let derivative = generate_derivative(&source, variant)?;
+                progress.derivative_count += 1;
                 let fingerprint = public_derivative_fingerprint(&derivative.bytes);
                 let relative_path = format!(
                     "media/{slug}/{image_slug}-{}-{fingerprint}.webp",
@@ -762,7 +914,10 @@ async fn build_public_items(
         };
         public_items.push(PublicSourceItem { gallery, detail });
     }
-    Ok(public_items)
+    Ok(BuildPublicItemsResult {
+        items: public_items,
+        progress,
+    })
 }
 
 fn public_signer_names(item: &AutographItem) -> Vec<String> {
