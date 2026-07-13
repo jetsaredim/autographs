@@ -490,6 +490,10 @@ h4 {
   flex-wrap: nowrap;
 }
 
+.actions-cell {
+  width: 152px;
+}
+
 .icon-action {
   width: 44px;
   padding: 8px;
@@ -497,7 +501,8 @@ h4 {
   color: #25636a;
 }
 
-.icon-action svg {
+.icon-action svg,
+.status-icon svg {
   width: 20px;
   height: 20px;
   fill: none;
@@ -505,6 +510,39 @@ h4 {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
+}
+
+.status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.status-icon-glyph {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+}
+
+.status-icon-success {
+  color: #1f7a4d;
+}
+
+.status-icon-warning {
+  color: #9a6700;
+}
+
+.status-icon-neutral {
+  color: #25636a;
+}
+
+.status-icon-muted {
+  color: #626862;
 }
 
 .sort-button {
@@ -560,6 +598,50 @@ h4 {
   border: 1px solid #d7ddd5;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.item-table table {
+  min-width: 920px;
+}
+
+.item-table th:nth-child(1) {
+  width: 18%;
+}
+
+.item-table th:nth-child(2) {
+  width: 16%;
+}
+
+.item-table th:nth-child(3) {
+  width: 12%;
+}
+
+.item-table th:nth-child(4) {
+  width: 20%;
+}
+
+.item-table th:nth-child(5),
+.item-table th:nth-child(6),
+.item-table th:nth-child(7),
+.item-table td:nth-child(5),
+.item-table td:nth-child(6),
+.item-table td:nth-child(7) {
+  width: 72px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.item-table th:nth-child(8) {
+  width: 14rem;
+}
+
+.item-table th:nth-child(9),
+.item-table td:nth-child(9) {
+  width: 152px;
+}
+
+.item-table td:nth-child(9) {
+  vertical-align: middle;
 }
 
 .item-table .empty-state {
