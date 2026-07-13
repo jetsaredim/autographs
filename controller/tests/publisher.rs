@@ -2,13 +2,17 @@ use std::{
     fs,
     io::Cursor,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
+use async_trait::async_trait;
 use autographs_controller::{
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
-        ImageReplacementInput, ItemOrigin, MemoryCatalogRepository, PublicationStatus,
+        FieldPatch, ImageReplacementInput, ItemOrigin, MemoryCatalogRepository, PublicationStatus,
         SignerCreditInput,
     },
     config::ControllerConfig,
@@ -40,6 +44,41 @@ struct Fixture {
     published: AutographItem,
     private_image_id: Uuid,
     private_filename: String,
+}
+
+#[derive(Clone)]
+struct CountingMediaStore {
+    inner: LocalMediaStore,
+    reads: Arc<AtomicUsize>,
+}
+
+impl CountingMediaStore {
+    fn new(inner: LocalMediaStore) -> Self {
+        Self {
+            inner,
+            reads: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+
+    fn read_count(&self) -> usize {
+        self.reads.load(Ordering::SeqCst)
+    }
+}
+
+#[async_trait]
+impl PrivateMediaStore for CountingMediaStore {
+    async fn write(&self, object_key: &str, body: &[u8]) -> Result<(), String> {
+        self.inner.write(object_key, body).await
+    }
+
+    async fn read(&self, object_key: &str) -> Result<Vec<u8>, String> {
+        self.reads.fetch_add(1, Ordering::SeqCst);
+        self.inner.read(object_key).await
+    }
+
+    async fn delete(&self, object_key: &str) -> Result<(), String> {
+        self.inner.delete(object_key).await
+    }
 }
 
 #[tokio::test]
@@ -1891,6 +1930,68 @@ async fn publisher_incremental_removes_unpublished_and_stale_artifacts() {
 
     assert!(artifact_impact_for(PublishChange::PublicationStatus).derivatives);
     assert!(artifact_impact_for(PublishChange::TagsAndFacets).facets);
+}
+
+#[tokio::test]
+async fn publisher_incremental_reuses_cached_derivatives_for_metadata_changes() {
+    let fixture = fixture().await;
+    let media = CountingMediaStore::new(fixture.media.clone());
+    let publisher = LocalPublisher::new(fixture.root.path());
+
+    publisher
+        .publish(&fixture.repository, &media, PublishMode::Full)
+        .await
+        .unwrap();
+
+    let current = fixture.root.path().join("current");
+    let detail: PublicItemDetail = read_json(&current.join("data/items/signed-jedi-card.json"));
+    let before_detail_path = detail.images[0]
+        .variants
+        .iter()
+        .find(|variant| variant.name == ImageVariantName::Detail)
+        .unwrap()
+        .path
+        .clone();
+    let reads_after_full_publish = media.read_count();
+    assert!(reads_after_full_publish > 0);
+
+    fixture
+        .repository
+        .update(
+            fixture.published.id,
+            AutographItemUpdate {
+                description: FieldPatch::Set("Updated metadata-only description".to_owned()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    publisher
+        .publish(&fixture.repository, &media, PublishMode::Incremental)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        media.read_count(),
+        reads_after_full_publish,
+        "metadata-only incremental publish should reuse cached derivatives"
+    );
+
+    let current = fixture.root.path().join("current");
+    let detail: PublicItemDetail = read_json(&current.join("data/items/signed-jedi-card.json"));
+    let after_detail_path = detail.images[0]
+        .variants
+        .iter()
+        .find(|variant| variant.name == ImageVariantName::Detail)
+        .unwrap()
+        .path
+        .clone();
+    assert_eq!(
+        detail.description.as_deref(),
+        Some("Updated metadata-only description")
+    );
+    assert_eq!(after_detail_path, before_detail_path);
 }
 
 #[tokio::test]

@@ -19,7 +19,7 @@ use crate::{
         PublicImage, PublicImageVariant, PublicImageVariantParams, PublicItemDetail,
         PublicSignerCredit, PublicSignerLink, PublishManifest, PublishManifestEntry,
     },
-    derivatives::{DerivativeVariant, generate_derivative},
+    derivatives::{DerivativeVariant, GeneratedDerivative, generate_derivative},
     media::PrivateMediaStore,
 };
 
@@ -490,11 +490,83 @@ struct PublishProgress {
     item_count: usize,
     image_count: usize,
     derivative_count: usize,
+    generated_derivative_count: usize,
+    reused_derivative_count: usize,
 }
 
 struct BuildPublicItemsResult {
     items: Vec<PublicSourceItem>,
     progress: PublishProgress,
+}
+
+struct DerivativeCache {
+    root: PathBuf,
+}
+
+impl DerivativeCache {
+    fn new(static_root: &Path) -> Self {
+        Self {
+            root: static_root.join(".derivative-cache"),
+        }
+    }
+
+    fn path_for(&self, image: &AutographImage, variant: DerivativeVariant) -> PathBuf {
+        let mut digest = Sha256::new();
+        digest.update(b"autographs-derivative-cache-v1");
+        digest.update([0]);
+        digest.update(image.id.as_bytes());
+        digest.update([0]);
+        digest.update(image.object_key.as_bytes());
+        digest.update([0]);
+        digest.update(image.content_type.as_bytes());
+        digest.update([0]);
+        digest.update(image.byte_size.to_string().as_bytes());
+        digest.update([0]);
+        digest.update(variant.path_segment().as_bytes());
+        let key = digest
+            .finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        self.root
+            .join(variant.path_segment())
+            .join(format!("{key}.webp"))
+    }
+
+    fn read(
+        &self,
+        image: &AutographImage,
+        variant: DerivativeVariant,
+    ) -> Result<Option<GeneratedDerivative>, String> {
+        let path = self.path_for(image, variant);
+        if !path.exists() {
+            return Ok(None);
+        }
+        let bytes = fs::read(&path).map_err(|error| format!("read derivative cache: {error}"))?;
+        let decoded = image::load_from_memory(&bytes)
+            .map_err(|error| format!("decode derivative cache: {error}"))?;
+        Ok(Some(GeneratedDerivative {
+            variant,
+            width: decoded.width(),
+            height: decoded.height(),
+            content_type: "image/webp",
+            bytes,
+        }))
+    }
+
+    fn write(
+        &self,
+        image: &AutographImage,
+        derivative: &GeneratedDerivative,
+    ) -> Result<(), String> {
+        let path = self.path_for(image, derivative.variant);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("create derivative cache directory: {error}"))?;
+        }
+        fs::write(path, &derivative.bytes)
+            .map_err(|error| format!("write derivative cache: {error}"))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -772,16 +844,20 @@ impl LocalPublisher {
                 .then_with(|| left.id.cmp(&right.id))
         });
         self.update_progress(release_id, PublishStage::GeneratingDerivatives, &progress);
-        let public_items = build_public_items(&items, media, candidate).await?;
+        let derivative_cache = DerivativeCache::new(&self.root);
+        let public_items = build_public_items(&items, media, candidate, &derivative_cache).await?;
         progress.image_count = public_items.progress.image_count;
         progress.derivative_count = public_items.progress.derivative_count;
+        progress.generated_derivative_count = public_items.progress.generated_derivative_count;
+        progress.reused_derivative_count = public_items.progress.reused_derivative_count;
         tracing::info!(
             release_id = %release_id,
             mode = ?mode,
             stage = PublishStage::GeneratingDerivatives.as_str(),
             image_count = progress.image_count,
             derivative_count = progress.derivative_count,
-            reused_derivative_count = 0usize,
+            generated_derivative_count = progress.generated_derivative_count,
+            reused_derivative_count = progress.reused_derivative_count,
             skipped_derivative_count = 0usize,
             "static publish derivative generation completed"
         );
@@ -874,6 +950,7 @@ async fn build_public_items(
     items: &[AutographItem],
     media: &dyn PrivateMediaStore,
     candidate: &Path,
+    derivative_cache: &DerivativeCache,
 ) -> Result<BuildPublicItemsResult, String> {
     let mut used_slugs = BTreeSet::new();
     let mut public_items = Vec::new();
@@ -887,10 +964,46 @@ async fn build_public_items(
         for (index, image) in primary_first_images(&item.images).into_iter().enumerate() {
             progress.image_count += 1;
             let image_slug = format!("image-{}", index + 1);
-            let source = media.read(&image.object_key).await?;
+            let mut source = None;
             let mut variants = Vec::new();
             for variant in [DerivativeVariant::Thumbnail, DerivativeVariant::Detail] {
-                let derivative = generate_derivative(&source, variant)?;
+                let derivative = match derivative_cache.read(image, variant) {
+                    Ok(Some(derivative)) => {
+                        progress.reused_derivative_count += 1;
+                        derivative
+                    }
+                    Ok(None) => {
+                        let source = match &source {
+                            Some(source) => source,
+                            None => {
+                                source = Some(media.read(&image.object_key).await?);
+                                source.as_ref().expect("source loaded")
+                            }
+                        };
+                        let derivative = generate_derivative(source, variant)?;
+                        if let Err(error) = derivative_cache.write(image, &derivative) {
+                            tracing::warn!(%error, "failed to update derivative cache");
+                        }
+                        progress.generated_derivative_count += 1;
+                        derivative
+                    }
+                    Err(error) => {
+                        tracing::warn!(%error, "ignored unreadable derivative cache entry");
+                        let source = match &source {
+                            Some(source) => source,
+                            None => {
+                                source = Some(media.read(&image.object_key).await?);
+                                source.as_ref().expect("source loaded")
+                            }
+                        };
+                        let derivative = generate_derivative(source, variant)?;
+                        if let Err(error) = derivative_cache.write(image, &derivative) {
+                            tracing::warn!(%error, "failed to update derivative cache");
+                        }
+                        progress.generated_derivative_count += 1;
+                        derivative
+                    }
+                };
                 progress.derivative_count += 1;
                 let fingerprint = public_derivative_fingerprint(&derivative.bytes);
                 let relative_path = format!(
