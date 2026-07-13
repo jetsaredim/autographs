@@ -679,6 +679,75 @@ async fn publisher_changes_public_media_paths_when_image_content_changes() {
     assert_ne!(first_detail_path, second_detail_path);
 }
 
+#[tokio::test]
+async fn publisher_regenerates_derivatives_when_same_object_key_and_size_changes_bytes() {
+    let fixture = fixture().await;
+    let publisher = LocalPublisher::new(fixture.root.path());
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+    let current = fixture.root.path().join("current");
+    let first_detail: PublicItemDetail =
+        read_json(&current.join("data/items/signed-jedi-card.json"));
+    let first_detail_path = first_detail.images[0]
+        .variants
+        .iter()
+        .find(|variant| variant.name == ImageVariantName::Detail)
+        .unwrap()
+        .path
+        .clone();
+    let original_image = fixture
+        .repository
+        .get(fixture.published.id)
+        .await
+        .unwrap()
+        .unwrap()
+        .images
+        .into_iter()
+        .find(|image| image.id == fixture.private_image_id)
+        .unwrap();
+    let original_bytes = fixture
+        .media
+        .read(&original_image.object_key)
+        .await
+        .unwrap();
+    assert_eq!(original_image.byte_size, original_bytes.len());
+
+    let replacement_bytes = same_size_replacement_png_bytes(&original_bytes);
+    assert_eq!(replacement_bytes.len(), original_image.byte_size);
+    fixture
+        .media
+        .write(&original_image.object_key, &replacement_bytes)
+        .await
+        .unwrap();
+
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+    let second_detail: PublicItemDetail =
+        read_json(&current.join("data/items/signed-jedi-card.json"));
+    let second_detail_path = second_detail.images[0]
+        .variants
+        .iter()
+        .find(|variant| variant.name == ImageVariantName::Detail)
+        .unwrap()
+        .path
+        .clone();
+
+    assert_eq!(
+        original_image.object_key,
+        fixture.published.images[0].object_key
+    );
+    assert_eq!(
+        original_image.byte_size,
+        fixture.published.images[0].byte_size
+    );
+    assert_ne!(original_bytes, replacement_bytes);
+    assert_ne!(first_detail_path, second_detail_path);
+}
+
 #[test]
 fn publisher_detail_derivative_cap_reduces_large_sample() {
     let source = large_png_bytes();
@@ -1974,8 +2043,8 @@ async fn publisher_incremental_reuses_cached_derivatives_for_metadata_changes() 
 
     assert_eq!(
         media.read_count(),
-        reads_after_full_publish,
-        "metadata-only incremental publish should reuse cached derivatives"
+        reads_after_full_publish + 1,
+        "metadata-only incremental publish should read the source once to validate the cache key"
     );
 
     let current = fixture.root.path().join("current");
@@ -2270,14 +2339,84 @@ fn png_bytes() -> Vec<u8> {
 }
 
 fn png_bytes_with_color(rgb: [u8; 3]) -> Vec<u8> {
-    let mut image = RgbImage::new(32, 24);
-    for pixel in image.pixels_mut() {
-        *pixel = Rgb(rgb);
+    solid_png_bytes(32, 24, rgb)
+}
+
+fn same_size_replacement_png_bytes(original: &[u8]) -> Vec<u8> {
+    (1..=255)
+        .find_map(|value| {
+            let bytes = png_bytes_with_color([value, 255 - value, value / 2]);
+            (bytes.len() == original.len() && bytes != original).then_some(bytes)
+        })
+        .expect("test fixture should be able to create a same-size replacement PNG")
+}
+
+fn solid_png_bytes(width: u32, height: u32, rgb: [u8; 3]) -> Vec<u8> {
+    let mut raw = Vec::with_capacity((height * (1 + width * 3)) as usize);
+    for _ in 0..height {
+        raw.push(0);
+        for _ in 0..width {
+            raw.extend_from_slice(&rgb);
+        }
     }
-    let image = DynamicImage::ImageRgb8(image);
-    let mut bytes = Cursor::new(Vec::new());
-    image.write_to(&mut bytes, ImageFormat::Png).unwrap();
-    bytes.into_inner()
+
+    let mut zlib = vec![0x78, 0x01];
+    let mut remaining = raw.as_slice();
+    while !remaining.is_empty() {
+        let chunk_len = remaining.len().min(u16::MAX as usize);
+        let final_block = chunk_len == remaining.len();
+        zlib.push(if final_block { 0x01 } else { 0x00 });
+        let len = chunk_len as u16;
+        zlib.extend_from_slice(&len.to_le_bytes());
+        zlib.extend_from_slice(&(!len).to_le_bytes());
+        zlib.extend_from_slice(&remaining[..chunk_len]);
+        remaining = &remaining[chunk_len..];
+    }
+    zlib.extend_from_slice(&adler32(&raw).to_be_bytes());
+
+    let mut png = Vec::new();
+    png.extend_from_slice(b"\x89PNG\r\n\x1a\n");
+    let mut ihdr = Vec::new();
+    ihdr.extend_from_slice(&width.to_be_bytes());
+    ihdr.extend_from_slice(&height.to_be_bytes());
+    ihdr.extend_from_slice(&[8, 2, 0, 0, 0]);
+    write_png_chunk(&mut png, b"IHDR", &ihdr);
+    write_png_chunk(&mut png, b"IDAT", &zlib);
+    write_png_chunk(&mut png, b"IEND", &[]);
+    png
+}
+
+fn write_png_chunk(png: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+    png.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    png.extend_from_slice(kind);
+    png.extend_from_slice(data);
+    let mut crc_input = Vec::with_capacity(kind.len() + data.len());
+    crc_input.extend_from_slice(kind);
+    crc_input.extend_from_slice(data);
+    png.extend_from_slice(&crc32(&crc_input).to_be_bytes());
+}
+
+fn adler32(bytes: &[u8]) -> u32 {
+    const MOD_ADLER: u32 = 65_521;
+    let mut a = 1u32;
+    let mut b = 0u32;
+    for byte in bytes {
+        a = (a + *byte as u32) % MOD_ADLER;
+        b = (b + a) % MOD_ADLER;
+    }
+    (b << 16) | a
+}
+
+fn crc32(bytes: &[u8]) -> u32 {
+    let mut crc = 0xffff_ffffu32;
+    for byte in bytes {
+        crc ^= *byte as u32;
+        for _ in 0..8 {
+            let mask = 0u32.wrapping_sub(crc & 1);
+            crc = (crc >> 1) ^ (0xedb8_8320 & mask);
+        }
+    }
+    !crc
 }
 
 fn large_png_bytes() -> Vec<u8> {
