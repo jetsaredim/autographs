@@ -3,6 +3,7 @@ use std::{fs, path::PathBuf};
 #[test]
 fn controller_route_tracing_does_not_log_private_or_secret_terms() {
     for path in [
+        "controller/src/publisher.rs",
         "controller/src/routes.rs",
         "controller/src/routes/admin_items.rs",
     ] {
@@ -38,6 +39,17 @@ fn controller_route_tracing_does_not_log_private_or_secret_terms() {
                     block.contains("error_kind") || !block.contains("failed"),
                     "{path} failed private media tracing block should include an error_kind category: {block}"
                 );
+            }
+            if block.contains("rejected ")
+                && block.contains(" request")
+                && block.contains("status = %status")
+            {
+                for denied in ["%id", "%image_id", "%signer_id"] {
+                    assert!(
+                        !block.contains(denied),
+                        "{path} auth/rejection tracing block must not log unvalidated path params: {block}"
+                    );
+                }
             }
         }
     }

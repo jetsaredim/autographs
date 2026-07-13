@@ -1116,7 +1116,7 @@ async fn set_publication(
     Json(input): Json<PublicationRequest>,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
-        tracing::warn!(status = %status, item_id = %id, "rejected publication update request");
+        tracing::warn!(status = %status, "rejected publication update request");
         return status.into_response();
     }
     let Ok(id) = Uuid::parse_str(&id) else {
