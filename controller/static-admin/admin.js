@@ -159,15 +159,27 @@ const iconBadge = (label, icon, tone) => {
   return badge;
 };
 
-const publicationStatusIcon = (status) => {
+const publicationStatusParts = (status) => {
   const normalized = String(status || "draft").toLowerCase();
   if (normalized === "published") {
-    return iconBadge("Published", "published", "status-icon-success");
+    return { label: "Published", icon: "published", tone: "status-icon-success" };
   }
   if (normalized === "archived") {
-    return iconBadge("Archived", "archived", "status-icon-muted");
+    return { label: "Archived", icon: "archived", tone: "status-icon-muted" };
   }
-  return iconBadge("Draft", "draft", "status-icon-neutral");
+  return { label: "Draft", icon: "draft", tone: "status-icon-neutral" };
+};
+
+const publicationStatusButton = (status, onClick) => {
+  const { label, icon, tone } = publicationStatusParts(status);
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `status-icon status-icon-action ${tone}`;
+  button.setAttribute("aria-label", `Publish status: ${label}`);
+  button.title = `Publish status: ${label}`;
+  button.append(iconNode(icon));
+  button.addEventListener("click", onClick);
+  return button;
 };
 
 const pendingChangesIcon = (hasPendingChanges) =>
@@ -180,6 +192,26 @@ const formatEpoch = (seconds) => {
     return "Not recorded";
   }
   return new Date(seconds * 1000).toLocaleString();
+};
+
+const formatRelativeEpoch = (seconds) => {
+  const epochSeconds = Number(seconds);
+  if (!Number.isFinite(epochSeconds) || epochSeconds <= 0) {
+    return "Not recorded";
+  }
+  const diffSeconds = Math.max(0, Math.floor(Date.now() / 1000) - epochSeconds);
+  if (diffSeconds < 60) {
+    return "Now";
+  }
+  const units = [
+    ["y", 365 * 24 * 60 * 60],
+    ["mo", 30 * 24 * 60 * 60],
+    ["d", 24 * 60 * 60],
+    ["h", 60 * 60],
+    ["m", 60],
+  ];
+  const [suffix, unitSeconds] = units.find(([, unitSeconds]) => diffSeconds >= unitSeconds);
+  return `${Math.floor(diffSeconds / unitSeconds)}${suffix} ago`;
 };
 
 const formatValue = (value) => {
@@ -478,14 +510,15 @@ async function renderItemList() {
         item.format,
         [item.franchises?.join(", "), item.productLine].filter(Boolean).join(" / "),
         String(item.imageCount || 0),
-        formatEpoch(item.updatedAtEpochSeconds),
+        formatRelativeEpoch(item.updatedAtEpochSeconds),
       ]) {
         const cell = document.createElement("td");
         cell.textContent = value || "Empty";
         row.append(cell);
       }
+      row.children[5].title = formatEpoch(item.updatedAtEpochSeconds);
       const publicationCell = document.createElement("td");
-      publicationCell.append(publicationStatusIcon(item.publicationStatus));
+      publicationCell.append(publicationStatusButton(item.publicationStatus, () => setView("publish-view")));
       row.insertBefore(publicationCell, row.children[4]);
       const changesCell = document.createElement("td");
       changesCell.append(pendingChangesIcon(item.hasPendingChanges));
@@ -496,8 +529,7 @@ async function renderItemList() {
       actionGroup.className = "row-actions";
       actionGroup.append(
         iconButton("Edit item", "edit", () => loadItem(item.id)),
-        iconButton("View history", "history", () => loadItem(item.id, true)),
-        iconButton("Publish status", "status", () => setView("publish-view"))
+        iconButton("View history", "history", () => loadItem(item.id, true))
       );
       actions.append(actionGroup);
       row.append(actions);

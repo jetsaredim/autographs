@@ -491,7 +491,7 @@ h4 {
 }
 
 .actions-cell {
-  width: 168px;
+  width: 120px;
 }
 
 .icon-action {
@@ -516,11 +516,20 @@ h4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-height: 32px;
   width: 32px;
   height: 32px;
   border: 1px solid currentColor;
   border-radius: 999px;
+  padding: 0;
   background: #ffffff;
+}
+
+.status-icon-action {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  cursor: pointer;
 }
 
 .status-icon-glyph {
@@ -601,7 +610,7 @@ h4 {
 }
 
 .item-table table {
-  min-width: 920px;
+  min-width: 820px;
 }
 
 .item-table th:nth-child(1) {
@@ -632,12 +641,16 @@ h4 {
 }
 
 .item-table th:nth-child(8) {
-  width: 14rem;
+  width: 8rem;
 }
 
 .item-table th:nth-child(9),
 .item-table td:nth-child(9) {
-  width: 168px;
+  width: 120px;
+}
+
+.item-table td {
+  vertical-align: middle;
 }
 
 .item-table td:nth-child(9) {
