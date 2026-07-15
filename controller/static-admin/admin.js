@@ -187,6 +187,36 @@ const pendingChangesIcon = (hasPendingChanges) =>
     ? iconBadge("Pending changes", "pending", "status-icon-warning")
     : iconBadge("No pending changes", "clean", "status-icon-success");
 
+const imageCountLabel = (count) => {
+  const imageCount = Number(count) || 0;
+  return `${imageCount} image${imageCount === 1 ? "" : "s"}`;
+};
+
+const stateCell = (item) => {
+  const cell = document.createElement("td");
+  cell.className = "state-cell";
+  const { label } = publicationStatusParts(item.publicationStatus);
+  const copy = document.createElement("span");
+  copy.className = "state-copy";
+  copy.append(
+    textNode("span", label, "state-label"),
+    textNode(
+      "span",
+      `${imageCountLabel(item.imageCount)} · ${formatRelativeEpoch(item.updatedAtEpochSeconds)}`,
+      "state-meta"
+    )
+  );
+  copy.title = formatEpoch(item.updatedAtEpochSeconds);
+  const icons = document.createElement("span");
+  icons.className = "state-icons";
+  icons.append(
+    publicationStatusButton(item.publicationStatus, () => setView("publish-view")),
+    pendingChangesIcon(item.hasPendingChanges)
+  );
+  cell.append(copy, icons);
+  return cell;
+};
+
 const taxonomyCell = (item) => {
   const cell = document.createElement("td");
   cell.className = "taxonomy-cell";
@@ -517,24 +547,13 @@ async function renderItemList() {
     const body = document.createElement("tbody");
     for (const item of state.items) {
       const row = document.createElement("tr");
-      for (const value of [
-        item.title,
-        item.signerText || item.signer,
-        String(item.imageCount || 0),
-        formatRelativeEpoch(item.updatedAtEpochSeconds),
-      ]) {
+      for (const value of [item.title, item.signerText || item.signer]) {
         const cell = document.createElement("td");
         cell.textContent = value || "Empty";
         row.append(cell);
       }
       row.insertBefore(taxonomyCell(item), row.children[2]);
-      row.children[4].title = formatEpoch(item.updatedAtEpochSeconds);
-      const publicationCell = document.createElement("td");
-      publicationCell.append(publicationStatusButton(item.publicationStatus, () => setView("publish-view")));
-      row.insertBefore(publicationCell, row.children[3]);
-      const changesCell = document.createElement("td");
-      changesCell.append(pendingChangesIcon(item.hasPendingChanges));
-      row.insertBefore(changesCell, row.children[5]);
+      row.append(stateCell(item));
       const actions = document.createElement("td");
       actions.className = "actions-cell";
       const actionGroup = document.createElement("div");
@@ -563,10 +582,7 @@ const itemTableHead = () => {
     { label: "Title", key: "title" },
     { label: "Signer", key: "signerText" },
     { label: "Franchise / Product" },
-    { label: "Status" },
-    { label: "Images" },
-    { label: "Changes" },
-    { label: "Updated" },
+    { label: "State" },
     { label: "Actions" },
   ]) {
     const header = document.createElement("th");

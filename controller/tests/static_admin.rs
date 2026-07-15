@@ -85,6 +85,11 @@ fn static_admin_source_references_collection_workflow_contract() {
         "button.addEventListener(\"click\", onClick)",
         "const taxonomyCell = (item) =>",
         "cell.className = \"taxonomy-cell\"",
+        "const stateCell = (item) =>",
+        "cell.className = \"state-cell\"",
+        "state-copy",
+        "state-icons",
+        "imageCountLabel",
         "taxonomy-primary",
         "taxonomy-secondary",
         "iconBadge(\"Pending changes\", \"pending\"",
@@ -149,21 +154,28 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
         "item list header should keep the stacked taxonomy column"
     );
     assert!(
+        header_builder.contains("{ label: \"State\" }"),
+        "item list header should group status, images, changes, and updated time"
+    );
+    assert!(
         !header_builder.contains("{ label: \"Format\", key: \"format\" }"),
         "item list header should not spend a column on format"
     );
+    for removed_header in [
+        "{ label: \"Status\" }",
+        "{ label: \"Images\" }",
+        "{ label: \"Changes\" }",
+        "{ label: \"Updated\" }",
+    ] {
+        assert!(
+            !header_builder.contains(removed_header),
+            "item list header should not keep separate state fragment {removed_header}"
+        );
+    }
 
     let renderer_fragments = [
-        "String(item.imageCount || 0)",
-        "formatRelativeEpoch(item.updatedAtEpochSeconds)",
         "row.insertBefore(taxonomyCell(item), row.children[2]);",
-        "row.children[4].title = formatEpoch(item.updatedAtEpochSeconds);",
-        "const publicationCell = document.createElement(\"td\");",
-        "publicationCell.append(publicationStatusButton(item.publicationStatus, () => setView(\"publish-view\")));",
-        "row.insertBefore(publicationCell, row.children[3]);",
-        "const changesCell = document.createElement(\"td\");",
-        "changesCell.append(pendingChangesIcon(item.hasPendingChanges));",
-        "row.insertBefore(changesCell, row.children[5]);",
+        "row.append(stateCell(item));",
         "actions.className = \"actions-cell\"",
         "actionGroup.className = \"row-actions\"",
         "iconButton(\"Edit item\", \"edit\"",
@@ -187,6 +199,10 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
         "return { label: \"Draft\", icon: \"draft\", tone: \"status-icon-neutral\" };",
         "return { label: \"Archived\", icon: \"archived\", tone: \"status-icon-muted\" };",
         "{ label: \"Franchise / Product\" }",
+        "{ label: \"State\" }",
+        "copy.title = formatEpoch(item.updatedAtEpochSeconds);",
+        "publicationStatusButton(item.publicationStatus, () => setView(\"publish-view\"))",
+        "pendingChangesIcon(item.hasPendingChanges)",
     ] {
         assert!(
             source.contains(accessibility_fragment),
