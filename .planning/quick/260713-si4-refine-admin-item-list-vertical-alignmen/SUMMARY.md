@@ -14,6 +14,7 @@ Refined the admin item list density and alignment after the status/change icon u
 - Replaced long absolute updated timestamps in the item list with compact relative labels such as `5m ago`, while preserving the exact timestamp as hover text.
 - Combined the publish-status action into the publication status icon button and removed the separate publish-status action button.
 - Reduced the action column from three icon buttons to two, narrowed the updated/action columns, and lowered the table minimum width.
+- Removed the low-signal format column from the item list and changed franchise/product line into a compact two-line taxonomy cell.
 - Updated static admin source contract checks for the relative date and clickable status icon behavior.
 
 ## Verification
@@ -23,5 +24,5 @@ Refined the admin item list density and alignment after the status/change icon u
 
 ## Follow-Up Suggestions
 
-- If the list still feels crowded, the next best space win is collapsing `Franchise / Product Line` into a stacked two-line cell or showing product line only on hover.
+- If the list still feels crowded, the next best space win is showing product line only on hover or moving taxonomy under the title.
 - Consider adding a small primary-image thumbnail column later if visual recognition becomes more important than maximum metadata density.

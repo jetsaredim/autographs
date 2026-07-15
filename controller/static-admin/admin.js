@@ -187,6 +187,19 @@ const pendingChangesIcon = (hasPendingChanges) =>
     ? iconBadge("Pending changes", "pending", "status-icon-warning")
     : iconBadge("No pending changes", "clean", "status-icon-success");
 
+const taxonomyCell = (item) => {
+  const cell = document.createElement("td");
+  cell.className = "taxonomy-cell";
+  const franchises = item.franchises?.join(", ") || "";
+  const productLine = item.productLine || "";
+  cell.title = [franchises, productLine].filter(Boolean).join(" / ") || "Empty";
+  cell.append(
+    textNode("span", franchises || "Empty", "taxonomy-primary"),
+    textNode("span", productLine || "No product line", "taxonomy-secondary")
+  );
+  return cell;
+};
+
 const formatEpoch = (seconds) => {
   if (!seconds) {
     return "Not recorded";
@@ -507,8 +520,6 @@ async function renderItemList() {
       for (const value of [
         item.title,
         item.signerText || item.signer,
-        item.format,
-        [item.franchises?.join(", "), item.productLine].filter(Boolean).join(" / "),
         String(item.imageCount || 0),
         formatRelativeEpoch(item.updatedAtEpochSeconds),
       ]) {
@@ -516,13 +527,14 @@ async function renderItemList() {
         cell.textContent = value || "Empty";
         row.append(cell);
       }
-      row.children[5].title = formatEpoch(item.updatedAtEpochSeconds);
+      row.insertBefore(taxonomyCell(item), row.children[2]);
+      row.children[4].title = formatEpoch(item.updatedAtEpochSeconds);
       const publicationCell = document.createElement("td");
       publicationCell.append(publicationStatusButton(item.publicationStatus, () => setView("publish-view")));
-      row.insertBefore(publicationCell, row.children[4]);
+      row.insertBefore(publicationCell, row.children[3]);
       const changesCell = document.createElement("td");
       changesCell.append(pendingChangesIcon(item.hasPendingChanges));
-      row.insertBefore(changesCell, row.children[6]);
+      row.insertBefore(changesCell, row.children[5]);
       const actions = document.createElement("td");
       actions.className = "actions-cell";
       const actionGroup = document.createElement("div");
@@ -550,8 +562,7 @@ const itemTableHead = () => {
   for (const column of [
     { label: "Title", key: "title" },
     { label: "Signer", key: "signerText" },
-    { label: "Format", key: "format" },
-    { label: "Franchise / Product Line" },
+    { label: "Franchise / Product" },
     { label: "Status" },
     { label: "Images" },
     { label: "Changes" },

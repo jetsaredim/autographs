@@ -83,6 +83,10 @@ fn static_admin_source_references_collection_workflow_contract() {
         "iconButton(\"View history\", \"history\"",
         "button.setAttribute(\"aria-label\", `Publish status: ${label}`)",
         "button.addEventListener(\"click\", onClick)",
+        "const taxonomyCell = (item) =>",
+        "cell.className = \"taxonomy-cell\"",
+        "taxonomy-primary",
+        "taxonomy-secondary",
         "iconBadge(\"Pending changes\", \"pending\"",
         "iconBadge(\"No pending changes\", \"clean\"",
         "actions.className = \"actions-cell\"",
@@ -134,18 +138,32 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
         .map(|offset| render_start + offset)
         .expect("item list header builder follows renderer");
     let renderer = &source[render_start..render_end];
+    let header_end = source[render_end..]
+        .find("function sortLabel")
+        .map(|offset| render_end + offset)
+        .expect("sort label follows header builder");
+    let header_builder = &source[render_end..header_end];
+
+    assert!(
+        header_builder.contains("{ label: \"Franchise / Product\" }"),
+        "item list header should keep the stacked taxonomy column"
+    );
+    assert!(
+        !header_builder.contains("{ label: \"Format\", key: \"format\" }"),
+        "item list header should not spend a column on format"
+    );
 
     let renderer_fragments = [
-        "[item.franchises?.join(\", \"), item.productLine]",
         "String(item.imageCount || 0)",
         "formatRelativeEpoch(item.updatedAtEpochSeconds)",
-        "row.children[5].title = formatEpoch(item.updatedAtEpochSeconds);",
+        "row.insertBefore(taxonomyCell(item), row.children[2]);",
+        "row.children[4].title = formatEpoch(item.updatedAtEpochSeconds);",
         "const publicationCell = document.createElement(\"td\");",
         "publicationCell.append(publicationStatusButton(item.publicationStatus, () => setView(\"publish-view\")));",
-        "row.insertBefore(publicationCell, row.children[4]);",
+        "row.insertBefore(publicationCell, row.children[3]);",
         "const changesCell = document.createElement(\"td\");",
         "changesCell.append(pendingChangesIcon(item.hasPendingChanges));",
-        "row.insertBefore(changesCell, row.children[6]);",
+        "row.insertBefore(changesCell, row.children[5]);",
         "actions.className = \"actions-cell\"",
         "actionGroup.className = \"row-actions\"",
         "iconButton(\"Edit item\", \"edit\"",
@@ -168,6 +186,7 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
         "button.title = `Publish status: ${label}`;",
         "return { label: \"Draft\", icon: \"draft\", tone: \"status-icon-neutral\" };",
         "return { label: \"Archived\", icon: \"archived\", tone: \"status-icon-muted\" };",
+        "{ label: \"Franchise / Product\" }",
     ] {
         assert!(
             source.contains(accessibility_fragment),
