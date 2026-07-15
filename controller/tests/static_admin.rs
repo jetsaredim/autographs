@@ -155,6 +155,18 @@ fn static_admin_source_references_collection_workflow_contract() {
         !source.contains("id=\"item-list\" class=\"item-table\" aria-live"),
         "item list table wrapper should not be the live region while aria-busy changes"
     );
+    let loading_start = source
+        .find("const loadingState = (message) =>")
+        .expect("loadingState helper exists");
+    let loading_end = source[loading_start..]
+        .find("const nextFrame = ()")
+        .map(|offset| loading_start + offset)
+        .expect("nextFrame helper follows loadingState");
+    let loading_source = &source[loading_start..loading_end];
+    assert!(
+        !loading_source.contains("role"),
+        "visual loading placeholder inside busy item list should not be a live region"
+    );
 }
 
 #[test]

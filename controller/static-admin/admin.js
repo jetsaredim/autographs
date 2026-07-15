@@ -123,7 +123,6 @@ const buttonNode = (text, className, onClick) => {
 const loadingState = (message) => {
   const wrapper = document.createElement("div");
   wrapper.className = "loading-state";
-  wrapper.setAttribute("role", "status");
   wrapper.textContent = message;
   return wrapper;
 };
