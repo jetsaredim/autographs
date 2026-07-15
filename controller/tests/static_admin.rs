@@ -70,21 +70,53 @@ fn static_admin_source_references_collection_workflow_contract() {
         "class=\"tab-button\" data-view=\"items-view\"",
         "<details class=\"status-section\"",
         "<details class=\"filter-panel\" id=\"item-filter-panel\">",
+        "id=\"item-list-status\" class=\"status-message\" role=\"status\"",
+        "id=\"item-list\" class=\"item-table\"",
+        "const loadingState = (message) =>",
+        "wrapper.className = \"loading-state\"",
         "icon-action",
         "const iconPaths",
-        "const publicationStatusIcon",
+        "const publicationStatusButton",
+        "const formatRelativeEpoch",
         "const pendingChangesIcon",
         "status-icon",
+        "status-icon-action",
         "status-icon-success",
         "status-icon-warning",
         "iconButton(\"Edit item\", \"edit\"",
         "iconButton(\"View history\", \"history\"",
-        "iconButton(\"Publish status\", \"status\"",
-        "iconBadge(\"Published\", \"published\"",
+        "button.setAttribute(\"aria-label\", `Publish status: ${label}`)",
+        "button.addEventListener(\"click\", onClick)",
+        "const taxonomyCell = (item) =>",
+        "cell.className = \"taxonomy-cell\"",
+        "const stateCell = (item) =>",
+        "cell.className = \"state-cell\"",
+        "layout.className = \"state-layout\"",
+        "state-copy",
+        "state-icons",
+        "imageCountLabel",
+        "taxonomy-primary",
+        "taxonomy-secondary",
         "iconBadge(\"Pending changes\", \"pending\"",
         "iconBadge(\"No pending changes\", \"clean\"",
         "actions.className = \"actions-cell\"",
         "actionGroup.className = \"row-actions\"",
+        "itemListStatus: $(\"#item-list-status\")",
+        "elements.itemList.setAttribute(\"aria-busy\", \"true\")",
+        "elements.itemListStatus.textContent = \"Requesting item summaries...\"",
+        "elements.itemList.replaceChildren(loadingState(\"Requesting item summaries...\"))",
+        "elements.itemListStatus.textContent = `Preparing ${itemCount} item${itemCount === 1 ? \"\" : \"s\"}...`",
+        "elements.itemListStatus.textContent = \"\"",
+        "elements.itemListStatus.textContent = \"Item list unavailable.\"",
+        "elements.itemList.replaceChildren(loadingState(`Preparing ${itemCount} item${itemCount === 1 ? \"\" : \"s\"}...`))",
+        "const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));",
+        "await nextFrame();",
+        "elements.itemList.removeAttribute(\"aria-busy\")",
+        "submit.textContent = \"Signing in...\"",
+        "elements.loginMessage.setAttribute(\"role\", \"status\")",
+        "elements.loginMessage.setAttribute(\"role\", \"alert\")",
+        "submit.disabled = false;",
+        "submit.textContent = originalSubmitText;",
         "function compareItems",
         "function updateSort",
         "function openNewItemEditor()",
@@ -119,6 +151,22 @@ fn static_admin_source_references_collection_workflow_contract() {
     }
     assert!(source.contains("FormData"));
     assert!(!source.to_ascii_lowercase().contains("seed"));
+    assert!(
+        !source.contains("id=\"item-list\" class=\"item-table\" aria-live"),
+        "item list table wrapper should not be the live region while aria-busy changes"
+    );
+    let loading_start = source
+        .find("const loadingState = (message) =>")
+        .expect("loadingState helper exists");
+    let loading_end = source[loading_start..]
+        .find("const nextFrame = ()")
+        .map(|offset| loading_start + offset)
+        .expect("nextFrame helper follows loadingState");
+    let loading_source = &source[loading_start..loading_end];
+    assert!(
+        !loading_source.contains("role"),
+        "visual loading placeholder inside busy item list should not be a live region"
+    );
 }
 
 #[test]
@@ -132,22 +180,51 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
         .map(|offset| render_start + offset)
         .expect("item list header builder follows renderer");
     let renderer = &source[render_start..render_end];
+    let header_end = source[render_end..]
+        .find("function sortLabel")
+        .map(|offset| render_end + offset)
+        .expect("sort label follows header builder");
+    let header_builder = &source[render_end..header_end];
+    let state_start = source
+        .find("const stateCell = (item) =>")
+        .expect("state cell builder exists");
+    let state_end = source[state_start..]
+        .find("const taxonomyCell = (item) =>")
+        .map(|offset| state_start + offset)
+        .expect("taxonomy cell follows state cell");
+    let state_builder = &source[state_start..state_end];
+
+    assert!(
+        header_builder.contains("{ label: \"Franchise / Product\" }"),
+        "item list header should keep the stacked taxonomy column"
+    );
+    assert!(
+        header_builder.contains("{ label: \"State\" }"),
+        "item list header should group status, images, changes, and updated time"
+    );
+    assert!(
+        !header_builder.contains("{ label: \"Format\", key: \"format\" }"),
+        "item list header should not spend a column on format"
+    );
+    for removed_header in [
+        "{ label: \"Status\" }",
+        "{ label: \"Images\" }",
+        "{ label: \"Changes\" }",
+        "{ label: \"Updated\" }",
+    ] {
+        assert!(
+            !header_builder.contains(removed_header),
+            "item list header should not keep separate state fragment {removed_header}"
+        );
+    }
 
     let renderer_fragments = [
-        "[item.franchises?.join(\", \"), item.productLine]",
-        "String(item.imageCount || 0)",
-        "formatEpoch(item.updatedAtEpochSeconds)",
-        "const publicationCell = document.createElement(\"td\");",
-        "publicationCell.append(publicationStatusIcon(item.publicationStatus));",
-        "row.insertBefore(publicationCell, row.children[4]);",
-        "const changesCell = document.createElement(\"td\");",
-        "changesCell.append(pendingChangesIcon(item.hasPendingChanges));",
-        "row.insertBefore(changesCell, row.children[6]);",
+        "row.insertBefore(taxonomyCell(item), row.children[2]);",
+        "row.append(stateCell(item));",
         "actions.className = \"actions-cell\"",
         "actionGroup.className = \"row-actions\"",
         "iconButton(\"Edit item\", \"edit\"",
         "iconButton(\"View history\", \"history\"",
-        "iconButton(\"Publish status\", \"status\"",
         "actions.append(actionGroup);",
     ];
     let mut previous_position = 0;
@@ -158,12 +235,35 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
         previous_position += relative_position;
     }
 
+    let state_icon_fragments = [
+        "pendingChangesIcon(item.hasPendingChanges)",
+        "publicationStatusButton(item.publicationStatus, () => setView(\"publish-view\"))",
+    ];
+    let mut previous_position = 0;
+    for fragment in state_icon_fragments {
+        let relative_position = state_builder[previous_position..]
+            .find(fragment)
+            .unwrap_or_else(|| {
+                panic!("state cell icon cluster is missing ordered fragment {fragment}")
+            });
+        previous_position += relative_position;
+    }
+
     for accessibility_fragment in [
         "badge.setAttribute(\"role\", \"img\");",
         "badge.setAttribute(\"aria-label\", label);",
         "badge.title = label;",
-        "iconBadge(\"Draft\", \"draft\", \"status-icon-neutral\")",
-        "iconBadge(\"Archived\", \"archived\", \"status-icon-muted\")",
+        "button.setAttribute(\"aria-label\", `Publish status: ${label}`);",
+        "button.title = `Publish status: ${label}`;",
+        "return { label: \"Draft\", icon: \"draft\", tone: \"status-icon-neutral\" };",
+        "return { label: \"Archived\", icon: \"archived\", tone: \"status-icon-muted\" };",
+        "{ label: \"Franchise / Product\" }",
+        "{ label: \"State\" }",
+        "layout.append(copy, icons);",
+        "cell.append(layout);",
+        "copy.title = formatEpoch(item.updatedAtEpochSeconds);",
+        "pendingChangesIcon(item.hasPendingChanges)",
+        "publicationStatusButton(item.publicationStatus, () => setView(\"publish-view\"))",
     ] {
         assert!(
             source.contains(accessibility_fragment),
@@ -461,6 +561,11 @@ fn static_admin_taxonomy_styles_and_accessibility_states_are_present() {
         "aria-label",
         "focus-visible",
         "outline: 2px solid #25636a;",
+        ".loading-state",
+        ".status-success {\n  color: #25636a;\n}",
+        ".status-icon-success {\n  color: #25636a;\n}",
+        ".status-icon-action {\n  width: 36px;",
+        ".icon-action {\n  width: 36px;",
         "#9a6700",
         "#b42318",
     ] {

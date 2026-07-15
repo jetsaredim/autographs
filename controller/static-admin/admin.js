@@ -74,6 +74,7 @@ const elements = {
   itemForm: $("#item-form"),
   itemFilters: $("#item-filters"),
   itemList: $("#item-list"),
+  itemListStatus: $("#item-list-status"),
   imageGrid: $("#image-grid"),
   imageFiles: $("#image-files"),
   replacementImage: $("#replacement-image"),
@@ -119,6 +120,15 @@ const buttonNode = (text, className, onClick) => {
   return button;
 };
 
+const loadingState = (message) => {
+  const wrapper = document.createElement("div");
+  wrapper.className = "loading-state";
+  wrapper.textContent = message;
+  return wrapper;
+};
+
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+
 const iconPaths = {
   archived:
     '<path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"></path><path d="M10 12h4"></path><path d="M1 3h22v5H1z"></path>',
@@ -159,15 +169,27 @@ const iconBadge = (label, icon, tone) => {
   return badge;
 };
 
-const publicationStatusIcon = (status) => {
+const publicationStatusParts = (status) => {
   const normalized = String(status || "draft").toLowerCase();
   if (normalized === "published") {
-    return iconBadge("Published", "published", "status-icon-success");
+    return { label: "Published", icon: "published", tone: "status-icon-success" };
   }
   if (normalized === "archived") {
-    return iconBadge("Archived", "archived", "status-icon-muted");
+    return { label: "Archived", icon: "archived", tone: "status-icon-muted" };
   }
-  return iconBadge("Draft", "draft", "status-icon-neutral");
+  return { label: "Draft", icon: "draft", tone: "status-icon-neutral" };
+};
+
+const publicationStatusButton = (status, onClick) => {
+  const { label, icon, tone } = publicationStatusParts(status);
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `status-icon status-icon-action ${tone}`;
+  button.setAttribute("aria-label", `Publish status: ${label}`);
+  button.title = `Publish status: ${label}`;
+  button.append(iconNode(icon));
+  button.addEventListener("click", onClick);
+  return button;
 };
 
 const pendingChangesIcon = (hasPendingChanges) =>
@@ -175,11 +197,77 @@ const pendingChangesIcon = (hasPendingChanges) =>
     ? iconBadge("Pending changes", "pending", "status-icon-warning")
     : iconBadge("No pending changes", "clean", "status-icon-success");
 
+const imageCountLabel = (count) => {
+  const imageCount = Number(count) || 0;
+  return `${imageCount} image${imageCount === 1 ? "" : "s"}`;
+};
+
+const stateCell = (item) => {
+  const cell = document.createElement("td");
+  cell.className = "state-cell";
+  const { label } = publicationStatusParts(item.publicationStatus);
+  const layout = document.createElement("span");
+  layout.className = "state-layout";
+  const copy = document.createElement("span");
+  copy.className = "state-copy";
+  copy.append(
+    textNode("span", label, "state-label"),
+    textNode(
+      "span",
+      `${imageCountLabel(item.imageCount)} · ${formatRelativeEpoch(item.updatedAtEpochSeconds)}`,
+      "state-meta"
+    )
+  );
+  copy.title = formatEpoch(item.updatedAtEpochSeconds);
+  const icons = document.createElement("span");
+  icons.className = "state-icons";
+  icons.append(
+    pendingChangesIcon(item.hasPendingChanges),
+    publicationStatusButton(item.publicationStatus, () => setView("publish-view"))
+  );
+  layout.append(copy, icons);
+  cell.append(layout);
+  return cell;
+};
+
+const taxonomyCell = (item) => {
+  const cell = document.createElement("td");
+  cell.className = "taxonomy-cell";
+  const franchises = item.franchises?.join(", ") || "";
+  const productLine = item.productLine || "";
+  cell.title = [franchises, productLine].filter(Boolean).join(" / ") || "Empty";
+  cell.append(
+    textNode("span", franchises || "Empty", "taxonomy-primary"),
+    textNode("span", productLine || "No product line", "taxonomy-secondary")
+  );
+  return cell;
+};
+
 const formatEpoch = (seconds) => {
   if (!seconds) {
     return "Not recorded";
   }
   return new Date(seconds * 1000).toLocaleString();
+};
+
+const formatRelativeEpoch = (seconds) => {
+  const epochSeconds = Number(seconds);
+  if (!Number.isFinite(epochSeconds) || epochSeconds <= 0) {
+    return "Not recorded";
+  }
+  const diffSeconds = Math.max(0, Math.floor(Date.now() / 1000) - epochSeconds);
+  if (diffSeconds < 60) {
+    return "Now";
+  }
+  const units = [
+    ["y", 365 * 24 * 60 * 60],
+    ["mo", 30 * 24 * 60 * 60],
+    ["d", 24 * 60 * 60],
+    ["h", 60 * 60],
+    ["m", 60],
+  ];
+  const [suffix, unitSeconds] = units.find(([, unitSeconds]) => diffSeconds >= unitSeconds);
+  return `${Math.floor(diffSeconds / unitSeconds)}${suffix} ago`;
 };
 
 const formatValue = (value) => {
@@ -439,8 +527,15 @@ const publishSummaryText = (publish) => {
 };
 
 async function renderItemList() {
+  elements.itemList.setAttribute("aria-busy", "true");
+  elements.itemListStatus.textContent = "Requesting item summaries...";
+  elements.itemList.replaceChildren(loadingState("Requesting item summaries..."));
   try {
     const items = await request(`${endpoints.items}${buildQuery(elements.itemFilters)}`);
+    const itemCount = Array.isArray(items) ? items.length : 0;
+    elements.itemListStatus.textContent = `Preparing ${itemCount} item${itemCount === 1 ? "" : "s"}...`;
+    elements.itemList.replaceChildren(loadingState(`Preparing ${itemCount} item${itemCount === 1 ? "" : "s"}...`));
+    await nextFrame();
     const changeFilter = elements.itemFilters.elements.changes.value;
     state.items = (Array.isArray(items) ? items : [])
       .filter((item) => {
@@ -465,6 +560,7 @@ async function renderItemList() {
         )
       );
       elements.itemList.append(empty);
+      elements.itemListStatus.textContent = "";
       return;
     }
     const table = document.createElement("table");
@@ -472,32 +568,20 @@ async function renderItemList() {
     const body = document.createElement("tbody");
     for (const item of state.items) {
       const row = document.createElement("tr");
-      for (const value of [
-        item.title,
-        item.signerText || item.signer,
-        item.format,
-        [item.franchises?.join(", "), item.productLine].filter(Boolean).join(" / "),
-        String(item.imageCount || 0),
-        formatEpoch(item.updatedAtEpochSeconds),
-      ]) {
+      for (const value of [item.title, item.signerText || item.signer]) {
         const cell = document.createElement("td");
         cell.textContent = value || "Empty";
         row.append(cell);
       }
-      const publicationCell = document.createElement("td");
-      publicationCell.append(publicationStatusIcon(item.publicationStatus));
-      row.insertBefore(publicationCell, row.children[4]);
-      const changesCell = document.createElement("td");
-      changesCell.append(pendingChangesIcon(item.hasPendingChanges));
-      row.insertBefore(changesCell, row.children[6]);
+      row.insertBefore(taxonomyCell(item), row.children[2]);
+      row.append(stateCell(item));
       const actions = document.createElement("td");
       actions.className = "actions-cell";
       const actionGroup = document.createElement("div");
       actionGroup.className = "row-actions";
       actionGroup.append(
         iconButton("Edit item", "edit", () => loadItem(item.id)),
-        iconButton("View history", "history", () => loadItem(item.id, true)),
-        iconButton("Publish status", "status", () => setView("publish-view"))
+        iconButton("View history", "history", () => loadItem(item.id, true))
       );
       actions.append(actionGroup);
       row.append(actions);
@@ -505,10 +589,14 @@ async function renderItemList() {
     }
     table.append(body);
     elements.itemList.append(table);
+    elements.itemListStatus.textContent = "";
   } catch (error) {
     if (error.status !== 401) {
       elements.itemList.replaceChildren(textNode("p", `Item list unavailable: ${error.message}`, "empty-state"));
+      elements.itemListStatus.textContent = "Item list unavailable.";
     }
+  } finally {
+    elements.itemList.removeAttribute("aria-busy");
   }
 }
 
@@ -518,12 +606,8 @@ const itemTableHead = () => {
   for (const column of [
     { label: "Title", key: "title" },
     { label: "Signer", key: "signerText" },
-    { label: "Format", key: "format" },
-    { label: "Franchise / Product Line" },
-    { label: "Status" },
-    { label: "Images" },
-    { label: "Changes" },
-    { label: "Updated" },
+    { label: "Franchise / Product" },
+    { label: "State" },
     { label: "Actions" },
   ]) {
     const header = document.createElement("th");
@@ -1354,8 +1438,13 @@ async function bootstrapSession() {
 
 elements.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  elements.loginMessage.textContent = "";
   const form = event.currentTarget;
+  const submit = form.querySelector("button[type=\"submit\"]");
+  const originalSubmitText = submit.textContent;
+  submit.disabled = true;
+  submit.textContent = "Signing in...";
+  elements.loginMessage.setAttribute("role", "status");
+  elements.loginMessage.textContent = "Signing in...";
   try {
     await jsonRequest(endpoints.login, "POST", {
       password: form.elements.password.value,
@@ -1365,12 +1454,19 @@ elements.loginForm.addEventListener("submit", async (event) => {
       window.location.replace(publicHomePath);
       return;
     }
+    elements.loginMessage.setAttribute("role", "alert");
     elements.loginMessage.textContent = error.status === 429 ? copy.lockout : "Login failed.";
+    submit.disabled = false;
+    submit.textContent = originalSubmitText;
     return;
   }
 
   const next = nextDestination();
   form.reset();
+  elements.loginMessage.setAttribute("role", "alert");
+  elements.loginMessage.textContent = "";
+  submit.disabled = false;
+  submit.textContent = originalSubmitText;
   if (window.location.pathname === adminRootPath && next === adminRootPath) {
     showWorkflow();
     await renderHub();
