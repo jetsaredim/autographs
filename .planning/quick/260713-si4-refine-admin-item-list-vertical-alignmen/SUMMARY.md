@@ -16,6 +16,7 @@ Refined the admin item list density and alignment after the status/change icon u
 - Reduced the action column from three icon buttons to two, narrowed the updated/action columns, and lowered the table minimum width.
 - Removed the low-signal format column from the item list and changed franchise/product line into a compact two-line taxonomy cell.
 - Regrouped publication status, image count, pending-change state, and updated time into a single `State` column with left-aligned text and right-aligned icons near row actions.
+- Matched the publish-status icon button size to the pending-change badge and ordered the state icons as changes first, publication status second.
 - Updated static admin source contract checks for the relative date and clickable status icon behavior.
 
 ## Verification

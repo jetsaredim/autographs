@@ -212,8 +212,8 @@ const stateCell = (item) => {
   const icons = document.createElement("span");
   icons.className = "state-icons";
   icons.append(
-    publicationStatusButton(item.publicationStatus, () => setView("publish-view")),
-    pendingChangesIcon(item.hasPendingChanges)
+    pendingChangesIcon(item.hasPendingChanges),
+    publicationStatusButton(item.publicationStatus, () => setView("publish-view"))
   );
   layout.append(copy, icons);
   cell.append(layout);

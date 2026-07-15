@@ -149,6 +149,14 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
         .map(|offset| render_end + offset)
         .expect("sort label follows header builder");
     let header_builder = &source[render_end..header_end];
+    let state_start = source
+        .find("const stateCell = (item) =>")
+        .expect("state cell builder exists");
+    let state_end = source[state_start..]
+        .find("const taxonomyCell = (item) =>")
+        .map(|offset| state_start + offset)
+        .expect("taxonomy cell follows state cell");
+    let state_builder = &source[state_start..state_end];
 
     assert!(
         header_builder.contains("{ label: \"Franchise / Product\" }"),
@@ -191,6 +199,18 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
         previous_position += relative_position;
     }
 
+    let state_icon_fragments = [
+        "pendingChangesIcon(item.hasPendingChanges)",
+        "publicationStatusButton(item.publicationStatus, () => setView(\"publish-view\"))",
+    ];
+    let mut previous_position = 0;
+    for fragment in state_icon_fragments {
+        let relative_position = state_builder[previous_position..]
+            .find(fragment)
+            .unwrap_or_else(|| panic!("state cell icon cluster is missing ordered fragment {fragment}"));
+        previous_position += relative_position;
+    }
+
     for accessibility_fragment in [
         "badge.setAttribute(\"role\", \"img\");",
         "badge.setAttribute(\"aria-label\", label);",
@@ -204,8 +224,8 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
         "layout.append(copy, icons);",
         "cell.append(layout);",
         "copy.title = formatEpoch(item.updatedAtEpochSeconds);",
-        "publicationStatusButton(item.publicationStatus, () => setView(\"publish-view\"))",
         "pendingChangesIcon(item.hasPendingChanges)",
+        "publicationStatusButton(item.publicationStatus, () => setView(\"publish-view\"))",
     ] {
         assert!(
             source.contains(accessibility_fragment),
