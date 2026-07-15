@@ -74,6 +74,7 @@ const elements = {
   itemForm: $("#item-form"),
   itemFilters: $("#item-filters"),
   itemList: $("#item-list"),
+  itemListStatus: $("#item-list-status"),
   imageGrid: $("#image-grid"),
   imageFiles: $("#image-files"),
   replacementImage: $("#replacement-image"),
@@ -528,10 +529,12 @@ const publishSummaryText = (publish) => {
 
 async function renderItemList() {
   elements.itemList.setAttribute("aria-busy", "true");
+  elements.itemListStatus.textContent = "Requesting item summaries...";
   elements.itemList.replaceChildren(loadingState("Requesting item summaries..."));
   try {
     const items = await request(`${endpoints.items}${buildQuery(elements.itemFilters)}`);
     const itemCount = Array.isArray(items) ? items.length : 0;
+    elements.itemListStatus.textContent = `Preparing ${itemCount} item${itemCount === 1 ? "" : "s"}...`;
     elements.itemList.replaceChildren(loadingState(`Preparing ${itemCount} item${itemCount === 1 ? "" : "s"}...`));
     await nextFrame();
     const changeFilter = elements.itemFilters.elements.changes.value;
@@ -558,6 +561,7 @@ async function renderItemList() {
         )
       );
       elements.itemList.append(empty);
+      elements.itemListStatus.textContent = "";
       return;
     }
     const table = document.createElement("table");
@@ -586,9 +590,11 @@ async function renderItemList() {
     }
     table.append(body);
     elements.itemList.append(table);
+    elements.itemListStatus.textContent = "";
   } catch (error) {
     if (error.status !== 401) {
       elements.itemList.replaceChildren(textNode("p", `Item list unavailable: ${error.message}`, "empty-state"));
+      elements.itemListStatus.textContent = "Item list unavailable.";
     }
   } finally {
     elements.itemList.removeAttribute("aria-busy");
@@ -1438,6 +1444,7 @@ elements.loginForm.addEventListener("submit", async (event) => {
   const originalSubmitText = submit.textContent;
   submit.disabled = true;
   submit.textContent = "Signing in...";
+  elements.loginMessage.setAttribute("role", "status");
   elements.loginMessage.textContent = "Signing in...";
   try {
     await jsonRequest(endpoints.login, "POST", {
@@ -1448,6 +1455,7 @@ elements.loginForm.addEventListener("submit", async (event) => {
       window.location.replace(publicHomePath);
       return;
     }
+    elements.loginMessage.setAttribute("role", "alert");
     elements.loginMessage.textContent = error.status === 429 ? copy.lockout : "Login failed.";
     submit.disabled = false;
     submit.textContent = originalSubmitText;
@@ -1456,6 +1464,8 @@ elements.loginForm.addEventListener("submit", async (event) => {
 
   const next = nextDestination();
   form.reset();
+  elements.loginMessage.setAttribute("role", "alert");
+  elements.loginMessage.textContent = "";
   submit.disabled = false;
   submit.textContent = originalSubmitText;
   if (window.location.pathname === adminRootPath && next === adminRootPath) {

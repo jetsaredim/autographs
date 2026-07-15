@@ -70,6 +70,8 @@ fn static_admin_source_references_collection_workflow_contract() {
         "class=\"tab-button\" data-view=\"items-view\"",
         "<details class=\"status-section\"",
         "<details class=\"filter-panel\" id=\"item-filter-panel\">",
+        "id=\"item-list-status\" class=\"status-message\" role=\"status\"",
+        "id=\"item-list\" class=\"item-table\"",
         "const loadingState = (message) =>",
         "wrapper.className = \"loading-state\"",
         "icon-action",
@@ -99,13 +101,20 @@ fn static_admin_source_references_collection_workflow_contract() {
         "iconBadge(\"No pending changes\", \"clean\"",
         "actions.className = \"actions-cell\"",
         "actionGroup.className = \"row-actions\"",
+        "itemListStatus: $(\"#item-list-status\")",
         "elements.itemList.setAttribute(\"aria-busy\", \"true\")",
+        "elements.itemListStatus.textContent = \"Requesting item summaries...\"",
         "elements.itemList.replaceChildren(loadingState(\"Requesting item summaries...\"))",
+        "elements.itemListStatus.textContent = `Preparing ${itemCount} item${itemCount === 1 ? \"\" : \"s\"}...`",
+        "elements.itemListStatus.textContent = \"\"",
+        "elements.itemListStatus.textContent = \"Item list unavailable.\"",
         "elements.itemList.replaceChildren(loadingState(`Preparing ${itemCount} item${itemCount === 1 ? \"\" : \"s\"}...`))",
         "const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));",
         "await nextFrame();",
         "elements.itemList.removeAttribute(\"aria-busy\")",
         "submit.textContent = \"Signing in...\"",
+        "elements.loginMessage.setAttribute(\"role\", \"status\")",
+        "elements.loginMessage.setAttribute(\"role\", \"alert\")",
         "submit.disabled = false;",
         "submit.textContent = originalSubmitText;",
         "function compareItems",
@@ -142,6 +151,10 @@ fn static_admin_source_references_collection_workflow_contract() {
     }
     assert!(source.contains("FormData"));
     assert!(!source.to_ascii_lowercase().contains("seed"));
+    assert!(
+        !source.contains("id=\"item-list\" class=\"item-table\" aria-live"),
+        "item list table wrapper should not be the live region while aria-busy changes"
+    );
 }
 
 #[test]

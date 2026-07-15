@@ -21,6 +21,7 @@ Refined the admin item list density and alignment after the status/change icon u
 - Added visible `Signing in...` and `Loading items...` states so slow admin API calls no longer make the UI feel frozen.
 - Unified positive/success icon coloring with the admin teal accent while preserving amber for pending/warning states.
 - Replaced generic item loading copy with request/render phases: requesting item summaries, then preparing the returned item count.
+- Addressed PR review feedback by moving item-list loading announcements to a separate `role=status` node and using status semantics, not alert semantics, for login progress.
 - Updated static admin source contract checks for the relative date and clickable status icon behavior.
 
 ## Verification
