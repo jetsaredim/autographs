@@ -17,6 +17,8 @@ Refined the admin item list density and alignment after the status/change icon u
 - Removed the low-signal format column from the item list and changed franchise/product line into a compact two-line taxonomy cell.
 - Regrouped publication status, image count, pending-change state, and updated time into a single `State` column with left-aligned text and right-aligned icons near row actions.
 - Matched the publish-status icon button size to the pending-change badge and ordered the state icons as changes first, publication status second.
+- Unified state and row action icon containers at 36px circular controls.
+- Added visible `Signing in...` and `Loading items...` states so slow admin API calls no longer make the UI feel frozen.
 - Updated static admin source contract checks for the relative date and clickable status icon behavior.
 
 ## Verification

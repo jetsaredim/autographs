@@ -495,8 +495,11 @@ h4 {
 }
 
 .icon-action {
-  width: 44px;
-  padding: 8px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  border-radius: 999px;
+  padding: 7px;
   background: #ffffff;
   color: #25636a;
 }
@@ -516,9 +519,9 @@ h4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
-  width: 32px;
-  height: 32px;
+  min-height: 36px;
+  width: 36px;
+  height: 36px;
   border: 1px solid currentColor;
   border-radius: 999px;
   padding: 0;
@@ -526,9 +529,9 @@ h4 {
 }
 
 .status-icon-action {
-  width: 32px;
-  height: 32px;
-  min-height: 32px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
   cursor: pointer;
 }
 
@@ -702,6 +705,11 @@ h4 {
 
 .item-table .empty-state {
   padding: 24px;
+}
+
+.loading-state {
+  padding: 24px;
+  color: #626862;
 }
 
 .sticky-save-bar {

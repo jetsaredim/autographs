@@ -119,6 +119,14 @@ const buttonNode = (text, className, onClick) => {
   return button;
 };
 
+const loadingState = (message) => {
+  const wrapper = document.createElement("div");
+  wrapper.className = "loading-state";
+  wrapper.setAttribute("role", "status");
+  wrapper.textContent = message;
+  return wrapper;
+};
+
 const iconPaths = {
   archived:
     '<path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"></path><path d="M10 12h4"></path><path d="M1 3h22v5H1z"></path>',
@@ -517,6 +525,8 @@ const publishSummaryText = (publish) => {
 };
 
 async function renderItemList() {
+  elements.itemList.setAttribute("aria-busy", "true");
+  elements.itemList.replaceChildren(loadingState("Loading items..."));
   try {
     const items = await request(`${endpoints.items}${buildQuery(elements.itemFilters)}`);
     const changeFilter = elements.itemFilters.elements.changes.value;
@@ -575,6 +585,8 @@ async function renderItemList() {
     if (error.status !== 401) {
       elements.itemList.replaceChildren(textNode("p", `Item list unavailable: ${error.message}`, "empty-state"));
     }
+  } finally {
+    elements.itemList.removeAttribute("aria-busy");
   }
 }
 
@@ -1416,8 +1428,12 @@ async function bootstrapSession() {
 
 elements.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  elements.loginMessage.textContent = "";
   const form = event.currentTarget;
+  const submit = form.querySelector("button[type=\"submit\"]");
+  const originalSubmitText = submit.textContent;
+  submit.disabled = true;
+  submit.textContent = "Signing in...";
+  elements.loginMessage.textContent = "Signing in...";
   try {
     await jsonRequest(endpoints.login, "POST", {
       password: form.elements.password.value,
@@ -1428,11 +1444,15 @@ elements.loginForm.addEventListener("submit", async (event) => {
       return;
     }
     elements.loginMessage.textContent = error.status === 429 ? copy.lockout : "Login failed.";
+    submit.disabled = false;
+    submit.textContent = originalSubmitText;
     return;
   }
 
   const next = nextDestination();
   form.reset();
+  submit.disabled = false;
+  submit.textContent = originalSubmitText;
   if (window.location.pathname === adminRootPath && next === adminRootPath) {
     showWorkflow();
     await renderHub();
