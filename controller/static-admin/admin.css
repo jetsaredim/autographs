@@ -654,11 +654,12 @@ h4 {
   width: 180px;
 }
 
-.state-cell {
+.state-layout {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
 }
 
 .state-copy {

@@ -196,6 +196,8 @@ const stateCell = (item) => {
   const cell = document.createElement("td");
   cell.className = "state-cell";
   const { label } = publicationStatusParts(item.publicationStatus);
+  const layout = document.createElement("span");
+  layout.className = "state-layout";
   const copy = document.createElement("span");
   copy.className = "state-copy";
   copy.append(
@@ -213,7 +215,8 @@ const stateCell = (item) => {
     publicationStatusButton(item.publicationStatus, () => setView("publish-view")),
     pendingChangesIcon(item.hasPendingChanges)
   );
-  cell.append(copy, icons);
+  layout.append(copy, icons);
+  cell.append(layout);
   return cell;
 };
 
