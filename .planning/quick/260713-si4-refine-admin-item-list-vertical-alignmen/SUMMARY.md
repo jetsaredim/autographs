@@ -19,6 +19,8 @@ Refined the admin item list density and alignment after the status/change icon u
 - Matched the publish-status icon button size to the pending-change badge and ordered the state icons as changes first, publication status second.
 - Unified state and row action icon containers at 36px circular controls.
 - Added visible `Signing in...` and `Loading items...` states so slow admin API calls no longer make the UI feel frozen.
+- Unified positive/success icon coloring with the admin teal accent while preserving amber for pending/warning states.
+- Replaced generic item loading copy with request/render phases: requesting item summaries, then preparing the returned item count.
 - Updated static admin source contract checks for the relative date and clickable status icon behavior.
 
 ## Verification

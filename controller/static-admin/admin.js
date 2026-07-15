@@ -127,6 +127,8 @@ const loadingState = (message) => {
   return wrapper;
 };
 
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+
 const iconPaths = {
   archived:
     '<path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"></path><path d="M10 12h4"></path><path d="M1 3h22v5H1z"></path>',
@@ -526,9 +528,12 @@ const publishSummaryText = (publish) => {
 
 async function renderItemList() {
   elements.itemList.setAttribute("aria-busy", "true");
-  elements.itemList.replaceChildren(loadingState("Loading items..."));
+  elements.itemList.replaceChildren(loadingState("Requesting item summaries..."));
   try {
     const items = await request(`${endpoints.items}${buildQuery(elements.itemFilters)}`);
+    const itemCount = Array.isArray(items) ? items.length : 0;
+    elements.itemList.replaceChildren(loadingState(`Preparing ${itemCount} item${itemCount === 1 ? "" : "s"}...`));
+    await nextFrame();
     const changeFilter = elements.itemFilters.elements.changes.value;
     state.items = (Array.isArray(items) ? items : [])
       .filter((item) => {
