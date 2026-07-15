@@ -243,7 +243,9 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
     for fragment in state_icon_fragments {
         let relative_position = state_builder[previous_position..]
             .find(fragment)
-            .unwrap_or_else(|| panic!("state cell icon cluster is missing ordered fragment {fragment}"));
+            .unwrap_or_else(|| {
+                panic!("state cell icon cluster is missing ordered fragment {fragment}")
+            });
         previous_position += relative_position;
     }
 
