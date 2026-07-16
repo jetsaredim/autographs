@@ -680,18 +680,35 @@ select {
 
 .profile-link {
   display: inline-flex;
+  width: 44px;
   min-width: 44px;
   min-height: 44px;
+  height: 44px;
   align-items: center;
   justify-content: center;
   border: 1px solid #dfd8cc;
-  border-radius: 8px;
+  border-radius: 999px;
   background: #ffffff;
   color: #6f675c;
-  font-size: 14px;
-  font-weight: 600;
   line-height: 1;
   text-decoration: none;
+}
+
+.profile-link-imdb {
+  width: 52px;
+  min-width: 52px;
+}
+
+.profile-link-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.profile-link-imdb .profile-link-icon {
+  width: 30px;
+  height: 30px;
 }
 
 .profile-link:hover,

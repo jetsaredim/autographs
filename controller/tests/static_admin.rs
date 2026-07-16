@@ -44,6 +44,7 @@ fn static_admin_source_references_collection_workflow_contract() {
         "Admin hub",
         "Add item",
         "Items",
+        "Signers",
         "Pending changes",
         "Cleanup warnings",
         "Redacted diagnostics",
@@ -68,6 +69,12 @@ fn static_admin_source_references_collection_workflow_contract() {
     for workflow_structure in [
         "class=\"tab-button\" data-view=\"add-item-view\"",
         "class=\"tab-button\" data-view=\"items-view\"",
+        "class=\"tab-button\" data-view=\"signers-view\"",
+        "id=\"signers-view\" class=\"view-panel\"",
+        "id=\"signer-management-form\"",
+        "id=\"signer-management-query\"",
+        "id=\"signer-management-rows\"",
+        "id=\"signer-management-message\"",
         "<details class=\"status-section\"",
         "<details class=\"filter-panel\" id=\"item-filter-panel\">",
         "id=\"item-list-status\" class=\"status-message\" role=\"status\"",
@@ -89,6 +96,8 @@ fn static_admin_source_references_collection_workflow_contract() {
         "button.addEventListener(\"click\", onClick)",
         "const taxonomyCell = (item) =>",
         "cell.className = \"taxonomy-cell\"",
+        "const signerCell = (item) =>",
+        "cell.className = \"signer-cell\"",
         "const stateCell = (item) =>",
         "cell.className = \"state-cell\"",
         "layout.className = \"state-layout\"",
@@ -101,6 +110,8 @@ fn static_admin_source_references_collection_workflow_contract() {
         "iconBadge(\"No pending changes\", \"clean\"",
         "actions.className = \"actions-cell\"",
         "actionGroup.className = \"row-actions\"",
+        "buttonNode(displayName, \"inline-link\", () =>",
+        "openSignerManagement(signerId, displayName)",
         "itemListStatus: $(\"#item-list-status\")",
         "elements.itemList.setAttribute(\"aria-busy\", \"true\")",
         "elements.itemListStatus.textContent = \"Requesting item summaries...\"",
@@ -122,8 +133,13 @@ fn static_admin_source_references_collection_workflow_contract() {
         "function openNewItemEditor()",
         "tab.dataset.view === \"add-item-view\"",
         "$(\"#add-another-item\").addEventListener(\"click\", openNewItemEditor)",
+        "viewId === \"signers-view\"",
+        "renderSignerManagement",
+        "saveSignerProfile",
+        "jsonRequest(endpoints.signer(profile.id), \"PATCH\"",
         "button.addEventListener(\"click\", () =>",
         "elements.itemFilters.addEventListener(\"submit\", (event) =>",
+        "elements.signerManagementForm.addEventListener(\"submit\", (event) =>",
         "name=\"changes\"",
     ] {
         assert!(
@@ -305,11 +321,13 @@ fn static_admin_source_references_taxonomy_editor_contract() {
         "signer-rows",
         "signer-warning-summary",
         "signer-merge-panel",
+        "signer-management-rows",
         "classification-section",
         "details-section",
         "Possible duplicate signer. Review the existing profile before saving a new signer.",
         "Type a name to create a new signer, or choose an existing signer.",
-        "Wikipedia and IMDb links are optional and appear only on public item detail pages.",
+        "Maintain reusable signer profiles. Add new signers while creating items.",
+        "Manage profile",
         "Custom item",
         "Use loose tags only for details that do not fit signer, franchise, product line, format, origin, language, role, or set.",
         "renderSignerRows",
@@ -352,11 +370,10 @@ fn static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only() {
         "row.querySelector(`[data-signer-field=\"${field}\"]`)",
         "delete row.dataset.signerId",
         "setExistingSignerProfileControls(row)",
-        "input.disabled = disabled",
+        "manage.disabled = !disabled",
+        "openSignerManagement(row.dataset.signerId, displayName)",
         "selectedSignerName = selected.profile.displayName",
         "itemRole: value(\"role\")",
-        "wikipediaUrl: value(\"wikipedia\")",
-        "imdbUrl: value(\"imdb\")",
         "...new Set(",
     ] {
         assert!(
@@ -368,6 +385,48 @@ fn static_admin_signer_payload_uses_row_scoped_fields_and_item_role_only() {
         !source.contains("defaultRole: value(\"role\")"),
         "item-level signer role must not mutate the reusable signer default role"
     );
+    assert!(
+        !source.contains("data-signer-field=\"wikipedia\""),
+        "item editor should not expose reusable signer Wikipedia fields"
+    );
+    assert!(
+        !source.contains("data-signer-field=\"imdb\""),
+        "item editor should not expose reusable signer IMDb fields"
+    );
+}
+
+#[test]
+fn static_admin_signer_management_tab_edits_reusable_profiles_only() {
+    let source = static_admin_source();
+    for expected in [
+        "function openSignerManagement(signerId, displayName = \"\")",
+        "state.focusedSignerId = signerId;",
+        "setView(\"signers-view\");",
+        "async function renderSignerManagement()",
+        "request(endpoints.signers(query))",
+        "function signerManagementEditor(profile)",
+        "Selected from item editor",
+        "managementInput(profile.id, \"displayName\", \"Display name\", \"text\", profile.displayName, true)",
+        "managementInput(profile.id, \"defaultRole\", \"Default role\", \"text\", profile.defaultRole || \"\")",
+        "managementInput(profile.id, \"wikipediaUrl\", \"Wikipedia short ID\", \"text\", profile.wikipediaUrl || \"\")",
+        "managementInput(profile.id, \"imdbUrl\", \"IMDb name ID\", \"text\", profile.imdbUrl || \"\")",
+        "async function saveSignerProfile(profile, form, submit)",
+        "jsonRequest(endpoints.signer(profile.id), \"PATCH\"",
+        "displayName: value(\"displayName\")",
+        "defaultRole: optionalValue(value(\"defaultRole\"))",
+        "wikipediaUrl: optionalValue(value(\"wikipediaUrl\"))",
+        "imdbUrl: optionalValue(value(\"imdbUrl\"))",
+        "await loadTaxonomySuggestions();",
+        "Signer profile saved privately. Publish changes when ready.",
+        "function ensureSavedBeforeManagingSigner()",
+        "Save item before managing this signer profile.",
+        "elements.signerManagementForm.addEventListener(\"submit\", (event) =>",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin signer management should include {expected}"
+        );
+    }
 }
 
 #[test]
@@ -541,6 +600,9 @@ fn static_admin_taxonomy_styles_and_accessibility_states_are_present() {
         ".signer-row-grid",
         ".warning-summary",
         ".merge-panel",
+        ".signer-cell",
+        ".inline-link",
+        ".status-pill",
         ".token-editor",
         ".taxonomy-suggestions",
         ".loose-tags-field",
@@ -557,7 +619,6 @@ fn static_admin_taxonomy_styles_and_accessibility_states_are_present() {
         "Merge signer: Merge these signer profiles and update linked items? Review the target profile first; this cannot be undone from the admin UI.",
         "role=\"status\"",
         "role=\"alert\"",
-        "aria-expanded",
         "aria-label",
         "focus-visible",
         "outline: 2px solid #25636a;",

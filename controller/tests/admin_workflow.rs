@@ -202,7 +202,7 @@ async fn signer_profile_urls_must_be_https_profile_hosts() {
         .await;
     assert_eq!(
         javascript_url.unwrap_err(),
-        "wikipediaUrl must be an https URL"
+        "wikipediaUrl must be a w.wiki short ID or https://w.wiki/ URL"
     );
 
     let wrong_host = repository
@@ -221,7 +221,37 @@ async fn signer_profile_urls_must_be_https_profile_hosts() {
             )
         })
         .await;
-    assert_eq!(wrong_host.unwrap_err(), "imdbUrl must point to imdb.com");
+    assert_eq!(
+        wrong_host.unwrap_err(),
+        "imdbUrl must be an IMDb name ID or https://www.imdb.com/name/ URL"
+    );
+
+    let normalized = repository
+        .create(AutographItemInput {
+            signer_credits: vec![SignerCreditInput {
+                display_name: Some("Normalized Signer".to_owned()),
+                wikipedia_url: Some("https://w.wiki/A1b2".to_owned()),
+                imdb_url: Some("https://www.imdb.com/name/nm0000434/".to_owned()),
+                ..Default::default()
+            }],
+            ..test_item_input(
+                "Signed Card",
+                "Normalized Signer",
+                "Cards",
+                Vec::new(),
+                PublicationStatus::Draft,
+            )
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        normalized.signer_credits[0].signer.wikipedia_url.as_deref(),
+        Some("A1b2")
+    );
+    assert_eq!(
+        normalized.signer_credits[0].signer.imdb_url.as_deref(),
+        Some("nm0000434")
+    );
 }
 
 #[tokio::test]
@@ -636,6 +666,10 @@ async fn admin_item_list_filters_and_summaries_use_taxonomy_fields() {
     assert_eq!(summary["id"], hamill.id.to_string());
     assert_eq!(summary["signerText"], "Mark Hamill");
     assert_eq!(summary["signerNames"], json!(["Mark Hamill"]));
+    assert_eq!(
+        summary["signerIds"],
+        json!([hamill.signer_credits[0].signer.id])
+    );
     assert_eq!(summary["franchises"], json!(["Star Wars"]));
     assert_eq!(summary["productLine"], "Star Wars CCG");
     assert_eq!(summary["format"], "Trading Card");
@@ -1527,9 +1561,7 @@ async fn signer_profile_edits_record_history_for_linked_items_only() {
             SignerProfileUpdateInput {
                 display_name: FieldPatch::Set("Mark Richard Hamill".to_owned()),
                 default_role: FieldPatch::Set("voice actor".to_owned()),
-                wikipedia_url: FieldPatch::Set(
-                    "https://en.wikipedia.org/wiki/Mark_Hamill".to_owned(),
-                ),
+                wikipedia_url: FieldPatch::Set("https://w.wiki/Hamill1".to_owned()),
                 imdb_url: FieldPatch::Set("https://www.imdb.com/name/nm0000434/".to_owned()),
             },
         )
@@ -1576,7 +1608,7 @@ async fn partial_signer_profile_update_preserves_omitted_optional_fields() {
             signer_credits: vec![SignerCreditInput {
                 display_name: Some("Mark Hamill".to_owned()),
                 default_role: Some("actor".to_owned()),
-                wikipedia_url: Some("https://en.wikipedia.org/wiki/Mark_Hamill".to_owned()),
+                wikipedia_url: Some("Hamill1".to_owned()),
                 imdb_url: Some("https://www.imdb.com/name/nm0000434/".to_owned()),
                 ..Default::default()
             }],
@@ -1605,14 +1637,8 @@ async fn partial_signer_profile_update_preserves_omitted_optional_fields() {
 
     assert_eq!(updated.display_name, "Mark Richard Hamill");
     assert_eq!(updated.default_role.as_deref(), Some("actor"));
-    assert_eq!(
-        updated.wikipedia_url.as_deref(),
-        Some("https://en.wikipedia.org/wiki/Mark_Hamill")
-    );
-    assert_eq!(
-        updated.imdb_url.as_deref(),
-        Some("https://www.imdb.com/name/nm0000434/")
-    );
+    assert_eq!(updated.wikipedia_url.as_deref(), Some("Hamill1"));
+    assert_eq!(updated.imdb_url.as_deref(), Some("nm0000434"));
 }
 
 #[tokio::test]
@@ -1656,7 +1682,7 @@ async fn item_signer_reuse_preserves_existing_profile_metadata() {
             signer_credits: vec![SignerCreditInput {
                 display_name: Some("Mark Hamill".to_owned()),
                 default_role: Some("actor".to_owned()),
-                wikipedia_url: Some("https://en.wikipedia.org/wiki/Mark_Hamill".to_owned()),
+                wikipedia_url: Some("Hamill1".to_owned()),
                 imdb_url: Some("https://www.imdb.com/name/nm0000434/".to_owned()),
                 ..Default::default()
             }],
@@ -1691,11 +1717,11 @@ async fn item_signer_reuse_preserves_existing_profile_metadata() {
         .unwrap();
     assert_eq!(
         selected.signer_credits[0].signer.wikipedia_url.as_deref(),
-        Some("https://en.wikipedia.org/wiki/Mark_Hamill")
+        Some("Hamill1")
     );
     assert_eq!(
         selected.signer_credits[0].signer.imdb_url.as_deref(),
-        Some("https://www.imdb.com/name/nm0000434/")
+        Some("nm0000434")
     );
     assert_eq!(
         selected.signer_credits[0].signer.default_role.as_deref(),
@@ -1715,11 +1741,11 @@ async fn item_signer_reuse_preserves_existing_profile_metadata() {
     assert_eq!(exact_name.signer_credits[0].signer.id, signer_id);
     assert_eq!(
         exact_name.signer_credits[0].signer.wikipedia_url.as_deref(),
-        Some("https://en.wikipedia.org/wiki/Mark_Hamill")
+        Some("Hamill1")
     );
     assert_eq!(
         exact_name.signer_credits[0].signer.imdb_url.as_deref(),
-        Some("https://www.imdb.com/name/nm0000434/")
+        Some("nm0000434")
     );
     assert_eq!(
         exact_name.signer_credits[0].signer.default_role.as_deref(),

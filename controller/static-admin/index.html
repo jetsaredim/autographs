@@ -34,6 +34,7 @@
           <button type="button" class="tab-button" data-view="hub-view" aria-current="page">Hub</button>
           <button type="button" class="tab-button" data-view="add-item-view">Add item</button>
           <button type="button" class="tab-button" data-view="items-view">Items</button>
+          <button type="button" class="tab-button" data-view="signers-view">Signers</button>
           <button type="button" class="tab-button" data-view="publish-view">Publish</button>
           <button type="button" class="tab-button" data-view="diagnostics-view">Diagnostics</button>
         </nav>
@@ -52,7 +53,6 @@
             <p id="copy-full-rebuild">Run a full rebuild after schema or taxonomy migration changes. Continue?</p>
             <p id="copy-signer-duplicate">Possible duplicate signer. Review the existing profile before saving a new signer.</p>
             <p id="copy-signer-create">Type a name to create a new signer, or choose an existing signer.</p>
-            <p id="copy-signer-links">Wikipedia and IMDb links are optional and appear only on public item detail pages.</p>
             <p id="copy-loose-tags">Use loose tags only for details that do not fit signer, franchise, product line, format, origin, language, role, or set.</p>
             <p id="copy-merge-signer">Merge signer: Merge these signer profiles and update linked items? Review the target profile first; this cannot be undone from the admin UI.</p>
           </div>
@@ -407,6 +407,28 @@
               <h3>No saved items yet</h3>
               <p>Start with the backlog: add an autograph item, upload its images, save it privately, then publish when the batch is ready.</p>
             </div>
+          </div>
+        </section>
+
+        <section id="signers-view" class="view-panel" aria-labelledby="signers-title" hidden>
+          <div class="view-heading">
+            <div>
+              <h2 id="signers-title">Signers</h2>
+              <p class="helper-text">Maintain reusable signer profiles. Add new signers while creating items.</p>
+            </div>
+          </div>
+
+          <form id="signer-management-form" class="filter-toolbar">
+            <div class="field">
+              <label for="signer-management-query">Search signers</label>
+              <input id="signer-management-query" name="query" autocomplete="off">
+            </div>
+            <button type="submit" class="primary-action">Find signers</button>
+          </form>
+
+          <p id="signer-management-message" class="status-message" role="status"></p>
+          <div id="signer-management-rows" class="signer-management-rows" aria-live="polite">
+            <p class="empty-state">Search by signer name to edit a reusable profile.</p>
           </div>
         </section>
 

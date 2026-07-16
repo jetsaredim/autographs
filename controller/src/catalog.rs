@@ -13,6 +13,9 @@ pub(crate) const REQUIRED_FIELDS_ERROR: &str = "title, signer, and category are 
 const DEFAULT_FORMAT: &str = "Trading Card";
 const DEFAULT_LANGUAGE: &str = "English";
 const MAX_PROFILE_URL_LENGTH: usize = 1000;
+const WIKIPEDIA_SHORT_URL_PREFIX: &str = "https://w.wiki/";
+const IMDB_NAME_URL_PREFIX: &str = "https://www.imdb.com/name/";
+const IMDB_NAME_URL_PREFIX_NO_WWW: &str = "https://imdb.com/name/";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -1452,8 +1455,6 @@ fn resolve_signer_credits(
     let mut seen = BTreeSet::new();
     let mut credits = Vec::with_capacity(inputs.len());
     for (index, input) in inputs.iter().enumerate() {
-        validate_profile_url(input.wikipedia_url.as_deref(), "wikipediaUrl")?;
-        validate_profile_url(input.imdb_url.as_deref(), "imdbUrl")?;
         let profile = resolve_signer_profile(signers, input, now)?;
         if !seen.insert(profile.normalized_name.clone()) {
             return Err("duplicate signer credits are not allowed".to_owned());
@@ -1507,8 +1508,8 @@ fn resolve_signer_profile(
         display_name: display_name.to_owned(),
         normalized_name,
         default_role: normalize_optional_string(input.default_role.clone()),
-        wikipedia_url: normalize_optional_string(input.wikipedia_url.clone()),
-        imdb_url: normalize_optional_string(input.imdb_url.clone()),
+        wikipedia_url: normalize_profile_link(input.wikipedia_url.clone(), "wikipediaUrl")?,
+        imdb_url: normalize_profile_link(input.imdb_url.clone(), "imdbUrl")?,
         created_at_epoch_seconds: now,
         updated_at_epoch_seconds: now,
     };
@@ -1536,37 +1537,65 @@ fn validate_signer_id_display_name(
     Ok(())
 }
 
-fn validate_profile_url(value: Option<&str>, field: &str) -> Result<(), String> {
-    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
-        return Ok(());
+pub(crate) fn normalize_profile_link(
+    value: Option<String>,
+    field: &str,
+) -> Result<Option<String>, String> {
+    let Some(value) = value else {
+        return Ok(None);
     };
+    let value = normalize_string(value);
+    if value.is_empty() {
+        return Ok(None);
+    }
     if value.len() > MAX_PROFILE_URL_LENGTH {
         return Err(format!(
             "{field} must be {MAX_PROFILE_URL_LENGTH} characters or fewer"
         ));
     }
-    let Some(rest) = value.strip_prefix("https://") else {
-        return Err(format!("{field} must be an https URL"));
+    let compact = match field {
+        "wikipediaUrl" => normalize_wikipedia_link(&value)?,
+        "imdbUrl" => normalize_imdb_link(&value)?,
+        _ => return Err(format!("{field} is not a supported profile link field")),
     };
-    let host = rest
-        .split(['/', '?', '#', ':'])
+    Ok(Some(compact))
+}
+
+fn normalize_wikipedia_link(value: &str) -> Result<String, String> {
+    let id = value
+        .strip_prefix(WIKIPEDIA_SHORT_URL_PREFIX)
+        .unwrap_or(value)
+        .split(['?', '#'])
         .next()
         .unwrap_or_default()
-        .to_ascii_lowercase();
-    let allowed = match field {
-        "wikipediaUrl" => host == "wikipedia.org" || host.ends_with(".wikipedia.org"),
-        "imdbUrl" => host == "imdb.com" || host.ends_with(".imdb.com"),
-        _ => false,
-    };
-    if !allowed {
-        let expected_host = match field {
-            "wikipediaUrl" => "wikipedia.org",
-            "imdbUrl" => "imdb.com",
-            _ => "the expected profile host",
-        };
-        return Err(format!("{field} must point to {expected_host}"));
+        .trim()
+        .trim_matches('/');
+    if !id.is_empty()
+        && id
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric())
+    {
+        return Ok(id.to_owned());
     }
-    Ok(())
+    Err("wikipediaUrl must be a w.wiki short ID or https://w.wiki/ URL".to_owned())
+}
+
+fn normalize_imdb_link(value: &str) -> Result<String, String> {
+    let id = value
+        .strip_prefix(IMDB_NAME_URL_PREFIX)
+        .or_else(|| value.strip_prefix(IMDB_NAME_URL_PREFIX_NO_WWW))
+        .unwrap_or(value)
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or_default()
+        .trim();
+    if id.len() >= 9
+        && id.starts_with("nm")
+        && id[2..].chars().all(|character| character.is_ascii_digit())
+    {
+        return Ok(id.to_owned());
+    }
+    Err("imdbUrl must be an IMDb name ID or https://www.imdb.com/name/ URL".to_owned())
 }
 
 pub(crate) fn apply_signer_profile_update(
@@ -1632,10 +1661,26 @@ fn apply_profile_url_patch(
     patch: FieldPatch<String>,
     field: &str,
 ) -> Result<bool, String> {
-    if let FieldPatch::Set(value) = &patch {
-        validate_profile_url(Some(value.as_str()), field)?;
+    match patch {
+        FieldPatch::Unchanged => Ok(false),
+        FieldPatch::Clear => {
+            if current.is_none() {
+                Ok(false)
+            } else {
+                *current = None;
+                Ok(true)
+            }
+        }
+        FieldPatch::Set(value) => {
+            let normalized = normalize_profile_link(Some(value), field)?;
+            if *current == normalized {
+                Ok(false)
+            } else {
+                *current = normalized;
+                Ok(true)
+            }
+        }
     }
-    Ok(apply_profile_optional_patch(current, patch))
 }
 
 pub(crate) fn signer_profile_field_diffs(

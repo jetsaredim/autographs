@@ -12,8 +12,8 @@ use crate::catalog::{
     ImageReplacementInput, ItemOrigin, PendingChangeSummary, PublicationStatus, PublishBoundary,
     SignerCredit, SignerCreditInput, SignerMergeResult, SignerProfile, SignerProfileUpdateInput,
     SignerSuggestion, TaxonomySuggestions, apply_signer_profile_update, apply_update,
-    event_kind_for_diffs, event_summary, normalize_signer_name, now_epoch_seconds,
-    signer_match_rank, signer_profile_field_diffs, validate_required_fields,
+    event_kind_for_diffs, event_summary, normalize_profile_link, normalize_signer_name,
+    now_epoch_seconds, signer_match_rank, signer_profile_field_diffs, validate_required_fields,
 };
 
 const LOAD_ITEM_SQL: &str = "select
@@ -986,8 +986,6 @@ fn resolve_oracle_signer_credits(
     let mut seen = BTreeSet::new();
     let mut credits = Vec::with_capacity(inputs.len());
     for (index, input) in inputs.iter().enumerate() {
-        validate_profile_url(input.wikipedia_url.as_deref(), "wikipediaUrl")?;
-        validate_profile_url(input.imdb_url.as_deref(), "imdbUrl")?;
         let profile = resolve_oracle_signer_profile(connection, input, now)?;
         if !seen.insert(profile.normalized_name.clone()) {
             return Err("duplicate signer credits are not allowed".to_owned());
@@ -1289,8 +1287,6 @@ fn apply_signer_input_to_profile(
     input: &SignerCreditInput,
     now: i64,
 ) -> Result<(), String> {
-    validate_profile_url(input.wikipedia_url.as_deref(), "wikipediaUrl")?;
-    validate_profile_url(input.imdb_url.as_deref(), "imdbUrl")?;
     let mut changed = false;
     if let Some(display_name) = normalize_optional_string(input.display_name.clone()) {
         let normalized_name = normalize_signer_name(&display_name);
@@ -1300,12 +1296,20 @@ fn apply_signer_input_to_profile(
             changed = true;
         }
     }
-    for (current, incoming) in [
-        (&mut profile.default_role, input.default_role.clone()),
-        (&mut profile.wikipedia_url, input.wikipedia_url.clone()),
-        (&mut profile.imdb_url, input.imdb_url.clone()),
+    let normalized_role = normalize_optional_string(input.default_role.clone());
+    if profile.default_role != normalized_role {
+        profile.default_role = normalized_role;
+        changed = true;
+    }
+    for (current, incoming, field) in [
+        (
+            &mut profile.wikipedia_url,
+            input.wikipedia_url.clone(),
+            "wikipediaUrl",
+        ),
+        (&mut profile.imdb_url, input.imdb_url.clone(), "imdbUrl"),
     ] {
-        let normalized = normalize_optional_string(incoming);
+        let normalized = normalize_profile_link(incoming, field)?;
         if *current != normalized {
             *current = normalized;
             changed = true;
@@ -1313,37 +1317,6 @@ fn apply_signer_input_to_profile(
     }
     if changed {
         profile.updated_at_epoch_seconds = now;
-    }
-    Ok(())
-}
-
-fn validate_profile_url(value: Option<&str>, field: &str) -> Result<(), String> {
-    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
-        return Ok(());
-    };
-    if value.len() > 1000 {
-        return Err(format!("{field} must be 1000 characters or fewer"));
-    }
-    let Some(rest) = value.strip_prefix("https://") else {
-        return Err(format!("{field} must be an https URL"));
-    };
-    let host = rest
-        .split(['/', '?', '#', ':'])
-        .next()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    let allowed = match field {
-        "wikipediaUrl" => host == "wikipedia.org" || host.ends_with(".wikipedia.org"),
-        "imdbUrl" => host == "imdb.com" || host.ends_with(".imdb.com"),
-        _ => false,
-    };
-    if !allowed {
-        let expected_host = match field {
-            "wikipediaUrl" => "wikipedia.org",
-            "imdbUrl" => "imdb.com",
-            _ => "the expected profile host",
-        };
-        return Err(format!("{field} must point to {expected_host}"));
     }
     Ok(())
 }
@@ -1988,44 +1961,56 @@ mod tests {
     }
 
     #[test]
-    fn oracle_profile_urls_require_https_expected_hosts() {
-        assert!(validate_profile_url(None, "wikipediaUrl").is_ok());
-        assert!(validate_profile_url(Some(""), "imdbUrl").is_ok());
-        assert!(
-            validate_profile_url(
-                Some("https://en.wikipedia.org/wiki/Mark_Hamill"),
-                "wikipediaUrl"
-            )
-            .is_ok()
+    fn oracle_profile_links_normalize_to_compact_ids() {
+        assert_eq!(normalize_profile_link(None, "wikipediaUrl").unwrap(), None);
+        assert_eq!(
+            normalize_profile_link(Some("".to_owned()), "imdbUrl").unwrap(),
+            None
         );
-        assert!(
-            validate_profile_url(Some("https://www.imdb.com/name/nm0000434/"), "imdbUrl").is_ok()
+        assert_eq!(
+            normalize_profile_link(Some("https://w.wiki/Hamill1".to_owned()), "wikipediaUrl")
+                .unwrap()
+                .as_deref(),
+            Some("Hamill1")
+        );
+        assert_eq!(
+            normalize_profile_link(
+                Some("https://www.imdb.com/name/nm0000434/".to_owned()),
+                "imdbUrl"
+            )
+            .unwrap()
+            .as_deref(),
+            Some("nm0000434")
         );
 
         assert_eq!(
-            validate_profile_url(Some("javascript:alert(1)"), "wikipediaUrl").unwrap_err(),
-            "wikipediaUrl must be an https URL"
-        );
-        assert_eq!(
-            validate_profile_url(
-                Some("https://example.test/wiki/Mark_Hamill"),
-                "wikipediaUrl"
-            )
-            .unwrap_err(),
-            "wikipediaUrl must point to wikipedia.org"
-        );
-        assert_eq!(
-            validate_profile_url(
-                Some("https://wikipedia.org.example.test/name"),
-                "wikipediaUrl"
-            )
-            .unwrap_err(),
-            "wikipediaUrl must point to wikipedia.org"
-        );
-        assert_eq!(
-            validate_profile_url(Some("https://example.test/name/nm0000434/"), "imdbUrl")
+            normalize_profile_link(Some("javascript:alert(1)".to_owned()), "wikipediaUrl")
                 .unwrap_err(),
-            "imdbUrl must point to imdb.com"
+            "wikipediaUrl must be a w.wiki short ID or https://w.wiki/ URL"
+        );
+        assert_eq!(
+            normalize_profile_link(
+                Some("https://example.test/wiki/Mark_Hamill".to_owned()),
+                "wikipediaUrl",
+            )
+            .unwrap_err(),
+            "wikipediaUrl must be a w.wiki short ID or https://w.wiki/ URL"
+        );
+        assert_eq!(
+            normalize_profile_link(
+                Some("https://wikipedia.org.example.test/name".to_owned()),
+                "wikipediaUrl",
+            )
+            .unwrap_err(),
+            "wikipediaUrl must be a w.wiki short ID or https://w.wiki/ URL"
+        );
+        assert_eq!(
+            normalize_profile_link(
+                Some("https://example.test/name/nm0000434/".to_owned()),
+                "imdbUrl",
+            )
+            .unwrap_err(),
+            "imdbUrl must be an IMDb name ID or https://www.imdb.com/name/ URL"
         );
     }
 
