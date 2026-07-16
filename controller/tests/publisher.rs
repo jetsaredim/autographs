@@ -291,7 +291,7 @@ async fn publisher_generates_phase7_signer_taxonomy_facets_and_detail_links() {
                     default_role: Some("Actor".to_owned()),
                     item_role: Some("Voice actor".to_owned()),
                     item_context: Some("Ahsoka Tano".to_owned()),
-                    wikipedia_url: Some("https://en.wikipedia.org/wiki/Ashley_Eckstein".to_owned()),
+                    wikipedia_url: Some("https://w.wiki/Ashley1".to_owned()),
                     imdb_url: None,
                     ..Default::default()
                 },
@@ -416,10 +416,18 @@ async fn publisher_generates_phase7_signer_taxonomy_facets_and_detail_links() {
     let two_html = fs::read_to_string(current.join("items/two-signer-card/index.html")).unwrap();
     assert!(two_html.contains(r#"class="profile-link profile-link-wikipedia""#));
     assert!(two_html.contains(r#"class="profile-link profile-link-imdb""#));
+    assert!(
+        two_html
+            .contains(r#"<svg class="profile-link-icon" aria-hidden="true" viewBox="0 0 24 24">"#)
+    );
+    assert!(two_html.contains(r#"href="https://w.wiki/Ashley1""#));
+    assert!(two_html.contains(r#"href="https://www.imdb.com/name/nm1396048""#));
     assert!(two_html.contains(r#"aria-label="Open Wikipedia profile for Ashley Eckstein""#));
     assert!(two_html.contains(r#"aria-label="Open IMDb profile for Dave Filoni""#));
     assert!(two_html.contains(r#"rel="noopener noreferrer""#));
-    assert!(!two_html.contains("https://en.wikipedia.org/wiki/Ashley_Eckstein</"));
+    assert!(!two_html.contains(r#">W</a>"#));
+    assert!(!two_html.contains(r#">IMDb</a>"#));
+    assert!(!two_html.contains("https://w.wiki/Ashley1</"));
     assert!(!two_html.contains("https://www.imdb.com/name/nm1396048/</"));
     assert!(!two_html.contains("Language</dt><dd>English"));
     assert!(!two_html.contains("Origin</dt><dd>Official"));

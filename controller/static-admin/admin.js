@@ -38,7 +38,6 @@ const copy = {
   cleanupWarning: "Cleanup needs attention. Review the affected item before publishing again.",
   signerDuplicate: "Possible duplicate signer. Review the existing profile before saving a new signer.",
   signerCreate: "Type a name to create a new signer, or choose an existing signer.",
-  signerLinks: "Wikipedia and IMDb links are optional and appear only on public item detail pages.",
   mergeSigner:
     "Merge signer: Merge these signer profiles and update linked items? Review the target profile first; this cannot be undone from the admin UI.",
 };
@@ -51,6 +50,8 @@ const state = {
   dirty: false,
   itemSort: { key: "title", direction: "asc" },
   signerSuggestions: [],
+  managedSigners: [],
+  focusedSignerId: null,
   taxonomySuggestions: {},
 };
 
@@ -93,6 +94,10 @@ const elements = {
   signerRows: $("#signer-rows"),
   signerWarningSummary: $("#signer-warning-summary"),
   signerMergePanel: $("#signer-merge-panel"),
+  signerManagementForm: $("#signer-management-form"),
+  signerManagementQuery: $("#signer-management-query"),
+  signerManagementRows: $("#signer-management-rows"),
+  signerManagementMessage: $("#signer-management-message"),
 };
 
 const setText = (selector, value) => {
@@ -359,6 +364,8 @@ function setView(viewId) {
     renderHub();
   } else if (viewId === "items-view") {
     renderItemList();
+  } else if (viewId === "signers-view") {
+    renderSignerManagement();
   } else if (viewId === "diagnostics-view") {
     renderDiagnostics();
   }
@@ -568,11 +575,9 @@ async function renderItemList() {
     const body = document.createElement("tbody");
     for (const item of state.items) {
       const row = document.createElement("tr");
-      for (const value of [item.title, item.signerText || item.signer]) {
-        const cell = document.createElement("td");
-        cell.textContent = value || "Empty";
-        row.append(cell);
-      }
+      const titleCell = document.createElement("td");
+      titleCell.textContent = item.title || "Empty";
+      row.append(titleCell, signerCell(item));
       row.insertBefore(taxonomyCell(item), row.children[2]);
       row.append(stateCell(item));
       const actions = document.createElement("td");
@@ -628,6 +633,27 @@ const itemTableHead = () => {
   }
   head.append(row);
   return head;
+};
+
+const signerCell = (item) => {
+  const cell = document.createElement("td");
+  cell.className = "signer-cell";
+  const names = Array.isArray(item.signerNames) && item.signerNames.length ? item.signerNames : [item.signerText || item.signer];
+  const ids = Array.isArray(item.signerIds) ? item.signerIds : [];
+  names.forEach((name, index) => {
+    const displayName = name || "Empty";
+    const signerId = ids[index];
+    if (signerId) {
+      cell.append(
+        buttonNode(displayName, "inline-link", () => {
+          openSignerManagement(signerId, displayName);
+        })
+      );
+    } else {
+      cell.append(textNode("span", displayName));
+    }
+  });
+  return cell;
 };
 
 function sortLabel(label, key) {
@@ -709,33 +735,13 @@ function signerRow(credit, index) {
   );
   row.append(grid);
 
-  const profilePanelId = `signer-profile-links-${index}`;
-  const profileToggle = buttonNode("Signer profile links", "secondary-action", () => {
-    const expanded = profileToggle.getAttribute("aria-expanded") === "true";
-    profileToggle.setAttribute("aria-expanded", String(!expanded));
-    profileLinks.hidden = expanded;
-  });
-  profileToggle.setAttribute("aria-expanded", "false");
-  profileToggle.setAttribute("aria-controls", profilePanelId);
-  const profileLinks = document.createElement("div");
-  profileLinks.id = profilePanelId;
-  profileLinks.className = "signer-profile-links";
-  profileLinks.hidden = true;
-  profileLinks.append(
-    textNode("p", copy.signerLinks, "helper-text"),
-    labeledInput(`signer-wikipedia-${index}`, "Wikipedia URL", "url", profileValue(credit, "wikipediaUrl"), {
-      field: "wikipedia",
-    }),
-    labeledInput(`signer-imdb-${index}`, "IMDb URL", "url", profileValue(credit, "imdbUrl"), {
-      field: "imdb",
-    })
-  );
-  row.append(profileToggle, profileLinks);
-  setExistingSignerProfileControls(row);
-
   const actions = document.createElement("div");
   actions.className = "inline-actions";
   actions.append(
+    buttonNode("Manage profile", "secondary-action signer-manage-action", () => {
+      const displayName = row.querySelector('[data-signer-field="name"]')?.value.trim() || "";
+      openSignerManagement(row.dataset.signerId, displayName);
+    }),
     buttonNode("Remove signer", "secondary-action", () => {
       row.remove();
       normalizeSignerRowHeadings();
@@ -743,6 +749,7 @@ function signerRow(credit, index) {
     })
   );
   row.append(actions);
+  setExistingSignerProfileControls(row);
 
   const nameInput = grid.querySelector(".signer-name-input");
   let selectedSignerName = profileValue(credit, "displayName").trim();
@@ -774,9 +781,11 @@ function signerRow(credit, index) {
 
 function setExistingSignerProfileControls(row) {
   const disabled = Boolean(row.dataset.signerId);
-  row.querySelectorAll('[data-signer-field="wikipedia"], [data-signer-field="imdb"]').forEach((input) => {
-    input.disabled = disabled;
-  });
+  const manage = row.querySelector(".signer-manage-action");
+  if (manage) {
+    manage.disabled = !disabled;
+    manage.title = disabled ? "Manage reusable signer profile" : "Save or select an existing signer first";
+  }
 }
 
 function labeledInput(id, labelText, type, value, options = {}) {
@@ -880,6 +889,7 @@ function renderDuplicateWarnings() {
         const input = warning.row.querySelector(".signer-name-input");
         input.value = warning.duplicate.profile.displayName;
         warning.row.dataset.signerId = warning.duplicate.profile.id;
+        setExistingSignerProfileControls(warning.row);
         renderDuplicateWarnings();
         markDirty();
       })
@@ -929,6 +939,153 @@ async function mergeSignerProfiles(sourceSignerId, targetSignerId) {
       elements.signerMergePanel.hidden = false;
       elements.signerMergePanel.textContent = `Signer merge failed: ${error.message}`;
     }
+  }
+}
+
+function openSignerManagement(signerId, displayName = "") {
+  if (!signerId || !ensureSavedBeforeManagingSigner()) {
+    return;
+  }
+  state.focusedSignerId = signerId;
+  elements.signerManagementQuery.value = displayName;
+  setView("signers-view");
+}
+
+async function renderSignerManagement() {
+  const query = elements.signerManagementQuery.value.trim();
+  elements.signerManagementRows.replaceChildren();
+  if (query.length < 2) {
+    state.managedSigners = [];
+    elements.signerManagementMessage.textContent = "Search by at least 2 characters.";
+    elements.signerManagementRows.append(textNode("p", "Search by signer name to edit a reusable profile.", "empty-state"));
+    return;
+  }
+
+  elements.signerManagementMessage.textContent = "Loading signers...";
+  elements.signerManagementRows.append(loadingState("Loading signers..."));
+  try {
+    const result = await request(endpoints.signers(query));
+    state.managedSigners = (Array.isArray(result.suggestions) ? result.suggestions : []).map(
+      (suggestion) => suggestion.profile
+    );
+    renderSignerManagementRows();
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.signerManagementMessage.textContent = `Signer profiles unavailable: ${error.message}`;
+      elements.signerManagementRows.replaceChildren(
+        textNode("p", "Signer profiles could not be loaded.", "empty-state")
+      );
+    }
+  }
+}
+
+function renderSignerManagementRows() {
+  elements.signerManagementRows.replaceChildren();
+  if (state.managedSigners.length === 0) {
+    elements.signerManagementMessage.textContent = "No matching signers.";
+    elements.signerManagementRows.append(textNode("p", "No matching signers.", "empty-state"));
+    return;
+  }
+  elements.signerManagementMessage.textContent = `${state.managedSigners.length} signer profile${
+    state.managedSigners.length === 1 ? "" : "s"
+  } found.`;
+  for (const profile of state.managedSigners) {
+    elements.signerManagementRows.append(signerManagementEditor(profile));
+  }
+  const focused = elements.signerManagementRows.querySelector(".signer-management-row.is-focused h3");
+  if (focused) {
+    focused.setAttribute("tabindex", "-1");
+    focused.focus();
+  }
+}
+
+function signerManagementEditor(profile) {
+  const section = document.createElement("article");
+  section.className = "signer-management-row";
+  if (profile.id === state.focusedSignerId) {
+    section.classList.add("is-focused");
+  }
+
+  const heading = document.createElement("div");
+  heading.className = "panel-heading";
+  heading.append(
+    textNode("h3", profile.displayName || "Signer profile"),
+    textNode("p", `Updated ${formatRelativeEpoch(profile.updatedAtEpochSeconds)}`, "helper-text")
+  );
+  if (profile.id === state.focusedSignerId) {
+    heading.append(textNode("span", "Selected from item editor", "status-pill"));
+  }
+  section.append(heading);
+
+  const form = document.createElement("form");
+  form.className = "signer-management-form";
+  form.append(
+    managementInput(profile.id, "displayName", "Display name", "text", profile.displayName, true),
+    managementInput(profile.id, "defaultRole", "Default role", "text", profile.defaultRole || ""),
+    managementInput(profile.id, "wikipediaUrl", "Wikipedia short ID", "text", profile.wikipediaUrl || ""),
+    managementInput(profile.id, "imdbUrl", "IMDb name ID", "text", profile.imdbUrl || "")
+  );
+
+  const actions = document.createElement("div");
+  actions.className = "inline-actions full-width";
+  const save = buttonNode("Save signer", "primary-action", () => saveSignerProfile(profile, form, save));
+  actions.append(save);
+  form.append(actions);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveSignerProfile(profile, form, save);
+  });
+  section.append(form);
+  return section;
+}
+
+function managementInput(profileId, field, labelText, type, value, required = false) {
+  const id = `signer-management-${profileId}-${field}`;
+  const wrapper = document.createElement("div");
+  wrapper.className = "field";
+  const label = document.createElement("label");
+  label.setAttribute("for", id);
+  label.textContent = labelText;
+  const input = document.createElement("input");
+  input.id = id;
+  input.name = field;
+  input.type = type;
+  input.value = value || "";
+  if (required) {
+    input.required = true;
+  }
+  wrapper.append(label, input);
+  return wrapper;
+}
+
+async function saveSignerProfile(profile, form, submit) {
+  const value = (name) => form.elements[name].value.trim();
+  if (!value("displayName")) {
+    elements.signerManagementMessage.textContent = "Display name is required.";
+    return;
+  }
+  submit.disabled = true;
+  const originalText = submit.textContent;
+  submit.textContent = "Saving...";
+  try {
+    const updated = await jsonRequest(endpoints.signer(profile.id), "PATCH", {
+      displayName: value("displayName"),
+      defaultRole: optionalValue(value("defaultRole")),
+      wikipediaUrl: optionalValue(value("wikipediaUrl")),
+      imdbUrl: optionalValue(value("imdbUrl")),
+    });
+    state.focusedSignerId = updated.id;
+    elements.signerManagementQuery.value = updated.displayName;
+    elements.signerManagementMessage.textContent = "Signer profile saved privately. Publish changes when ready.";
+    await loadTaxonomySuggestions();
+    await renderSignerManagement();
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.signerManagementMessage.textContent = `Signer profile save failed: ${error.message}`;
+    }
+  } finally {
+    submit.disabled = false;
+    submit.textContent = originalText;
   }
 }
 
@@ -1139,8 +1296,6 @@ function signerCreditPayload() {
         displayName: value("name"),
         itemRole: value("role"),
         itemContext: value("context"),
-        wikipediaUrl: value("wikipedia"),
-        imdbUrl: value("imdb"),
       };
     })
     .filter((credit) => credit.displayName || credit.signerId);
@@ -1353,6 +1508,16 @@ function ensureSavedBeforeOpeningAnotherItem() {
   return false;
 }
 
+function ensureSavedBeforeManagingSigner() {
+  if (!state.dirty) {
+    return true;
+  }
+  setView("add-item-view");
+  elements.globalMessage.textContent = "Save item before managing this signer profile.";
+  elements.globalMessage.focus();
+  return false;
+}
+
 async function publishChanges(mode = "incremental") {
   if (!ensureSavedBeforePublish()) {
     return;
@@ -1521,6 +1686,11 @@ elements.itemForm.addEventListener("input", markDirty);
 elements.itemFilters.addEventListener("submit", (event) => {
   event.preventDefault();
   renderItemList();
+});
+elements.signerManagementForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  state.focusedSignerId = null;
+  renderSignerManagement();
 });
 
 bootstrapSession();

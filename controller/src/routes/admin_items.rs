@@ -496,6 +496,7 @@ struct AdminItemSummaryResponse {
     title: String,
     signer_text: String,
     signer_names: Vec<String>,
+    signer_ids: Vec<Uuid>,
     format: String,
     franchises: Vec<String>,
     product_line: Option<String>,
@@ -517,6 +518,11 @@ impl AdminItemSummaryResponse {
                 .signer_credits
                 .iter()
                 .map(|credit| credit.signer.display_name.clone())
+                .collect(),
+            signer_ids: item
+                .signer_credits
+                .iter()
+                .map(|credit| credit.signer.id)
                 .collect(),
             format: item.format,
             franchises: item.franchises,

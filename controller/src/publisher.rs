@@ -1146,8 +1146,8 @@ fn public_signer_credits(item: &AutographItem) -> Vec<PublicSignerCredit> {
                 .or_else(|| credit.signer.default_role.clone()),
             context: credit.item_context.clone(),
             links: PublicSignerLink {
-                wikipedia: credit.signer.wikipedia_url.clone(),
-                imdb: credit.signer.imdb_url.clone(),
+                wikipedia: public_wikipedia_url(credit.signer.wikipedia_url.as_deref()),
+                imdb: public_imdb_url(credit.signer.imdb_url.as_deref()),
             },
         })
         .collect::<Vec<_>>();
@@ -1163,6 +1163,25 @@ fn public_signer_credits(item: &AutographItem) -> Vec<PublicSignerCredit> {
         }]
     } else {
         credits
+    }
+}
+
+fn public_wikipedia_url(value: Option<&str>) -> Option<String> {
+    profile_link_url(value, "https://w.wiki/")
+}
+
+fn public_imdb_url(value: Option<&str>) -> Option<String> {
+    profile_link_url(value, "https://www.imdb.com/name/")
+}
+
+fn profile_link_url(value: Option<&str>, prefix: &str) -> Option<String> {
+    let value = value?.trim();
+    if value.is_empty() {
+        None
+    } else if value.starts_with("https://") {
+        Some(value.to_owned())
+    } else {
+        Some(format!("{prefix}{value}"))
     }
 }
 
@@ -2241,9 +2260,10 @@ fn signer_profile_links(signer: &PublicSignerCredit) -> String {
         .filter(|url| !url.trim().is_empty())
     {
         links.push_str(&format!(
-            "<a class=\"profile-link profile-link-wikipedia\" href=\"{}\" aria-label=\"Open Wikipedia profile for {}\" rel=\"noopener noreferrer\">W</a>",
+            "<a class=\"profile-link profile-link-wikipedia\" href=\"{}\" aria-label=\"Open Wikipedia profile for {}\" rel=\"noopener noreferrer\">{}</a>",
             escape_html(url),
-            escape_html(&signer.display_name)
+            escape_html(&signer.display_name),
+            wikipedia_icon()
         ));
     }
     if let Some(url) = signer
@@ -2253,12 +2273,21 @@ fn signer_profile_links(signer: &PublicSignerCredit) -> String {
         .filter(|url| !url.trim().is_empty())
     {
         links.push_str(&format!(
-            "<a class=\"profile-link profile-link-imdb\" href=\"{}\" aria-label=\"Open IMDb profile for {}\" rel=\"noopener noreferrer\">IMDb</a>",
+            "<a class=\"profile-link profile-link-imdb\" href=\"{}\" aria-label=\"Open IMDb profile for {}\" rel=\"noopener noreferrer\">{}</a>",
             escape_html(url),
-            escape_html(&signer.display_name)
+            escape_html(&signer.display_name),
+            imdb_icon()
         ));
     }
     links
+}
+
+fn wikipedia_icon() -> &'static str {
+    "<svg class=\"profile-link-icon\" aria-hidden=\"true\" viewBox=\"0 0 24 24\"><path d=\"M12.09 13.119c-.936 1.932-2.217 4.548-2.853 5.728-.616 1.074-1.127.931-1.532.029-1.406-3.321-4.293-9.144-5.651-12.409-.251-.601-.441-.987-.619-1.139-.181-.15-.554-.24-1.122-.271C.103 5.033 0 4.982 0 4.898v-.455l.052-.045c.924-.005 5.401 0 5.401 0l.051.045v.434c0 .119-.075.176-.225.176l-.564.031c-.485.029-.727.164-.727.436 0 .135.053.33.166.601 1.082 2.646 4.818 10.521 4.818 10.521l.136.046 2.411-4.81-.482-1.067-1.658-3.264s-.318-.654-.428-.872c-.728-1.443-.712-1.518-1.447-1.617-.207-.023-.313-.05-.313-.149v-.468l.06-.045h4.292l.113.037v.451c0 .105-.076.15-.227.15l-.308.047c-.792.061-.661.381-.136 1.422l1.582 3.252 1.758-3.504c.293-.64.233-.801.111-.947-.07-.084-.305-.22-.812-.24l-.201-.021c-.052 0-.098-.015-.145-.051-.045-.031-.067-.076-.067-.129v-.427l.061-.045c1.247-.008 4.043 0 4.043 0l.059.045v.436c0 .121-.059.178-.193.178-.646.03-.782.095-1.023.439-.12.186-.375.589-.646 1.039l-2.301 4.273-.065.135 2.792 5.712.17.048 4.396-10.438c.154-.422.129-.722-.064-.895-.197-.172-.346-.273-.857-.295l-.42-.016c-.061 0-.105-.014-.152-.045-.043-.029-.072-.075-.072-.119v-.436l.059-.045h4.961l.041.045v.437c0 .119-.074.18-.209.18-.648.03-1.127.18-1.443.421-.314.255-.557.616-.736 1.067 0 0-4.043 9.258-5.426 12.339-.525 1.007-1.053.917-1.503-.031-.571-1.171-1.773-3.786-2.646-5.71l.053-.036z\"/></svg>"
+}
+
+fn imdb_icon() -> &'static str {
+    "<svg class=\"profile-link-icon\" aria-hidden=\"true\" viewBox=\"0 0 24 24\"><path d=\"M22.3781 0H1.6218C.7411.0583.0587.7437.0018 1.5953l-.001 20.783c.0585.8761.7125 1.543 1.5559 1.6191A.337.337 0 0 0 1.6016 24h20.7971a.4579.4579 0 0 0 .0437-.002c.8727-.0768 1.5568-.8271 1.5568-1.7085V1.7098c0-.8914-.696-1.6416-1.584-1.7078A.3294.3294 0 0 0 22.3781 0zm0 .496a1.2144 1.2144 0 0 1 1.1252 1.2139v20.5797c0 .6377-.4875 1.1602-1.1045 1.2145H1.6016c-.5967-.0543-1.0645-.5297-1.1053-1.1258V1.6284C.5371 1.0185 1.0184.5364 1.6217.496h20.7564zM4.7954 8.2603v7.3636H2.8899V8.2603h1.9055zm6.5367 0v7.3636H9.6707v-4.9704l-.6711 4.9704H7.813l-.6986-4.8618-.0066 4.8618h-1.668V8.2603h2.468c.0748.4476.1492.9694.2307 1.5734l.2712 1.8713.4407-3.4447h2.4817zm2.9772 1.3289c.0742.0404.122.108.1417.2034.0279.0953.0345.3118.0345.6442v2.8548c0 .4881-.0345.7867-.0955.8954-.0609.1152-.2304.1695-.5018.1695V9.5211c.204 0 .3457.0205.4211.0681zm-.0211 6.0347c.4543 0 .8006-.0265 1.0245-.0742.2304-.0477.4204-.1357.5694-.2648.1556-.1218.2642-.298.3251-.5219.0611-.2238.1021-.6648.1021-1.3224v-2.5832c0-.6986-.0271-1.1668-.0742-1.4039-.041-.237-.1431-.4543-.3126-.6437-.1695-.1973-.4198-.3324-.7456-.421-.3191-.0808-.8542-.1285-1.7694-.1285h-1.4244v7.3636h2.3051zm5.14-1.7827c0 .3523-.0199.5762-.0544.6708-.033.0947-.1894.1424-.3046.1424-.1086 0-.19-.0477-.2238-.1351-.041-.0887-.0609-.2986-.0609-.6238v-1.9469c0-.3324.0199-.5423.0543-.6237.0338-.0808.1086-.122.2171-.122.1153 0 .2709.0412.3114.1425.041.0947.0609.2986.0609.6032v1.8926zm-2.4747-5.5809v7.3636h1.7157l.1152-.4675c.1556.1894.3251.3324.5152.4271.1828.0881.4608.1357.678.1357.3047 0 .5629-.0748.7802-.237.2165-.1562.3589-.3462.4198-.5628.0543-.2173.0887-.543.0887-.9841v-2.0675c0-.4409-.0139-.7324-.0344-.8681-.0199-.1357-.0742-.2781-.1695-.4204-.1021-.1425-.2437-.251-.4272-.3325-.1834-.0742-.3999-.1152-.6576-.1152-.2172 0-.4952.0477-.6846.1285-.1835.0887-.353.2238-.5086.4007V8.2603h-1.8309z\"/></svg>"
 }
 
 fn escape_html(value: &str) -> String {
