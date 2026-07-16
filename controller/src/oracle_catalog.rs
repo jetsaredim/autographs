@@ -795,6 +795,11 @@ impl CatalogRepository for OracleCatalogRepository {
                 return Err("signer normalized name already exists".to_owned());
             }
             let field_diffs = signer_profile_field_diffs(&before, &updated);
+            let linked_item_updates = if field_diffs.is_empty() {
+                Vec::new()
+            } else {
+                signer_profile_linked_item_updates(&connection, signer_id, &updated)?
+            };
             let credit = SignerCredit {
                 signer: updated.clone(),
                 sort_order: 0,
@@ -807,10 +812,11 @@ impl CatalogRepository for OracleCatalogRepository {
                     "Updated signer profile {} -> {}",
                     before.display_name, updated.display_name
                 );
-                for item_id in load_item_ids_for_signer(&connection, signer_id)? {
-                    touch_item_legacy_signer_and_history(
+                for (item_id, signer) in linked_item_updates {
+                    touch_item_legacy_signer_and_history_with_signer(
                         &connection,
                         item_id,
+                        &signer,
                         &summary,
                         field_diffs.clone(),
                     )?;
@@ -1185,6 +1191,26 @@ fn load_item_ids_for_signer(connection: &Connection, signer_id: Uuid) -> Result<
     Ok(item_ids)
 }
 
+fn signer_profile_linked_item_updates(
+    connection: &Connection,
+    signer_id: Uuid,
+    updated_profile: &SignerProfile,
+) -> Result<Vec<(Uuid, String)>, String> {
+    load_item_ids_for_signer(connection, signer_id)?
+        .into_iter()
+        .map(|item_id| {
+            let mut item = load_item(connection, item_id)?
+                .ok_or_else(|| "linked Oracle signer item was not found".to_owned())?;
+            for credit in &mut item.signer_credits {
+                if credit.signer.id == signer_id {
+                    credit.signer = updated_profile.clone();
+                }
+            }
+            Ok((item_id, compact_signer_text(&item.signer_credits)))
+        })
+        .collect()
+}
+
 fn touch_item_legacy_signer_and_history(
     connection: &Connection,
     item_id: Uuid,
@@ -1193,8 +1219,24 @@ fn touch_item_legacy_signer_and_history(
 ) -> Result<(), String> {
     let item = load_item(connection, item_id)?
         .ok_or_else(|| "linked Oracle signer item was not found".to_owned())?;
-    let item_id_text = item_id.to_string();
     let signer = compact_signer_text(&item.signer_credits);
+    touch_item_legacy_signer_and_history_with_signer(
+        connection,
+        item_id,
+        &signer,
+        summary,
+        field_diffs,
+    )
+}
+
+fn touch_item_legacy_signer_and_history_with_signer(
+    connection: &Connection,
+    item_id: Uuid,
+    signer: &str,
+    summary: &str,
+    field_diffs: Vec<FieldDiff>,
+) -> Result<(), String> {
+    let item_id_text = item_id.to_string();
     connection
         .execute(
             "update autograph_items set signer = :1, updated_at = current_timestamp where id = :2",

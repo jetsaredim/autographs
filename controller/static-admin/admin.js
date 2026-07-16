@@ -638,21 +638,24 @@ const itemTableHead = () => {
 const signerCell = (item) => {
   const cell = document.createElement("td");
   cell.className = "signer-cell";
+  const content = document.createElement("div");
+  content.className = "signer-cell-content";
   const names = Array.isArray(item.signerNames) && item.signerNames.length ? item.signerNames : [item.signerText || item.signer];
   const ids = Array.isArray(item.signerIds) ? item.signerIds : [];
   names.forEach((name, index) => {
     const displayName = name || "Empty";
     const signerId = ids[index];
     if (signerId) {
-      cell.append(
+      content.append(
         buttonNode(displayName, "inline-link", () => {
           openSignerManagement(signerId, displayName);
         })
       );
     } else {
-      cell.append(textNode("span", displayName));
+      content.append(textNode("span", displayName));
     }
   });
+  cell.append(content);
   return cell;
 };
 
@@ -1036,7 +1039,70 @@ function signerManagementEditor(profile) {
     saveSignerProfile(profile, form, save);
   });
   section.append(form);
+
+  const linkedItems = document.createElement("div");
+  linkedItems.className = "signer-linked-items full-width";
+  linkedItems.setAttribute("aria-live", "polite");
+  linkedItems.append(textNode("p", "Loading linked items...", "helper-text"));
+  section.append(linkedItems);
+  renderSignerLinkedItems(profile, linkedItems);
   return section;
+}
+
+async function renderSignerLinkedItems(profile, container) {
+  try {
+    const items = await request(`${endpoints.items}?signer=${encodeURIComponent(profile.displayName || "")}`);
+    const linkedItems = (Array.isArray(items) ? items : []).filter((item) =>
+      Array.isArray(item.signerIds) && item.signerIds.includes(profile.id)
+    );
+    container.replaceChildren();
+    const heading = document.createElement("div");
+    heading.className = "linked-items-heading";
+    heading.append(
+      textNode("h4", "Linked items"),
+      textNode("span", `${linkedItems.length} item${linkedItems.length === 1 ? "" : "s"}`, "helper-text")
+    );
+    container.append(heading);
+    if (linkedItems.length === 0) {
+      container.append(textNode("p", "No items currently reference this signer profile.", "empty-state"));
+      return;
+    }
+    const list = document.createElement("div");
+    list.className = "linked-item-list";
+    for (const item of linkedItems) {
+      list.append(linkedItemRow(item));
+    }
+    container.append(list);
+  } catch (error) {
+    if (error.status !== 401) {
+      container.replaceChildren(textNode("p", `Linked items unavailable: ${error.message}`, "empty-state"));
+    }
+  }
+}
+
+function linkedItemRow(item) {
+  const row = document.createElement("div");
+  row.className = "linked-item-row";
+  const summary = document.createElement("div");
+  summary.className = "linked-item-summary";
+  summary.append(
+    textNode("span", item.title || "Untitled item", "linked-item-title"),
+    textNode(
+      "span",
+      [publicationStatusParts(item.publicationStatus).label, item.franchises?.join(", "), item.productLine]
+        .filter(Boolean)
+        .join(" · "),
+      "helper-text"
+    )
+  );
+  const actions = document.createElement("div");
+  actions.className = "row-actions";
+  actions.append(
+    iconButton("Edit item", "edit", () => loadItem(item.id)),
+    iconButton("View history", "history", () => loadItem(item.id, true))
+  );
+  row.append(summary, actions);
+  return row;
 }
 
 function managementInput(profileId, field, labelText, type, value, required = false) {
