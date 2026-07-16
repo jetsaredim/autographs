@@ -182,3 +182,4 @@ Resume file: None
 | 2026-07-14 | refine-admin-item-list-vertical-alignmen | Centered admin item-list row content, shortened updated timestamps to relative labels, and combined publish-status navigation into the clickable status icon. |
 | 2026-07-16 | add-admin-signer-profile-management-tab | Added a Signers admin tab for reusable profile edits, linked item signer rows and item-list signer cells to profile management, and kept item signer edits focused on item-level role/context. |
 | 2026-07-16 | normalize-signer-imdb-and-wikipedia-prof | Normalized reusable signer profile links to compact `w.wiki` and IMDb `nm...` IDs while rendering full public URLs from the stored identifiers. |
+| 2026-07-16 | show-linked-items-on-admin-signer-profil | Added linked item counts and edit/history actions to each signer profile card in the admin Signers editor. |
