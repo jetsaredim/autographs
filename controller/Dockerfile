@@ -7,7 +7,15 @@ WORKDIR /workspace
 COPY controller/Cargo.toml controller/Cargo.lock ./
 COPY controller/src ./src
 COPY controller/db ./db
-COPY controller/static-public ./static-public
+COPY controller/static-public/404.html ./static-public/404.html
+COPY controller/static-public/favicon.ico ./static-public/favicon.ico
+COPY controller/static-public/icon.png ./static-public/icon.png
+COPY controller/static-public/index.html ./static-public/index.html
+COPY controller/static-public/architecture ./static-public/architecture
+COPY controller/static-public/assets ./static-public/assets
+COPY controller/static-public/collection ./static-public/collection
+COPY controller/static-public/data/not-found-quotes.json ./static-public/data/not-found-quotes.json
+COPY controller/static-public/templates ./static-public/templates
 COPY controller/static-admin ./static-admin
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \

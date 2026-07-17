@@ -414,6 +414,9 @@ async fn publisher_generates_phase7_signer_taxonomy_facets_and_detail_links() {
     assert!(!collection_json.contains("imdb.com"));
 
     let two_html = fs::read_to_string(current.join("items/two-signer-card/index.html")).unwrap();
+    assert!(two_html.contains(r#"Ashley Eckstein <span class="signer-role">(Voice actor)</span>"#));
+    assert!(two_html.contains(r#"Dave Filoni <span class="signer-role">(Creator)</span>"#));
+    assert!(!two_html.contains(r#"<span class="signer-context">Voice actor</span>"#));
     assert!(two_html.contains(r#"class="profile-link profile-link-wikipedia""#));
     assert!(two_html.contains(r#"class="profile-link profile-link-imdb""#));
     assert!(
@@ -424,7 +427,13 @@ async fn publisher_generates_phase7_signer_taxonomy_facets_and_detail_links() {
     assert!(two_html.contains(r#"href="https://www.imdb.com/name/nm1396048""#));
     assert!(two_html.contains(r#"aria-label="Open Wikipedia profile for Ashley Eckstein""#));
     assert!(two_html.contains(r#"aria-label="Open IMDb profile for Dave Filoni""#));
+    assert!(two_html.contains(r#"target="_blank""#));
     assert!(two_html.contains(r#"rel="noopener noreferrer""#));
+    assert!(two_html.contains(r#"<div class="detail-facts"><span>Ashley Eckstein</span><span>Dave Filoni</span><span>Trading Card</span>"#));
+    assert!(
+        !two_html
+            .contains(r#"<div class="detail-facts"><span>Ashley Eckstein + Dave Filoni</span>"#)
+    );
     assert!(!two_html.contains(r#">W</a>"#));
     assert!(!two_html.contains(r#">IMDb</a>"#));
     assert!(!two_html.contains("https://w.wiki/Ashley1</"));

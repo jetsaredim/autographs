@@ -2177,7 +2177,8 @@ fn image_variant(image: &PublicImage, name: ImageVariantName) -> Option<&PublicI
 }
 
 fn detail_facts(item: &PublicItemDetail) -> String {
-    let mut facts = vec![item.signer_text.clone(), item.format.clone()];
+    let mut facts = item.signer_names.clone();
+    facts.push(item.format.clone());
     facts.extend(item.franchises.clone());
     facts.extend(item.tags.clone());
     facts
@@ -2223,25 +2224,32 @@ fn signer_detail_group(item: &PublicItemDetail) -> String {
         .signers
         .iter()
         .map(|signer| {
+            let role = signer
+                .role
+                .as_deref()
+                .filter(|value| !value.trim().is_empty());
             let mut name = format!(
-                "<span class=\"signer-name\">{}</span>",
-                escape_html(&signer.display_name)
+                "<span class=\"signer-name\">{}{}</span>",
+                escape_html(&signer.display_name),
+                role.map(|value| format!(
+                    " <span class=\"signer-role\">({})</span>",
+                    escape_html(value)
+                ))
+                .unwrap_or_default()
             );
             let links = signer_profile_links(signer);
             if !links.is_empty() {
                 name.push_str(&format!("<span class=\"profile-links\">{links}</span>"));
             }
-            let role_context = [signer.role.as_deref(), signer.context.as_deref()]
-                .into_iter()
-                .flatten()
+            let context = signer
+                .context
+                .as_deref()
                 .filter(|value| !value.trim().is_empty())
-                .map(escape_html)
-                .collect::<Vec<_>>()
-                .join(" - ");
-            let meta = if role_context.is_empty() {
-                String::new()
+                .map(escape_html);
+            let meta = if let Some(context) = context {
+                format!("<span class=\"signer-context\">{context}</span>")
             } else {
-                format!("<span class=\"signer-context\">{role_context}</span>")
+                String::new()
             };
             format!("<div class=\"signer-credit-row\"><dt>{name}</dt><dd>{meta}</dd></div>")
         })
@@ -2260,7 +2268,7 @@ fn signer_profile_links(signer: &PublicSignerCredit) -> String {
         .filter(|url| !url.trim().is_empty())
     {
         links.push_str(&format!(
-            "<a class=\"profile-link profile-link-wikipedia\" href=\"{}\" aria-label=\"Open Wikipedia profile for {}\" rel=\"noopener noreferrer\">{}</a>",
+            "<a class=\"profile-link profile-link-wikipedia\" href=\"{}\" aria-label=\"Open Wikipedia profile for {}\" target=\"_blank\" rel=\"noopener noreferrer\">{}</a>",
             escape_html(url),
             escape_html(&signer.display_name),
             wikipedia_icon()
@@ -2273,7 +2281,7 @@ fn signer_profile_links(signer: &PublicSignerCredit) -> String {
         .filter(|url| !url.trim().is_empty())
     {
         links.push_str(&format!(
-            "<a class=\"profile-link profile-link-imdb\" href=\"{}\" aria-label=\"Open IMDb profile for {}\" rel=\"noopener noreferrer\">{}</a>",
+            "<a class=\"profile-link profile-link-imdb\" href=\"{}\" aria-label=\"Open IMDb profile for {}\" target=\"_blank\" rel=\"noopener noreferrer\">{}</a>",
             escape_html(url),
             escape_html(&signer.display_name),
             imdb_icon()

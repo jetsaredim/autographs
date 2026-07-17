@@ -680,44 +680,70 @@ select {
 
 .profile-link {
   display: inline-flex;
+  position: relative;
   width: 44px;
   min-width: 44px;
   min-height: 44px;
   height: 44px;
   align-items: center;
   justify-content: center;
-  border: 1px solid #dfd8cc;
+  border: 0;
   border-radius: 999px;
-  background: #ffffff;
+  background: transparent;
   color: #6f675c;
   line-height: 1;
   text-decoration: none;
 }
 
-.profile-link-imdb {
-  width: 52px;
-  min-width: 52px;
+.profile-link::before {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #dfd8cc;
+  border-radius: 999px;
+  background: #ffffff;
+  content: "";
+}
+
+.profile-link-imdb::before {
+  width: 36px;
 }
 
 .profile-link-icon {
   display: block;
-  width: 22px;
-  height: 22px;
+  position: relative;
+  width: 16px;
+  height: 16px;
   fill: currentColor;
+  z-index: 1;
 }
 
 .profile-link-imdb .profile-link-icon {
-  width: 30px;
-  height: 30px;
+  width: 22px;
+  height: 22px;
 }
 
 .profile-link:hover,
 .profile-link:focus-visible {
+  outline: none;
+}
+
+.profile-link:hover::before,
+.profile-link:focus-visible::before {
   border-color: #6f675c;
+}
+
+.profile-link:focus-visible::before {
+  box-shadow: 0 0 0 3px rgba(111, 103, 92, 0.18);
 }
 
 .signer-context {
   color: #6b6861;
+}
+
+.signer-role {
+  color: #6b6861;
+  font-weight: 500;
 }
 
 .metadata-group h2 {

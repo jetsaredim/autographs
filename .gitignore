@@ -17,6 +17,8 @@ app/.next/
 controller/target/
 controller/static-public/data/collection.json
 controller/static-public/data/facets.json
+controller/static-public/data/items/
+controller/static-public/manifest.json
 controller/static-public/media/*
 controller/static-public/items/*
 .terraform/

@@ -7,3 +7,9 @@ app/node_modules
 app/.next
 controller/target
 infra
+controller/static-public/data/collection.json
+controller/static-public/data/facets.json
+controller/static-public/data/items
+controller/static-public/manifest.json
+controller/static-public/items
+controller/static-public/media

@@ -5,9 +5,6 @@ use autographs_controller::publisher::{
 
 const FIXTURE: &str = include_str!("../fixtures/catalog-500.json");
 const BROWSE_JS: &str = include_str!("../static-public/assets/browse.js");
-const STATIC_COLLECTION: &str = include_str!("../static-public/data/collection.json");
-const STATIC_FACETS: &str = include_str!("../static-public/data/facets.json");
-const AHSOKA_DETAIL: &str = include_str!("../static-public/items/ahsoka-tano/index.html");
 
 #[test]
 fn static_contract_profiles_shapes_and_generates_public_safe_split_artifacts() {
@@ -165,69 +162,4 @@ fn static_public_browse_source_uses_phase7_filter_contract() {
     assert!(BROWSE_JS.contains("function icon(pathData)"));
     assert!(!BROWSE_JS.contains("const normalizedFilter ="));
     assert!(!BROWSE_JS.contains("const icon ="));
-}
-
-#[test]
-fn checked_in_static_fixtures_are_schema_v2_taxonomy_examples() {
-    let collection: serde_json::Value =
-        serde_json::from_str(STATIC_COLLECTION).expect("static collection JSON");
-    let facets: serde_json::Value =
-        serde_json::from_str(STATIC_FACETS).expect("static facets JSON");
-
-    assert_eq!(collection["schemaVersion"], 2);
-    assert_eq!(facets["schemaVersion"], 2);
-    let items = collection["items"].as_array().expect("items array");
-    assert!(
-        items
-            .iter()
-            .any(|item| item["signerNames"].as_array().unwrap().len() > 1)
-    );
-    assert!(items.iter().any(|item| item["origin"] == "Custom"));
-    assert!(items.iter().any(|item| item["language"] == "Japanese"));
-    assert!(items.iter().any(|item| item["language"] == "Chinese"));
-    let rendered_collection = serde_json::to_string(&collection).expect("render static collection");
-    assert!(rendered_collection.contains("/media/ahsoka-tano/image-1-thumbnail-"));
-    assert!(rendered_collection.contains("/media/ahsoka-tano/image-1-detail-"));
-    for stale_path in [
-        "image-1-thumbnail.webp",
-        "image-1-detail.webp",
-        "image-2-thumbnail.webp",
-        "image-2-detail.webp",
-    ] {
-        assert!(
-            !rendered_collection.contains(stale_path),
-            "static collection contains unfingerprinted media path {stale_path}"
-        );
-    }
-
-    let facet_ids = facets["groups"]
-        .as_array()
-        .expect("facet groups")
-        .iter()
-        .map(|group| group["id"].as_str().unwrap())
-        .collect::<Vec<_>>();
-    for expected in [
-        "signer",
-        "franchise",
-        "productLine",
-        "format",
-        "language",
-        "origin",
-        "role",
-        "tag",
-    ] {
-        assert!(facet_ids.contains(&expected), "missing facet {expected}");
-    }
-    assert!(!facet_ids.contains(&"category"));
-
-    assert!(AHSOKA_DETAIL.contains("profile-link profile-link-wikipedia"));
-    assert!(AHSOKA_DETAIL.contains("profile-link profile-link-imdb"));
-    assert!(AHSOKA_DETAIL.contains("/media/ahsoka-tano/image-1-detail-"));
-    assert!(AHSOKA_DETAIL.contains("/media/ahsoka-tano/image-1-thumbnail-"));
-    assert!(!AHSOKA_DETAIL.contains("/media/ahsoka-tano/image-1-detail.webp"));
-    assert!(!AHSOKA_DETAIL.contains("/media/ahsoka-tano/image-1-thumbnail.webp"));
-    assert!(AHSOKA_DETAIL.contains("Origin</dt>"));
-    assert!(AHSOKA_DETAIL.contains("Custom</dd>"));
-    assert!(!AHSOKA_DETAIL.contains("Language</dt>"));
-    assert!(!AHSOKA_DETAIL.contains("English</dd>"));
 }
