@@ -634,6 +634,8 @@ fn static_admin_taxonomy_styles_and_accessibility_states_are_present() {
         "aria-label",
         "focus-visible",
         "outline: 2px solid #25636a;",
+        "justify-self: start;",
+        "justify-content: flex-start;",
         "border-radius: 999px;",
         "text-decoration: none;",
         ".loading-state",
