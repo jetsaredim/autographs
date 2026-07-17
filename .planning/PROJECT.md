@@ -15,14 +15,16 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - [x] Phase 1 proved the OCI bootstrap and delivery spine: Terraform-managed baseline, explicit configuration contract, GitHub PR validation, GHCR image publishing, and live deploy from `main` to the OCI runtime.
 - [x] Phase 2 proved Oracle-backed catalog persistence, private OCI media storage, app-mediated image delivery, and operator-safe verification seams.
 - [x] Phase 3 delivered the anonymous public gallery MVP with searchable published records, detail pages, mediated image access, and privacy regression coverage.
+- [x] Phase 6 completed the single-admin collection workflow with edit history, multi-image maintenance, publish controls, and runtime/admin security documentation.
+- [x] Phase 7 completed the metadata taxonomy and public facets upgrade with reusable signer profiles, first-class product-line/set metadata, and schema version 2 public artifacts.
 
 ### Active
 
 - [x] Deliver a real end-to-end OCI-hosted personal autograph collection foundation with infrastructure, application scaffold, and deployment automation.
 - [x] Support anonymous public browsing with searchable autograph records, generated public-safe image derivatives, and enough metadata to make the collection useful.
 - [x] Prove a static public catalog and minimal private seed/publish path into Oracle/Object Storage before building the full admin workflow.
-- [ ] Support a single-admin collection management workflow with multiple images per item and edit history from v1.
-- [ ] Add advisory AI-assisted metadata suggestions after the manual admin workflow exists, without making cataloging depend on AI.
+- [x] Support a single-admin collection management workflow with multiple images per item and edit history from v1.
+- [ ] Add advisory AI-assisted metadata suggestions after the manual admin workflow and richer taxonomy exist, without making cataloging depend on AI.
 - [ ] Keep the system operable by one developer using OCI Always Free services wherever practical.
 - [ ] Keep catalog content generation inside the OCI/runtime boundary so private image identifiers, Object Storage details, Oracle data, and image UUIDs do not flow through GitHub-hosted workflows.
 
@@ -43,7 +45,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - Runtime deployment uses Podman quadlets managed through Ansible rather than compose-style orchestration.
 - Public image access now uses generated public-safe derivatives in the static release instead of direct Object Storage URLs or retired app-mediated image streaming routes.
 - Retired operator-only mutation routes remain blocked at the public Caddy edge; normal admin and publish operations use the Rust private controller under `/admin` and `/admin/api/*`.
-- Phase 5 plans 05-01 through 05-07 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, runtime cutover, live static publish proof, and closure evidence. Phase 6 now focuses on polished collection-management ergonomics on that foundation.
+- Phase 5 plans 05-01 through 05-07 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, runtime cutover, live static publish proof, and closure evidence. Phase 6 then delivered polished collection-management ergonomics on that foundation, and Phase 7 added the richer metadata taxonomy/public facets layer. Phase 8 is the pending advisory AI-assisted ingest phase.
 - The intended product remains a personal collection site rather than a reusable platform, so roadmap choices continue to prioritize collection quality, manageability, and presentation over multi-user extensibility.
 
 ## Constraints
@@ -76,7 +78,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 | Close Phase 5 after live static publish proof and verification gates | The live static publish smoke, cleanup verification, UAT, security review, and verification artifacts now prove the static runtime foundation end to end | Phase 5 complete as of 2026-06-20 |
 | Add guarded production security patching through GitHub Issues and Ansible | Routine OS security updates need reviewable operator approval, package-set drift refusal, and cleanup of failed approvals | Added after PR 129 merge |
 | Treat multi-image support and edit history as v1 capabilities | These directly improve personal collection quality and manageability | Phase 6 requirement baseline |
-| Add AI-assisted ingest after admin workflow | AI suggestions should enhance a proven manual admin flow rather than define it | Captured as Phase 7 |
+| Add AI-assisted ingest after admin workflow and taxonomy | AI suggestions should enhance a proven manual admin flow and richer taxonomy rather than define them | Captured as Phase 8 |
 
 ## Evolution
 
@@ -96,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-20 after closing Phase 5 verification and reconciling planning context*
+*Last updated: 2026-07-17 after reconciling Phase 8 AI-assisted ingest scope*

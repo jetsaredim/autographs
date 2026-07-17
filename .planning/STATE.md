@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: ready-for-next-phase
 stopped_at: Phase 07 complete; Phase 08 not started
-last_updated: "2026-07-14T00:31:20.689Z"
-last_activity: 2026-07-14
+last_updated: "2026-07-17T14:21:02Z"
+last_activity: 2026-07-17
 progress:
   total_phases: 8
   completed_phases: 7
@@ -18,7 +18,7 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-26)
+See: .planning/PROJECT.md (updated 2026-07-17)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
 **Current focus:** Phase 08 — AI-Assisted Ingest
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-26)
 Phase: 8
 Plan: Not started
 Status: Phase 7 complete; Phase 8 not started
-Last activity: 2026-07-11
+Last activity: 2026-07-17
 
 Progress: [████████░░] 88% of milestone phases complete; Phase 8 is next
 
@@ -101,6 +101,7 @@ Recent decisions affecting current work:
 - Phase 6: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
 - Phase 7: Add a metadata taxonomy and public facet upgrade before advisory AI-assisted ingest so signer credits, reusable signer profiles, franchise, product line, format, and origin exist as stable suggestion targets.
 - Phase 8: Add advisory AI-assisted ingest after the admin workflow and richer metadata model exist, without making manual entry dependent on AI.
+- Phase 8: Include AI-assisted taxonomy/media exploration for optional product-line and set thumbnails, keeping text metadata canonical and any public derivatives small, optional, and privacy/copyright reviewed.
 - Review follow-up: Phase 6, Phase 7, and Phase 8 now carry explicit security/documentation completion criteria for the new admin, metadata, and AI surfaces they introduce.
 - Pivot outcome: The former live Next.js public runtime and data-smoke path were replaced by the static public catalog, static admin shell, and thin private admin/publisher API that generate content inside the OCI boundary.
 - Static-runtime boundary: GitHub Actions should build and deploy code artifacts only; catalog content generation should not expose private OCI object identifiers, URLs, Oracle data, or image UUIDs through GitHub-hosted workflows.
@@ -138,14 +139,14 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
-- Phase 6 is complete; keep its admin workflow, session auth, media cleanup, cache posture, and runtime cleanup guidance intact while planning Phase 7.
-- Phase 7 should replace overloaded signer/category/tag assumptions with first-class multi-signer records, reusable signer profiles, optional Wikipedia/IMDb links, format/origin/franchise/product-line fields, public facet updates, and a reviewed backfill path from current live tags.
+- Phase 6 is complete; keep its admin workflow, session auth, media cleanup, cache posture, and runtime cleanup guidance intact.
+- Phase 7 is complete; keep its first-class multi-signer records, reusable signer profiles, optional Wikipedia/IMDb links, format/origin/franchise/product-line/set fields, public facet updates, and reviewed backfill path intact while planning Phase 8.
 - Phase 8 remains advisory AI-assisted ingest after manual admin workflows and richer taxonomy exist, with OCR/AI provider, prompt, privacy, and configuration-security review still required.
 - Keep production security patching action pins, approval allowlist, and Ansible role behavior reviewed with deploy/runtime changes.
 
 ### Roadmap Evolution
 
-- Phase 5 inserted: Static Runtime Migration Foundation; former Admin Collection Workflow moved to Phase 6 and AI-Assisted Ingest moved to Phase 7.
+- Phase 5 inserted: Static Runtime Migration Foundation; former Admin Collection Workflow moved to Phase 6 and AI-Assisted Ingest later moved to Phase 8 after the Phase 7 taxonomy insertion.
 - Phase 6 edited: added 06-09 optimization wave for public delivery, image size, CDN/cache posture, and deployed instance/codebase cleanup before Phase 6 closeout.
 - Phase 7 inserted: Metadata Taxonomy and Public Facets; former AI-Assisted Ingest moved to Phase 8 so AI suggestions target the richer manual metadata model.
 

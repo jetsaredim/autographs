@@ -60,7 +60,7 @@ Autographs is a production-lean personal autograph collection website where you 
 ## Project Maturity
 - Phase 5 plans 05-01 through 05-07 are done, and the static runtime migration foundation is implemented in code/docs with live static publish proof, UAT, security review, and verification closeout artifacts.
 - The repository is no longer planning-only; it contains Rust/controller, static public/admin, infrastructure, deployment, maintenance, testing, and operator documentation artifacts.
-- Do not re-scaffold the retired Next.js app or infra. Phase 6 owns polished admin workflow on the completed Phase 5 Rust/static foundation; Phase 7 owns advisory AI-assisted ingest.
+- Do not re-scaffold the retired Next.js app or infra. Phase 6 polished admin workflow and Phase 7 metadata taxonomy/public facets are complete; Phase 8 owns advisory AI-assisted ingest plus optional taxonomy/media thumbnail exploration.
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
@@ -103,7 +103,7 @@ Autographs is a production-lean personal autograph collection website where you 
 - Keep operator docs procedural and explicit about manual prerequisites, secret handling, approval labels, and live-smoke requirements.
 - Update `.planning/codebase/*` after substantial codebase drift so future agents do not resurrect planning-only assumptions.
 ## Current Guidance
-- Phase 5 foundation is complete; do not rebuild finished 05-01 through 05-07 work, and treat the Rust/static cutover and Next.js retirement as validated. Phase 6 should add the polished admin collection workflow, edit history, and media cleanup ergonomics on that foundation. Phase 7 should add advisory AI-assisted ingest.
+- Phase 5 foundation, Phase 6 admin collection workflow, and Phase 7 metadata taxonomy/public facets are complete; do not rebuild finished work, and treat the Rust/static cutover and Next.js retirement as validated. Phase 8 should add advisory AI-assisted ingest plus optional product-line/set taxonomy media cues on top of the richer manual metadata model, with text-only fallback intact.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage URLs, or a split frontend/backend service architecture for v1.
 <!-- GSD:conventions-end -->
 
@@ -116,14 +116,14 @@ Autographs is a production-lean personal autograph collection website where you 
 - Caddy serves the generated static release, blocks retired operator routes, and routes private `/admin` and `/admin/api/*` traffic to the controller/admin surfaces.
 ## Layers
 - Static public layer: `controller/static-public/` contains generated public HTML, JSON, assets, templates, and public-safe media paths.
-- Static admin shell: `controller/static-admin/` contains the minimal private admin seed/publish shell.
-- Rust controller: `controller/src/` contains private admin/API routes, auth, catalog/media adapters, static publishing, derivative generation, and release promotion.
+- Static admin shell: `controller/static-admin/` contains the private collection management workflow: item list/search, create/edit forms, image maintenance, edit history, pending changes, publish controls, and signer/taxonomy management.
+- Rust controller: `controller/src/` contains private admin/API routes, auth, catalog/media adapters, static publishing, derivative generation, signer/taxonomy management, edit history, and release promotion.
 - Database layer: `controller/db/schema.sql` contains the Oracle schema used by the Rust controller.
 - Infrastructure, delivery, and maintenance layer: `infra/terraform/`, `deploy/ansible/`, and `.github/workflows/` provide OCI infrastructure, runtime VM configuration, Podman quadlets, PR validation, image publishing, deploy, image cleanup, and production security patching.
 - Planning and operator documentation: `.planning/`, `docs/`, and `.prompts/` hold GSD state, roadmap, phase artifacts, codebase intelligence, bootstrap/runbook docs, and original product prompt.
 ## Data Flow
 - Anonymous visitors request the public site through Caddy and receive generated static HTML, public-safe JSON, assets, and generated media derivatives.
-- Operators use the private admin shell and `/admin/api/*` controller routes for health, minimal seed, and publish operations.
+- Operators use the private admin shell and `/admin/api/*` controller routes for health, item and signer management, media maintenance, edit history, pending-change review, and publish operations.
 - The controller reads and writes Oracle catalog metadata and private OCI Object Storage media.
 - The publisher generates candidate static output inside the runtime/OCI boundary, validates privacy and completeness, then promotes the release.
 - GitHub Actions validates changes, builds/publishes the controller image, deploys runtime changes, and runs production maintenance workflows.
@@ -136,14 +136,11 @@ Autographs is a production-lean personal autograph collection website where you 
 - Security patching role: scan, issue rendering, approval validation, patching, result reporting, and failure cleanup.
 ## Current Phase Boundary
 - Phase 5 plans 05-01 through 05-07 are complete, and the Rust/static foundation is present with live static publish proof and closeout artifacts.
-- Phase 6 should build the polished admin collection workflow on the Rust/static foundation.
-- Phase 7 should add advisory AI-assisted ingest.
+- Phase 6 admin collection workflow and Phase 7 metadata taxonomy/public facets are complete on the Rust/static foundation.
+- Phase 8 should add advisory AI-assisted ingest plus optional taxonomy/media thumbnail exploration for product-line and set cues.
 - Do not re-scaffold the retired Next.js app or replace the delivery spine.
 ## Notable Absences
-- Polished Phase 6 admin collection workflow is not implemented yet.
-- Edit history persistence/rendering is not implemented yet.
-- Full media replacement/orphan cleanup ergonomics are not implemented yet.
-- AI-assisted metadata suggestions are not implemented yet.
+- AI-assisted metadata suggestions and optional taxonomy/media thumbnail cues are not implemented yet.
 <!-- GSD:architecture-end -->
 
 <!-- GSD:skills-start source:skills/ -->

@@ -16,14 +16,15 @@ Implemented:
 - Generated static public gallery, filters, detail pages, architecture page, derived media, and approved quote states.
 - Rust private controller for admin health, seed/publish operations, Oracle catalog access, private media access, and static release publishing.
 - Oracle Autonomous Database metadata access and private OCI Object Storage media.
+- Single-admin collection workflow with edit history, multi-image maintenance, publish controls, and signer/taxonomy management.
+- Metadata taxonomy/public facets for reusable signer profiles, signer roles, franchise, product line, set, format, origin, language, and tags.
 - Terraform and Ansible deployment path for an OCI Always Free style runtime.
 - GitHub Actions for CI, controller image build/deploy, and scheduled image cleanup.
 - Current-surface security review and Renovate dependency automation.
 
 Planned, not current:
 
-- Phase 6: polished single-admin collection workflow, edit history, richer media cleanup UX, and daily-use admin ergonomics.
-- Phase 7: advisory OCR/AI metadata suggestions that speed up cataloging while preserving manual control.
+- Phase 8: advisory OCR/AI metadata suggestions plus optional taxonomy/media thumbnail exploration for product-line and set cues, while preserving manual control and text-only fallback.
 
 Out of scope for v1:
 
@@ -101,4 +102,4 @@ See [Security review and current security posture](docs/security-review.md) for 
 
 This project is being built with a human+AI workflow using GSD: discussion, phase planning, execution plans, review, validation, and PR-based merge discipline. The point is not to hide the planning process; it is to make the repository legible as a real product lifecycle with constraints, tradeoffs, and follow-through.
 
-Phase 5 is closed with the 05-07 live static publish proof, cleanup verification, UAT, security review, and verification summary recorded. The Rust/static cutover and Next.js retirement are validated; Phase 6 polished admin workflow and Phase 7 AI-assisted ingest build on that foundation.
+Phase 5 is closed with the 05-07 live static publish proof, cleanup verification, UAT, security review, and verification summary recorded. The Rust/static cutover and Next.js retirement are validated; Phase 6 admin workflow and Phase 7 metadata taxonomy/public facets are complete. Phase 8 AI-assisted ingest is the next planned layer on that foundation.

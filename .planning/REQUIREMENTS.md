@@ -34,7 +34,7 @@
 
 ### Admin Workflow
 
-- [ ] **ADMIN-01**: Exactly one admin authentication path exists for collection management, and no public user account system is required for v1.
+- [x] **ADMIN-01**: Exactly one admin authentication path exists for collection management, and no public user account system is required for v1.
 - [x] **ADMIN-02**: Admin can create a new autograph item by uploading images and reviewing/editing metadata in one workflow before publish.
 - [x] **ADMIN-03**: Admin can edit an existing autograph item, including metadata and associated images.
 - [x] **ADMIN-04**: Admin can save reviewed metadata and publish the item so it becomes visible in the public gallery.
@@ -52,10 +52,11 @@
 
 ### AI-Assisted Ingest
 
-- [ ] **AI-01**: Upload workflow can generate AI-assisted metadata suggestions for fields such as signer, item type, tags, or inscription text.
+- [ ] **AI-01**: Upload workflow can generate AI-assisted metadata suggestions for signer credits and Phase 7 taxonomy/details fields such as franchise, product line, set, format, origin, loose tags, or inscription text.
 - [ ] **AI-02**: OCR and AI suggestions remain advisory, and the admin can correct or ignore them before final save.
 - [ ] **AI-03**: Upload workflow still succeeds with manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
 - [ ] **AI-04**: AI/OCR providers, prompts, failure modes, privacy boundaries, and configuration/secrets are reviewed for security and documented before AI-assisted ingest is considered complete.
+- [ ] **AI-05**: AI-assisted taxonomy/media workflow evaluates small public-safe derived thumbnails for product-line and set values, such as card-back cues, while preserving text metadata, copyright/publication-risk review, and graceful fallback when no image is available.
 
 ### Public Showcase and Hardening
 
@@ -100,7 +101,7 @@ None currently. Future scope should be added only if it directly supports the pe
 | GALL-02 | Phase 3 | Complete |
 | GALL-03 | Phase 3 | Complete |
 | GALL-04 | Phase 3 | Complete |
-| ADMIN-01 | Phase 6 | Pending |
+| ADMIN-01 | Phase 6 | Complete |
 | ADMIN-02 | Phase 6 | Complete |
 | ADMIN-03 | Phase 6 | Complete |
 | ADMIN-04 | Phase 6 | Complete |
@@ -112,10 +113,11 @@ None currently. Future scope should be added only if it directly supports the pe
 | STATIC-05 | Phase 5 | Complete |
 | STATIC-06 | Phase 5 | Complete |
 | STATIC-07 | Phase 5 | Complete |
-| AI-01 | Phase 7 | Pending |
-| AI-02 | Phase 7 | Pending |
-| AI-03 | Phase 7 | Pending |
-| AI-04 | Phase 7 | Pending |
+| AI-01 | Phase 8 | Pending |
+| AI-02 | Phase 8 | Pending |
+| AI-03 | Phase 8 | Pending |
+| AI-04 | Phase 8 | Pending |
+| AI-05 | Phase 8 | Pending |
 | SHIP-01 | Phase 4 | Complete |
 | SHIP-02 | Phase 4 | Complete |
 | SHIP-03 | Phase 4 | Complete |
@@ -124,10 +126,10 @@ None currently. Future scope should be added only if it directly supports the pe
 
 **Coverage:**
 
-- v1 requirements: 36 total
-- Mapped to phases: 36
+- v1 requirements: 37 total
+- Mapped to phases: 37
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-06-20 after recording the Phase 5 live static publish proof*
+*Last updated: 2026-07-17 after adding Phase 8 taxonomy thumbnail exploration*

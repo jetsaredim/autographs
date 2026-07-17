@@ -233,13 +233,14 @@ Plans:
 
 **Goal**: The admin workflow gains advisory OCR/AI metadata suggestions that speed up cataloging without blocking manual control.
 **Depends on**: Phase 7
-**Requirements**: AI-01, AI-02, AI-03, AI-04
+**Requirements**: AI-01, AI-02, AI-03, AI-04, AI-05
 **Success Criteria** (what must be TRUE):
 
   1. Upload workflow can generate AI-assisted metadata suggestions for relevant autograph fields such as signer credits, franchise, product line, format, origin, loose tags, or inscription text.
   2. Admin can review, correct, or ignore OCR and AI suggestions before saving the item.
   3. Upload workflow still succeeds with fully manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
-  4. AI/OCR providers, prompts, failure modes, privacy boundaries, and configuration/secrets are reviewed for security and documented before Phase 8 is marked complete.
+  4. AI-assisted taxonomy/media exploration evaluates whether product-line and set values should have small public-safe derived thumbnails, such as recognizable card-back cues, without requiring image support for every taxonomy value.
+  5. AI/OCR providers, prompts, failure modes, privacy boundaries, copyright/publication risks, and configuration/secrets are reviewed for security and documented before Phase 8 is marked complete.
 
 **Plans**: TBD
 **UI hint**: yes

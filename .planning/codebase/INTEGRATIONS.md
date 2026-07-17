@@ -1,6 +1,6 @@
 # External Integrations
 
-**Analysis Date:** 2026-07-10
+**Analysis Date:** 2026-07-17
 
 ## APIs and External Services
 
@@ -20,9 +20,10 @@
 - Phase 6 persists edit history, publication changes, cleanup events,
   pending-change timestamps, and publish snapshot/status data through the same
   controller-owned Oracle boundary.
-- Phase 7 adds signer profile tables, item signer credits, character/franchise
-  joins, item taxonomy fields, signer profile edit history, signer merge
-  history, and reviewed taxonomy backfill artifacts for live rollout.
+- Phase 7 introduced signer profile tables, item signer credits,
+  character/franchise joins, item taxonomy fields, signer profile edit history,
+  signer merge history, and reviewed taxonomy backfill artifacts for live
+  rollout.
 
 **OCI Object Storage**
 - Private original autograph images are stored in a private Object Storage bucket.
@@ -115,8 +116,9 @@
 
 ## AI Integrations
 
-No OCR or AI-assisted metadata suggestion integration is implemented yet. That
-remains Phase 8 scope and should be advisory, with manual entry remaining fully
+No OCR, AI-assisted metadata suggestion, or taxonomy thumbnail/media processing
+integration is implemented yet. Those remain Phase 8 scope and should be
+advisory, with manual entry and text-only taxonomy display remaining fully
 functional against the Phase 7 signer/taxonomy model.
 
 ## Practical Interpretation
@@ -130,4 +132,4 @@ prompt-only intent.
 
 ---
 
-*Integration audit refreshed: 2026-07-10 after Phase 7 taxonomy closeout*
+*Integration audit refreshed: 2026-07-17 after Phase 8 planning-scope reconciliation*

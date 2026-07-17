@@ -10,7 +10,7 @@ It is the completed controller foundation from Phase 5, and the old Next.js
 runtime has been retired from the active repo/runtime path. The 05-07 production
 live static publish proof and closure summary are recorded. Phase 6 added the
 polished daily-use collection workflow on top of this foundation, and Phase 7
-adds reusable signer profiles plus schema version 2 public taxonomy facets.
+added reusable signer profiles plus schema version 2 public taxonomy facets.
 
 ## Startup
 
@@ -309,5 +309,7 @@ cargo test --manifest-path controller/Cargo.toml \
 ## Phase 5 Closeout
 
 - `05-07`: Live static publish proof and Phase 5 closure summary recorded.
-- Phase 6 owns the polished daily-use collection workflow on this completed
-  Rust/static foundation.
+- Phase 6 delivered the polished daily-use collection workflow on this
+  Rust/static foundation, and Phase 7 delivered reusable signer/taxonomy
+  metadata plus public facets. Phase 8 owns the pending advisory AI-assisted
+  ingest layer.
