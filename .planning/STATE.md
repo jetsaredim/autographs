@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: ready-for-next-phase
 stopped_at: Phase 07 complete; Phase 08 not started
-last_updated: "2026-07-17T14:21:02Z"
+last_updated: "2026-07-17T16:09:20Z"
 last_activity: 2026-07-17
 progress:
   total_phases: 8
@@ -184,3 +184,4 @@ Resume file: None
 | 2026-07-16 | add-admin-signer-profile-management-tab | Added a Signers admin tab for reusable profile edits, linked item signer rows and item-list signer cells to profile management, and kept item signer edits focused on item-level role/context. |
 | 2026-07-16 | normalize-signer-imdb-and-wikipedia-prof | Normalized reusable signer profile links to compact `w.wiki` and IMDb `nm...` IDs while rendering full public URLs from the stored identifiers. |
 | 2026-07-16 | show-linked-items-on-admin-signer-profil | Added linked item counts and edit/history actions to each signer profile card in the admin Signers editor. |
+| 2026-07-17 | public-detail-signer-icons | Rendered public detail signer roles inline as `Name (role)`, reduced visible Wikipedia/IMDb profile icon badges, split multi-signer fact chips, opened profile links in new tabs, and removed generated public content/media from repo and Docker build context. |

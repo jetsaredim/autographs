@@ -82,15 +82,35 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
 #[test]
 fn controller_dockerfile_copies_compile_time_static_assets() {
     let dockerfile = read_repo("controller/Dockerfile");
+    let dockerignore = read_repo(".dockerignore");
+    let gitignore = read_repo(".gitignore");
     let smoke_dockerfile = read_repo("controller/Dockerfile.smoke");
     let static_smoke_dockerfile = read_repo("controller/Dockerfile.static-smoke");
 
     assert!(dockerfile.contains("COPY controller/src ./src"));
     assert!(dockerfile.contains("COPY controller/db ./db"));
-    assert!(dockerfile.contains("COPY controller/static-public ./static-public"));
+    assert!(dockerfile.contains("COPY controller/static-public/assets ./static-public/assets"));
+    assert!(
+        dockerfile.contains("COPY controller/static-public/templates ./static-public/templates")
+    );
+    assert!(dockerfile
+        .contains("COPY controller/static-public/data/not-found-quotes.json ./static-public/data/not-found-quotes.json"));
+    assert!(!dockerfile.contains("COPY controller/static-public ./static-public"));
     assert!(dockerfile.contains("COPY controller/static-admin ./static-admin"));
     assert!(dockerfile.contains("cargo build --release --features production-persistence"));
     assert!(dockerfile.contains("COPY controller/static-admin /opt/autographs/static-admin"));
+    assert!(dockerignore.contains("controller/static-public/data/collection.json"));
+    assert!(dockerignore.contains("controller/static-public/data/facets.json"));
+    assert!(dockerignore.contains("controller/static-public/data/items"));
+    assert!(dockerignore.contains("controller/static-public/manifest.json"));
+    assert!(dockerignore.contains("controller/static-public/items"));
+    assert!(dockerignore.contains("controller/static-public/media"));
+    assert!(gitignore.contains("controller/static-public/data/collection.json"));
+    assert!(gitignore.contains("controller/static-public/data/facets.json"));
+    assert!(gitignore.contains("controller/static-public/data/items/"));
+    assert!(gitignore.contains("controller/static-public/manifest.json"));
+    assert!(gitignore.contains("controller/static-public/items/*"));
+    assert!(gitignore.contains("controller/static-public/media/*"));
     assert!(smoke_dockerfile.contains("COPY controller/static-admin ./static-admin"));
     assert!(static_smoke_dockerfile.contains("COPY controller/static-admin ./static-admin"));
 }
