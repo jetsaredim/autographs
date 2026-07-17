@@ -31,8 +31,10 @@ Current follow-up scope:
 
 - Phase 6 admin workflow security review is recorded below.
 - Phase 7 Metadata Taxonomy Security Review is recorded below.
-- Phase 8 must review OCR/AI providers, prompts, privacy boundaries, and model
-  configuration before advisory AI-assisted ingest ships.
+- Phase 8 must review OCR/AI providers, prompts, privacy boundaries, model
+  configuration, taxonomy thumbnail/media processing dependencies, generated
+  public derivatives, and copyright/publication risks before advisory
+  AI-assisted ingest or taxonomy media cues ship.
 
 ## Phase 6 Admin Collection Workflow
 
@@ -59,8 +61,8 @@ guidance.
 | SEC-06-13 | Post-Phase 6 runtime cleanup posture | Accepted | Deployment docs now include operator-run checks for VM-local image cleanup dry-run, retired service absence, static release retention, failed candidate retention, route shape, and cache headers; destructive live cleanup remains operator-approved only. |
 
 No high-severity Phase 6 admin finding remains without a fixed or documented
-mitigation. Phase 7 AI-assisted ingest is still future scope and is not
-implemented by this review.
+mitigation. Phase 7 metadata taxonomy is reviewed below; Phase 8 AI-assisted
+ingest remains future scope and is not implemented by this review.
 
 ## Phase 7 Metadata Taxonomy Security Review
 
@@ -154,4 +156,4 @@ Reviewed then:
 | SEC-04-08 | Runtime image cleanup | Fixed historically | Cleanup behavior was hardened after the multi-tag Podman deletion failure. |
 | SEC-04-09 | Static/admin foundation | Complete for Phase 5 foundation | Rust private controller, static publisher, generated derivatives, and operator-bridge retirement landed in Phase 5. |
 | SEC-04-10 | Admin workflow security | Superseded by Phase 6 review | Phase 6 admin workflow, edit-history UX, media cleanup ergonomics, cache posture, and runtime cleanup guidance are reviewed above. |
-| SEC-04-11 | AI/OCR security | Deferred to Phase 7 | Provider selection, prompts, privacy boundaries, and AI/OCR failure modes remain Phase 7 security work. |
+| SEC-04-11 | AI/OCR and taxonomy media security | Deferred to Phase 8 | Provider selection, prompts, privacy boundaries, AI/OCR failure modes, taxonomy thumbnail/media processing, generated public derivatives, and copyright/publication risks remain Phase 8 security work. |

@@ -1,6 +1,6 @@
 # Architecture
 
-**Analysis Date:** 2026-07-10
+**Analysis Date:** 2026-07-17
 
 ## Pattern Overview
 
@@ -44,9 +44,9 @@ AI-assisted ingest layer on top of this richer manual model.
   management: health/diagnostics, item search/list, create/edit forms, image
   upload/primary/remove/replace controls, edit history, pending changes,
   publish actions, cleanup warnings, and release retention status.
-- Phase 7 adds Identity, Classification, and Details taxonomy sections,
-  repeatable signer rows, inline suggestions, `Possible duplicate signer`
-  warnings, and `Merge signer` repair.
+- The Phase 7 admin shell includes Identity, Classification, and Details
+  taxonomy sections, repeatable signer rows, inline suggestions, `Possible
+  duplicate signer` warnings, and `Merge signer` repair.
 
 **Rust Controller**
 - Location: `controller/src/`
@@ -136,11 +136,12 @@ assertions. Phase 8 is the pending advisory AI-assisted ingest phase.
 
 ## Notable Absences
 
-- AI-assisted metadata suggestions are not implemented yet; they are Phase 8
-  scope after the taxonomy/manual admin model.
+- AI-assisted metadata suggestions and optional taxonomy/media thumbnail cues
+  are not implemented yet; they are Phase 8 scope after the taxonomy/manual
+  admin model, with text-only taxonomy fallback intact.
 - Legacy signer/category/tag cleanup is not complete yet; Phase 7 documents
   temporary retention and a later deprecation path.
 
 ---
 
-*Architecture analysis refreshed: 2026-07-10 after Phase 7 taxonomy closeout*
+*Architecture analysis refreshed: 2026-07-17 after Phase 8 planning-scope reconciliation*

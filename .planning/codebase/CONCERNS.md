@@ -1,6 +1,6 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-06-20
+**Analysis Date:** 2026-07-17
 
 ## Current Risks
 
@@ -53,8 +53,10 @@
   credentials, deploy SSH keys, and Terraform tfvars/state must stay out of git.
 - Production-sensitive GitHub Actions should use least privilege and reviewed
   immutable action references where practical.
-- Phase 6 and Phase 7 must add fresh security review for the new admin and AI
-  surfaces they introduce.
+- Phase 6 and Phase 7 completed fresh security review for the new admin and
+  metadata surfaces they introduced. Phase 8 must add security review for the
+  advisory AI/OCR surfaces, taxonomy/media thumbnail processing, generated
+  public derivatives, and copyright/publication risks it introduces.
 
 ## Fragile Areas
 
@@ -68,13 +70,13 @@
 
 ## Near-Term Recommendations
 
-1. Use the Phase 5 closeout artifacts as the baseline for Phase 6 planning.
+1. Use the Phase 7 closeout artifacts as the baseline for Phase 8 planning.
 2. Keep README, public readiness, dependency update, security, and patching docs
    aligned with the Rust/static runtime.
 3. Preserve live smoke and cleanup checks as operator-run verification when
    changing controller persistence, media, or publishing behavior.
-4. Re-run codebase mapping after major Phase 6/7 implementation shifts.
+4. Re-run codebase mapping after major Phase 8 implementation shifts.
 
 ---
 
-*Concerns refreshed: 2026-06-20 after Phase 5 verification closeout*
+*Concerns refreshed: 2026-07-17 after Phase 8 planning-scope reconciliation*
