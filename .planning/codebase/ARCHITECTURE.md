@@ -132,16 +132,18 @@ reusable signer profiles, item signer credits, signer suggestions, signer merge
 repair, first-class character/franchise/productLine/setName/format/origin/
 language taxonomy, reviewed backfill artifacts, schema version 2 public static
 facets, rollout docs, security review, and live static publish smoke taxonomy
-assertions. Phase 8 is the pending advisory AI-assisted ingest phase.
+assertions. Phase 8 starts with optional taxonomy/media cue exploration before
+the pending advisory AI-assisted ingest layer.
 
 ## Notable Absences
 
-- AI-assisted metadata suggestions and optional taxonomy/media thumbnail cues
+- Optional taxonomy/media thumbnail cues and AI-assisted metadata suggestions
   are not implemented yet; they are Phase 8 scope after the taxonomy/manual
-  admin model, with text-only taxonomy fallback intact.
+  admin model, with taxonomy media cues prioritized first and text-only fallback
+  intact.
 - Legacy signer/category/tag cleanup is not complete yet; Phase 7 documents
   temporary retention and a later deprecation path.
 
 ---
 
-*Architecture analysis refreshed: 2026-07-17 after Phase 8 planning-scope reconciliation*
+*Architecture analysis refreshed: 2026-07-19 after Phase 8 taxonomy media prioritization*

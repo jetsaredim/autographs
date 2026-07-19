@@ -74,7 +74,8 @@
   HTML/JSON freshness or content-addressed public paths.
 
 **Pending**
-- Advisory Phase 8 AI/OCR provider integration.
+- Phase 8 taxonomy thumbnail/media processing integration, followed by
+  advisory AI/OCR provider integration.
 - There is intentionally no public account system, multi-admin role hierarchy,
   or social identity flow for v1.
 
@@ -116,10 +117,11 @@
 
 ## AI Integrations
 
-No OCR, AI-assisted metadata suggestion, or taxonomy thumbnail/media processing
-integration is implemented yet. Those remain Phase 8 scope and should be
-advisory, with manual entry and text-only taxonomy display remaining fully
-functional against the Phase 7 signer/taxonomy model.
+No taxonomy thumbnail/media processing, OCR, or AI-assisted metadata suggestion
+integration is implemented yet. Those remain Phase 8 scope, with taxonomy media
+cue work prioritized before OCR/AI provider integration. Manual entry and
+text-only taxonomy display must remain fully functional against the Phase 7
+signer/taxonomy model.
 
 ## Practical Interpretation
 
@@ -132,4 +134,4 @@ prompt-only intent.
 
 ---
 
-*Integration audit refreshed: 2026-07-17 after Phase 8 planning-scope reconciliation*
+*Integration audit refreshed: 2026-07-19 after Phase 8 taxonomy media prioritization*

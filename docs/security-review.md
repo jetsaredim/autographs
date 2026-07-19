@@ -31,10 +31,10 @@ Current follow-up scope:
 
 - Phase 6 admin workflow security review is recorded below.
 - Phase 7 Metadata Taxonomy Security Review is recorded below.
-- Phase 8 must review OCR/AI providers, prompts, privacy boundaries, model
-  configuration, taxonomy thumbnail/media processing dependencies, generated
-  public derivatives, and copyright/publication risks before advisory
-  AI-assisted ingest or taxonomy media cues ship.
+- Phase 8 must review taxonomy thumbnail/media processing dependencies,
+  generated public derivatives, copyright/publication risks, and later OCR/AI
+  providers, prompts, privacy boundaries, and model configuration before
+  taxonomy media cues or advisory AI-assisted ingest ship.
 
 ## Phase 6 Admin Collection Workflow
 
@@ -61,8 +61,9 @@ guidance.
 | SEC-06-13 | Post-Phase 6 runtime cleanup posture | Accepted | Deployment docs now include operator-run checks for VM-local image cleanup dry-run, retired service absence, static release retention, failed candidate retention, route shape, and cache headers; destructive live cleanup remains operator-approved only. |
 
 No high-severity Phase 6 admin finding remains without a fixed or documented
-mitigation. Phase 7 metadata taxonomy is reviewed below; Phase 8 AI-assisted
-ingest remains future scope and is not implemented by this review.
+mitigation. Phase 7 metadata taxonomy is reviewed below; Phase 8 taxonomy media
+cues and AI-assisted ingest remain future scope and are not implemented by this
+review.
 
 ## Phase 7 Metadata Taxonomy Security Review
 

@@ -10,7 +10,7 @@ Use this checklist before making the repository public, before merging a hardeni
 - Do not require retired Node app gates. The former `corepack pnpm --filter app lint`, `typecheck`, `test`, and `build` checks applied to the retired Next.js app package and are no longer part of the current static-runtime/controller surface.
 - Confirm the PR review feedback is written back to the PR as GitHub comments.
 - Confirm repository badges in `README.md` map to real workflows or clearly documented static signals.
-- Confirm `README.md` separates the current static-runtime/controller, Phase 6 admin, and Phase 7 taxonomy implementation from Phase 8 AI plans.
+- Confirm `README.md` separates the current static-runtime/controller, Phase 6 admin, and Phase 7 taxonomy implementation from Phase 8 taxonomy media and AI plans.
 - Confirm `docs/security-review.md` records current-surface security findings as fixed, accepted, deferred, or tracked.
 - Confirm `docs/dependency-updates.md` explains Renovate scope, the Dependency Dashboard issue, review expectations, and manual verification before merging dependency updates.
 - Confirm `renovate.json` is present and configured for Rust packages, workflow, Docker, Terraform, Ansible, and runtime image update surfaces.
@@ -26,7 +26,7 @@ Use this checklist before making the repository public, before merging a hardeni
 
 - Do not defer static-runtime/controller regressions: generated public artifacts, Rust controller access, static admin seed/publish path, generated derivatives, Caddy static serving, and retired operator-route blocking are current surfaces.
 - Phase 6 and Phase 7 are current completed surfaces; do not defer regressions in admin workflow, edit history, media cleanup, signer/taxonomy metadata, public facets, or schema version 2 output.
-- Phase 8 may defer only advisory OCR/AI ingest items: provider selection, prompts, metadata suggestions, taxonomy thumbnail exploration, privacy review, and failure-mode handling.
+- Phase 8 may defer only taxonomy media and advisory OCR/AI ingest items: product-line/set thumbnail exploration, provider selection, prompts, metadata suggestions, privacy review, and failure-mode handling.
 - Do not defer a current public-gallery, media-delivery, repository-secret, workflow-permission, or operator-exposure issue into Phase 5 or Phase 6. Track or fix it before public release.
 
 ## Manual Checks

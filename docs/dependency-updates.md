@@ -85,5 +85,5 @@ Manual smoke review is required when an update touches deployment behavior, Terr
 
 - Phase 5 updated this policy for the static publisher, Rust private controller, generated derivatives, operator-bridge replacement, and production security patching surfaces.
 - Phase 6 updated this policy for polished admin authentication, edit history, media cleanup, and admin workflow validation gates.
-- Phase 8 must update this policy when OCR/AI providers, prompt tooling, model SDKs, image/text extraction dependencies, or taxonomy thumbnail/media processing dependencies are introduced.
+- Phase 8 must update this policy when taxonomy thumbnail/media processing dependencies, OCR/AI providers, prompt tooling, model SDKs, or image/text extraction dependencies are introduced.
 - Major updates should stay separate and should not be merged only because automated checks pass.
