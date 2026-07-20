@@ -106,8 +106,9 @@ Covered areas include:
 
 ### Pending Phase 8 Areas
 
-- Taxonomy thumbnail/media cue validation for public-safe product-line and set
-  assets, including text-only fallback.
+- Taxonomy thumbnail/media cue validation for public-safe franchise,
+  product-line, set, and non-default language assets, including text-only
+  fallback.
 - OCR/AI-assisted ingest validation.
 - AI/OCR provider, prompt, failure-mode, privacy-boundary, and configuration
   secret review.

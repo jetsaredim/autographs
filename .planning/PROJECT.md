@@ -78,7 +78,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 | Close Phase 5 after live static publish proof and verification gates | The live static publish smoke, cleanup verification, UAT, security review, and verification artifacts now prove the static runtime foundation end to end | Phase 5 complete as of 2026-06-20 |
 | Add guarded production security patching through GitHub Issues and Ansible | Routine OS security updates need reviewable operator approval, package-set drift refusal, and cleanup of failed approvals | Added after PR 129 merge |
 | Treat multi-image support and edit history as v1 capabilities | These directly improve personal collection quality and manageability | Phase 6 requirement baseline |
-| Start Phase 8 with taxonomy media cues before AI-specific ingest | Product-line/set thumbnail cues can be explored against new event items without waiting for OCR/AI provider selection, while AI suggestions should still enhance a proven manual admin flow rather than define it | Captured as Phase 8 |
+| Start Phase 8 with taxonomy media cues before AI-specific ingest | Franchise, product-line, set, and non-default language cues can be explored against new event items without waiting for OCR/AI provider selection, while AI suggestions should still enhance a proven manual admin flow rather than define it | Captured as Phase 8 |
 
 ## Evolution
 

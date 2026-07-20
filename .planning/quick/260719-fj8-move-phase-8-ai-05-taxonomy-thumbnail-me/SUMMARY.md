@@ -7,7 +7,7 @@ branch: gsd/quick-move-phase-8-ai-05-taxonomy-thumbnail-me
 # Summary
 
 Moved the former `AI-05` taxonomy/media thumbnail exploration to the front of
-Phase 8 planning so product-line and set media cues can be addressed before
+Phase 8 planning so non-AI-specific taxonomy media cues can be addressed before
 OCR/AI-specific ingest work.
 
 ## Completed

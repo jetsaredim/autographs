@@ -52,7 +52,7 @@
 
 ### Taxonomy Media and AI-Assisted Ingest
 
-- [ ] **AI-01**: Taxonomy/media workflow evaluates small public-safe derived thumbnails for product-line and set values, such as card-back cues, while preserving text metadata, copyright/publication-risk review, graceful fallback when no image is available, and independence from OCR/AI provider work.
+- [ ] **AI-01**: Taxonomy/media workflow evaluates small public-safe derived cues for franchise, product-line, set, and non-default language values, such as card-back or franchise/product thumbnails, while preserving text metadata, copyright/publication-risk review, graceful fallback when no image is available, and independence from OCR/AI provider work.
 - [ ] **AI-02**: Upload workflow can generate AI-assisted metadata suggestions for signer credits and Phase 7 taxonomy/details fields such as franchise, product line, set, format, origin, loose tags, or inscription text.
 - [ ] **AI-03**: OCR and AI suggestions remain advisory, and the admin can correct or ignore them before final save.
 - [ ] **AI-04**: Upload workflow still succeeds with manual metadata entry when OCR or AI assistance is unavailable or inaccurate.

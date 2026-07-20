@@ -121,9 +121,10 @@
 - Keep Phase 6 admin changes inside the Rust/static/Caddy/Oracle/Object Storage
   architecture; do not introduce public accounts, multi-admin roles, bulk import,
   direct Object Storage URLs, or a split public service for v1.
-- Start Phase 8 with optional product-line/set taxonomy media cues grounded in
-  the Phase 7 taxonomy model, then keep later AI work advisory; do not move
-  cataloging control away from the manual admin workflow.
+- Start Phase 8 with optional franchise/product-line/set/non-default-language
+  taxonomy media cues grounded in the Phase 7 taxonomy model, then keep later
+  AI work advisory; do not move cataloging control away from the manual admin
+  workflow.
 
 ---
 

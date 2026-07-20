@@ -103,7 +103,7 @@ Autographs is a production-lean personal autograph collection website where you 
 - Keep operator docs procedural and explicit about manual prerequisites, secret handling, approval labels, and live-smoke requirements.
 - Update `.planning/codebase/*` after substantial codebase drift so future agents do not resurrect planning-only assumptions.
 ## Current Guidance
-- Phase 5 foundation, Phase 6 admin collection workflow, and Phase 7 metadata taxonomy/public facets are complete; do not rebuild finished work, and treat the Rust/static cutover and Next.js retirement as validated. Phase 8 should first explore optional product-line/set taxonomy media cues on top of the richer manual metadata model, with text-only fallback intact, then add advisory AI-assisted ingest.
+- Phase 5 foundation, Phase 6 admin collection workflow, and Phase 7 metadata taxonomy/public facets are complete; do not rebuild finished work, and treat the Rust/static cutover and Next.js retirement as validated. Phase 8 should first explore optional franchise/product-line/set/non-default-language taxonomy media cues on top of the richer manual metadata model, with text-only fallback intact, then add advisory AI-assisted ingest.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage URLs, or a split frontend/backend service architecture for v1.
 <!-- GSD:conventions-end -->
 
@@ -137,7 +137,7 @@ Autographs is a production-lean personal autograph collection website where you 
 ## Current Phase Boundary
 - Phase 5 plans 05-01 through 05-07 are complete, and the Rust/static foundation is present with live static publish proof and closeout artifacts.
 - Phase 6 admin collection workflow and Phase 7 metadata taxonomy/public facets are complete on the Rust/static foundation.
-- Phase 8 should first explore optional taxonomy/media thumbnail cues for product-line and set values, then add advisory AI-assisted ingest.
+- Phase 8 should first explore optional taxonomy/media cues for franchise, product-line, set, and non-default language values, then add advisory AI-assisted ingest.
 - Do not re-scaffold the retired Next.js app or replace the delivery spine.
 ## Notable Absences
 - Optional taxonomy/media thumbnail cues and AI-assisted metadata suggestions are not implemented yet.

@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Static Runtime Migration Foundation** - Complete; the Rust/static runtime foundation is deployed and backed by recorded live static publish proof through Oracle, OCI Object Storage, generated static output, Caddy, and cleanup.
 - [x] **Phase 6: Admin Collection Workflow** - Complete; the single-admin create, edit, publish, multi-image, edit-history, session-auth, docs/security, and optimized public delivery/runtime posture loop is implemented on top of the private publisher foundation.
 - [x] **Phase 7: Metadata Taxonomy and Public Facets** - Replace overloaded signer/category/tag assumptions with first-class multi-signer records, collector taxonomy fields, and public facets generated from the richer model. (completed 2026-07-11)
-- [ ] **Phase 8: Taxonomy Media and AI-Assisted Ingest** - First address optional taxonomy/media cues for product-line and set values, then add advisory OCR/AI metadata suggestions without making ingest depend on them.
+- [ ] **Phase 8: Taxonomy Media and AI-Assisted Ingest** - First address optional taxonomy/media cues for franchise, product-line, set, and non-default language values, then add advisory OCR/AI metadata suggestions without making ingest depend on them.
 
 ## Phase Details
 
@@ -231,12 +231,12 @@ Plans:
 
 ### Phase 8: Taxonomy Media and AI-Assisted Ingest
 
-**Goal**: The admin workflow and public facets gain optional product-line/set media cues first, then advisory OCR/AI metadata suggestions that speed up cataloging without blocking manual control.
+**Goal**: The admin workflow and public facets gain optional franchise/product-line/set/language media cues first, then advisory OCR/AI metadata suggestions that speed up cataloging without blocking manual control.
 **Depends on**: Phase 7
 **Requirements**: AI-01, AI-02, AI-03, AI-04, AI-05
 **Success Criteria** (what must be TRUE):
 
-  1. Taxonomy/media exploration evaluates whether product-line and set values should have small public-safe derived thumbnails, such as recognizable card-back cues, without requiring image support for every taxonomy value or depending on OCR/AI provider work.
+  1. Taxonomy/media exploration evaluates whether franchise, product-line, set, and non-default language values should have small public-safe derived cues, such as recognizable card-back or franchise/product thumbnails, without requiring image support for every taxonomy value or depending on OCR/AI provider work.
   2. Upload workflow can generate AI-assisted metadata suggestions for relevant autograph fields such as signer credits, franchise, product line, format, origin, loose tags, or inscription text.
   3. Admin can review, correct, or ignore OCR and AI suggestions before saving the item.
   4. Upload workflow still succeeds with fully manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
