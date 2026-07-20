@@ -50,13 +50,13 @@
 - [x] **STATIC-06**: Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, current data smoke path, and temporary operator bridge; the current repo docs describe those paths as retired.
 - [x] **STATIC-07**: The implemented static publishing path has a recorded live end-to-end proof: submit minimal metadata and an image through the private admin/API boundary, persist them to Oracle/Object Storage, generate static output, verify the generated public page and derivative image, and capture the Phase 5 closure summary.
 
-### AI-Assisted Ingest
+### Taxonomy Media and AI-Assisted Ingest
 
-- [ ] **AI-01**: Upload workflow can generate AI-assisted metadata suggestions for signer credits and Phase 7 taxonomy/details fields such as franchise, product line, set, format, origin, loose tags, or inscription text.
-- [ ] **AI-02**: OCR and AI suggestions remain advisory, and the admin can correct or ignore them before final save.
-- [ ] **AI-03**: Upload workflow still succeeds with manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
-- [ ] **AI-04**: AI/OCR providers, prompts, failure modes, privacy boundaries, and configuration/secrets are reviewed for security and documented before AI-assisted ingest is considered complete.
-- [ ] **AI-05**: AI-assisted taxonomy/media workflow evaluates small public-safe derived thumbnails for product-line and set values, such as card-back cues, while preserving text metadata, copyright/publication-risk review, and graceful fallback when no image is available.
+- [ ] **AI-01**: Taxonomy/media workflow evaluates small public-safe derived cues for franchise, product-line, set, and non-default language values, such as card-back or franchise/product thumbnails, while preserving text metadata, copyright/publication-risk review, graceful fallback when no image is available, and independence from OCR/AI provider work.
+- [ ] **AI-02**: Upload workflow can generate AI-assisted metadata suggestions for signer credits and Phase 7 taxonomy/details fields such as franchise, product line, set, format, origin, loose tags, or inscription text.
+- [ ] **AI-03**: OCR and AI suggestions remain advisory, and the admin can correct or ignore them before final save.
+- [ ] **AI-04**: Upload workflow still succeeds with manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
+- [ ] **AI-05**: AI/OCR providers, prompts, failure modes, privacy boundaries, and configuration/secrets are reviewed for security and documented before AI-assisted ingest is considered complete.
 
 ### Public Showcase and Hardening
 
@@ -132,4 +132,4 @@ None currently. Future scope should be added only if it directly supports the pe
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-07-17 after adding Phase 8 taxonomy thumbnail exploration*
+*Last updated: 2026-07-19 after prioritizing Phase 8 taxonomy media exploration before AI-specific ingest*

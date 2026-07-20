@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready-for-next-phase
-stopped_at: Phase 07 complete; Phase 08 not started
-last_updated: "2026-07-17T16:09:20Z"
-last_activity: 2026-07-17
+status: ready-for-planning
+stopped_at: Phase 8 context gathered
+last_updated: "2026-07-20T05:04:55.801Z"
+last_activity: 2026-07-20
 progress:
   total_phases: 8
   completed_phases: 7
@@ -18,17 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-17)
+See: .planning/PROJECT.md (updated 2026-07-19)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 08 — AI-Assisted Ingest
+**Current focus:** Phase 08 — Taxonomy Media and AI-Assisted Ingest
 
 ## Current Position
 
 Phase: 8
 Plan: Not started
 Status: Phase 7 complete; Phase 8 not started
-Last activity: 2026-07-17
+Last activity: 2026-07-20
 
 Progress: [████████░░] 88% of milestone phases complete; Phase 8 is next
 
@@ -100,8 +100,8 @@ Recent decisions affecting current work:
 - Phase 5: Prove the static public runtime plus a minimal private seed/publish path into Oracle/Object Storage before expanding admin CRUD.
 - Phase 6: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
 - Phase 7: Add a metadata taxonomy and public facet upgrade before advisory AI-assisted ingest so signer credits, reusable signer profiles, franchise, product line, format, and origin exist as stable suggestion targets.
+- Phase 8: Start with taxonomy/media exploration for optional franchise, product-line, set, and non-default language cues, keeping text metadata canonical and any public derivatives small, optional, privacy/copyright reviewed, and independent from AI/OCR provider work.
 - Phase 8: Add advisory AI-assisted ingest after the admin workflow and richer metadata model exist, without making manual entry dependent on AI.
-- Phase 8: Include AI-assisted taxonomy/media exploration for optional product-line and set thumbnails, keeping text metadata canonical and any public derivatives small, optional, and privacy/copyright reviewed.
 - Review follow-up: Phase 6, Phase 7, and Phase 8 now carry explicit security/documentation completion criteria for the new admin, metadata, and AI surfaces they introduce.
 - Pivot outcome: The former live Next.js public runtime and data-smoke path were replaced by the static public catalog, static admin shell, and thin private admin/publisher API that generate content inside the OCI boundary.
 - Static-runtime boundary: GitHub Actions should build and deploy code artifacts only; catalog content generation should not expose private OCI object identifiers, URLs, Oracle data, or image UUIDs through GitHub-hosted workflows.
@@ -141,7 +141,8 @@ Recent decisions affecting current work:
 
 - Phase 6 is complete; keep its admin workflow, session auth, media cleanup, cache posture, and runtime cleanup guidance intact.
 - Phase 7 is complete; keep its first-class multi-signer records, reusable signer profiles, optional Wikipedia/IMDb links, format/origin/franchise/product-line/set fields, public facet updates, and reviewed backfill path intact while planning Phase 8.
-- Phase 8 remains advisory AI-assisted ingest after manual admin workflows and richer taxonomy exist, with OCR/AI provider, prompt, privacy, and configuration-security review still required.
+- Phase 8 should look first at optional taxonomy/media cues for franchise, product-line, set, and non-default language values, which can use upcoming event items as practical test material without requiring OCR/AI provider work.
+- Phase 8 still owns advisory AI-assisted ingest after manual admin workflows and richer taxonomy exist, with OCR/AI provider, prompt, privacy, and configuration-security review still required.
 - Keep production security patching action pins, approval allowlist, and Ansible role behavior reviewed with deploy/runtime changes.
 
 ### Roadmap Evolution
@@ -152,9 +153,9 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-10T02:03:16.577Z
-Stopped at: Completed 07-05-PLAN.md
-Resume file: None
+Last session: 2026-07-20T05:04:55.793Z
+Stopped at: Phase 8 context gathered
+Resume file: .planning/phases/08-taxonomy-media-and-ai-assisted-ingest/08-CONTEXT.md
 
 ## Quick Tasks Completed
 
@@ -185,3 +186,4 @@ Resume file: None
 | 2026-07-16 | normalize-signer-imdb-and-wikipedia-prof | Normalized reusable signer profile links to compact `w.wiki` and IMDb `nm...` IDs while rendering full public URLs from the stored identifiers. |
 | 2026-07-16 | show-linked-items-on-admin-signer-profil | Added linked item counts and edit/history actions to each signer profile card in the admin Signers editor. |
 | 2026-07-17 | public-detail-signer-icons | Rendered public detail signer roles inline as `Name (role)`, reduced visible Wikipedia/IMDb profile icon badges, split multi-signer fact chips, opened profile links in new tabs, and removed generated public content/media from repo and Docker build context. |
+| 2026-07-19 | move-phase-8-ai-05-taxonomy-thumbnail-me | Moved Phase 8 taxonomy/media cue exploration to the first success criterion and renumbered the pending AI requirements so non-AI-specific taxonomy media work is looked at before OCR/AI ingest. |

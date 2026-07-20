@@ -24,7 +24,7 @@ Implemented:
 
 Planned, not current:
 
-- Phase 8: advisory OCR/AI metadata suggestions plus optional taxonomy/media thumbnail exploration for product-line and set cues, while preserving manual control and text-only fallback.
+- Phase 8: optional taxonomy/media cue exploration for franchise, product-line, set, and non-default language cues first, then advisory OCR/AI metadata suggestions, while preserving manual control and text-only fallback.
 
 Out of scope for v1:
 
@@ -102,4 +102,4 @@ See [Security review and current security posture](docs/security-review.md) for 
 
 This project is being built with a human+AI workflow using GSD: discussion, phase planning, execution plans, review, validation, and PR-based merge discipline. The point is not to hide the planning process; it is to make the repository legible as a real product lifecycle with constraints, tradeoffs, and follow-through.
 
-Phase 5 is closed with the 05-07 live static publish proof, cleanup verification, UAT, security review, and verification summary recorded. The Rust/static cutover and Next.js retirement are validated; Phase 6 admin workflow and Phase 7 metadata taxonomy/public facets are complete. Phase 8 AI-assisted ingest is the next planned layer on that foundation.
+Phase 5 is closed with the 05-07 live static publish proof, cleanup verification, UAT, security review, and verification summary recorded. The Rust/static cutover and Next.js retirement are validated; Phase 6 admin workflow and Phase 7 metadata taxonomy/public facets are complete. Phase 8 starts with optional taxonomy/media cues for franchise, product-line, set, and non-default language values before advisory AI-assisted ingest.

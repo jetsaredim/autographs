@@ -45,7 +45,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - Runtime deployment uses Podman quadlets managed through Ansible rather than compose-style orchestration.
 - Public image access now uses generated public-safe derivatives in the static release instead of direct Object Storage URLs or retired app-mediated image streaming routes.
 - Retired operator-only mutation routes remain blocked at the public Caddy edge; normal admin and publish operations use the Rust private controller under `/admin` and `/admin/api/*`.
-- Phase 5 plans 05-01 through 05-07 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, runtime cutover, live static publish proof, and closure evidence. Phase 6 then delivered polished collection-management ergonomics on that foundation, and Phase 7 added the richer metadata taxonomy/public facets layer. Phase 8 is the pending advisory AI-assisted ingest phase.
+- Phase 5 plans 05-01 through 05-07 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, runtime cutover, live static publish proof, and closure evidence. Phase 6 then delivered polished collection-management ergonomics on that foundation, and Phase 7 added the richer metadata taxonomy/public facets layer. Phase 8 starts with optional taxonomy/media cue exploration before the pending advisory AI-assisted ingest layer.
 - The intended product remains a personal collection site rather than a reusable platform, so roadmap choices continue to prioritize collection quality, manageability, and presentation over multi-user extensibility.
 
 ## Constraints
@@ -78,7 +78,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 | Close Phase 5 after live static publish proof and verification gates | The live static publish smoke, cleanup verification, UAT, security review, and verification artifacts now prove the static runtime foundation end to end | Phase 5 complete as of 2026-06-20 |
 | Add guarded production security patching through GitHub Issues and Ansible | Routine OS security updates need reviewable operator approval, package-set drift refusal, and cleanup of failed approvals | Added after PR 129 merge |
 | Treat multi-image support and edit history as v1 capabilities | These directly improve personal collection quality and manageability | Phase 6 requirement baseline |
-| Add AI-assisted ingest after admin workflow and taxonomy | AI suggestions should enhance a proven manual admin flow and richer taxonomy rather than define them | Captured as Phase 8 |
+| Start Phase 8 with taxonomy media cues before AI-specific ingest | Franchise, product-line, set, and non-default language cues can be explored against new event items without waiting for OCR/AI provider selection, while AI suggestions should still enhance a proven manual admin flow rather than define it | Captured as Phase 8 |
 
 ## Evolution
 
@@ -98,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-17 after reconciling Phase 8 AI-assisted ingest scope*
+*Last updated: 2026-07-19 after prioritizing Phase 8 taxonomy media cue work*

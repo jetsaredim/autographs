@@ -142,8 +142,9 @@ autographs/
   current-state surfaces.
 - Treat Phase 7 metadata taxonomy/public facets as implemented current-state
   surfaces.
-- Treat Phase 8 as pending advisory AI-assisted ingest.
+- Treat Phase 8 as pending taxonomy media cue exploration first, then advisory
+  AI-assisted ingest.
 
 ---
 
-*Structure analysis refreshed: 2026-07-10 after Phase 7 taxonomy closeout*
+*Structure analysis refreshed: 2026-07-19 after Phase 8 taxonomy media prioritization*

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery. Before adding the larger admin and AI surfaces, the roadmap now runs a public-showcase and hardening pass to make the current system safe, understandable, and presentable. It then proves a static public runtime and private publishing foundation, completes the single-admin collection workflow with multi-image management and edit history, upgrades the catalog metadata taxonomy and public facets, and finally adds advisory AI-assisted ingest.
+Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery. Before adding the larger admin and AI surfaces, the roadmap now runs a public-showcase and hardening pass to make the current system safe, understandable, and presentable. It then proves a static public runtime and private publishing foundation, completes the single-admin collection workflow with multi-image management and edit history, upgrades the catalog metadata taxonomy and public facets, and finally explores taxonomy media cues before adding advisory AI-assisted ingest.
 
 ## Phases
 
@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Static Runtime Migration Foundation** - Complete; the Rust/static runtime foundation is deployed and backed by recorded live static publish proof through Oracle, OCI Object Storage, generated static output, Caddy, and cleanup.
 - [x] **Phase 6: Admin Collection Workflow** - Complete; the single-admin create, edit, publish, multi-image, edit-history, session-auth, docs/security, and optimized public delivery/runtime posture loop is implemented on top of the private publisher foundation.
 - [x] **Phase 7: Metadata Taxonomy and Public Facets** - Replace overloaded signer/category/tag assumptions with first-class multi-signer records, collector taxonomy fields, and public facets generated from the richer model. (completed 2026-07-11)
-- [ ] **Phase 8: AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
+- [ ] **Phase 8: Taxonomy Media and AI-Assisted Ingest** - First address optional taxonomy/media cues for franchise, product-line, set, and non-default language values, then add advisory OCR/AI metadata suggestions without making ingest depend on them.
 
 ## Phase Details
 
@@ -229,17 +229,17 @@ Plans:
 
 **UI hint**: yes
 
-### Phase 8: AI-Assisted Ingest
+### Phase 8: Taxonomy Media and AI-Assisted Ingest
 
-**Goal**: The admin workflow gains advisory OCR/AI metadata suggestions that speed up cataloging without blocking manual control.
+**Goal**: The admin workflow and public facets gain optional franchise/product-line/set/language media cues first, then advisory OCR/AI metadata suggestions that speed up cataloging without blocking manual control.
 **Depends on**: Phase 7
 **Requirements**: AI-01, AI-02, AI-03, AI-04, AI-05
 **Success Criteria** (what must be TRUE):
 
-  1. Upload workflow can generate AI-assisted metadata suggestions for relevant autograph fields such as signer credits, franchise, product line, format, origin, loose tags, or inscription text.
-  2. Admin can review, correct, or ignore OCR and AI suggestions before saving the item.
-  3. Upload workflow still succeeds with fully manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
-  4. AI-assisted taxonomy/media exploration evaluates whether product-line and set values should have small public-safe derived thumbnails, such as recognizable card-back cues, without requiring image support for every taxonomy value.
+  1. Taxonomy/media exploration evaluates whether franchise, product-line, set, and non-default language values should have small public-safe derived cues, such as recognizable card-back or franchise/product thumbnails, without requiring image support for every taxonomy value or depending on OCR/AI provider work.
+  2. Upload workflow can generate AI-assisted metadata suggestions for relevant autograph fields such as signer credits, franchise, product line, format, origin, loose tags, or inscription text.
+  3. Admin can review, correct, or ignore OCR and AI suggestions before saving the item.
+  4. Upload workflow still succeeds with fully manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
   5. AI/OCR providers, prompts, failure modes, privacy boundaries, copyright/publication risks, and configuration/secrets are reviewed for security and documented before Phase 8 is marked complete.
 
 **Plans**: TBD
@@ -259,4 +259,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
 | 6. Admin Collection Workflow | 9/9 | Complete | 2026-07-02 |
 | 7. Metadata Taxonomy and Public Facets | 5/5 | Complete    | 2026-07-11 |
-| 8. AI-Assisted Ingest | 0/TBD | Not started | - |
+| 8. Taxonomy Media and AI-Assisted Ingest | 0/TBD | Not started | - |
