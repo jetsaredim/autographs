@@ -100,6 +100,7 @@ Populate repo-level GitHub Variables:
 - `DEPLOY_SSH_READY_INTERVAL_SECONDS`
 - `GHCR_CONTROLLER_IMAGE_REPOSITORY`
 - `GHCR_CLEANUP_RETAIN_TAGGED`
+- `GHCR_CLEANUP_RETAIN_SEMVER_TAGGED`
 - `GHCR_CLEANUP_MIN_AGE_DAYS`
 - `GHCR_CLEANUP_PROTECTED_TAGS`
 - `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT`
@@ -188,9 +189,25 @@ schemaVersion 2 taxonomy data.
 
 Pull requests run `.github/workflows/ci.yml`. The CI workflow checks the Rust controller, builds the controller image without pushing it, validates Terraform, and runs Ansible syntax/lint checks for the quadlet deployment.
 
-Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow:
+Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow first
+classifies the merged PR and updates `.release-status.json` plus the generated
+README release status block, then creates the matching Git `v*` tag on that
+status commit. Version bumps are semantic: explicit breaking changes bump
+major, feature signals such as `version:minor` or `feat:` bump minor, and
+everything else defaults to patch.
 
-1. publishes the prebuilt Rust controller image to `ghcr.io`,
+The workflow deploys only when changed paths require it:
+
+- Controller image changes build and publish
+  `GHCR_CONTROLLER_IMAGE_REPOSITORY:vX.Y.Z`, then deploy that semver image.
+- Terraform, Ansible, or deploy wiring changes without controller image changes
+  redeploy the last recorded controller semver image.
+- Repo-only changes update release status and Git tags without rebuilding or
+  redeploying the runtime.
+
+When deployment is required, the deploy workflow:
+
+1. publishes or selects the semver-tagged Rust controller image in `ghcr.io`,
 2. runs `terraform apply`,
 3. optionally taints and recreates the runtime VM when manually requested,
 4. connects to the OCI VM over SSH through Ansible,
@@ -267,7 +284,7 @@ The role also installs `python3-oci-cli` from the Oracle Linux 10 Development Pa
 
 Terraform no longer embeds the runtime bootstrap state in cloud-init. If a clean VM is needed, manually run the deploy workflow with `recreate_runtime_instance=true`. The workflow taints `module.compute.oci_core_instance.runtime[0]` before `terraform apply`, forcing OCI to recreate the runtime VM and then letting Ansible converge the full production state onto the replacement instance.
 
-Image cleanup runs separately through `.github/workflows/image-cleanup.yml` on a weekly schedule and by manual dispatch. One job prunes old VM-local controller images while keeping the active controller image from `${DEPLOY_PATH}/env/app.env`, `latest`, `GHCR_CLEANUP_PROTECTED_TAGS`, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` matching images per repository. Another job prunes old GHCR controller package versions while keeping `latest`, protected tags, the newest `GHCR_CLEANUP_RETAIN_TAGGED` versions, and versions newer than `GHCR_CLEANUP_MIN_AGE_DAYS`. Use the manual `dry_run=true` input to preview deletions.
+Image cleanup runs separately through `.github/workflows/image-cleanup.yml` on a weekly schedule and by manual dispatch. One job prunes old VM-local controller images while keeping the active controller image from `${DEPLOY_PATH}/env/app.env`, `latest`, `GHCR_CLEANUP_PROTECTED_TAGS`, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` matching images per repository. Another job prunes old GHCR controller package versions while keeping `latest`, protected tags, the deployed controller semver tag from `.release-status.json`, the newest `GHCR_CLEANUP_RETAIN_SEMVER_TAGGED` semver-tagged images, the newest `GHCR_CLEANUP_RETAIN_TAGGED` package versions, and versions newer than `GHCR_CLEANUP_MIN_AGE_DAYS`. Repo `v*` tags from non-image merges do not need matching GHCR image tags. Use the manual `dry_run=true` input to preview deletions.
 
 ### Post-Phase 6 Runtime Cleanup Checklist
 

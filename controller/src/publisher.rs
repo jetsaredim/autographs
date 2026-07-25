@@ -17,7 +17,8 @@ use crate::{
         FacetId, ImageVariantName, PUBLIC_SCHEMA_VERSION, PublicCatalog, PublicDetailField,
         PublicDetailGroup, PublicFacetGroup, PublicFacetOption, PublicFacets, PublicGalleryItem,
         PublicImage, PublicImageVariant, PublicImageVariantParams, PublicItemDetail,
-        PublicSignerCredit, PublicSignerLink, PublishManifest, PublishManifestEntry,
+        PublicSignerCredit, PublicSignerLink, PublishGeneratorMetadata, PublishManifest,
+        PublishManifestEntry,
     },
     derivatives::{DerivativeVariant, GeneratedDerivative, generate_derivative},
     media::PrivateMediaStore,
@@ -690,6 +691,7 @@ pub struct LocalPublisher {
     root: Arc<PathBuf>,
     status: Arc<Mutex<PublishStatus>>,
     retention_policy: ReleaseRetentionPolicy,
+    generator_metadata: Option<PublishGeneratorMetadata>,
 }
 
 impl LocalPublisher {
@@ -705,6 +707,20 @@ impl LocalPublisher {
             root: Arc::new(root.into()),
             status: Arc::new(Mutex::new(PublishStatus::default())),
             retention_policy,
+            generator_metadata: None,
+        }
+    }
+
+    pub fn with_generator_metadata(
+        root: impl Into<PathBuf>,
+        retention_policy: ReleaseRetentionPolicy,
+        generator_metadata: Option<PublishGeneratorMetadata>,
+    ) -> Self {
+        Self {
+            root: Arc::new(root.into()),
+            status: Arc::new(Mutex::new(PublishStatus::default())),
+            retention_policy,
+            generator_metadata,
         }
     }
 
@@ -890,7 +906,12 @@ impl LocalPublisher {
             "static publish derivative generation completed"
         );
         self.update_progress(release_id, PublishStage::WritingCandidate, &progress);
-        write_release(candidate, release_id, &public_items.items)?;
+        write_release(
+            candidate,
+            release_id,
+            &public_items.items,
+            self.generator_metadata.clone(),
+        )?;
         validate_private_source_absence(candidate, &items)?;
         tracing::info!(
             release_id = %release_id,
@@ -1323,6 +1344,7 @@ fn write_release(
     candidate: &Path,
     release_id: &str,
     items: &[PublicSourceItem],
+    generator_metadata: Option<PublishGeneratorMetadata>,
 ) -> Result<(), String> {
     let catalog = PublicCatalog::new(items.iter().map(|item| item.gallery.clone()).collect());
     let facets = public_facets(items);
@@ -1373,7 +1395,7 @@ fn write_release(
             detail_html(&item.detail).as_bytes(),
         )?;
     }
-    let manifest = manifest_for(candidate, release_id)?;
+    let manifest = manifest_for(candidate, release_id, generator_metadata)?;
     write_json(candidate, "manifest.json", &manifest)
 }
 
@@ -1504,11 +1526,16 @@ pub fn validate_candidate(candidate: &Path) -> Result<PublishManifest, String> {
     Ok(manifest)
 }
 
-fn manifest_for(candidate: &Path, release_id: &str) -> Result<PublishManifest, String> {
+fn manifest_for(
+    candidate: &Path,
+    release_id: &str,
+    generator_metadata: Option<PublishGeneratorMetadata>,
+) -> Result<PublishManifest, String> {
     let mut artifacts = Vec::new();
     collect_files(candidate, candidate, &mut artifacts)?;
     artifacts.retain(|artifact| artifact.path != "manifest.json");
-    Ok(PublishManifest::new(release_id, generated_at()?, artifacts))
+    Ok(PublishManifest::new(release_id, generated_at()?, artifacts)
+        .with_generator(generator_metadata))
 }
 
 fn generated_at() -> Result<String, String> {

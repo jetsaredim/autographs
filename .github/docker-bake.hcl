@@ -1,5 +1,6 @@
 variable "GHCR_CONTROLLER_IMAGE_REPOSITORY" {}
-variable "GITHUB_SHA" {}
+variable "RELEASE_VERSION" {}
+variable "SOURCE_REVISION" {}
 
 group "default" {
   targets = ["controller"]
@@ -18,8 +19,14 @@ target "controller" {
   ]
 
   tags = [
-    "${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${GITHUB_SHA}",
+    "${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${RELEASE_VERSION}",
     "${GHCR_CONTROLLER_IMAGE_REPOSITORY}:production",
     "${GHCR_CONTROLLER_IMAGE_REPOSITORY}:latest"
   ]
+
+  labels = {
+    "org.opencontainers.image.source" = "https://github.com/jetsaredim/autographs"
+    "org.opencontainers.image.revision" = "${SOURCE_REVISION}"
+    "org.opencontainers.image.version" = "${RELEASE_VERSION}"
+  }
 }

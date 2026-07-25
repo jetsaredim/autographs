@@ -1,5 +1,6 @@
 use std::{env, net::SocketAddr, path::PathBuf};
 
+use crate::contracts::PublishGeneratorMetadata;
 use crate::publisher::ReleaseRetentionPolicy;
 
 #[derive(Clone, Debug)]
@@ -16,6 +17,9 @@ pub struct ControllerConfig {
     pub static_release_root: PathBuf,
     pub static_promoted_release_retain_count: usize,
     pub static_failed_candidate_retain_count: usize,
+    pub repo_version: Option<String>,
+    pub controller_version: Option<String>,
+    pub controller_image: Option<String>,
 }
 
 impl ControllerConfig {
@@ -55,6 +59,9 @@ impl ControllerConfig {
                 "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT",
                 ReleaseRetentionPolicy::DEFAULT_FAILED_CANDIDATE_RETAIN_COUNT,
             ),
+            repo_version: non_blank_env("AUTOGRAPHS_REPO_VERSION"),
+            controller_version: non_blank_env("AUTOGRAPHS_CONTROLLER_VERSION"),
+            controller_image: non_blank_env("AUTOGRAPHS_CONTROLLER_IMAGE"),
         })
     }
 
@@ -74,7 +81,19 @@ impl ControllerConfig {
                 ReleaseRetentionPolicy::DEFAULT_PROMOTED_RELEASE_RETAIN_COUNT,
             static_failed_candidate_retain_count:
                 ReleaseRetentionPolicy::DEFAULT_FAILED_CANDIDATE_RETAIN_COUNT,
+            repo_version: None,
+            controller_version: None,
+            controller_image: None,
         }
+    }
+
+    pub fn publish_generator_metadata(&self) -> Option<PublishGeneratorMetadata> {
+        let metadata = PublishGeneratorMetadata {
+            repo_version: self.repo_version.clone(),
+            controller_version: self.controller_version.clone(),
+            controller_image: self.controller_image.clone(),
+        };
+        (!metadata.is_empty()).then_some(metadata)
     }
 
     pub fn validate_runtime_auth(&self) -> Result<(), String> {

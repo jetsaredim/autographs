@@ -16,7 +16,10 @@ use autographs_controller::{
         SignerCreditInput,
     },
     config::ControllerConfig,
-    contracts::{ImageVariantName, PublicCatalog, PublicItemDetail, PublishManifest},
+    contracts::{
+        ImageVariantName, PublicCatalog, PublicItemDetail, PublishGeneratorMetadata,
+        PublishManifest,
+    },
     derivatives::{DerivativeVariant, generate_derivative},
     media::{LocalMediaStore, PrivateMediaStore},
     publisher::{
@@ -269,6 +272,35 @@ async fn publisher_generates_candidate_release_and_derivatives() {
             "{label} contains unresolved template token"
         );
     }
+}
+
+#[tokio::test]
+async fn publisher_records_release_generator_metadata_in_manifest() {
+    let fixture = fixture().await;
+    let publisher = LocalPublisher::with_generator_metadata(
+        fixture.root.path(),
+        ReleaseRetentionPolicy::default(),
+        Some(PublishGeneratorMetadata {
+            repo_version: Some("v0.8.4".to_owned()),
+            controller_version: Some("v0.8.2".to_owned()),
+            controller_image: Some("ghcr.io/jetsaredim/autographs/controller:v0.8.2".to_owned()),
+        }),
+    );
+
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+
+    let manifest: PublishManifest =
+        read_json(&fixture.root.path().join("current").join("manifest.json"));
+    let generator = manifest.generator.expect("manifest generator metadata");
+    assert_eq!(generator.repo_version.as_deref(), Some("v0.8.4"));
+    assert_eq!(generator.controller_version.as_deref(), Some("v0.8.2"));
+    assert_eq!(
+        generator.controller_image.as_deref(),
+        Some("ghcr.io/jetsaredim/autographs/controller:v0.8.2")
+    );
 }
 
 #[tokio::test]

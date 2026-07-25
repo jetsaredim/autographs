@@ -8,17 +8,24 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+from pathlib import Path
 
 
 API_VERSION = "2022-11-28"
+SEMVER_TAG_RE = r"^v[0-9]+\.[0-9]+\.[0-9]+$"
 
 
 def main() -> int:
     token = require_env("GITHUB_TOKEN")
     image_repository = require_env("GHCR_IMAGE_REPOSITORY")
     retain_count = parse_positive_int(os.getenv("GHCR_CLEANUP_RETAIN_TAGGED"), 10)
+    retain_semver_count = parse_positive_int(
+        os.getenv("GHCR_CLEANUP_RETAIN_SEMVER_TAGGED"),
+        retain_count,
+    )
     min_age_days = parse_positive_int(os.getenv("GHCR_CLEANUP_MIN_AGE_DAYS"), 7)
     protected_tags = parse_csv_set(os.getenv("GHCR_CLEANUP_PROTECTED_TAGS"))
+    deployed_controller_version = deployed_controller_version_from_status()
     dry_run = os.getenv("GHCR_CLEANUP_DRY_RUN", "false").lower() == "true"
 
     package_info = parse_ghcr_image_repository(image_repository)
@@ -26,6 +33,14 @@ def main() -> int:
     cutoff_time = time.time() - min_age_days * 24 * 60 * 60
 
     newest_first = sorted(versions, key=lambda version: parse_created_at(version["created_at"]), reverse=True)
+    newest_semver_ids = {
+        str(version["id"])
+        for version in [
+            version
+            for version in newest_first
+            if semver_tags(version.get("metadata", {}).get("container", {}).get("tags", []))
+        ][:retain_semver_count]
+    }
     deleted_count = 0
 
     for index, version in enumerate(newest_first):
@@ -38,6 +53,12 @@ def main() -> int:
 
         if "latest" in tags:
             keep_reasons.append("latest tag")
+
+        if deployed_controller_version and deployed_controller_version in tags:
+            keep_reasons.append(f"deployed controller tag {deployed_controller_version}")
+
+        if str(version["id"]) in newest_semver_ids:
+            keep_reasons.append(f"among {retain_semver_count} newest semver-tagged versions")
 
         matching_protected_tags = sorted(set(tags) & protected_tags)
         if matching_protected_tags:
@@ -80,6 +101,27 @@ def parse_positive_int(value: str | None, fallback: int) -> int:
 
 def parse_csv_set(value: str | None) -> set[str]:
     return {item.strip() for item in (value or "").split(",") if item.strip()}
+
+
+def deployed_controller_version_from_status() -> str:
+    explicit = os.getenv("GHCR_CLEANUP_DEPLOYED_CONTROLLER_VERSION", "").strip()
+    if explicit:
+        return explicit
+    status_path = Path(os.getenv("GHCR_CLEANUP_RELEASE_STATUS_PATH", ".release-status.json"))
+    if not status_path.exists():
+        return ""
+    try:
+        status = json.loads(status_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    value = status.get("deployedControllerVersion")
+    return value.strip() if isinstance(value, str) else ""
+
+
+def semver_tags(tags: list[str]) -> list[str]:
+    import re
+
+    return [tag for tag in tags if re.fullmatch(SEMVER_TAG_RE, tag)]
 
 
 def parse_ghcr_image_repository(repository: str) -> dict[str, str]:

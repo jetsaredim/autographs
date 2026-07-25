@@ -68,6 +68,7 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `AUTOGRAPHS_DOMAIN` | Public hostname served by Caddy with automatic TLS; defaults to `autographs.jetsaredim.net` |
 | `GHCR_CONTROLLER_IMAGE_REPOSITORY` | GHCR controller image path, for example `ghcr.io/jetsaredim/autographs/controller` |
 | `GHCR_CLEANUP_RETAIN_TAGGED` | Number of newest GHCR controller image versions to retain during scheduled/manual cleanup; defaults to `10` |
+| `GHCR_CLEANUP_RETAIN_SEMVER_TAGGED` | Number of newest semver-tagged GHCR controller image versions to retain during scheduled/manual cleanup; defaults to `GHCR_CLEANUP_RETAIN_TAGGED` |
 | `GHCR_CLEANUP_MIN_AGE_DAYS` | Minimum image age before GHCR cleanup can delete it; defaults to `7` |
 | `GHCR_CLEANUP_PROTECTED_TAGS` | Optional comma-separated immutable tags that both GHCR and VM-local cleanup must preserve |
 | `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` | Number of newest local controller images to retain on the runtime VM during scheduled/manual cleanup; defaults to `3` |
@@ -93,9 +94,9 @@ Runtime containers receive database and media coordinates through Ansible-manage
 
 ## Runtime Image Contract
 
-Deployments publish the prebuilt Rust controller image to `ghcr.io` and set its immutable digest reference on the VM. The VM does not build application code. Ansible pulls the exact controller image published by GitHub Actions, installs systemd quadlets for the private controller, shared static volume, and Caddy containers on a dedicated Podman network, retires the old Node service if present, restarts affected services, and checks the Caddy-fronted static release plus `/admin/api/health` before the workflow succeeds.
+Deployments publish the prebuilt Rust controller image to `ghcr.io` with the repo semver tag selected by `.release-status.json`, for example `v0.8.4`. The VM does not build application code. Ansible pulls the semver-tagged controller image published by GitHub Actions, records the repo and deployed controller versions in the VM-local environment, installs systemd quadlets for the private controller, shared static volume, and Caddy containers on a dedicated Podman network, retires the old Node service if present, restarts affected services, and checks the Caddy-fronted static release plus `/admin/api/health` before the workflow succeeds.
 
-Scheduled/manual image cleanup handles old GHCR versions and unused VM-local Podman images while preserving `latest`, protected tags, and the configured newest image count.
+Scheduled/manual image cleanup handles old GHCR versions and unused VM-local Podman images while preserving the deployed controller semver tag, `latest`, protected tags, and the configured newest image counts. Git repo `v*` tags may exist without a matching GHCR image when a merge did not change controller image inputs.
 
 The Ansible deploy role also maintains a 2 GiB `/.swapfile` with `vm.swappiness=20`, installs runtime packages, opens HTTP/HTTPS, and masks unnecessary systemd services. This gives the Always Free VM enough headroom for deploy churn and one-off smoke/admin scripts without changing the compute shape.
 
@@ -108,6 +109,10 @@ Runtime controller settings:
 | Variable | Classification | Purpose |
 |----------|----------------|---------|
 | `AUTOGRAPHS_CONTROLLER_BIND_ADDR` | runtime coordinate | Controller listener; defaults to `0.0.0.0:8080` |
+| `AUTOGRAPHS_REPO_VERSION` | release metadata | Latest repo semver version recorded by the deploy workflow |
+| `AUTOGRAPHS_CONTROLLER_VERSION` | release metadata | Deployed controller image semver version |
+| `AUTOGRAPHS_CONTROLLER_IMAGE` | release metadata | Deployed semver-tagged controller image reference |
+| `AUTOGRAPHS_SOURCE_REVISION` | release metadata | Source revision that triggered the version workflow |
 | `AUTOGRAPHS_CONTROLLER_DB_PROVIDER` | runtime coordinate | Deploy-time value must be `oracle`; `local` is only for direct local controller runs |
 | `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER` | runtime coordinate | Deploy-time value must be `oci-instance-principal`; `local` is only for direct local controller runs |
 | `AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT` | local/staged coordinate | Local private-media path used only when the controller media provider is `local` |

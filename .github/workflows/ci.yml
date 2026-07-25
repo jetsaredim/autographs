@@ -104,7 +104,8 @@ jobs:
         uses: docker/bake-action@v7
         env:
           GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ env.GHCR_CONTROLLER_IMAGE_REPOSITORY }}
-          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_VERSION: ci
+          SOURCE_REVISION: ${{ github.sha }}
         with:
           files: |
             .github/docker-bake.hcl
