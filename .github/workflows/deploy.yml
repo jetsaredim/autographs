@@ -28,10 +28,6 @@ permissions:
   packages: write
   pull-requests: read
 
-concurrency:
-  group: deploy-production
-  cancel-in-progress: false
-
 env:
   GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ vars.GHCR_CONTROLLER_IMAGE_REPOSITORY || format('ghcr.io/{0}/controller', github.repository) }}
   AUTOGRAPHS_HTTP_PORT: "80"
