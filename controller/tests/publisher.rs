@@ -284,6 +284,7 @@ async fn publisher_records_release_generator_metadata_in_manifest() {
             repo_version: Some("v0.8.4".to_owned()),
             controller_version: Some("v0.8.2".to_owned()),
             controller_image: Some("ghcr.io/jetsaredim/autographs/controller:v0.8.2".to_owned()),
+            source_revision: Some("abc1234".to_owned()),
         }),
     );
 
@@ -301,6 +302,7 @@ async fn publisher_records_release_generator_metadata_in_manifest() {
         generator.controller_image.as_deref(),
         Some("ghcr.io/jetsaredim/autographs/controller:v0.8.2")
     );
+    assert_eq!(generator.source_revision.as_deref(), Some("abc1234"));
 }
 
 #[tokio::test]

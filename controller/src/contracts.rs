@@ -240,6 +240,8 @@ pub struct PublishGeneratorMetadata {
     pub controller_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub controller_image: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_revision: Option<String>,
 }
 
 impl PublishGeneratorMetadata {
@@ -247,6 +249,7 @@ impl PublishGeneratorMetadata {
         self.repo_version.is_none()
             && self.controller_version.is_none()
             && self.controller_image.is_none()
+            && self.source_revision.is_none()
     }
 }
 

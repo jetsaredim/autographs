@@ -175,6 +175,7 @@ def prepare_release(args: argparse.Namespace) -> None:
         "controller_image_build": str(controller_image_build).lower(),
         "controller_deploy_version": deployed_controller_version,
         "reused_existing_version": str(bool(reused_existing_version)).lower(),
+        "source_revision": args.source_revision,
     }
     if args.github_output:
         with args.github_output.open("a", encoding="utf-8") as output:

@@ -20,6 +20,7 @@ pub struct ControllerConfig {
     pub repo_version: Option<String>,
     pub controller_version: Option<String>,
     pub controller_image: Option<String>,
+    pub source_revision: Option<String>,
 }
 
 impl ControllerConfig {
@@ -62,6 +63,7 @@ impl ControllerConfig {
             repo_version: non_blank_env("AUTOGRAPHS_REPO_VERSION"),
             controller_version: non_blank_env("AUTOGRAPHS_CONTROLLER_VERSION"),
             controller_image: non_blank_env("AUTOGRAPHS_CONTROLLER_IMAGE"),
+            source_revision: non_blank_env("AUTOGRAPHS_SOURCE_REVISION"),
         })
     }
 
@@ -84,6 +86,7 @@ impl ControllerConfig {
             repo_version: None,
             controller_version: None,
             controller_image: None,
+            source_revision: None,
         }
     }
 
@@ -92,6 +95,7 @@ impl ControllerConfig {
             repo_version: self.repo_version.clone(),
             controller_version: self.controller_version.clone(),
             controller_image: self.controller_image.clone(),
+            source_revision: self.source_revision.clone(),
         };
         (!metadata.is_empty()).then_some(metadata)
     }

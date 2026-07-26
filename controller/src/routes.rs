@@ -1456,6 +1456,7 @@ struct ReleaseVersionResponse {
     repo_version: Option<String>,
     controller_version: Option<String>,
     controller_image: Option<String>,
+    source_revision: Option<String>,
 }
 
 impl ReleaseVersionResponse {
@@ -1464,6 +1465,7 @@ impl ReleaseVersionResponse {
             repo_version: config.repo_version.clone(),
             controller_version: config.controller_version.clone(),
             controller_image: config.controller_image.clone(),
+            source_revision: config.source_revision.clone(),
         }
     }
 }

@@ -95,6 +95,7 @@ jobs:
       controller_image_build: ${{ steps.publish.outputs.controller_image_build }}
       controller_deploy_version: ${{ steps.publish.outputs.controller_deploy_version }}
       reused_existing_version: ${{ steps.publish.outputs.reused_existing_version }}
+      source_revision: ${{ steps.publish.outputs.source_revision }}
 
     steps:
       - name: Checkout
@@ -139,6 +140,10 @@ jobs:
           for attempt in 1 2 3; do
             git fetch origin main:refs/remotes/origin/main --tags
             git switch --force-create release-status-update origin/main
+            if [ "${{ github.event_name }}" = "push" ] && [ "$(git rev-parse HEAD)" != "${GITHUB_SHA}" ]; then
+              echo "origin/main advanced to $(git rev-parse HEAD); refusing to apply PR metadata for ${GITHUB_SHA}." >&2
+              exit 1
+            fi
 
             output_file="$RUNNER_TEMP/release-output-${attempt}.txt"
             rm -f "$output_file"
@@ -189,16 +194,23 @@ jobs:
       - name: Ensure release tag
         env:
           RELEASE_VERSION: ${{ steps.publish.outputs.version }}
+          SOURCE_REVISION: ${{ steps.publish.outputs.source_revision }}
         run: |
           git fetch origin main:refs/remotes/origin/main --tags
           if git rev-parse --quiet --verify "refs/tags/${RELEASE_VERSION}" >/dev/null; then
             exit 0
           fi
           release_status_revision="$(
-            git rev-list -n 1 origin/main -- .release-status.json
+            for revision in $(git rev-list origin/main -- .release-status.json); do
+              if git show "${revision}:.release-status.json" \
+                | python3 -c 'import json, os, sys; status = json.load(sys.stdin); sys.exit(0 if status.get("repoVersion") == os.environ["RELEASE_VERSION"] and status.get("sourceRevision") == os.environ["SOURCE_REVISION"] else 1)'; then
+                echo "$revision"
+                break
+              fi
+            done
           )"
           if [ -z "$release_status_revision" ]; then
-            echo "Could not locate release status commit on origin/main for ${RELEASE_VERSION}." >&2
+            echo "Could not locate release status commit on origin/main for ${RELEASE_VERSION} (${SOURCE_REVISION})." >&2
             exit 1
           fi
           git tag "${RELEASE_VERSION}" "$release_status_revision"
