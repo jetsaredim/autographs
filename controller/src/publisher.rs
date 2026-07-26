@@ -1019,7 +1019,7 @@ async fn build_public_items(
             progress.image_count += 1;
             let image_slug = format!("image-{}", index + 1);
             let mut source = None;
-            let source_fingerprint = match derivative_cache_source_key(image) {
+            let source_key = match derivative_cache_source_key(image) {
                 Some(source_key) => {
                     progress.cache_key_metadata_count += 1;
                     source_key
@@ -1029,20 +1029,23 @@ async fn build_public_items(
                     let fingerprint = derivative_source_fingerprint(&bytes);
                     source = Some(bytes);
                     progress.cache_key_fallback_read_count += 1;
-                    fingerprint
+                    DerivativeSourceKey::Legacy(fingerprint)
                 }
             };
             let mut variants = Vec::new();
             for variant in [DerivativeVariant::Thumbnail, DerivativeVariant::Detail] {
-                let derivative = match derivative_cache.read(&source_fingerprint, variant) {
+                let derivative = match derivative_cache.read(source_key.cache_key(), variant) {
                     Ok(Some(derivative)) => {
                         progress.reused_derivative_count += 1;
                         derivative
                     }
                     Ok(None) => {
-                        let bytes = source_bytes(media, image, &mut source, &mut progress).await?;
+                        let bytes =
+                            source_bytes(media, image, &source_key, &mut source, &mut progress)
+                                .await?;
                         let derivative = generate_derivative(bytes, variant)?;
-                        if let Err(error) = derivative_cache.write(&source_fingerprint, &derivative)
+                        if let Err(error) =
+                            derivative_cache.write(source_key.cache_key(), &derivative)
                         {
                             tracing::warn!(%error, "failed to update derivative cache");
                         }
@@ -1051,9 +1054,12 @@ async fn build_public_items(
                     }
                     Err(error) => {
                         tracing::warn!(%error, "ignored unreadable derivative cache entry");
-                        let bytes = source_bytes(media, image, &mut source, &mut progress).await?;
+                        let bytes =
+                            source_bytes(media, image, &source_key, &mut source, &mut progress)
+                                .await?;
                         let derivative = generate_derivative(bytes, variant)?;
-                        if let Err(error) = derivative_cache.write(&source_fingerprint, &derivative)
+                        if let Err(error) =
+                            derivative_cache.write(source_key.cache_key(), &derivative)
                         {
                             tracing::warn!(%error, "failed to update derivative cache");
                         }
@@ -1132,31 +1138,58 @@ async fn build_public_items(
     })
 }
 
-fn derivative_cache_source_key(image: &AutographImage) -> Option<String> {
+enum DerivativeSourceKey {
+    Checksum { checksum: String, cache_key: String },
+    Etag(String),
+    Legacy(String),
+}
+
+impl DerivativeSourceKey {
+    fn cache_key(&self) -> &str {
+        match self {
+            Self::Checksum { cache_key, .. } | Self::Etag(cache_key) | Self::Legacy(cache_key) => {
+                cache_key
+            }
+        }
+    }
+}
+
+fn derivative_cache_source_key(image: &AutographImage) -> Option<DerivativeSourceKey> {
     image
         .checksum
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .map(|checksum| format!("checksum:{checksum}"))
+        .map(|checksum| DerivativeSourceKey::Checksum {
+            checksum: checksum.to_owned(),
+            cache_key: format!("checksum:{checksum}"),
+        })
         .or_else(|| {
             image
                 .etag
                 .as_deref()
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
-                .map(|etag| format!("etag:{etag}"))
+                .map(|etag| DerivativeSourceKey::Etag(format!("etag:{etag}")))
         })
 }
 
 async fn source_bytes<'a>(
     media: &dyn PrivateMediaStore,
     image: &AutographImage,
+    source_key: &DerivativeSourceKey,
     source: &'a mut Option<Vec<u8>>,
     progress: &mut PublishProgress,
 ) -> Result<&'a [u8], String> {
     if source.is_none() {
-        *source = Some(media.read(&image.object_key).await?);
+        let bytes = media.read(&image.object_key).await?;
+        if let DerivativeSourceKey::Checksum { checksum, .. } = source_key {
+            let actual = derivative_source_fingerprint(&bytes);
+            if actual != *checksum {
+                return Err("private image checksum does not match stored metadata".to_owned());
+            }
+        }
+        *source = Some(bytes);
         progress.cache_miss_source_read_count += 1;
     }
     Ok(source.as_deref().expect("source bytes are present"))

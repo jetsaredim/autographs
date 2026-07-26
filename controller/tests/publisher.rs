@@ -2216,6 +2216,27 @@ async fn publisher_incremental_reuses_checksum_cache_without_reading_originals()
 }
 
 #[tokio::test]
+async fn publisher_rejects_mismatched_checksum_before_derivative_cache_write() {
+    let wrong_checksum = "0".repeat(64);
+    let fixture = fixture_with_stored_checksum(Some(wrong_checksum)).await;
+    let publisher = LocalPublisher::new(fixture.root.path());
+
+    let error = publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap_err();
+
+    assert!(
+        error.contains("checksum does not match"),
+        "unexpected publish error: {error}"
+    );
+    assert!(
+        !fixture.root.path().join(".derivative-cache").exists(),
+        "mismatched checksum should fail before derivative cache writes"
+    );
+}
+
+#[tokio::test]
 async fn publisher_routes_require_auth_and_report_redacted_status() {
     let fixture = fixture().await;
     let publisher = Arc::new(LocalPublisher::new(fixture.root.path()));
@@ -2396,14 +2417,14 @@ async fn publisher_retention_prunes_failed_candidates_to_configured_newest_count
 }
 
 async fn fixture() -> Fixture {
-    fixture_with_image_checksum(false).await
+    fixture_with_stored_checksum(None).await
 }
 
 async fn fixture_with_checksum() -> Fixture {
-    fixture_with_image_checksum(true).await
+    fixture_with_stored_checksum(Some(image_checksum(&png_bytes()))).await
 }
 
-async fn fixture_with_image_checksum(include_checksum: bool) -> Fixture {
+async fn fixture_with_stored_checksum(stored_checksum: Option<String>) -> Fixture {
     let root = tempdir().unwrap();
     let media_root = tempdir().unwrap();
     let repository = MemoryCatalogRepository::default();
@@ -2476,7 +2497,7 @@ async fn fixture_with_image_checksum(include_checksum: bool) -> Fixture {
                 original_filename: private_filename.clone(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
-                checksum: include_checksum.then(|| image_checksum(&bytes)),
+                checksum: stored_checksum,
                 etag: None,
                 is_primary: true,
                 sort_order: 0,

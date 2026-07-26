@@ -32,6 +32,9 @@ const LOAD_ITEM_SQL: &str = "select
     cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
 from autograph_items where id = :1";
 
+const IMAGE_SELECT_COLUMNS: &str = "id, object_key, original_filename, content_type, byte_size,
+    checksum, etag, is_primary, sort_order, alt_text";
+
 const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish as (
     select id, started_at, snapshot_event_count
     from (
@@ -924,32 +927,7 @@ fn load_items(
     connection: &Connection,
     publication_status: Option<PublicationStatus>,
 ) -> Result<Vec<AutographItem>, String> {
-    let sql = match publication_status {
-        Some(PublicationStatus::Published) => {
-            format!(
-                "select id, {} from autograph_items where publication_status = 'published' order by title, id",
-                ITEM_SELECT_COLUMNS
-            )
-        }
-        Some(PublicationStatus::Draft) => {
-            format!(
-                "select id, {} from autograph_items where publication_status = 'draft' order by title, id",
-                ITEM_SELECT_COLUMNS
-            )
-        }
-        Some(PublicationStatus::Archived) => {
-            format!(
-                "select id, {} from autograph_items where publication_status = 'archived' order by title, id",
-                ITEM_SELECT_COLUMNS
-            )
-        }
-        None => {
-            format!(
-                "select id, {} from autograph_items order by title, id",
-                ITEM_SELECT_COLUMNS
-            )
-        }
-    };
+    let sql = list_items_sql(publication_status);
     let mut rows = connection
         .query(&sql, &[])
         .map_err(|error| format!("list Oracle catalog items: {error}"))?;
@@ -991,6 +969,35 @@ fn load_items(
     }
 
     Ok(items)
+}
+
+fn list_items_sql(publication_status: Option<PublicationStatus>) -> String {
+    match publication_status {
+        Some(PublicationStatus::Published) => {
+            format!(
+                "select id, {} from autograph_items where publication_status = 'published' order by title, id",
+                ITEM_SELECT_COLUMNS
+            )
+        }
+        Some(PublicationStatus::Draft) => {
+            format!(
+                "select id, {} from autograph_items where publication_status = 'draft' order by title, id",
+                ITEM_SELECT_COLUMNS
+            )
+        }
+        Some(PublicationStatus::Archived) => {
+            format!(
+                "select id, {} from autograph_items where publication_status = 'archived' order by title, id",
+                ITEM_SELECT_COLUMNS
+            )
+        }
+        None => {
+            format!(
+                "select id, {} from autograph_items order by title, id",
+                ITEM_SELECT_COLUMNS
+            )
+        }
+    }
 }
 
 fn item_from_row(id: Uuid, row: &Row, offset: usize) -> Result<AutographItem, String> {
@@ -1504,16 +1511,7 @@ fn load_images_for_items(
     connection: &Connection,
     publication_status: Option<PublicationStatus>,
 ) -> Result<BTreeMap<Uuid, Vec<AutographImage>>, String> {
-    let sql = format!(
-        "select
-            img.item_id, img.id, img.object_key, img.original_filename, img.content_type,
-            img.byte_size, img.checksum, img.etag, img.is_primary, img.sort_order, img.alt_text
-         from autograph_images img
-         join autograph_items i on i.id = img.item_id
-         {}
-         order by img.item_id, img.sort_order, img.id",
-        child_status_filter(publication_status)
-    );
+    let sql = load_images_for_items_sql(publication_status);
     let mut rows = connection
         .query(&sql, &[])
         .map_err(|error| format!("bulk read Oracle catalog images: {error}"))?;
@@ -1527,6 +1525,19 @@ fn load_images_for_items(
             .push(image_from_row(&row, 1)?);
     }
     Ok(images)
+}
+
+fn load_images_for_items_sql(publication_status: Option<PublicationStatus>) -> String {
+    format!(
+        "select
+            img.item_id, img.id, img.object_key, img.original_filename, img.content_type,
+            img.byte_size, img.checksum, img.etag, img.is_primary, img.sort_order, img.alt_text
+         from autograph_images img
+         join autograph_items i on i.id = img.item_id
+         {}
+         order by img.item_id, img.sort_order, img.id",
+        child_status_filter(publication_status)
+    )
 }
 
 fn apply_signer_input_to_profile(
@@ -1691,14 +1702,12 @@ fn load_ordered_values(
 
 fn load_images(connection: &Connection, id: Uuid) -> Result<Vec<AutographImage>, String> {
     let id_text = id.to_string();
+    let sql = format!(
+        "select {IMAGE_SELECT_COLUMNS}
+            from autograph_images where item_id = :1 order by sort_order, id"
+    );
     let mut rows = connection
-        .query(
-            "select
-                id, object_key, original_filename, content_type, byte_size,
-                checksum, etag, is_primary, sort_order, alt_text
-            from autograph_images where item_id = :1 order by sort_order, id",
-            &[&id_text],
-        )
+        .query(&sql, &[&id_text])
         .map_err(|error| format!("read Oracle catalog images: {error}"))?;
     let mut images = Vec::new();
     for row in &mut rows {
@@ -1715,14 +1724,12 @@ fn load_image(
 ) -> Result<Option<AutographImage>, String> {
     let item_id_text = item_id.to_string();
     let image_id_text = image_id.to_string();
+    let sql = format!(
+        "select {IMAGE_SELECT_COLUMNS}
+            from autograph_images where item_id = :1 and id = :2"
+    );
     let mut rows = connection
-        .query(
-            "select
-                id, object_key, original_filename, content_type, byte_size,
-                checksum, etag, is_primary, sort_order, alt_text
-            from autograph_images where item_id = :1 and id = :2",
-            &[&item_id_text, &image_id_text],
-        )
+        .query(&sql, &[&item_id_text, &image_id_text])
         .map_err(|error| format!("read Oracle catalog image: {error}"))?;
     let Some(row) = rows.next() else {
         return Ok(None);
@@ -2200,6 +2207,56 @@ mod tests {
             assert!(
                 LOAD_ITEM_SQL.contains(required_fragment),
                 "Oracle load item SQL missing `{required_fragment}`"
+            );
+        }
+    }
+
+    #[test]
+    fn oracle_bulk_list_sql_filters_items_by_publication_status() {
+        let published_sql = list_items_sql(Some(PublicationStatus::Published));
+        assert!(published_sql.contains("from autograph_items"));
+        assert!(published_sql.contains("where publication_status = 'published'"));
+        assert!(published_sql.contains("order by title, id"));
+        assert!(!published_sql.contains("publication_status = 'draft'"));
+        assert!(!published_sql.contains("publication_status = 'archived'"));
+
+        let all_sql = list_items_sql(None);
+        assert!(all_sql.contains("from autograph_items"));
+        assert!(!all_sql.contains("where publication_status"));
+    }
+
+    #[test]
+    fn oracle_bulk_child_filters_match_item_publication_status() {
+        assert_eq!(
+            child_status_filter(Some(PublicationStatus::Published)),
+            " where i.publication_status = 'published'"
+        );
+        assert_eq!(
+            child_status_filter(Some(PublicationStatus::Draft)),
+            " where i.publication_status = 'draft'"
+        );
+        assert_eq!(
+            child_status_filter(Some(PublicationStatus::Archived)),
+            " where i.publication_status = 'archived'"
+        );
+        assert_eq!(child_status_filter(None), "");
+    }
+
+    #[test]
+    fn oracle_image_loaders_select_cache_source_metadata() {
+        let image_sql = load_images_for_items_sql(Some(PublicationStatus::Published));
+        for required_fragment in ["img.byte_size", "img.checksum", "img.etag"] {
+            assert!(
+                image_sql.contains(required_fragment),
+                "Oracle bulk image SQL missing `{required_fragment}`"
+            );
+        }
+        assert!(image_sql.contains("where i.publication_status = 'published'"));
+
+        for required_fragment in ["byte_size", "checksum", "etag"] {
+            assert!(
+                IMAGE_SELECT_COLUMNS.contains(required_fragment),
+                "Oracle single-item image SQL missing `{required_fragment}`"
             );
         }
     }
