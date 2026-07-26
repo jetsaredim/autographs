@@ -90,7 +90,7 @@ Local development can use local/mock media and catalog paths where the controlle
 
 ## Deployment And Operations
 
-Merges to `main` run the deploy workflow. The workflow increments the repo semver status, tags the status commit, builds and publishes the Rust controller image to GHCR only when controller image inputs changed, and deploys the semver-tagged controller image or runtime config when needed. Repo-only merges update release status without rebuilding or redeploying the controller.
+Merges to `main` run the deploy workflow. The workflow increments the repo semver in `VERSION`, mirrors it into release status, tags the status commit, builds and publishes the Rust controller image to GHCR only when controller image inputs changed, and deploys the semver-tagged controller image or runtime config when needed. Repo-only merges update release status without rebuilding or redeploying the controller.
 
 Operational checks:
 

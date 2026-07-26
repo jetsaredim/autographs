@@ -94,7 +94,7 @@ Runtime containers receive database and media coordinates through Ansible-manage
 
 ## Runtime Image Contract
 
-Deployments publish the prebuilt Rust controller image to `ghcr.io` with the repo semver tag selected by `.release-status.json`, for example `v0.8.4`. The VM does not build application code. Ansible pulls the semver-tagged controller image published by GitHub Actions, records the repo and deployed controller versions in the VM-local environment, installs systemd quadlets for the private controller, shared static volume, and Caddy containers on a dedicated Podman network, retires the old Node service if present, restarts affected services, and checks the Caddy-fronted static release plus `/admin/api/health` before the workflow succeeds.
+Deployments publish the prebuilt Rust controller image to `ghcr.io` with the repo semver tag tracked in `VERSION` and mirrored into `.release-status.json`, for example `v0.8.4`. The VM does not build application code. Ansible pulls the semver-tagged controller image published by GitHub Actions, records the repo and deployed controller versions in the VM-local environment, installs systemd quadlets for the private controller, shared static volume, and Caddy containers on a dedicated Podman network, retires the old Node service if present, restarts affected services, and checks the Caddy-fronted static release plus `/admin/api/health` before the workflow succeeds.
 
 Scheduled/manual image cleanup handles old GHCR versions and unused VM-local Podman images while preserving the deployed controller semver tag, `latest`, protected tags, and the configured newest image counts. Git repo `v*` tags may exist without a matching GHCR image when a merge did not change controller image inputs.
 
@@ -109,7 +109,7 @@ Runtime controller settings:
 | Variable | Classification | Purpose |
 |----------|----------------|---------|
 | `AUTOGRAPHS_CONTROLLER_BIND_ADDR` | runtime coordinate | Controller listener; defaults to `0.0.0.0:8080` |
-| `AUTOGRAPHS_REPO_VERSION` | release metadata | Latest repo semver version recorded by the deploy workflow |
+| `AUTOGRAPHS_REPO_VERSION` | release metadata | Latest repo semver version from `VERSION` |
 | `AUTOGRAPHS_CONTROLLER_VERSION` | release metadata | Deployed controller image semver version |
 | `AUTOGRAPHS_CONTROLLER_IMAGE` | release metadata | Deployed semver-tagged controller image reference |
 | `AUTOGRAPHS_SOURCE_REVISION` | release metadata | Source revision that triggered the version workflow |

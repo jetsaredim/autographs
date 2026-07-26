@@ -190,11 +190,11 @@ schemaVersion 2 taxonomy data.
 Pull requests run `.github/workflows/ci.yml`. The CI workflow checks the Rust controller, builds the controller image without pushing it, validates Terraform, and runs Ansible syntax/lint checks for the quadlet deployment.
 
 Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow first
-classifies the merged PR and updates `.release-status.json` plus the generated
-README release status block, then creates the matching Git `v*` tag on that
-status commit. Version bumps are semantic: explicit breaking changes bump
-major, feature signals such as `version:minor` or `feat:` bump minor, and
-everything else defaults to patch.
+classifies the merged PR and updates the repo semver in `VERSION`,
+`.release-status.json`, and the generated README release status block, then
+creates the matching Git `v*` tag on that status commit. Version bumps are
+semantic: explicit breaking changes bump major, feature signals such as
+`version:minor` or `feat:` bump minor, and everything else defaults to patch.
 
 For controller image changes, the initial release status records the new repo
 version while keeping the previously deployed controller version until the VM

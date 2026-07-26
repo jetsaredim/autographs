@@ -18,6 +18,7 @@ spec.loader.exec_module(release_version)
 def prepare_args(root: Path, status: Path, readme: Path, pr: Path, **overrides):
     values = {
         "status_file": status,
+        "version_file": root / "VERSION",
         "readme": readme,
         "pr_json": pr,
         "controller_image_impact": "false",
@@ -92,6 +93,7 @@ class ReleaseVersionTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            (root / "VERSION").write_text("v0.7.2\n", encoding="utf-8")
             readme.write_text(
                 "# Autographs\n\n![Renovate configured](https://img.shields.io/badge/Renovate-configured-1f8b4c)\n",
                 encoding="utf-8",
@@ -112,6 +114,7 @@ class ReleaseVersionTests(unittest.TestCase):
 
             updated = json.loads(status.read_text(encoding="utf-8"))
             self.assertEqual(updated["repoVersion"], "v0.7.3")
+            self.assertEqual((root / "VERSION").read_text(encoding="utf-8"), "v0.7.3\n")
             self.assertEqual(updated["deployedControllerVersion"], "v0.7.0")
             self.assertEqual(updated["lastBump"], "patch")
             self.assertEqual(updated["lastDeployImpact"], "repo-only")
@@ -137,6 +140,7 @@ class ReleaseVersionTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            (root / "VERSION").write_text("v0.7.2\n", encoding="utf-8")
             readme.write_text(
                 "# Autographs\n\n![Renovate configured](https://img.shields.io/badge/Renovate-configured-1f8b4c)\n",
                 encoding="utf-8",
@@ -157,6 +161,7 @@ class ReleaseVersionTests(unittest.TestCase):
 
             updated = json.loads(status.read_text(encoding="utf-8"))
             self.assertEqual(updated["repoVersion"], "v0.8.0")
+            self.assertEqual((root / "VERSION").read_text(encoding="utf-8"), "v0.8.0\n")
             self.assertEqual(updated["deployedControllerVersion"], "v0.7.0")
             self.assertEqual(updated["lastBump"], "minor")
             self.assertEqual(updated["lastDeployImpact"], "controller-image")
@@ -181,6 +186,7 @@ class ReleaseVersionTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            (root / "VERSION").write_text("v0.8.0\n", encoding="utf-8")
             readme.write_text(
                 "# Autographs\n\n![Renovate configured](https://img.shields.io/badge/Renovate-configured-1f8b4c)\n",
                 encoding="utf-8",
@@ -214,6 +220,7 @@ class ReleaseVersionTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            (root / "VERSION").write_text("v0.8.0\n", encoding="utf-8")
             readme.write_text(
                 "# Autographs\n\n![Renovate configured](https://img.shields.io/badge/Renovate-configured-1f8b4c)\n",
                 encoding="utf-8",
@@ -258,6 +265,7 @@ class ReleaseVersionTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            (root / "VERSION").write_text("v0.7.2\n", encoding="utf-8")
             committed_status.write_text(
                 json.dumps(
                     {
@@ -316,6 +324,7 @@ class ReleaseVersionTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            (root / "VERSION").write_text("v0.7.3\n", encoding="utf-8")
             original_status = status.read_text(encoding="utf-8")
             readme.write_text(
                 "# Autographs\n\n![Renovate configured](https://img.shields.io/badge/Renovate-configured-1f8b4c)\n",
@@ -344,6 +353,51 @@ class ReleaseVersionTests(unittest.TestCase):
             self.assertIn("controller_deploy_version=v0.7.0", output_text)
             self.assertIn("deploy_required=true", output_text)
             self.assertIn("reused_existing_version=true", output_text)
+
+    def test_runtime_only_reuse_after_failed_controller_release_uses_deployed_version(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            status = root / ".release-status.json"
+            readme = root / "README.md"
+            output = root / "github-output.txt"
+            status.write_text(
+                json.dumps(
+                    {
+                        "repoVersion": "v0.8.0",
+                        "deployedControllerVersion": "v0.7.0",
+                        "lastBump": "minor",
+                        "lastDeployImpact": "controller-image",
+                        "sourceRevision": "failed-controller-release",
+                        "updatedAt": "2026-01-01T00:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (root / "VERSION").write_text("v0.8.0\n", encoding="utf-8")
+            readme.write_text(
+                "# Autographs\n\n![Renovate configured](https://img.shields.io/badge/Renovate-configured-1f8b4c)\n",
+                encoding="utf-8",
+            )
+            pr = root / "pr.json"
+            pr.write_text(json.dumps({}), encoding="utf-8")
+
+            release_version.prepare_release(
+                prepare_args(
+                    root,
+                    status,
+                    readme,
+                    pr,
+                    controller_image_impact="false",
+                    runtime_deploy_impact="true",
+                    source_revision="failed-controller-release",
+                    github_output=output,
+                    reuse_current_status=True,
+                )
+            )
+
+            output_text = output.read_text(encoding="utf-8")
+            self.assertIn("version=v0.8.0", output_text)
+            self.assertIn("controller_deploy_version=v0.7.0", output_text)
 
 
 if __name__ == "__main__":

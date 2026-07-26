@@ -35,6 +35,7 @@ def main() -> int:
 
     prepare_parser = subcommands.add_parser("prepare")
     prepare_parser.add_argument("--status-file", type=Path, default=Path(".release-status.json"))
+    prepare_parser.add_argument("--version-file", type=Path, default=Path("VERSION"))
     prepare_parser.add_argument("--readme", type=Path, default=Path("README.md"))
     prepare_parser.add_argument("--pr-json", type=Path)
     prepare_parser.add_argument("--controller-image-impact", required=True)
@@ -96,6 +97,7 @@ def main() -> int:
 
 def prepare_release(args: argparse.Namespace) -> None:
     status = read_status(args.status_file)
+    current_repo_version = read_version(args.version_file, status["repoVersion"])
     metadata = read_pr_metadata(args.pr_json)
     controller_image_impact = parse_bool(args.controller_image_impact)
     runtime_deploy_impact = parse_bool(args.runtime_deploy_impact)
@@ -125,13 +127,13 @@ def prepare_release(args: argparse.Namespace) -> None:
         deployed_controller_version = (
             repo_version
             if controller_image_impact
-            else controller_deploy_version_for_status(reused_status)
+            else reused_status.get("deployedControllerVersion") or ""
         )
         controller_image_build = controller_image_impact
         deploy_required = controller_image_impact or runtime_deploy_impact
     else:
         bump = classify_bump(metadata)
-        repo_version = next_version(status["repoVersion"], bump)
+        repo_version = next_version(current_repo_version, bump)
         if controller_image_impact:
             deploy_impact = "controller-image"
             deployed_controller_version = repo_version
@@ -162,6 +164,7 @@ def prepare_release(args: argparse.Namespace) -> None:
         }
 
         write_status(args.status_file, updated)
+        write_version(args.version_file, repo_version)
         update_readme(args.readme, updated)
 
     outputs = {
@@ -179,12 +182,6 @@ def prepare_release(args: argparse.Namespace) -> None:
                 output.write(f"{name}={value}\n")
     else:
         print(json.dumps(outputs, indent=2, sort_keys=True))
-
-
-def controller_deploy_version_for_status(status: dict) -> str:
-    if status.get("lastDeployImpact") == "controller-image":
-        return status.get("repoVersion") or ""
-    return status.get("deployedControllerVersion") or ""
 
 
 def mark_deployed(status_file: Path, readme: Path, controller_version: str) -> None:
@@ -279,6 +276,21 @@ def read_status(path: Path) -> dict:
         }
     status = json.loads(path.read_text(encoding="utf-8"))
     return normalize_status(status, str(path))
+
+
+def read_version(path: Path, fallback: str) -> str:
+    if not path.exists():
+        return fallback
+    version = path.read_text(encoding="utf-8").strip()
+    if not SEMVER_RE.fullmatch(version):
+        raise RuntimeError(f"{path} has invalid version: {version!r}")
+    return version
+
+
+def write_version(path: Path, version: str) -> None:
+    if not SEMVER_RE.fullmatch(version):
+        raise RuntimeError(f"invalid version: {version!r}")
+    path.write_text(f"{version}\n", encoding="utf-8")
 
 
 def normalize_status(status: dict, source: str) -> dict:
