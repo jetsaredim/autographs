@@ -60,6 +60,11 @@ def main() -> int:
     ghcr_exists_parser.add_argument("--tag", required=True)
     ghcr_exists_parser.add_argument("--github-output", type=Path)
 
+    deploy_current_parser = subcommands.add_parser("assert-deploy-current")
+    deploy_current_parser.add_argument("--status-file", type=Path, default=Path(".release-status.json"))
+    deploy_current_parser.add_argument("--repo-version", required=True)
+    deploy_current_parser.add_argument("--controller-version", required=True)
+
     args = parser.parse_args()
 
     if args.command == "classify":
@@ -90,6 +95,10 @@ def main() -> int:
                 output.write(f"exists={str(exists).lower()}\n")
         else:
             print(str(exists).lower())
+        return 0
+
+    if args.command == "assert-deploy-current":
+        assert_deploy_current(args.status_file, args.repo_version, args.controller_version)
         return 0
 
     raise RuntimeError(f"unknown command: {args.command}")
@@ -254,10 +263,7 @@ def classify_bump(metadata: dict) -> str:
 
 
 def next_version(current: str, bump: str) -> str:
-    match = SEMVER_RE.fullmatch(current.strip())
-    if not match:
-        raise RuntimeError(f"invalid current version: {current!r}")
-    major, minor, patch = (int(part) for part in match.groups())
+    major, minor, patch = parse_semver(current)
     if bump == "major":
         return f"v{major + 1}.0.0"
     if bump == "minor":
@@ -265,6 +271,33 @@ def next_version(current: str, bump: str) -> str:
     if bump == "patch":
         return f"v{major}.{minor}.{patch + 1}"
     raise RuntimeError(f"invalid bump type: {bump!r}")
+
+
+def parse_semver(value: str) -> tuple[int, int, int]:
+    match = SEMVER_RE.fullmatch(value.strip())
+    if not match:
+        raise RuntimeError(f"invalid semver value: {value!r}")
+    return tuple(int(part) for part in match.groups())
+
+
+def assert_deploy_current(status_file: Path, repo_version: str, controller_version: str) -> None:
+    status = read_status(status_file)
+    current_repo_version = status.get("repoVersion", "")
+    current_controller_version = status.get("deployedControllerVersion", "")
+    current_impact = status.get("lastDeployImpact", "")
+
+    if current_controller_version and parse_semver(current_controller_version) > parse_semver(controller_version):
+        raise RuntimeError(
+            f"refusing to deploy {controller_version}; "
+            f"release status already records deployed controller {current_controller_version}"
+        )
+
+    deploy_impacts = {"controller-image", "runtime-config"}
+    if current_impact in deploy_impacts and parse_semver(current_repo_version) > parse_semver(repo_version):
+        raise RuntimeError(
+            f"refusing to deploy {repo_version}; "
+            f"release status already records newer deploy-impact release {current_repo_version}"
+        )
 
 
 def read_status(path: Path) -> dict:

@@ -402,6 +402,65 @@ class ReleaseVersionTests(unittest.TestCase):
             self.assertIn("controller_deploy_version=v0.7.0", output_text)
             self.assertIn("source_revision=failed-controller-release", output_text)
 
+    def test_assert_deploy_current_allows_current_release_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            status = Path(tmp) / ".release-status.json"
+            status.write_text(
+                json.dumps(
+                    {
+                        "repoVersion": "v0.8.0",
+                        "deployedControllerVersion": "v0.7.0",
+                        "lastBump": "minor",
+                        "lastDeployImpact": "controller-image",
+                        "sourceRevision": "def456",
+                        "updatedAt": "2026-01-01T00:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            release_version.assert_deploy_current(status, "v0.8.0", "v0.8.0")
+
+    def test_assert_deploy_current_refuses_newer_deployed_controller(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            status = Path(tmp) / ".release-status.json"
+            status.write_text(
+                json.dumps(
+                    {
+                        "repoVersion": "v0.9.0",
+                        "deployedControllerVersion": "v0.9.0",
+                        "lastBump": "minor",
+                        "lastDeployImpact": "controller-image",
+                        "sourceRevision": "ghi789",
+                        "updatedAt": "2026-01-01T00:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "deployed controller v0.9.0"):
+                release_version.assert_deploy_current(status, "v0.8.0", "v0.8.0")
+
+    def test_assert_deploy_current_refuses_newer_deploy_impact_release(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            status = Path(tmp) / ".release-status.json"
+            status.write_text(
+                json.dumps(
+                    {
+                        "repoVersion": "v0.9.0",
+                        "deployedControllerVersion": "v0.7.0",
+                        "lastBump": "minor",
+                        "lastDeployImpact": "runtime-config",
+                        "sourceRevision": "ghi789",
+                        "updatedAt": "2026-01-01T00:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "newer deploy-impact release v0.9.0"):
+                release_version.assert_deploy_current(status, "v0.8.0", "v0.8.0")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -465,40 +465,10 @@ jobs:
           set -euo pipefail
           git fetch origin main:refs/remotes/origin/main
           git show origin/main:.release-status.json > "$RUNNER_TEMP/current-release-status.json"
-          python3 - "$RUNNER_TEMP/current-release-status.json" <<'PY'
-          import json
-          import os
-          import re
-          import sys
-
-          semver_re = re.compile(r"^v([0-9]+)\.([0-9]+)\.([0-9]+)$")
-
-          def semver(value: str) -> tuple[int, int, int]:
-              match = semver_re.fullmatch(value.strip())
-              if not match:
-                  raise SystemExit(f"invalid semver value: {value!r}")
-              return tuple(int(part) for part in match.groups())
-
-          status = json.loads(open(sys.argv[1], encoding="utf-8").read())
-          target_repo = os.environ["TARGET_REPO_VERSION"]
-          target_controller = os.environ["TARGET_CONTROLLER_VERSION"]
-          current_repo = status.get("repoVersion", "")
-          current_deployed = status.get("deployedControllerVersion", "")
-          current_impact = status.get("lastDeployImpact", "")
-
-          if current_deployed and semver(current_deployed) > semver(target_controller):
-              raise SystemExit(
-                  f"refusing to deploy {target_controller}; "
-                  f"origin/main already records deployed controller {current_deployed}"
-              )
-
-          deploy_impacts = {"controller-image", "runtime-config"}
-          if current_impact in deploy_impacts and semver(current_repo) > semver(target_repo):
-              raise SystemExit(
-                  f"refusing to deploy {target_repo}; "
-                  f"origin/main already records newer deploy-impact release {current_repo}"
-              )
-          PY
+          python3 scripts/release-version.py assert-deploy-current \
+            --status-file "$RUNNER_TEMP/current-release-status.json" \
+            --repo-version "$TARGET_REPO_VERSION" \
+            --controller-version "$TARGET_CONTROLLER_VERSION"
 
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v9
@@ -590,38 +560,9 @@ jobs:
               echo "Remote main already records deployed controller ${CONTROLLER_DEPLOY_VERSION}."
               exit 0
             fi
-            python3 - <<'PY'
-            import json
-            import os
-            import re
-
-            semver_re = re.compile(r"^v([0-9]+)\.([0-9]+)\.([0-9]+)$")
-
-            def semver(value: str) -> tuple[int, int, int]:
-                match = semver_re.fullmatch(value.strip())
-                if not match:
-                    raise SystemExit(f"invalid semver value: {value!r}")
-                return tuple(int(part) for part in match.groups())
-
-            status = json.load(open(".release-status.json", encoding="utf-8"))
-            current_repo = status.get("repoVersion", "")
-            current_deployed = status.get("deployedControllerVersion", "")
-            current_impact = status.get("lastDeployImpact", "")
-            target_repo = os.environ["TARGET_REPO_VERSION"]
-            target_controller = os.environ["CONTROLLER_DEPLOY_VERSION"]
-
-            if current_deployed and semver(current_deployed) > semver(target_controller):
-                raise SystemExit(
-                    f"refusing to mark {target_controller} deployed; "
-                    f"origin/main already records deployed controller {current_deployed}"
-                )
-
-            if current_impact in {"controller-image", "runtime-config"} and semver(current_repo) > semver(target_repo):
-                raise SystemExit(
-                    f"refusing to mark {target_controller} deployed; "
-                    f"origin/main already records newer deploy-impact release {current_repo}"
-                )
-            PY
+            python3 scripts/release-version.py assert-deploy-current \
+              --repo-version "$TARGET_REPO_VERSION" \
+              --controller-version "$CONTROLLER_DEPLOY_VERSION"
 
             python3 scripts/release-version.py mark-deployed \
               --controller-version "${CONTROLLER_DEPLOY_VERSION}"
