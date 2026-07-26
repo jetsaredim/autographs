@@ -103,6 +103,12 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Refuse non-main manual dispatch
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "Production deploy workflow_dispatch must run from refs/heads/main, got ${GITHUB_REF}." >&2
+          exit 1
+
       - name: Resolve merged PR metadata
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -160,9 +166,30 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add VERSION .release-status.json README.md
-          git commit -m "chore: update release status to ${RELEASE_VERSION} [skip ci]"
-          git push origin HEAD:main
+          cp VERSION "$RUNNER_TEMP/VERSION"
+          cp .release-status.json "$RUNNER_TEMP/release-status.json"
+          cp README.md "$RUNNER_TEMP/README.md"
+
+          for attempt in 1 2 3; do
+            git fetch origin main:refs/remotes/origin/main
+            git switch --force-create release-status-update origin/main
+            cp "$RUNNER_TEMP/VERSION" VERSION
+            cp "$RUNNER_TEMP/release-status.json" .release-status.json
+            cp "$RUNNER_TEMP/README.md" README.md
+
+            git add VERSION .release-status.json README.md
+            if git diff --cached --quiet; then
+              echo "Release status already records ${RELEASE_VERSION}."
+              exit 0
+            fi
+            git commit -m "chore: update release status to ${RELEASE_VERSION} [skip ci]"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "main advanced while publishing release status; retrying (${attempt}/3)."
+          done
+          echo "Failed to publish release status ${RELEASE_VERSION} after retries." >&2
+          exit 1
 
       - name: Ensure release tag
         env:
