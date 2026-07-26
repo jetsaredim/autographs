@@ -94,6 +94,7 @@ jobs:
       deploy_required: ${{ steps.prepare.outputs.deploy_required }}
       controller_image_build: ${{ steps.prepare.outputs.controller_image_build }}
       controller_deploy_version: ${{ steps.prepare.outputs.controller_deploy_version }}
+      reused_existing_version: ${{ steps.prepare.outputs.reused_existing_version }}
 
     steps:
       - name: Checkout
@@ -122,6 +123,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
 
       - name: Refuse duplicate Git release tag
+        if: steps.prepare.outputs.reused_existing_version != 'true'
         env:
           RELEASE_VERSION: ${{ steps.prepare.outputs.version }}
         run: |
@@ -131,7 +133,7 @@ jobs:
           fi
 
       - name: Refuse duplicate GHCR semver tag
-        if: steps.prepare.outputs.controller_image_build == 'true'
+        if: steps.prepare.outputs.controller_image_build == 'true' && steps.prepare.outputs.reused_existing_version != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ steps.prepare.outputs.version }}
@@ -141,6 +143,7 @@ jobs:
             --tag "${RELEASE_VERSION}"
 
       - name: Commit release status and tag
+        if: steps.prepare.outputs.reused_existing_version != 'true'
         env:
           RELEASE_VERSION: ${{ steps.prepare.outputs.version }}
         run: |

@@ -32,6 +32,10 @@ class ReleaseVersionTests(unittest.TestCase):
             ),
             "major",
         )
+        self.assertEqual(
+            release_version.classify_bump({"title": "feat(api)!: change manifest", "body": "", "labels": []}),
+            "major",
+        )
 
     def test_classify_minor_from_label_or_feat_title(self):
         self.assertEqual(
@@ -46,6 +50,10 @@ class ReleaseVersionTests(unittest.TestCase):
     def test_classify_defaults_to_patch(self):
         self.assertEqual(
             release_version.classify_bump({"title": "docs: clarify deploy", "body": "", "labels": []}),
+            "patch",
+        )
+        self.assertEqual(
+            release_version.classify_bump({"title": "docs: clarify deploy", "body": "No breaking changes.", "labels": []}),
             "patch",
         )
 
@@ -137,6 +145,50 @@ class ReleaseVersionTests(unittest.TestCase):
             self.assertEqual(updated["deployedControllerVersion"], "v0.8.0")
             self.assertEqual(updated["lastBump"], "minor")
             self.assertEqual(updated["lastDeployImpact"], "controller-image")
+
+    def test_prepare_reuses_existing_version_for_same_source_revision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            status = root / ".release-status.json"
+            readme = root / "README.md"
+            output = root / "github-output.txt"
+            status.write_text(
+                json.dumps(
+                    {
+                        "repoVersion": "v0.8.0",
+                        "deployedControllerVersion": "v0.8.0",
+                        "lastBump": "minor",
+                        "lastDeployImpact": "controller-image",
+                        "sourceRevision": "def456",
+                        "updatedAt": "2026-01-01T00:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            readme.write_text(
+                "# Autographs\n\n![Renovate configured](https://img.shields.io/badge/Renovate-configured-1f8b4c)\n",
+                encoding="utf-8",
+            )
+            pr = root / "pr.json"
+            pr.write_text(json.dumps({"title": "feat: add release metadata", "body": "", "labels": []}), encoding="utf-8")
+
+            release_version.prepare_release(
+                SimpleNamespace(
+                    status_file=status,
+                    readme=readme,
+                    pr_json=pr,
+                    controller_image_impact="true",
+                    runtime_deploy_impact="false",
+                    source_revision="def456",
+                    github_output=output,
+                )
+            )
+
+            updated = json.loads(status.read_text(encoding="utf-8"))
+            self.assertEqual(updated["repoVersion"], "v0.8.0")
+            self.assertEqual(updated["sourceRevision"], "def456")
+            self.assertIn("version=v0.8.0", output.read_text(encoding="utf-8"))
+            self.assertIn("reused_existing_version=true", output.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

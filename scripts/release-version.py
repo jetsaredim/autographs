@@ -70,42 +70,52 @@ def main() -> int:
 def prepare_release(args: argparse.Namespace) -> None:
     status = read_status(args.status_file)
     metadata = read_pr_metadata(args.pr_json)
-    bump = classify_bump(metadata)
-    repo_version = next_version(status["repoVersion"], bump)
     controller_image_impact = parse_bool(args.controller_image_impact)
     runtime_deploy_impact = parse_bool(args.runtime_deploy_impact)
 
-    if controller_image_impact:
-        deploy_impact = "controller-image"
-        deployed_controller_version = repo_version
-        deploy_required = True
-        controller_image_build = True
-    elif runtime_deploy_impact:
-        deploy_impact = "runtime-config"
+    reused_existing_version = args.source_revision and status.get("sourceRevision") == args.source_revision
+    if reused_existing_version:
+        updated = status
+        repo_version = status["repoVersion"]
+        bump = status["lastBump"]
+        deploy_impact = status["lastDeployImpact"]
         deployed_controller_version = status.get("deployedControllerVersion") or ""
-        if not deployed_controller_version:
-            raise RuntimeError(
-                "runtime deploy impact requires an existing deployedControllerVersion"
-            )
-        deploy_required = True
-        controller_image_build = False
+        controller_image_build = controller_image_impact
+        deploy_required = controller_image_impact or runtime_deploy_impact
     else:
-        deploy_impact = "repo-only"
-        deployed_controller_version = status.get("deployedControllerVersion") or ""
-        deploy_required = False
-        controller_image_build = False
+        bump = classify_bump(metadata)
+        repo_version = next_version(status["repoVersion"], bump)
+        if controller_image_impact:
+            deploy_impact = "controller-image"
+            deployed_controller_version = repo_version
+            deploy_required = True
+            controller_image_build = True
+        elif runtime_deploy_impact:
+            deploy_impact = "runtime-config"
+            deployed_controller_version = status.get("deployedControllerVersion") or ""
+            if not deployed_controller_version:
+                raise RuntimeError(
+                    "runtime deploy impact requires an existing deployedControllerVersion"
+                )
+            deploy_required = True
+            controller_image_build = False
+        else:
+            deploy_impact = "repo-only"
+            deployed_controller_version = status.get("deployedControllerVersion") or ""
+            deploy_required = False
+            controller_image_build = False
 
-    updated = {
-        "repoVersion": repo_version,
-        "deployedControllerVersion": deployed_controller_version,
-        "lastBump": bump,
-        "lastDeployImpact": deploy_impact,
-        "sourceRevision": args.source_revision,
-        "updatedAt": now_utc(),
-    }
+        updated = {
+            "repoVersion": repo_version,
+            "deployedControllerVersion": deployed_controller_version,
+            "lastBump": bump,
+            "lastDeployImpact": deploy_impact,
+            "sourceRevision": args.source_revision,
+            "updatedAt": now_utc(),
+        }
 
-    write_status(args.status_file, updated)
-    update_readme(args.readme, updated)
+        write_status(args.status_file, updated)
+        update_readme(args.readme, updated)
 
     outputs = {
         "version": repo_version,
@@ -114,6 +124,7 @@ def prepare_release(args: argparse.Namespace) -> None:
         "deploy_required": str(deploy_required).lower(),
         "controller_image_build": str(controller_image_build).lower(),
         "controller_deploy_version": deployed_controller_version,
+        "reused_existing_version": str(bool(reused_existing_version)).lower(),
     }
     if args.github_output:
         with args.github_output.open("a", encoding="utf-8") as output:
@@ -165,9 +176,12 @@ def classify_bump(metadata: dict) -> str:
     labels = {label.lower() for label in metadata.get("labels", [])}
     title = metadata.get("title", "")
     body = metadata.get("body", "")
-    combined = f"{title}\n{body}"
 
-    if "version:major" in labels or "breaking change" in combined.lower():
+    if (
+        "version:major" in labels
+        or re.match(r"^[a-z]+(?:\(.+\))?!:", title.strip(), re.I)
+        or re.search(r"(?im)^BREAKING(?:-| )CHANGE:\s+\S", body)
+    ):
         return "major"
     if "version:minor" in labels or re.match(r"^feat(?:\(.+\))?!?:", title.strip(), re.I):
         return "minor"
@@ -263,7 +277,7 @@ def release_status_block(status: dict) -> str:
 def assert_ghcr_tag_absent(image_repository: str, tag: str) -> None:
     token = require_env("GITHUB_TOKEN")
     package_info = parse_ghcr_image_repository(image_repository)
-    versions = list_package_versions(token, package_info)
+    versions = list_package_versions(token, package_info, allow_missing=True)
     for version in versions:
         tags = version.get("metadata", {}).get("container", {}).get("tags", [])
         if tag in tags:
@@ -279,7 +293,11 @@ def parse_ghcr_image_repository(repository: str) -> dict[str, str]:
     return {"owner": parts[1], "package_name": "/".join(parts[2:]), "owner_kind": ""}
 
 
-def list_package_versions(token: str, package_info: dict[str, str]) -> list[dict]:
+def list_package_versions(
+    token: str,
+    package_info: dict[str, str],
+    allow_missing: bool = False,
+) -> list[dict]:
     for owner_kind in ("orgs", "users"):
         package_info["owner_kind"] = owner_kind
         status, headers, body = github_request(token, package_info)
@@ -288,6 +306,8 @@ def list_package_versions(token: str, package_info: dict[str, str]) -> list[dict
         if status < 200 or status >= 300:
             raise RuntimeError(f"failed to list GHCR versions: {status} {body}")
         return paginate(token, package_info, json.loads(body), headers.get("link"))
+    if allow_missing:
+        return []
     raise RuntimeError(
         f"could not find GHCR package {package_info['owner']}/{package_info['package_name']}"
     )
