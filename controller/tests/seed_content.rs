@@ -74,6 +74,8 @@ async fn seed_content_local_repository_and_media_use_filename_free_keys() {
                 original_filename: original_filename.to_owned(),
                 content_type: "image/jpeg".to_owned(),
                 byte_size: 22,
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
