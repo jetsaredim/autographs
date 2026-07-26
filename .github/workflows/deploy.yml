@@ -363,9 +363,9 @@ jobs:
           requirements: collections/requirements.yml
           options: |
             --extra-vars autographs_controller_image=${{ needs.resolve-controller-image.outputs.controller_image }}
-            --extra-vars autographs_repo_version=${{ needs.prepare-release-version.outputs.version }}
-            --extra-vars autographs_deployed_controller_version=${{ needs.prepare-release-version.outputs.controller_deploy_version }}
-            --extra-vars autographs_source_revision=${{ github.sha }}
+            --extra-vars autographs_deploy_repo_version=${{ needs.prepare-release-version.outputs.version }}
+            --extra-vars autographs_deploy_deployed_controller_version=${{ needs.prepare-release-version.outputs.controller_deploy_version }}
+            --extra-vars autographs_deploy_source_revision=${{ github.sha }}
             --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
             --extra-vars autographs_deploy_http_port=${{ env.AUTOGRAPHS_HTTP_PORT }}
             --extra-vars autographs_deploy_https_port=${{ env.AUTOGRAPHS_HTTPS_PORT }}
