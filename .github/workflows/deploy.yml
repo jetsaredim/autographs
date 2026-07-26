@@ -15,7 +15,7 @@ on:
           - "false"
           - "true"
       force_runtime_image_build:
-        description: "Force rebuilding the controller image before deploying"
+        description: "Force deploying the current semver controller image"
         required: false
         default: "false"
         type: choice
@@ -24,12 +24,9 @@ on:
           - "true"
 
 permissions:
-  contents: read
+  contents: write
   packages: write
-
-concurrency:
-  group: deploy-production
-  cancel-in-progress: false
+  pull-requests: read
 
 env:
   GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ vars.GHCR_CONTROLLER_IMAGE_REPOSITORY || format('ghcr.io/{0}/controller', github.repository) }}
@@ -40,12 +37,53 @@ env:
   AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER: ${{ vars.AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER || 'oci-instance-principal' }}
 
 jobs:
-  detect-runtime-image-changes:
-    name: Detect runtime image changes
+  detect-release-status-commit:
+    name: Detect release status commit
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
 
     outputs:
-      build_runtime_images: ${{ steps.detect.outputs.build_runtime_images }}
+      release_status_commit: ${{ steps.detect.outputs.release_status_commit }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Detect bot-authored release status commit
+        id: detect
+        env:
+          HEAD_ACTOR: ${{ github.actor }}
+          HEAD_MESSAGE: ${{ github.event.head_commit.message || '' }}
+        run: |
+          set -euo pipefail
+          release_status_commit=false
+
+          changed_files="$(git diff-tree --no-commit-id --name-only -r "${GITHUB_SHA}")"
+          unexpected_files="$(
+            printf '%s\n' "$changed_files" \
+              | grep -Ev '^(VERSION|\.release-status\.json|README\.md)$' \
+              || true
+          )"
+
+          if [ "$HEAD_ACTOR" = "github-actions[bot]" ] \
+            && printf '%s' "$HEAD_MESSAGE" | grep -Eq '^chore: (update release status to|mark deployed controller) v[0-9]+\.[0-9]+\.[0-9]+' \
+            && [ -z "$unexpected_files" ]; then
+            release_status_commit=true
+          fi
+
+          echo "release_status_commit=${release_status_commit}" >> "$GITHUB_OUTPUT"
+
+  detect-release-impact:
+    name: Detect release impact
+    runs-on: ubuntu-latest
+    needs: detect-release-status-commit
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.detect-release-status-commit.outputs.release_status_commit != 'true') }}
+
+    outputs:
+      controller_image_impact: ${{ steps.detect.outputs.controller_image_impact }}
+      runtime_deploy_impact: ${{ steps.detect.outputs.runtime_deploy_impact }}
 
     steps:
       - name: Checkout
@@ -58,26 +96,180 @@ jobs:
         uses: dorny/paths-filter@v4
         with:
           filters: |
-            controller_runtime:
+            controller_image:
               - "controller/**"
               - ".github/docker-bake.hcl"
+            runtime_deploy:
+              - "deploy/ansible/**"
+              - "infra/terraform/**"
+              - ".github/actions/resolve-runtime-ip/**"
               - ".github/workflows/deploy.yml"
 
-      - name: Resolve runtime image build decision
+      - name: Resolve release impact decision
         id: detect
         env:
-          BUILD_RUNTIME_IMAGES: ${{ steps.changes.outputs.controller_runtime == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force_runtime_image_build == 'true') }}
-        run: echo "build_runtime_images=${BUILD_RUNTIME_IMAGES}" >> "$GITHUB_OUTPUT"
+          CONTROLLER_IMAGE_IMPACT: ${{ steps.changes.outputs.controller_image == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force_runtime_image_build == 'true') }}
+          RUNTIME_DEPLOY_IMPACT: ${{ steps.changes.outputs.runtime_deploy == 'true' || (github.event_name == 'workflow_dispatch' && inputs.recreate_runtime_instance == 'true') }}
+        run: |
+          {
+            echo "controller_image_impact=${CONTROLLER_IMAGE_IMPACT}"
+            echo "runtime_deploy_impact=${RUNTIME_DEPLOY_IMPACT}"
+          } >> "$GITHUB_OUTPUT"
 
-  build-images:
-    name: Build and publish controller image
+  prepare-release-version:
+    name: Prepare release version
     runs-on: ubuntu-latest
-    needs: detect-runtime-image-changes
-    if: needs.detect-runtime-image-changes.outputs.build_runtime_images == 'true'
+    needs: detect-release-impact
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.detect-release-impact.result == 'success' }}
+
+    outputs:
+      version: ${{ steps.publish.outputs.version }}
+      bump: ${{ steps.publish.outputs.bump }}
+      deploy_impact: ${{ steps.publish.outputs.deploy_impact }}
+      deploy_required: ${{ steps.publish.outputs.deploy_required }}
+      controller_image_build: ${{ steps.publish.outputs.controller_image_build }}
+      controller_deploy_version: ${{ steps.publish.outputs.controller_deploy_version }}
+      reused_existing_version: ${{ steps.publish.outputs.reused_existing_version }}
+      source_revision: ${{ steps.publish.outputs.source_revision }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refuse non-main manual dispatch
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "Production deploy workflow_dispatch must run from refs/heads/main, got ${GITHUB_REF}." >&2
+          exit 1
+
+      - name: Resolve merged PR metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+            --jq '.[0] // {}' > "$RUNNER_TEMP/merged-pr.json"
+
+      - name: Fetch current release status
+        run: |
+          git fetch origin main:refs/remotes/origin/main --tags
+
+      - name: Publish release status
+        id: publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          prepare_args=()
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            prepare_args+=(--reuse-current-status)
+          fi
+
+          for attempt in 1 2 3; do
+            git fetch origin main:refs/remotes/origin/main --tags
+            git switch --force-create release-status-update origin/main
+
+            current_main_revision="$(git rev-parse HEAD)"
+            release_source_revision="$current_main_revision"
+            if [ "${{ github.event_name }}" = "push" ]; then
+              release_source_revision="${GITHUB_SHA}"
+              current_status_source="$(
+                python3 -c 'import json, pathlib; path = pathlib.Path(".release-status.json"); print(json.loads(path.read_text(encoding="utf-8")).get("sourceRevision", "") if path.exists() else "")'
+              )"
+              if [ "$current_main_revision" != "${GITHUB_SHA}" ] && [ "$current_status_source" != "${GITHUB_SHA}" ]; then
+                echo "origin/main advanced to ${current_main_revision}; publishing a version event for triggering merge ${GITHUB_SHA} on current main."
+              fi
+            fi
+
+            output_file="$RUNNER_TEMP/release-output-${attempt}.txt"
+            rm -f "$output_file"
+            python3 scripts/release-version.py prepare \
+              --pr-json "$RUNNER_TEMP/merged-pr.json" \
+              --controller-image-impact "${{ needs.detect-release-impact.outputs.controller_image_impact }}" \
+              --runtime-deploy-impact "${{ needs.detect-release-impact.outputs.runtime_deploy_impact }}" \
+              --source-revision "$release_source_revision" \
+              --committed-status-ref origin/main \
+              --github-output "$output_file" \
+              "${prepare_args[@]}"
+
+            release_version="$(grep '^version=' "$output_file" | cut -d= -f2-)"
+            controller_image_build="$(grep '^controller_image_build=' "$output_file" | cut -d= -f2-)"
+            reused_existing_version="$(grep '^reused_existing_version=' "$output_file" | cut -d= -f2-)"
+
+            if [ "$reused_existing_version" = "true" ]; then
+              cat "$output_file" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if git rev-parse --quiet --verify "refs/tags/${release_version}" >/dev/null; then
+              echo "Git tag ${release_version} already exists." >&2
+              exit 1
+            fi
+
+            if [ "$controller_image_build" = "true" ]; then
+              python3 scripts/release-version.py assert-ghcr-tag-absent \
+                --image-repository "${GHCR_CONTROLLER_IMAGE_REPOSITORY}" \
+                --tag "${release_version}"
+            fi
+
+            git add VERSION .release-status.json README.md
+            if git diff --cached --quiet; then
+              cat "$output_file" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            git commit -m "chore: update release status to ${release_version}"
+            if git push origin HEAD:main; then
+              cat "$output_file" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "main advanced while publishing release status; retrying (${attempt}/3)."
+          done
+          echo "Failed to publish release status after retries." >&2
+          exit 1
+
+      - name: Ensure release tag
+        env:
+          RELEASE_VERSION: ${{ steps.publish.outputs.version }}
+          SOURCE_REVISION: ${{ steps.publish.outputs.source_revision }}
+        run: |
+          git fetch origin main:refs/remotes/origin/main --tags
+          if git rev-parse --quiet --verify "refs/tags/${RELEASE_VERSION}" >/dev/null; then
+            exit 0
+          fi
+          release_status_revision="$(
+            for revision in $(git rev-list origin/main -- .release-status.json); do
+              if git show "${revision}:.release-status.json" \
+                | python3 -c 'import json, os, sys; status = json.load(sys.stdin); sys.exit(0 if status.get("repoVersion") == os.environ["RELEASE_VERSION"] and status.get("sourceRevision") == os.environ["SOURCE_REVISION"] else 1)'; then
+                echo "$revision"
+                break
+              fi
+            done
+          )"
+          if [ -z "$release_status_revision" ]; then
+            echo "Could not locate release status commit on origin/main for ${RELEASE_VERSION} (${SOURCE_REVISION})." >&2
+            exit 1
+          fi
+          git tag "${RELEASE_VERSION}" "$release_status_revision"
+          git push origin "${RELEASE_VERSION}"
+
+  build-images:
+    name: Build and publish controller image
+    runs-on: ubuntu-latest
+    needs: prepare-release-version
+    if: needs.prepare-release-version.outputs.controller_image_build == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release-version.outputs.version }}
 
       - name: Log in to ghcr.io
         uses: docker/login-action@v4
@@ -89,95 +281,93 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Resolve GHCR semver tag
+        id: ghcr_tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.prepare-release-version.outputs.version }}
+        run: |
+          python3 scripts/release-version.py ghcr-tag-exists \
+            --image-repository "${GHCR_CONTROLLER_IMAGE_REPOSITORY}" \
+            --tag "${RELEASE_VERSION}" \
+            --github-output "$GITHUB_OUTPUT"
+
+          if [ "${{ needs.prepare-release-version.outputs.reused_existing_version }}" != "true" ]; then
+            if grep -qx "exists=true" "$GITHUB_OUTPUT"; then
+              echo "GHCR image tag ${RELEASE_VERSION} already exists and must not be overwritten." >&2
+              exit 1
+            fi
+          fi
+
       - name: Build and publish controller image
+        if: steps.ghcr_tag.outputs.exists != 'true'
         uses: docker/bake-action@v7
         env:
           GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ env.GHCR_CONTROLLER_IMAGE_REPOSITORY }}
-          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_VERSION: ${{ needs.prepare-release-version.outputs.version }}
+          SOURCE_REVISION: ${{ needs.prepare-release-version.outputs.source_revision }}
         with:
           files: |
             .github/docker-bake.hcl
           push: true
 
-  resolve-runtime-images:
-    name: Resolve runtime images
+  resolve-controller-image:
+    name: Resolve controller image
     runs-on: ubuntu-latest
     needs:
-      - detect-runtime-image-changes
+      - prepare-release-version
       - build-images
-    if: always()
+    if: always() && needs.prepare-release-version.outputs.deploy_required == 'true'
 
     outputs:
       controller_image: ${{ steps.resolve.outputs.controller_image }}
-      uses_production_images: ${{ steps.resolve.outputs.uses_production_images }}
 
     steps:
-      - name: Log in to ghcr.io for image resolution
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Resolve deploy image references
         id: resolve
         env:
-          BUILD_RUNTIME_IMAGES: ${{ needs.detect-runtime-image-changes.outputs.build_runtime_images }}
+          CONTROLLER_IMAGE_BUILD: ${{ needs.prepare-release-version.outputs.controller_image_build }}
           BUILD_IMAGES_RESULT: ${{ needs.build-images.result }}
-          DETECT_RUNTIME_IMAGE_CHANGES_RESULT: ${{ needs.detect-runtime-image-changes.result }}
           GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ env.GHCR_CONTROLLER_IMAGE_REPOSITORY }}
-          GITHUB_SHA: ${{ github.sha }}
+          CONTROLLER_DEPLOY_VERSION: ${{ needs.prepare-release-version.outputs.controller_deploy_version }}
         run: |
           set -euo pipefail
 
-          if [ "$DETECT_RUNTIME_IMAGE_CHANGES_RESULT" != "success" ]; then
-            echo "Runtime image change detection failed with result: $DETECT_RUNTIME_IMAGE_CHANGES_RESULT" >&2
+          if [ "$CONTROLLER_IMAGE_BUILD" = "true" ]; then
+            if [ "$BUILD_IMAGES_RESULT" != "success" ]; then
+              echo "Controller image build was required but build-images finished with result: $BUILD_IMAGES_RESULT" >&2
+              exit 1
+            fi
+          fi
+
+          if [ -z "$CONTROLLER_DEPLOY_VERSION" ]; then
+            echo "No controller deploy version was resolved." >&2
             exit 1
           fi
 
-          if [ "$BUILD_RUNTIME_IMAGES" = "true" ]; then
-            if [ "$BUILD_IMAGES_RESULT" != "success" ]; then
-              echo "Runtime image build was required but build-images finished with result: $BUILD_IMAGES_RESULT" >&2
-              exit 1
-            fi
-
-            controller_tag="${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${GITHUB_SHA}"
-            uses_production_images=false
-          else
-            controller_tag="${GHCR_CONTROLLER_IMAGE_REPOSITORY}:production"
-            uses_production_images=true
-          fi
-
-          resolve_digest() {
-            local image_tag="$1"
-            local digest
-
-            digest="$(docker buildx imagetools inspect "$image_tag" --format '{{ .Manifest.Digest }}')"
-            if [ -z "$digest" ]; then
-              echo "Could not resolve digest for $image_tag" >&2
-              exit 1
-            fi
-
-            printf '%s' "$digest"
-          }
-
-          controller_digest="$(resolve_digest "$controller_tag")"
-
           {
-            echo "controller_image=${GHCR_CONTROLLER_IMAGE_REPOSITORY}@${controller_digest}"
-            echo "uses_production_images=${uses_production_images}"
+            echo "controller_image=${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${CONTROLLER_DEPLOY_VERSION}"
           } >> "$GITHUB_OUTPUT"
 
-  terraform-apply:
-    name: Terraform apply
+  deploy-runtime:
+    name: Deploy runtime to VM
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
 
-    outputs:
-      runtime_public_ip: ${{ steps.terraform_apply.outputs.runtime_public_ip }}
+    needs:
+      - prepare-release-version
+      - resolve-controller-image
+    if: needs.prepare-release-version.outputs.deploy_required == 'true'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release-version.outputs.version }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -192,6 +382,19 @@ jobs:
           mkdir -p "$RUNNER_TEMP/oci"
           printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
           chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
+
+      - name: Refuse superseded deployment
+        env:
+          TARGET_REPO_VERSION: ${{ needs.prepare-release-version.outputs.version }}
+          TARGET_CONTROLLER_VERSION: ${{ needs.prepare-release-version.outputs.controller_deploy_version }}
+        run: |
+          set -euo pipefail
+          git fetch origin main:refs/remotes/origin/main
+          git show origin/main:.release-status.json > "$RUNNER_TEMP/current-release-status.json"
+          python3 scripts/release-version.py assert-deploy-current \
+            --status-file "$RUNNER_TEMP/current-release-status.json" \
+            --repo-version "$TARGET_REPO_VERSION" \
+            --controller-version "$TARGET_CONTROLLER_VERSION"
 
       - name: Terraform apply
         id: terraform_apply
@@ -251,18 +454,6 @@ jobs:
           terraform apply -auto-approve
           echo "runtime_public_ip=$(terraform output -raw runtime_public_ip)" >> "$GITHUB_OUTPUT"
 
-  deploy-runtime:
-    name: Deploy runtime to VM
-    runs-on: ubuntu-latest
-
-    needs:
-      - resolve-runtime-images
-      - terraform-apply
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v9
         env:
@@ -284,10 +475,13 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            ${{ needs.terraform-apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
           requirements: collections/requirements.yml
           options: |
-            --extra-vars autographs_controller_image=${{ needs.resolve-runtime-images.outputs.controller_image }}
+            --extra-vars autographs_controller_image=${{ needs.resolve-controller-image.outputs.controller_image }}
+            --extra-vars autographs_deploy_repo_version=${{ needs.prepare-release-version.outputs.version }}
+            --extra-vars autographs_deploy_deployed_controller_version=${{ needs.prepare-release-version.outputs.controller_deploy_version }}
+            --extra-vars autographs_deploy_source_revision=${{ needs.prepare-release-version.outputs.source_revision }}
             --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
             --extra-vars autographs_deploy_http_port=${{ env.AUTOGRAPHS_HTTP_PORT }}
             --extra-vars autographs_deploy_https_port=${{ env.AUTOGRAPHS_HTTPS_PORT }}
@@ -330,3 +524,42 @@ jobs:
             echo "Rust controller health did not report expected media provider ${AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER}: ${controller_health}" >&2
             exit 1
           fi
+
+      - name: Commit deployed release status
+        if: needs.prepare-release-version.outputs.controller_image_build == 'true'
+        env:
+          CONTROLLER_DEPLOY_VERSION: ${{ needs.prepare-release-version.outputs.controller_deploy_version }}
+          TARGET_REPO_VERSION: ${{ needs.prepare-release-version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main:refs/remotes/origin/main
+            git switch --force-create release-status-update origin/main
+
+            current_deployed="$(
+              python3 -c 'import json; print(json.load(open(".release-status.json", encoding="utf-8")).get("deployedControllerVersion", ""))'
+            )"
+            if [ "$current_deployed" = "$CONTROLLER_DEPLOY_VERSION" ]; then
+              echo "Remote main already records deployed controller ${CONTROLLER_DEPLOY_VERSION}."
+              exit 0
+            fi
+            python3 scripts/release-version.py assert-deploy-current \
+              --repo-version "$TARGET_REPO_VERSION" \
+              --controller-version "$CONTROLLER_DEPLOY_VERSION"
+
+            python3 scripts/release-version.py mark-deployed \
+              --controller-version "${CONTROLLER_DEPLOY_VERSION}"
+            git add .release-status.json README.md
+            if git diff --cached --quiet; then
+              echo "Release status already records deployed controller ${CONTROLLER_DEPLOY_VERSION}."
+              exit 0
+            fi
+            git commit -m "chore: mark deployed controller ${CONTROLLER_DEPLOY_VERSION}"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "main advanced while recording deployed controller; retrying (${attempt}/3)."
+          done
+          echo "Failed to record deployed controller ${CONTROLLER_DEPLOY_VERSION} after retries." >&2
+          exit 1

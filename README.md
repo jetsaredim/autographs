@@ -5,6 +5,17 @@
 [![Image Cleanup](https://github.com/jetsaredim/autographs/actions/workflows/image-cleanup.yml/badge.svg)](https://github.com/jetsaredim/autographs/actions/workflows/image-cleanup.yml)
 ![Renovate configured](https://img.shields.io/badge/Renovate-configured-1f8b4c)
 
+<!-- autographs-release-status:start -->
+## Release Status
+
+- Repo version: `v0.0.0`
+- Deployed controller image: `none yet`
+- Latest deploy-impact version: `none yet`
+- Version state: no controller image deployed yet
+- Last bump: `patch`
+- Last deploy impact: `repo-only`
+<!-- autographs-release-status:end -->
+
 Autographs is a production-lean personal autograph collection site. The current public runtime serves a generated static catalog through Caddy, with the Rust private controller publishing public-safe pages, JSON, and derived media from Oracle metadata and private OCI Object Storage.
 
 The project is also a showcase of lifecycle thinking in a small solo system: architecture, CI/CD, OCI deployment, private media boundaries, security review, dependency automation, and human+AI planning are all part of the repository rather than afterthoughts.
@@ -80,7 +91,7 @@ Local development can use local/mock media and catalog paths where the controlle
 
 ## Deployment And Operations
 
-Merges to `main` run the deploy workflow. The workflow builds and publishes the Rust controller image to GHCR when needed, resolves OCI runtime state with Terraform, deploys with Ansible-managed Podman quadlets, and verifies the generated static release plus `/admin/api/health` through Caddy.
+Merges to `main` run the deploy workflow. The workflow increments the repo semver in `VERSION`, mirrors it into release status, tags the status commit, builds and publishes the Rust controller image to GHCR only when controller image inputs changed, and deploys the semver-tagged controller image or runtime config when needed. Repo-only merges update release status without rebuilding or redeploying the controller.
 
 Operational checks:
 

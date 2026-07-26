@@ -51,6 +51,7 @@ struct AdminHealthResponse {
     service: &'static str,
     controller_db_provider: String,
     controller_media_storage_provider: String,
+    release: ReleaseVersionResponse,
     oracle_configured: bool,
     media_configured: bool,
     static_release_configured: bool,
@@ -174,13 +175,15 @@ pub fn router_with_stores(
         config.static_promoted_release_retain_count,
         config.static_failed_candidate_retain_count,
     );
+    let generator_metadata = config.publish_generator_metadata();
     router_with_services(
         config,
         repository,
         media,
-        Arc::new(LocalPublisher::with_retention_policy(
+        Arc::new(LocalPublisher::with_generator_metadata(
             static_release_root,
             retention_policy,
+            generator_metadata,
         )),
     )
 }
@@ -265,6 +268,7 @@ async fn admin_health(State(state): State<AppState>) -> Json<AdminHealthResponse
         service: "autographs-controller",
         controller_db_provider: provider("AUTOGRAPHS_CONTROLLER_DB_PROVIDER"),
         controller_media_storage_provider: provider("AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER"),
+        release: ReleaseVersionResponse::from_config(&state.config),
         oracle_configured: state.config.oracle_configured,
         media_configured: state.config.media_configured,
         static_release_configured: state.config.static_release_configured,
@@ -315,6 +319,7 @@ async fn admin_status(State(state): State<AppState>, headers: HeaderMap) -> Resp
         },
         controller: ControllerStatusResponse {
             ok: true,
+            release: ReleaseVersionResponse::from_config(&state.config),
             oracle_configured: state.config.oracle_configured,
             media_configured: state.config.media_configured,
             static_release_configured: state.config.static_release_configured,
@@ -1439,9 +1444,30 @@ struct ProviderModesResponse {
 #[serde(rename_all = "camelCase")]
 struct ControllerStatusResponse {
     ok: bool,
+    release: ReleaseVersionResponse,
     oracle_configured: bool,
     media_configured: bool,
     static_release_configured: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReleaseVersionResponse {
+    repo_version: Option<String>,
+    controller_version: Option<String>,
+    controller_image: Option<String>,
+    source_revision: Option<String>,
+}
+
+impl ReleaseVersionResponse {
+    fn from_config(config: &ControllerConfig) -> Self {
+        Self {
+            repo_version: config.repo_version.clone(),
+            controller_version: config.controller_version.clone(),
+            controller_image: config.controller_image.clone(),
+            source_revision: config.source_revision.clone(),
+        }
+    }
 }
 
 #[derive(Serialize)]

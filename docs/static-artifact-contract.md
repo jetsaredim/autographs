@@ -55,6 +55,12 @@ Contract changes that break an existing static reader require a schema version
 increment and a full rebuild. Additive fields may remain within a version when
 old readers can safely ignore them.
 
+`manifest.json` may include an additive `generator` object with the repo
+version, deployed controller version, semver-tagged controller image, and source
+revision that generated the release. This identifies the controller/static publisher version
+behind a live static release without exposing private Oracle or Object Storage
+coordinates.
+
 ## Public DTO Rules
 
 Gallery DTOs contain:

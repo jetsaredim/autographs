@@ -205,6 +205,8 @@ pub struct PublishManifest {
     pub schema_version: u32,
     pub release_id: String,
     pub generated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generator: Option<PublishGeneratorMetadata>,
     pub artifacts: Vec<PublishManifestEntry>,
 }
 
@@ -218,8 +220,36 @@ impl PublishManifest {
             schema_version: PUBLIC_SCHEMA_VERSION,
             release_id: release_id.into(),
             generated_at: generated_at.into(),
+            generator: None,
             artifacts,
         }
+    }
+
+    pub fn with_generator(mut self, generator: Option<PublishGeneratorMetadata>) -> Self {
+        self.generator = generator;
+        self
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishGeneratorMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub controller_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub controller_image: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_revision: Option<String>,
+}
+
+impl PublishGeneratorMetadata {
+    pub fn is_empty(&self) -> bool {
+        self.repo_version.is_none()
+            && self.controller_version.is_none()
+            && self.controller_image.is_none()
+            && self.source_revision.is_none()
     }
 }
 
