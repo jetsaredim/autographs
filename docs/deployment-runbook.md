@@ -213,8 +213,8 @@ The workflow deploys only when changed paths require it:
   redeploying the runtime.
 
 Manual dispatches reuse the current release status instead of creating a new
-repo version; the force inputs are operational redeploy/rebuild controls, not a
-second versioning path.
+repo version; the force inputs are operational redeploy/reuse controls, not a
+second versioning path or an overwrite of an existing semver image tag.
 
 When deployment is required, the deploy workflow:
 
