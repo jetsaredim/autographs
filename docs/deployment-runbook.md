@@ -203,9 +203,11 @@ a monotonically increasing repo version.
 For controller image changes, the initial release status records the new repo
 version while keeping the previously deployed controller version until the VM
 deployment and health checks succeed. A successful controller deploy commits a
-follow-up `[skip ci]` status update that marks the semver controller image as
-deployed. If build or deploy fails, the README/status block correctly remains
-`repo ahead of deployed controller`.
+follow-up status update that marks the semver controller image as deployed.
+Those bot-authored release-status commits are ignored by an explicit
+commit/path detector rather than by broad `[skip ci]` handling. If build or
+deploy fails, the README/status block correctly remains `repo ahead of deployed
+controller`.
 
 The workflow deploys only when changed paths require it:
 
@@ -223,16 +225,18 @@ second versioning path or an overwrite of an existing semver image tag.
 When deployment is required, the deploy workflow:
 
 1. publishes or selects the semver-tagged Rust controller image in `ghcr.io`,
-2. runs `terraform apply`,
+2. enters the serialized `deploy-production` section and refuses superseded
+   deploys before touching production,
 3. optionally taints and recreates the runtime VM when manually requested,
-4. connects to the OCI VM over SSH through Ansible,
-5. installs/maintains Podman, firewalld, swap, and masked systemd services,
-6. copies wallet and OCI API key material to protected VM paths,
-7. installs systemd quadlets for the dedicated Podman network, private controller, shared static volume, and Caddy container,
-8. stops, disables, and removes the retired Next.js app runtime if present,
-9. pulls the published controller image and restarts the quadlet services,
-10. checks the Caddy-fronted static release and Rust controller health routes,
-11. records the deployed controller semver in `.release-status.json` and the
+4. runs `terraform apply`,
+5. connects to the OCI VM over SSH through Ansible,
+6. installs/maintains Podman, firewalld, swap, and masked systemd services,
+7. copies wallet and OCI API key material to protected VM paths,
+8. installs systemd quadlets for the dedicated Podman network, private controller, shared static volume, and Caddy container,
+9. stops, disables, and removes the retired Next.js app runtime if present,
+10. pulls the published controller image and restarts the quadlet services,
+11. checks the Caddy-fronted static release and Rust controller health routes,
+12. records the deployed controller semver in `.release-status.json` and the
     README status block when a controller image deploy succeeds.
 
 The VM pulls images built by GitHub Actions. The VM does not build application code or generate catalog content during deploy.
