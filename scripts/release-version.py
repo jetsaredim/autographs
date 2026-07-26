@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -40,10 +41,23 @@ def main() -> int:
     prepare_parser.add_argument("--runtime-deploy-impact", required=True)
     prepare_parser.add_argument("--source-revision", default="")
     prepare_parser.add_argument("--github-output", type=Path)
+    prepare_parser.add_argument("--committed-status-ref", default="")
+    prepare_parser.add_argument("--committed-status-file", type=Path)
+    prepare_parser.add_argument("--reuse-current-status", action="store_true")
+
+    deployed_parser = subcommands.add_parser("mark-deployed")
+    deployed_parser.add_argument("--status-file", type=Path, default=Path(".release-status.json"))
+    deployed_parser.add_argument("--readme", type=Path, default=Path("README.md"))
+    deployed_parser.add_argument("--controller-version", required=True)
 
     ghcr_parser = subcommands.add_parser("assert-ghcr-tag-absent")
     ghcr_parser.add_argument("--image-repository", required=True)
     ghcr_parser.add_argument("--tag", required=True)
+
+    ghcr_exists_parser = subcommands.add_parser("ghcr-tag-exists")
+    ghcr_exists_parser.add_argument("--image-repository", required=True)
+    ghcr_exists_parser.add_argument("--tag", required=True)
+    ghcr_exists_parser.add_argument("--github-output", type=Path)
 
     args = parser.parse_args()
 
@@ -60,8 +74,21 @@ def main() -> int:
         prepare_release(args)
         return 0
 
+    if args.command == "mark-deployed":
+        mark_deployed(args.status_file, args.readme, args.controller_version)
+        return 0
+
     if args.command == "assert-ghcr-tag-absent":
         assert_ghcr_tag_absent(args.image_repository, args.tag)
+        return 0
+
+    if args.command == "ghcr-tag-exists":
+        exists = ghcr_tag_exists(args.image_repository, args.tag)
+        if args.github_output:
+            with args.github_output.open("a", encoding="utf-8") as output:
+                output.write(f"exists={str(exists).lower()}\n")
+        else:
+            print(str(exists).lower())
         return 0
 
     raise RuntimeError(f"unknown command: {args.command}")
@@ -72,14 +99,34 @@ def prepare_release(args: argparse.Namespace) -> None:
     metadata = read_pr_metadata(args.pr_json)
     controller_image_impact = parse_bool(args.controller_image_impact)
     runtime_deploy_impact = parse_bool(args.runtime_deploy_impact)
+    committed_status = read_committed_status(args)
 
-    reused_existing_version = args.source_revision and status.get("sourceRevision") == args.source_revision
+    if args.reuse_current_status:
+        reused_existing_version = True
+        reused_status = status
+    elif args.source_revision and status.get("sourceRevision") == args.source_revision:
+        reused_existing_version = True
+        reused_status = status
+    elif (
+        args.source_revision
+        and committed_status
+        and committed_status.get("sourceRevision") == args.source_revision
+    ):
+        reused_existing_version = True
+        reused_status = committed_status
+    else:
+        reused_existing_version = False
+        reused_status = {}
+
     if reused_existing_version:
-        updated = status
-        repo_version = status["repoVersion"]
-        bump = status["lastBump"]
-        deploy_impact = status["lastDeployImpact"]
-        deployed_controller_version = status.get("deployedControllerVersion") or ""
+        repo_version = reused_status["repoVersion"]
+        bump = reused_status["lastBump"]
+        deploy_impact = reused_status["lastDeployImpact"]
+        deployed_controller_version = (
+            repo_version
+            if controller_image_impact
+            else controller_deploy_version_for_status(reused_status)
+        )
         controller_image_build = controller_image_impact
         deploy_required = controller_image_impact or runtime_deploy_impact
     else:
@@ -107,7 +154,7 @@ def prepare_release(args: argparse.Namespace) -> None:
 
         updated = {
             "repoVersion": repo_version,
-            "deployedControllerVersion": deployed_controller_version,
+            "deployedControllerVersion": status.get("deployedControllerVersion") or "",
             "lastBump": bump,
             "lastDeployImpact": deploy_impact,
             "sourceRevision": args.source_revision,
@@ -132,6 +179,22 @@ def prepare_release(args: argparse.Namespace) -> None:
                 output.write(f"{name}={value}\n")
     else:
         print(json.dumps(outputs, indent=2, sort_keys=True))
+
+
+def controller_deploy_version_for_status(status: dict) -> str:
+    if status.get("lastDeployImpact") == "controller-image":
+        return status.get("repoVersion") or ""
+    return status.get("deployedControllerVersion") or ""
+
+
+def mark_deployed(status_file: Path, readme: Path, controller_version: str) -> None:
+    status = read_status(status_file)
+    if not SEMVER_RE.fullmatch(controller_version.strip()):
+        raise RuntimeError(f"invalid deployed controller version: {controller_version!r}")
+    status["deployedControllerVersion"] = controller_version.strip()
+    status["updatedAt"] = now_utc()
+    write_status(status_file, status)
+    update_readme(readme, status)
 
 
 def read_pr_metadata(
@@ -215,9 +278,13 @@ def read_status(path: Path) -> dict:
             "updatedAt": "",
         }
     status = json.loads(path.read_text(encoding="utf-8"))
+    return normalize_status(status, str(path))
+
+
+def normalize_status(status: dict, source: str) -> dict:
     repo_version = status.get("repoVersion") or "v0.0.0"
     if not SEMVER_RE.fullmatch(repo_version):
-        raise RuntimeError(f"{path} has invalid repoVersion: {repo_version!r}")
+        raise RuntimeError(f"{source} has invalid repoVersion: {repo_version!r}")
     return {
         "repoVersion": repo_version,
         "deployedControllerVersion": status.get("deployedControllerVersion") or "",
@@ -226,6 +293,32 @@ def read_status(path: Path) -> dict:
         "sourceRevision": status.get("sourceRevision") or "",
         "updatedAt": status.get("updatedAt") or "",
     }
+
+
+def read_committed_status(args: argparse.Namespace) -> dict | None:
+    if args.committed_status_file:
+        if not args.committed_status_file.exists():
+            return None
+        return normalize_status(
+            json.loads(args.committed_status_file.read_text(encoding="utf-8")),
+            str(args.committed_status_file),
+        )
+    if not args.committed_status_ref:
+        return None
+
+    status_path = args.status_file.as_posix()
+    result = subprocess.run(
+        ["git", "show", f"{args.committed_status_ref}:{status_path}"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    return normalize_status(
+        json.loads(result.stdout),
+        f"{args.committed_status_ref}:{status_path}",
+    )
 
 
 def write_status(path: Path, status: dict) -> None:
@@ -275,14 +368,20 @@ def release_status_block(status: dict) -> str:
 
 
 def assert_ghcr_tag_absent(image_repository: str, tag: str) -> None:
+    if ghcr_tag_exists(image_repository, tag):
+        raise RuntimeError(f"GHCR image tag already exists and must not be overwritten: {tag}")
+    print(f"GHCR image tag is available: {tag}")
+
+
+def ghcr_tag_exists(image_repository: str, tag: str) -> bool:
     token = require_env("GITHUB_TOKEN")
     package_info = parse_ghcr_image_repository(image_repository)
     versions = list_package_versions(token, package_info, allow_missing=True)
     for version in versions:
         tags = version.get("metadata", {}).get("container", {}).get("tags", [])
         if tag in tags:
-            raise RuntimeError(f"GHCR image tag already exists and must not be overwritten: {tag}")
-    print(f"GHCR image tag is available: {tag}")
+            return True
+    return False
 
 
 def parse_ghcr_image_repository(repository: str) -> dict[str, str]:

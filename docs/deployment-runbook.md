@@ -196,6 +196,13 @@ status commit. Version bumps are semantic: explicit breaking changes bump
 major, feature signals such as `version:minor` or `feat:` bump minor, and
 everything else defaults to patch.
 
+For controller image changes, the initial release status records the new repo
+version while keeping the previously deployed controller version until the VM
+deployment and health checks succeed. A successful controller deploy commits a
+follow-up `[skip ci]` status update that marks the semver controller image as
+deployed. If build or deploy fails, the README/status block correctly remains
+`repo ahead of deployed controller`.
+
 The workflow deploys only when changed paths require it:
 
 - Controller image changes build and publish
@@ -204,6 +211,10 @@ The workflow deploys only when changed paths require it:
   redeploy the last recorded controller semver image.
 - Repo-only changes update release status and Git tags without rebuilding or
   redeploying the runtime.
+
+Manual dispatches reuse the current release status instead of creating a new
+repo version; the force inputs are operational redeploy/rebuild controls, not a
+second versioning path.
 
 When deployment is required, the deploy workflow:
 
@@ -216,7 +227,9 @@ When deployment is required, the deploy workflow:
 7. installs systemd quadlets for the dedicated Podman network, private controller, shared static volume, and Caddy container,
 8. stops, disables, and removes the retired Next.js app runtime if present,
 9. pulls the published controller image and restarts the quadlet services,
-10. checks the Caddy-fronted static release and Rust controller health routes.
+10. checks the Caddy-fronted static release and Rust controller health routes,
+11. records the deployed controller semver in `.release-status.json` and the
+    README status block when a controller image deploy succeeds.
 
 The VM pulls images built by GitHub Actions. The VM does not build application code or generate catalog content during deploy.
 
