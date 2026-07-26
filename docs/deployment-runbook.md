@@ -195,6 +195,10 @@ classifies the merged PR and updates the repo semver in `VERSION`,
 creates the matching Git `v*` tag on that status commit. Version bumps are
 semantic: explicit breaking changes bump major, feature signals such as
 `version:minor` or `feat:` bump minor, and everything else defaults to patch.
+Each push-triggered workflow records the triggering merge SHA as the release
+source revision; if another merge has already advanced `main`, the workflow
+still publishes its version event on the current `main` tip so every merge gets
+a monotonically increasing repo version.
 
 For controller image changes, the initial release status records the new repo
 version while keeping the previously deployed controller version until the VM

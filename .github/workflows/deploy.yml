@@ -140,9 +140,17 @@ jobs:
           for attempt in 1 2 3; do
             git fetch origin main:refs/remotes/origin/main --tags
             git switch --force-create release-status-update origin/main
-            if [ "${{ github.event_name }}" = "push" ] && [ "$(git rev-parse HEAD)" != "${GITHUB_SHA}" ]; then
-              echo "origin/main advanced to $(git rev-parse HEAD); refusing to apply PR metadata for ${GITHUB_SHA}." >&2
-              exit 1
+
+            current_main_revision="$(git rev-parse HEAD)"
+            release_source_revision="$current_main_revision"
+            if [ "${{ github.event_name }}" = "push" ]; then
+              release_source_revision="${GITHUB_SHA}"
+              current_status_source="$(
+                python3 -c 'import json, pathlib; path = pathlib.Path(".release-status.json"); print(json.loads(path.read_text(encoding="utf-8")).get("sourceRevision", "") if path.exists() else "")'
+              )"
+              if [ "$current_main_revision" != "${GITHUB_SHA}" ] && [ "$current_status_source" != "${GITHUB_SHA}" ]; then
+                echo "origin/main advanced to ${current_main_revision}; publishing a version event for triggering merge ${GITHUB_SHA} on current main."
+              fi
             fi
 
             output_file="$RUNNER_TEMP/release-output-${attempt}.txt"
@@ -151,7 +159,7 @@ jobs:
               --pr-json "$RUNNER_TEMP/merged-pr.json" \
               --controller-image-impact "${{ needs.detect-release-impact.outputs.controller_image_impact }}" \
               --runtime-deploy-impact "${{ needs.detect-release-impact.outputs.runtime_deploy_impact }}" \
-              --source-revision "$(git rev-parse HEAD)" \
+              --source-revision "$release_source_revision" \
               --committed-status-ref origin/main \
               --github-output "$output_file" \
               "${prepare_args[@]}"
@@ -262,7 +270,7 @@ jobs:
         env:
           GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ env.GHCR_CONTROLLER_IMAGE_REPOSITORY }}
           RELEASE_VERSION: ${{ needs.prepare-release-version.outputs.version }}
-          SOURCE_REVISION: ${{ github.sha }}
+          SOURCE_REVISION: ${{ needs.prepare-release-version.outputs.source_revision }}
         with:
           files: |
             .github/docker-bake.hcl
@@ -438,7 +446,7 @@ jobs:
             --extra-vars autographs_controller_image=${{ needs.resolve-controller-image.outputs.controller_image }}
             --extra-vars autographs_deploy_repo_version=${{ needs.prepare-release-version.outputs.version }}
             --extra-vars autographs_deploy_deployed_controller_version=${{ needs.prepare-release-version.outputs.controller_deploy_version }}
-            --extra-vars autographs_deploy_source_revision=${{ github.sha }}
+            --extra-vars autographs_deploy_source_revision=${{ needs.prepare-release-version.outputs.source_revision }}
             --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
             --extra-vars autographs_deploy_http_port=${{ env.AUTOGRAPHS_HTTP_PORT }}
             --extra-vars autographs_deploy_https_port=${{ env.AUTOGRAPHS_HTTPS_PORT }}

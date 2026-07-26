@@ -124,6 +124,7 @@ def prepare_release(args: argparse.Namespace) -> None:
         repo_version = reused_status["repoVersion"]
         bump = reused_status["lastBump"]
         deploy_impact = reused_status["lastDeployImpact"]
+        source_revision = reused_status.get("sourceRevision") or args.source_revision
         deployed_controller_version = (
             repo_version
             if controller_image_impact
@@ -134,6 +135,7 @@ def prepare_release(args: argparse.Namespace) -> None:
     else:
         bump = classify_bump(metadata)
         repo_version = next_version(current_repo_version, bump)
+        source_revision = args.source_revision
         if controller_image_impact:
             deploy_impact = "controller-image"
             deployed_controller_version = repo_version
@@ -175,7 +177,7 @@ def prepare_release(args: argparse.Namespace) -> None:
         "controller_image_build": str(controller_image_build).lower(),
         "controller_deploy_version": deployed_controller_version,
         "reused_existing_version": str(bool(reused_existing_version)).lower(),
-        "source_revision": args.source_revision,
+        "source_revision": source_revision,
     }
     if args.github_output:
         with args.github_output.open("a", encoding="utf-8") as output:

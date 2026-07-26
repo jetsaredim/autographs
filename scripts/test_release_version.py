@@ -304,6 +304,7 @@ class ReleaseVersionTests(unittest.TestCase):
             self.assertIn("version=v0.8.0", output_text)
             self.assertIn("controller_deploy_version=v0.8.0", output_text)
             self.assertIn("reused_existing_version=true", output_text)
+            self.assertIn("source_revision=def456", output_text)
 
     def test_prepare_manual_dispatch_reuses_current_status_without_version_bump(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -353,6 +354,7 @@ class ReleaseVersionTests(unittest.TestCase):
             self.assertIn("controller_deploy_version=v0.7.0", output_text)
             self.assertIn("deploy_required=true", output_text)
             self.assertIn("reused_existing_version=true", output_text)
+            self.assertIn("source_revision=status-commit", output_text)
 
     def test_runtime_only_reuse_after_failed_controller_release_uses_deployed_version(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -398,6 +400,7 @@ class ReleaseVersionTests(unittest.TestCase):
             output_text = output.read_text(encoding="utf-8")
             self.assertIn("version=v0.8.0", output_text)
             self.assertIn("controller_deploy_version=v0.7.0", output_text)
+            self.assertIn("source_revision=failed-controller-release", output_text)
 
 
 if __name__ == "__main__":
