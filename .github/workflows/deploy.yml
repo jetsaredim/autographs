@@ -448,14 +448,6 @@ jobs:
             exit 1
           fi
 
-      - name: Mark controller deploy successful
-        if: needs.prepare-release-version.outputs.controller_image_build == 'true'
-        env:
-          CONTROLLER_DEPLOY_VERSION: ${{ needs.prepare-release-version.outputs.controller_deploy_version }}
-        run: |
-          python3 scripts/release-version.py mark-deployed \
-            --controller-version "${CONTROLLER_DEPLOY_VERSION}"
-
       - name: Commit deployed release status
         if: needs.prepare-release-version.outputs.controller_image_build == 'true'
         env:
@@ -463,20 +455,30 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main:refs/remotes/origin/main
-          current_deployed="$(
-            git show origin/main:.release-status.json \
-              | python3 -c 'import json, sys; print(json.load(sys.stdin).get("deployedControllerVersion", ""))'
-          )"
-          if [ "$current_deployed" = "$CONTROLLER_DEPLOY_VERSION" ]; then
-            echo "Remote main already records deployed controller ${CONTROLLER_DEPLOY_VERSION}."
-            exit 0
-          fi
+          for attempt in 1 2 3; do
+            git fetch origin main:refs/remotes/origin/main
+            git switch --force-create release-status-update origin/main
 
-          git add .release-status.json README.md
-          if git diff --cached --quiet; then
-            echo "Release status already records deployed controller ${CONTROLLER_DEPLOY_VERSION}."
-          else
+            current_deployed="$(
+              python3 -c 'import json; print(json.load(open(".release-status.json", encoding="utf-8")).get("deployedControllerVersion", ""))'
+            )"
+            if [ "$current_deployed" = "$CONTROLLER_DEPLOY_VERSION" ]; then
+              echo "Remote main already records deployed controller ${CONTROLLER_DEPLOY_VERSION}."
+              exit 0
+            fi
+
+            python3 scripts/release-version.py mark-deployed \
+              --controller-version "${CONTROLLER_DEPLOY_VERSION}"
+            git add .release-status.json README.md
+            if git diff --cached --quiet; then
+              echo "Release status already records deployed controller ${CONTROLLER_DEPLOY_VERSION}."
+              exit 0
+            fi
             git commit -m "chore: mark deployed controller ${CONTROLLER_DEPLOY_VERSION} [skip ci]"
-            git push origin HEAD:main
-          fi
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "main advanced while recording deployed controller; retrying (${attempt}/3)."
+          done
+          echo "Failed to record deployed controller ${CONTROLLER_DEPLOY_VERSION} after retries." >&2
+          exit 1
