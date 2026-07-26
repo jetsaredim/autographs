@@ -1,9 +1,9 @@
 {
-  "deployedControllerVersion": "",
+  "deployedControllerVersion": "v0.0.1",
   "lastBump": "patch",
   "lastDeployImpact": "controller-image",
   "latestDeployImpactVersion": "v0.0.1",
   "repoVersion": "v0.0.1",
   "sourceRevision": "1fb41d218a36c477a2a14325a1203c248acd39c7",
-  "updatedAt": "2026-07-26T11:29:56Z"
+  "updatedAt": "2026-07-26T11:39:56Z"
 }
