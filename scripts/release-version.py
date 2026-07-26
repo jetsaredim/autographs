@@ -165,9 +165,15 @@ def prepare_release(args: argparse.Namespace) -> None:
             deploy_required = False
             controller_image_build = False
 
+        latest_deploy_impact_version = (
+            repo_version
+            if deploy_impact in {"controller-image", "runtime-config"}
+            else status.get("latestDeployImpactVersion") or ""
+        )
         updated = {
             "repoVersion": repo_version,
             "deployedControllerVersion": status.get("deployedControllerVersion") or "",
+            "latestDeployImpactVersion": latest_deploy_impact_version,
             "lastBump": bump,
             "lastDeployImpact": deploy_impact,
             "sourceRevision": args.source_revision,
@@ -285,6 +291,9 @@ def assert_deploy_current(status_file: Path, repo_version: str, controller_versi
     current_repo_version = status.get("repoVersion", "")
     current_controller_version = status.get("deployedControllerVersion", "")
     current_impact = status.get("lastDeployImpact", "")
+    latest_deploy_impact_version = status.get("latestDeployImpactVersion") or (
+        current_repo_version if current_impact in {"controller-image", "runtime-config"} else ""
+    )
 
     if current_controller_version and parse_semver(current_controller_version) > parse_semver(controller_version):
         raise RuntimeError(
@@ -292,11 +301,10 @@ def assert_deploy_current(status_file: Path, repo_version: str, controller_versi
             f"release status already records deployed controller {current_controller_version}"
         )
 
-    deploy_impacts = {"controller-image", "runtime-config"}
-    if current_impact in deploy_impacts and parse_semver(current_repo_version) > parse_semver(repo_version):
+    if latest_deploy_impact_version and parse_semver(latest_deploy_impact_version) > parse_semver(repo_version):
         raise RuntimeError(
             f"refusing to deploy {repo_version}; "
-            f"release status already records newer deploy-impact release {current_repo_version}"
+            f"release status already records newer deploy-impact release {latest_deploy_impact_version}"
         )
 
 
@@ -305,6 +313,7 @@ def read_status(path: Path) -> dict:
         return {
             "repoVersion": "v0.0.0",
             "deployedControllerVersion": "",
+            "latestDeployImpactVersion": "",
             "lastBump": "patch",
             "lastDeployImpact": "repo-only",
             "sourceRevision": "",
@@ -333,9 +342,15 @@ def normalize_status(status: dict, source: str) -> dict:
     repo_version = status.get("repoVersion") or "v0.0.0"
     if not SEMVER_RE.fullmatch(repo_version):
         raise RuntimeError(f"{source} has invalid repoVersion: {repo_version!r}")
+    latest_deploy_impact_version = status.get("latestDeployImpactVersion") or ""
+    if latest_deploy_impact_version and not SEMVER_RE.fullmatch(latest_deploy_impact_version):
+        raise RuntimeError(
+            f"{source} has invalid latestDeployImpactVersion: {latest_deploy_impact_version!r}"
+        )
     return {
         "repoVersion": repo_version,
         "deployedControllerVersion": status.get("deployedControllerVersion") or "",
+        "latestDeployImpactVersion": latest_deploy_impact_version,
         "lastBump": status.get("lastBump") or "patch",
         "lastDeployImpact": status.get("lastDeployImpact") or "repo-only",
         "sourceRevision": status.get("sourceRevision") or "",
@@ -393,6 +408,7 @@ def update_readme(path: Path, status: dict) -> None:
 def release_status_block(status: dict) -> str:
     repo_version = status["repoVersion"]
     deployed = status.get("deployedControllerVersion") or "none yet"
+    latest_deploy_impact = status.get("latestDeployImpactVersion") or "none yet"
     divergence = (
         "in sync"
         if deployed != "none yet" and repo_version == deployed
@@ -407,6 +423,7 @@ def release_status_block(status: dict) -> str:
             "",
             f"- Repo version: `{repo_version}`",
             f"- Deployed controller image: `{deployed}`",
+            f"- Latest deploy-impact version: `{latest_deploy_impact}`",
             f"- Version state: {divergence}",
             f"- Last bump: `{status['lastBump']}`",
             f"- Last deploy impact: `{status['lastDeployImpact']}`",

@@ -349,20 +349,25 @@ jobs:
             echo "controller_image=${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${CONTROLLER_DEPLOY_VERSION}"
           } >> "$GITHUB_OUTPUT"
 
-  terraform-apply:
-    name: Terraform apply
+  deploy-runtime:
+    name: Deploy runtime to VM
     runs-on: ubuntu-latest
-    needs: prepare-release-version
-    if: needs.prepare-release-version.outputs.deploy_required == 'true'
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
 
-    outputs:
-      runtime_public_ip: ${{ steps.terraform_apply.outputs.runtime_public_ip }}
+    needs:
+      - prepare-release-version
+      - resolve-controller-image
+    if: needs.prepare-release-version.outputs.deploy_required == 'true'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare-release-version.outputs.version }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -377,6 +382,19 @@ jobs:
           mkdir -p "$RUNNER_TEMP/oci"
           printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
           chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
+
+      - name: Refuse superseded deployment
+        env:
+          TARGET_REPO_VERSION: ${{ needs.prepare-release-version.outputs.version }}
+          TARGET_CONTROLLER_VERSION: ${{ needs.prepare-release-version.outputs.controller_deploy_version }}
+        run: |
+          set -euo pipefail
+          git fetch origin main:refs/remotes/origin/main
+          git show origin/main:.release-status.json > "$RUNNER_TEMP/current-release-status.json"
+          python3 scripts/release-version.py assert-deploy-current \
+            --status-file "$RUNNER_TEMP/current-release-status.json" \
+            --repo-version "$TARGET_REPO_VERSION" \
+            --controller-version "$TARGET_CONTROLLER_VERSION"
 
       - name: Terraform apply
         id: terraform_apply
@@ -436,40 +454,6 @@ jobs:
           terraform apply -auto-approve
           echo "runtime_public_ip=$(terraform output -raw runtime_public_ip)" >> "$GITHUB_OUTPUT"
 
-  deploy-runtime:
-    name: Deploy runtime to VM
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-production
-      cancel-in-progress: false
-
-    needs:
-      - prepare-release-version
-      - resolve-controller-image
-      - terraform-apply
-    if: needs.prepare-release-version.outputs.deploy_required == 'true'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare-release-version.outputs.version }}
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Refuse superseded deployment
-        env:
-          TARGET_REPO_VERSION: ${{ needs.prepare-release-version.outputs.version }}
-          TARGET_CONTROLLER_VERSION: ${{ needs.prepare-release-version.outputs.controller_deploy_version }}
-        run: |
-          set -euo pipefail
-          git fetch origin main:refs/remotes/origin/main
-          git show origin/main:.release-status.json > "$RUNNER_TEMP/current-release-status.json"
-          python3 scripts/release-version.py assert-deploy-current \
-            --status-file "$RUNNER_TEMP/current-release-status.json" \
-            --repo-version "$TARGET_REPO_VERSION" \
-            --controller-version "$TARGET_CONTROLLER_VERSION"
-
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v9
         env:
@@ -491,7 +475,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            ${{ needs.terraform-apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
           requirements: collections/requirements.yml
           options: |
             --extra-vars autographs_controller_image=${{ needs.resolve-controller-image.outputs.controller_image }}

@@ -10,6 +10,7 @@
 
 - Repo version: `v0.0.0`
 - Deployed controller image: `none yet`
+- Latest deploy-impact version: `none yet`
 - Version state: no controller image deployed yet
 - Last bump: `patch`
 - Last deploy impact: `repo-only`

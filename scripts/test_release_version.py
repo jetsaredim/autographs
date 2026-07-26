@@ -85,6 +85,7 @@ class ReleaseVersionTests(unittest.TestCase):
                     {
                         "repoVersion": "v0.7.2",
                         "deployedControllerVersion": "v0.7.0",
+                        "latestDeployImpactVersion": "v0.7.2",
                         "lastBump": "minor",
                         "lastDeployImpact": "controller-image",
                         "sourceRevision": "abc123",
@@ -116,6 +117,7 @@ class ReleaseVersionTests(unittest.TestCase):
             self.assertEqual(updated["repoVersion"], "v0.7.3")
             self.assertEqual((root / "VERSION").read_text(encoding="utf-8"), "v0.7.3\n")
             self.assertEqual(updated["deployedControllerVersion"], "v0.7.0")
+            self.assertEqual(updated["latestDeployImpactVersion"], "v0.7.2")
             self.assertEqual(updated["lastBump"], "patch")
             self.assertEqual(updated["lastDeployImpact"], "repo-only")
             readme_text = readme.read_text(encoding="utf-8")
@@ -163,6 +165,7 @@ class ReleaseVersionTests(unittest.TestCase):
             self.assertEqual(updated["repoVersion"], "v0.8.0")
             self.assertEqual((root / "VERSION").read_text(encoding="utf-8"), "v0.8.0\n")
             self.assertEqual(updated["deployedControllerVersion"], "v0.7.0")
+            self.assertEqual(updated["latestDeployImpactVersion"], "v0.8.0")
             self.assertEqual(updated["lastBump"], "minor")
             self.assertEqual(updated["lastDeployImpact"], "controller-image")
             output = (root / "github-output.txt").read_text(encoding="utf-8")
@@ -452,6 +455,27 @@ class ReleaseVersionTests(unittest.TestCase):
                         "lastBump": "minor",
                         "lastDeployImpact": "runtime-config",
                         "sourceRevision": "ghi789",
+                        "updatedAt": "2026-01-01T00:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "newer deploy-impact release v0.9.0"):
+                release_version.assert_deploy_current(status, "v0.8.0", "v0.8.0")
+
+    def test_assert_deploy_current_refuses_newer_deploy_impact_after_repo_only_release(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            status = Path(tmp) / ".release-status.json"
+            status.write_text(
+                json.dumps(
+                    {
+                        "repoVersion": "v0.10.0",
+                        "deployedControllerVersion": "v0.7.0",
+                        "latestDeployImpactVersion": "v0.9.0",
+                        "lastBump": "patch",
+                        "lastDeployImpact": "repo-only",
+                        "sourceRevision": "jkl012",
                         "updatedAt": "2026-01-01T00:00:00Z",
                     }
                 ),
