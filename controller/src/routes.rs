@@ -9,6 +9,7 @@ use axum::{
 };
 use image::ImageFormat;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
@@ -609,6 +610,8 @@ async fn upload_image(
         original_filename: filename.unwrap_or_else(|| "upload".to_owned()),
         content_type,
         byte_size: body.len(),
+        checksum: Some(image_checksum(&body)),
+        etag: None,
         is_primary: existing_item.images.is_empty() || requested_primary.unwrap_or(false),
         sort_order: existing_item
             .images
@@ -822,6 +825,8 @@ async fn replace_image(
         original_filename: upload.filename.unwrap_or_else(|| "upload".to_owned()),
         content_type: upload.content_type,
         byte_size: upload.body.len(),
+        checksum: Some(image_checksum(&upload.body)),
+        etag: None,
         is_primary: existing_image.is_primary,
         sort_order: existing_image.sort_order,
         alt_text: upload.alt_text,
@@ -1111,6 +1116,13 @@ fn valid_image_upload(content_type: &str, body: &[u8]) -> bool {
     };
     image::guess_format(body).is_ok_and(|actual| actual == expected)
         && image::load_from_memory_with_format(body, expected).is_ok()
+}
+
+fn image_checksum(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 async fn set_publication(

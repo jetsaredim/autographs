@@ -35,6 +35,7 @@ use axum::{
 };
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use tempfile::{TempDir, tempdir};
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -625,6 +626,8 @@ async fn publisher_validates_detail_derivatives_when_item_slug_contains_thumbnai
                 original_filename: "thumbnail-title.png".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -702,6 +705,8 @@ async fn publisher_changes_public_media_paths_when_image_content_changes() {
                     original_filename: "replacement.png".to_owned(),
                     content_type: "image/png".to_owned(),
                     byte_size: replacement_bytes.len(),
+                    checksum: None,
+                    etag: None,
                     is_primary: false,
                     sort_order: 99,
                     alt_text: None,
@@ -939,6 +944,8 @@ async fn publisher_allows_generic_private_filenames_in_admin_shell_copy() {
                 original_filename: "upload".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1012,6 +1019,8 @@ async fn publisher_allows_original_filenames_that_only_match_generated_media_pat
                     original_filename: original_filename.to_owned(),
                     content_type: "image/png".to_owned(),
                     byte_size: bytes.len(),
+                    checksum: None,
+                    etag: None,
                     is_primary: sort_order == 0,
                     sort_order: sort_order as i32,
                     alt_text: None,
@@ -1101,6 +1110,8 @@ async fn publisher_rejects_original_filename_embedded_in_catalog_path_token() {
                 original_filename: "private-scan.jpg".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1163,6 +1174,8 @@ async fn publisher_rejects_original_filename_leak_with_case_normalization() {
                 original_filename: "Private-Scan.JPG".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1225,6 +1238,8 @@ async fn publisher_rejects_original_filename_leak_with_unicode_case_normalizatio
                 original_filename: "\u{00c9}vidence.JPG".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1289,6 +1304,8 @@ async fn publisher_rejects_original_filename_leak_with_url_escaped_basename() {
                 original_filename: "incoming/private/original private scan.png".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1354,6 +1371,8 @@ async fn publisher_rejects_original_filename_leak_with_double_url_escaped_basena
                 original_filename: "incoming/private/original private scan.png".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1418,6 +1437,8 @@ async fn publisher_rejects_original_filename_path_leak_with_double_url_escaping(
                 original_filename: "incoming/private/image.jpg".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1480,6 +1501,8 @@ async fn publisher_rejects_original_filename_path_leak_with_generic_basename() {
                 original_filename: "incoming/private/image.jpg".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1544,6 +1567,8 @@ async fn publisher_rejects_backslash_original_filename_path_leak_in_json_with_ge
                 original_filename: "incoming\\private\\image.jpg".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1608,6 +1633,8 @@ async fn publisher_rejects_original_filename_matching_static_not_found_quotes() 
                 original_filename: "Star Wars".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1673,6 +1700,8 @@ async fn publisher_rejects_percent_encoded_private_object_key() {
                 original_filename: "private-key.png".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1738,6 +1767,8 @@ async fn publisher_rejects_double_percent_encoded_private_object_key() {
                 original_filename: "private-key.png".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1800,6 +1831,8 @@ async fn publisher_rejects_private_object_key_in_admin_shell_copy() {
                 original_filename: "private-key.png".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -1921,6 +1954,8 @@ async fn publisher_uses_primary_image_first_for_gallery_and_derivatives() {
                 original_filename: "supporting.png".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: supporting_bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: false,
                 sort_order: 0,
                 alt_text: Some("Supporting image".to_owned()),
@@ -1942,6 +1977,8 @@ async fn publisher_uses_primary_image_first_for_gallery_and_derivatives() {
                 original_filename: "primary.png".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: primary_bytes.len(),
+                checksum: None,
+                etag: None,
                 is_primary: true,
                 sort_order: 1,
                 alt_text: Some("Primary image".to_owned()),
@@ -2112,6 +2149,157 @@ async fn publisher_incremental_reuses_cached_derivatives_for_metadata_changes() 
         Some("Updated metadata-only description")
     );
     assert_eq!(after_detail_path, before_detail_path);
+}
+
+#[tokio::test]
+async fn publisher_incremental_reuses_checksum_cache_without_reading_originals() {
+    let fixture = fixture_with_checksum().await;
+    let media = CountingMediaStore::new(fixture.media.clone());
+    let publisher = LocalPublisher::new(fixture.root.path());
+
+    publisher
+        .publish(&fixture.repository, &media, PublishMode::Full)
+        .await
+        .unwrap();
+
+    let current = fixture.root.path().join("current");
+    let detail: PublicItemDetail = read_json(&current.join("data/items/signed-jedi-card.json"));
+    let before_detail_path = detail.images[0]
+        .variants
+        .iter()
+        .find(|variant| variant.name == ImageVariantName::Detail)
+        .unwrap()
+        .path
+        .clone();
+    let reads_after_full_publish = media.read_count();
+    assert_eq!(
+        reads_after_full_publish, 1,
+        "initial publish should read the source once on checksum cache miss"
+    );
+
+    fixture
+        .repository
+        .update(
+            fixture.published.id,
+            AutographItemUpdate {
+                description: FieldPatch::Set("Updated metadata-only description".to_owned()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    publisher
+        .publish(&fixture.repository, &media, PublishMode::Incremental)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        media.read_count(),
+        reads_after_full_publish,
+        "metadata-only incremental publish should trust checksum-backed cache keys without reading originals"
+    );
+
+    let detail: PublicItemDetail = read_json(&current.join("data/items/signed-jedi-card.json"));
+    let after_detail_path = detail.images[0]
+        .variants
+        .iter()
+        .find(|variant| variant.name == ImageVariantName::Detail)
+        .unwrap()
+        .path
+        .clone();
+    assert_eq!(
+        detail.description.as_deref(),
+        Some("Updated metadata-only description")
+    );
+    assert_eq!(after_detail_path, before_detail_path);
+}
+
+#[tokio::test]
+async fn publisher_rejects_mismatched_checksum_before_derivative_cache_write() {
+    let wrong_checksum = "0".repeat(64);
+    let fixture = fixture_with_stored_checksum(Some(wrong_checksum)).await;
+    let publisher = LocalPublisher::new(fixture.root.path());
+
+    let error = publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap_err();
+
+    assert!(
+        error.contains("checksum does not match"),
+        "unexpected publish error: {error}"
+    );
+    assert!(
+        !fixture.root.path().join(".derivative-cache").exists(),
+        "mismatched checksum should fail before derivative cache writes"
+    );
+}
+
+#[tokio::test]
+async fn publisher_does_not_reuse_derivatives_for_matching_etags_without_checksum() {
+    let fixture = fixture().await;
+    let second_image_id = Uuid::new_v4();
+    let second_object_key = build_original_object_key(fixture.published.id, second_image_id);
+    let second_bytes = png_bytes_with_color([220, 24, 24]);
+    fixture
+        .media
+        .write(&second_object_key, &second_bytes)
+        .await
+        .unwrap();
+    fixture
+        .repository
+        .attach_image(
+            fixture.published.id,
+            AutographImage {
+                id: second_image_id,
+                object_key: second_object_key,
+                original_filename: "second private scan.png".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: second_bytes.len(),
+                checksum: None,
+                etag: Some("shared-etag".to_owned()),
+                is_primary: false,
+                sort_order: 1,
+                alt_text: None,
+            },
+        )
+        .await
+        .unwrap();
+    let media = CountingMediaStore::new(fixture.media.clone());
+    let publisher = LocalPublisher::new(fixture.root.path());
+
+    publisher
+        .publish(&fixture.repository, &media, PublishMode::Full)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        media.read_count(),
+        2,
+        "ETag-only images should fall back to byte hashing, not no-read cache reuse"
+    );
+    let detail: PublicItemDetail = read_json(
+        &fixture
+            .root
+            .path()
+            .join("current/data/items/signed-jedi-card.json"),
+    );
+    assert_eq!(detail.images.len(), 2);
+    let detail_paths = detail
+        .images
+        .iter()
+        .map(|image| {
+            image
+                .variants
+                .iter()
+                .find(|variant| variant.name == ImageVariantName::Detail)
+                .unwrap()
+                .path
+                .clone()
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(detail_paths[0], detail_paths[1]);
 }
 
 #[tokio::test]
@@ -2295,6 +2483,14 @@ async fn publisher_retention_prunes_failed_candidates_to_configured_newest_count
 }
 
 async fn fixture() -> Fixture {
+    fixture_with_stored_checksum(None).await
+}
+
+async fn fixture_with_checksum() -> Fixture {
+    fixture_with_stored_checksum(Some(image_checksum(&png_bytes()))).await
+}
+
+async fn fixture_with_stored_checksum(stored_checksum: Option<String>) -> Fixture {
     let root = tempdir().unwrap();
     let media_root = tempdir().unwrap();
     let repository = MemoryCatalogRepository::default();
@@ -2367,6 +2563,8 @@ async fn fixture() -> Fixture {
                 original_filename: private_filename.clone(),
                 content_type: "image/png".to_owned(),
                 byte_size: bytes.len(),
+                checksum: stored_checksum,
+                etag: None,
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
@@ -2383,6 +2581,13 @@ async fn fixture() -> Fixture {
         private_image_id,
         private_filename,
     }
+}
+
+fn image_checksum(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn png_bytes() -> Vec<u8> {

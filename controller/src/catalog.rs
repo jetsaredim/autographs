@@ -270,6 +270,8 @@ pub struct AutographImage {
     pub original_filename: String,
     pub content_type: String,
     pub byte_size: usize,
+    pub checksum: Option<String>,
+    pub etag: Option<String>,
     pub is_primary: bool,
     pub sort_order: i32,
     pub alt_text: Option<String>,
@@ -462,6 +464,15 @@ pub trait CatalogRepository: Send + Sync {
     async fn update(&self, id: Uuid, input: AutographItemUpdate) -> Result<AutographItem, String>;
     async fn get(&self, id: Uuid) -> Result<Option<AutographItem>, String>;
     async fn list(&self) -> Result<Vec<AutographItem>, String>;
+    async fn list_published(&self) -> Result<Vec<AutographItem>, String> {
+        Ok(self
+            .list()
+            .await?
+            .into_iter()
+            .filter(|item| item.publication_status == PublicationStatus::Published)
+            .collect())
+    }
+
     async fn attach_image(
         &self,
         item_id: Uuid,

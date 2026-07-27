@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use async_trait::async_trait;
 use oracle::{Connection, Row};
@@ -16,6 +16,13 @@ use crate::catalog::{
     now_epoch_seconds, signer_match_rank, signer_profile_field_diffs, validate_required_fields,
 };
 
+const ITEM_SELECT_COLUMNS: &str = "title, signer, description, category, object_reference,
+    event_name, event_location, source, inscription,
+    certification_company, certification_id, estimated_year,
+    publication_status, format, origin, language, product_line, set_name,
+    cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
+    cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))";
+
 const LOAD_ITEM_SQL: &str = "select
     title, signer, description, category, object_reference,
     event_name, event_location, source, inscription,
@@ -24,6 +31,9 @@ const LOAD_ITEM_SQL: &str = "select
     cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
     cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
 from autograph_items where id = :1";
+
+const IMAGE_SELECT_COLUMNS: &str = "id, object_key, original_filename, content_type, byte_size,
+    checksum, etag, is_primary, sort_order, alt_text";
 
 const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish as (
     select id, started_at, snapshot_event_count
@@ -303,24 +313,13 @@ impl CatalogRepository for OracleCatalogRepository {
     }
 
     async fn list(&self) -> Result<Vec<AutographItem>, String> {
+        self.with_connection(move |connection| load_items(&connection, None))
+            .await
+    }
+
+    async fn list_published(&self) -> Result<Vec<AutographItem>, String> {
         self.with_connection(move |connection| {
-            let mut rows = connection
-                .query("select id from autograph_items order by title, id", &[])
-                .map_err(|error| format!("list Oracle catalog item ids: {error}"))?;
-            let mut ids = Vec::new();
-            for row in &mut rows {
-                ids.push(parse_uuid(
-                    &row.map_err(|error| format!("read Oracle catalog item id row: {error}"))?
-                        .get::<_, String>(0)
-                        .map_err(|error| format!("read Oracle catalog item id: {error}"))?,
-                )?);
-            }
-            ids.into_iter()
-                .map(|id| {
-                    load_item(&connection, id)?
-                        .ok_or_else(|| "listed Oracle item was not found".to_owned())
-                })
-                .collect()
+            load_items(&connection, Some(PublicationStatus::Published))
         })
         .await
     }
@@ -355,9 +354,9 @@ impl CatalogRepository for OracleCatalogRepository {
                 .execute(
                     "insert into autograph_images (
                         id, item_id, storage_namespace, bucket_name, object_key,
-                        original_filename, content_type, byte_size, is_primary,
-                        sort_order, alt_text
-                    ) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11)",
+                        original_filename, content_type, byte_size, checksum, etag,
+                        is_primary, sort_order, alt_text
+                    ) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12, :13)",
                     &[
                         &image_id,
                         &item_id_text,
@@ -367,6 +366,8 @@ impl CatalogRepository for OracleCatalogRepository {
                         &image.original_filename,
                         &image.content_type,
                         &byte_size,
+                        &image.checksum,
+                        &image.etag,
                         &is_primary,
                         &image.sort_order,
                         &image.alt_text,
@@ -494,11 +495,13 @@ impl CatalogRepository for OracleCatalogRepository {
                         original_filename = :4,
                         content_type = :5,
                         byte_size = :6,
-                        is_primary = :7,
-                        sort_order = :8,
-                        alt_text = :9,
+                        checksum = :7,
+                        etag = :8,
+                        is_primary = :9,
+                        sort_order = :10,
+                        alt_text = :11,
                         updated_at = current_timestamp
-                    where id = :10 and item_id = :11",
+                    where id = :12 and item_id = :13",
                     &[
                         &storage_namespace,
                         &bucket_name,
@@ -506,6 +509,8 @@ impl CatalogRepository for OracleCatalogRepository {
                         &input.image.original_filename,
                         &input.image.content_type,
                         &byte_size,
+                        &input.image.checksum,
+                        &input.image.etag,
                         &is_primary,
                         &existing.sort_order,
                         &input.image.alt_text,
@@ -906,7 +911,7 @@ fn load_item(connection: &Connection, id: Uuid) -> Result<Option<AutographItem>,
         return Ok(None);
     };
     let row = row.map_err(|error| format!("read Oracle catalog item row: {error}"))?;
-    let mut item = item_from_row(id, &row)?;
+    let mut item = item_from_row(id, &row, 0)?;
     item.tags = load_tags(connection, id)?;
     item.signer_credits = load_signer_credits(connection, id)?;
     if item.signer_credits.is_empty() {
@@ -918,41 +923,118 @@ fn load_item(connection: &Connection, id: Uuid) -> Result<Option<AutographItem>,
     Ok(Some(item))
 }
 
-fn item_from_row(id: Uuid, row: &Row) -> Result<AutographItem, String> {
-    let signer: String = row_value(row, 1, "signer")?;
+fn load_items(
+    connection: &Connection,
+    publication_status: Option<PublicationStatus>,
+) -> Result<Vec<AutographItem>, String> {
+    let sql = list_items_sql(publication_status);
+    let mut rows = connection
+        .query(&sql, &[])
+        .map_err(|error| format!("list Oracle catalog items: {error}"))?;
+    let mut items = Vec::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("read Oracle catalog item row: {error}"))?;
+        let id = parse_uuid(&row_value::<String>(&row, 0, "item id")?)?;
+        items.push(item_from_row(id, &row, 1)?);
+    }
+
+    let mut tags = load_tags_for_items(connection, publication_status)?;
+    let mut signer_credits = load_signer_credits_for_items(connection, publication_status)?;
+    let mut characters = load_ordered_values_for_items(
+        connection,
+        publication_status,
+        "autograph_item_characters",
+        "character_name",
+        "characters",
+    )?;
+    let mut franchises = load_ordered_values_for_items(
+        connection,
+        publication_status,
+        "autograph_item_franchises",
+        "franchise",
+        "franchises",
+    )?;
+    let mut images = load_images_for_items(connection, publication_status)?;
+
+    for item in &mut items {
+        item.tags = tags.remove(&item.id).unwrap_or_default();
+        item.signer_credits = signer_credits.remove(&item.id).unwrap_or_default();
+        if item.signer_credits.is_empty() {
+            item.signer_credits =
+                legacy_signer_credits(&item.signer, item.created_at_epoch_seconds);
+        }
+        item.characters = characters.remove(&item.id).unwrap_or_default();
+        item.franchises = franchises.remove(&item.id).unwrap_or_default();
+        item.images = images.remove(&item.id).unwrap_or_default();
+    }
+
+    Ok(items)
+}
+
+fn list_items_sql(publication_status: Option<PublicationStatus>) -> String {
+    match publication_status {
+        Some(PublicationStatus::Published) => {
+            format!(
+                "select id, {} from autograph_items where publication_status = 'published' order by title, id",
+                ITEM_SELECT_COLUMNS
+            )
+        }
+        Some(PublicationStatus::Draft) => {
+            format!(
+                "select id, {} from autograph_items where publication_status = 'draft' order by title, id",
+                ITEM_SELECT_COLUMNS
+            )
+        }
+        Some(PublicationStatus::Archived) => {
+            format!(
+                "select id, {} from autograph_items where publication_status = 'archived' order by title, id",
+                ITEM_SELECT_COLUMNS
+            )
+        }
+        None => {
+            format!(
+                "select id, {} from autograph_items order by title, id",
+                ITEM_SELECT_COLUMNS
+            )
+        }
+    }
+}
+
+fn item_from_row(id: Uuid, row: &Row, offset: usize) -> Result<AutographItem, String> {
+    let signer: String = row_value(row, offset + 1, "signer")?;
     let created_at_epoch_seconds =
-        row_value::<Option<i64>>(row, 18, "created at")?.unwrap_or_default();
+        row_value::<Option<i64>>(row, offset + 18, "created at")?.unwrap_or_default();
     Ok(AutographItem {
         id,
-        title: row_value(row, 0, "title")?,
+        title: row_value(row, offset, "title")?,
         signer: signer.clone(),
-        description: row_value(row, 2, "description")?,
-        category: row_value(row, 3, "category")?,
+        description: row_value(row, offset + 2, "description")?,
+        category: row_value(row, offset + 3, "category")?,
         signer_credits: Vec::new(),
         characters: Vec::new(),
-        format: row_value(row, 13, "format")?,
-        origin: parse_item_origin(&row_value::<String>(row, 14, "origin")?)?,
+        format: row_value(row, offset + 13, "format")?,
+        origin: parse_item_origin(&row_value::<String>(row, offset + 14, "origin")?)?,
         franchises: Vec::new(),
-        product_line: row_value(row, 16, "product line")?,
-        set_name: row_value(row, 17, "set name")?,
-        language: row_value(row, 15, "language")?,
-        object_reference: row_value(row, 4, "object reference")?,
-        event_name: row_value(row, 5, "event name")?,
-        event_location: row_value(row, 6, "event location")?,
-        source: row_value(row, 7, "source")?,
-        inscription: row_value(row, 8, "inscription")?,
-        certification_company: row_value(row, 9, "certification company")?,
-        certification_id: row_value(row, 10, "certification id")?,
-        estimated_year: row_value(row, 11, "estimated year")?,
+        product_line: row_value(row, offset + 16, "product line")?,
+        set_name: row_value(row, offset + 17, "set name")?,
+        language: row_value(row, offset + 15, "language")?,
+        object_reference: row_value(row, offset + 4, "object reference")?,
+        event_name: row_value(row, offset + 5, "event name")?,
+        event_location: row_value(row, offset + 6, "event location")?,
+        source: row_value(row, offset + 7, "source")?,
+        inscription: row_value(row, offset + 8, "inscription")?,
+        certification_company: row_value(row, offset + 9, "certification company")?,
+        certification_id: row_value(row, offset + 10, "certification id")?,
+        estimated_year: row_value(row, offset + 11, "estimated year")?,
         publication_status: parse_publication_status(&row_value::<String>(
             row,
-            12,
+            offset + 12,
             "publication status",
         )?)?,
         tags: Vec::new(),
         images: Vec::new(),
         created_at_epoch_seconds,
-        updated_at_epoch_seconds: row_value::<Option<i64>>(row, 19, "updated at")?
+        updated_at_epoch_seconds: row_value::<Option<i64>>(row, offset + 19, "updated at")?
             .unwrap_or_default(),
     })
 }
@@ -1324,6 +1406,140 @@ fn load_distinct_strings(
     Ok(values)
 }
 
+fn child_status_filter(publication_status: Option<PublicationStatus>) -> &'static str {
+    match publication_status {
+        Some(PublicationStatus::Published) => " where i.publication_status = 'published'",
+        Some(PublicationStatus::Draft) => " where i.publication_status = 'draft'",
+        Some(PublicationStatus::Archived) => " where i.publication_status = 'archived'",
+        None => "",
+    }
+}
+
+fn load_tags_for_items(
+    connection: &Connection,
+    publication_status: Option<PublicationStatus>,
+) -> Result<BTreeMap<Uuid, Vec<String>>, String> {
+    let sql = format!(
+        "select t.item_id, t.tag
+         from autograph_item_tags t
+         join autograph_items i on i.id = t.item_id
+         {}
+         order by t.item_id, t.tag",
+        child_status_filter(publication_status)
+    );
+    let mut rows = connection
+        .query(&sql, &[])
+        .map_err(|error| format!("bulk read Oracle catalog tags: {error}"))?;
+    let mut tags = BTreeMap::<Uuid, Vec<String>>::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("bulk read Oracle catalog tag row: {error}"))?;
+        let item_id = parse_uuid(&row_value::<String>(&row, 0, "tag item id")?)?;
+        tags.entry(item_id)
+            .or_default()
+            .push(row_value(&row, 1, "tag")?);
+    }
+    Ok(tags)
+}
+
+fn load_signer_credits_for_items(
+    connection: &Connection,
+    publication_status: Option<PublicationStatus>,
+) -> Result<BTreeMap<Uuid, Vec<SignerCredit>>, String> {
+    let sql = format!(
+        "select
+            cis.item_id,
+            s.id, s.display_name, s.normalized_name, s.default_role,
+            s.wikipedia_url, s.imdb_url,
+            cast(round((cast(s.created_at as date) - date '1970-01-01') * 86400) as number(19)),
+            cast(round((cast(s.updated_at as date) - date '1970-01-01') * 86400) as number(19)),
+            cis.sort_order, cis.item_role, cis.item_context
+        from autograph_item_signers cis
+        join autograph_items i on i.id = cis.item_id
+        join autograph_signers s on s.id = cis.signer_id
+        {}
+        order by cis.item_id, cis.sort_order, s.display_name, s.id",
+        child_status_filter(publication_status)
+    );
+    let mut rows = connection
+        .query(&sql, &[])
+        .map_err(|error| format!("bulk read Oracle catalog signer credits: {error}"))?;
+    let mut credits = BTreeMap::<Uuid, Vec<SignerCredit>>::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("bulk read Oracle signer credit row: {error}"))?;
+        let item_id = parse_uuid(&row_value::<String>(&row, 0, "signer credit item id")?)?;
+        credits.entry(item_id).or_default().push(SignerCredit {
+            signer: signer_profile_from_row(&row, 1)?,
+            sort_order: row_value(&row, 9, "signer credit sort order")?,
+            item_role: row_value(&row, 10, "signer credit item role")?,
+            item_context: row_value(&row, 11, "signer credit item context")?,
+        });
+    }
+    Ok(credits)
+}
+
+fn load_ordered_values_for_items(
+    connection: &Connection,
+    publication_status: Option<PublicationStatus>,
+    table: &str,
+    column: &str,
+    label: &str,
+) -> Result<BTreeMap<Uuid, Vec<String>>, String> {
+    let sql = format!(
+        "select child.item_id, child.{column}
+         from {table} child
+         join autograph_items i on i.id = child.item_id
+         {}
+         order by child.item_id, child.sort_order, child.{column}",
+        child_status_filter(publication_status)
+    );
+    let mut rows = connection
+        .query(&sql, &[])
+        .map_err(|error| format!("bulk read Oracle catalog {label}: {error}"))?;
+    let mut values = BTreeMap::<Uuid, Vec<String>>::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("bulk read Oracle catalog {label} row: {error}"))?;
+        let item_id = parse_uuid(&row_value::<String>(&row, 0, "ordered value item id")?)?;
+        values
+            .entry(item_id)
+            .or_default()
+            .push(row_value(&row, 1, label)?);
+    }
+    Ok(values)
+}
+
+fn load_images_for_items(
+    connection: &Connection,
+    publication_status: Option<PublicationStatus>,
+) -> Result<BTreeMap<Uuid, Vec<AutographImage>>, String> {
+    let sql = load_images_for_items_sql(publication_status);
+    let mut rows = connection
+        .query(&sql, &[])
+        .map_err(|error| format!("bulk read Oracle catalog images: {error}"))?;
+    let mut images = BTreeMap::<Uuid, Vec<AutographImage>>::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("bulk read Oracle catalog image row: {error}"))?;
+        let item_id = parse_uuid(&row_value::<String>(&row, 0, "image item id")?)?;
+        images
+            .entry(item_id)
+            .or_default()
+            .push(image_from_row(&row, 1)?);
+    }
+    Ok(images)
+}
+
+fn load_images_for_items_sql(publication_status: Option<PublicationStatus>) -> String {
+    format!(
+        "select
+            img.item_id, img.id, img.object_key, img.original_filename, img.content_type,
+            img.byte_size, img.checksum, img.etag, img.is_primary, img.sort_order, img.alt_text
+         from autograph_images img
+         join autograph_items i on i.id = img.item_id
+         {}
+         order by img.item_id, img.sort_order, img.id",
+        child_status_filter(publication_status)
+    )
+}
+
 fn apply_signer_input_to_profile(
     profile: &mut SignerProfile,
     input: &SignerCreditInput,
@@ -1486,29 +1702,17 @@ fn load_ordered_values(
 
 fn load_images(connection: &Connection, id: Uuid) -> Result<Vec<AutographImage>, String> {
     let id_text = id.to_string();
+    let sql = format!(
+        "select {IMAGE_SELECT_COLUMNS}
+            from autograph_images where item_id = :1 order by sort_order, id"
+    );
     let mut rows = connection
-        .query(
-            "select
-                id, object_key, original_filename, content_type, byte_size,
-                is_primary, sort_order, alt_text
-            from autograph_images where item_id = :1 order by sort_order, id",
-            &[&id_text],
-        )
+        .query(&sql, &[&id_text])
         .map_err(|error| format!("read Oracle catalog images: {error}"))?;
     let mut images = Vec::new();
     for row in &mut rows {
         let row = row.map_err(|error| format!("read Oracle catalog image row: {error}"))?;
-        images.push(AutographImage {
-            id: parse_uuid(&row_value::<String>(&row, 0, "image id")?)?,
-            object_key: row_value(&row, 1, "image object key")?,
-            original_filename: row_value::<Option<String>>(&row, 2, "image original filename")?
-                .unwrap_or_else(|| "upload".to_owned()),
-            content_type: row_value(&row, 3, "image content type")?,
-            byte_size: row_value::<Option<i64>>(&row, 4, "image byte size")?.unwrap_or(0) as usize,
-            is_primary: row_value::<String>(&row, 5, "image primary flag")? == "Y",
-            sort_order: row_value(&row, 6, "image sort order")?,
-            alt_text: row_value(&row, 7, "image alt text")?,
-        });
+        images.push(image_from_row(&row, 0)?);
     }
     Ok(images)
 }
@@ -1520,30 +1724,35 @@ fn load_image(
 ) -> Result<Option<AutographImage>, String> {
     let item_id_text = item_id.to_string();
     let image_id_text = image_id.to_string();
+    let sql = format!(
+        "select {IMAGE_SELECT_COLUMNS}
+            from autograph_images where item_id = :1 and id = :2"
+    );
     let mut rows = connection
-        .query(
-            "select
-                id, object_key, original_filename, content_type, byte_size,
-                is_primary, sort_order, alt_text
-            from autograph_images where item_id = :1 and id = :2",
-            &[&item_id_text, &image_id_text],
-        )
+        .query(&sql, &[&item_id_text, &image_id_text])
         .map_err(|error| format!("read Oracle catalog image: {error}"))?;
     let Some(row) = rows.next() else {
         return Ok(None);
     };
     let row = row.map_err(|error| format!("read Oracle catalog image row: {error}"))?;
-    Ok(Some(AutographImage {
-        id: parse_uuid(&row_value::<String>(&row, 0, "image id")?)?,
-        object_key: row_value(&row, 1, "image object key")?,
-        original_filename: row_value::<Option<String>>(&row, 2, "image original filename")?
+    Ok(Some(image_from_row(&row, 0)?))
+}
+
+fn image_from_row(row: &Row, offset: usize) -> Result<AutographImage, String> {
+    Ok(AutographImage {
+        id: parse_uuid(&row_value::<String>(row, offset, "image id")?)?,
+        object_key: row_value(row, offset + 1, "image object key")?,
+        original_filename: row_value::<Option<String>>(row, offset + 2, "image original filename")?
             .unwrap_or_else(|| "upload".to_owned()),
-        content_type: row_value(&row, 3, "image content type")?,
-        byte_size: row_value::<Option<i64>>(&row, 4, "image byte size")?.unwrap_or(0) as usize,
-        is_primary: row_value::<String>(&row, 5, "image primary flag")? == "Y",
-        sort_order: row_value(&row, 6, "image sort order")?,
-        alt_text: row_value(&row, 7, "image alt text")?,
-    }))
+        content_type: row_value(row, offset + 3, "image content type")?,
+        byte_size: row_value::<Option<i64>>(row, offset + 4, "image byte size")?.unwrap_or(0)
+            as usize,
+        checksum: row_value(row, offset + 5, "image checksum")?,
+        etag: row_value(row, offset + 6, "image etag")?,
+        is_primary: row_value::<String>(row, offset + 7, "image primary flag")? == "Y",
+        sort_order: row_value(row, offset + 8, "image sort order")?,
+        alt_text: row_value(row, offset + 9, "image alt text")?,
+    })
 }
 
 fn promote_first_remaining_image(connection: &Connection, item_id: Uuid) -> Result<(), String> {
@@ -1998,6 +2207,56 @@ mod tests {
             assert!(
                 LOAD_ITEM_SQL.contains(required_fragment),
                 "Oracle load item SQL missing `{required_fragment}`"
+            );
+        }
+    }
+
+    #[test]
+    fn oracle_bulk_list_sql_filters_items_by_publication_status() {
+        let published_sql = list_items_sql(Some(PublicationStatus::Published));
+        assert!(published_sql.contains("from autograph_items"));
+        assert!(published_sql.contains("where publication_status = 'published'"));
+        assert!(published_sql.contains("order by title, id"));
+        assert!(!published_sql.contains("publication_status = 'draft'"));
+        assert!(!published_sql.contains("publication_status = 'archived'"));
+
+        let all_sql = list_items_sql(None);
+        assert!(all_sql.contains("from autograph_items"));
+        assert!(!all_sql.contains("where publication_status"));
+    }
+
+    #[test]
+    fn oracle_bulk_child_filters_match_item_publication_status() {
+        assert_eq!(
+            child_status_filter(Some(PublicationStatus::Published)),
+            " where i.publication_status = 'published'"
+        );
+        assert_eq!(
+            child_status_filter(Some(PublicationStatus::Draft)),
+            " where i.publication_status = 'draft'"
+        );
+        assert_eq!(
+            child_status_filter(Some(PublicationStatus::Archived)),
+            " where i.publication_status = 'archived'"
+        );
+        assert_eq!(child_status_filter(None), "");
+    }
+
+    #[test]
+    fn oracle_image_loaders_select_cache_source_metadata() {
+        let image_sql = load_images_for_items_sql(Some(PublicationStatus::Published));
+        for required_fragment in ["img.byte_size", "img.checksum", "img.etag"] {
+            assert!(
+                image_sql.contains(required_fragment),
+                "Oracle bulk image SQL missing `{required_fragment}`"
+            );
+        }
+        assert!(image_sql.contains("where i.publication_status = 'published'"));
+
+        for required_fragment in ["byte_size", "checksum", "etag"] {
+            assert!(
+                IMAGE_SELECT_COLUMNS.contains(required_fragment),
+                "Oracle single-item image SQL missing `{required_fragment}`"
             );
         }
     }

@@ -3,7 +3,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    time::SystemTime,
+    time::{Instant, SystemTime},
 };
 
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 use crate::{
-    catalog::{AutographImage, AutographItem, CatalogRepository, PublicationStatus},
+    catalog::{AutographImage, AutographItem, CatalogRepository},
     contracts::{
         FacetId, ImageVariantName, PUBLIC_SCHEMA_VERSION, PublicCatalog, PublicDetailField,
         PublicDetailGroup, PublicFacetGroup, PublicFacetOption, PublicFacets, PublicGalleryItem,
@@ -493,6 +493,9 @@ struct PublishProgress {
     derivative_count: usize,
     generated_derivative_count: usize,
     reused_derivative_count: usize,
+    cache_key_metadata_count: usize,
+    cache_key_fallback_read_count: usize,
+    cache_miss_source_read_count: usize,
 }
 
 struct BuildPublicItemsResult {
@@ -865,12 +868,8 @@ impl LocalPublisher {
             PublishStage::LoadingCatalog,
             &PublishProgress::default(),
         );
-        let mut items = repository
-            .list()
-            .await?
-            .into_iter()
-            .filter(|item| item.publication_status == PublicationStatus::Published)
-            .collect::<Vec<_>>();
+        let catalog_started = Instant::now();
+        let mut items = repository.list_published().await?;
         let mut progress = PublishProgress {
             item_count: items.len(),
             ..Default::default()
@@ -880,6 +879,7 @@ impl LocalPublisher {
             mode = ?mode,
             stage = PublishStage::LoadingCatalog.as_str(),
             item_count = progress.item_count,
+            elapsed_ms = catalog_started.elapsed().as_millis(),
             "static publish catalog load completed"
         );
         items.sort_by(|left, right| {
@@ -889,6 +889,7 @@ impl LocalPublisher {
         });
         self.update_progress(release_id, PublishStage::GeneratingDerivatives, &progress);
         let derivative_cache = DerivativeCache::new(&self.root);
+        let derivative_started = Instant::now();
         let public_items = build_public_items(&items, media, candidate, &derivative_cache).await?;
         progress.image_count = public_items.progress.image_count;
         progress.derivative_count = public_items.progress.derivative_count;
@@ -903,6 +904,10 @@ impl LocalPublisher {
             generated_derivative_count = progress.generated_derivative_count,
             reused_derivative_count = progress.reused_derivative_count,
             skipped_derivative_count = 0usize,
+            cache_key_metadata_count = public_items.progress.cache_key_metadata_count,
+            cache_key_fallback_read_count = public_items.progress.cache_key_fallback_read_count,
+            cache_miss_source_read_count = public_items.progress.cache_miss_source_read_count,
+            elapsed_ms = derivative_started.elapsed().as_millis(),
             "static publish derivative generation completed"
         );
         self.update_progress(release_id, PublishStage::WritingCandidate, &progress);
@@ -1013,18 +1018,34 @@ async fn build_public_items(
         for (index, image) in primary_first_images(&item.images).into_iter().enumerate() {
             progress.image_count += 1;
             let image_slug = format!("image-{}", index + 1);
-            let source = media.read(&image.object_key).await?;
-            let source_fingerprint = derivative_source_fingerprint(&source);
+            let mut source = None;
+            let source_key = match derivative_cache_source_key(image) {
+                Some(source_key) => {
+                    progress.cache_key_metadata_count += 1;
+                    source_key
+                }
+                None => {
+                    let bytes = media.read(&image.object_key).await?;
+                    let fingerprint = derivative_source_fingerprint(&bytes);
+                    source = Some(bytes);
+                    progress.cache_key_fallback_read_count += 1;
+                    DerivativeSourceKey::Legacy(fingerprint)
+                }
+            };
             let mut variants = Vec::new();
             for variant in [DerivativeVariant::Thumbnail, DerivativeVariant::Detail] {
-                let derivative = match derivative_cache.read(&source_fingerprint, variant) {
+                let derivative = match derivative_cache.read(source_key.cache_key(), variant) {
                     Ok(Some(derivative)) => {
                         progress.reused_derivative_count += 1;
                         derivative
                     }
                     Ok(None) => {
-                        let derivative = generate_derivative(&source, variant)?;
-                        if let Err(error) = derivative_cache.write(&source_fingerprint, &derivative)
+                        let bytes =
+                            source_bytes(media, image, &source_key, &mut source, &mut progress)
+                                .await?;
+                        let derivative = generate_derivative(bytes, variant)?;
+                        if let Err(error) =
+                            derivative_cache.write(source_key.cache_key(), &derivative)
                         {
                             tracing::warn!(%error, "failed to update derivative cache");
                         }
@@ -1033,8 +1054,12 @@ async fn build_public_items(
                     }
                     Err(error) => {
                         tracing::warn!(%error, "ignored unreadable derivative cache entry");
-                        let derivative = generate_derivative(&source, variant)?;
-                        if let Err(error) = derivative_cache.write(&source_fingerprint, &derivative)
+                        let bytes =
+                            source_bytes(media, image, &source_key, &mut source, &mut progress)
+                                .await?;
+                        let derivative = generate_derivative(bytes, variant)?;
+                        if let Err(error) =
+                            derivative_cache.write(source_key.cache_key(), &derivative)
                         {
                             tracing::warn!(%error, "failed to update derivative cache");
                         }
@@ -1111,6 +1136,52 @@ async fn build_public_items(
         items: public_items,
         progress,
     })
+}
+
+enum DerivativeSourceKey {
+    Checksum { checksum: String, cache_key: String },
+    Legacy(String),
+}
+
+impl DerivativeSourceKey {
+    fn cache_key(&self) -> &str {
+        match self {
+            Self::Checksum { cache_key, .. } | Self::Legacy(cache_key) => cache_key,
+        }
+    }
+}
+
+fn derivative_cache_source_key(image: &AutographImage) -> Option<DerivativeSourceKey> {
+    image
+        .checksum
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|checksum| DerivativeSourceKey::Checksum {
+            checksum: checksum.to_owned(),
+            cache_key: format!("checksum:{checksum}"),
+        })
+}
+
+async fn source_bytes<'a>(
+    media: &dyn PrivateMediaStore,
+    image: &AutographImage,
+    source_key: &DerivativeSourceKey,
+    source: &'a mut Option<Vec<u8>>,
+    progress: &mut PublishProgress,
+) -> Result<&'a [u8], String> {
+    if source.is_none() {
+        let bytes = media.read(&image.object_key).await?;
+        if let DerivativeSourceKey::Checksum { checksum, .. } = source_key {
+            let actual = derivative_source_fingerprint(&bytes);
+            if actual != *checksum {
+                return Err("private image checksum does not match stored metadata".to_owned());
+            }
+        }
+        *source = Some(bytes);
+        progress.cache_miss_source_read_count += 1;
+    }
+    Ok(source.as_deref().expect("source bytes are present"))
 }
 
 fn public_signer_names(item: &AutographItem) -> Vec<String> {
