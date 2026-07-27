@@ -9,7 +9,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
-use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use uuid::Uuid;
 
 use crate::{
@@ -739,13 +739,28 @@ impl LocalPublisher {
         retention_status(&self.root, self.retention_policy)
     }
 
+    pub async fn acquire_publish_lock(&self) -> AsyncMutexGuard<'_, ()> {
+        self.publish_lock.lock().await
+    }
+
     pub async fn publish(
         &self,
         repository: &dyn CatalogRepository,
         media: &dyn PrivateMediaStore,
         mode: PublishMode,
     ) -> Result<PublishStatus, String> {
-        let _publish_guard = self.publish_lock.lock().await;
+        let publish_guard = self.acquire_publish_lock().await;
+        self.publish_locked(repository, media, mode, &publish_guard)
+            .await
+    }
+
+    pub async fn publish_locked(
+        &self,
+        repository: &dyn CatalogRepository,
+        media: &dyn PrivateMediaStore,
+        mode: PublishMode,
+        _publish_guard: &AsyncMutexGuard<'_, ()>,
+    ) -> Result<PublishStatus, String> {
         let release_id = Uuid::new_v4().to_string();
         let candidate = self.root.join("releases").join(&release_id);
         let started_at_epoch_seconds = OffsetDateTime::now_utc().unix_timestamp();
@@ -1036,7 +1051,7 @@ async fn build_public_items(
                             image_id = %image.id,
                             public_slug = %slug,
                             image_slug = %image_slug,
-                            error = %error,
+                            error_kind = private_media_error_kind(&error),
                             "failed to read private media for derivative generation"
                         );
                         error
@@ -1070,7 +1085,7 @@ async fn build_public_items(
                                 public_slug = %slug,
                                 image_slug = %image_slug,
                                 variant = %variant.path_segment(),
-                                error = %error,
+                                error_kind = private_media_error_kind(&error),
                                 "failed to read private media source for derivative generation"
                             );
                             error
@@ -1107,7 +1122,7 @@ async fn build_public_items(
                                         public_slug = %slug,
                                         image_slug = %image_slug,
                                         variant = %variant.path_segment(),
-                                        error = %error,
+                                        error_kind = private_media_error_kind(&error),
                                         "failed to read private media source after cache miss"
                                     );
                                     error
@@ -1227,6 +1242,21 @@ fn derivative_cache_source_key(image: &AutographImage) -> Option<DerivativeSourc
             checksum: checksum.to_owned(),
             cache_key: format!("checksum:{checksum}"),
         })
+}
+
+fn private_media_error_kind(error: &str) -> &'static str {
+    let normalized = error.to_ascii_lowercase();
+    if normalized.contains("checksum") {
+        "checksum_mismatch"
+    } else if normalized.contains("not found") || normalized.contains("no such file") {
+        "not_found"
+    } else if normalized.contains("timeout") {
+        "timeout"
+    } else if normalized.contains("permission") || normalized.contains("forbidden") {
+        "permission"
+    } else {
+        "read_failed"
+    }
 }
 
 async fn source_bytes<'a>(

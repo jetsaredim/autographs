@@ -422,6 +422,10 @@ mod live {
         assert_eq!(unreadable, 0, "checksum audit found unreadable images");
         if !repair {
             assert_eq!(mismatched, 0, "checksum audit found mismatched images");
+            assert_eq!(
+                missing_checksum, 0,
+                "checksum audit found images missing checksum metadata"
+            );
         }
     }
 
