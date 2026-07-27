@@ -171,7 +171,7 @@ mod live {
         );
         assert_eq!(published_item.images.len(), 1);
         cleanup.published = true;
-        let published = json_request(
+        let published = publish_request(
             "POST",
             &format!("{controller}/admin/api/publish/full"),
             &public_origin,
@@ -365,6 +365,17 @@ mod live {
 
     impl Drop for LiveStaticSmokeCleanup<'_> {
         fn drop(&mut self) {
+            if publish_is_running(&self.controller, &self.public_origin, &self.admin_cookie) {
+                eprintln!(
+                    "live static smoke cleanup deferred because a static publish is still running"
+                );
+                eprintln!(
+                    "deferred cleanup item id: {}; object key: {}",
+                    self.item_id,
+                    self.object_key.as_deref().unwrap_or("<none>")
+                );
+                return;
+            }
             if self.published {
                 eprintln!(
                     "live static smoke cleanup drafting and republishing item {}",
@@ -382,7 +393,7 @@ mod live {
                 )
                 .is_some();
                 let static_cleanup_succeeded = if publication_drafted {
-                    best_effort_json_request(
+                    best_effort_publish_request(
                         "POST",
                         &format!("{}/admin/api/publish/incremental", self.controller),
                         &self.public_origin,
@@ -504,8 +515,29 @@ mod live {
         cookie: &str,
         body: Option<&str>,
     ) -> Value {
+        json_request_with_max_time(method, url, origin, cookie, body, 60)
+    }
+
+    fn publish_request(
+        method: &str,
+        url: &str,
+        origin: &str,
+        cookie: &str,
+        body: Option<&str>,
+    ) -> Value {
+        json_request_with_max_time(method, url, origin, cookie, body, publish_timeout_seconds())
+    }
+
+    fn json_request_with_max_time(
+        method: &str,
+        url: &str,
+        origin: &str,
+        cookie: &str,
+        body: Option<&str>,
+        max_time_seconds: u64,
+    ) -> Value {
         let args = json_request_args(method, url, origin, cookie, body);
-        curl_json(args, &format!("{method} {url}"))
+        curl_json_with_max_time(args, &format!("{method} {url}"), max_time_seconds)
     }
 
     fn best_effort_json_request(
@@ -515,6 +547,34 @@ mod live {
         cookie: &str,
         body: Option<&str>,
     ) -> Option<Value> {
+        best_effort_json_request_with_max_time(method, url, origin, cookie, body, 60)
+    }
+
+    fn best_effort_publish_request(
+        method: &str,
+        url: &str,
+        origin: &str,
+        cookie: &str,
+        body: Option<&str>,
+    ) -> Option<Value> {
+        best_effort_json_request_with_max_time(
+            method,
+            url,
+            origin,
+            cookie,
+            body,
+            publish_timeout_seconds(),
+        )
+    }
+
+    fn best_effort_json_request_with_max_time(
+        method: &str,
+        url: &str,
+        origin: &str,
+        cookie: &str,
+        body: Option<&str>,
+        max_time_seconds: u64,
+    ) -> Option<Value> {
         let output = Command::new("curl")
             .args([
                 "--fail-with-body",
@@ -523,8 +583,8 @@ mod live {
                 "--connect-timeout",
                 "5",
                 "--max-time",
-                "60",
             ])
+            .arg(max_time_seconds.to_string())
             .args(json_request_args(method, url, origin, cookie, body))
             .output()
             .ok()?;
@@ -617,9 +677,15 @@ mod live {
     }
 
     fn curl_json(args: Vec<String>, context: &str) -> Value {
-        serde_json::from_str(&curl(args, context)).unwrap_or_else(|error| {
-            panic!("decode JSON response for {context}: {error}");
-        })
+        curl_json_with_max_time(args, context, 60)
+    }
+
+    fn curl_json_with_max_time(args: Vec<String>, context: &str, max_time_seconds: u64) -> Value {
+        serde_json::from_str(&curl_with_max_time(args, context, max_time_seconds)).unwrap_or_else(
+            |error| {
+                panic!("decode JSON response for {context}: {error}");
+            },
+        )
     }
 
     fn fetch(url: &str) -> String {
@@ -672,6 +738,10 @@ mod live {
     }
 
     fn curl(args: Vec<String>, context: &str) -> String {
+        curl_with_max_time(args, context, 60)
+    }
+
+    fn curl_with_max_time(args: Vec<String>, context: &str, max_time_seconds: u64) -> String {
         let output = Command::new("curl")
             .args([
                 "--fail-with-body",
@@ -680,8 +750,8 @@ mod live {
                 "--connect-timeout",
                 "5",
                 "--max-time",
-                "60",
             ])
+            .arg(max_time_seconds.to_string())
             .args(args)
             .output()
             .unwrap_or_else(|error| panic!("run curl for {context}: {error}"));
@@ -692,6 +762,25 @@ mod live {
             String::from_utf8_lossy(&output.stderr)
         );
         String::from_utf8(output.stdout).expect("curl response is UTF-8")
+    }
+
+    fn publish_timeout_seconds() -> u64 {
+        env::var("AUTOGRAPHS_LIVE_STATIC_PUBLISH_TIMEOUT_SECONDS")
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(300)
+    }
+
+    fn publish_is_running(controller: &str, origin: &str, cookie: &str) -> bool {
+        best_effort_json_request(
+            "GET",
+            &format!("{controller}/admin/api/publish/status"),
+            origin,
+            cookie,
+            None,
+        )
+        .is_some_and(|status| status["state"] == "running")
     }
 
     fn assert_oracle_image(

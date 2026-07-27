@@ -7,6 +7,7 @@ mod live {
         storage_keys::build_original_object_key,
     };
     use oracle::Connection;
+    use sha2::{Digest, Sha256};
     use uuid::Uuid;
 
     #[tokio::test]
@@ -24,6 +25,14 @@ mod live {
         }
         if env::var("AUTOGRAPHS_LIVE_PERSISTENCE_LIST_SMOKE_ROWS").as_deref() == Ok("true") {
             list_smoke_rows();
+            return;
+        }
+        let audit_requested =
+            env::var("AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_IMAGE_CHECKSUMS").as_deref() == Ok("true");
+        let repair_image_checksums =
+            env::var("AUTOGRAPHS_LIVE_PERSISTENCE_REPAIR_IMAGE_CHECKSUMS").as_deref() == Ok("true");
+        if audit_requested || repair_image_checksums {
+            audit_image_checksums(repair_image_checksums).await;
             return;
         }
 
@@ -266,6 +275,156 @@ mod live {
         }
     }
 
+    async fn audit_image_checksums(repair: bool) {
+        if repair {
+            println!("repairing live image checksums from OCI Object Storage");
+        } else {
+            println!("auditing live image checksums against OCI Object Storage");
+        }
+        let oracle_user = required("ORACLE_DB_USER");
+        let oracle_password = required("ORACLE_DB_PASSWORD");
+        let oracle_connect_string = required("ORACLE_DB_CONNECT_STRING");
+        let storage_namespace = required("OCI_MEDIA_NAMESPACE");
+        let bucket_name = required("OCI_MEDIA_BUCKET_NAME");
+
+        let connection =
+            Connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
+                .expect("connect to Oracle Autonomous Database for checksum audit");
+        assert_static_runtime_schema(&connection);
+        let media =
+            OciInstancePrincipalMediaStore::new(storage_namespace.clone(), bucket_name.clone())
+                .expect("configure OCI instance-principal media store for checksum audit");
+
+        let include_all =
+            env::var("AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_ALL_IMAGES").as_deref() == Ok("true");
+        let status_filter = if include_all {
+            ""
+        } else {
+            " where i.publication_status = 'published'"
+        };
+        let sql = format!(
+            "select
+                i.id,
+                i.title,
+                i.publication_status,
+                img.id,
+                img.object_key,
+                img.checksum
+             from autograph_items i
+             join autograph_images img on img.item_id = i.id
+             {status_filter}
+             order by i.title, i.id, img.sort_order, img.id"
+        );
+        let rows = connection
+            .query(&sql, &[])
+            .expect("query live image checksum audit rows");
+
+        let mut checked = 0usize;
+        let mut mismatched = 0usize;
+        let mut missing_checksum = 0usize;
+        let mut repaired = 0usize;
+        let mut unreadable = 0usize;
+        for row in rows {
+            let row = row.expect("read live checksum audit row");
+            let item_id: String = row.get(0).expect("read audit item id");
+            let title: String = row.get(1).expect("read audit title");
+            let status: String = row.get(2).expect("read audit publication status");
+            let image_id: String = row.get(3).expect("read audit image id");
+            let object_key: String = row.get(4).expect("read audit object key");
+            let checksum: Option<String> = row.get(5).expect("read audit checksum");
+            checked += 1;
+
+            let Some(expected) = checksum
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            else {
+                missing_checksum += 1;
+                println!(
+                    "missing checksum: item_id={item_id} image_id={image_id} status={status} title={title:?}"
+                );
+                if repair {
+                    let bytes = match tokio::time::timeout(
+                        Duration::from_secs(75),
+                        media.read(&object_key),
+                    )
+                    .await
+                    {
+                        Err(_) => {
+                            unreadable += 1;
+                            println!(
+                                "unreadable object timeout: item_id={item_id} image_id={image_id} status={status} title={title:?}"
+                            );
+                            continue;
+                        }
+                        Ok(Err(error)) => {
+                            unreadable += 1;
+                            println!(
+                                "unreadable object: item_id={item_id} image_id={image_id} status={status} title={title:?} error={error}"
+                            );
+                            continue;
+                        }
+                        Ok(Ok(bytes)) => bytes,
+                    };
+                    let actual = image_checksum(&bytes);
+                    update_image_checksum(&connection, &image_id, &actual);
+                    repaired += 1;
+                    println!(
+                        "repaired missing checksum: item_id={item_id} image_id={image_id} status={status} title={title:?} actual={actual}"
+                    );
+                }
+                continue;
+            };
+
+            let bytes = match tokio::time::timeout(Duration::from_secs(75), media.read(&object_key))
+                .await
+            {
+                Err(_) => {
+                    unreadable += 1;
+                    println!(
+                        "unreadable object timeout: item_id={item_id} image_id={image_id} status={status} title={title:?}"
+                    );
+                    continue;
+                }
+                Ok(Err(error)) => {
+                    unreadable += 1;
+                    println!(
+                        "unreadable object: item_id={item_id} image_id={image_id} status={status} title={title:?} error={error}"
+                    );
+                    continue;
+                }
+                Ok(Ok(bytes)) => bytes,
+            };
+            let actual = image_checksum(&bytes);
+            if actual != expected {
+                mismatched += 1;
+                println!(
+                    "checksum mismatch: item_id={item_id} image_id={image_id} status={status} title={title:?} expected={expected} actual={actual}"
+                );
+                if repair {
+                    update_image_checksum(&connection, &image_id, &actual);
+                    repaired += 1;
+                    println!(
+                        "repaired checksum mismatch: item_id={item_id} image_id={image_id} status={status} title={title:?} actual={actual}"
+                    );
+                }
+            }
+        }
+        if repair {
+            connection
+                .commit()
+                .expect("commit live image checksum repairs");
+        }
+
+        println!(
+            "checksum audit complete: checked={checked} mismatched={mismatched} missing_checksum={missing_checksum} repaired={repaired} unreadable={unreadable}"
+        );
+        assert_eq!(unreadable, 0, "checksum audit found unreadable images");
+        if !repair {
+            assert_eq!(mismatched, 0, "checksum audit found mismatched images");
+        }
+    }
+
     struct LivePersistenceSmokeCleanup<'a> {
         connection: &'a Connection,
         media: OciInstancePrincipalMediaStore,
@@ -363,6 +522,26 @@ mod live {
             cleanup_count, 2,
             "static runtime schema is missing AUTOGRAPH_CLEANUP_EVENTS cleanup columns; initialize or update the database from controller/db/schema.sql and controller/db/updates/06-03-media-cleanup.sql before the live persistence smoke"
         );
+    }
+
+    fn update_image_checksum(connection: &Connection, image_id: &str, checksum: &str) {
+        let statement = connection
+            .execute(
+                "update autograph_images set checksum = :1, updated_at = current_timestamp where id = :2",
+                &[&checksum, &image_id],
+            )
+            .expect("update live image checksum");
+        let rows_updated = statement
+            .row_count()
+            .expect("read image checksum update row count");
+        assert_eq!(rows_updated, 1, "expected one image checksum row update");
+    }
+
+    fn image_checksum(bytes: &[u8]) -> String {
+        Sha256::digest(bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
     }
 }
 

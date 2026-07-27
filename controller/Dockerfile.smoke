@@ -17,7 +17,7 @@ RUN cargo test --release --features live-persistence --test live_persistence_smo
 FROM oraclelinux:10-slim
 
 RUN microdnf install -y oracle-instantclient-release-26ai-el10 \
-    && microdnf install -y ca-certificates oracle-instantclient-basic \
+    && microdnf install -y ca-certificates oracle-instantclient-basiclite \
     && microdnf clean all
 
 ENV TNS_ADMIN=/opt/autographs/wallet

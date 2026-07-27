@@ -256,7 +256,13 @@ jobs:
             echo "Could not locate release status commit on origin/main for ${RELEASE_VERSION} (${SOURCE_REVISION})." >&2
             exit 1
           fi
-          git tag "${RELEASE_VERSION}" "$release_status_revision"
+          tag_revision="$release_status_revision"
+          if git merge-base --is-ancestor "${SOURCE_REVISION}" origin/main; then
+            tag_revision="${SOURCE_REVISION}"
+          else
+            echo "Source revision ${SOURCE_REVISION} is not an ancestor of origin/main; tagging release status commit ${release_status_revision}." >&2
+          fi
+          git tag "${RELEASE_VERSION}" "$tag_revision"
           git push origin "${RELEASE_VERSION}"
 
   build-images:
