@@ -9,6 +9,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use tokio::sync::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use uuid::Uuid;
 
 use crate::{
@@ -693,6 +694,7 @@ pub fn artifact_impact_for(change: PublishChange) -> ArtifactImpact {
 pub struct LocalPublisher {
     root: Arc<PathBuf>,
     status: Arc<Mutex<PublishStatus>>,
+    publish_lock: Arc<AsyncMutex<()>>,
     retention_policy: ReleaseRetentionPolicy,
     generator_metadata: Option<PublishGeneratorMetadata>,
 }
@@ -709,6 +711,7 @@ impl LocalPublisher {
         Self {
             root: Arc::new(root.into()),
             status: Arc::new(Mutex::new(PublishStatus::default())),
+            publish_lock: Arc::new(AsyncMutex::new(())),
             retention_policy,
             generator_metadata: None,
         }
@@ -722,6 +725,7 @@ impl LocalPublisher {
         Self {
             root: Arc::new(root.into()),
             status: Arc::new(Mutex::new(PublishStatus::default())),
+            publish_lock: Arc::new(AsyncMutex::new(())),
             retention_policy,
             generator_metadata,
         }
@@ -735,11 +739,27 @@ impl LocalPublisher {
         retention_status(&self.root, self.retention_policy)
     }
 
+    pub async fn acquire_publish_lock(&self) -> AsyncMutexGuard<'_, ()> {
+        self.publish_lock.lock().await
+    }
+
     pub async fn publish(
         &self,
         repository: &dyn CatalogRepository,
         media: &dyn PrivateMediaStore,
         mode: PublishMode,
+    ) -> Result<PublishStatus, String> {
+        let publish_guard = self.acquire_publish_lock().await;
+        self.publish_locked(repository, media, mode, &publish_guard)
+            .await
+    }
+
+    pub async fn publish_locked(
+        &self,
+        repository: &dyn CatalogRepository,
+        media: &dyn PrivateMediaStore,
+        mode: PublishMode,
+        _publish_guard: &AsyncMutexGuard<'_, ()>,
     ) -> Result<PublishStatus, String> {
         let release_id = Uuid::new_v4().to_string();
         let candidate = self.root.join("releases").join(&release_id);
@@ -1025,7 +1045,16 @@ async fn build_public_items(
                     source_key
                 }
                 None => {
-                    let bytes = media.read(&image.object_key).await?;
+                    let bytes = media.read(&image.object_key).await.inspect_err(|error| {
+                        tracing::error!(
+                            item_id = %item.id,
+                            image_id = %image.id,
+                            public_slug = %slug,
+                            image_slug = %image_slug,
+                            error_kind = private_media_error_kind(error),
+                            "failed to read private media for derivative generation"
+                        );
+                    })?;
                     let fingerprint = derivative_source_fingerprint(&bytes);
                     source = Some(bytes);
                     progress.cache_key_fallback_read_count += 1;
@@ -1040,10 +1069,37 @@ async fn build_public_items(
                         derivative
                     }
                     Ok(None) => {
-                        let bytes =
-                            source_bytes(media, image, &source_key, &mut source, &mut progress)
-                                .await?;
-                        let derivative = generate_derivative(bytes, variant)?;
+                        let bytes = source_bytes(
+                            media,
+                            image,
+                            &source_key,
+                            &mut source,
+                            &mut progress,
+                        )
+                        .await
+                        .inspect_err(|error| {
+                            tracing::error!(
+                                item_id = %item.id,
+                                image_id = %image.id,
+                                public_slug = %slug,
+                                image_slug = %image_slug,
+                                variant = %variant.path_segment(),
+                                error_kind = private_media_error_kind(error),
+                                "failed to read private media source for derivative generation"
+                            );
+                        })?;
+                        let derivative = generate_derivative(bytes, variant).map_err(|error| {
+                            tracing::error!(
+                                item_id = %item.id,
+                                image_id = %image.id,
+                                public_slug = %slug,
+                                image_slug = %image_slug,
+                                variant = %variant.path_segment(),
+                                error = %error,
+                                "failed to generate public derivative"
+                            );
+                            error
+                        })?;
                         if let Err(error) =
                             derivative_cache.write(source_key.cache_key(), &derivative)
                         {
@@ -1056,8 +1112,30 @@ async fn build_public_items(
                         tracing::warn!(%error, "ignored unreadable derivative cache entry");
                         let bytes =
                             source_bytes(media, image, &source_key, &mut source, &mut progress)
-                                .await?;
-                        let derivative = generate_derivative(bytes, variant)?;
+                                .await
+                                .inspect_err(|error| {
+                                    tracing::error!(
+                                        item_id = %item.id,
+                                        image_id = %image.id,
+                                        public_slug = %slug,
+                                        image_slug = %image_slug,
+                                        variant = %variant.path_segment(),
+                                        error_kind = private_media_error_kind(error),
+                                        "failed to read private media source after cache miss"
+                                    );
+                                })?;
+                        let derivative = generate_derivative(bytes, variant).map_err(|error| {
+                            tracing::error!(
+                                item_id = %item.id,
+                                image_id = %image.id,
+                                public_slug = %slug,
+                                image_slug = %image_slug,
+                                variant = %variant.path_segment(),
+                                error = %error,
+                                "failed to generate public derivative after cache miss"
+                            );
+                            error
+                        })?;
                         if let Err(error) =
                             derivative_cache.write(source_key.cache_key(), &derivative)
                         {
@@ -1161,6 +1239,21 @@ fn derivative_cache_source_key(image: &AutographImage) -> Option<DerivativeSourc
             checksum: checksum.to_owned(),
             cache_key: format!("checksum:{checksum}"),
         })
+}
+
+fn private_media_error_kind(error: &str) -> &'static str {
+    let normalized = error.to_ascii_lowercase();
+    if normalized.contains("checksum") {
+        "checksum_mismatch"
+    } else if normalized.contains("not found") || normalized.contains("no such file") {
+        "not_found"
+    } else if normalized.contains("timeout") {
+        "timeout"
+    } else if normalized.contains("permission") || normalized.contains("forbidden") {
+        "permission"
+    } else {
+        "read_failed"
+    }
 }
 
 async fn source_bytes<'a>(

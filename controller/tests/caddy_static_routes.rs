@@ -99,6 +99,8 @@ fn controller_dockerfile_copies_compile_time_static_assets() {
     assert!(dockerfile.contains("COPY controller/static-admin ./static-admin"));
     assert!(dockerfile.contains("cargo build --release --features production-persistence"));
     assert!(dockerfile.contains("COPY controller/static-admin /opt/autographs/static-admin"));
+    assert!(dockerfile.contains("oracle-instantclient-basiclite-23.26.2.0.0-2.el10"));
+    assert!(!dockerfile.contains("oracle-instantclient-basic-23.26.2.0.0-2.el10"));
     assert!(dockerignore.contains("controller/static-public/data/collection.json"));
     assert!(dockerignore.contains("controller/static-public/data/facets.json"));
     assert!(dockerignore.contains("controller/static-public/data/items"));
@@ -113,6 +115,10 @@ fn controller_dockerfile_copies_compile_time_static_assets() {
     assert!(gitignore.contains("controller/static-public/media/*"));
     assert!(smoke_dockerfile.contains("COPY controller/static-admin ./static-admin"));
     assert!(static_smoke_dockerfile.contains("COPY controller/static-admin ./static-admin"));
+    assert!(smoke_dockerfile.contains("oracle-instantclient-basiclite"));
+    assert!(static_smoke_dockerfile.contains("oracle-instantclient-basiclite"));
+    assert!(!smoke_dockerfile.contains("oracle-instantclient-basic "));
+    assert!(!static_smoke_dockerfile.contains("oracle-instantclient-basic "));
 }
 
 #[test]

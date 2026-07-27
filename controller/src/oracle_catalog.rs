@@ -212,7 +212,10 @@ impl CatalogRepository for OracleCatalogRepository {
         self.with_connection(move |connection| {
             let mut item = load_item(&connection, id)?
                 .ok_or_else(|| "autograph item was not found".to_owned())?;
+            let input_updates_tags = input.tags.is_some();
             let input_updates_signer_credits = input.signer_credits.is_some();
+            let input_updates_characters = input.characters.is_some();
+            let input_updates_franchises = input.franchises.is_some();
             let has_persisted_signer_credits = has_persisted_signer_credits(&connection, id)?;
             let resolved_signer_credits = if let Some(signer_inputs) = input.signer_credits.as_ref()
             {
@@ -280,15 +283,21 @@ impl CatalogRepository for OracleCatalogRepository {
             if rows_updated == 0 {
                 return Err("autograph item was not found".to_owned());
             }
-            replace_tags(&connection, id, &item.tags)?;
+            if input_updates_tags {
+                replace_tags(&connection, id, &item.tags)?;
+            }
             if should_replace_signer_credits(
                 input_updates_signer_credits,
                 has_persisted_signer_credits,
             ) {
                 replace_signer_credits(&connection, id, &item.signer_credits)?;
             }
-            replace_characters(&connection, id, &item.characters)?;
-            replace_franchises(&connection, id, &item.franchises)?;
+            if input_updates_characters {
+                replace_characters(&connection, id, &item.characters)?;
+            }
+            if input_updates_franchises {
+                replace_franchises(&connection, id, &item.franchises)?;
+            }
             let kind = event_kind_for_diffs(&field_diffs);
             let event = AutographEditEvent::new(
                 id,
@@ -1656,9 +1665,9 @@ fn has_persisted_signer_credits(connection: &Connection, id: Uuid) -> Result<boo
 
 fn should_replace_signer_credits(
     input_updates_signer_credits: bool,
-    has_persisted_signer_credits: bool,
+    _has_persisted_signer_credits: bool,
 ) -> bool {
-    input_updates_signer_credits || has_persisted_signer_credits
+    input_updates_signer_credits
 }
 
 fn load_characters(connection: &Connection, id: Uuid) -> Result<Vec<String>, String> {
@@ -2319,7 +2328,7 @@ mod tests {
     fn oracle_skips_synthetic_legacy_signer_credit_writeback() {
         assert!(!should_replace_signer_credits(false, false));
         assert!(should_replace_signer_credits(true, false));
-        assert!(should_replace_signer_credits(false, true));
+        assert!(!should_replace_signer_credits(false, true));
         assert!(should_replace_signer_credits(true, true));
     }
 

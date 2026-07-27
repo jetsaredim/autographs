@@ -60,6 +60,16 @@ def main() -> int:
     ghcr_exists_parser.add_argument("--tag", required=True)
     ghcr_exists_parser.add_argument("--github-output", type=Path)
 
+    tag_target_parser = subcommands.add_parser("tag-target")
+    tag_target_parser.add_argument("--release-status-revision", required=True)
+    tag_target_parser.add_argument("--source-revision", required=True)
+    tag_target_parser.add_argument(
+        "--source-is-main-ancestor",
+        required=True,
+        choices=["true", "false"],
+    )
+    tag_target_parser.add_argument("--github-output", type=Path)
+
     deploy_current_parser = subcommands.add_parser("assert-deploy-current")
     deploy_current_parser.add_argument("--status-file", type=Path, default=Path(".release-status.json"))
     deploy_current_parser.add_argument("--repo-version", required=True)
@@ -95,6 +105,19 @@ def main() -> int:
                 output.write(f"exists={str(exists).lower()}\n")
         else:
             print(str(exists).lower())
+        return 0
+
+    if args.command == "tag-target":
+        target = release_tag_target(
+            args.release_status_revision,
+            args.source_revision,
+            parse_bool(args.source_is_main_ancestor),
+        )
+        if args.github_output:
+            with args.github_output.open("a", encoding="utf-8") as output:
+                output.write(f"tag_revision={target}\n")
+        else:
+            print(target)
         return 0
 
     if args.command == "assert-deploy-current":
@@ -306,6 +329,20 @@ def assert_deploy_current(status_file: Path, repo_version: str, controller_versi
             f"refusing to deploy {repo_version}; "
             f"release status already records newer deploy-impact release {latest_deploy_impact_version}"
         )
+
+
+def release_tag_target(
+    release_status_revision: str,
+    source_revision: str,
+    source_is_main_ancestor: bool,
+) -> str:
+    release_status_revision = release_status_revision.strip()
+    source_revision = source_revision.strip()
+    if not release_status_revision:
+        raise RuntimeError("release status revision is required")
+    if not source_revision:
+        raise RuntimeError("source revision is required")
+    return source_revision if source_is_main_ancestor else release_status_revision
 
 
 def read_status(path: Path) -> dict:

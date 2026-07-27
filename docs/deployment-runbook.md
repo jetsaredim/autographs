@@ -192,7 +192,11 @@ Pull requests run `.github/workflows/ci.yml`. The CI workflow checks the Rust co
 Merges to `main` run `.github/workflows/deploy.yml`. The deploy workflow first
 classifies the merged PR and updates the repo semver in `VERSION`,
 `.release-status.json`, and the generated README release status block, then
-creates the matching Git `v*` tag on that status commit. Version bumps are
+creates the matching Git `v*` tag on the release source commit when it is
+present on `origin/main`. If the source commit cannot be found on `origin/main`,
+the workflow falls back to tagging the release-status commit that records the
+version. This keeps GitHub release-note summaries focused on the actual merged
+change instead of the bot-authored release-status chore. Version bumps are
 semantic: explicit breaking changes bump major, feature signals such as
 `version:minor` or `feat:` bump minor, and everything else defaults to patch.
 Each push-triggered workflow records the triggering merge SHA as the release

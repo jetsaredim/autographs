@@ -485,6 +485,24 @@ class ReleaseVersionTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "newer deploy-impact release v0.9.0"):
                 release_version.assert_deploy_current(status, "v0.8.0", "v0.8.0")
 
+    def test_release_tag_target_uses_source_revision_when_source_is_on_main(self):
+        self.assertEqual(
+            release_version.release_tag_target("status123", "source456", True),
+            "source456",
+        )
+
+    def test_release_tag_target_falls_back_to_release_status_revision_when_source_is_stale(self):
+        self.assertEqual(
+            release_version.release_tag_target("status123", "source456", False),
+            "status123",
+        )
+
+    def test_release_tag_target_requires_revisions(self):
+        with self.assertRaisesRegex(RuntimeError, "release status revision is required"):
+            release_version.release_tag_target("", "source456", True)
+        with self.assertRaisesRegex(RuntimeError, "source revision is required"):
+            release_version.release_tag_target("status123", "", True)
+
 
 if __name__ == "__main__":
     unittest.main()

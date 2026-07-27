@@ -1204,6 +1204,7 @@ async fn publish(
     }
 
     let started = Instant::now();
+    let publish_guard = state.publisher.acquire_publish_lock().await;
     let publish_boundary = match state.repository.begin_publish_boundary().await {
         Ok(boundary) => boundary,
         Err(error) => {
@@ -1214,7 +1215,12 @@ async fn publish(
     tracing::info!(mode = ?mode, "publishing static release");
     match state
         .publisher
-        .publish(state.repository.as_ref(), state.media.as_ref(), mode)
+        .publish_locked(
+            state.repository.as_ref(),
+            state.media.as_ref(),
+            mode,
+            &publish_guard,
+        )
         .await
     {
         Ok(status) => {
@@ -1275,6 +1281,191 @@ fn publish_mode_label(mode: PublishMode) -> &'static str {
     match mode {
         PublishMode::Full => "full",
         PublishMode::Incremental => "incremental",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::{Body, to_bytes},
+        http::{Request, header},
+    };
+    use serde_json::{Value, json};
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn queued_publish_captures_boundary_after_waiting_for_publish_lock() {
+        let repository = Arc::new(MemoryCatalogRepository::default());
+        let media_root = tempfile::tempdir().expect("media root");
+        let static_root = tempfile::tempdir().expect("static root");
+        let media = Arc::new(LocalMediaStore::new(media_root.path()));
+        let item = repository
+            .create(test_item_input(
+                "Queued Publish Item",
+                PublicationStatus::Published,
+            ))
+            .await
+            .expect("create item");
+        let image_id = Uuid::new_v4();
+        let object_key = build_original_object_key(item.id, image_id);
+        media
+            .write(&object_key, &png_fixture())
+            .await
+            .expect("write media");
+        repository
+            .attach_image(
+                item.id,
+                AutographImage {
+                    id: image_id,
+                    object_key,
+                    original_filename: "private-queued.png".to_owned(),
+                    content_type: "image/png".to_owned(),
+                    byte_size: 128,
+                    checksum: None,
+                    etag: None,
+                    is_primary: true,
+                    sort_order: 0,
+                    alt_text: None,
+                },
+            )
+            .await
+            .expect("attach image");
+
+        let mut config = ControllerConfig::for_test(false);
+        config.static_release_root = static_root.path().to_path_buf();
+        let publisher = Arc::new(LocalPublisher::with_retention_policy(
+            static_root.path(),
+            ReleaseRetentionPolicy::default(),
+        ));
+        let publish_guard = publisher.acquire_publish_lock().await;
+        let app = router_with_services(config, repository, media.clone(), Arc::clone(&publisher));
+
+        let publish = spawn_publish(app.clone()).await;
+        patch_item_title(&app, item.id, "Queued Publish Item Updated").await;
+        drop(publish_guard);
+
+        assert_eq!(
+            publish.await.expect("queued publish").status(),
+            StatusCode::CREATED
+        );
+        let status = admin_status(&app).await;
+        assert_eq!(status["pendingChanges"]["count"], 0);
+        assert_eq!(status["pendingChanges"]["hasPendingChanges"], false);
+    }
+
+    async fn spawn_publish(app: Router) -> tokio::task::JoinHandle<axum::response::Response> {
+        let cookie = admin_cookie(&app).await;
+        tokio::spawn(async move {
+            app.oneshot(
+                Request::post("/admin/api/publish/full")
+                    .header(header::COOKIE, cookie)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .body(Body::empty())
+                    .expect("publish request"),
+            )
+            .await
+            .expect("publish response")
+        })
+    }
+
+    async fn patch_item_title(app: &Router, item_id: Uuid, title: &str) {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::patch(format!("/admin/api/items/{item_id}"))
+                    .header(header::COOKIE, admin_cookie(app).await)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(json!({ "title": title }).to_string()))
+                    .expect("patch request"),
+            )
+            .await
+            .expect("patch response");
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    async fn admin_status(app: &Router) -> Value {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/admin/api/status")
+                    .header(header::COOKIE, admin_cookie(app).await)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .body(Body::empty())
+                    .expect("status request"),
+            )
+            .await
+            .expect("status response");
+        assert_eq!(response.status(), StatusCode::OK);
+        response_json(response).await
+    }
+
+    async fn admin_cookie(app: &Router) -> String {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/admin/api/login")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"password":"local-test-password"}"#))
+                    .expect("login request"),
+            )
+            .await
+            .expect("login response");
+        response
+            .headers()
+            .get(header::SET_COOKIE)
+            .expect("set cookie")
+            .to_str()
+            .expect("cookie text")
+            .split(';')
+            .next()
+            .expect("cookie pair")
+            .to_owned()
+    }
+
+    async fn response_json(response: axum::response::Response) -> Value {
+        serde_json::from_slice(
+            &to_bytes(response.into_body(), usize::MAX)
+                .await
+                .expect("body"),
+        )
+        .expect("json")
+    }
+
+    fn png_fixture() -> Vec<u8> {
+        let mut body = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(8, 8, image::Rgb([1, 2, 3])))
+            .write_to(&mut body, ImageFormat::Png)
+            .expect("write png");
+        body.into_inner()
+    }
+
+    fn test_item_input(title: &str, publication_status: PublicationStatus) -> AutographItemInput {
+        AutographItemInput {
+            title: title.to_owned(),
+            signer: "Rosario Dawson".to_owned(),
+            description: None,
+            category: "Photos".to_owned(),
+            tags: vec!["ahsoka".to_owned()],
+            signer_credits: Vec::new(),
+            characters: Vec::new(),
+            format: "Photo".to_owned(),
+            origin: crate::catalog::ItemOrigin::Official,
+            franchises: Vec::new(),
+            product_line: None,
+            set_name: None,
+            language: "English".to_owned(),
+            object_reference: None,
+            event_name: None,
+            event_location: None,
+            source: None,
+            inscription: None,
+            certification_company: None,
+            certification_id: None,
+            estimated_year: None,
+            publication_status,
+        }
     }
 }
 

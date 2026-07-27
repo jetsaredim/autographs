@@ -6,7 +6,14 @@ async fn main() {
 
     let config = ControllerConfig::from_env().expect("load controller configuration");
     let bind_addr = config.bind_addr;
-    tracing::info!(%bind_addr, "starting autographs controller");
+    tracing::info!(
+        %bind_addr,
+        repo_version = config.repo_version.as_deref().unwrap_or("unknown"),
+        controller_version = config.controller_version.as_deref().unwrap_or("unknown"),
+        controller_image = config.controller_image.as_deref().unwrap_or("unknown"),
+        source_revision = config.source_revision.as_deref().unwrap_or("unknown"),
+        "starting autographs controller"
+    );
 
     let listener = tokio::net::TcpListener::bind(bind_addr)
         .await
