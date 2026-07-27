@@ -1045,16 +1045,15 @@ async fn build_public_items(
                     source_key
                 }
                 None => {
-                    let bytes = media.read(&image.object_key).await.map_err(|error| {
+                    let bytes = media.read(&image.object_key).await.inspect_err(|error| {
                         tracing::error!(
                             item_id = %item.id,
                             image_id = %image.id,
                             public_slug = %slug,
                             image_slug = %image_slug,
-                            error_kind = private_media_error_kind(&error),
+                            error_kind = private_media_error_kind(error),
                             "failed to read private media for derivative generation"
                         );
-                        error
                     })?;
                     let fingerprint = derivative_source_fingerprint(&bytes);
                     source = Some(bytes);
@@ -1078,17 +1077,16 @@ async fn build_public_items(
                             &mut progress,
                         )
                         .await
-                        .map_err(|error| {
+                        .inspect_err(|error| {
                             tracing::error!(
                                 item_id = %item.id,
                                 image_id = %image.id,
                                 public_slug = %slug,
                                 image_slug = %image_slug,
                                 variant = %variant.path_segment(),
-                                error_kind = private_media_error_kind(&error),
+                                error_kind = private_media_error_kind(error),
                                 "failed to read private media source for derivative generation"
                             );
-                            error
                         })?;
                         let derivative = generate_derivative(bytes, variant).map_err(|error| {
                             tracing::error!(
@@ -1115,17 +1113,16 @@ async fn build_public_items(
                         let bytes =
                             source_bytes(media, image, &source_key, &mut source, &mut progress)
                                 .await
-                                .map_err(|error| {
+                                .inspect_err(|error| {
                                     tracing::error!(
                                         item_id = %item.id,
                                         image_id = %image.id,
                                         public_slug = %slug,
                                         image_slug = %image_slug,
                                         variant = %variant.path_segment(),
-                                        error_kind = private_media_error_kind(&error),
+                                        error_kind = private_media_error_kind(error),
                                         "failed to read private media source after cache miss"
                                     );
-                                    error
                                 })?;
                         let derivative = generate_derivative(bytes, variant).map_err(|error| {
                             tracing::error!(
