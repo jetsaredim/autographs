@@ -1292,11 +1292,6 @@ mod tests {
         http::{Request, header},
     };
     use serde_json::{Value, json};
-    use std::{
-        sync::atomic::{AtomicBool, Ordering},
-        time::Duration,
-    };
-    use tokio::sync::Notify;
     use tower::ServiceExt;
 
     #[tokio::test]
@@ -1304,7 +1299,7 @@ mod tests {
         let repository = Arc::new(MemoryCatalogRepository::default());
         let media_root = tempfile::tempdir().expect("media root");
         let static_root = tempfile::tempdir().expect("static root");
-        let media = Arc::new(BlockingReadMediaStore::new(media_root.path()));
+        let media = Arc::new(LocalMediaStore::new(media_root.path()));
         let item = repository
             .create(test_item_input(
                 "Queued Publish Item",
@@ -1339,21 +1334,19 @@ mod tests {
 
         let mut config = ControllerConfig::for_test(false);
         config.static_release_root = static_root.path().to_path_buf();
-        let app = router_with_stores(config, repository, media.clone());
+        let publisher = Arc::new(LocalPublisher::with_retention_policy(
+            static_root.path(),
+            ReleaseRetentionPolicy::default(),
+        ));
+        let publish_guard = publisher.acquire_publish_lock().await;
+        let app = router_with_services(config, repository, media.clone(), Arc::clone(&publisher));
 
-        let first_publish = spawn_publish(app.clone()).await;
-        media.wait_for_blocked_read().await;
-        let second_publish = spawn_publish(app.clone()).await;
-        tokio::time::sleep(Duration::from_millis(25)).await;
+        let publish = spawn_publish(app.clone()).await;
         patch_item_title(&app, item.id, "Queued Publish Item Updated").await;
-        media.release_read();
+        drop(publish_guard);
 
         assert_eq!(
-            first_publish.await.expect("first publish").status(),
-            StatusCode::CREATED
-        );
-        assert_eq!(
-            second_publish.await.expect("second publish").status(),
+            publish.await.expect("queued publish").status(),
             StatusCode::CREATED
         );
         let status = admin_status(&app).await;
@@ -1472,51 +1465,6 @@ mod tests {
             certification_id: None,
             estimated_year: None,
             publication_status,
-        }
-    }
-
-    struct BlockingReadMediaStore {
-        inner: LocalMediaStore,
-        should_block: AtomicBool,
-        blocked: Notify,
-        release: Notify,
-    }
-
-    impl BlockingReadMediaStore {
-        fn new(root: impl Into<std::path::PathBuf>) -> Self {
-            Self {
-                inner: LocalMediaStore::new(root),
-                should_block: AtomicBool::new(true),
-                blocked: Notify::new(),
-                release: Notify::new(),
-            }
-        }
-
-        async fn wait_for_blocked_read(&self) {
-            self.blocked.notified().await;
-        }
-
-        fn release_read(&self) {
-            self.release.notify_waiters();
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl PrivateMediaStore for BlockingReadMediaStore {
-        async fn write(&self, object_key: &str, body: &[u8]) -> Result<(), String> {
-            self.inner.write(object_key, body).await
-        }
-
-        async fn read(&self, object_key: &str) -> Result<Vec<u8>, String> {
-            if self.should_block.swap(false, Ordering::SeqCst) {
-                self.blocked.notify_one();
-                self.release.notified().await;
-            }
-            self.inner.read(object_key).await
-        }
-
-        async fn delete(&self, object_key: &str) -> Result<(), String> {
-            self.inner.delete(object_key).await
         }
     }
 }
