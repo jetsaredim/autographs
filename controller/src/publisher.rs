@@ -1140,16 +1140,13 @@ async fn build_public_items(
 
 enum DerivativeSourceKey {
     Checksum { checksum: String, cache_key: String },
-    Etag(String),
     Legacy(String),
 }
 
 impl DerivativeSourceKey {
     fn cache_key(&self) -> &str {
         match self {
-            Self::Checksum { cache_key, .. } | Self::Etag(cache_key) | Self::Legacy(cache_key) => {
-                cache_key
-            }
+            Self::Checksum { cache_key, .. } | Self::Legacy(cache_key) => cache_key,
         }
     }
 }
@@ -1163,14 +1160,6 @@ fn derivative_cache_source_key(image: &AutographImage) -> Option<DerivativeSourc
         .map(|checksum| DerivativeSourceKey::Checksum {
             checksum: checksum.to_owned(),
             cache_key: format!("checksum:{checksum}"),
-        })
-        .or_else(|| {
-            image
-                .etag
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(|etag| DerivativeSourceKey::Etag(format!("etag:{etag}")))
         })
 }
 

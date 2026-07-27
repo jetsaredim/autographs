@@ -2237,6 +2237,72 @@ async fn publisher_rejects_mismatched_checksum_before_derivative_cache_write() {
 }
 
 #[tokio::test]
+async fn publisher_does_not_reuse_derivatives_for_matching_etags_without_checksum() {
+    let fixture = fixture().await;
+    let second_image_id = Uuid::new_v4();
+    let second_object_key = build_original_object_key(fixture.published.id, second_image_id);
+    let second_bytes = png_bytes_with_color([220, 24, 24]);
+    fixture
+        .media
+        .write(&second_object_key, &second_bytes)
+        .await
+        .unwrap();
+    fixture
+        .repository
+        .attach_image(
+            fixture.published.id,
+            AutographImage {
+                id: second_image_id,
+                object_key: second_object_key,
+                original_filename: "second private scan.png".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: second_bytes.len(),
+                checksum: None,
+                etag: Some("shared-etag".to_owned()),
+                is_primary: false,
+                sort_order: 1,
+                alt_text: None,
+            },
+        )
+        .await
+        .unwrap();
+    let media = CountingMediaStore::new(fixture.media.clone());
+    let publisher = LocalPublisher::new(fixture.root.path());
+
+    publisher
+        .publish(&fixture.repository, &media, PublishMode::Full)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        media.read_count(),
+        2,
+        "ETag-only images should fall back to byte hashing, not no-read cache reuse"
+    );
+    let detail: PublicItemDetail = read_json(
+        &fixture
+            .root
+            .path()
+            .join("current/data/items/signed-jedi-card.json"),
+    );
+    assert_eq!(detail.images.len(), 2);
+    let detail_paths = detail
+        .images
+        .iter()
+        .map(|image| {
+            image
+                .variants
+                .iter()
+                .find(|variant| variant.name == ImageVariantName::Detail)
+                .unwrap()
+                .path
+                .clone()
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(detail_paths[0], detail_paths[1]);
+}
+
+#[tokio::test]
 async fn publisher_routes_require_auth_and_report_redacted_status() {
     let fixture = fixture().await;
     let publisher = Arc::new(LocalPublisher::new(fixture.root.path()));
