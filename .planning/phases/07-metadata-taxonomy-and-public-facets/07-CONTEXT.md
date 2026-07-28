@@ -69,8 +69,8 @@ This phase does not add AI/OCR metadata suggestions, bulk import, public account
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Phase Scope and Decisions
-- `.planning/ROADMAP.md` - Phase 7 goal, dependencies, and success criteria; Phase 8 AI ingest dependency.
-- `.planning/REQUIREMENTS.md` - Existing data, gallery, admin, static, and AI requirement context that Phase 7 refines before AI ingest.
+- `.planning/ROADMAP.md` - Phase 7 goal, dependencies, success criteria, and the later realignment to Phase 8 admin media/posture, Phase 9 taxonomy media cues, and Phase 10 advisory AI ingest.
+- `.planning/REQUIREMENTS.md` - Existing data, gallery, admin, static, taxonomy cue, and AI requirement context that later phases consume.
 - `.planning/PROJECT.md` - Product value, constraints, and out-of-scope boundaries.
 - `.planning/STATE.md` - Current project state, Phase 7 focus, and roadmap evolution.
 - `.planning/phases/07-metadata-taxonomy-and-public-facets/07-BRIEF.md` - Phase 7 brief, current live taxonomy signals, candidate model, and open questions.

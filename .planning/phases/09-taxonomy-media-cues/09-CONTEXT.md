@@ -65,7 +65,7 @@ a public split frontend/backend service.
 **Downstream agents MUST read these before planning or implementing.**
 
 - `.planning/ROADMAP.md` - Phase 9 goal, requirements, and success criteria.
-- `.planning/REQUIREMENTS.md` - `AI-01`.
+- `.planning/REQUIREMENTS.md` - `CUE-01`.
 - `.planning/PROJECT.md` - Product constraints and phase split.
 - `.planning/STATE.md` - Current project state and accumulated decisions.
 - `.planning/phases/08-admin-media-review-and-operational-posture/08-CONTEXT.md`

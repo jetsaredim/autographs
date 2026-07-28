@@ -60,7 +60,7 @@
 
 ### Taxonomy Media Cues
 
-- [ ] **AI-01**: Taxonomy/media workflow evaluates small public-safe derived cues for franchise, product-line, set, and non-default language values, such as card-back or franchise/product thumbnails, while preserving text metadata, copyright/publication-risk review, graceful fallback when no image is available, and independence from OCR/AI provider work.
+- [ ] **CUE-01**: Taxonomy/media workflow evaluates small public-safe derived cues for franchise, product-line, set, and non-default language values, such as card-back or franchise/product thumbnails, while preserving text metadata, copyright/publication-risk review, graceful fallback when no image is available, and independence from OCR/AI provider work.
 
 ### Advisory AI-Assisted Ingest
 
@@ -129,7 +129,7 @@ None currently. Future scope should be added only if it directly supports the pe
 | MEDIA-06 | Phase 8 | Pending |
 | OPS-01 | Phase 8 | Pending |
 | OPS-02 | Phase 8 | Pending |
-| AI-01 | Phase 9 | Pending |
+| CUE-01 | Phase 9 | Pending |
 | AI-02 | Phase 10 | Pending |
 | AI-03 | Phase 10 | Pending |
 | AI-04 | Phase 10 | Pending |

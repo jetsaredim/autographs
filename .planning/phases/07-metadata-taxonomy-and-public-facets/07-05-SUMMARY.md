@@ -11,9 +11,9 @@ provides:
   - schema version 2 public artifact contract and taxonomy rollout runbook
   - Phase 7 ASVS L1 taxonomy security review
   - live static publish smoke assertions for schema version 2 facets
-  - refreshed codebase maps identifying Phase 7 as metadata taxonomy/public facets and Phase 8 as advisory AI-assisted ingest
+  - refreshed codebase maps identifying Phase 7 as metadata taxonomy/public facets and the then-pending advisory AI ingest handoff; later realignment moved Phase 8 to admin media/posture, Phase 9 to taxonomy media cues, and Phase 10 to advisory AI ingest
   - source coverage audit record for DATA-03, ADMIN-02, ADMIN-03, research findings, and D-07-01 through D-07-29
-affects: [phase-08-ai-assisted-ingest, operator-rollout, public-static-contracts]
+affects: [phase-08-admin-media-posture, phase-09-taxonomy-media-cues, phase-10-ai-assisted-ingest, operator-rollout, public-static-contracts]
 
 tech-stack:
   added: []
@@ -42,7 +42,7 @@ key-files:
 key-decisions:
   - "Phase 7 rollout requires reviewed migration report/PLSQL, optional SQL Developer application, deploy, full static publish, and admin/public verification."
   - "Category remains a temporary legacy database/reference field but is not a schema version 2 public facet."
-  - "Phase 8, not Phase 7, is the pending advisory AI-assisted ingest phase."
+  - "At Phase 7 closeout, advisory AI-assisted ingest was pending after the taxonomy model; later realignment moved AI ingest to Phase 10 after Phase 8 admin media/posture and Phase 9 taxonomy media cues."
 
 patterns-established:
   - "Codebase maps must identify Phase 7 as implemented metadata taxonomy/public facets to prevent stale AI-ingest assumptions."
@@ -56,7 +56,7 @@ completed: 2026-07-10
 
 # Phase 07-05: Rollout Docs, Security Review, and Codebase Map Summary
 
-**Phase 7 taxonomy rollout documentation, ASVS L1 review, schema v2 live-smoke assertions, and refreshed codebase maps for Phase 8 handoff**
+**Phase 7 taxonomy rollout documentation, ASVS L1 review, schema v2 live-smoke assertions, and refreshed codebase maps for later phase handoff**
 
 ## Performance
 
@@ -72,7 +72,7 @@ completed: 2026-07-10
 - Added the Phase 7 Taxonomy Rollout runbook path: migration report, PL/SQL review, optional SQL Developer application, deploy, full static publish, admin verification, public verification, and legacy-field cleanup planning.
 - Recorded the Phase 7 Metadata Taxonomy Security Review with ASVS L1 framing and fixed/accepted dispositions for admin auth, signer merge repair, taxonomy validation, Oracle migration, Object Storage privacy, and fail-closed publishing.
 - Updated the live static publish smoke so enabled runs validate schema version 2 collection/facets, signer/franchise/productLine/format/language/origin/role/tag facets, absence of category, public detail taxonomy values, derivative generation, and privacy-deny terms.
-- Refreshed codebase maps so Phase 7 is the implemented metadata taxonomy/public facets layer and Phase 8 is pending advisory AI-assisted ingest.
+- Refreshed codebase maps so Phase 7 is the implemented metadata taxonomy/public facets layer and advisory AI ingest stayed pending; as of the later phase realignment, Phase 8 is admin media/posture, Phase 9 is taxonomy media cues, and Phase 10 is advisory AI ingest.
 
 ## Task Commits
 
@@ -159,7 +159,7 @@ None for local closeout. Operator-run live static publish proof still requires r
 
 ## Next Phase Readiness
 
-Phase 7 is documented as complete from schema through public facets and rollout guidance. Phase 8 can start advisory AI-assisted ingest against stable signer profiles, item signer credits, taxonomy fields, schema version 2 public facets, and the manual admin workflow.
+Phase 7 is documented as complete from schema through public facets and rollout guidance. Realignment note: Phase 8 now starts admin media review and operational posture repair, Phase 9 owns taxonomy media cues, and Phase 10 can later start advisory AI-assisted ingest against stable signer profiles, item signer credits, taxonomy fields, schema version 2 public facets, and the manual admin workflow.
 
 ## Self-Check: PASSED
 

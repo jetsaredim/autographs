@@ -8,7 +8,7 @@
 
 Phase 6 turns the completed Rust/static foundation into a polished, single-admin collection management workflow. It delivers the daily admin experience for creating and editing autograph items, uploading multiple private images, marking a primary image, saving private source-of-truth changes, publishing batched changes into static public output, reviewing field-level edit history, and keeping image metadata plus Object Storage objects in sync during normal operation.
 
-This phase does not add public accounts, multiple admin roles, bulk import, AI-assisted metadata suggestions, or a public multi-service architecture. Phase 7 owns advisory AI-assisted ingest after the manual admin workflow exists.
+This phase does not add public accounts, multiple admin roles, bulk import, AI-assisted metadata suggestions, or a public multi-service architecture. Later roadmap realignment moves admin media/posture to Phase 8, taxonomy media cues to Phase 9, and advisory AI-assisted ingest to Phase 10 after the manual admin workflow exists.
 
 </domain>
 

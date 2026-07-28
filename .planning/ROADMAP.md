@@ -252,7 +252,7 @@ Plans:
 
 **Goal**: Public details and admin taxonomy management can use optional approved media cues for franchise, product-line, set, and non-default language values while text metadata remains canonical and sufficient.
 **Depends on**: Phase 8
-**Requirements**: AI-01
+**Requirements**: CUE-01
 **Success Criteria** (what must be TRUE):
 
   1. Taxonomy/media exploration evaluates whether franchise, product-line, set, and non-default language values should have small public-safe derived cues, such as recognizable card-back or franchise/product thumbnails, without requiring image support for every taxonomy value or depending on OCR/AI provider work.

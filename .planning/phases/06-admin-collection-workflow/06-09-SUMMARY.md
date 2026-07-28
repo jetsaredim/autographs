@@ -129,7 +129,7 @@ completed: 2026-07-02
 
 ## Phase 6 Readiness
 
-Phase 6 is complete. Phase 7 can begin advisory AI-assisted ingest on top of the completed Rust/static public runtime and Phase 6 admin workflow.
+Phase 6 is complete. Realignment note: Phase 7 has since completed metadata taxonomy/public facets; the current roadmap places admin media/posture in Phase 8, taxonomy media cues in Phase 9, and advisory AI-assisted ingest in Phase 10.
 
 ---
 *Phase: 06-admin-collection-workflow*
