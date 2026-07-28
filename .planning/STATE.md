@@ -3,34 +3,34 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready-for-planning
-stopped_at: Phase 8 context gathered
-last_updated: "2026-07-20T05:04:55.801Z"
-last_activity: 2026-07-20
+stopped_at: Phase 8 realigned for admin media review and operational posture
+last_updated: "2026-07-28T00:00:00.000Z"
+last_activity: 2026-07-28
 progress:
-  total_phases: 8
+  total_phases: 10
   completed_phases: 7
   total_plans: 39
   completed_plans: 39
-  percent: 88
+  percent: 70
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-19)
+See: .planning/PROJECT.md (updated 2026-07-28)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 08 — Taxonomy Media and AI-Assisted Ingest
+**Current focus:** Phase 08 — Admin Media Review and Operational Posture
 
 ## Current Position
 
 Phase: 8
 Plan: Not started
-Status: Phase 7 complete; Phase 8 not started
-Last activity: 2026-07-20
+Status: Phase 7 complete; Phase 8 realigned and ready for planning
+Last activity: 2026-07-28
 
-Progress: [████████░░] 88% of milestone phases complete; Phase 8 is next
+Progress: [███████░░░] 70% of milestone phases complete; Phase 8 is next
 
 ## Performance Metrics
 
@@ -100,9 +100,12 @@ Recent decisions affecting current work:
 - Phase 5: Prove the static public runtime plus a minimal private seed/publish path into Oracle/Object Storage before expanding admin CRUD.
 - Phase 6: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
 - Phase 7: Add a metadata taxonomy and public facet upgrade before advisory AI-assisted ingest so signer credits, reusable signer profiles, franchise, product line, format, and origin exist as stable suggestion targets.
-- Phase 8: Start with taxonomy/media exploration for optional franchise, product-line, set, and non-default language cues, keeping text metadata canonical and any public derivatives small, optional, privacy/copyright reviewed, and independent from AI/OCR provider work.
-- Phase 8: Add advisory AI-assisted ingest after the admin workflow and richer metadata model exist, without making manual entry dependent on AI.
-- Review follow-up: Phase 6, Phase 7, and Phase 8 now carry explicit security/documentation completion criteria for the new admin, metadata, and AI surfaces they introduce.
+- Phase 8: Repair the current production security patching workflow, run a repo-wide posture pass, and add private admin image previews plus non-destructive image adjustment foundations before more media-heavy taxonomy or AI work.
+- Phase 8 CDN posture: Phase 6 already documented Cloudflare/CDN as deferred; Phase 8 should revalidate that decision during the operations posture pass, but actual Cloudflare enablement should become a separately planned delivery change unless it remains a small docs/config update with clear admin/API bypass and rollback behavior.
+- Phase 8 security patching: The old runtime-IP resolution issue is resolved, but latest weekly scans still fail after IP resolution in the Ansible scan step; the repair should reduce host-side data gathering and use authoritative external Oracle Linux advisory sources where practical.
+- Phase 9: Add optional taxonomy/media cues for franchise, product-line, set, and non-default language values, keeping text metadata canonical and any public derivatives small, optional, privacy/copyright reviewed, and independent from OCR/AI provider work.
+- Phase 10: Add advisory AI-assisted ingest after the admin workflow and richer metadata model exist, without making manual entry dependent on AI.
+- Review follow-up: Phase 6, Phase 7, Phase 8, Phase 9, and Phase 10 now carry explicit security/documentation completion criteria for the new admin, metadata, media, operations, and AI surfaces they introduce.
 - Pivot outcome: The former live Next.js public runtime and data-smoke path were replaced by the static public catalog, static admin shell, and thin private admin/publisher API that generate content inside the OCI boundary.
 - Static-runtime boundary: GitHub Actions should build and deploy code artifacts only; catalog content generation should not expose private OCI object identifiers, URLs, Oracle data, or image UUIDs through GitHub-hosted workflows.
 - Phase 5 proof outcome: The static publishing contract, Rust private controller, minimal static admin seed/publish path, and local/private Caddy candidate validation are planned, implemented, and closed as the foundation for Phase 6 admin polish.
@@ -129,7 +132,7 @@ Recent decisions affecting current work:
 - [Phase 07]: Public browse filters use single-select semantic query params with AND behavior across signer, franchise, productLine, format, language, origin, role, and tag.
 - [Phase 07]: Phase 7 rollout requires reviewed migration report/PLSQL, optional SQL Developer application, deploy, full static publish, and admin/public verification.
 - [Phase 07]: Category remains a temporary legacy database/reference field but is not a schema version 2 public facet.
-- [Phase 07]: Phase 8, not Phase 7, is the pending advisory AI-assisted ingest phase.
+- [Phase 07]: AI-assisted ingest remains pending after the manual metadata taxonomy; it is now Phase 10 after the Phase 8 admin media/posture foundation and Phase 9 taxonomy media cues.
 
 ### Pending Todos
 
@@ -141,21 +144,23 @@ Recent decisions affecting current work:
 
 - Phase 6 is complete; keep its admin workflow, session auth, media cleanup, cache posture, and runtime cleanup guidance intact.
 - Phase 7 is complete; keep its first-class multi-signer records, reusable signer profiles, optional Wikipedia/IMDb links, format/origin/franchise/product-line/set fields, public facet updates, and reviewed backfill path intact while planning Phase 8.
-- Phase 8 should look first at optional taxonomy/media cues for franchise, product-line, set, and non-default language values, which can use upcoming event items as practical test material without requiring OCR/AI provider work.
-- Phase 8 still owns advisory AI-assisted ingest after manual admin workflows and richer taxonomy exist, with OCR/AI provider, prompt, privacy, and configuration-security review still required.
+- Phase 8 should first repair production security patching, run a repo-wide source/docs/workflow/config posture pass, and add admin-private image preview plus manual correction workflows for uploaded item images.
+- Phase 9 should then look at optional taxonomy/media cues for franchise, product-line, set, and non-default language values, which can use upcoming event items as practical test material without requiring OCR/AI provider work.
+- Phase 10 owns advisory AI-assisted ingest after manual admin workflows, richer taxonomy, and media-review foundations exist, with OCR/AI provider, prompt, privacy, and configuration-security review still required.
 - Keep production security patching action pins, approval allowlist, and Ansible role behavior reviewed with deploy/runtime changes.
 
 ### Roadmap Evolution
 
 - Phase 5 inserted: Static Runtime Migration Foundation; former Admin Collection Workflow moved to Phase 6 and AI-Assisted Ingest later moved to Phase 8 after the Phase 7 taxonomy insertion.
 - Phase 6 edited: added 06-09 optimization wave for public delivery, image size, CDN/cache posture, and deployed instance/codebase cleanup before Phase 6 closeout.
-- Phase 7 inserted: Metadata Taxonomy and Public Facets; former AI-Assisted Ingest moved to Phase 8 so AI suggestions target the richer manual metadata model.
+- Phase 7 inserted: Metadata Taxonomy and Public Facets; former AI-Assisted Ingest was first moved to Phase 8 so AI suggestions would target the richer manual metadata model, then later moved to Phase 10 during the admin media/posture split.
+- Phase 8 realigned: Admin Media Review and Operational Posture inserted as the next phase; prior Phase 8 taxonomy/media cue work moved to Phase 9, and advisory AI-assisted ingest moved to Phase 10.
 
 ## Session Continuity
 
-Last session: 2026-07-20T05:04:55.793Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-taxonomy-media-and-ai-assisted-ingest/08-CONTEXT.md
+Last session: 2026-07-28T00:00:00.000Z
+Stopped at: Phase 8 realigned for admin media review and operational posture
+Resume file: .planning/phases/08-admin-media-review-and-operational-posture/08-CONTEXT.md
 
 ## Quick Tasks Completed
 

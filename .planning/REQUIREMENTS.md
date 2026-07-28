@@ -39,6 +39,7 @@
 - [x] **ADMIN-03**: Admin can edit an existing autograph item, including metadata and associated images.
 - [x] **ADMIN-04**: Admin can save reviewed metadata and publish the item so it becomes visible in the public gallery.
 - [x] **ADMIN-05**: Admin routes, secrets, edit-history behavior, media cleanup, and operator-bridge retirement are reviewed for security and documented before the admin workflow is considered complete.
+- [ ] **ADMIN-06**: Admin image management includes a private review experience with visible previews, adjustment controls, reset/cancel/save behavior, and enough UI polish that image correction fits naturally into the existing collection workflow.
 
 ### Static Runtime Migration
 
@@ -50,9 +51,19 @@
 - [x] **STATIC-06**: Cutover and retirement criteria are documented for the public Next.js runtime, public catalog APIs, app-mediated image streaming, current data smoke path, and temporary operator bridge; the current repo docs describe those paths as retired.
 - [x] **STATIC-07**: The implemented static publishing path has a recorded live end-to-end proof: submit minimal metadata and an image through the private admin/API boundary, persist them to Oracle/Object Storage, generate static output, verify the generated public page and derivative image, and capture the Phase 5 closure summary.
 
-### Taxonomy Media and AI-Assisted Ingest
+### Admin Media Review and Operational Posture
 
-- [ ] **AI-01**: Taxonomy/media workflow evaluates small public-safe derived cues for franchise, product-line, set, and non-default language values, such as card-back or franchise/product thumbnails, while preserving text metadata, copyright/publication-risk review, graceful fallback when no image is available, and independence from OCR/AI provider work.
+- [ ] **MEDIA-05**: Admin can view authenticated, same-origin previews of private uploaded item images without exposing direct Object Storage URLs, bucket/object identifiers, original filenames, or unpublished media publicly.
+- [ ] **MEDIA-06**: Admin can store non-destructive image adjustment metadata for small rotation, crop/zoom, and pan corrections, and generated public derivatives apply those adjustments without mutating private originals or reusing stale derivative cache entries.
+- [ ] **OPS-01**: Production security patching scan/apply workflows are repaired and verified so scanner runs collect the minimum necessary host-side update inventory, avoid timing out while gathering advisory detail from the instance, and use authoritative external advisory sources for enrichment where practical.
+- [ ] **OPS-02**: A repo-wide posture pass reviews source, docs, workflows, deployment/process scripts, configuration names, stale planning/codebase maps, validation gaps, and the existing deferred Cloudflare/CDN decision, then fixes or explicitly tracks actionable streamlining and consistency findings.
+
+### Taxonomy Media Cues
+
+- [ ] **CUE-01**: Taxonomy/media workflow evaluates small public-safe derived cues for franchise, product-line, set, and non-default language values, such as card-back or franchise/product thumbnails, while preserving text metadata, copyright/publication-risk review, graceful fallback when no image is available, and independence from OCR/AI provider work.
+
+### Advisory AI-Assisted Ingest
+
 - [ ] **AI-02**: Upload workflow can generate AI-assisted metadata suggestions for signer credits and Phase 7 taxonomy/details fields such as franchise, product line, set, format, origin, loose tags, or inscription text.
 - [ ] **AI-03**: OCR and AI suggestions remain advisory, and the admin can correct or ignore them before final save.
 - [ ] **AI-04**: Upload workflow still succeeds with manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
@@ -106,6 +117,7 @@ None currently. Future scope should be added only if it directly supports the pe
 | ADMIN-03 | Phase 6 | Complete |
 | ADMIN-04 | Phase 6 | Complete |
 | ADMIN-05 | Phase 6 | Complete |
+| ADMIN-06 | Phase 8 | Pending |
 | STATIC-01 | Phase 5 | Complete |
 | STATIC-02 | Phase 5 | Complete |
 | STATIC-03 | Phase 5 | Complete |
@@ -113,11 +125,15 @@ None currently. Future scope should be added only if it directly supports the pe
 | STATIC-05 | Phase 5 | Complete |
 | STATIC-06 | Phase 5 | Complete |
 | STATIC-07 | Phase 5 | Complete |
-| AI-01 | Phase 8 | Pending |
-| AI-02 | Phase 8 | Pending |
-| AI-03 | Phase 8 | Pending |
-| AI-04 | Phase 8 | Pending |
-| AI-05 | Phase 8 | Pending |
+| MEDIA-05 | Phase 8 | Pending |
+| MEDIA-06 | Phase 8 | Pending |
+| OPS-01 | Phase 8 | Pending |
+| OPS-02 | Phase 8 | Pending |
+| CUE-01 | Phase 9 | Pending |
+| AI-02 | Phase 10 | Pending |
+| AI-03 | Phase 10 | Pending |
+| AI-04 | Phase 10 | Pending |
+| AI-05 | Phase 10 | Pending |
 | SHIP-01 | Phase 4 | Complete |
 | SHIP-02 | Phase 4 | Complete |
 | SHIP-03 | Phase 4 | Complete |
@@ -126,10 +142,10 @@ None currently. Future scope should be added only if it directly supports the pe
 
 **Coverage:**
 
-- v1 requirements: 37 total
-- Mapped to phases: 37
+- v1 requirements: 42 total
+- Mapped to phases: 42
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-07-19 after prioritizing Phase 8 taxonomy media exploration before AI-specific ingest*
+*Last updated: 2026-07-28 after splitting admin media/posture, taxonomy media cues, and advisory AI ingest into separate phases*

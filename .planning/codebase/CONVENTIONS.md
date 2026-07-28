@@ -107,12 +107,13 @@
   profiles, item signer credits, first-class taxonomy fields, schema version 2
   public facets, signer merge repair, taxonomy backfill artifacts, rollout docs,
   and security review.
-- Phase 8 starts with optional franchise/product-line/set/non-default-language
-  taxonomy media cues on top of the richer manual metadata model, then adds
-  advisory AI-assisted ingest.
+- Phase 8 starts with production security patching repair, repo-wide posture
+  review, and admin-private image preview/adjustment foundations. Phase 9 owns
+  optional franchise/product-line/set/non-default-language taxonomy media cues,
+  and Phase 10 owns advisory AI-assisted ingest.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage
   URLs, or a split multi-service architecture for v1.
 
 ---
 
-*Conventions refreshed: 2026-07-19 after Phase 8 taxonomy media prioritization*
+*Conventions refreshed: 2026-07-28 after Phase 8/9/10 roadmap split*

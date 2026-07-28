@@ -311,5 +311,6 @@ cargo test --manifest-path controller/Cargo.toml \
 - `05-07`: Live static publish proof and Phase 5 closure summary recorded.
 - Phase 6 delivered the polished daily-use collection workflow on this
   Rust/static foundation, and Phase 7 delivered reusable signer/taxonomy
-  metadata plus public facets. Phase 8 owns pending taxonomy media cues before
-  the advisory AI-assisted ingest layer.
+  metadata plus public facets. Phase 8 now owns admin media review/adjustment
+  foundations and operational posture repair before Phase 9 taxonomy media cues
+  and Phase 10 advisory AI-assisted ingest.

@@ -106,12 +106,16 @@ Covered areas include:
 
 ### Pending Phase 8 Areas
 
-- Taxonomy thumbnail/media cue validation for public-safe franchise,
-  product-line, set, and non-default language assets, including text-only
-  fallback.
-- OCR/AI-assisted ingest validation.
-- AI/OCR provider, prompt, failure-mode, privacy-boundary, and configuration
-  secret review.
+- Security patching scan/apply repair validation, including local syntax checks,
+  mocked or live-safe role behavior where practical, and operator-run workflow
+  verification for production.
+- Admin image preview route/UI validation behind the session-cookie boundary.
+- Image adjustment metadata, derivative transform, cache invalidation, static
+  contract/privacy, and publish behavior validation.
+- Repo-wide posture pass findings should either ship with focused tests/checks
+  or be explicitly tracked when they are outside the Phase 8 implementation.
+- Phase 9 adds taxonomy thumbnail/media cue validation; Phase 10 adds OCR/AI
+  provider, prompt, failure-mode, privacy-boundary, and configuration review.
 
 ## Practical Guidance
 
@@ -123,4 +127,4 @@ Covered areas include:
 
 ---
 
-*Testing analysis refreshed: 2026-07-19 after Phase 8 taxonomy media prioritization*
+*Testing analysis refreshed: 2026-07-28 after Phase 8/9/10 roadmap split*

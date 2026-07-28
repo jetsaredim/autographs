@@ -106,8 +106,9 @@
   signer profile tables, item signer credits, admin signer merge repair,
   taxonomy backfill artifacts, schema version 2 public facets, rollout docs,
   security review, and live smoke taxonomy assertions.
-- Phase 8 taxonomy media cue exploration and advisory AI-assisted ingest remain
-  pending, with taxonomy media work prioritized first.
+- Phase 8 admin media review/adjustment and operational posture work remains
+  pending; Phase 9 taxonomy media cues and Phase 10 advisory AI-assisted ingest
+  follow separately.
 
 ## Practical Guidance
 
@@ -121,11 +122,11 @@
 - Keep Phase 6 admin changes inside the Rust/static/Caddy/Oracle/Object Storage
   architecture; do not introduce public accounts, multi-admin roles, bulk import,
   direct Object Storage URLs, or a split public service for v1.
-- Start Phase 8 with optional franchise/product-line/set/non-default-language
-  taxonomy media cues grounded in the Phase 7 taxonomy model, then keep later
-  AI work advisory; do not move cataloging control away from the manual admin
-  workflow.
+- Start Phase 8 with production security patching repair, repo posture review,
+  and admin-private image preview/adjustment foundations. Keep Phase 9 taxonomy
+  media cues grounded in the Phase 7 taxonomy model, and keep Phase 10 AI work
+  advisory; do not move cataloging control away from the manual admin workflow.
 
 ---
 
-*Stack analysis refreshed: 2026-07-19 after Phase 8 taxonomy media prioritization*
+*Stack analysis refreshed: 2026-07-28 after Phase 8/9/10 roadmap split*
