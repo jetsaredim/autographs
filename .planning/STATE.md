@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
+status: ready-for-planning
 stopped_at: Phase 8 context updated for CDN/media posture planning
 last_updated: "2026-07-28T09:55:37.526Z"
 last_activity: 2026-07-28
@@ -101,7 +101,7 @@ Recent decisions affecting current work:
 - Phase 6: Treat multi-image support and edit history as v1 core collection capabilities, not later polish.
 - Phase 7: Add a metadata taxonomy and public facet upgrade before advisory AI-assisted ingest so signer credits, reusable signer profiles, franchise, product line, format, and origin exist as stable suggestion targets.
 - Phase 8: Repair the current production security patching workflow, run a repo-wide posture pass, and add private admin image previews plus non-destructive image adjustment foundations before more media-heavy taxonomy or AI work.
-- Phase 8 CDN posture: Phase 6 already documented Cloudflare/CDN as deferred; Phase 8 should revalidate that decision during the operations posture pass, but actual Cloudflare enablement should become a separately planned delivery change unless it remains a small docs/config update with clear admin/API bypass and rollback behavior.
+- Phase 8 CDN posture: CDN/cache behavior is first-class Phase 8 work; define cache keys, TTLs, purge triggers, admin/API bypass, and rollback before the detailed media editor, then enable CDN only after adjusted-media cache behavior is proven.
 - Phase 8 security patching: The old runtime-IP resolution issue is resolved, but latest weekly scans still fail after IP resolution in the Ansible scan step; the repair should reduce host-side data gathering and use authoritative external Oracle Linux advisory sources where practical.
 - Phase 9: Add optional taxonomy/media cues for franchise, product-line, set, and non-default language values, keeping text metadata canonical and any public derivatives small, optional, privacy/copyright reviewed, and independent from OCR/AI provider work.
 - Phase 10: Add advisory AI-assisted ingest after the admin workflow and richer metadata model exist, without making manual entry dependent on AI.
@@ -148,7 +148,7 @@ Recent decisions affecting current work:
 
 - Phase 6 is complete; keep its admin workflow, session auth, media cleanup, cache posture, and runtime cleanup guidance intact.
 - Phase 7 is complete; keep its first-class multi-signer records, reusable signer profiles, optional Wikipedia/IMDb links, format/origin/franchise/product-line/set fields, public facet updates, and reviewed backfill path intact while planning Phase 8.
-- Phase 8 should first repair production security patching, run a repo-wide source/docs/workflow/config posture pass, and add admin-private image preview plus manual correction workflows for uploaded item images.
+- Phase 8 should first repair production security patching, run repo-wide posture cleanup with CI hygiene guardrails before media work, define the CDN/cache contract before the detailed editor, add admin-private preview/review with required auto-assisted deskew/perspective correction and manual fallback, then enable/verify CDN only after adjusted-media cache behavior is proven.
 - Phase 9 should then look at optional taxonomy/media cues for franchise, product-line, set, and non-default language values, which can use upcoming event items as practical test material without requiring OCR/AI provider work.
 - Phase 10 owns advisory AI-assisted ingest after manual admin workflows, richer taxonomy, and media-review foundations exist, with OCR/AI provider, prompt, privacy, and configuration-security review still required.
 - Keep production security patching action pins, approval allowlist, and Ansible role behavior reviewed with deploy/runtime changes.

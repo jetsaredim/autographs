@@ -59,13 +59,14 @@ guidance.
 | SEC-06-09 | Operator-bridge retirement | Fixed | The old Node `/api/operator/*` data-entry bridge is documented as retired; routine create/edit/upload/delete/publish work now uses `/admin` and `/admin/api/*`. |
 | SEC-06-10 | Static public privacy boundary | Fixed | Public output remains generated static HTML, JSON, and WebP derivatives; private Oracle, Object Storage, object-key, and original-file details stay inside the controller/runtime boundary. |
 | SEC-06-11 | Live smoke guidance | Accepted | Local/CI checks verify the ignored live static smoke remains gated by default; operator-run live proof still requires real Oracle, private Object Storage, deployed controller, Caddy preview, and runtime admin credentials. |
-| SEC-06-12 | CDN/cache and image-size optimization | Fixed | Phase 6 plan `06-09` reduced detail derivative bounds, added Caddy cache headers, documented deferred Cloudflare/CDN enablement, and kept admin/API responses out of cache. |
+| SEC-06-12 | CDN/cache and image-size optimization | Fixed | Phase 6 plan `06-09` reduced detail derivative bounds, added Caddy cache headers, and kept admin/API responses out of cache. Phase 8 now owns the CDN/cache contract before enablement so adjusted media, purge behavior, and rollback are proven together. |
 | SEC-06-13 | Post-Phase 6 runtime cleanup posture | Accepted | Deployment docs now include operator-run checks for VM-local image cleanup dry-run, retired service absence, static release retention, failed candidate retention, route shape, and cache headers; destructive live cleanup remains operator-approved only. |
 
 No high-severity Phase 6 admin finding remains without a fixed or documented
 mitigation. Phase 7 metadata taxonomy is reviewed below; Phase 8 admin
-media/posture work, Phase 9 taxonomy media cues, and Phase 10 AI-assisted
-ingest remain future scope and are not implemented by this review.
+media/posture planning now covers CDN/cache behavior before enablement, while
+Phase 9 taxonomy media cues and Phase 10 AI-assisted ingest remain future scope
+and are not implemented by this review.
 
 ## Phase 7 Metadata Taxonomy Security Review
 
