@@ -25,8 +25,9 @@ Phase 7 metadata taxonomy and public facets are implemented on this same
 Rust/static foundation. The catalog now supports reusable signer profiles,
 item signer credits, first-class item taxonomy, schema version 2 public JSON,
 and generated public facets for signer, franchise, productLine, format,
-language, origin, role, and tag. Phase 8 remains the pending advisory
-AI-assisted ingest layer on top of this richer manual model.
+language, origin, role, and tag. Phase 8 is now the pending admin media
+review/adjustment and operational posture layer before Phase 9 taxonomy media
+cues and Phase 10 advisory AI-assisted ingest.
 
 ## Layers
 
@@ -132,18 +133,20 @@ reusable signer profiles, item signer credits, signer suggestions, signer merge
 repair, first-class character/franchise/productLine/setName/format/origin/
 language taxonomy, reviewed backfill artifacts, schema version 2 public static
 facets, rollout docs, security review, and live static publish smoke taxonomy
-assertions. Phase 8 starts with optional taxonomy/media cue exploration before
-the pending advisory AI-assisted ingest layer.
+assertions. Phase 8 starts with production security patching repair, repo
+posture review, and admin image preview/adjustment foundations before Phase 9
+taxonomy media cues and Phase 10 advisory AI-assisted ingest.
 
 ## Notable Absences
 
+- Admin image previews and non-destructive image adjustment metadata are not
+  implemented yet; they are Phase 8 scope.
 - Optional taxonomy/media thumbnail cues and AI-assisted metadata suggestions
-  are not implemented yet; they are Phase 8 scope after the taxonomy/manual
-  admin model, with taxonomy media cues prioritized first and text-only fallback
-  intact.
+  are not implemented yet; taxonomy media cues are Phase 9 scope and advisory
+  AI-assisted ingest is Phase 10 scope.
 - Legacy signer/category/tag cleanup is not complete yet; Phase 7 documents
   temporary retention and a later deprecation path.
 
 ---
 
-*Architecture analysis refreshed: 2026-07-19 after Phase 8 taxonomy media prioritization*
+*Architecture analysis refreshed: 2026-07-28 after Phase 8/9/10 roadmap split*

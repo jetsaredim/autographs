@@ -35,7 +35,9 @@ Implemented:
 
 Planned, not current:
 
-- Phase 8: optional taxonomy/media cue exploration for franchise, product-line, set, and non-default language cues first, then advisory OCR/AI metadata suggestions, while preserving manual control and text-only fallback.
+- Admin media review and adjustment tools for inspecting and lightly correcting uploaded item images.
+- Optional taxonomy/media cues for franchise, product-line, set, and non-default language values, while preserving manual control and text-only fallback.
+- Advisory OCR/AI metadata suggestions, kept explicit and review-before-save.
 
 Out of scope for v1:
 
@@ -107,10 +109,10 @@ The public gallery is intentionally read-only. Static catalog JSON and generated
 
 Retired operator APIs remain blocked at the public Caddy edge. Admin and publish operations use the Rust private controller through `/admin` and `/admin/api/*`.
 
-See [Security review and current security posture](docs/security-review.md) for the current Rust/static runtime posture, historical Phase 4 findings, and follow-up boundaries.
+See [Security review and current security posture](docs/security-review.md) for the current Rust/static runtime posture and follow-up boundaries.
 
 ## Human + AI / GSD
 
 This project is being built with a human+AI workflow using GSD: discussion, phase planning, execution plans, review, validation, and PR-based merge discipline. The point is not to hide the planning process; it is to make the repository legible as a real product lifecycle with constraints, tradeoffs, and follow-through.
 
-Phase 5 is closed with the 05-07 live static publish proof, cleanup verification, UAT, security review, and verification summary recorded. The Rust/static cutover and Next.js retirement are validated; Phase 6 admin workflow and Phase 7 metadata taxonomy/public facets are complete. Phase 8 starts with optional taxonomy/media cues for franchise, product-line, set, and non-default language values before advisory AI-assisted ingest.
+The planning artifacts in `.planning/` capture how the system evolved, what is implemented today, and which media/AI improvements are intentionally still future work.

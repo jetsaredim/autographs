@@ -24,6 +24,10 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - [x] Support anonymous public browsing with searchable autograph records, generated public-safe image derivatives, and enough metadata to make the collection useful.
 - [x] Prove a static public catalog and minimal private seed/publish path into Oracle/Object Storage before building the full admin workflow.
 - [x] Support a single-admin collection management workflow with multiple images per item and edit history from v1.
+- [ ] Repair the production security patching workflow and run a repo-wide posture pass before layering more media-heavy or AI-assisted workflow complexity on top.
+- [ ] Revalidate the existing deferred Cloudflare/CDN decision during the posture pass, without treating CDN enablement as implicit Phase 8 scope unless it remains a small, low-risk operations/documentation change.
+- [ ] Add private admin image previews and non-destructive image adjustment controls so uploaded item images can be reviewed and lightly corrected before publication.
+- [ ] Add optional taxonomy/media cues for franchise, product-line, set, and non-default language values after the admin media review foundation exists.
 - [ ] Add advisory AI-assisted metadata suggestions after the manual admin workflow and richer taxonomy exist, without making cataloging depend on AI.
 - [ ] Keep the system operable by one developer using OCI Always Free services wherever practical.
 - [ ] Keep catalog content generation inside the OCI/runtime boundary so private image identifiers, Object Storage details, Oracle data, and image UUIDs do not flow through GitHub-hosted workflows.
@@ -45,7 +49,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - Runtime deployment uses Podman quadlets managed through Ansible rather than compose-style orchestration.
 - Public image access now uses generated public-safe derivatives in the static release instead of direct Object Storage URLs or retired app-mediated image streaming routes.
 - Retired operator-only mutation routes remain blocked at the public Caddy edge; normal admin and publish operations use the Rust private controller under `/admin` and `/admin/api/*`.
-- Phase 5 plans 05-01 through 05-07 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, runtime cutover, live static publish proof, and closure evidence. Phase 6 then delivered polished collection-management ergonomics on that foundation, and Phase 7 added the richer metadata taxonomy/public facets layer. Phase 8 starts with optional taxonomy/media cue exploration before the pending advisory AI-assisted ingest layer.
+- Phase 5 plans 05-01 through 05-07 delivered the static public runtime foundation, minimal private seed/publish path, Rust controller, generated derivatives, runtime cutover, live static publish proof, and closure evidence. Phase 6 then delivered polished collection-management ergonomics on that foundation, and Phase 7 added the richer metadata taxonomy/public facets layer. Phase 8 now repairs operational drift and adds admin media review/adjustment foundations, Phase 9 owns optional taxonomy media cues, and Phase 10 owns advisory AI-assisted ingest.
 - The intended product remains a personal collection site rather than a reusable platform, so roadmap choices continue to prioritize collection quality, manageability, and presentation over multi-user extensibility.
 
 ## Constraints
@@ -78,7 +82,8 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 | Close Phase 5 after live static publish proof and verification gates | The live static publish smoke, cleanup verification, UAT, security review, and verification artifacts now prove the static runtime foundation end to end | Phase 5 complete as of 2026-06-20 |
 | Add guarded production security patching through GitHub Issues and Ansible | Routine OS security updates need reviewable operator approval, package-set drift refusal, and cleanup of failed approvals | Added after PR 129 merge |
 | Treat multi-image support and edit history as v1 capabilities | These directly improve personal collection quality and manageability | Phase 6 requirement baseline |
-| Start Phase 8 with taxonomy media cues before AI-specific ingest | Franchise, product-line, set, and non-default language cues can be explored against new event items without waiting for OCR/AI provider selection, while AI suggestions should still enhance a proven manual admin flow rather than define it | Captured as Phase 8 |
+| Split admin media/posture, taxonomy cues, and AI ingest into separate phases | Image review/adjustment needs private admin preview and derivative foundations, production security patching is currently failing after IP resolution in the Ansible scan step, and AI provider work should not share a phase with operational repair or taxonomy media approval | Phase 8 is Admin Media Review and Operational Posture; Phase 9 is Taxonomy Media Cues; Phase 10 is Advisory AI-Assisted Ingest |
+| Minimize host-side security scan gathering before enriching advisories | The security scanner failure appears tied to Ansible taking too long to gather details from the runtime instance; the repair should collect only the necessary host update inventory, then use authoritative external Oracle Linux errata/CVE sources where practical for richer issue detail | Captured as Phase 8 OPS-01 |
 
 ## Evolution
 
@@ -98,4 +103,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-19 after prioritizing Phase 8 taxonomy media cue work*
+*Last updated: 2026-07-28 after splitting admin media/posture, taxonomy media cues, and advisory AI ingest*

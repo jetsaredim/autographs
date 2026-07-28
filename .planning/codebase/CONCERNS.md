@@ -54,9 +54,11 @@
 - Production-sensitive GitHub Actions should use least privilege and reviewed
   immutable action references where practical.
 - Phase 6 and Phase 7 completed fresh security review for the new admin and
-  metadata surfaces they introduced. Phase 8 must add security review for the
-  advisory AI/OCR surfaces, taxonomy/media thumbnail processing, generated
-  public derivatives, and copyright/publication risks it introduces.
+  metadata surfaces they introduced. Phase 8 must add security review for
+  security patching repair and admin image preview/adjustment surfaces; Phase 9
+  must cover taxonomy/media thumbnail processing, generated public derivatives,
+  and copyright/publication risks; Phase 10 must cover advisory AI/OCR
+  providers, prompts, privacy boundaries, and model configuration.
 
 ## Fragile Areas
 
@@ -79,4 +81,4 @@
 
 ---
 
-*Concerns refreshed: 2026-07-17 after Phase 8 planning-scope reconciliation*
+*Concerns refreshed: 2026-07-28 after Phase 8/9/10 roadmap split*

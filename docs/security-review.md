@@ -31,10 +31,12 @@ Current follow-up scope:
 
 - Phase 6 admin workflow security review is recorded below.
 - Phase 7 Metadata Taxonomy Security Review is recorded below.
-- Phase 8 must review taxonomy thumbnail/media processing dependencies,
-  generated public derivatives, copyright/publication risks, and later OCR/AI
-  providers, prompts, privacy boundaries, and model configuration before
-  taxonomy media cues or advisory AI-assisted ingest ship.
+- Phase 8 must review production security patching repair plus admin image
+  preview/adjustment surfaces. Phase 9 must review taxonomy thumbnail/media
+  processing dependencies, generated public derivatives, and
+  copyright/publication risks. Phase 10 must review OCR/AI providers, prompts,
+  privacy boundaries, and model configuration before advisory AI-assisted ingest
+  ships.
 
 ## Phase 6 Admin Collection Workflow
 
@@ -61,9 +63,9 @@ guidance.
 | SEC-06-13 | Post-Phase 6 runtime cleanup posture | Accepted | Deployment docs now include operator-run checks for VM-local image cleanup dry-run, retired service absence, static release retention, failed candidate retention, route shape, and cache headers; destructive live cleanup remains operator-approved only. |
 
 No high-severity Phase 6 admin finding remains without a fixed or documented
-mitigation. Phase 7 metadata taxonomy is reviewed below; Phase 8 taxonomy media
-cues and AI-assisted ingest remain future scope and are not implemented by this
-review.
+mitigation. Phase 7 metadata taxonomy is reviewed below; Phase 8 admin
+media/posture work, Phase 9 taxonomy media cues, and Phase 10 AI-assisted
+ingest remain future scope and are not implemented by this review.
 
 ## Phase 7 Metadata Taxonomy Security Review
 
@@ -85,8 +87,9 @@ live PL/SQL.
 | SEC-07-08 | Generated artifact fail-closed behavior | Fixed | Static candidates must validate schema version 2 artifacts, required derivatives, manifest entries, and privacy deny-list terms before promotion; failed candidates leave the last valid `current` release in place. |
 | SEC-07-09 | Live static smoke taxonomy checks | Fixed | The ignored live smoke remains gated by `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true`; when enabled it publishes through the current session-cookie admin path and checks schema version 2 collection/facets, required taxonomy facets, absence of the category facet, generated derivatives, and stale artifact cleanup. |
 
-No unmitigated high-severity Phase 7 taxonomy finding remains. Phase 8
-AI-assisted ingest is still future scope and is not implemented by this review.
+No unmitigated high-severity Phase 7 taxonomy finding remains. Phase 8 admin
+media/posture work, Phase 9 taxonomy media cues, and Phase 10 AI-assisted
+ingest are still future scope and are not implemented by this review.
 
 ## Current Verification
 
@@ -157,4 +160,4 @@ Reviewed then:
 | SEC-04-08 | Runtime image cleanup | Fixed historically | Cleanup behavior was hardened after the multi-tag Podman deletion failure. |
 | SEC-04-09 | Static/admin foundation | Complete for Phase 5 foundation | Rust private controller, static publisher, generated derivatives, and operator-bridge retirement landed in Phase 5. |
 | SEC-04-10 | Admin workflow security | Superseded by Phase 6 review | Phase 6 admin workflow, edit-history UX, media cleanup ergonomics, cache posture, and runtime cleanup guidance are reviewed above. |
-| SEC-04-11 | AI/OCR and taxonomy media security | Deferred to Phase 8 | Provider selection, prompts, privacy boundaries, AI/OCR failure modes, taxonomy thumbnail/media processing, generated public derivatives, and copyright/publication risks remain Phase 8 security work. |
+| SEC-04-11 | AI/OCR and taxonomy media security | Deferred to Phases 9 and 10 | Taxonomy thumbnail/media processing, generated public derivatives, and copyright/publication risks remain Phase 9 security work; provider selection, prompts, privacy boundaries, and AI/OCR failure modes remain Phase 10 security work. |

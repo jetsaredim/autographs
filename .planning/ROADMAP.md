@@ -2,7 +2,7 @@
 
 ## Overview
 
-Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery. Before adding the larger admin and AI surfaces, the roadmap now runs a public-showcase and hardening pass to make the current system safe, understandable, and presentable. It then proves a static public runtime and private publishing foundation, completes the single-admin collection workflow with multi-image management and edit history, upgrades the catalog metadata taxonomy and public facets, and finally explores taxonomy media cues before adding advisory AI-assisted ingest.
+Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery. Before adding the larger admin and AI surfaces, the roadmap now runs a public-showcase and hardening pass to make the current system safe, understandable, and presentable. It then proves a static public runtime and private publishing foundation, completes the single-admin collection workflow with multi-image management and edit history, upgrades the catalog metadata taxonomy and public facets, repairs operational drift while adding admin media review/adjustment ergonomics, then layers taxonomy media cues and advisory AI-assisted ingest separately.
 
 ## Phases
 
@@ -20,7 +20,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Static Runtime Migration Foundation** - Complete; the Rust/static runtime foundation is deployed and backed by recorded live static publish proof through Oracle, OCI Object Storage, generated static output, Caddy, and cleanup.
 - [x] **Phase 6: Admin Collection Workflow** - Complete; the single-admin create, edit, publish, multi-image, edit-history, session-auth, docs/security, and optimized public delivery/runtime posture loop is implemented on top of the private publisher foundation.
 - [x] **Phase 7: Metadata Taxonomy and Public Facets** - Replace overloaded signer/category/tag assumptions with first-class multi-signer records, collector taxonomy fields, and public facets generated from the richer model. (completed 2026-07-11)
-- [ ] **Phase 8: Taxonomy Media and AI-Assisted Ingest** - First address optional taxonomy/media cues for franchise, product-line, set, and non-default language values, then add advisory OCR/AI metadata suggestions without making ingest depend on them.
+- [ ] **Phase 8: Admin Media Review and Operational Posture** - Repair the broken production security patching workflow, audit repo/process drift, and add admin image preview plus manual adjustment foundations before more media-heavy taxonomy or AI work.
+- [ ] **Phase 9: Taxonomy Media Cues** - Add optional public-safe media cues for franchise, product-line, set, and non-default language values using explicit approval and text fallback.
+- [ ] **Phase 10: Advisory AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
 
 ## Phase Details
 
@@ -99,7 +101,7 @@ Plans:
   4. Repository badges and public-facing project metadata accurately reflect CI, linting, type checking, test/coverage posture, deployment or release status, and other useful quality signals.
   5. Loose-end issues, docs gaps, stale planning artifacts, and operational warnings for the current system have been triaged so the public repository tells a coherent story.
 
-**Boundary Note**: This phase hardens and presents the current public-gallery/deployment surface before static-runtime, admin, taxonomy, and AI changes are added. Phase 5, Phase 6, Phase 7, and Phase 8 must still include their own security and documentation updates for the new runtime, admin, metadata, and AI surfaces they introduce.
+**Boundary Note**: This phase hardens and presents the current public-gallery/deployment surface before static-runtime, admin, taxonomy, media-posture, taxonomy-cue, and AI changes are added. Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, and Phase 10 must still include their own security and documentation updates for the new runtime, admin, metadata, operations, media, and AI surfaces they introduce.
 **Plans**: 5 plans
 Plans:
 
@@ -229,18 +231,51 @@ Plans:
 
 **UI hint**: yes
 
-### Phase 8: Taxonomy Media and AI-Assisted Ingest
+### Phase 8: Admin Media Review and Operational Posture
 
-**Goal**: The admin workflow and public facets gain optional franchise/product-line/set/language media cues first, then advisory OCR/AI metadata suggestions that speed up cataloging without blocking manual control.
+**Goal**: The collection owner can inspect and lightly correct uploaded images in the private admin workflow while the project repairs production security patching and tightens repo, documentation, configuration, and validation posture before more media-heavy features.
 **Depends on**: Phase 7
-**Requirements**: AI-01, AI-02, AI-03, AI-04, AI-05
+**Requirements**: MEDIA-05, MEDIA-06, ADMIN-06, OPS-01, OPS-02
+**Success Criteria** (what must be TRUE):
+
+  1. Production security patching scan/apply workflows are diagnosed, repaired, locally validated, and backed by clear operator verification for the latest post-IP-resolution Ansible scan failure, with host-side collection reduced to the minimum update inventory needed and advisory enrichment moved to authoritative external sources where practical.
+  2. A repo-wide posture pass reviews source, docs, workflows, deployment/process scripts, configuration names, stale planning/codebase maps, validation gaps, and the existing deferred Cloudflare/CDN decision, then fixes or explicitly tracks actionable streamlining and consistency findings.
+  3. Admin image tiles can show authenticated, private, same-origin previews without exposing direct Object Storage URLs, bucket/object identifiers, original filenames, or unpublished media publicly.
+  4. Admin can review, preview, save, reset, or cancel non-destructive image adjustment metadata for small rotation, crop/zoom, and pan corrections while preserving original uploads.
+  5. Static publishing applies saved image adjustments to generated public derivatives, includes adjustment metadata in derivative cache invalidation, and keeps privacy/static contract validation intact.
+  6. The admin media UI and supporting docs/tests are polished enough that image review and correction feel like part of the normal collection workflow rather than a maintenance workaround.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 9: Taxonomy Media Cues
+
+**Goal**: Public details and admin taxonomy management can use optional approved media cues for franchise, product-line, set, and non-default language values while text metadata remains canonical and sufficient.
+**Depends on**: Phase 8
+**Requirements**: AI-01
 **Success Criteria** (what must be TRUE):
 
   1. Taxonomy/media exploration evaluates whether franchise, product-line, set, and non-default language values should have small public-safe derived cues, such as recognizable card-back or franchise/product thumbnails, without requiring image support for every taxonomy value or depending on OCR/AI provider work.
-  2. Upload workflow can generate AI-assisted metadata suggestions for relevant autograph fields such as signer credits, franchise, product line, format, origin, loose tags, or inscription text.
-  3. Admin can review, correct, or ignore OCR and AI suggestions before saving the item.
-  4. Upload workflow still succeeds with fully manual metadata entry when OCR or AI assistance is unavailable or inaccurate.
-  5. AI/OCR providers, prompts, failure modes, privacy boundaries, copyright/publication risks, and configuration/secrets are reviewed for security and documented before Phase 8 is marked complete.
+  2. Cue assets can be uploaded, previewed, adjusted/focused when needed, approved, or withheld through an admin-only workflow.
+  3. Generated public output includes approved cue assets only, uses public-safe generated paths, and falls back cleanly to text when no cue exists or a cue is unapproved.
+  4. Cue rendering improves public detail metadata without competing with the signed item image as the visual hero.
+  5. Copyright/publication risk, privacy boundaries, source suitability, docs, tests, and static contract validation are complete before taxonomy media cues are considered ready.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 10: Advisory AI-Assisted Ingest
+
+**Goal**: The upload workflow can generate reviewed OCR/AI metadata suggestions that speed up cataloging without replacing manual control or blocking item creation.
+**Depends on**: Phase 9
+**Requirements**: AI-02, AI-03, AI-04, AI-05
+**Success Criteria** (what must be TRUE):
+
+  1. Upload workflow can generate AI-assisted metadata suggestions for relevant autograph fields such as signer credits, franchise, product line, format, origin, loose tags, or inscription text.
+  2. Admin can review, correct, accept, or ignore OCR and AI suggestions before saving the item.
+  3. Upload workflow still succeeds with fully manual metadata entry when OCR or AI assistance is unavailable, unconfigured, slow, or inaccurate.
+  4. Accepted AI-assisted values are traceable in edit history without creating a broad audit platform.
+  5. AI/OCR providers, prompts, failure modes, privacy boundaries, copyright/publication risks, configuration/secrets, docs, tests, and security review are complete before AI-assisted ingest is considered ready.
 
 **Plans**: TBD
 **UI hint**: yes
@@ -248,7 +283,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -259,4 +294,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
 | 6. Admin Collection Workflow | 9/9 | Complete | 2026-07-02 |
 | 7. Metadata Taxonomy and Public Facets | 5/5 | Complete    | 2026-07-11 |
-| 8. Taxonomy Media and AI-Assisted Ingest | 0/TBD | Not started | - |
+| 8. Admin Media Review and Operational Posture | 0/TBD | Not started | - |
+| 9. Taxonomy Media Cues | 0/TBD | Not started | - |
+| 10. Advisory AI-Assisted Ingest | 0/TBD | Not started | - |
