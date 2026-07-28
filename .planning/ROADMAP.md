@@ -2,7 +2,7 @@
 
 ## Overview
 
-Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery. Before adding the larger admin and AI surfaces, the roadmap now runs a public-showcase and hardening pass to make the current system safe, understandable, and presentable. It then proves a static public runtime and private publishing foundation, completes the single-admin collection workflow with multi-image management and edit history, upgrades the catalog metadata taxonomy and public facets, repairs operational drift while adding admin media review/adjustment ergonomics, then layers taxonomy media cues and advisory AI-assisted ingest separately.
+Autographs will ship as a lean personal collection app with the riskiest seams proven first. The roadmap starts by establishing OCI bootstrap and delivery automation, then proves Oracle and private media handling, then delivers the anonymous public gallery. Before adding the larger admin and AI surfaces, the roadmap now runs a public-showcase and hardening pass to make the current system safe, understandable, and presentable. It then proves a static public runtime and private publishing foundation, completes the single-admin collection workflow with multi-image management and edit history, upgrades the catalog metadata taxonomy and public facets, repairs operational drift, makes CDN/cache behavior explicit, adds admin media review/adjustment ergonomics, then layers taxonomy media cues and advisory AI-assisted ingest separately.
 
 ## Phases
 
@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Static Runtime Migration Foundation** - Complete; the Rust/static runtime foundation is deployed and backed by recorded live static publish proof through Oracle, OCI Object Storage, generated static output, Caddy, and cleanup.
 - [x] **Phase 6: Admin Collection Workflow** - Complete; the single-admin create, edit, publish, multi-image, edit-history, session-auth, docs/security, and optimized public delivery/runtime posture loop is implemented on top of the private publisher foundation.
 - [x] **Phase 7: Metadata Taxonomy and Public Facets** - Replace overloaded signer/category/tag assumptions with first-class multi-signer records, collector taxonomy fields, and public facets generated from the richer model. (completed 2026-07-11)
-- [ ] **Phase 8: Admin Media Review and Operational Posture** - Repair the broken production security patching workflow, audit repo/process drift, and add admin image preview plus manual adjustment foundations before more media-heavy taxonomy or AI work.
+- [ ] **Phase 8: Admin Media Review and Operational Posture** - Repair the broken production security patching workflow, audit and enforce repo/process hygiene, define and implement CDN/cache posture, and add admin image preview plus adjustment foundations before more media-heavy taxonomy or AI work.
 - [ ] **Phase 9: Taxonomy Media Cues** - Add optional public-safe media cues for franchise, product-line, set, and non-default language values using explicit approval and text fallback.
 - [ ] **Phase 10: Advisory AI-Assisted Ingest** - Add advisory OCR/AI metadata suggestions without making ingest depend on them.
 
@@ -233,17 +233,18 @@ Plans:
 
 ### Phase 8: Admin Media Review and Operational Posture
 
-**Goal**: The collection owner can inspect and lightly correct uploaded images in the private admin workflow while the project repairs production security patching and tightens repo, documentation, configuration, and validation posture before more media-heavy features.
+**Goal**: The collection owner can inspect, compare, and correct uploaded images in the private admin workflow while the project repairs production security patching, restores repo/process hygiene, and makes CDN/cache fronting a first-class Phase 8 objective before more media-heavy features.
 **Depends on**: Phase 7
 **Requirements**: MEDIA-05, MEDIA-06, ADMIN-06, OPS-01, OPS-02
 **Success Criteria** (what must be TRUE):
 
   1. Production security patching scan/apply workflows are diagnosed, repaired, locally validated, and backed by clear operator verification for the latest post-IP-resolution Ansible scan failure, with host-side collection reduced to the minimum update inventory needed and advisory enrichment moved to authoritative external sources where practical.
-  2. A repo-wide posture pass reviews source, docs, workflows, deployment/process scripts, configuration names, stale planning/codebase maps, validation gaps, and the existing deferred Cloudflare/CDN decision, then fixes or explicitly tracks actionable streamlining and consistency findings.
-  3. Admin image tiles can show authenticated, private, same-origin previews without exposing direct Object Storage URLs, bucket/object identifiers, original filenames, or unpublished media publicly.
-  4. Admin can review, preview, save, reset, or cancel non-destructive image adjustment metadata for small rotation, crop/zoom, and pan corrections while preserving original uploads.
-  5. Static publishing applies saved image adjustments to generated public derivatives, includes adjustment metadata in derivative cache invalidation, and keeps privacy/static contract validation intact.
-  6. The admin media UI and supporting docs/tests are polished enough that image review and correction feel like part of the normal collection workflow rather than a maintenance workaround.
+  2. A repo-wide posture pass reviews source, docs, workflows, deployment/process scripts, configuration names, stale planning/codebase maps, validation gaps, and public-edge hygiene, then lands aggressive cleanup in separate pre-media PRs and adds enforceable CI hygiene guardrails where feasible.
+  3. Cloudflare/CDN review and implementation are planned as first-class Phase 8 work: define the cache contract before media work, preserve admin/API bypass and `no-store`, keep HTML/JSON rollback-friendly, use fingerprinted `/media/*`, document purge/rollback behavior, and enable/verify production CDN only after media adjustment cache behavior is proven.
+  4. Admin image tiles can show authenticated, private, same-origin previews without exposing direct Object Storage URLs, bucket/object identifiers, original filenames, or unpublished media publicly.
+  5. Admin can review, preview, save, reset, or cancel non-destructive image adjustment metadata for small rotation, crop/zoom, pan, and required auto-assisted deskew/perspective correction with manual fallback while preserving original uploads.
+  6. Static publishing applies saved image adjustments to generated public derivatives, includes adjustment metadata in derivative cache invalidation, and keeps privacy/static contract validation intact.
+  7. The admin media UI and supporting docs/tests are polished enough that image review and correction feel like part of the normal collection workflow rather than a maintenance workaround.
 
 **Plans**: TBD
 **UI hint**: yes

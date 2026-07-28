@@ -35,7 +35,7 @@ Implemented:
 
 Planned, not current:
 
-- Admin media review and adjustment tools for inspecting and lightly correcting uploaded item images.
+- Admin media review and adjustment tools for inspecting, comparing, and correcting uploaded item images, including deskew/perspective correction.
 - Optional taxonomy/media cues for franchise, product-line, set, and non-default language values, while preserving manual control and text-only fallback.
 - Advisory OCR/AI metadata suggestions, kept explicit and review-before-save.
 

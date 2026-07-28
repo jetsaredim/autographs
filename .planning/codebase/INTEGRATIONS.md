@@ -69,13 +69,15 @@
 - Retired operator APIs remain blocked at the public Caddy edge.
 - Production security update approval is GitHub-label based and restricted to
   `.github/production-patch-approvers.yml`.
-- Cloudflare/CDN fronting is documented as deferred. If enabled later, admin/API
-  caching must be bypassed and rollback must be protected by conservative
-  HTML/JSON freshness or content-addressed public paths.
+- Cloudflare/CDN fronting is now Phase 8 scope. The cache contract should be
+  defined before admin media work, admin/API caching must be bypassed, rollback
+  must be protected by conservative HTML/JSON freshness or content-addressed
+  public paths, and production CDN enablement should be verified after adjusted
+  media cache behavior is proven.
 
 **Pending**
-- Phase 8 admin image preview/adjustment integration and production security
-  patching repair.
+- Phase 8 production security patching repair, repo hygiene guardrails,
+  CDN/cache integration, and admin image preview/adjustment integration.
 - Phase 9 taxonomy thumbnail/media processing integration.
 - Phase 10 advisory AI/OCR provider integration.
 - There is intentionally no public account system, multi-admin role hierarchy,

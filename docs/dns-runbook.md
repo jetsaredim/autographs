@@ -54,12 +54,12 @@ committed Terraform and bootstrap scripts.
 
 ## Cloudflare/CDN Decision
 
-Phase 6 reviewed Cloudflare as an optional CDN front door and deferred enabling
-it for v1 operations. The current direct Porkbun `A` record keeps the low-cost
-OCI/Caddy path simple while the site is small, and the origin now sends explicit
-cache headers for public static output. Cloudflare remains a good future option
-when the operator wants edge analytics, WAF controls, or broader geographic
-cache reach.
+Phase 6 reviewed Cloudflare as an optional CDN front door and left the direct
+Porkbun-to-Caddy path in place while the site was small. Phase 8 makes
+CDN/cache implementation explicit:
+define the cache contract before admin media adjustment work, then enable and
+verify production CDN after adjusted image derivatives produce new
+fingerprinted `/media/*` paths and can be tested end to end.
 
 Cloudflare enablement checklist:
 

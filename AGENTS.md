@@ -60,7 +60,7 @@ Autographs is a production-lean personal autograph collection website where you 
 ## Project Maturity
 - Phase 5 plans 05-01 through 05-07 are done, and the static runtime migration foundation is implemented in code/docs with live static publish proof, UAT, security review, and verification closeout artifacts.
 - The repository is no longer planning-only; it contains Rust/controller, static public/admin, infrastructure, deployment, maintenance, testing, and operator documentation artifacts.
-- Do not re-scaffold the retired Next.js app or infra. Phase 6 polished admin workflow and Phase 7 metadata taxonomy/public facets are complete; Phase 8 starts with admin media review/adjustment and operational posture repair before Phase 9 taxonomy media cues and Phase 10 advisory AI-assisted ingest.
+- Do not re-scaffold the retired Next.js app or infra. Phase 6 polished admin workflow and Phase 7 metadata taxonomy/public facets are complete; Phase 8 starts with production security patching repair, aggressive repo hygiene/CI guardrails, CDN/cache contract work, then admin media preview/adjustment and post-media CDN verification before Phase 9 taxonomy media cues and Phase 10 advisory AI-assisted ingest.
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
@@ -103,7 +103,7 @@ Autographs is a production-lean personal autograph collection website where you 
 - Keep operator docs procedural and explicit about manual prerequisites, secret handling, approval labels, and live-smoke requirements.
 - Update `.planning/codebase/*` after substantial codebase drift so future agents do not resurrect planning-only assumptions.
 ## Current Guidance
-- Phase 5 foundation, Phase 6 admin collection workflow, and Phase 7 metadata taxonomy/public facets are complete; do not rebuild finished work, and treat the Rust/static cutover and Next.js retirement as validated. Phase 8 should first repair production security patching, run repo-wide posture review, and add admin-private image preview/adjustment foundations. Phase 9 owns optional franchise/product-line/set/non-default-language taxonomy media cues with text-only fallback intact, and Phase 10 owns advisory AI-assisted ingest.
+- Phase 5 foundation, Phase 6 admin collection workflow, and Phase 7 metadata taxonomy/public facets are complete; do not rebuild finished work, and treat the Rust/static cutover and Next.js retirement as validated. Phase 8 should first repair production security patching, run aggressive repo-wide posture cleanup in separate pre-media PRs, add enforceable CI hygiene guardrails where feasible, define the CDN/cache contract, then add admin-private image preview/adjustment foundations with required auto-assisted deskew/perspective correction and verify CDN enablement after adjusted-media cache behavior is proven. Phase 9 owns optional franchise/product-line/set/non-default-language taxonomy media cues with text-only fallback intact, and Phase 10 owns advisory AI-assisted ingest.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage URLs, or a split frontend/backend service architecture for v1.
 <!-- GSD:conventions-end -->
 
@@ -137,10 +137,10 @@ Autographs is a production-lean personal autograph collection website where you 
 ## Current Phase Boundary
 - Phase 5 plans 05-01 through 05-07 are complete, and the Rust/static foundation is present with live static publish proof and closeout artifacts.
 - Phase 6 admin collection workflow and Phase 7 metadata taxonomy/public facets are complete on the Rust/static foundation.
-- Phase 8 should first repair production security patching, run repo-wide posture review, and add admin image preview/adjustment foundations before Phase 9 taxonomy/media cues and Phase 10 advisory AI-assisted ingest.
+- Phase 8 should first repair production security patching, run aggressive repo-wide posture cleanup with CI hygiene guardrails, define the CDN/cache contract, add admin image preview/adjustment foundations with required auto-assisted deskew/perspective correction, and verify production CDN after adjusted-media cache behavior is proven.
 - Do not re-scaffold the retired Next.js app or replace the delivery spine.
 ## Notable Absences
-- Admin image previews/adjustments, optional taxonomy/media thumbnail cues, and AI-assisted metadata suggestions are not implemented yet.
+- Admin image previews/adjustments with auto-assisted deskew/perspective correction, optional taxonomy/media thumbnail cues, and AI-assisted metadata suggestions are not implemented yet.
 <!-- GSD:architecture-end -->
 
 <!-- GSD:skills-start source:skills/ -->
