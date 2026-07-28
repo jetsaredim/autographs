@@ -31,12 +31,12 @@ Current follow-up scope:
 
 - Phase 6 admin workflow security review is recorded below.
 - Phase 7 Metadata Taxonomy Security Review is recorded below.
-- Phase 8 must review production security patching repair plus admin image
-  preview/adjustment surfaces. Phase 9 must review taxonomy thumbnail/media
-  processing dependencies, generated public derivatives, and
-  copyright/publication risks. Phase 10 must review OCR/AI providers, prompts,
-  privacy boundaries, and model configuration before advisory AI-assisted ingest
-  ships.
+- Phase 8 must review production security patching repair, CDN/cache fronting
+  and rollback behavior, plus admin image preview/adjustment surfaces. Phase 9
+  must review taxonomy thumbnail/media processing dependencies, generated public
+  derivatives, and copyright/publication risks. Phase 10 must review OCR/AI
+  providers, prompts, privacy boundaries, and model configuration before
+  advisory AI-assisted ingest ships.
 
 ## Phase 6 Admin Collection Workflow
 
