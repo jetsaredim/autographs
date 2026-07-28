@@ -25,9 +25,9 @@ Phase 7 metadata taxonomy and public facets are implemented on this same
 Rust/static foundation. The catalog now supports reusable signer profiles,
 item signer credits, first-class item taxonomy, schema version 2 public JSON,
 and generated public facets for signer, franchise, productLine, format,
-language, origin, role, and tag. Phase 8 is now the pending admin media
-review/adjustment and operational posture layer before Phase 9 taxonomy media
-cues and Phase 10 advisory AI-assisted ingest.
+language, origin, role, and tag. Phase 8 is now the pending operational
+posture, CDN/cache, and admin media review/adjustment layer before Phase 9
+taxonomy media cues and Phase 10 advisory AI-assisted ingest.
 
 ## Layers
 
@@ -133,14 +133,19 @@ reusable signer profiles, item signer credits, signer suggestions, signer merge
 repair, first-class character/franchise/productLine/setName/format/origin/
 language taxonomy, reviewed backfill artifacts, schema version 2 public static
 facets, rollout docs, security review, and live static publish smoke taxonomy
-assertions. Phase 8 starts with production security patching repair, repo
-posture review, and admin image preview/adjustment foundations before Phase 9
-taxonomy media cues and Phase 10 advisory AI-assisted ingest.
+assertions. Phase 8 starts with production security patching repair, aggressive
+repo posture cleanup in separate pre-media PRs, enforceable CI hygiene
+guardrails where feasible, and a CDN/cache contract. Admin image
+preview/adjustment follows that clean baseline, including required
+auto-assisted deskew/perspective correction with manual fallback, then
+production CDN enablement is verified after adjusted-media cache behavior is
+proven.
 
 ## Notable Absences
 
-- Admin image previews and non-destructive image adjustment metadata are not
-  implemented yet; they are Phase 8 scope.
+- Admin image previews and non-destructive image adjustment metadata, including
+  auto-assisted deskew/perspective correction, are not implemented yet; they are
+  Phase 8 scope.
 - Optional taxonomy/media thumbnail cues and AI-assisted metadata suggestions
   are not implemented yet; taxonomy media cues are Phase 9 scope and advisory
   AI-assisted ingest is Phase 10 scope.

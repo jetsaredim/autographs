@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready-for-planning
-stopped_at: Phase 8 realigned for admin media review and operational posture
-last_updated: "2026-07-28T00:00:00.000Z"
+status: planning
+stopped_at: Phase 8 context updated for CDN/media posture planning
+last_updated: "2026-07-28T09:55:37.526Z"
 last_activity: 2026-07-28
 progress:
   total_phases: 10
@@ -133,6 +133,10 @@ Recent decisions affecting current work:
 - [Phase 07]: Phase 7 rollout requires reviewed migration report/PLSQL, optional SQL Developer application, deploy, full static publish, and admin/public verification.
 - [Phase 07]: Category remains a temporary legacy database/reference field but is not a schema version 2 public facet.
 - [Phase 07]: AI-assisted ingest remains pending after the manual metadata taxonomy; it is now Phase 10 after the Phase 8 admin media/posture foundation and Phase 9 taxonomy media cues.
+- [Phase 08]: Phase 8 CDN/cache work is first-class: define admin/API bypass, rollback-friendly HTML/JSON, fingerprinted media, purge/rollback behavior before media work, then enable/verify production CDN after adjusted-image cache behavior is proven. — The admin media editor will likely update existing images, so cache behavior must be designed before media implementation and CDN enablement should wait until adjusted derivatives and URLs can be verified.
+- [Phase 08]: Phase 8 security reporting should minimize host-side scan work: collect exact package specs plus cheap advisory/CVE inventory, enrich from Oracle OVAL first and Oracle errata HTML fallback, and keep hidden approval metadata to package specs only. — The current scan failure occurs after IP resolution in Ansible, and slow per-advisory host detail loops should not block issue creation when package inventory is valid.
+- [Phase 08]: Phase 8 posture cleanup should run before media work in separate PRs and add enforceable CI hygiene guardrails where feasible. — Aggressive cleanup is desired, but splitting it before media work keeps the image editor from carrying unrelated repo-wide churn.
+- [Phase 08]: Phase 8 media adjustment must include a dedicated review view, multiple overlays, draft-local save/cancel/reset, before/after comparison, and required auto-assisted deskew/perspective correction with manual fallback. — Uploaded images can be misaligned or askew, and visual guide overlays plus auto-assisted/manual correction are necessary for the admin to prepare publish-safe derivatives.
 
 ### Pending Todos
 
@@ -158,8 +162,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-28T00:00:00.000Z
-Stopped at: Phase 8 realigned for admin media review and operational posture
+Last session: 2026-07-28T09:49:42.103Z
+Stopped at: Phase 8 context updated for CDN/media posture planning
 Resume file: .planning/phases/08-admin-media-review-and-operational-posture/08-CONTEXT.md
 
 ## Quick Tasks Completed

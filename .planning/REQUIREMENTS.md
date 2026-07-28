@@ -54,9 +54,9 @@
 ### Admin Media Review and Operational Posture
 
 - [ ] **MEDIA-05**: Admin can view authenticated, same-origin previews of private uploaded item images without exposing direct Object Storage URLs, bucket/object identifiers, original filenames, or unpublished media publicly.
-- [ ] **MEDIA-06**: Admin can store non-destructive image adjustment metadata for small rotation, crop/zoom, and pan corrections, and generated public derivatives apply those adjustments without mutating private originals or reusing stale derivative cache entries.
+- [ ] **MEDIA-06**: Admin can store non-destructive image adjustment metadata for small rotation, crop/zoom, pan, and required auto-assisted deskew/perspective corrections with manual fallback, and generated public derivatives apply those adjustments without mutating private originals or reusing stale derivative cache entries.
 - [ ] **OPS-01**: Production security patching scan/apply workflows are repaired and verified so scanner runs collect the minimum necessary host-side update inventory, avoid timing out while gathering advisory detail from the instance, and use authoritative external advisory sources for enrichment where practical.
-- [ ] **OPS-02**: A repo-wide posture pass reviews source, docs, workflows, deployment/process scripts, configuration names, stale planning/codebase maps, validation gaps, and the existing deferred Cloudflare/CDN decision, then fixes or explicitly tracks actionable streamlining and consistency findings.
+- [ ] **OPS-02**: A repo-wide posture pass reviews source, docs, workflows, deployment/process scripts, configuration names, stale planning/codebase maps, validation gaps, public-edge/CDN readiness, and cache hygiene, then fixes actionable findings in separate pre-media PRs, adds enforceable CI hygiene guardrails where feasible, and implements/verifies CDN enablement after media adjustment cache behavior is proven.
 
 ### Taxonomy Media Cues
 
@@ -148,4 +148,4 @@ None currently. Future scope should be added only if it directly supports the pe
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-07-28 after splitting admin media/posture, taxonomy media cues, and advisory AI ingest into separate phases*
+*Last updated: 2026-07-28 after refining Phase 8 CDN/cache, posture, and media-adjustment scope*
