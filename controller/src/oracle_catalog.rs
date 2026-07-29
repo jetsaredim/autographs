@@ -35,6 +35,13 @@ from autograph_items where id = :1";
 const IMAGE_SELECT_COLUMNS: &str = "id, object_key, original_filename, content_type, byte_size,
     checksum, etag, is_primary, sort_order, alt_text";
 
+const SIGNER_CREDIT_ROWS_FOR_UPDATE_SQL: &str =
+    "select signer_id, sort_order, item_role, item_context
+    from autograph_item_signers
+    where item_id = :1
+    order by signer_id
+    for update";
+
 const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish as (
     select id, started_at, snapshot_event_count
     from (
@@ -286,11 +293,13 @@ impl CatalogRepository for OracleCatalogRepository {
             if input_updates_tags {
                 replace_tags(&connection, id, &item.tags)?;
             }
-            if should_replace_signer_credits(
+            let signer_credits_changed = field_diffs.iter().any(|diff| diff.field == "signers");
+            if should_sync_signer_credits(
                 input_updates_signer_credits,
                 has_persisted_signer_credits,
+                signer_credits_changed,
             ) {
-                replace_signer_credits(&connection, id, &item.signer_credits)?;
+                sync_signer_credits(&connection, id, &item.signer_credits)?;
             }
             if input_updates_characters {
                 replace_characters(&connection, id, &item.characters)?;
@@ -1235,7 +1244,7 @@ fn load_signer_suggestion_profiles(
         )
         .map_err(|error| format!("read Oracle signer suggestion profiles: {error}"))?;
     let mut profiles = Vec::new();
-    while let Some(row) = rows.next() {
+    for row in &mut rows {
         let row = row.map_err(|error| format!("read Oracle signer suggestion row: {error}"))?;
         profiles.push(signer_profile_from_row(&row, 0)?);
     }
@@ -1663,11 +1672,12 @@ fn has_persisted_signer_credits(connection: &Connection, id: Uuid) -> Result<boo
     Ok(count > 0)
 }
 
-fn should_replace_signer_credits(
+fn should_sync_signer_credits(
     input_updates_signer_credits: bool,
-    _has_persisted_signer_credits: bool,
+    has_persisted_signer_credits: bool,
+    signer_credits_changed: bool,
 ) -> bool {
-    input_updates_signer_credits
+    input_updates_signer_credits && (signer_credits_changed || !has_persisted_signer_credits)
 }
 
 fn load_characters(connection: &Connection, id: Uuid) -> Result<Vec<String>, String> {
@@ -1903,6 +1913,121 @@ fn replace_signer_credits(
             .map_err(|error| format!("insert Oracle catalog signer credit: {error}"))?;
     }
     Ok(())
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SignerCreditRow {
+    signer_id: String,
+    sort_order: i32,
+    item_role: Option<String>,
+    item_context: Option<String>,
+}
+
+fn sync_signer_credits(
+    connection: &Connection,
+    id: Uuid,
+    credits: &[SignerCredit],
+) -> Result<(), String> {
+    let id_text = id.to_string();
+    let desired_rows = desired_signer_credit_rows(credits);
+    let existing_rows = load_signer_credit_rows_for_update(connection, id)?;
+    if existing_rows == desired_rows {
+        return Ok(());
+    }
+
+    let desired_ids = desired_rows
+        .iter()
+        .map(|row| row.signer_id.clone())
+        .collect::<BTreeSet<_>>();
+    for row in existing_rows
+        .iter()
+        .filter(|row| !desired_ids.contains(&row.signer_id))
+    {
+        connection
+            .execute(
+                "delete from autograph_item_signers where item_id = :1 and signer_id = :2",
+                &[&id_text, &row.signer_id],
+            )
+            .map_err(|error| format!("delete Oracle catalog signer credit: {error}"))?;
+    }
+
+    for row in &desired_rows {
+        let statement = connection
+            .execute(
+                "update autograph_item_signers set
+                    sort_order = :3,
+                    item_role = :4,
+                    item_context = :5
+                where item_id = :1 and signer_id = :2",
+                &[
+                    &id_text,
+                    &row.signer_id,
+                    &row.sort_order,
+                    &row.item_role,
+                    &row.item_context,
+                ],
+            )
+            .map_err(|error| format!("update Oracle catalog signer credit: {error}"))?;
+        let rows_updated = statement
+            .row_count()
+            .map_err(|error| format!("read Oracle signer credit update row count: {error}"))?;
+        if rows_updated == 0 {
+            connection
+                .execute(
+                    "insert into autograph_item_signers (
+                        item_id, signer_id, sort_order, item_role, item_context
+                    ) values (
+                        :1, :2, :3, :4, :5
+                    )",
+                    &[
+                        &id_text,
+                        &row.signer_id,
+                        &row.sort_order,
+                        &row.item_role,
+                        &row.item_context,
+                    ],
+                )
+                .map_err(|error| format!("insert Oracle catalog signer credit: {error}"))?;
+        }
+    }
+
+    Ok(())
+}
+
+fn desired_signer_credit_rows(credits: &[SignerCredit]) -> Vec<SignerCreditRow> {
+    let mut rows = credits
+        .iter()
+        .enumerate()
+        .map(|(index, credit)| SignerCreditRow {
+            signer_id: credit.signer.id.to_string(),
+            sort_order: index as i32,
+            item_role: credit.item_role.clone(),
+            item_context: credit.item_context.clone(),
+        })
+        .collect::<Vec<_>>();
+    rows.sort_by(|left, right| left.signer_id.cmp(&right.signer_id));
+    rows
+}
+
+fn load_signer_credit_rows_for_update(
+    connection: &Connection,
+    id: Uuid,
+) -> Result<Vec<SignerCreditRow>, String> {
+    let id_text = id.to_string();
+    let mut rows = connection
+        .query(SIGNER_CREDIT_ROWS_FOR_UPDATE_SQL, &[&id_text])
+        .map_err(|error| format!("lock Oracle catalog signer credits: {error}"))?;
+    let mut credits = Vec::new();
+    for row in &mut rows {
+        let row = row.map_err(|error| format!("read Oracle signer credit lock row: {error}"))?;
+        credits.push(SignerCreditRow {
+            signer_id: row_value(&row, 0, "signer credit signer id")?,
+            sort_order: row_value(&row, 1, "signer credit sort order")?,
+            item_role: row_value(&row, 2, "signer credit item role")?,
+            item_context: row_value(&row, 3, "signer credit item context")?,
+        });
+    }
+    Ok(credits)
 }
 
 fn upsert_signer_profile(
@@ -2202,8 +2327,11 @@ mod tests {
         let _: fn(&Connection, Uuid) -> Result<Vec<SignerCredit>, String> = load_signer_credits;
         let _: fn(&Connection, Uuid, &[SignerCredit]) -> Result<(), String> =
             replace_signer_credits;
+        let _: fn(&Connection, Uuid, &[SignerCredit]) -> Result<(), String> = sync_signer_credits;
         let _: fn(&Connection, &SignerCredit) -> Result<SignerProfile, String> =
             upsert_signer_profile;
+        let _: fn(&Connection, Uuid) -> Result<Vec<SignerCreditRow>, String> =
+            load_signer_credit_rows_for_update;
         let _: fn(&Connection, Uuid) -> Result<Vec<String>, String> = load_characters;
         let _: fn(&Connection, Uuid, &[String]) -> Result<(), String> = replace_characters;
         let _: fn(&Connection, Uuid) -> Result<Vec<String>, String> = load_franchises;
@@ -2325,11 +2453,65 @@ mod tests {
     }
 
     #[test]
-    fn oracle_skips_synthetic_legacy_signer_credit_writeback() {
-        assert!(!should_replace_signer_credits(false, false));
-        assert!(should_replace_signer_credits(true, false));
-        assert!(!should_replace_signer_credits(false, true));
-        assert!(should_replace_signer_credits(true, true));
+    fn oracle_skips_unchanged_submitted_signer_credit_writeback() {
+        assert!(!should_sync_signer_credits(false, false, false));
+        assert!(!should_sync_signer_credits(false, true, true));
+        assert!(!should_sync_signer_credits(true, true, false));
+        assert!(should_sync_signer_credits(true, true, true));
+        assert!(should_sync_signer_credits(true, false, false));
+    }
+
+    #[test]
+    fn oracle_signer_credit_sync_uses_stable_row_order() {
+        assert!(SIGNER_CREDIT_ROWS_FOR_UPDATE_SQL.contains("order by signer_id"));
+        assert!(SIGNER_CREDIT_ROWS_FOR_UPDATE_SQL.contains("for update"));
+
+        let first_id = Uuid::parse_str("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb").unwrap();
+        let second_id = Uuid::parse_str("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa").unwrap();
+        let rows = desired_signer_credit_rows(&[
+            signer_credit(first_id, Some("actor"), None),
+            signer_credit(second_id, None, Some("Princess Leia")),
+        ]);
+
+        assert_eq!(
+            rows,
+            vec![
+                SignerCreditRow {
+                    signer_id: second_id.to_string(),
+                    sort_order: 1,
+                    item_role: None,
+                    item_context: Some("Princess Leia".to_owned()),
+                },
+                SignerCreditRow {
+                    signer_id: first_id.to_string(),
+                    sort_order: 0,
+                    item_role: Some("actor".to_owned()),
+                    item_context: None,
+                },
+            ]
+        );
+    }
+
+    fn signer_credit(
+        signer_id: Uuid,
+        item_role: Option<&str>,
+        item_context: Option<&str>,
+    ) -> SignerCredit {
+        SignerCredit {
+            signer: SignerProfile {
+                id: signer_id,
+                display_name: signer_id.to_string(),
+                normalized_name: signer_id.to_string(),
+                default_role: None,
+                wikipedia_url: None,
+                imdb_url: None,
+                created_at_epoch_seconds: 0,
+                updated_at_epoch_seconds: 0,
+            },
+            sort_order: 0,
+            item_role: item_role.map(str::to_owned),
+            item_context: item_context.map(str::to_owned),
+        }
     }
 
     #[test]
