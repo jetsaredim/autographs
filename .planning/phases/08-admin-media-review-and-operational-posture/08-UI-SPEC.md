@@ -128,7 +128,7 @@ Desktop layout:
 
 | Region | Contract |
 |--------|----------|
-| Header | Back to item, item title, image role/status pills, `Save adjustments`, `Cancel`, `Reset adjustments` |
+| Header | Back to item, item title, image role/status pills, `Save adjustments`, `Discard image edits`, `Reset adjustments` |
 | Preview stage | Full-width within the view column, stable `aspect-ratio: 4 / 3`, neutral matte, contain image, no layout shift while loading |
 | Controls | Right-side control column, 320px target width, no nested cards |
 | Comparison | Segmented control for `Latest`, `Before / After`, and `Split`; default to `Latest` |
@@ -148,7 +148,7 @@ Use familiar controls, not text-heavy explanations:
 | Overlays | Toggle buttons for `Grid`, `Centerline`, and `Edges`; multiple overlays may be active |
 | Comparison | Segmented control; split view uses a draggable divider and a visible center rule |
 
-Edits are draft-local until `Save adjustments`. `Cancel` abandons unsaved edits. `Reset adjustments` clears saved adjustment metadata after confirmation. Saved changes update private admin previews immediately, record pending-change/edit-history state, and become public only through the normal publish flow.
+Edits are draft-local until `Save adjustments`. `Discard image edits` abandons unsaved edits. `Reset adjustments` clears saved adjustment metadata after confirmation. Saved changes update private admin previews immediately, record pending-change/edit-history state, and become public only through the normal publish flow.
 
 ### Visual States
 
