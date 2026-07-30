@@ -9,9 +9,9 @@
 ## Release Status
 
 - Repo version: `v0.0.7`
-- Deployed controller image: `v0.0.4`
+- Deployed controller image: `v0.0.7`
 - Latest deploy-impact version: `v0.0.7`
-- Version state: repo ahead of deployed controller
+- Version state: in sync
 - Last bump: `patch`
 - Last deploy impact: `controller-image`
 <!-- autographs-release-status:end -->
