@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready-for-planning
-stopped_at: Phase 8 context updated for CDN/media posture planning
-last_updated: "2026-07-28T09:55:37.526Z"
-last_activity: 2026-07-28
+stopped_at: Addressed issue 193 Oracle signer-credit update deadlock
+last_updated: "2026-07-29T01:55:51Z"
+last_activity: 2026-07-29
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 8
 Plan: Not started
 Status: Phase 7 complete; Phase 8 realigned and ready for planning
-Last activity: 2026-07-28
+Last activity: 2026-07-29 - Completed quick task 260728-u9r: Address issue 193 Oracle signer-credit update deadlock
 
 Progress: [███████░░░] 70% of milestone phases complete; Phase 8 is next
 
@@ -198,3 +198,4 @@ Resume file: .planning/phases/08-admin-media-review-and-operational-posture/08-C
 | 2026-07-19 | move-phase-8-ai-05-taxonomy-thumbnail-me | Moved Phase 8 taxonomy/media cue exploration to the first success criterion and renumbered the pending AI requirements so non-AI-specific taxonomy media work is looked at before OCR/AI ingest. |
 | 2026-07-24 | issue-165-semver-versioning | Added repo semver/status automation, semver-tagged controller deploys, runtime/static release version metadata, and semver-aware image cleanup. |
 | 2026-07-26 | issue-175-bulk-catalog-derivative-cache | Added Oracle bulk catalog loading for list/published publish paths, checksum-backed derivative cache source keys, upload/replacement checksum persistence, timing instrumentation, and regression coverage for checksum reuse plus legacy fallback. |
+| 2026-07-29 | address-issue-193-oracle-signer-credit-deadlock | Skipped Oracle signer-credit writes for unchanged submitted credits and replaced update-time delete/reinsert churn with stable row-level sync. Commit 341e425. |
