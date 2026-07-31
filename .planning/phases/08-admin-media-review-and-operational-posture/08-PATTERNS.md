@@ -359,7 +359,7 @@ Apply this to explicit CDN docs/verification: admin and admin API bypass CDN cac
 ## Shared Patterns
 
 ### Authentication
-**Source:** `controller/src/routes.rs` and `controller/src/routes/admin_items.rs`  
+**Source:** `controller/src/routes.rs` and `controller/src/routes/admin_items.rs`
 **Apply to:** All admin preview, adjustment, auto-assist, save, reset, and comparison routes.
 
 ```rust
@@ -370,7 +370,7 @@ if let Err(status) = authorize_admin_session(&state, &method, &headers) {
 ```
 
 ### Redacted Errors
-**Source:** `controller/src/routes.rs` media handlers  
+**Source:** `controller/src/routes.rs` media handlers
 **Apply to:** Private preview route, media adjustment preview, upload/replace paths, publisher logging.
 
 ```rust
@@ -379,13 +379,13 @@ return StatusCode::INTERNAL_SERVER_ERROR.into_response();
 ```
 
 ### Public Privacy
-**Source:** `controller/src/publisher.rs`, `controller/tests/static_contract.rs`  
+**Source:** `controller/src/publisher.rs`, `controller/tests/static_contract.rs`
 **Apply to:** Public JSON/HTML/media paths, adjustment serialization, preview APIs.
 
 Do not expose object keys, bucket names, namespaces, original filenames, private image UUIDs, or unpublished records in public artifacts. Admin preview URLs should be same-origin and opaque enough for browser rendering.
 
 ### Verification
-**Source:** `AGENTS.md`, `08-RESEARCH.md`  
+**Source:** `AGENTS.md`, `08-RESEARCH.md`
 **Apply to:** All Phase 8 plans.
 
 Use `cargo fmt --manifest-path controller/Cargo.toml --check`, `cargo test --manifest-path controller/Cargo.toml`, `cargo check --manifest-path controller/Cargo.toml --features production-persistence`, `cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings`, `node --check controller/static-admin/admin.js`, and Ansible syntax/lint checks for security patching changes.
@@ -398,6 +398,6 @@ Use `cargo fmt --manifest-path controller/Cargo.toml --check`, `cargo test --man
 
 ## Metadata
 
-**Analog search scope:** `controller/src`, `controller/static-admin`, `controller/tests`, `controller/db`, `deploy/ansible`, `.github/workflows`, `docs`, `infra/terraform`  
-**Files scanned:** 80+ source/planning-relevant files, stopping after strong matches per file family  
+**Analog search scope:** `controller/src`, `controller/static-admin`, `controller/tests`, `controller/db`, `deploy/ansible`, `.github/workflows`, `docs`, `infra/terraform`
+**Files scanned:** 80+ source/planning-relevant files, stopping after strong matches per file family
 **Pattern extraction date:** 2026-07-30
