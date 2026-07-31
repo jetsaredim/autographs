@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 8 planned
-last_updated: "2026-07-31T02:53:32.992Z"
-last_activity: "2026-07-29 - Completed quick task 260728-u9r: Address issue 193 Oracle signer-credit update deadlock"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-07-31T20:12:38.095Z"
+last_activity: 2026-07-31 -- Phase 08 execution started
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 47
-  completed_plans: 39
+  completed_plans: 40
   percent: 70
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-28)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 08 — Admin Media Review and Operational Posture
+**Current focus:** Phase 08 — admin-media-review-and-operational-posture
 
 ## Current Position
 
-Phase: 8
-Plan: Not started
+Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-07-29 - Completed quick task 260728-u9r: Address issue 193 Oracle signer-credit update deadlock
+Last activity: 2026-07-31 -- Phase 08 execution started
 
 Progress: [███████░░░] 70% of milestone phases complete; Phase 8 is next
 
@@ -79,6 +79,7 @@ Progress: [███████░░░] 70% of milestone phases complete; Pha
 | Phase 07 P03 | 35min | 3 tasks | 8 files |
 | Phase 07 P04 | 14min | 3 tasks | 9 files |
 | Phase 07 P05 | 11min | 3 tasks | 14 files |
+| Phase 08 P01 | 8min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -137,6 +138,9 @@ Recent decisions affecting current work:
 - [Phase 08]: Phase 8 security reporting should minimize host-side scan work: collect exact package specs plus cheap advisory/CVE inventory, enrich from Oracle OVAL first and Oracle errata HTML fallback, and keep hidden approval metadata to package specs only. — The current scan failure occurs after IP resolution in Ansible, and slow per-advisory host detail loops should not block issue creation when package inventory is valid.
 - [Phase 08]: Phase 8 posture cleanup should run before media work in separate PRs and add enforceable CI hygiene guardrails where feasible. — Aggressive cleanup is desired, but splitting it before media work keeps the image editor from carrying unrelated repo-wide churn.
 - [Phase 08]: Phase 8 media adjustment must include a dedicated review view, multiple overlays, draft-local save/cancel/reset, before/after comparison, and required auto-assisted deskew/perspective correction with manual fallback. — Uploaded images can be misaligned or askew, and visual guide overlays plus auto-assisted/manual correction are necessary for the admin to prepare publish-safe derivatives.
+- [Phase 08]: Production security scans now avoid host-side per-advisory detail loops and derive approval package specs directly from dnf updateinfo list output.
+- [Phase 08]: Oracle Linux advisory enrichment is report detail only; enrichment failure degrades the report but does not block issue creation when package inventory exists.
+- [Phase 08]: Scanner approval metadata remains package-spec-only, with CVEs, severity, summaries, and advisory links kept out of the hidden metadata block.
 
 ### Pending Todos
 
@@ -162,9 +166,9 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-31T02:53:32.982Z
-Stopped at: Phase 8 planned
-Resume file: .planning/phases/08-admin-media-review-and-operational-posture/08-01-PLAN.md
+Last session: 2026-07-31T20:12:38.081Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None
 
 ## Quick Tasks Completed
 
