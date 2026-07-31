@@ -136,8 +136,8 @@ class OracleLinuxAdvisoryEnrichmentTests(unittest.TestCase):
                 ]
             )
 
-        self.assertEqual(exit_code, 0)
-        written = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(exit_code, 0)
+            written = json.loads(output_path.read_text(encoding="utf-8"))
         self.assertEqual(written["status"], "degraded")
         self.assertEqual(written["hosts"][0]["entries"][0]["advisory_id"], "ELSA-2025-20001")
 
