@@ -246,7 +246,39 @@ Plans:
   6. Static publishing applies saved image adjustments to generated public derivatives, includes adjustment metadata in derivative cache invalidation, and keeps privacy/static contract validation intact.
   7. The admin media UI and supporting docs/tests are polished enough that image review and correction feel like part of the normal collection workflow rather than a maintenance workaround.
 
-**Plans**: TBD
+**Plans**: 8 plans
+Plans:
+**Wave 1**
+
+- [ ] 08-01-PLAN.md - Repair the production security patching scanner and operator verification path.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 08-02-PLAN.md - Run the pre-media posture pass, CI hygiene guardrail, and blocking cleanup PR checkpoint.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 08-03-PLAN.md - Define the Phase 8 CDN/cache contract and source-test origin cache behavior.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 08-04-PLAN.md - Create the image adjustment transform, catalog model, and memory repository foundation.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 08-05-PLAN.md - Persist non-destructive image adjustment metadata in Oracle.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 08-06-PLAN.md - Add authenticated private preview APIs and the focused static-admin image review UI.
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 08-07-PLAN.md - Apply saved adjustments in static publishing and derivative cache invalidation.
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 08-08-PLAN.md - Close Phase 8 with security review, source coverage, local gates, and production CDN verification.
 **UI hint**: yes
 
 ### Phase 9: Taxonomy Media Cues
@@ -295,6 +327,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
 | 6. Admin Collection Workflow | 9/9 | Complete | 2026-07-02 |
 | 7. Metadata Taxonomy and Public Facets | 5/5 | Complete    | 2026-07-11 |
-| 8. Admin Media Review and Operational Posture | 0/TBD | Not started | - |
+| 8. Admin Media Review and Operational Posture | 0/8 | Planned | - |
 | 9. Taxonomy Media Cues | 0/TBD | Not started | - |
 | 10. Advisory AI-Assisted Ingest | 0/TBD | Not started | - |

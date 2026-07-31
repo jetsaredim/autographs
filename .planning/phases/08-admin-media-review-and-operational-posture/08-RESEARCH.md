@@ -519,27 +519,27 @@ response
 | A3 | Canonical adjustment cache keys should include source checksum, adjustment JSON, variant, and transform version. | Common Pitfalls / Code Examples | Cache invalidation could miss changes if canonicalization is unstable. |
 | A4 | Cloudflare verification can rely on response headers such as `CF-Cache-Status`. | Common Pitfalls | Account plan or proxy mode may expose different debugging headers. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Cloudflare configuration ownership**
-   - What we know: Docs already describe Phase 8 CDN/cache expectations, and Cloudflare official docs support cache rules and purge. [CITED: https://developers.cloudflare.com/cache/how-to/cache-rules/settings/]
-   - What's unclear: No Terraform Cloudflare provider or account-specific zone configuration was found in the repo. [VERIFIED: codebase grep]
-   - Recommendation: Plan a documentation/manual verification task unless the user confirms Terraform-managed Cloudflare is desired. [ASSUMED]
+   - Resolution: Phase 8 plans must not assume Terraform-managed Cloudflare or live account/API access because no Terraform Cloudflare provider or account-specific zone configuration was found in the repo. [VERIFIED: codebase grep]
+   - Planning consequence: Treat CDN ownership as a documented/manual operator configuration plus blocking production verification checkpoint. The plan should define exact Cloudflare rule names and cache semantics in docs first, then require live evidence after adjusted-media cache behavior exists per D-08-17, D-08-18, and D-08-19.
+   - Live-fact boundary: Do not invent whether the current production hostname is proxied through Cloudflare. Record `CF-Cache-Status` or account-equivalent headers only during the planned live checkpoint.
 
 2. **Adjustment metadata storage shape**
-   - What we know: Oracle image rows have no adjustment metadata today. [VERIFIED: codebase grep]
-   - What's unclear: Whether reporting/querying adjustment components in SQL matters. [ASSUMED]
-   - Recommendation: Prefer typed Rust DTO plus `adjustment_json` CLOB for Phase 8 unless the planner needs SQL-visible fields. [ASSUMED]
+   - Resolution: Use a typed Rust adjustment DTO with one additive private Oracle `autograph_images.adjustment_json` CLOB for Phase 8.
+   - Planning consequence: Rust owns validation, canonical serialization, edit-history semantics, and derivative cache-key generation; Oracle stores the private metadata without requiring SQL-visible crop/rotation/perspective columns. This follows D-08-25, D-08-29, D-08-31, and D-08-32 while avoiding public schema exposure.
+   - Public-boundary rule: `adjustment_json` and derived private adjustment fields remain admin/private metadata and must be denied by public static contract tests.
 
 3. **Auto-assist algorithm depth**
-   - What we know: Manual fallback is required and OCR/AI is deferred. [VERIFIED: CONTEXT.md]
-   - What's unclear: How sophisticated first-pass auto-deskew must be for real uploaded images. [ASSUMED]
-   - Recommendation: Include a small spike/test fixture task and accept “no confident proposal” as valid auto-assist output. [ASSUMED]
+   - Resolution: Auto-assisted deskew/perspective correction is required but bounded: implement a deterministic heuristic proposal route with manual fallback, not OCR/AI or a full computer-vision subsystem per D-08-26 and the deferred Phase 10 AI scope.
+   - Planning consequence: Tests must include one high-contrast skew fixture where `propose_image_adjustment` returns `status: "confident"` with four normalized corners, plus separate ambiguous/low-contrast fixtures where `status: "unavailable"` and the UI-spec fallback copy are valid. Unavailable is not acceptable for the deterministic high-contrast fixture.
+   - UI/API consequence: The admin route and UI must preserve manual corner handles when auto-assist is unavailable, and must surface the confident proposal when the backend returns normalized corners.
 
 4. **Live production security scan failure details**
-   - What we know: Context states the latest weekly scan failed after IP resolution during Ansible scan. [VERIFIED: CONTEXT.md]
-   - What's unclear: The exact workflow run/log error was not inspected in this research continuation. [ASSUMED]
-   - Recommendation: First implementation plan should inspect the failing run and preserve the current diagnosis if logs confirm the scan loop timeout. [ASSUMED]
+   - Resolution: Treat the known failure as post-IP-resolution Ansible scan failure per D-08-04, but do not claim the exact live run/log details were inspected in this research artifact.
+   - Planning consequence: Plan 08-01 should repair the likely slow host-side advisory loop, optionally record the latest failing run ID when `gh` access is available, and require scanner proof in operator verification per D-08-11.
+   - Live-proof boundary: The definitive live scan proof is a planned verification artifact, not a research fact. It must capture a successful scanner issue create/update path, degraded enrichment behavior when exercised, stale approval removal, and dry-run apply-path evidence where feasible.
 
 ## Environment Availability
 
