@@ -172,40 +172,41 @@ The scan path starts in `.github/workflows/weekly-security-scan.yml`, then runs 
    package_spec: <last column>
    ```
 
-7. Reads advisory details for each unique advisory:
-
-   ```text
-   dnf -q updateinfo info <advisory_id>
-   ```
-
-8. Extracts CVE identifiers with the `CVE-YYYY-ID` regex.
-9. Builds these host facts:
+7. Builds these host facts without reading per-advisory details on the runtime host:
 
    ```yaml
    security_patching_update_entries:
      - advisory_id: ELSA-...
        severity: Important
        package_spec: package-version.arch
+       enrichmentStatus: minimal
        cves:
-         - CVE-...
    security_patching_update_package_specs:
      - package-version.arch
    security_patching_update_advisory_ids:
      - ELSA-...
    ```
 
+`tasks/create_issue.yml` then runs on `localhost` and writes a temporary JSON inventory from the host facts. It invokes `scripts/oracle_linux_advisory_enrichment.py` as a best-effort report detail step. The script fetches Oracle Linux OVAL data from `https://linux.oracle.com/security/oval/com.oracle.elsa-all.xml.bz2` when reachable and always preserves Oracle errata links such as `https://linux.oracle.com/errata/ELSA-2025-20632.html`.
+
+Advisory enrichment is intentionally outside the runtime host loop. If OVAL download or parsing fails, the scanner still creates or updates the GitHub issue with exact package specs, marks the report `degraded`, and leaves approval/drift checks intact.
+
 `tasks/create_issue.yml` runs on `localhost` after all hosts have scan facts:
 
 1. Requires `GITHUB_REPOSITORY` and `GH_TOKEN`.
 2. Builds `security_patching_hosts_with_findings` from hosts whose `security_patching_update_entries` list is non-empty.
 3. Stops with a debug message if no hosts have findings.
-4. Ensures the managed GitHub labels exist. GitHub `422` is accepted so already-existing labels do not fail the scan.
-5. Renders `security-report.md.j2` to a private temp file.
-6. Searches open issues labeled `security-patching` and `patch-scan-open`.
-7. Filters out pull requests and selects existing issues whose body contains the same target group marker.
-8. Updates the first matching open issue if present, otherwise creates a new issue.
+4. Writes localhost advisory enrichment input JSON.
+5. Runs the Oracle Linux advisory enrichment script with `failed_when: false`.
+6. Loads enrichment output when valid, or records degraded enrichment status when unavailable.
+7. Ensures the managed GitHub labels exist. GitHub `422` is accepted so already-existing labels do not fail the scan.
+8. Renders `security-report.md.j2` to a private temp file.
+9. Searches open issues labeled `security-patching` and `patch-scan-open`.
+10. Filters out pull requests and selects existing issues whose body contains the same target group marker.
+11. Updates the first matching open issue if present, otherwise creates a new issue.
 
 This means weekly scans converge on one open issue per target group instead of creating duplicate open scan issues.
+Existing issue updates replace the full body and label set. The replacement labels are only `security-patching`, `production`, and `patch-scan-open`, so a stale `approved-production-update` label is removed whenever a scan rewrites the issue.
 
 ## Scanner issue format
 
@@ -236,6 +237,7 @@ The visible issue body contains:
 
 - `# Production security update report`
 - `Scan ID`, `Generated`, and `Target group`
+- an advisory enrichment status of `complete`, `degraded`, or `minimal`
 - a summary table:
 
   ```markdown
@@ -254,6 +256,8 @@ The visible issue body contains:
 
 - a review checklist
 - one-click approval instructions for the `approved-production-update` label
+
+Package row ordering is intentionally reviewed against real scanner output. The preferred ordering is either the DNF order returned by the runtime host or alphabetical package/version order, whichever makes the live package set easier to approve safely.
 
 ## Host inventory
 
@@ -457,3 +461,77 @@ ansible-lint \
 ```
 
 CI also runs actionlint against workflows and Ansible syntax/lint checks through `.github/workflows/ci.yml`.
+
+## Phase 8 scanner repair verification
+
+Use this section after deploying the scanner repair. Do not install production updates unless a real scanner issue contains an approved package set that you intend to apply.
+
+### workflow_dispatch scan proof
+
+Trigger a manual scan and capture its run ID:
+
+```bash
+gh workflow run weekly-security-scan.yml --ref main
+gh run list --workflow weekly-security-scan.yml --limit 5
+gh run view <scan-run-id> --json conclusion,jobs,url
+```
+
+Expected result: the `Resolve runtime VM IP` step succeeds, the `Run security scan playbook` step succeeds, and a scanner issue is created or updated when package inventory exists.
+
+### degraded enrichment review
+
+Exercise the enrichment fallback locally without relying on Oracle OVAL availability:
+
+```bash
+python3 scripts/oracle_linux_advisory_enrichment.py \
+  --input /tmp/autographs-security-enrichment-input.json \
+  --output /tmp/autographs-security-enrichment-output.json \
+  --oval-url file:///tmp/autographs-missing-oval.xml
+cat /tmp/autographs-security-enrichment-output.json
+```
+
+Expected result: the output status is `degraded`, package specs are preserved, and entries still include Oracle errata links. Use a copy of a real scanner inventory JSON for the input path.
+
+### same-issue update review
+
+Run the scanner twice while an open scanner issue exists:
+
+```bash
+gh workflow run weekly-security-scan.yml --ref main
+gh run list --workflow weekly-security-scan.yml --limit 5
+gh issue list --state open --label security-patching --label patch-scan-open
+gh issue view <scanner-issue-number> --json title,labels,body,updatedAt,url
+```
+
+Expected result: the same open scanner issue for `target_group: "runtime"` is updated instead of creating duplicate open scan issues.
+
+### stale approval removal
+
+Only perform this proof in production when the issue represents a real package set and an allowed operator intentionally wants to exercise the approval path. Adding `approved-production-update` to a real scanner issue triggers the apply workflow.
+
+```bash
+gh issue edit <scanner-issue-number> --add-label approved-production-update
+gh workflow run weekly-security-scan.yml --ref main
+gh issue view <scanner-issue-number> --json labels,body
+```
+
+Expected result after the scanner update: labels are reset to `security-patching`, `production`, and `patch-scan-open`; stale `approved-production-update` is absent from the open scanner issue.
+
+### dry-run apply-path exercise
+
+Use check mode only, and only with a real scanner issue whose package set you reviewed:
+
+```bash
+GH_TOKEN=<token> \
+GITHUB_REPOSITORY=jetsaredim/autographs \
+ANSIBLE_LOCAL_TEMP=/tmp/ansible-local \
+ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote \
+ANSIBLE_CONFIG=deploy/ansible/ansible.cfg \
+ansible-playbook --check \
+  deploy/ansible/playbooks/security-patch.yml \
+  --extra-vars security_patching_issue_number=<scanner-issue-number> \
+  --extra-vars security_patching_approver=<github-username> \
+  --extra-vars security_patching_target_group=runtime
+```
+
+Expected result: validation reads the package-spec-only metadata, the runtime host is re-scanned, and drift checks compare the current package specs to the approved package specs before any update task can proceed.

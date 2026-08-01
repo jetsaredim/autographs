@@ -13,6 +13,8 @@ security_patching_report_path: "/tmp/autographs-security-report-{{ security_patc
 security_patching_result_comment_path: "/tmp/autographs-security-update-result-{{ security_patching_issue_number | default('unknown', true) }}.md"
 security_patching_approval_label: approved-production-update
 security_patching_target_group: runtime
+security_patching_enrichment_status: minimal
+security_patching_enrichment_message: Runtime package inventory was collected without host-side advisory detail enrichment.
 
 security_patching_managed_labels:
   - name: security-patching

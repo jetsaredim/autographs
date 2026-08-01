@@ -20,6 +20,10 @@ Generated: `{{ security_patching_scan_timestamp }}`
 
 Target group: `{{ security_patching_target_group }}`
 
+Advisory enrichment: `{{ security_patching_enrichment_status | default('minimal') }}`
+
+{{ security_patching_enrichment_message | default('Runtime package inventory was collected without host-side advisory detail enrichment.') }}
+
 ## Summary
 
 | Instance | Proposed security updates | Advisories |
@@ -33,10 +37,11 @@ Target group: `{{ security_patching_target_group }}`
 {% for host in security_patching_hosts_with_findings %}
 ### `{{ host }}`
 
-| Package spec | Advisory | Severity | CVEs |
-|---|---|---|---|
-{% for entry in hostvars[host].security_patching_update_entries | default([]) %}
-| `{{ entry.package_spec }}` | {% if entry.advisory_id.startswith('ELSA-') %}[{{ entry.advisory_id }}](https://linux.oracle.com/errata/{{ entry.advisory_id }}.html){% elif entry.advisory_id.startswith('RHSA-') %}[{{ entry.advisory_id }}](https://access.redhat.com/errata/{{ entry.advisory_id }}){% else %}`{{ entry.advisory_id }}`{% endif %} | {{ entry.severity | default('unknown') }} | {% if entry.cves | default([]) | length > 0 %}{% for cve in entry.cves %}[{{ cve }}](https://nvd.nist.gov/vuln/detail/{{ cve }}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %} |
+| Package spec | Advisory | Severity | CVEs | Summary |
+|---|---|---|---|---|
+{% set report_entries = (security_patching_enrichment_by_host | default({})).get(host, {}).get('entries', hostvars[host].security_patching_update_entries | default([])) %}
+{% for entry in report_entries %}
+| `{{ entry.package_spec }}` | {% if entry.errata_link | default('') | length > 0 %}[{{ entry.advisory_id }}]({{ entry.errata_link }}){% elif entry.advisory_id.startswith('ELSA-') %}[{{ entry.advisory_id }}](https://linux.oracle.com/errata/{{ entry.advisory_id }}.html){% elif entry.advisory_id.startswith('RHSA-') %}[{{ entry.advisory_id }}](https://access.redhat.com/errata/{{ entry.advisory_id }}){% else %}`{{ entry.advisory_id }}`{% endif %} | {{ entry.severity | default('unknown') }} | {% if entry.cves | default([]) | length > 0 %}{% for cve in entry.cves %}[{{ cve }}](https://nvd.nist.gov/vuln/detail/{{ cve }}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %} | {{ entry.summary | default('') | truncate(160, true, '...') if entry.summary | default('') | length > 0 else '—' }} |
 {% endfor %}
 
 {% endfor %}
