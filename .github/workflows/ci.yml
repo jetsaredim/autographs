@@ -25,8 +25,13 @@ jobs:
       - name: Validate Terraform version alignment
         run: python3 scripts/validate-terraform-version-alignment.py
 
-      - name: Run release automation tests
-        run: python3 -m unittest scripts/test_release_version.py scripts/test_cleanup_ghcr_images.py
+      - name: Run repository automation tests
+        run: |
+          python3 -m unittest \
+            scripts/test_release_version.py \
+            scripts/test_cleanup_ghcr_images.py \
+            scripts/test_oracle_linux_advisory_enrichment.py \
+            scripts/test_security_patching_create_issue_tasks.py
 
   secret-scan:
     name: Secret scan

@@ -31,6 +31,10 @@
           'issues'
         ] | join('/')
       }}
+  when: security_patching_hosts_with_findings | length > 0
+
+- name: Build open GitHub issues URL
+  ansible.builtin.set_fact:
     security_patching_open_issues_url: >-
       {{ security_patching_issues_url }}?state=open&labels=security-patching,patch-scan-open&per_page=100
   when: security_patching_hosts_with_findings | length > 0
