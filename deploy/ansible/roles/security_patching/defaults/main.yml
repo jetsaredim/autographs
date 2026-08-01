@@ -15,6 +15,8 @@ security_patching_approval_label: approved-production-update
 security_patching_target_group: runtime
 security_patching_enrichment_status: minimal
 security_patching_enrichment_message: Runtime package inventory was collected without host-side advisory detail enrichment.
+security_patching_report_max_detail_rows: 50
+security_patching_report_max_cves_per_row: 4
 
 security_patching_managed_labels:
   - name: security-patching
