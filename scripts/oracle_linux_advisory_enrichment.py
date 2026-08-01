@@ -38,6 +38,8 @@ def parse_update_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def build_errata_link(advisory_id: str, errata_base_url: str = DEFAULT_ERRATA_BASE_URL) -> str:
+    if not advisory_id.startswith("ELSA-"):
+        return ""
     base_url = errata_base_url.rstrip("/") + "/"
     return f"{base_url}{advisory_id}.html"
 
@@ -122,13 +124,18 @@ def enrich_inventory(
         message = f"Oracle Linux OVAL enrichment failed; package inventory and errata links were preserved: {error}"
 
     enriched_hosts = []
+    total_entries = 0
+    matched_entries = 0
     for host in inventory.get("hosts", []):
         host_entries = []
         for entry in parse_update_entries(host.get("entries", [])):
+            total_entries += 1
             advisory = oval_enrichment.get(entry["advisory_id"], {})
+            if advisory:
+                matched_entries += 1
             cves = advisory.get("cves") or entry.get("cves", [])
             severity = advisory.get("severity") or entry.get("severity", "unknown")
-            entry_status = "complete" if advisory else status
+            entry_status = "complete" if advisory else ("minimal" if oval_enrichment else status)
             host_entries.append(
                 {
                     **entry,
@@ -146,6 +153,10 @@ def enrich_inventory(
                 "entries": host_entries,
             }
         )
+
+    if oval_enrichment and matched_entries < total_entries:
+        status = "degraded"
+        message = "Oracle Linux OVAL enrichment was partial; package inventory and errata links were preserved."
 
     return {
         "status": status,
