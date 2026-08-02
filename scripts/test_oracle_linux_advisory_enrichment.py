@@ -155,6 +155,52 @@ class OracleLinuxAdvisoryEnrichmentTests(unittest.TestCase):
         self.assertEqual(entries[0]["cves"], ["CVE-2025-12345"])
         self.assertEqual(entries[1]["enrichmentStatus"], "minimal")
         self.assertEqual(entries[1]["cves"], [])
+        advisories = result["hosts"][0]["advisories"]
+        self.assertEqual([advisory["advisory_id"] for advisory in advisories], ["ELSA-2025-20632", "ELSA-2025-99999"])
+        self.assertEqual(advisories[0]["cves"], ["CVE-2025-12345"])
+        self.assertEqual(advisories[0]["package_count"], 1)
+
+    def test_enrich_inventory_builds_unique_advisory_summary(self):
+        inventory = {
+            "hosts": [
+                {
+                    "name": "production",
+                    "package_specs": [
+                        "openssl-3.2.2-1.el9.x86_64",
+                        "openssl-libs-3.2.2-1.el9.x86_64",
+                        "sudo-1.9.15-1.el9.x86_64",
+                    ],
+                    "entries": [
+                        {
+                            "advisory_id": "ELSA-2025-20001",
+                            "severity": "Important",
+                            "package_spec": "openssl-3.2.2-1.el9.x86_64",
+                            "cves": ["CVE-2025-0002", "CVE-2025-0001"],
+                        },
+                        {
+                            "advisory_id": "ELSA-2025-20001",
+                            "severity": "Important",
+                            "package_spec": "openssl-libs-3.2.2-1.el9.x86_64",
+                            "cves": ["CVE-2025-0001"],
+                        },
+                        {
+                            "advisory_id": "ELSA-2025-20002",
+                            "severity": "Moderate",
+                            "package_spec": "sudo-1.9.15-1.el9.x86_64",
+                            "cves": [],
+                        },
+                    ],
+                }
+            ]
+        }
+
+        result = oracle_linux_advisory_enrichment.enrich_inventory(inventory, oval_url="")
+
+        advisories = result["hosts"][0]["advisories"]
+        self.assertEqual([advisory["advisory_id"] for advisory in advisories], ["ELSA-2025-20001", "ELSA-2025-20002"])
+        self.assertEqual(advisories[0]["cves"], ["CVE-2025-0001", "CVE-2025-0002"])
+        self.assertEqual(advisories[0]["package_count"], 2)
+        self.assertEqual(advisories[1]["package_count"], 1)
 
     def test_main_writes_degraded_inventory_when_oval_fails(self):
         with tempfile.TemporaryDirectory() as tmp:

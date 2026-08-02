@@ -43,6 +43,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
 
         self.assertIn("security_patching_report_max_detail_rows: 50", defaults)
         self.assertIn("security_patching_report_max_cves_per_row: 4", defaults)
+        self.assertIn("security_patching_report_max_body_bytes: 60000", defaults)
         self.assertIn(
             "shown_entries = report_entries[:security_patching_report_max_detail_rows | int]",
             template,
@@ -55,6 +56,20 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
             "complete approved package spec set is preserved in the hidden scan metadata",
             template,
         )
+        self.assertIn("## Advisory review summary", template)
+        self.assertIn("package_specs: {{ hostvars[host].security_patching_update_package_specs", template)
+        self.assertIn("| to_json }}", template)
+
+    def test_issue_body_is_checked_before_github_write(self):
+        body_check = task_block("Require GitHub issue body within safety limit")
+        read_report = task_block("Read rendered production security update issue body")
+        update_issue = task_block("Update existing production security update issue")
+        create_issue = task_block("Create production security update issue")
+
+        self.assertIn("security_patching_report_max_body_bytes", body_check)
+        self.assertIn("security_patching_report_body:", read_report)
+        self.assertIn("body: \"{{ security_patching_report_body }}\"", update_issue)
+        self.assertIn("body: \"{{ security_patching_report_body }}\"", create_issue)
 
 
 if __name__ == "__main__":

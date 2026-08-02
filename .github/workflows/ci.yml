@@ -223,7 +223,14 @@ jobs:
             deploy/ansible/playbooks/deploy.yml \
             deploy/ansible/playbooks/system-cleanup.yml \
             deploy/ansible/playbooks/security-scan.yml \
-            deploy/ansible/playbooks/security-patch.yml
+            deploy/ansible/playbooks/security-patch.yml \
+            deploy/ansible/playbooks/security-report-render-test.yml
+
+      - name: Test security report rendering
+        run: |
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            -i deploy/ansible/test-fixtures/security-report-inventory.yml \
+            deploy/ansible/playbooks/security-report-render-test.yml
 
       - name: Lint Ansible playbook
         run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/

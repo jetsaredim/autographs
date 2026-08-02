@@ -105,6 +105,45 @@ def load_oval_enrichment(oval_url: str) -> dict[str, dict[str, Any]]:
     return enrichment
 
 
+def summarize_advisories(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    summaries: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        advisory_id = str(entry.get("advisory_id", "")).strip()
+        if not advisory_id:
+            continue
+        summary = summaries.setdefault(
+            advisory_id,
+            {
+                "advisory_id": advisory_id,
+                "severity": str(entry.get("severity", "") or "unknown"),
+                "cves": set(),
+                "errata_link": str(entry.get("errata_link", "") or ""),
+                "summary": str(entry.get("summary", "") or ""),
+                "package_specs": set(),
+            },
+        )
+        summary["package_specs"].add(str(entry.get("package_spec", "") or ""))
+        summary["cves"].update(str(cve).strip() for cve in entry.get("cves", []) if str(cve).strip())
+        if summary["severity"] in {"", "unknown"} and entry.get("severity"):
+            summary["severity"] = str(entry["severity"])
+        if not summary["summary"] and entry.get("summary"):
+            summary["summary"] = str(entry["summary"])
+        if not summary["errata_link"] and entry.get("errata_link"):
+            summary["errata_link"] = str(entry["errata_link"])
+
+    return [
+        {
+            "advisory_id": advisory_id,
+            "severity": str(summary["severity"] or "unknown"),
+            "cves": sorted(summary["cves"]),
+            "errata_link": summary["errata_link"],
+            "summary": summary["summary"],
+            "package_count": len({spec for spec in summary["package_specs"] if spec}),
+        }
+        for advisory_id, summary in sorted(summaries.items())
+    ]
+
+
 def enrich_inventory(
     inventory: dict[str, Any],
     oval_url: str = DEFAULT_OVAL_URL,
@@ -150,6 +189,7 @@ def enrich_inventory(
             {
                 "name": host.get("name"),
                 "package_specs": host.get("package_specs", []),
+                "advisories": summarize_advisories(host_entries),
                 "entries": host_entries,
             }
         )
