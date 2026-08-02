@@ -31,6 +31,10 @@
           'issues'
         ] | join('/')
       }}
+  when: security_patching_hosts_with_findings | length > 0
+
+- name: Build open GitHub issues URL
+  ansible.builtin.set_fact:
     security_patching_open_issues_url: >-
       {{ security_patching_issues_url }}?state=open&labels=security-patching,patch-scan-open&per_page=100
   when: security_patching_hosts_with_findings | length > 0
@@ -155,6 +159,27 @@
     mode: "0600"
   when: security_patching_hosts_with_findings | length > 0
 
+- name: Inspect rendered production security update issue body
+  ansible.builtin.stat:
+    path: "{{ security_patching_report_path }}"
+  register: security_patching_report_file
+  when: security_patching_hosts_with_findings | length > 0
+
+- name: Require GitHub issue body within safety limit
+  ansible.builtin.assert:
+    that:
+      - (security_patching_report_file.stat.size | int) <= (security_patching_report_max_body_bytes | int)
+    fail_msg: >-
+      Rendered security update issue body is {{ security_patching_report_file.stat.size | int }} bytes,
+      above the configured {{ security_patching_report_max_body_bytes | int }} byte safety limit.
+      Reduce visible security report detail or split the target group before creating a GitHub issue.
+  when: security_patching_hosts_with_findings | length > 0
+
+- name: Read rendered production security update issue body
+  ansible.builtin.set_fact:
+    security_patching_report_body: "{{ lookup('ansible.builtin.file', security_patching_report_path) }}"
+  when: security_patching_hosts_with_findings | length > 0
+
 - name: Read open production security update issues
   ansible.builtin.uri:
     url: "{{ security_patching_open_issues_url }}"
@@ -186,7 +211,7 @@
     body_format: json
     body:
       title: "Production security update report - {{ security_patching_scan_timestamp }}"
-      body: "{{ lookup('ansible.builtin.file', security_patching_report_path) }}"
+      body: "{{ security_patching_report_body }}"
       labels: "{{ security_patching_issue_labels }}"
     status_code: 200
   register: security_patching_updated_issue
@@ -203,7 +228,7 @@
     body_format: json
     body:
       title: "Production security update report - {{ security_patching_scan_timestamp }}"
-      body: "{{ lookup('ansible.builtin.file', security_patching_report_path) }}"
+      body: "{{ security_patching_report_body }}"
       labels: "{{ security_patching_issue_labels }}"
     status_code: 201
   register: security_patching_created_issue

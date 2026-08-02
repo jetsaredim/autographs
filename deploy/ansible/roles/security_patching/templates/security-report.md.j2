@@ -6,10 +6,7 @@ approval_label: "{{ security_patching_approval_label }}"
 instances:
 {% for host in security_patching_hosts_with_findings %}
   {{ host }}:
-    package_specs:
-{% for package_spec in hostvars[host].security_patching_update_package_specs | default([]) %}
-      - "{{ package_spec }}"
-{% endfor %}
+    package_specs: {{ hostvars[host].security_patching_update_package_specs | default([]) | unique | sort | list | to_json }}
 {% endfor %}
 -->
 # Production security update report
@@ -32,24 +29,53 @@ Advisory enrichment: `{{ security_patching_enrichment_status | default('minimal'
 | `{{ host }}` | {{ hostvars[host].security_patching_update_package_specs | default([]) | length }} | {{ hostvars[host].security_patching_update_advisory_ids | default([]) | length }} |
 {% endfor %}
 
-## Proposed package updates
+## Advisory review summary
 
 {% for host in security_patching_hosts_with_findings %}
 ### `{{ host }}`
 
-| Package spec | Advisory | Severity | CVEs | Summary |
-|---|---|---|---|---|
-{% set report_entries = (security_patching_enrichment_by_host | default({})).get(host, {}).get('entries', hostvars[host].security_patching_update_entries | default([])) %}
-{% for entry in report_entries %}
-| `{{ entry.package_spec }}` | {% if entry.errata_link | default('') | length > 0 %}[{{ entry.advisory_id }}]({{ entry.errata_link }}){% elif entry.advisory_id.startswith('ELSA-') %}[{{ entry.advisory_id }}](https://linux.oracle.com/errata/{{ entry.advisory_id }}.html){% elif entry.advisory_id.startswith('RHSA-') %}[{{ entry.advisory_id }}](https://access.redhat.com/errata/{{ entry.advisory_id }}){% else %}`{{ entry.advisory_id }}`{% endif %} | {{ entry.severity | default('unknown') }} | {% if entry.cves | default([]) | length > 0 %}{% for cve in entry.cves %}[{{ cve }}](https://nvd.nist.gov/vuln/detail/{{ cve }}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %} | {{ entry.summary | default('') | truncate(160, true, '...') if entry.summary | default('') | length > 0 else '—' }} |
+{% set report_host = (security_patching_enrichment_by_host | default({})).get(host, {}) %}
+{% set report_advisories = report_host.get('advisories', []) %}
+{% if report_advisories | length > 0 %}
+| Advisory | Severity | CVEs | Affected packages | Summary |
+|---|---|---|---:|---|
+{% for advisory in report_advisories %}
+{% set advisory_cves = advisory.cves | default([]) %}
+{% set shown_cves = advisory_cves[:security_patching_report_max_cves_per_row | int] %}
+| {% if advisory.errata_link | default('') | length > 0 %}[{{ advisory.advisory_id }}]({{ advisory.errata_link }}){% elif advisory.advisory_id.startswith('ELSA-') %}[{{ advisory.advisory_id }}](https://linux.oracle.com/errata/{{ advisory.advisory_id }}.html){% else %}`{{ advisory.advisory_id }}`{% endif %} | {{ advisory.severity | default('unknown') }} | {% if shown_cves | length > 0 %}{% for cve in shown_cves %}[{{ cve }}](https://nvd.nist.gov/vuln/detail/{{ cve }}){% if not loop.last %}, {% endif %}{% endfor %}{% if advisory_cves | length > shown_cves | length %}, +{{ (advisory_cves | length) - (shown_cves | length) }} more{% endif %}{% else %}none reported{% endif %} | {{ advisory.package_count | default(0) }} | {{ advisory.summary | default('') | truncate(120, true, '...') if advisory.summary | default('') | length > 0 else '—' }} |
+{% endfor %}
+{% else %}
+_Advisory summary was unavailable for this host; review the package detail sample below._
+
+{% endif %}
 {% endfor %}
 
+## Package update detail sample
+
+{% for host in security_patching_hosts_with_findings %}
+### `{{ host }}`
+
+{% set report_host = (security_patching_enrichment_by_host | default({})).get(host, {}) %}
+{% set report_entries = report_host.get('entries', hostvars[host].security_patching_update_entries | default([])) %}
+{% set shown_entries = report_entries[:security_patching_report_max_detail_rows | int] %}
+| Package spec | Advisory | Severity | CVEs | Summary |
+|---|---|---|---|---|
+{% for entry in shown_entries %}
+{% set entry_cves = entry.cves | default([]) %}
+{% set shown_cves = entry_cves[:security_patching_report_max_cves_per_row | int] %}
+| `{{ entry.package_spec }}` | {% if entry.errata_link | default('') | length > 0 %}[{{ entry.advisory_id }}]({{ entry.errata_link }}){% elif entry.advisory_id.startswith('ELSA-') %}[{{ entry.advisory_id }}](https://linux.oracle.com/errata/{{ entry.advisory_id }}.html){% elif entry.advisory_id.startswith('RHSA-') %}[{{ entry.advisory_id }}](https://access.redhat.com/errata/{{ entry.advisory_id }}){% else %}`{{ entry.advisory_id }}`{% endif %} | {{ entry.severity | default('unknown') }} | {% if shown_cves | length > 0 %}{% for cve in shown_cves %}[{{ cve }}](https://nvd.nist.gov/vuln/detail/{{ cve }}){% if not loop.last %}, {% endif %}{% endfor %}{% if entry_cves | length > shown_cves | length %}, +{{ (entry_cves | length) - (shown_cves | length) }} more{% endif %}{% else %}—{% endif %} | {{ entry.summary | default('') | truncate(120, true, '...') if entry.summary | default('') | length > 0 else '—' }} |
+{% endfor %}
+
+{% if report_entries | length > shown_entries | length %}
+_{{ (report_entries | length) - (shown_entries | length) }} additional package update rows omitted from this visible sample. The complete approved package spec set is preserved in the hidden scan metadata above for drift protection._
+
+{% endif %}
 {% endfor %}
 
 ## Review checklist
 
-- [ ] I reviewed the proposed package specs above.
-- [ ] I reviewed the associated advisories and CVEs.
+- [ ] I reviewed the advisory summary, severities, CVE counts, and affected package counts.
+- [ ] I reviewed the visible package detail sample and understand the complete package spec set is preserved in hidden scanner metadata for drift protection.
 - [ ] I understand the update workflow will re-scan first and refuse to continue if the package set drifted.
 - [ ] I understand service restarts or a later reboot may be required depending on updated packages.
 

@@ -1,0 +1,118 @@
+- name: Test production security update report rendering
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_scan_id: security-scan-render-test
+    security_patching_scan_timestamp: "2026-08-02T00:00:00Z"
+    security_patching_target_group: runtime
+    security_patching_approval_label: approved-production-update
+    security_patching_hosts_with_findings:
+      - production
+    security_patching_enrichment_status: complete
+    security_patching_enrichment_message: Oracle Linux OVAL advisory enrichment completed.
+    security_patching_report_max_detail_rows: 2
+    security_patching_report_max_cves_per_row: 2
+    security_patching_report_max_body_bytes: 60000
+    security_patching_report_path: /tmp/autographs-security-report-render-test.md
+    security_patching_enrichment_by_host:
+      production:
+        advisories:
+          - advisory_id: ELSA-2025-11111
+            severity: Important
+            cves:
+              - CVE-2025-0001
+              - CVE-2025-0002
+              - CVE-2025-0003
+            errata_link: https://linux.oracle.com/errata/ELSA-2025-11111.html
+            summary: ELSA-2025-11111 kernel security update
+            package_count: 2
+          - advisory_id: ELSA-2025-22222
+            severity: Moderate
+            cves:
+              - CVE-2025-0004
+            errata_link: https://linux.oracle.com/errata/ELSA-2025-22222.html
+            summary: ELSA-2025-22222 openssl security update
+            package_count: 1
+          - advisory_id: ELSA-2025-33333
+            severity: Low
+            cves: []
+            errata_link: https://linux.oracle.com/errata/ELSA-2025-33333.html
+            summary: ELSA-2025-33333 acl and sudo security update
+            package_count: 2
+        entries:
+          - advisory_id: ELSA-2025-11111
+            severity: Important
+            package_spec: kernel-6.12.0-211.34.1.el10_2.x86_64
+            cves:
+              - CVE-2025-0001
+            errata_link: https://linux.oracle.com/errata/ELSA-2025-11111.html
+            summary: ELSA-2025-11111 kernel security update
+          - advisory_id: ELSA-2025-11111
+            severity: Important
+            package_spec: kernel-core-6.12.0-211.34.1.el10_2.x86_64
+            cves:
+              - CVE-2025-0001
+            errata_link: https://linux.oracle.com/errata/ELSA-2025-11111.html
+            summary: ELSA-2025-11111 kernel security update
+          - advisory_id: ELSA-2025-22222
+            severity: Moderate
+            package_spec: openssl-1:3.5.5-5.0.1.el10_2.x86_64
+            cves:
+              - CVE-2025-0004
+            errata_link: https://linux.oracle.com/errata/ELSA-2025-22222.html
+            summary: ELSA-2025-22222 openssl security update
+          - advisory_id: ELSA-2025-33333
+            severity: Low
+            package_spec: acl-2.4.0-1.el10_2.x86_64
+            cves: []
+            errata_link: https://linux.oracle.com/errata/ELSA-2025-33333.html
+            summary: ELSA-2025-33333 acl and sudo security update
+          - advisory_id: ELSA-2025-33333
+            severity: Low
+            package_spec: sudo-1.9.17-4.p2.el10_2.x86_64
+            cves: []
+            errata_link: https://linux.oracle.com/errata/ELSA-2025-33333.html
+            summary: ELSA-2025-33333 acl and sudo security update
+  tasks:
+    - name: Render security update report fixture
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/security_patching/templates/security-report.md.j2"
+        dest: "{{ security_patching_report_path }}"
+        mode: "0600"
+
+    - name: Inspect rendered report fixture
+      ansible.builtin.stat:
+        path: "{{ security_patching_report_path }}"
+      register: security_patching_render_test_file
+
+    - name: Read rendered report fixture
+      ansible.builtin.slurp:
+        src: "{{ security_patching_report_path }}"
+      register: security_patching_render_test_file_content
+
+    - name: Decode rendered report fixture
+      ansible.builtin.set_fact:
+        security_patching_render_test_body: "{{ security_patching_render_test_file_content.content | b64decode }}"
+
+    - name: Extract scanner metadata fixture
+      ansible.builtin.set_fact:
+        security_patching_render_test_metadata_blocks: >-
+          {{
+            security_patching_render_test_body
+            | regex_findall('(?s)<!-- autographs-security-patch-metadata\n(.*?)\n-->')
+          }}
+
+    - name: Parse scanner metadata fixture
+      ansible.builtin.set_fact:
+        security_patching_render_test_metadata: "{{ security_patching_render_test_metadata_blocks[0] | from_yaml }}"
+
+    - name: Assert rendered report fixture contract
+      ansible.builtin.assert:
+        that:
+          - security_patching_render_test_metadata_blocks | length == 1
+          - security_patching_render_test_metadata.instances.production.package_specs | length == 5
+          - security_patching_render_test_file.stat.size <= security_patching_report_max_body_bytes
+          - "'## Advisory review summary' in security_patching_render_test_body"
+          - "'ELSA-2025-33333' in security_patching_render_test_body"
+          - "'+1 more' in security_patching_render_test_body"
+          - "'3 additional package update rows omitted' in security_patching_render_test_body"
