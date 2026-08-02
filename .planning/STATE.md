@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-07-31T20:12:38.095Z"
-last_activity: 2026-07-31 -- Phase 08 execution started
+last_updated: "2026-08-02T18:07:20.296Z"
+last_activity: 2026-08-02 -- Quick task 260802-jm4 hardened apply security update issue metadata validation
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-07-31 -- Phase 08 execution started
+Last activity: 2026-08-02 -- Quick task 260802-jm4 hardened apply security update issue metadata validation
 
 Progress: [███████░░░] 70% of milestone phases complete; Phase 8 is next
 
@@ -174,6 +174,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-02 | harden-apply-security-update-issue-metad | Replaced brittle apply-side scanner metadata extraction with a quoted role task, added diagnostics and CI fixture coverage, and verified live issue #198 parses under Ansible 2.21. |
 | 2026-05-20 | podman-quadlet-deploy | Replaced compose/cloud-init runtime setup with Ansible-managed Podman quadlets and added manual runtime VM taint support. |
 | 2026-05-21 | phase-6-scope | Originally added Public Showcase and Hardening after AI-assisted ingest; later reordered to Phase 4. |
 | 2026-05-25 | reconcile-docs-and-workflow-guardrails | Refreshed stale codebase maps after out-of-GSD implementation progress and prepared workflow guardrail updates. |

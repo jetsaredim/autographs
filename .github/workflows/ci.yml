@@ -224,13 +224,16 @@ jobs:
             deploy/ansible/playbooks/system-cleanup.yml \
             deploy/ansible/playbooks/security-scan.yml \
             deploy/ansible/playbooks/security-patch.yml \
-            deploy/ansible/playbooks/security-report-render-test.yml
+            deploy/ansible/playbooks/security-report-render-test.yml \
+            deploy/ansible/playbooks/security-request-metadata-validate-test.yml
 
-      - name: Test security report rendering
+      - name: Test security report rendering and metadata validation
         run: |
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             -i deploy/ansible/test-fixtures/security-report-inventory.yml \
             deploy/ansible/playbooks/security-report-render-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            deploy/ansible/playbooks/security-request-metadata-validate-test.yml
 
       - name: Lint Ansible playbook
         run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/

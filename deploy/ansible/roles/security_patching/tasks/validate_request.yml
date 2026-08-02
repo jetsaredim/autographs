@@ -38,23 +38,8 @@
       - security_patching_approval_label in security_patching_issue_label_names
     fail_msg: "Issue #{{ security_patching_issue_number }} is not an open scanner-created issue with the request label."
 
-- name: Extract scanner metadata block
-  ansible.builtin.set_fact:
-    security_patching_metadata_blocks: >-
-      {{
-        security_patching_issue.json.body
-        | regex_findall('(?s)<!-- autographs-security-patch-metadata\\n(.*?)\\n-->')
-      }}
-
-- name: Require exactly one scanner metadata block
-  ansible.builtin.assert:
-    that:
-      - security_patching_metadata_blocks | length == 1
-    fail_msg: "Issue #{{ security_patching_issue_number }} does not contain exactly one scanner metadata block."
-
-- name: Parse scanner metadata
-  ansible.builtin.set_fact:
-    security_patching_request_metadata: "{{ security_patching_metadata_blocks[0] | from_yaml }}"
+- name: Extract and parse scanner metadata
+  ansible.builtin.import_tasks: extract_issue_metadata.yml
 
 - name: Record approved scan metadata
   ansible.builtin.set_fact:
