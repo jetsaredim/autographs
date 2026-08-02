@@ -1,0 +1,28 @@
+- name: Record scanner metadata diagnostics
+  ansible.builtin.set_fact:
+    security_patching_issue_body_length: "{{ security_patching_issue_body | length }}"
+    security_patching_metadata_marker_count: "{{ security_patching_issue_body.count(security_patching_metadata_marker) }}"
+  vars:
+    security_patching_issue_body: "{{ security_patching_issue.json.body | default('') }}"
+    security_patching_metadata_marker: "<!-- autographs-security-patch-metadata"
+
+- name: Extract scanner metadata block
+  ansible.builtin.set_fact:
+    security_patching_metadata_blocks: "{{ security_patching_issue_body | regex_findall(security_patching_metadata_block_pattern) }}"
+  vars:
+    security_patching_issue_body: "{{ security_patching_issue.json.body | default('') }}"
+    security_patching_metadata_block_pattern: '(?s)<!-- autographs-security-patch-metadata[\r\n]+(.*?)[\r\n]+-->'
+
+- name: Require exactly one scanner metadata block
+  ansible.builtin.assert:
+    that:
+      - security_patching_metadata_blocks | length == 1
+    fail_msg: >-
+      Issue #{{ security_patching_issue_number }} does not contain exactly one scanner metadata block.
+      Found {{ security_patching_metadata_blocks | length }} parsed block(s),
+      {{ security_patching_metadata_marker_count }} metadata marker(s), and
+      {{ security_patching_issue_body_length }} body character(s).
+
+- name: Parse scanner metadata
+  ansible.builtin.set_fact:
+    security_patching_request_metadata: "{{ security_patching_metadata_blocks[0] | from_yaml }}"

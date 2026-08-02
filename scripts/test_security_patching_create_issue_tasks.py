@@ -16,6 +16,18 @@ TASKS_PATH = (
 )
 DEFAULTS_PATH = TASKS_PATH.parents[1] / "defaults" / "main.yml"
 REPORT_TEMPLATE_PATH = TASKS_PATH.parents[1] / "templates" / "security-report.md.j2"
+VALIDATE_REQUEST_TASKS_PATH = TASKS_PATH.with_name("validate_request.yml")
+EXTRACT_METADATA_TASKS_PATH = TASKS_PATH.with_name("extract_issue_metadata.yml")
+REPORT_RENDER_TEST_PLAYBOOK_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "deploy"
+    / "ansible"
+    / "playbooks"
+    / "security-report-render-test.yml"
+)
+REQUEST_METADATA_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
+    "security-request-metadata-validate-test.yml"
+)
 
 
 def task_block(task_name: str) -> str:
@@ -70,6 +82,25 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security_patching_report_body:", read_report)
         self.assertIn("body: \"{{ security_patching_report_body }}\"", update_issue)
         self.assertIn("body: \"{{ security_patching_report_body }}\"", create_issue)
+
+    def test_apply_request_metadata_extraction_uses_quoted_regex_result(self):
+        validate_request = VALIDATE_REQUEST_TASKS_PATH.read_text(encoding="utf-8")
+        extract_metadata = EXTRACT_METADATA_TASKS_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("ansible.builtin.import_tasks: extract_issue_metadata.yml", validate_request)
+        self.assertNotIn("security_patching_metadata_blocks: >-", extract_metadata)
+        self.assertIn('security_patching_metadata_blocks: "{{', extract_metadata)
+        self.assertIn(r"[\r\n]+(.*?)[\r\n]+-->", extract_metadata)
+        self.assertIn("security_patching_metadata_marker_count", extract_metadata)
+        self.assertIn("parsed block(s)", extract_metadata)
+
+    def test_metadata_validation_fixture_is_in_ci_surface(self):
+        render_test = REPORT_RENDER_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        metadata_test = REQUEST_METADATA_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+
+        self.assertNotIn("security_patching_render_test_metadata_blocks: >-", render_test)
+        self.assertIn("tasks_from: extract_issue_metadata", metadata_test)
+        self.assertIn("security_patching_request_metadata.scan_id", metadata_test)
 
 
 if __name__ == "__main__":

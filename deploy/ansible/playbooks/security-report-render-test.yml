@@ -96,11 +96,9 @@
 
     - name: Extract scanner metadata fixture
       ansible.builtin.set_fact:
-        security_patching_render_test_metadata_blocks: >-
-          {{
-            security_patching_render_test_body
-            | regex_findall('(?s)<!-- autographs-security-patch-metadata\n(.*?)\n-->')
-          }}
+        security_patching_render_test_metadata_blocks: "{{ security_patching_render_test_body | regex_findall(metadata_block_pattern) }}"
+      vars:
+        metadata_block_pattern: '(?s)<!-- autographs-security-patch-metadata[\r\n]+(.*?)[\r\n]+-->'
 
     - name: Parse scanner metadata fixture
       ansible.builtin.set_fact:

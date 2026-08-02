@@ -1,0 +1,38 @@
+- name: Validate security patch issue metadata extraction fixture
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_issue_number: 198
+    security_patching_issue:
+      json:
+        body: |
+          <!-- autographs-security-patch-metadata
+          scan_id: "security-scan-render-test"
+          created_at: "2026-08-02T12:52:44Z"
+          target_group: "runtime"
+          approval_label: "approved-production-update"
+          instances:
+            production:
+              package_specs:
+                - acl-2.4.0-1.el10_2.x86_64
+                - glibc-2.39-126.0.1.el10_2.x86_64
+                - kernel-core-6.12.0-211.39.1.el10_2.x86_64
+          -->
+          # Production security update report
+
+          Visible report content is intentionally irrelevant to approval validation.
+
+  tasks:
+    - name: Extract scanner metadata fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: extract_issue_metadata
+
+    - name: Assert scanner metadata fixture contract
+      ansible.builtin.assert:
+        that:
+          - security_patching_metadata_blocks | length == 1
+          - security_patching_metadata_marker_count == 1
+          - security_patching_request_metadata.scan_id == 'security-scan-render-test'
+          - security_patching_request_metadata.target_group == 'runtime'
+          - security_patching_request_metadata.instances.production.package_specs | length == 3
