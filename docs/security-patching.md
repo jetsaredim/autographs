@@ -11,7 +11,7 @@ The automation is split into two GitHub Actions workflows:
 
 The workflows are intentionally thin wrappers around Ansible. Runtime host behavior, GitHub issue rendering, approval validation, drift checks, and update application live in the `security_patching` Ansible role.
 
-The scanner and updater communicate through a GitHub issue. The scanner writes a human-readable report plus a hidden YAML metadata block into the issue body. The updater re-reads that metadata, re-scans the host, and only applies the exact package specs that are still pending.
+The scanner and updater communicate through a GitHub issue. The scanner writes a human-readable report plus a hidden YAML metadata block into the issue body. The updater re-reads that metadata, re-scans the host with the same Oracle Linux OpenSCAP OVAL source, and only acts on the exact advisory IDs that are still pending.
 
 ## File map
 
@@ -23,6 +23,8 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 - Grants `contents: read` and `issues: write` so the checked-out playbook can create or update GitHub issues.
 - Resolves the runtime host through `.github/actions/resolve-runtime-ip`, which reads the Terraform `runtime_public_ip` output and falls back to `VM_PUBLIC_IP` only when the output is unavailable.
 - Pins `dawidd6/action-ansible-playbook` by commit SHA.
+- Installs `openscap-utils` and `bzip2` on the workflow runner so `oscap-ssh` can run the remote OVAL evaluation.
+- Writes the deploy SSH key to `$RUNNER_TEMP` and passes it to `oscap-ssh` through `SSH_ADDITIONAL_OPTIONS`.
 - Supplies the production host inventory inline as the alias `production` in the `runtime` group.
 - Passes `security_patching_target_group=runtime` to `deploy/ansible/playbooks/security-scan.yml`.
 - Exposes `GH_TOKEN`, `GITHUB_REPOSITORY`, `GITHUB_RUN_ID`, `GITHUB_RUN_NUMBER`, and `GITHUB_SERVER_URL` to Ansible for issue creation and links.
@@ -37,7 +39,8 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
   github.event.issue.pull_request == null
   ```
 
-- Installs local Ansible tooling for the cleanup path before the third-party Ansible action runs.
+- Installs `openscap-utils`, `bzip2`, and local Ansible tooling before the third-party Ansible action runs.
+- Writes the deploy SSH key to `$RUNNER_TEMP` and passes it to `oscap-ssh` through `SSH_ADDITIONAL_OPTIONS`.
 - Resolves the runtime host through `.github/actions/resolve-runtime-ip`, which reads the Terraform `runtime_public_ip` output and falls back to `VM_PUBLIC_IP` only when the output is unavailable.
 - Runs `deploy/ansible/playbooks/security-patch.yml` through the pinned Ansible action.
 - Uses `continue-on-error: true` on the main update step so the workflow can still run cleanup after validation, SSH, drift, or `dnf` failures.
@@ -97,7 +100,7 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 
 `deploy/ansible/roles/security_patching/defaults/main.yml`
 
-- Defines the GitHub API URL, repository, token, request headers, scan ID, timestamp, issue number, approver, temp file paths, default approval label, and default target group.
+- Defines the GitHub API URL, repository, token, request headers, scan ID, timestamp, issue number, approver, temp file paths, Oracle OVAL URL, OpenSCAP result paths, default approval label, and default target group.
 - Defines labels managed by the scanner:
 
   ```text
@@ -119,7 +122,7 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 
 - Renders the scanner issue body.
 - Starts with a hidden metadata block consumed by the apply workflow.
-- Then renders a public Markdown report with scan ID, timestamp, target group, host summary, package table, review checklist, and approval instructions.
+- Then renders a public Markdown report with scan ID, timestamp, target group, host summary, advisory summary, sampled OpenSCAP finding details, review checklist, and approval instructions.
 
 `deploy/ansible/roles/security_patching/templates/security-update-result.md.j2`
 
@@ -128,7 +131,7 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 
 ## Approval model
 
-The scanner creates an issue when production hosts report available security updates from `dnf updateinfo`.
+The scanner creates an issue when production hosts fail Oracle Linux OVAL definitions during an OpenSCAP scan.
 
 To approve the proposed update set, apply this label to the issue:
 
@@ -144,66 +147,55 @@ The apply workflow validates that:
 4. the issue has the approval label,
 5. the issue contains the scanner metadata block,
 6. the target group matches the workflow target, and
-7. the fresh pre-apply scan exactly matches the package specs embedded in the issue.
+7. the fresh pre-apply OpenSCAP advisory ID set exactly matches the advisory IDs embedded in the issue.
 
-If the package set has drifted, the workflow refuses to apply updates. Run the scanner again to generate a fresh issue.
+If the advisory set has drifted, the workflow refuses to apply updates. Run the scanner again to generate a fresh issue.
 
 ## Scan flow
 
 The scan path starts in `.github/workflows/weekly-security-scan.yml`, then runs `deploy/ansible/playbooks/security-scan.yml`.
 
-`tasks/scan.yml` runs on each runtime host:
+`tasks/scan.yml` runs on each runtime host through delegated runner-side OpenSCAP tooling:
 
-1. Verifies `dnf` is available with `dnf --version`.
-2. Refreshes metadata with `dnf -q makecache --refresh`.
-3. Lists available security advisories:
-
-   ```text
-   dnf -q updateinfo list --security --available
-   ```
-
-4. Accepts return code `0` or `100`.
-5. Normalizes output by trimming blank lines and filtering common metadata/plugin lines.
-6. Parses advisory rows into raw entries:
-
-   ```yaml
-   advisory_id: <first column>
-   severity: <second column with /Sec. or /Bugfix. suffix removed>
-   package_spec: <last column>
-   ```
-
-7. Builds these host facts without reading per-advisory details on the runtime host:
+1. Verifies `oscap-ssh` is available on the workflow runner.
+2. Downloads Oracle's consolidated ELSA OVAL file from `https://linux.oracle.com/security/oval/com.oracle.elsa-all.xml.bz2`.
+3. Decompresses the OVAL XML on the runner.
+4. Runs `oscap-ssh --sudo <user>@<host> <port> oval eval --skip-validation --results <xml> --report <html> <oval xml>`.
+5. Accepts return code `0` or `2`; OpenSCAP returns `2` when evaluated definitions report findings.
+6. Parses the OpenSCAP result XML with `scripts/oracle_linux_oscap_results.py`.
+7. Builds these host facts:
 
    ```yaml
    security_patching_update_entries:
      - advisory_id: ELSA-...
        severity: Important
-       package_spec: package-version.arch
-       enrichmentStatus: minimal
        cves:
-   security_patching_update_package_specs:
-     - package-version.arch
+         - CVE-...
+       packages:
+         - glibc
+       package_count: 1
+       ksplice_aware: true
    security_patching_update_advisory_ids:
      - ELSA-...
+   security_patching_update_ksplice_aware_advisory_ids:
+     - ELSA-...
+   security_patching_scan_source: openscap-oval
    ```
 
-`tasks/create_issue.yml` then runs on `localhost` and writes a temporary JSON inventory from the host facts. It invokes `scripts/oracle_linux_advisory_enrichment.py` as a best-effort report detail step. The script fetches Oracle Linux OVAL data from `https://linux.oracle.com/security/oval/com.oracle.elsa-all.xml.bz2` when reachable and always preserves Oracle errata links such as `https://linux.oracle.com/errata/ELSA-2025-20632.html`.
-
-Advisory enrichment is intentionally outside the runtime host loop. If OVAL download or parsing fails, the scanner still creates or updates the GitHub issue with exact package specs, marks the report `degraded`, and leaves approval/drift checks intact.
+The runtime host must have `openscap-scanner` installed so `oscap-ssh` can execute `oscap` remotely. The base deployment role installs that package during instance setup.
 
 `tasks/create_issue.yml` runs on `localhost` after all hosts have scan facts:
 
 1. Requires `GITHUB_REPOSITORY` and `GH_TOKEN`.
 2. Builds `security_patching_hosts_with_findings` from hosts whose `security_patching_update_entries` list is non-empty.
 3. Stops with a debug message if no hosts have findings.
-4. Writes localhost advisory enrichment input JSON.
-5. Runs the Oracle Linux advisory enrichment script with `failed_when: false`.
-6. Loads enrichment output when valid, or records degraded enrichment status when unavailable.
-7. Ensures the managed GitHub labels exist. GitHub `422` is accepted so already-existing labels do not fail the scan.
-8. Renders `security-report.md.j2` to a private temp file.
-9. Searches open issues labeled `security-patching` and `patch-scan-open`.
-10. Filters out pull requests and selects existing issues whose body contains the same target group marker.
-11. Updates the first matching open issue if present, otherwise creates a new issue.
+4. Records OpenSCAP advisory detail from the host facts.
+5. Marks the report `complete` when all hosts parsed cleanly or `degraded` when any host had unmapped true definitions.
+6. Ensures the managed GitHub labels exist. GitHub `422` is accepted so already-existing labels do not fail the scan.
+7. Renders `security-report.md.j2` to a private temp file.
+8. Searches open issues labeled `security-patching` and `patch-scan-open`.
+9. Filters out pull requests and selects existing issues whose body contains the same target group marker.
+10. Updates the first matching open issue if present, otherwise creates a new issue.
 
 This means weekly scans converge on one open issue per target group instead of creating duplicate open scan issues.
 Existing issue updates replace the full body and label set. The replacement labels are only `security-patching`, `production`, and `patch-scan-open`, so a stale `approved-production-update` label is removed whenever a scan rewrites the issue.
@@ -226,38 +218,38 @@ target_group: "runtime"
 approval_label: "approved-production-update"
 instances:
   production:
-    package_specs:
-      - "package-version.arch"
+    advisory_ids:
+      - "ELSA-2026-500006"
 -->
 ```
 
-That block is the contract between scanner and updater. The apply workflow uses it to identify the approved scan, target group, host list, and exact package specs.
+That block is the contract between scanner and updater. The apply workflow uses it to identify the approved scan, target group, host list, and exact advisory IDs.
 
 The visible issue body contains:
 
 - `# Production security update report`
 - `Scan ID`, `Generated`, and `Target group`
-- an advisory enrichment status of `complete`, `degraded`, or `minimal`
+- an OpenSCAP advisory status of `complete` or `degraded`
 - a summary table:
 
   ```markdown
-  | Instance | Proposed security updates | Advisories |
-  |---|---:|---:|
-  | `production` | 3 | 2 |
+  | Instance | OpenSCAP findings | Advisories | Ksplice-aware advisories |
+  |---|---:|---:|---:|
+  | `production` | 3 | 3 | 1 |
   ```
 
-- a per-host package table:
+- a per-host advisory summary and sampled finding detail:
 
   ```markdown
-  | Package spec | Advisory | Severity | CVEs |
-  |---|---|---|---|
-  | `package-version.arch` | [ELSA-...](...) | Important | [CVE-...](...) |
+  | Advisory | Severity | CVEs | Ksplice-aware | Packages | Summary |
+  |---|---|---|---:|---|---|
+  | [ELSA-...](...) | Important | [CVE-...](...) | true | `glibc` | ELSA-... security update |
   ```
 
 - a review checklist
 - one-click approval instructions for the `approved-production-update` label
 
-Package row ordering is intentionally reviewed against real scanner output. The preferred ordering is either the DNF order returned by the runtime host or alphabetical package/version order, whichever makes the live package set easier to approve safely.
+The visible report is sampled so large advisory sets fit inside GitHub issue body limits. The complete approved advisory ID set is preserved in hidden metadata for drift protection.
 
 ## Host inventory
 
@@ -306,36 +298,30 @@ Production security update request accepted.
 - Target group: `<target group>`
 ```
 
-After validation, `security-patch.yml` scans each runtime host again by importing `tasks/scan.yml`. That fresh scan produces the current package specs used for drift detection.
+After validation, `security-patch.yml` scans each runtime host again by importing `tasks/scan.yml`. That fresh scan produces the current OpenSCAP advisory IDs used for drift detection.
 
 `tasks/patch.yml` then runs per host:
 
-1. Looks up approved package specs from the scanner metadata for the current `inventory_hostname`.
-2. Builds current package specs from the fresh scan.
+1. Looks up approved advisory IDs from the scanner metadata for the current `inventory_hostname`.
+2. Builds current advisory IDs from the fresh OpenSCAP scan.
 3. If the host was not present in the approved metadata, records skipped state and preserves current findings for the final report.
-4. If the host has approved specs, asserts the fresh package specs exactly match the approved package specs.
+4. If the host has approved advisories, asserts the fresh advisory IDs exactly match the approved advisory IDs.
 5. Preserves pre-update entries.
-6. Applies only the approved specs with:
+6. Runs `ksplice -y all upgrade` when the Oracle Ksplice client is present.
+7. Re-scans after Ksplice so Ksplice-aware OVAL definitions can clear before DNF changes on-disk RPMs.
+8. Applies only approved advisories that OpenSCAP still reports after Ksplice with:
 
-   ```yaml
-   ansible.builtin.dnf:
-     name: "{{ security_patching_approved_package_specs }}"
-     state: latest
-     security: true
-     update_only: true
+   ```bash
+   dnf -y upgrade-minimal --security --advisories=<comma-separated ELSA IDs>
    ```
 
-7. Re-scans the host after updates.
-8. Preserves post-update entries and post-update package specs.
+9. Runs Ksplice again after DNF if DNF changed packages.
+10. Re-scans the host after remediation.
+11. Preserves post-update entries and post-update advisory IDs.
 
 ## Update behavior
 
-The apply playbook uses `ansible.builtin.dnf` with:
-
-- `security: true`
-- `update_only: true`
-- `state: latest`
-- the exact package specs captured by the scanner issue
+The apply playbook treats OpenSCAP as the authority for detection and closure. DNF is the fallback remediation engine for advisories still reported after Ksplice. This matters for kernel and supported user-space Ksplice updates: if Oracle's Ksplice-aware OVAL definitions clear after `ksplice -y all upgrade`, the workflow will not force a package transaction for those advisories.
 
 The workflow runs hosts serially and re-scans after applying updates. It removes the approval label after the run starts, comments the result back to the issue, and closes the issue only when the post-update scan has no remaining findings.
 
@@ -363,9 +349,9 @@ The result comment begins:
 It then includes a per-host table:
 
 ```markdown
-| Instance | Updated | Approved package specs | Remaining security updates |
-|---|---:|---:|---:|
-| `production` | true | 3 | 0 |
+| Instance | Ksplice attempted | DNF updated | Approved advisories | Remaining OpenSCAP findings |
+|---|---:|---:|---:|---:|
+| `production` | true | true | 3 | 0 |
 ```
 
 If the post-update scan is clean, the comment says:
@@ -386,7 +372,7 @@ This issue is intentionally left open for follow-up review.
 
 ## Failure cleanup behavior
 
-If validation, drift detection, SSH, `dnf`, or another update step fails, Ansible may not reach `post_result`. The GitHub Actions workflow handles that with an `always()` cleanup step.
+If validation, drift detection, SSH, OpenSCAP, Ksplice, DNF, or another update step fails, Ansible may not reach `post_result`. The GitHub Actions workflow handles that with an `always()` cleanup step.
 
 `tasks/cleanup_failed_request.yml`:
 
@@ -464,7 +450,7 @@ CI also runs actionlint against workflows and Ansible syntax/lint checks through
 
 ## Phase 8 scanner repair verification
 
-Use this section after deploying the scanner repair. Do not install production updates unless a real scanner issue contains an approved package set that you intend to apply.
+Use this section after deploying the scanner repair. Do not install production updates unless a real scanner issue contains an approved advisory set that you intend to apply.
 
 ### workflow_dispatch scan proof
 
@@ -478,19 +464,15 @@ gh run view <scan-run-id> --json conclusion,jobs,url
 
 Expected result: the `Resolve runtime VM IP` step succeeds, the `Run security scan playbook` step succeeds, and a scanner issue is created or updated when package inventory exists.
 
-### degraded enrichment review
+### OpenSCAP parser review
 
-Exercise the enrichment fallback locally without relying on Oracle OVAL availability:
+Exercise the OpenSCAP parser locally:
 
 ```bash
-python3 scripts/oracle_linux_advisory_enrichment.py \
-  --input /tmp/autographs-security-enrichment-input.json \
-  --output /tmp/autographs-security-enrichment-output.json \
-  --oval-url file:///tmp/autographs-missing-oval.xml
-cat /tmp/autographs-security-enrichment-output.json
+python3 -m unittest scripts/test_oracle_linux_oscap_results.py
 ```
 
-Expected result: the output status is `degraded`, package specs are preserved, and entries still include Oracle errata links. Use a copy of a real scanner inventory JSON for the input path.
+Expected result: the parser maps true OpenSCAP OVAL definitions to ELSA advisory IDs, CVEs, affected package names, errata links, and Ksplice-aware status.
 
 ### same-issue update review
 
@@ -507,7 +489,7 @@ Expected result: the same open scanner issue for `target_group: "runtime"` is up
 
 ### stale approval removal
 
-Only perform this proof in production when the issue represents a real package set and an allowed operator intentionally wants to exercise the approval path. Adding `approved-production-update` to a real scanner issue triggers the apply workflow.
+Only perform this proof in production when the issue represents a real advisory set and an allowed operator intentionally wants to exercise the approval path. Adding `approved-production-update` to a real scanner issue triggers the apply workflow.
 
 ```bash
 gh issue edit <scanner-issue-number> --add-label approved-production-update
@@ -519,7 +501,7 @@ Expected result after the scanner update: labels are reset to `security-patching
 
 ### dry-run apply-path exercise
 
-Use check mode only, and only with a real scanner issue whose package set you reviewed:
+Use check mode only, and only with a real scanner issue whose advisory set you reviewed:
 
 ```bash
 GH_TOKEN=<token> \
@@ -534,4 +516,4 @@ ansible-playbook --check \
   --extra-vars security_patching_target_group=runtime
 ```
 
-Expected result: validation reads the package-spec-only metadata, the runtime host is re-scanned, and drift checks compare the current package specs to the approved package specs before any update task can proceed.
+Expected result: validation reads the advisory metadata, the runtime host is re-scanned, and drift checks compare the current OpenSCAP advisory IDs to the approved advisory IDs before any update task can proceed.

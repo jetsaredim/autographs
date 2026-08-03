@@ -31,6 +31,7 @@ jobs:
             scripts/test_release_version.py \
             scripts/test_cleanup_ghcr_images.py \
             scripts/test_oracle_linux_advisory_enrichment.py \
+            scripts/test_oracle_linux_oscap_results.py \
             scripts/test_security_patching_create_issue_tasks.py
 
   secret-scan:

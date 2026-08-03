@@ -18,6 +18,7 @@ DEFAULTS_PATH = TASKS_PATH.parents[1] / "defaults" / "main.yml"
 REPORT_TEMPLATE_PATH = TASKS_PATH.parents[1] / "templates" / "security-report.md.j2"
 VALIDATE_REQUEST_TASKS_PATH = TASKS_PATH.with_name("validate_request.yml")
 EXTRACT_METADATA_TASKS_PATH = TASKS_PATH.with_name("extract_issue_metadata.yml")
+PATCH_TASKS_PATH = TASKS_PATH.with_name("patch.yml")
 REPORT_RENDER_TEST_PLAYBOOK_PATH = (
     Path(__file__).resolve().parents[1]
     / "deploy"
@@ -65,11 +66,12 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
             template,
         )
         self.assertIn(
-            "complete approved package spec set is preserved in the hidden scan metadata",
+            "complete approved advisory ID set is preserved in the hidden scan metadata",
             template,
         )
         self.assertIn("## Advisory review summary", template)
-        self.assertIn("package_specs: {{ hostvars[host].security_patching_update_package_specs", template)
+        self.assertIn("advisory_ids: {{ hostvars[host].security_patching_update_advisory_ids", template)
+        self.assertIn("Ksplice-aware advisories", template)
         self.assertIn("| to_json }}", template)
 
     def test_issue_body_is_checked_before_github_write(self):
@@ -101,6 +103,19 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertNotIn("security_patching_render_test_metadata_blocks: >-", render_test)
         self.assertIn("tasks_from: extract_issue_metadata", metadata_test)
         self.assertIn("security_patching_request_metadata.scan_id", metadata_test)
+        self.assertIn("advisory_ids", metadata_test)
+
+    def test_apply_path_uses_ksplice_and_advisory_scoped_dnf(self):
+        patch_tasks = PATCH_TASKS_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("security_patching_approved_advisory_ids", patch_tasks)
+        self.assertIn("security_patching_current_advisory_ids == security_patching_approved_advisory_ids", patch_tasks)
+        self.assertIn("ksplice", patch_tasks)
+        self.assertIn("tasks_from: scan", patch_tasks)
+        self.assertIn("upgrade-minimal", patch_tasks)
+        self.assertIn("--security", patch_tasks)
+        self.assertIn("--advisories={{ security_patching_remaining_approved_advisory_ids | join(',') }}", patch_tasks)
+        self.assertNotIn("security_patching_approved_package_specs", patch_tasks)
 
 
 if __name__ == "__main__":

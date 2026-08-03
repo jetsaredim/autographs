@@ -13,10 +13,10 @@
           approval_label: "approved-production-update"
           instances:
             production:
-              package_specs:
-                - acl-2.4.0-1.el10_2.x86_64
-                - glibc-2.39-126.0.1.el10_2.x86_64
-                - kernel-core-6.12.0-211.39.1.el10_2.x86_64
+              advisory_ids:
+                - ELSA-2026-11111
+                - ELSA-2026-22222
+                - ELSA-2026-33333
           -->
           # Production security update report
 
@@ -35,4 +35,4 @@
           - security_patching_metadata_marker_count == 1
           - security_patching_request_metadata.scan_id == 'security-scan-render-test'
           - security_patching_request_metadata.target_group == 'runtime'
-          - security_patching_request_metadata.instances.production.package_specs | length == 3
+          - security_patching_request_metadata.instances.production.advisory_ids | length == 3
