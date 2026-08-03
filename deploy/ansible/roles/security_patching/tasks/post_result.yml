@@ -1,3 +1,24 @@
+- name: Initialize incomplete post-update host list
+  ansible.builtin.set_fact:
+    security_patching_incomplete_post_update_hosts: []
+
+- name: Collect hosts without complete post-update scan results
+  ansible.builtin.set_fact:
+    security_patching_incomplete_post_update_hosts: "{{ security_patching_incomplete_post_update_hosts + [item] }}"
+  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  when: >-
+    hostvars[item].security_patching_post_update_entries is not defined
+    or hostvars[item].security_patching_post_update_advisory_ids is not defined
+    or hostvars[item].security_patching_post_update_scan_status | default('missing') != 'complete'
+
+- name: Require complete post-update scan results for all target hosts
+  ansible.builtin.assert:
+    that:
+      - security_patching_incomplete_post_update_hosts | length == 0
+    fail_msg: >-
+      Refusing to publish a clean security update result because these hosts do not have complete
+      post-update OpenSCAP scan results: {{ security_patching_incomplete_post_update_hosts }}
+
 - name: Initialize remaining finding host list
   ansible.builtin.set_fact:
     security_patching_remaining_hosts: []

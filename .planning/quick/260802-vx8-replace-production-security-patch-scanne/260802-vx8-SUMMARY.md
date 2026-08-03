@@ -6,14 +6,14 @@ completed: 2026-08-03
 
 # Quick Task 260802-vx8 Summary
 
-Replaced the production security scan/apply design with OpenSCAP Oracle OVAL findings, advisory-ID approval metadata, and Ksplice-aware remediation.
+Replaced the production security scan/apply design with OpenSCAP Oracle OVAL findings, advisory-ID approval metadata, advisory-scoped DNF remediation, and Ksplice availability reporting.
 
 ## Changes
 
 - Added runner-side `oscap-ssh` scanning against Oracle's OL10 ELSA OVAL XML and installed `openscap-scanner` on the runtime host through base deploy package defaults.
-- Added `scripts/oracle_linux_oscap_results.py` to parse OpenSCAP result XML into ELSA advisory IDs, CVEs, affected package names, Oracle errata links, and Ksplice-aware advisory flags.
-- Changed scanner issues to store approved `advisory_ids` instead of package NEVR specs and updated report/result templates for OpenSCAP findings and Ksplice/DNF signals.
-- Reworked the apply path to drift-check advisory IDs, run `ksplice -y all upgrade`, re-scan, apply remaining approved advisories with `dnf -y upgrade-minimal --security --advisories=...`, then re-scan for closure.
+- Added `scripts/oracle_linux_oscap_results.py` to parse OpenSCAP result XML into ELSA advisory IDs, CVEs, affected package names, Oracle errata links, and Ksplice-specific OVAL flags.
+- Changed scanner issues to store approved `advisory_ids` instead of package NEVR specs and updated report/result templates for OpenSCAP findings, Ksplice availability, and DNF signals.
+- Reworked the apply path to drift-check advisory IDs, detect Ksplice availability, apply approved advisories with `dnf -y upgrade-minimal --security --advisories=...`, then re-scan for closure.
 - Updated fixtures, CI unit coverage, and the production security patching runbook for the new scanner and remediation contract.
 
 ## Verification

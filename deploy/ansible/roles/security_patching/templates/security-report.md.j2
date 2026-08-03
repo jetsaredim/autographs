@@ -23,7 +23,7 @@ OpenSCAP evaluation: `{{ security_patching_enrichment_status | default('unknown'
 
 ## Summary
 
-| Instance | OpenSCAP findings | Advisories | Ksplice-aware advisories |
+| Instance | OpenSCAP findings | Advisories | Ksplice-specific OVAL findings |
 |---|---:|---:|---:|
 {% for host in security_patching_hosts_with_findings %}
 | `{{ host }}` | {{ hostvars[host].security_patching_update_entries | default([]) | length }} | {{ hostvars[host].security_patching_update_advisory_ids | default([]) | length }} | {{ hostvars[host].security_patching_update_ksplice_aware_advisory_ids | default([]) | length }} |
@@ -37,7 +37,7 @@ OpenSCAP evaluation: `{{ security_patching_enrichment_status | default('unknown'
 {% set report_host = (security_patching_enrichment_by_host | default({})).get(host, {}) %}
 {% set report_advisories = report_host.get('advisories', []) %}
 {% if report_advisories | length > 0 %}
-| Advisory | Severity | CVEs | Ksplice-aware | Affected packages | Summary |
+| Advisory | Severity | CVEs | Ksplice-specific OVAL | Affected packages | Summary |
 |---|---|---|---:|---:|---|
 {% for advisory in report_advisories %}
 {% set advisory_cves = advisory.cves | default([]) %}
@@ -58,7 +58,7 @@ _Advisory summary was unavailable for this host; review the finding detail sampl
 {% set report_host = (security_patching_enrichment_by_host | default({})).get(host, {}) %}
 {% set report_entries = report_host.get('entries', hostvars[host].security_patching_update_entries | default([])) %}
 {% set shown_entries = report_entries[:security_patching_report_max_detail_rows | int] %}
-| Advisory | Severity | CVEs | Ksplice-aware | Packages | Summary |
+| Advisory | Severity | CVEs | Ksplice-specific OVAL | Packages | Summary |
 |---|---|---|---:|---|---|
 {% for entry in shown_entries %}
 {% set entry_cves = entry.cves | default([]) %}
@@ -79,7 +79,7 @@ _{{ (report_entries | length) - (shown_entries | length) }} additional advisory 
 - [ ] I reviewed the advisory summary, severities, CVE counts, and affected package counts.
 - [ ] I reviewed the visible finding sample and understand the complete advisory ID set is preserved in hidden scanner metadata for drift protection.
 - [ ] I understand the update workflow will re-scan first and refuse to continue if the OpenSCAP advisory set drifted.
-- [ ] I understand the update workflow may run Ksplice before applying any remaining approved advisories through DNF.
+- [ ] I understand the update workflow reports Ksplice availability but only applies approved advisories through DNF's advisory-scoped update path.
 
 ## One-click approval
 

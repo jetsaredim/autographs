@@ -190,7 +190,7 @@ The runtime host must have `openscap-scanner` installed so `oscap-ssh` can execu
 2. Builds `security_patching_hosts_with_findings` from hosts whose `security_patching_update_entries` list is non-empty.
 3. Stops with a debug message if no hosts have findings.
 4. Records OpenSCAP advisory detail from the host facts.
-5. Marks the report `complete` when all hosts parsed cleanly or `degraded` when any host had unmapped true definitions.
+5. Keeps only complete parser output. If OpenSCAP produces unmapped true definitions, unknown/error definition states, missing result states, or no evaluated definition results, the parser exits non-zero and no approval issue is published.
 6. Ensures the managed GitHub labels exist. GitHub `422` is accepted so already-existing labels do not fail the scan.
 7. Renders `security-report.md.j2` to a private temp file.
 8. Searches open issues labeled `security-patching` and `patch-scan-open`.
@@ -229,11 +229,11 @@ The visible issue body contains:
 
 - `# Production security update report`
 - `Scan ID`, `Generated`, and `Target group`
-- an OpenSCAP advisory status of `complete` or `degraded`
+- an OpenSCAP advisory status of `complete`; degraded parser output fails the scan before issue creation
 - a summary table:
 
   ```markdown
-  | Instance | OpenSCAP findings | Advisories | Ksplice-aware advisories |
+  | Instance | OpenSCAP findings | Advisories | Ksplice-specific OVAL findings |
   |---|---:|---:|---:|
   | `production` | 3 | 3 | 1 |
   ```
@@ -241,7 +241,7 @@ The visible issue body contains:
 - a per-host advisory summary and sampled finding detail:
 
   ```markdown
-  | Advisory | Severity | CVEs | Ksplice-aware | Packages | Summary |
+  | Advisory | Severity | CVEs | Ksplice-specific OVAL | Packages | Summary |
   |---|---|---|---:|---|---|
   | [ELSA-...](...) | Important | [CVE-...](...) | true | `glibc` | ELSA-... security update |
   ```
@@ -307,21 +307,19 @@ After validation, `security-patch.yml` scans each runtime host again by importin
 3. If the host was not present in the approved metadata, records skipped state and preserves current findings for the final report.
 4. If the host has approved advisories, asserts the fresh advisory IDs exactly match the approved advisory IDs.
 5. Preserves pre-update entries.
-6. Runs `ksplice -y all upgrade` when the Oracle Ksplice client is present.
-7. Re-scans after Ksplice so Ksplice-aware OVAL definitions can clear before DNF changes on-disk RPMs.
-8. Applies only approved advisories that OpenSCAP still reports after Ksplice with:
+6. Checks whether the Oracle Ksplice client is present and records that availability for the result comment.
+7. Applies only approved advisories through DNF's advisory-scoped update path with:
 
    ```bash
    dnf -y upgrade-minimal --security --advisories=<comma-separated ELSA IDs>
    ```
 
-9. Runs Ksplice again after DNF if DNF changed packages.
-10. Re-scans the host after remediation.
-11. Preserves post-update entries and post-update advisory IDs.
+8. Re-scans the host after remediation.
+9. Preserves post-update entries, advisory IDs, and scan status only after the post-update scan completes.
 
 ## Update behavior
 
-The apply playbook treats OpenSCAP as the authority for detection and closure. DNF is the fallback remediation engine for advisories still reported after Ksplice. This matters for kernel and supported user-space Ksplice updates: if Oracle's Ksplice-aware OVAL definitions clear after `ksplice -y all upgrade`, the workflow will not force a package transaction for those advisories.
+The apply playbook treats OpenSCAP as the authority for detection and closure. DNF is the only mutating remediation engine in the approval workflow because `ksplice all upgrade` is not scoped to the approved advisory ID set. The workflow still reports Ksplice availability and Ksplice-specific OVAL findings so a future Ksplice-specific approval path can be added without weakening the current approval boundary.
 
 The workflow runs hosts serially and re-scans after applying updates. It removes the approval label after the run starts, comments the result back to the issue, and closes the issue only when the post-update scan has no remaining findings.
 
@@ -329,11 +327,12 @@ The workflow runs hosts serially and re-scans after applying updates. It removes
 
 When the apply playbook reaches `tasks/post_result.yml`, it:
 
-1. Builds `security_patching_remaining_hosts` from hosts with non-empty `security_patching_post_update_entries`.
-2. Renders `security-update-result.md.j2`.
-3. Posts the rendered file as an issue comment.
-4. Removes the approval label.
-5. Closes the issue with `state_reason: completed` if no hosts still have findings.
+1. Refuses to publish a result unless every target host has complete post-update OpenSCAP scan facts.
+2. Builds `security_patching_remaining_hosts` from hosts with non-empty `security_patching_post_update_entries`.
+3. Renders `security-update-result.md.j2`.
+4. Posts the rendered file as an issue comment.
+5. Removes the approval label.
+6. Closes the issue with `state_reason: completed` if no hosts still have findings.
 
 The result comment begins:
 
@@ -349,9 +348,9 @@ The result comment begins:
 It then includes a per-host table:
 
 ```markdown
-| Instance | Ksplice attempted | DNF updated | Approved advisories | Remaining OpenSCAP findings |
-|---|---:|---:|---:|---:|
-| `production` | true | true | 3 | 0 |
+| Instance | Ksplice available | Ksplice apply mode | DNF updated | Approved advisories | Remaining OpenSCAP findings |
+|---|---:|---|---:|---:|---:|
+| `production` | true | report_only | true | 3 | 0 |
 ```
 
 If the post-update scan is clean, the comment says:
@@ -472,7 +471,7 @@ Exercise the OpenSCAP parser locally:
 python3 -m unittest scripts/test_oracle_linux_oscap_results.py
 ```
 
-Expected result: the parser maps true OpenSCAP OVAL definitions to ELSA advisory IDs, CVEs, affected package names, errata links, and Ksplice-aware status.
+Expected result: the parser maps true OpenSCAP OVAL definitions to ELSA advisory IDs, CVEs, affected package names, errata links, and Ksplice-specific OVAL status.
 
 ### same-issue update review
 

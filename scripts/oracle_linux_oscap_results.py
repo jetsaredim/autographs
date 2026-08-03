@@ -13,6 +13,8 @@ from typing import Any
 DEFAULT_ERRATA_BASE_URL = "https://linux.oracle.com/errata/"
 ADVISORY_RE = re.compile(r"\bELSA-\d{4}-\d+\b")
 PACKAGE_COMMENT_RE = re.compile(r"^(?P<name>[A-Za-z0-9_.+-]+) is earlier than ")
+FINDING_RESULTS = {"true"}
+CLEAN_RESULTS = {"false", "not applicable"}
 
 
 def _local_name(tag: str) -> str:
@@ -103,16 +105,46 @@ def load_oval_definitions(oval_path: Path, errata_base_url: str = DEFAULT_ERRATA
     return definitions
 
 
-def load_true_definition_ids(results_path: Path) -> list[str]:
+def load_definition_results(results_path: Path) -> dict[str, str]:
+    definition_results, _ = load_evaluated_definition_results(results_path)
+    return definition_results
+
+
+def load_evaluated_definition_results(results_path: Path) -> tuple[dict[str, str], list[dict[str, str]]]:
     root = _xml_root_from_path(results_path)
-    true_definition_ids: set[str] = set()
-    for element in root.iter():
-        if _local_name(element.tag) != "definition":
+    definition_results: dict[str, str] = {}
+    malformed_definition_results: list[dict[str, str]] = []
+    for system in root.iter():
+        if _local_name(system.tag) != "system":
             continue
-        definition_id = element.attrib.get("definition_id") or element.attrib.get("id", "")
-        if definition_id and element.attrib.get("result", "").lower() == "true":
-            true_definition_ids.add(definition_id)
-    return sorted(true_definition_ids)
+        for child in list(system):
+            if _local_name(child.tag) != "definitions":
+                continue
+            for element in list(child):
+                if _local_name(element.tag) != "definition":
+                    continue
+                definition_id = element.attrib.get("definition_id") or element.attrib.get("id", "")
+                result = element.attrib.get("result", "").strip().lower()
+                if not definition_id or not result:
+                    malformed_definition_results.append(
+                        {
+                            "definition_id": definition_id,
+                            "result": result,
+                            "advisory_id": "",
+                            "summary": "",
+                        }
+                    )
+                else:
+                    definition_results[definition_id] = result
+    return definition_results, malformed_definition_results
+
+
+def load_true_definition_ids(results_path: Path) -> list[str]:
+    return sorted(
+        definition_id
+        for definition_id, result in load_definition_results(results_path).items()
+        if result in FINDING_RESULTS
+    )
 
 
 def parse_oscap_results(
@@ -122,9 +154,13 @@ def parse_oscap_results(
     errata_base_url: str = DEFAULT_ERRATA_BASE_URL,
 ) -> dict[str, Any]:
     definitions = load_oval_definitions(oval_path, errata_base_url=errata_base_url)
-    true_definition_ids = load_true_definition_ids(results_path)
+    definition_results, malformed_definition_results = load_evaluated_definition_results(results_path)
+    true_definition_ids = sorted(
+        definition_id for definition_id, result in definition_results.items() if result in FINDING_RESULTS
+    )
     advisories = []
     unknown_definition_ids = []
+    evaluation_problem_definition_results = malformed_definition_results
 
     for definition_id in true_definition_ids:
         advisory = definitions.get(definition_id)
@@ -133,13 +169,40 @@ def parse_oscap_results(
             continue
         advisories.append(advisory)
 
+    for definition_id, result in sorted(definition_results.items()):
+        if result in FINDING_RESULTS or result in CLEAN_RESULTS:
+            continue
+        advisory = definitions.get(definition_id, {})
+        evaluation_problem_definition_results.append(
+            {
+                "definition_id": definition_id,
+                "result": result,
+                "advisory_id": advisory.get("advisory_id", ""),
+                "summary": advisory.get("summary", ""),
+            }
+        )
+
+    if not definition_results:
+        evaluation_problem_definition_results.append(
+            {
+                "definition_id": "",
+                "result": "missing",
+                "advisory_id": "",
+                "summary": "OpenSCAP results contained no evaluated definitions with result states.",
+            }
+        )
+
     advisories.sort(key=lambda advisory: advisory["advisory_id"])
-    status = "complete" if not unknown_definition_ids else "degraded"
-    message = (
-        "Oracle Linux OpenSCAP OVAL evaluation completed."
-        if status == "complete"
-        else "Oracle Linux OpenSCAP OVAL evaluation completed with unmapped true definitions."
-    )
+    status = "complete" if not unknown_definition_ids and not evaluation_problem_definition_results else "degraded"
+    if status == "complete":
+        message = "Oracle Linux OpenSCAP OVAL evaluation completed."
+    elif evaluation_problem_definition_results:
+        message = (
+            "Oracle Linux OpenSCAP OVAL evaluation completed with "
+            f"{len(evaluation_problem_definition_results)} non-complete definition result(s)."
+        )
+    else:
+        message = "Oracle Linux OpenSCAP OVAL evaluation completed with unmapped true definitions."
     advisory_ids = sorted({advisory["advisory_id"] for advisory in advisories})
     return {
         "host": host,
@@ -150,6 +213,7 @@ def parse_oscap_results(
             {advisory["advisory_id"] for advisory in advisories if advisory.get("ksplice_aware")}
         ),
         "unknown_definition_ids": unknown_definition_ids,
+        "evaluation_problem_definition_results": evaluation_problem_definition_results,
         "advisories": advisories,
         "entries": advisories,
     }
@@ -180,6 +244,9 @@ def main(argv: list[str] | None = None) -> int:
     except OSError as error:
         print(f"Failed to write parsed OpenSCAP results: {error}", file=sys.stderr)
         return 3
+    if parsed.get("status") != "complete":
+        print(parsed.get("message", "OpenSCAP result parsing was degraded."), file=sys.stderr)
+        return 4
     return 0
 
 

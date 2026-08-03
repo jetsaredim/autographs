@@ -1,0 +1,65 @@
+- name: Validate security issue creation requires complete host scans
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_status_fixture_runtime
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_create_issue_guard_failed: false
+    security_patching_create_issue_guard_failure_message: ""
+  tasks:
+    - name: Add complete scan fixture host
+      ansible.builtin.add_host:
+        name: complete-host
+        groups: security_status_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_update_advisory_ids:
+          - ELSA-2026-11111
+        security_patching_update_advisories:
+          - advisory_id: ELSA-2026-11111
+            severity: IMPORTANT
+            cves: []
+            packages:
+              - glibc
+            package_count: 1
+            ksplice_aware: false
+            errata_link: https://linux.oracle.com/errata/ELSA-2026-11111.html
+            summary: ELSA-2026-11111 glibc security update
+        security_patching_update_entries:
+          - advisory_id: ELSA-2026-11111
+            severity: IMPORTANT
+            cves: []
+            packages:
+              - glibc
+            package_count: 1
+            ksplice_aware: false
+            errata_link: https://linux.oracle.com/errata/ELSA-2026-11111.html
+            summary: ELSA-2026-11111 glibc security update
+
+    - name: Add degraded scan fixture host
+      ansible.builtin.add_host:
+        name: degraded-host
+        groups: security_status_fixture_runtime
+        security_patching_scan_status: degraded
+        security_patching_update_advisory_ids: []
+        security_patching_update_advisories: []
+        security_patching_update_entries: []
+
+    - name: Run issue creation guard against mixed scan statuses
+      block:
+        - name: Attempt to create issue from mixed scan fixtures
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: create_issue
+      rescue:
+        - name: Record expected issue creation guard failure
+          ansible.builtin.set_fact:
+            security_patching_create_issue_guard_failed: true
+            security_patching_create_issue_guard_failure_message: "{{ ansible_failed_result.msg | default('') }}"
+
+    - name: Assert mixed scan statuses are rejected before issue creation
+      ansible.builtin.assert:
+        that:
+          - security_patching_create_issue_guard_failed
+          - security_patching_incomplete_scan_hosts == ['degraded-host']
+          - "'Refusing to create a security update issue' in security_patching_create_issue_guard_failure_message"

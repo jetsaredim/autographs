@@ -14,6 +14,7 @@
     security_patching_ksplice_available: false
     security_patching_ksplice_attempted: false
     security_patching_ksplice_changed: false
+    security_patching_ksplice_apply_mode: report_only
     security_patching_dnf_changed: false
     security_patching_remaining_approved_advisory_ids: []
 
@@ -22,6 +23,7 @@
     security_patching_skipped_without_approval: true
     security_patching_post_update_entries: "{{ security_patching_update_entries | default([]) }}"
     security_patching_post_update_advisory_ids: "{{ security_patching_update_advisory_ids | default([]) }}"
+    security_patching_post_update_scan_status: "{{ security_patching_scan_status | default('missing') }}"
   when: security_patching_approved_advisory_ids | length == 0
 
 - name: Apply approved updates for host
@@ -52,46 +54,9 @@
     - name: Record Oracle Ksplice availability
       ansible.builtin.set_fact:
         security_patching_ksplice_available: "{{ security_patching_ksplice_check.rc == 0 }}"
+        security_patching_ksplice_version: "{{ security_patching_ksplice_check.stdout | default('') | trim }}"
 
-    - name: Apply available Oracle Ksplice updates before DNF
-      ansible.builtin.command:
-        argv:
-          - ksplice
-          - -y
-          - all
-          - upgrade
-      register: security_patching_ksplice_result
-      changed_when: >-
-        security_patching_ksplice_result.rc == 0
-        and (security_patching_ksplice_result.stdout ~ security_patching_ksplice_result.stderr)
-        is not search('(?i)(no updates|nothing to do|up to date|up-to-date)')
-      failed_when: false
-      when: security_patching_ksplice_available
-
-    - name: Record Oracle Ksplice pre-DNF result
-      ansible.builtin.set_fact:
-        security_patching_ksplice_attempted: >-
-          {{
-            security_patching_ksplice_result is defined
-            and not (security_patching_ksplice_result.skipped | default(false))
-          }}
-        security_patching_ksplice_changed: "{{ security_patching_ksplice_result.changed | default(false) }}"
-        security_patching_ksplice_rc: "{{ security_patching_ksplice_result.rc | default('skipped') }}"
-
-    - name: Re-scan host after Oracle Ksplice updates
-      ansible.builtin.import_role:
-        name: security_patching
-        tasks_from: scan
-      when:
-        - security_patching_ksplice_result is defined
-        - not (security_patching_ksplice_result.skipped | default(false))
-        - (security_patching_ksplice_result.rc | default(1)) == 0
-
-    - name: Preserve post-Ksplice advisory set
-      ansible.builtin.set_fact:
-        security_patching_after_ksplice_advisory_ids: "{{ security_patching_update_advisory_ids | default([]) }}"
-
-    - name: Resolve approved advisories still reported after Ksplice
+    - name: Resolve approved advisories still reported before DNF
       ansible.builtin.set_fact:
         security_patching_remaining_approved_advisory_ids: >-
           {{
@@ -130,23 +95,6 @@
           {{ security_patching_remaining_approved_advisory_ids }}
       when: security_patching_remaining_approved_advisory_ids | length > 0
 
-    - name: Apply available Oracle Ksplice updates after DNF
-      ansible.builtin.command:
-        argv:
-          - ksplice
-          - -y
-          - all
-          - upgrade
-      register: security_patching_ksplice_post_dnf_result
-      changed_when: >-
-        security_patching_ksplice_post_dnf_result.rc == 0
-        and (security_patching_ksplice_post_dnf_result.stdout ~ security_patching_ksplice_post_dnf_result.stderr)
-        is not search('(?i)(no updates|nothing to do|up to date|up-to-date)')
-      failed_when: false
-      when:
-        - security_patching_ksplice_available
-        - security_patching_dnf_changed | default(false)
-
     - name: Re-scan host after security remediation
       ansible.builtin.import_role:
         name: security_patching
@@ -157,3 +105,4 @@
         security_patching_post_update_entries: "{{ security_patching_update_entries | default([]) }}"
         security_patching_post_update_advisory_ids: "{{ security_patching_update_advisory_ids | default([]) }}"
         security_patching_post_update_ksplice_aware_advisory_ids: "{{ security_patching_update_ksplice_aware_advisory_ids | default([]) }}"
+        security_patching_post_update_scan_status: "{{ security_patching_scan_status | default('missing') }}"

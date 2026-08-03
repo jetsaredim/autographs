@@ -5,6 +5,24 @@
       - security_patching_github_token | length > 0
     fail_msg: GitHub repository and token context are required to create security update issues.
 
+- name: Initialize incomplete scan host list
+  ansible.builtin.set_fact:
+    security_patching_incomplete_scan_hosts: []
+
+- name: Collect hosts without complete OpenSCAP scan results
+  ansible.builtin.set_fact:
+    security_patching_incomplete_scan_hosts: "{{ security_patching_incomplete_scan_hosts + [item] }}"
+  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  when: hostvars[item].security_patching_scan_status | default('missing') != 'complete'
+
+- name: Require complete OpenSCAP scan results for all target hosts
+  ansible.builtin.assert:
+    that:
+      - security_patching_incomplete_scan_hosts | length == 0
+    fail_msg: >-
+      Refusing to create a security update issue because these hosts do not have complete OpenSCAP scan results:
+      {{ security_patching_incomplete_scan_hosts }}
+
 - name: Initialize report host list
   ansible.builtin.set_fact:
     security_patching_hosts_with_findings: []
