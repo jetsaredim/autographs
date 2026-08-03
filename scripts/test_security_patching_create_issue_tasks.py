@@ -117,6 +117,16 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("--advisories={{ security_patching_remaining_approved_advisory_ids | join(',') }}", patch_tasks)
         self.assertNotIn("security_patching_approved_package_specs", patch_tasks)
 
+    def test_scan_defaults_use_release_scoped_oval_and_configurable_ssh_target(self):
+        defaults = DEFAULTS_PATH.read_text(encoding="utf-8")
+        scan_tasks = TASKS_PATH.with_name("scan.yml").read_text(encoding="utf-8")
+
+        self.assertIn("com.oracle.elsa-ol10.xml.bz2", defaults)
+        self.assertNotIn("com.oracle.elsa-all.xml.bz2", defaults)
+        self.assertIn("security_patching_oscap_ssh_target", defaults)
+        self.assertIn('"{{ security_patching_oscap_ssh_target }}"', scan_tasks)
+        self.assertNotIn("default('opc') }}@", scan_tasks)
+
 
 if __name__ == "__main__":
     unittest.main()

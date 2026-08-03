@@ -31,7 +31,7 @@
     argv:
       - oscap-ssh
       - --sudo
-      - "{{ ansible_user | default('opc') }}@{{ ansible_host | default(inventory_hostname) }}"
+      - "{{ security_patching_oscap_ssh_target }}"
       - "{{ ansible_port | default(22) | string }}"
       - oval
       - eval

@@ -11,7 +11,7 @@ security_patching_issue_number: ""
 security_patching_approver: "{{ lookup('env', 'PATCH_APPROVER') | default('', true) }}"
 security_patching_report_path: "/tmp/autographs-security-report-{{ security_patching_scan_id }}.md"
 security_patching_result_comment_path: "/tmp/autographs-security-update-result-{{ security_patching_issue_number | default('unknown', true) }}.md"
-security_patching_oval_url: https://linux.oracle.com/security/oval/com.oracle.elsa-all.xml.bz2
+security_patching_oval_url: https://linux.oracle.com/security/oval/com.oracle.elsa-ol10.xml.bz2
 security_patching_errata_base_url: https://linux.oracle.com/errata/
 security_patching_oval_download_path: "/tmp/autographs-security-oval-{{ security_patching_scan_id }}-{{ inventory_hostname | default('localhost') }}.xml.bz2"
 security_patching_oval_xml_path: "/tmp/autographs-security-oval-{{ security_patching_scan_id }}-{{ inventory_hostname | default('localhost') }}.xml"
@@ -24,6 +24,10 @@ security_patching_ssh_additional_options: >-
   -o UserKnownHostsFile=/dev/null
   -o IdentitiesOnly=yes
   {% if security_patching_ssh_private_key_path | trim | length > 0 %}-i {{ security_patching_ssh_private_key_path | trim }}{% endif %}
+security_patching_oscap_ssh_host: "{{ ansible_host | default(inventory_hostname, true) }}"
+security_patching_oscap_ssh_user: "{{ ansible_user | default('', true) }}"
+security_patching_oscap_ssh_target: >-
+  {% if security_patching_oscap_ssh_user | trim | length > 0 %}{{ security_patching_oscap_ssh_user | trim }}@{% endif %}{{ security_patching_oscap_ssh_host }}
 security_patching_approval_label: approved-production-update
 security_patching_target_group: runtime
 security_patching_enrichment_status: unknown

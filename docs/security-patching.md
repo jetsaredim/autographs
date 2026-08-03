@@ -158,7 +158,7 @@ The scan path starts in `.github/workflows/weekly-security-scan.yml`, then runs 
 `tasks/scan.yml` runs on each runtime host through delegated runner-side OpenSCAP tooling:
 
 1. Verifies `oscap-ssh` is available on the workflow runner.
-2. Downloads Oracle's consolidated ELSA OVAL file from `https://linux.oracle.com/security/oval/com.oracle.elsa-all.xml.bz2`.
+2. Downloads Oracle's OL10 ELSA OVAL file from `https://linux.oracle.com/security/oval/com.oracle.elsa-ol10.xml.bz2`. This release-scoped feed is intentionally used instead of `com.oracle.elsa-all.xml.bz2`; the all-releases file is over 200 MB uncompressed, while the OL10 feed is about 20 MB and contains only the definitions relevant to the production OS major release.
 3. Decompresses the OVAL XML on the runner.
 4. Runs `oscap-ssh --sudo <user>@<host> <port> oval eval --skip-validation --results <xml> --report <html> <oval xml>`.
 5. Accepts return code `0` or `2`; OpenSCAP returns `2` when evaluated definitions report findings.
@@ -182,7 +182,7 @@ The scan path starts in `.github/workflows/weekly-security-scan.yml`, then runs 
    security_patching_scan_source: openscap-oval
    ```
 
-The runtime host must have `openscap-scanner` installed so `oscap-ssh` can execute `oscap` remotely. The base deployment role installs that package during instance setup.
+The runtime host must have `openscap-scanner` installed so `oscap-ssh` can execute `oscap` remotely. The base deployment role installs that package during instance setup. The workflow inventory supplies `ansible_user`, and the workflow passes a temp deploy key through `SSH_ADDITIONAL_OPTIONS`; local runs can omit `ansible_user` and let SSH config provide `User` and `IdentityFile` for the production IP.
 
 `tasks/create_issue.yml` runs on `localhost` after all hosts have scan facts:
 
