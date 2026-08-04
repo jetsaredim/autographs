@@ -32,7 +32,6 @@ security_patching_approval_label: approved-production-update
 security_patching_target_group: runtime
 security_patching_enrichment_status: unknown
 security_patching_enrichment_message: OpenSCAP advisory evaluation has not run.
-security_patching_report_max_detail_rows: 50
 security_patching_report_max_cves_per_row: 4
 security_patching_report_max_body_bytes: 60000
 

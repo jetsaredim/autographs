@@ -122,7 +122,7 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 
 - Renders the scanner issue body.
 - Starts with a hidden metadata block consumed by the apply workflow.
-- Then renders a public Markdown report with scan ID, timestamp, target group, host summary, advisory summary, sampled OpenSCAP finding details, review checklist, and approval instructions.
+- Then renders a public Markdown report with scan ID, timestamp, target group, host summary, a combined advisory/package summary, review checklist, and approval instructions.
 
 `deploy/ansible/roles/security_patching/templates/security-update-result.md.j2`
 
@@ -238,18 +238,18 @@ The visible issue body contains:
   | `production` | 3 | 3 | 1 |
   ```
 
-- a per-host advisory summary and sampled finding detail:
+- a per-host advisory summary with affected package count and package sample:
 
   ```markdown
-  | Advisory | Severity | CVEs | Ksplice-specific OVAL | Packages | Summary |
-  |---|---|---|---:|---|---|
-  | [ELSA-...](...) | Important | [CVE-...](...) | true | `glibc` | ELSA-... security update |
+  | Advisory | Severity | CVEs | Ksplice-specific OVAL | Affected packages | Package sample | Summary |
+  |---|---|---|---:|---:|---|---|
+  | [ELSA-...](...) | Important | [CVE-...](...) | true | 2 | `glibc`, `glibc-common` | ELSA-... security update |
   ```
 
 - a review checklist
 - one-click approval instructions for the `approved-production-update` label
 
-The visible report is sampled so large advisory sets fit inside GitHub issue body limits. The complete approved advisory ID set is preserved in hidden metadata for drift protection.
+Long CVE and package lists are sampled in the visible table so large advisory sets fit inside GitHub issue body limits. The complete approved advisory ID set is preserved in hidden metadata for drift protection.
 
 ## Host inventory
 
