@@ -22,6 +22,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Install OpenSCAP runner tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bzip2 openscap-utils
+
+      - name: Write deploy SSH key for OpenSCAP
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+        run: |
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/autographs-deploy-key"
+          chmod 600 "$RUNNER_TEMP/autographs-deploy-key"
+
       - name: Resolve runtime VM IP
         id: resolve
         uses: ./.github/actions/resolve-runtime-ip
@@ -42,6 +54,7 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
+          SECURITY_PATCHING_SSH_PRIVATE_KEY_PATH: ${{ runner.temp }}/autographs-deploy-key
         with:
           playbook: playbooks/security-scan.yml
           directory: deploy/ansible

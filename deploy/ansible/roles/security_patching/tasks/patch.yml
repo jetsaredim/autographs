@@ -1,48 +1,101 @@
-- name: Resolve approved package specs for host
+- name: Resolve approved advisory IDs for host
   ansible.builtin.set_fact:
-    security_patching_approved_package_specs: >-
+    security_patching_approved_advisory_ids: >-
       {{
         (hostvars['localhost'].security_patching_request_instances | default({}))
         .get(inventory_hostname, {})
-        .get('package_specs', [])
+        .get('advisory_ids', [])
         | unique
         | sort
         | list
       }}
-    security_patching_current_package_specs: >-
-      {{ security_patching_update_package_specs | default([]) | unique | sort | list }}
+    security_patching_current_advisory_ids: >-
+      {{ security_patching_update_advisory_ids | default([]) | unique | sort | list }}
+    security_patching_ksplice_available: false
+    security_patching_ksplice_attempted: false
+    security_patching_ksplice_changed: false
+    security_patching_ksplice_apply_mode: report_only
+    security_patching_dnf_changed: false
+    security_patching_remaining_approved_advisory_ids: []
 
 - name: Record skipped host state when no updates were approved
   ansible.builtin.set_fact:
     security_patching_skipped_without_approval: true
     security_patching_post_update_entries: "{{ security_patching_update_entries | default([]) }}"
-    security_patching_post_update_package_specs: "{{ security_patching_update_package_specs | default([]) }}"
-  when: security_patching_approved_package_specs | length == 0
+    security_patching_post_update_advisory_ids: "{{ security_patching_update_advisory_ids | default([]) }}"
+    security_patching_post_update_scan_status: "{{ security_patching_scan_status | default('missing') }}"
+  when: security_patching_approved_advisory_ids | length == 0
 
 - name: Apply approved updates for host
-  when: security_patching_approved_package_specs | length > 0
+  when: security_patching_approved_advisory_ids | length > 0
   block:
     - name: Refuse to apply if security update set drifted
       ansible.builtin.assert:
         that:
-          - security_patching_current_package_specs == security_patching_approved_package_specs
+          - security_patching_current_advisory_ids == security_patching_approved_advisory_ids
         fail_msg: >-
           Current security update set for {{ inventory_hostname }} does not match the approved scanner issue.
-          Current={{ security_patching_current_package_specs }} Approved={{ security_patching_approved_package_specs }}
+          Current={{ security_patching_current_advisory_ids }} Approved={{ security_patching_approved_advisory_ids }}
 
     - name: Preserve pre-update finding set
       ansible.builtin.set_fact:
         security_patching_pre_update_entries: "{{ security_patching_update_entries | default([]) }}"
+        security_patching_pre_update_advisory_ids: "{{ security_patching_update_advisory_ids | default([]) }}"
 
-    - name: Apply approved security package updates # noqa: package-latest
-      ansible.builtin.dnf:
-        name: "{{ security_patching_approved_package_specs }}"
-        state: latest
-        security: true
-        update_only: true
+    - name: Check for Oracle Ksplice client
+      ansible.builtin.command:
+        argv:
+          - ksplice
+          - --version
+      register: security_patching_ksplice_check
+      changed_when: false
+      failed_when: false
+
+    - name: Record Oracle Ksplice availability
+      ansible.builtin.set_fact:
+        security_patching_ksplice_available: "{{ security_patching_ksplice_check.rc == 0 }}"
+        security_patching_ksplice_version: "{{ security_patching_ksplice_check.stdout | default('') | trim }}"
+
+    - name: Resolve approved advisories still reported before DNF
+      ansible.builtin.set_fact:
+        security_patching_remaining_approved_advisory_ids: >-
+          {{
+            security_patching_approved_advisory_ids
+            | intersect(security_patching_update_advisory_ids | default([]))
+            | unique
+            | sort
+            | list
+          }}
+
+    - name: Apply remaining approved security advisories with DNF # noqa: command-instead-of-module
+      ansible.builtin.command:
+        argv:
+          - dnf
+          - -y
+          - upgrade-minimal
+          - --security
+          - "--advisories={{ security_patching_remaining_approved_advisory_ids | join(',') }}"
       register: security_patching_dnf_result
+      changed_when: >-
+        security_patching_dnf_result.rc == 0
+        and (security_patching_dnf_result.stdout ~ security_patching_dnf_result.stderr)
+        is not search('(?i)(nothing to do|no packages marked)')
+      when: security_patching_remaining_approved_advisory_ids | length > 0
 
-    - name: Re-scan host after security updates
+    - name: Record DNF advisory apply result
+      ansible.builtin.set_fact:
+        security_patching_dnf_changed: "{{ security_patching_dnf_result.changed | default(false) }}"
+
+    - name: Refuse DNF no-op for advisories still reported by OpenSCAP
+      ansible.builtin.assert:
+        that:
+          - security_patching_dnf_result.changed | default(false)
+        fail_msg: >-
+          DNF did not apply any package changes for remaining approved advisories on {{ inventory_hostname }}:
+          {{ security_patching_remaining_approved_advisory_ids }}
+      when: security_patching_remaining_approved_advisory_ids | length > 0
+
+    - name: Re-scan host after security remediation
       ansible.builtin.import_role:
         name: security_patching
         tasks_from: scan
@@ -50,4 +103,6 @@
     - name: Preserve post-update finding set
       ansible.builtin.set_fact:
         security_patching_post_update_entries: "{{ security_patching_update_entries | default([]) }}"
-        security_patching_post_update_package_specs: "{{ security_patching_update_package_specs | default([]) }}"
+        security_patching_post_update_advisory_ids: "{{ security_patching_update_advisory_ids | default([]) }}"
+        security_patching_post_update_ksplice_aware_advisory_ids: "{{ security_patching_update_ksplice_aware_advisory_ids | default([]) }}"
+        security_patching_post_update_scan_status: "{{ security_patching_scan_status | default('missing') }}"

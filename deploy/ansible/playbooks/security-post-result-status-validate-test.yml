@@ -1,0 +1,50 @@
+- name: Validate security update result requires complete post-update scans
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_post_result_fixture_runtime
+    security_patching_result_guard_failed: false
+    security_patching_result_guard_failure_message: ""
+  tasks:
+    - name: Add complete post-update fixture host
+      ansible.builtin.add_host:
+        name: complete-host
+        groups: security_post_result_fixture_runtime
+        security_patching_post_update_scan_status: complete
+        security_patching_post_update_advisory_ids: []
+        security_patching_post_update_entries: []
+        security_patching_ksplice_available: false
+        security_patching_ksplice_apply_mode: report_only
+        security_patching_dnf_changed: false
+        security_patching_approved_advisory_ids: []
+
+    - name: Add degraded post-update fixture host
+      ansible.builtin.add_host:
+        name: degraded-host
+        groups: security_post_result_fixture_runtime
+        security_patching_post_update_scan_status: degraded
+        security_patching_post_update_advisory_ids: []
+        security_patching_post_update_entries: []
+        security_patching_ksplice_available: false
+        security_patching_ksplice_apply_mode: report_only
+        security_patching_dnf_changed: false
+        security_patching_approved_advisory_ids: []
+
+    - name: Run result publication guard against mixed post-update statuses
+      block:
+        - name: Attempt to publish result from mixed post-update fixtures
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_result
+      rescue:
+        - name: Record expected result publication guard failure
+          ansible.builtin.set_fact:
+            security_patching_result_guard_failed: true
+            security_patching_result_guard_failure_message: "{{ ansible_failed_result.msg | default('') }}"
+
+    - name: Assert mixed post-update statuses are rejected before result publication
+      ansible.builtin.assert:
+        that:
+          - security_patching_result_guard_failed
+          - security_patching_incomplete_post_update_hosts == ['degraded-host']
+          - "'Refusing to publish a clean security update result' in security_patching_result_guard_failure_message"

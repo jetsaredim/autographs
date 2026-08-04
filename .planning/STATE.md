@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-08-02T18:07:20.296Z"
-last_activity: 2026-08-02 -- Quick task 260802-jm4 hardened apply security update issue metadata validation
+last_updated: "2026-08-03T03:17:20Z"
+last_activity: 2026-08-03 -- Quick task 260802-vx8 replaced production security scanner with OpenSCAP OVAL remediation
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-02 -- Quick task 260802-jm4 hardened apply security update issue metadata validation
+Last activity: 2026-08-03 -- Quick task 260802-vx8 replaced production security scanner with OpenSCAP OVAL remediation
 
 Progress: [███████░░░] 70% of milestone phases complete; Phase 8 is next
 
@@ -135,12 +135,11 @@ Recent decisions affecting current work:
 - [Phase 07]: Category remains a temporary legacy database/reference field but is not a schema version 2 public facet.
 - [Phase 07]: AI-assisted ingest remains pending after the manual metadata taxonomy; it is now Phase 10 after the Phase 8 admin media/posture foundation and Phase 9 taxonomy media cues.
 - [Phase 08]: Phase 8 CDN/cache work is first-class: define admin/API bypass, rollback-friendly HTML/JSON, fingerprinted media, purge/rollback behavior before media work, then enable/verify production CDN after adjusted-image cache behavior is proven. — The admin media editor will likely update existing images, so cache behavior must be designed before media implementation and CDN enablement should wait until adjusted derivatives and URLs can be verified.
-- [Phase 08]: Phase 8 security reporting should minimize host-side scan work: collect exact package specs plus cheap advisory/CVE inventory, enrich from Oracle OVAL first and Oracle errata HTML fallback, and keep hidden approval metadata to package specs only. — The current scan failure occurs after IP resolution in Ansible, and slow per-advisory host detail loops should not block issue creation when package inventory is valid.
+- [Phase 08]: Phase 8 security reporting should use OpenSCAP `oscap-ssh` with Oracle Linux OVAL as the authoritative finding source, keep hidden approval metadata to advisory IDs, and parse report details from XML on the runner.
 - [Phase 08]: Phase 8 posture cleanup should run before media work in separate PRs and add enforceable CI hygiene guardrails where feasible. — Aggressive cleanup is desired, but splitting it before media work keeps the image editor from carrying unrelated repo-wide churn.
 - [Phase 08]: Phase 8 media adjustment must include a dedicated review view, multiple overlays, draft-local save/cancel/reset, before/after comparison, and required auto-assisted deskew/perspective correction with manual fallback. — Uploaded images can be misaligned or askew, and visual guide overlays plus auto-assisted/manual correction are necessary for the admin to prepare publish-safe derivatives.
-- [Phase 08]: Production security scans now avoid host-side per-advisory detail loops and derive approval package specs directly from dnf updateinfo list output.
-- [Phase 08]: Oracle Linux advisory enrichment is report detail only; enrichment failure degrades the report but does not block issue creation when package inventory exists.
-- [Phase 08]: Scanner approval metadata remains package-spec-only, with CVEs, severity, summaries, and advisory links kept out of the hidden metadata block.
+- [Phase 08]: Production security remediation now runs Ksplice before DNF, re-scans after Ksplice, applies only remaining approved advisories with `dnf upgrade-minimal --security --advisories`, and closes issues only after OpenSCAP reports no findings.
+- [Phase 08]: Scanner approval metadata remains advisory-ID-only; CVEs, severity, summaries, affected packages, Ksplice-aware status, and advisory links stay visible report detail outside the hidden metadata block.
 
 ### Pending Todos
 
@@ -174,6 +173,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-03 | replace-production-security-patch-scanne | Replaced the production security scanner with OpenSCAP Oracle OVAL findings, advisory-ID approval metadata, Ksplice-first remediation, and DNF advisory-scoped fallback updates. |
 | 2026-08-02 | harden-apply-security-update-issue-metad | Replaced brittle apply-side scanner metadata extraction with a quoted role task, added diagnostics and CI fixture coverage, and verified live issue #198 parses under Ansible 2.21. |
 | 2026-05-20 | podman-quadlet-deploy | Replaced compose/cloud-init runtime setup with Ansible-managed Podman quadlets and added manual runtime VM taint support. |
 | 2026-05-21 | phase-6-scope | Originally added Public Showcase and Hardening after AI-assisted ingest; later reordered to Phase 4. |

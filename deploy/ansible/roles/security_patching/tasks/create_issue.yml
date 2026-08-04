@@ -5,6 +5,24 @@
       - security_patching_github_token | length > 0
     fail_msg: GitHub repository and token context are required to create security update issues.
 
+- name: Initialize incomplete scan host list
+  ansible.builtin.set_fact:
+    security_patching_incomplete_scan_hosts: []
+
+- name: Collect hosts without complete OpenSCAP scan results
+  ansible.builtin.set_fact:
+    security_patching_incomplete_scan_hosts: "{{ security_patching_incomplete_scan_hosts + [item] }}"
+  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  when: hostvars[item].security_patching_scan_status | default('missing') != 'complete'
+
+- name: Require complete OpenSCAP scan results for all target hosts
+  ansible.builtin.assert:
+    that:
+      - security_patching_incomplete_scan_hosts | length == 0
+    fail_msg: >-
+      Refusing to create a security update issue because these hosts do not have complete OpenSCAP scan results:
+      {{ security_patching_incomplete_scan_hosts }}
+
 - name: Initialize report host list
   ansible.builtin.set_fact:
     security_patching_hosts_with_findings: []
@@ -39,100 +57,51 @@
       {{ security_patching_issues_url }}?state=open&labels=security-patching,patch-scan-open&per_page=100
   when: security_patching_hosts_with_findings | length > 0
 
-- name: Initialize advisory enrichment inventory
+- name: Set OpenSCAP report status
   ansible.builtin.set_fact:
-    security_patching_enrichment_inventory_hosts: []
-  when: security_patching_hosts_with_findings | length > 0
-
-- name: Collect advisory enrichment inventory
-  ansible.builtin.set_fact:
-    security_patching_enrichment_inventory_hosts: >-
+    security_patching_enrichment_status: >-
       {{
-        security_patching_enrichment_inventory_hosts
-        + [
-          {
-            'name': item,
-            'package_specs': hostvars[item].security_patching_update_package_specs | default([]),
-            'entries': hostvars[item].security_patching_update_entries | default([])
-          }
-        ]
+        'degraded'
+        if (
+          security_patching_hosts_with_findings
+          | map('extract', hostvars, 'security_patching_scan_status')
+          | reject('equalto', 'complete')
+          | list
+          | length
+        ) > 0
+        else 'complete'
       }}
-  loop: "{{ security_patching_hosts_with_findings }}"
-  when: security_patching_hosts_with_findings | length > 0
-
-- name: Write advisory enrichment inventory
-  ansible.builtin.copy:
-    dest: "/tmp/autographs-security-enrichment-input-{{ security_patching_scan_id }}.json"
-    mode: "0600"
-    content: >-
-      {{
-        {
-          'scan_id': security_patching_scan_id,
-          'target_group': security_patching_target_group,
-          'hosts': security_patching_enrichment_inventory_hosts
-        } | to_nice_json
-      }}
-  when: security_patching_hosts_with_findings | length > 0
-
-- name: Run best-effort Oracle Linux advisory enrichment # noqa command-instead-of-module
-  ansible.builtin.command:
-    argv:
-      - python3
-      - "{{ playbook_dir }}/../../../scripts/oracle_linux_advisory_enrichment.py"
-      - --input
-      - "/tmp/autographs-security-enrichment-input-{{ security_patching_scan_id }}.json"
-      - --output
-      - "/tmp/autographs-security-enrichment-output-{{ security_patching_scan_id }}.json"
-      - --oval-url
-      - "https://linux.oracle.com/security/oval/com.oracle.elsa-all.xml.bz2"
-      - --errata-base-url
-      - "https://linux.oracle.com/errata/"
-  register: security_patching_enrichment_command
-  changed_when: false
-  failed_when: false
-  when: security_patching_hosts_with_findings | length > 0
-
-- name: Check advisory enrichment output
-  ansible.builtin.stat:
-    path: "/tmp/autographs-security-enrichment-output-{{ security_patching_scan_id }}.json"
-  register: security_patching_enrichment_output
-  when: security_patching_hosts_with_findings | length > 0
-
-- name: Read advisory enrichment output
-  ansible.builtin.slurp:
-    src: "/tmp/autographs-security-enrichment-output-{{ security_patching_scan_id }}.json"
-  register: security_patching_enrichment_output_json
-  when:
-    - security_patching_hosts_with_findings | length > 0
-    - security_patching_enrichment_command.rc | default(1) == 0
-    - security_patching_enrichment_output.stat.exists | default(false)
-
-- name: Record advisory enrichment result
-  ansible.builtin.set_fact:
-    security_patching_enrichment_result: "{{ security_patching_enrichment_output_json.content | b64decode | from_json }}"
-  when:
-    - security_patching_hosts_with_findings | length > 0
-    - security_patching_enrichment_output_json.content is defined
-
-- name: Set advisory enrichment status
-  ansible.builtin.set_fact:
-    security_patching_enrichment_status: "{{ security_patching_enrichment_result.status | default('degraded') }}"
     security_patching_enrichment_message: >-
       {{
-        security_patching_enrichment_result.message
-        | default('Oracle Linux advisory enrichment failed; package inventory was preserved.')
+        'Oracle Linux OpenSCAP OVAL evaluation completed.'
+        if (
+          security_patching_hosts_with_findings
+          | map('extract', hostvars, 'security_patching_scan_status')
+          | reject('equalto', 'complete')
+          | list
+          | length
+        ) == 0
+        else 'Oracle Linux OpenSCAP OVAL evaluation completed with degraded host parser output.'
       }}
     security_patching_enrichment_by_host: {}
   when: security_patching_hosts_with_findings | length > 0
 
-- name: Index advisory enrichment by host
+- name: Index OpenSCAP findings by host
   ansible.builtin.set_fact:
     security_patching_enrichment_by_host: >-
       {{
         security_patching_enrichment_by_host
-        | combine({item.name: item}, recursive=True)
+        | combine(
+            {
+              item: {
+                'advisories': hostvars[item].security_patching_update_advisories | default([]),
+                'entries': hostvars[item].security_patching_update_entries | default([])
+              }
+            },
+            recursive=True
+          )
       }}
-  loop: "{{ security_patching_enrichment_result.hosts | default([]) }}"
+  loop: "{{ security_patching_hosts_with_findings }}"
   when: security_patching_hosts_with_findings | length > 0
 
 - name: Ensure GitHub labels exist

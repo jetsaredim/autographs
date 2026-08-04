@@ -3,37 +3,35 @@ all:
     localhost:
       ansible_connection: local
     production:
-      security_patching_update_package_specs:
-        - acl-2.4.0-1.el10_2.x86_64
-        - kernel-6.12.0-211.34.1.el10_2.x86_64
-        - kernel-core-6.12.0-211.34.1.el10_2.x86_64
-        - openssl-1:3.5.5-5.0.1.el10_2.x86_64
-        - sudo-1.9.17-4.p2.el10_2.x86_64
       security_patching_update_advisory_ids:
         - ELSA-2025-11111
         - ELSA-2025-22222
         - ELSA-2025-33333
+      security_patching_update_ksplice_aware_advisory_ids:
+        - ELSA-2025-11111
       security_patching_update_entries:
         - advisory_id: ELSA-2025-11111
           severity: Important
-          package_spec: kernel-6.12.0-211.34.1.el10_2.x86_64
-          cves:
-            - CVE-2025-0001
-        - advisory_id: ELSA-2025-11111
-          severity: Important
-          package_spec: kernel-core-6.12.0-211.34.1.el10_2.x86_64
+          ksplice_aware: true
+          packages:
+            - kernel
+            - kernel-core
+          package_count: 2
           cves:
             - CVE-2025-0001
         - advisory_id: ELSA-2025-22222
           severity: Moderate
-          package_spec: openssl-1:3.5.5-5.0.1.el10_2.x86_64
+          ksplice_aware: false
+          packages:
+            - openssl
+          package_count: 1
           cves:
             - CVE-2025-0002
         - advisory_id: ELSA-2025-33333
           severity: Low
-          package_spec: acl-2.4.0-1.el10_2.x86_64
-          cves: []
-        - advisory_id: ELSA-2025-33333
-          severity: Low
-          package_spec: sudo-1.9.17-4.p2.el10_2.x86_64
+          ksplice_aware: false
+          packages:
+            - acl
+            - sudo
+          package_count: 2
           cves: []

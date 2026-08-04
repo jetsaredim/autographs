@@ -7,10 +7,10 @@
 - Workflow run: {{ lookup('env', 'GITHUB_SERVER_URL') }}/{{ lookup('env', 'GITHUB_REPOSITORY') }}/actions/runs/{{ lookup('env', 'GITHUB_RUN_ID') }}
 {% endif %}
 
-| Instance | Updated | Approved package specs | Remaining security updates |
-|---|---:|---:|---:|
+| Instance | Ksplice available | Ksplice apply mode | DNF updated | Approved advisories | Remaining OpenSCAP findings |
+|---|---:|---|---:|---:|---:|
 {% for host in groups[security_patching_target_group] | default([]) %}
-| `{{ host }}` | {{ hostvars[host].security_patching_dnf_result.changed | default(false) }} | {{ hostvars[host].security_patching_approved_package_specs | default([]) | length }} | {{ hostvars[host].security_patching_post_update_entries | default([]) | length }} |
+| `{{ host }}` | {{ hostvars[host].security_patching_ksplice_available | default(false) }} | {{ hostvars[host].security_patching_ksplice_apply_mode | default('report_only') }} | {{ hostvars[host].security_patching_dnf_changed | default(false) }} | {{ hostvars[host].security_patching_approved_advisory_ids | default([]) | length }} | {{ hostvars[host].security_patching_post_update_entries | default([]) | length }} |
 {% endfor %}
 
 {% if security_patching_remaining_hosts | length == 0 %}

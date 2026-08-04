@@ -35,6 +35,7 @@ autographs_deploy_packages:
   - firewalld
   - curl
   - unzip
+  - openscap-scanner
   - oraclelinux-developer-release-el10
 
 autographs_deploy_operator_packages:
