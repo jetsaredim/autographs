@@ -2,8 +2,8 @@
   "deployedControllerVersion": "v0.0.7",
   "lastBump": "patch",
   "lastDeployImpact": "runtime-config",
-  "latestDeployImpactVersion": "v0.0.11",
-  "repoVersion": "v0.0.11",
-  "sourceRevision": "ff33454989e56e934ed8d8f659a0dbe63ce2fee2",
-  "updatedAt": "2026-08-02T19:32:36Z"
+  "latestDeployImpactVersion": "v0.0.12",
+  "repoVersion": "v0.0.12",
+  "sourceRevision": "58143e06caacbec933a59319dfcded8f16182231",
+  "updatedAt": "2026-08-04T01:55:36Z"
 }
