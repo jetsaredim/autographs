@@ -103,6 +103,24 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security_patching_post_update_advisory_ids is not defined", post_result)
         self.assertIn("security_patching_post_update_scan_status | default('missing') != 'complete'", post_result)
 
+    def test_partial_apply_refreshes_issue_with_remaining_findings(self):
+        post_result = POST_RESULT_TASKS_PATH.read_text(encoding="utf-8")
+        result_template = (TASKS_PATH.parents[1] / "templates" / "security-update-result.md.j2").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Prepare remaining findings issue refresh context", post_result)
+        self.assertIn("security_patching_hosts_with_findings: \"{{ security_patching_remaining_hosts }}\"", post_result)
+        self.assertIn("Render refreshed production security update issue body", post_result)
+        self.assertIn("src: security-report.md.j2", post_result)
+        self.assertIn("Require refreshed GitHub issue body within safety limit", post_result)
+        self.assertIn("Refresh production security update issue with remaining findings", post_result)
+        self.assertIn("url: \"{{ security_patching_issue_url }}\"", post_result)
+        self.assertIn("body: \"{{ security_patching_refreshed_report_body }}\"", post_result)
+        self.assertIn("when: security_patching_remaining_hosts | length > 0", post_result)
+        self.assertIn("This issue has been refreshed with the remaining findings", result_template)
+        self.assertIn("Re-apply the `{{ security_patching_approval_label }}` label", result_template)
+
     def test_apply_request_metadata_extraction_uses_quoted_regex_result(self):
         validate_request = VALIDATE_REQUEST_TASKS_PATH.read_text(encoding="utf-8")
         extract_metadata = EXTRACT_METADATA_TASKS_PATH.read_text(encoding="utf-8")

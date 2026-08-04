@@ -29,20 +29,98 @@
   loop: "{{ groups[security_patching_target_group] | default([]) }}"
   when: (hostvars[item].security_patching_post_update_entries | default([]) | length) > 0
 
-- name: Build GitHub issue label URL
+- name: Build GitHub issue URLs
   ansible.builtin.set_fact:
-    security_patching_issue_label_url: >-
+    security_patching_issue_url: >-
       {{
         [
           security_patching_github_api_url,
           'repos',
           security_patching_github_repository,
           'issues',
-          security_patching_issue_number,
+          security_patching_issue_number
+        ] | join('/')
+      }}
+
+- name: Build GitHub issue label URL
+  ansible.builtin.set_fact:
+    security_patching_issue_label_url: >-
+      {{
+        [
+          security_patching_issue_url,
           'labels',
           security_patching_approval_label
         ] | join('/')
       }}
+
+- name: Prepare remaining findings issue refresh context
+  ansible.builtin.set_fact:
+    security_patching_hosts_with_findings: "{{ security_patching_remaining_hosts }}"
+    security_patching_enrichment_status: complete
+    security_patching_enrichment_message: >-
+      Oracle Linux OpenSCAP OVAL evaluation completed after security update application.
+    security_patching_enrichment_by_host: {}
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Index remaining post-update OpenSCAP findings by host
+  ansible.builtin.set_fact:
+    security_patching_enrichment_by_host: >-
+      {{
+        security_patching_enrichment_by_host
+        | combine(
+            {
+              item: {
+                'advisories': hostvars[item].security_patching_update_advisories | default([]),
+                'entries': hostvars[item].security_patching_post_update_entries | default([])
+              }
+            },
+            recursive=True
+          )
+      }}
+  loop: "{{ security_patching_remaining_hosts }}"
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Render refreshed production security update issue body
+  ansible.builtin.template:
+    src: security-report.md.j2
+    dest: "{{ security_patching_report_path }}"
+    mode: "0600"
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Inspect refreshed production security update issue body
+  ansible.builtin.stat:
+    path: "{{ security_patching_report_path }}"
+  register: security_patching_refreshed_report_file
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Require refreshed GitHub issue body within safety limit
+  ansible.builtin.assert:
+    that:
+      - (security_patching_refreshed_report_file.stat.size | int) <= (security_patching_report_max_body_bytes | int)
+    fail_msg: >-
+      Refreshed security update issue body is {{ security_patching_refreshed_report_file.stat.size | int }} bytes,
+      above the configured {{ security_patching_report_max_body_bytes | int }} byte safety limit.
+      Re-run the scanner manually or reduce visible security report detail before retrying.
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Read refreshed production security update issue body
+  ansible.builtin.set_fact:
+    security_patching_refreshed_report_body: "{{ lookup('ansible.builtin.file', security_patching_report_path) }}"
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Refresh production security update issue with remaining findings
+  ansible.builtin.uri:
+    url: "{{ security_patching_issue_url }}"
+    method: PATCH
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      title: "Production security update report - {{ security_patching_scan_timestamp }}"
+      body: "{{ security_patching_refreshed_report_body }}"
+      labels: "{{ security_patching_issue_labels }}"
+    status_code: 200
+  when: security_patching_remaining_hosts | length > 0
+  no_log: true
 
 - name: Render production security update result comment
   ansible.builtin.template:
@@ -52,7 +130,7 @@
 
 - name: Comment production security update result
   ansible.builtin.uri:
-    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}/comments"
+    url: "{{ security_patching_issue_url }}/comments"
     method: POST
     headers: "{{ security_patching_github_headers }}"
     body_format: json
@@ -73,7 +151,7 @@
 
 - name: Close issue when no security update findings remain
   ansible.builtin.uri:
-    url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}"
+    url: "{{ security_patching_issue_url }}"
     method: PATCH
     headers: "{{ security_patching_github_headers }}"
     body_format: json
