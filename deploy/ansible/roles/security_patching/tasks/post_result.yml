@@ -53,6 +53,17 @@
         ] | join('/')
       }}
 
+- name: Mirror remaining post-update findings into scanner report facts
+  ansible.builtin.set_fact:
+    security_patching_update_entries: "{{ hostvars[item].security_patching_post_update_entries | default([]) }}"
+    security_patching_update_advisory_ids: "{{ hostvars[item].security_patching_post_update_advisory_ids | default([]) }}"
+    security_patching_update_ksplice_aware_advisory_ids: >-
+      {{ hostvars[item].security_patching_post_update_ksplice_aware_advisory_ids | default([]) }}
+  loop: "{{ security_patching_remaining_hosts }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  when: security_patching_remaining_hosts | length > 0
+
 - name: Prepare remaining findings issue refresh context
   ansible.builtin.set_fact:
     security_patching_hosts_with_findings: "{{ security_patching_remaining_hosts }}"
@@ -70,7 +81,11 @@
         | combine(
             {
               item: {
-                'advisories': hostvars[item].security_patching_update_advisories | default([]),
+                'advisories': (
+                  hostvars[item].security_patching_update_advisories | default([])
+                  | selectattr('advisory_id', 'in', hostvars[item].security_patching_post_update_advisory_ids | default([]))
+                  | list
+                ),
                 'entries': hostvars[item].security_patching_post_update_entries | default([])
               }
             },

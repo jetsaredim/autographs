@@ -36,6 +36,9 @@ CREATE_ISSUE_STATUS_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_n
 POST_RESULT_STATUS_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
     "security-post-result-status-validate-test.yml"
 )
+POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
+    "security-post-result-refresh-validate-test.yml"
+)
 
 
 def task_block(task_name: str) -> str:
@@ -110,6 +113,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         )
 
         self.assertIn("Prepare remaining findings issue refresh context", post_result)
+        self.assertIn("Mirror remaining post-update findings into scanner report facts", post_result)
         self.assertIn("security_patching_hosts_with_findings: \"{{ security_patching_remaining_hosts }}\"", post_result)
         self.assertIn("Render refreshed production security update issue body", post_result)
         self.assertIn("src: security-report.md.j2", post_result)
@@ -137,6 +141,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         metadata_test = REQUEST_METADATA_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         create_status_test = CREATE_ISSUE_STATUS_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         post_result_status_test = POST_RESULT_STATUS_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        post_result_refresh_test = POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         ci = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml").read_text(
             encoding="utf-8"
         )
@@ -150,6 +155,10 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security-create-issue-status-validate-test.yml", ci)
         self.assertIn("tasks_from: post_result", post_result_status_test)
         self.assertIn("security-post-result-status-validate-test.yml", ci)
+        self.assertIn("tasks_from: post_result", post_result_refresh_test)
+        self.assertIn("security_patching_refreshed_report_body", post_result_refresh_test)
+        self.assertIn("stale_advisory_id not in security_patching_refreshed_report_body", post_result_refresh_test)
+        self.assertIn("security-post-result-refresh-validate-test.yml", ci)
 
     def test_apply_path_reports_ksplice_and_uses_advisory_scoped_dnf(self):
         patch_tasks = PATCH_TASKS_PATH.read_text(encoding="utf-8")
