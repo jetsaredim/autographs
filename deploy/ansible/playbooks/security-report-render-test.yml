@@ -10,7 +10,6 @@
       - production
     security_patching_enrichment_status: complete
     security_patching_enrichment_message: Oracle Linux OpenSCAP OVAL evaluation completed.
-    security_patching_report_max_detail_rows: 2
     security_patching_report_max_cves_per_row: 2
     security_patching_report_max_body_bytes: 60000
     security_patching_report_path: /tmp/autographs-security-report-render-test.md
@@ -26,6 +25,9 @@
             errata_link: https://linux.oracle.com/errata/ELSA-2025-11111.html
             summary: ELSA-2025-11111 kernel security update
             package_count: 2
+            packages:
+              - kernel
+              - kernel-core
             ksplice_aware: true
           - advisory_id: ELSA-2025-22222
             severity: Moderate
@@ -34,6 +36,8 @@
             errata_link: https://linux.oracle.com/errata/ELSA-2025-22222.html
             summary: ELSA-2025-22222 openssl security update
             package_count: 1
+            packages:
+              - openssl
             ksplice_aware: false
           - advisory_id: ELSA-2025-33333
             severity: Low
@@ -41,6 +45,9 @@
             errata_link: https://linux.oracle.com/errata/ELSA-2025-33333.html
             summary: ELSA-2025-33333 acl and sudo security update
             package_count: 2
+            packages:
+              - acl
+              - sudo
             ksplice_aware: false
         entries:
           - advisory_id: ELSA-2025-11111
@@ -123,7 +130,9 @@
           - security_patching_render_test_metadata.instances.production.advisory_ids | length == 3
           - security_patching_render_test_file.stat.size <= security_patching_report_max_body_bytes
           - "'## Advisory review summary' in security_patching_render_test_body"
+          - "'## Advisory finding detail sample' not in security_patching_render_test_body"
           - "'Ksplice-specific OVAL findings' in security_patching_render_test_body"
+          - "'Package sample' in security_patching_render_test_body"
+          - "'`kernel`, `kernel-core`' in security_patching_render_test_body"
           - "'ELSA-2025-33333' in security_patching_render_test_body"
           - "'+1 more' in security_patching_render_test_body"
-          - "'1 additional advisory finding rows omitted' in security_patching_render_test_body"

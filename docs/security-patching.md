@@ -122,7 +122,7 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 
 - Renders the scanner issue body.
 - Starts with a hidden metadata block consumed by the apply workflow.
-- Then renders a public Markdown report with scan ID, timestamp, target group, host summary, advisory summary, sampled OpenSCAP finding details, review checklist, and approval instructions.
+- Then renders a public Markdown report with scan ID, timestamp, target group, host summary, a combined advisory/package summary, review checklist, and approval instructions.
 
 `deploy/ansible/roles/security_patching/templates/security-update-result.md.j2`
 
@@ -149,7 +149,7 @@ The apply workflow validates that:
 6. the target group matches the workflow target, and
 7. the fresh pre-apply OpenSCAP advisory ID set exactly matches the advisory IDs embedded in the issue.
 
-If the advisory set has drifted, the workflow refuses to apply updates. Run the scanner again to generate a fresh issue.
+If the advisory set has drifted, the workflow refuses to apply updates. For ordinary partial updates, the apply workflow refreshes the issue with the post-update findings before removing the approval label; for unrelated drift, run the scanner again to refresh the issue.
 
 ## Scan flow
 
@@ -238,18 +238,18 @@ The visible issue body contains:
   | `production` | 3 | 3 | 1 |
   ```
 
-- a per-host advisory summary and sampled finding detail:
+- a per-host advisory summary with affected package count and package sample:
 
   ```markdown
-  | Advisory | Severity | CVEs | Ksplice-specific OVAL | Packages | Summary |
-  |---|---|---|---:|---|---|
-  | [ELSA-...](...) | Important | [CVE-...](...) | true | `glibc` | ELSA-... security update |
+  | Advisory | Severity | CVEs | Ksplice-specific OVAL | Affected packages | Package sample | Summary |
+  |---|---|---|---:|---:|---|---|
+  | [ELSA-...](...) | Important | [CVE-...](...) | true | 2 | `glibc`, `glibc-common` | ELSA-... security update |
   ```
 
 - a review checklist
 - one-click approval instructions for the `approved-production-update` label
 
-The visible report is sampled so large advisory sets fit inside GitHub issue body limits. The complete approved advisory ID set is preserved in hidden metadata for drift protection.
+Long CVE and package lists are sampled in the visible table so large advisory sets fit inside GitHub issue body limits. The complete approved advisory ID set is preserved in hidden metadata for drift protection.
 
 ## Host inventory
 
@@ -321,7 +321,7 @@ After validation, `security-patch.yml` scans each runtime host again by importin
 
 The apply playbook treats OpenSCAP as the authority for detection and closure. DNF is the only mutating remediation engine in the approval workflow because `ksplice all upgrade` is not scoped to the approved advisory ID set. The workflow still reports Ksplice availability and Ksplice-specific OVAL findings so a future Ksplice-specific approval path can be added without weakening the current approval boundary.
 
-The workflow runs hosts serially and re-scans after applying updates. It removes the approval label after the run starts, comments the result back to the issue, and closes the issue only when the post-update scan has no remaining findings.
+The workflow runs hosts serially and re-scans after applying updates. It removes the approval label after the run starts, comments the result back to the issue, and closes the issue only when the post-update scan has no remaining findings. If findings remain after a successful partial update, the workflow rewrites the same issue body with the remaining post-update advisory set so an operator can re-apply the approval label without manually running the weekly scanner first.
 
 ## Result comment format
 
@@ -329,10 +329,11 @@ When the apply playbook reaches `tasks/post_result.yml`, it:
 
 1. Refuses to publish a result unless every target host has complete post-update OpenSCAP scan facts.
 2. Builds `security_patching_remaining_hosts` from hosts with non-empty `security_patching_post_update_entries`.
-3. Renders `security-update-result.md.j2`.
-4. Posts the rendered file as an issue comment.
-5. Removes the approval label.
-6. Closes the issue with `state_reason: completed` if no hosts still have findings.
+3. When findings remain, renders `security-report.md.j2` from the post-update facts and refreshes the same issue body, title, and scanner labels with the remaining advisory metadata.
+4. Renders `security-update-result.md.j2`.
+5. Posts the rendered file as an issue comment.
+6. Removes the approval label.
+7. Closes the issue with `state_reason: completed` if no hosts still have findings.
 
 The result comment begins:
 
@@ -359,14 +360,15 @@ If the post-update scan is clean, the comment says:
 Post-update scan is clean for the approved target group. This issue will be closed automatically.
 ```
 
-If findings remain, the comment lists the hosts and leaves the issue open:
+If findings remain, the comment lists the hosts, notes that the issue body was refreshed with the remaining advisory set, and leaves the issue open:
 
 ```markdown
 Post-update scan still reports findings on:
 
 - `production`: 1 remaining security update(s)
 
-This issue is intentionally left open for follow-up review.
+This issue has been refreshed with the remaining findings and is intentionally left open for follow-up review.
+Re-apply the `approved-production-update` label after reviewing the refreshed advisory set.
 ```
 
 ## Failure cleanup behavior

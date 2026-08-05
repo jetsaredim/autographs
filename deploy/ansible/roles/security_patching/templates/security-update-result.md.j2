@@ -21,5 +21,6 @@ Post-update scan still reports findings on:
 - `{{ host }}`: {{ hostvars[host].security_patching_post_update_entries | default([]) | length }} remaining security update(s)
 {% endfor %}
 
-This issue is intentionally left open for follow-up review.
+This issue has been refreshed with the remaining findings and is intentionally left open for follow-up review.
+Re-apply the `{{ security_patching_approval_label }}` label after reviewing the refreshed advisory set.
 {% endif %}
