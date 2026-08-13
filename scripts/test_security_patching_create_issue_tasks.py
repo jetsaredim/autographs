@@ -36,6 +36,9 @@ CREATE_ISSUE_STATUS_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_n
 POST_RESULT_STATUS_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
     "security-post-result-status-validate-test.yml"
 )
+POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
+    "security-post-result-refresh-validate-test.yml"
+)
 
 
 def task_block(task_name: str) -> str:
@@ -57,26 +60,26 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security_patching_open_issues_url:", build_open_issue_url)
         self.assertIn("{{ security_patching_issues_url }}", build_open_issue_url)
 
-    def test_issue_report_visible_rows_are_bounded(self):
+    def test_issue_report_combines_advisory_summary_and_package_sample(self):
         defaults = DEFAULTS_PATH.read_text(encoding="utf-8")
         template = REPORT_TEMPLATE_PATH.read_text(encoding="utf-8")
 
-        self.assertIn("security_patching_report_max_detail_rows: 50", defaults)
+        self.assertNotIn("security_patching_report_max_detail_rows", defaults)
         self.assertIn("security_patching_report_max_cves_per_row: 4", defaults)
         self.assertIn("security_patching_report_max_body_bytes: 60000", defaults)
         self.assertIn(
-            "shown_entries = report_entries[:security_patching_report_max_detail_rows | int]",
+            "shown_cves = advisory_cves[:security_patching_report_max_cves_per_row | int]",
             template,
         )
+        self.assertIn("advisory_packages = advisory.packages | default([])", template)
+        self.assertIn("shown_packages = advisory_packages[:4]", template)
         self.assertIn(
-            "shown_cves = entry_cves[:security_patching_report_max_cves_per_row | int]",
-            template,
-        )
-        self.assertIn(
-            "complete approved advisory ID set is preserved in the hidden scan metadata",
+            "complete approved advisory ID set is preserved in hidden scanner metadata",
             template,
         )
         self.assertIn("## Advisory review summary", template)
+        self.assertNotIn("## Advisory finding detail sample", template)
+        self.assertIn("Package sample", template)
         self.assertIn("advisory_ids: {{ hostvars[host].security_patching_update_advisory_ids", template)
         self.assertIn("Ksplice-specific OVAL findings", template)
         self.assertIn("| to_json }}", template)
@@ -103,6 +106,25 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security_patching_post_update_advisory_ids is not defined", post_result)
         self.assertIn("security_patching_post_update_scan_status | default('missing') != 'complete'", post_result)
 
+    def test_partial_apply_refreshes_issue_with_remaining_findings(self):
+        post_result = POST_RESULT_TASKS_PATH.read_text(encoding="utf-8")
+        result_template = (TASKS_PATH.parents[1] / "templates" / "security-update-result.md.j2").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Prepare remaining findings issue refresh context", post_result)
+        self.assertIn("Mirror remaining post-update findings into scanner report facts", post_result)
+        self.assertIn("security_patching_hosts_with_findings: \"{{ security_patching_remaining_hosts }}\"", post_result)
+        self.assertIn("Render refreshed production security update issue body", post_result)
+        self.assertIn("src: security-report.md.j2", post_result)
+        self.assertIn("Require refreshed GitHub issue body within safety limit", post_result)
+        self.assertIn("Refresh production security update issue with remaining findings", post_result)
+        self.assertIn("url: \"{{ security_patching_issue_url }}\"", post_result)
+        self.assertIn("body: \"{{ security_patching_refreshed_report_body }}\"", post_result)
+        self.assertIn("when: security_patching_remaining_hosts | length > 0", post_result)
+        self.assertIn("This issue has been refreshed with the remaining findings", result_template)
+        self.assertIn("Re-apply the `{{ security_patching_approval_label }}` label", result_template)
+
     def test_apply_request_metadata_extraction_uses_quoted_regex_result(self):
         validate_request = VALIDATE_REQUEST_TASKS_PATH.read_text(encoding="utf-8")
         extract_metadata = EXTRACT_METADATA_TASKS_PATH.read_text(encoding="utf-8")
@@ -119,6 +141,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         metadata_test = REQUEST_METADATA_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         create_status_test = CREATE_ISSUE_STATUS_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         post_result_status_test = POST_RESULT_STATUS_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        post_result_refresh_test = POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         ci = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml").read_text(
             encoding="utf-8"
         )
@@ -132,6 +155,10 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security-create-issue-status-validate-test.yml", ci)
         self.assertIn("tasks_from: post_result", post_result_status_test)
         self.assertIn("security-post-result-status-validate-test.yml", ci)
+        self.assertIn("tasks_from: post_result", post_result_refresh_test)
+        self.assertIn("security_patching_refreshed_report_body", post_result_refresh_test)
+        self.assertIn("stale_advisory_id not in security_patching_refreshed_report_body", post_result_refresh_test)
+        self.assertIn("security-post-result-refresh-validate-test.yml", ci)
 
     def test_apply_path_reports_ksplice_and_uses_advisory_scoped_dnf(self):
         patch_tasks = PATCH_TASKS_PATH.read_text(encoding="utf-8")

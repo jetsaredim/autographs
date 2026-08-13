@@ -37,47 +37,26 @@ OpenSCAP evaluation: `{{ security_patching_enrichment_status | default('unknown'
 {% set report_host = (security_patching_enrichment_by_host | default({})).get(host, {}) %}
 {% set report_advisories = report_host.get('advisories', []) %}
 {% if report_advisories | length > 0 %}
-| Advisory | Severity | CVEs | Ksplice-specific OVAL | Affected packages | Summary |
-|---|---|---|---:|---:|---|
+| Advisory | Severity | CVEs | Ksplice-specific OVAL | Affected packages | Package sample | Summary |
+|---|---|---|---:|---:|---|---|
 {% for advisory in report_advisories %}
 {% set advisory_cves = advisory.cves | default([]) %}
 {% set shown_cves = advisory_cves[:security_patching_report_max_cves_per_row | int] %}
-| {% if advisory.errata_link | default('') | length > 0 %}[{{ advisory.advisory_id }}]({{ advisory.errata_link }}){% elif advisory.advisory_id.startswith('ELSA-') %}[{{ advisory.advisory_id }}](https://linux.oracle.com/errata/{{ advisory.advisory_id }}.html){% else %}`{{ advisory.advisory_id }}`{% endif %} | {{ advisory.severity | default('unknown') }} | {% if shown_cves | length > 0 %}{% for cve in shown_cves %}[{{ cve }}](https://nvd.nist.gov/vuln/detail/{{ cve }}){% if not loop.last %}, {% endif %}{% endfor %}{% if advisory_cves | length > shown_cves | length %}, +{{ (advisory_cves | length) - (shown_cves | length) }} more{% endif %}{% else %}none reported{% endif %} | {{ advisory.ksplice_aware | default(false) }} | {{ advisory.package_count | default(0) }} | {{ advisory.summary | default('') | truncate(120, true, '...') if advisory.summary | default('') | length > 0 else '—' }} |
+{% set advisory_packages = advisory.packages | default([]) %}
+{% set shown_packages = advisory_packages[:4] %}
+{% set advisory_package_count = advisory.package_count | default(advisory_packages | length) %}
+| {% if advisory.errata_link | default('') | length > 0 %}[{{ advisory.advisory_id }}]({{ advisory.errata_link }}){% elif advisory.advisory_id.startswith('ELSA-') %}[{{ advisory.advisory_id }}](https://linux.oracle.com/errata/{{ advisory.advisory_id }}.html){% else %}`{{ advisory.advisory_id }}`{% endif %} | {{ advisory.severity | default('unknown') }} | {% if shown_cves | length > 0 %}{% for cve in shown_cves %}[{{ cve }}](https://nvd.nist.gov/vuln/detail/{{ cve }}){% if not loop.last %}, {% endif %}{% endfor %}{% if advisory_cves | length > shown_cves | length %}, +{{ (advisory_cves | length) - (shown_cves | length) }} more{% endif %}{% else %}none reported{% endif %} | {{ advisory.ksplice_aware | default(false) }} | {{ advisory_package_count }} | {% if shown_packages | length > 0 %}{% for package in shown_packages %}`{{ package }}`{% if not loop.last %}, {% endif %}{% endfor %}{% if advisory_packages | length > shown_packages | length %}, +{{ (advisory_packages | length) - (shown_packages | length) }} more{% endif %}{% else %}—{% endif %} | {{ advisory.summary | default('') | truncate(120, true, '...') if advisory.summary | default('') | length > 0 else '—' }} |
 {% endfor %}
 {% else %}
-_Advisory summary was unavailable for this host; review the finding detail sample below._
-
-{% endif %}
-{% endfor %}
-
-## Advisory finding detail sample
-
-{% for host in security_patching_hosts_with_findings %}
-### `{{ host }}`
-
-{% set report_host = (security_patching_enrichment_by_host | default({})).get(host, {}) %}
-{% set report_entries = report_host.get('entries', hostvars[host].security_patching_update_entries | default([])) %}
-{% set shown_entries = report_entries[:security_patching_report_max_detail_rows | int] %}
-| Advisory | Severity | CVEs | Ksplice-specific OVAL | Packages | Summary |
-|---|---|---|---:|---|---|
-{% for entry in shown_entries %}
-{% set entry_cves = entry.cves | default([]) %}
-{% set shown_cves = entry_cves[:security_patching_report_max_cves_per_row | int] %}
-{% set entry_packages = entry.packages | default([]) %}
-{% set shown_packages = entry_packages[:4] %}
-| {% if entry.errata_link | default('') | length > 0 %}[{{ entry.advisory_id }}]({{ entry.errata_link }}){% elif entry.advisory_id.startswith('ELSA-') %}[{{ entry.advisory_id }}](https://linux.oracle.com/errata/{{ entry.advisory_id }}.html){% elif entry.advisory_id.startswith('RHSA-') %}[{{ entry.advisory_id }}](https://access.redhat.com/errata/{{ entry.advisory_id }}){% else %}`{{ entry.advisory_id }}`{% endif %} | {{ entry.severity | default('unknown') }} | {% if shown_cves | length > 0 %}{% for cve in shown_cves %}[{{ cve }}](https://nvd.nist.gov/vuln/detail/{{ cve }}){% if not loop.last %}, {% endif %}{% endfor %}{% if entry_cves | length > shown_cves | length %}, +{{ (entry_cves | length) - (shown_cves | length) }} more{% endif %}{% else %}—{% endif %} | {{ entry.ksplice_aware | default(false) }} | {% if shown_packages | length > 0 %}{% for package in shown_packages %}`{{ package }}`{% if not loop.last %}, {% endif %}{% endfor %}{% if entry_packages | length > shown_packages | length %}, +{{ (entry_packages | length) - (shown_packages | length) }} more{% endif %}{% else %}—{% endif %} | {{ entry.summary | default('') | truncate(120, true, '...') if entry.summary | default('') | length > 0 else '—' }} |
-{% endfor %}
-
-{% if report_entries | length > shown_entries | length %}
-_{{ (report_entries | length) - (shown_entries | length) }} additional advisory finding rows omitted from this visible sample. The complete approved advisory ID set is preserved in the hidden scan metadata above for drift protection._
+_Advisory details were unavailable for this host; review the hidden metadata and scanner logs before approving._
 
 {% endif %}
 {% endfor %}
 
 ## Review checklist
 
-- [ ] I reviewed the advisory summary, severities, CVE counts, and affected package counts.
-- [ ] I reviewed the visible finding sample and understand the complete advisory ID set is preserved in hidden scanner metadata for drift protection.
+- [ ] I reviewed the advisory summary, severities, CVE counts, affected package counts, and package samples.
+- [ ] I understand the complete approved advisory ID set is preserved in hidden scanner metadata for drift protection.
 - [ ] I understand the update workflow will re-scan first and refuse to continue if the OpenSCAP advisory set drifted.
 - [ ] I understand the update workflow reports Ksplice availability but only applies approved advisories through DNF's advisory-scoped update path.
 
