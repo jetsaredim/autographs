@@ -1,0 +1,60 @@
+- name: Validate approved production security reboot
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_request_accepted_message: Production security reboot request accepted.
+  tasks:
+    - name: Validate security reboot request
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: validate_request
+
+- name: Reboot production runtime and clean old installonly packages
+  hosts: "{{ security_patching_target_group | default('runtime') }}"
+  become: true
+  gather_facts: true
+  serial: 1
+  tasks:
+    - name: Scan current host security state before reboot
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: scan
+
+    - name: Validate current reboot finding set
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: validate_reboot_state
+
+    - name: Run approved reboot and installonly cleanup
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: reboot_cleanup
+      when: security_patching_reboot_approved_advisory_ids | default([]) | length > 0
+
+- name: Scan production security state after reboot cleanup
+  hosts: "{{ security_patching_target_group | default('runtime') }}"
+  become: true
+  gather_facts: true
+  serial: 1
+  tasks:
+    - name: Run post-reboot OpenSCAP scan
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: scan
+
+    - name: Preserve post-reboot OpenSCAP finding set
+      ansible.builtin.set_fact:
+        security_patching_post_reboot_entries: "{{ security_patching_update_entries | default([]) }}"
+        security_patching_post_reboot_advisories: "{{ security_patching_update_advisories | default([]) }}"
+        security_patching_post_reboot_advisory_ids: "{{ security_patching_update_advisory_ids | default([]) }}"
+        security_patching_post_reboot_ksplice_aware_advisory_ids: "{{ security_patching_update_ksplice_aware_advisory_ids | default([]) }}"
+        security_patching_post_reboot_scan_status: "{{ security_patching_scan_status | default('missing') }}"
+
+- name: Comment on production security reboot issue
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Publish production security reboot result
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: post_reboot_result

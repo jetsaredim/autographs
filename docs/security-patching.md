@@ -8,6 +8,7 @@ The automation is split into two GitHub Actions workflows:
 
 - `Weekly Security Scan` runs on a weekly schedule or manually and invokes `deploy/ansible/playbooks/security-scan.yml`.
 - `Apply Security Updates` runs when the `approved-production-update` label is added to a scanner-created issue and invokes `deploy/ansible/playbooks/security-patch.yml`.
+- `Reboot Security Runtime` runs when the `approved-production-reboot` label is added to a scanner-created issue and invokes `deploy/ansible/playbooks/security-reboot.yml`.
 
 The workflows are intentionally thin wrappers around Ansible. Runtime host behavior, GitHub issue rendering, approval validation, drift checks, and update application live in the `security_patching` Ansible role.
 
@@ -56,9 +57,37 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 - Runs `deploy/ansible/playbooks/security-patch-cleanup.yml` with `if: always() && steps.security_update.outcome != 'success'`.
 - Fails the workflow after cleanup when the main update step did not succeed.
 
+`.github/workflows/reboot-security-runtime.yml`
+
+- Runs on `issues.labeled` events only.
+- Uses a job-level guard:
+
+  ```yaml
+  github.event.label.name == 'approved-production-reboot' &&
+  github.event.issue.pull_request == null
+  ```
+
+- Installs `openscap-utils`, `bzip2`, and local Ansible tooling so the workflow can re-scan after reboot and cleanup.
+- Writes the deploy SSH key to `$RUNNER_TEMP` and passes it to `oscap-ssh` through `SSH_ADDITIONAL_OPTIONS`.
+- Resolves the runtime host through `.github/actions/resolve-runtime-ip`.
+- Runs `deploy/ansible/playbooks/security-reboot.yml` through the pinned Ansible action.
+- Uses `continue-on-error: true` on the main reboot step so the workflow can still run cleanup after validation, SSH, drift detection, reboot, health, installonly cleanup, or OpenSCAP failures.
+- Passes these extra vars to the reboot playbook:
+
+  ```text
+  security_patching_issue_number=<labeled issue number>
+  security_patching_approver=<label actor>
+  security_patching_approval_label=approved-production-reboot
+  security_patching_target_group=runtime
+  security_patching_reboot_health_domain=<AUTOGRAPHS_DOMAIN>
+  ```
+
+- Runs the same cleanup playbook as failed update requests, but removes `approved-production-reboot` instead of `approved-production-update`.
+- Fails the workflow after cleanup when the main reboot step did not succeed.
+
 `.github/production-patch-approvers.yml`
 
-- Stores the GitHub usernames allowed to approve production updates by applying the approval label.
+- Stores the GitHub usernames allowed to approve production updates and reboot cleanup by applying an approval label.
 - Current format:
 
   ```yaml
@@ -90,11 +119,27 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 - Final play returns to `localhost` and imports `tasks_from: post_result`.
 - If an earlier play fails, Ansible will not reach `post_result`; the GitHub Actions cleanup step covers that failure path.
 
+`deploy/ansible/playbooks/security-reboot.yml`
+
+- First play targets `localhost` and imports `tasks_from: validate_request`, using the reboot approval label.
+- Second play targets `security_patching_target_group`, runs with `become: true`, and uses `serial: 1`.
+- On each runtime host, it imports `tasks_from: scan`, imports `tasks_from: validate_reboot_state`, then imports `tasks_from: reboot_cleanup` only for hosts with approved findings.
+- `tasks/validate_reboot_state.yml` compares the current OpenSCAP advisory IDs to the approved issue metadata before downtime. Hosts with no approved findings record a skipped reboot state.
+- `tasks/reboot_cleanup.yml` records the running kernel, reboots, waits for SSH, records the new running kernel, waits for Autographs quadlet services, verifies local static Caddy health, verifies Caddy-fronted `/admin/api/health`, and runs:
+
+  ```bash
+  dnf -y remove --oldinstallonly --setopt=installonly_limit=2
+  ```
+
+- Third play re-scans the runtime host with OpenSCAP and preserves post-reboot scan facts.
+- Final play returns to `localhost` and imports `tasks_from: post_reboot_result`.
+- If an earlier play fails, Ansible will not reach `post_reboot_result`; the GitHub Actions cleanup step covers that failure path.
+
 `deploy/ansible/playbooks/security-patch-cleanup.yml`
 
 - Runs only on `localhost`.
 - Imports `security_patching` with `tasks_from: cleanup_failed_request`.
-- Comments on the issue and removes the approval label after failed update workflows.
+- Comments on the issue and removes the approval label after failed update or reboot workflows.
 
 ### Ansible role defaults and templates
 
@@ -108,6 +153,7 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
   production
   patch-scan-open
   approved-production-update
+  approved-production-reboot
   ```
 
 - Defines the labels applied to scanner-created or scanner-updated issues:
@@ -129,6 +175,11 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 - Renders the success or partial-success result comment after the apply playbook reaches `post_result`.
 - Includes approver, scan ID, target group, optional workflow run URL, per-host update counts, and remaining findings.
 
+`deploy/ansible/roles/security_patching/templates/security-reboot-result.md.j2`
+
+- Renders the success or follow-up result comment after the reboot playbook reaches `post_reboot_result`.
+- Includes approver, scan ID, target group, optional workflow run URL, kernel before/after reboot, installonly cleanup status, and remaining findings.
+
 ## Approval model
 
 The scanner creates an issue when production hosts fail Oracle Linux OVAL definitions during an OpenSCAP scan.
@@ -137,6 +188,12 @@ To approve the proposed update set, apply this label to the issue:
 
 ```text
 approved-production-update
+```
+
+To approve a production reboot and old installonly kernel cleanup after reviewing a patch result that indicates the remaining findings need reboot follow-up, apply this label to the issue:
+
+```text
+approved-production-reboot
 ```
 
 The apply workflow validates that:
@@ -150,6 +207,8 @@ The apply workflow validates that:
 7. the fresh pre-apply OpenSCAP advisory ID set exactly matches the advisory IDs embedded in the issue.
 
 If the advisory set has drifted, the workflow refuses to apply updates. For ordinary partial updates, the apply workflow refreshes the issue with the post-update findings before removing the approval label; for unrelated drift, run the scanner again to refresh the issue.
+
+The reboot workflow uses the same approver allowlist and scanner metadata validation but a separate label so package remediation approval never implies downtime. It also performs a fresh pre-reboot OpenSCAP drift check before taking downtime. The reboot path is intended for cases where DNF has already installed all applicable updates, but OpenSCAP still reports installed stale installonly kernel packages or the system must boot into a newly installed kernel before old kernel cleanup can finish.
 
 ## Scan flow
 
@@ -323,6 +382,34 @@ The apply playbook treats OpenSCAP as the authority for detection and closure. D
 
 The workflow runs hosts serially and re-scans after applying updates. It removes the approval label after the run starts, comments the result back to the issue, and closes the issue only when the post-update scan has no remaining findings. If findings remain after a successful partial update, the workflow rewrites the same issue body with the remaining post-update advisory set so an operator can re-apply the approval label without manually running the weekly scanner first.
 
+When the remaining findings are kernel or UEK installonly findings, the update workflow can fail intentionally if DNF reports no package changes for still-approved advisories. That means DNF has no more advisory-scoped package updates to install. Review the issue and current runtime state, then use the separate `approved-production-reboot` label when downtime is acceptable. The reboot workflow boots the instance into the newest installed kernel, waits for Autographs health, removes old installonly kernels, re-runs OpenSCAP, and refreshes or closes the same issue.
+
+## Reboot flow
+
+The reboot path starts when an allowed operator applies `approved-production-reboot` to a scanner issue.
+
+`tasks/validate_request.yml` runs first on `localhost` with the reboot approval label and the same scanner metadata contract used by the update workflow. It confirms the actor is allowed, the issue is open, the issue is scanner-created, the reboot approval label is present, and metadata targets the requested group.
+
+The reboot playbook scans each runtime host again before downtime. `tasks/validate_reboot_state.yml` refuses to proceed unless the current OpenSCAP advisory ID set exactly matches the issue metadata for that host. If a host in the target group has no approved findings and remains clean, it records a skipped reboot state instead of rebooting.
+
+`tasks/reboot_cleanup.yml` then runs per runtime host that still has approved findings:
+
+1. Records the running kernel before reboot.
+2. Reboots the host and waits for SSH to return.
+3. Records the running kernel after reboot.
+4. Waits for `autographs-controller.service` and `autographs-caddy.service`.
+5. Verifies `http://127.0.0.1:8081/manifest.json`.
+6. Verifies Caddy-fronted `https://<AUTOGRAPHS_DOMAIN>/admin/api/health` by resolving the configured domain to `127.0.0.1` on the host.
+7. Removes old installonly kernel packages with:
+
+   ```bash
+   dnf -y remove --oldinstallonly --setopt=installonly_limit=2
+   ```
+
+After cleanup, the playbook re-runs the OpenSCAP scan. `tasks/post_reboot_result.yml` refuses to publish a result unless all hosts have complete post-reboot scan facts. If findings remain, it refreshes the same issue with the remaining advisory set, removes the reboot label, and leaves the issue open. If the scan is clean, it comments the result, removes the reboot label, and closes the issue.
+
+The reboot result comment includes the kernel before reboot, kernel after reboot, whether installonly cleanup changed anything, and remaining OpenSCAP finding counts.
+
 ## Result comment format
 
 When the apply playbook reaches `tasks/post_result.yml`, it:
@@ -371,9 +458,17 @@ This issue has been refreshed with the remaining findings and is intentionally l
 Re-apply the `approved-production-update` label after reviewing the refreshed advisory set.
 ```
 
+When the reboot playbook reaches `tasks/post_reboot_result.yml`, it follows the same refresh-or-close issue behavior and posts a reboot-specific table:
+
+```markdown
+| Instance | Rebooted | Kernel before | Kernel after | Installonly cleanup | Remaining OpenSCAP findings |
+|---|---:|---|---|---:|---:|
+| `production` | true | `6.12.0-204.92.4.3.el10uek.x86_64` | `6.12.0-205.92.4.2.el10uek.x86_64` | true | 0 |
+```
+
 ## Failure cleanup behavior
 
-If validation, drift detection, SSH, OpenSCAP, Ksplice, DNF, or another update step fails, Ansible may not reach `post_result`. The GitHub Actions workflow handles that with an `always()` cleanup step.
+If validation, drift detection, SSH, OpenSCAP, Ksplice, DNF, reboot, health checks, installonly cleanup, or another update step fails, Ansible may not reach `post_result` or `post_reboot_result`. The GitHub Actions workflows handle that with an `always()` cleanup step.
 
 `tasks/cleanup_failed_request.yml`:
 
@@ -404,8 +499,9 @@ The scanner ensures these labels exist before creating or updating a scan issue:
 | `production` | Marks production runtime maintenance issues. |
 | `patch-scan-open` | Marks an open scan finding that can be updated by later scans. |
 | `approved-production-update` | Triggers the apply workflow when added by an allowed actor. |
+| `approved-production-reboot` | Triggers the reboot/installonly cleanup workflow when added by an allowed actor. |
 
-Only the first three labels are applied by the scanner to report issues. The approval label is applied manually by an allowed operator.
+Only the first three labels are applied by the scanner to report issues. The approval labels are applied manually by an allowed operator.
 
 ## Control-plane files
 
@@ -413,9 +509,11 @@ The sensitive control-plane files are CODEOWNED:
 
 - `.github/workflows/weekly-security-scan.yml`
 - `.github/workflows/apply-security-updates.yml`
+- `.github/workflows/reboot-security-runtime.yml`
 - `.github/production-patch-approvers.yml`
 - `deploy/ansible/playbooks/security-scan.yml`
 - `deploy/ansible/playbooks/security-patch.yml`
+- `deploy/ansible/playbooks/security-reboot.yml`
 - `deploy/ansible/roles/security_patching/`
 
 CODEOWNERS only requests ownership by default. Require CODEOWNER review through branch protection if this should be enforced before merging future changes.
@@ -431,6 +529,7 @@ ANSIBLE_CONFIG=deploy/ansible/ansible.cfg \
 ansible-playbook --syntax-check \
   deploy/ansible/playbooks/security-scan.yml \
   deploy/ansible/playbooks/security-patch.yml \
+  deploy/ansible/playbooks/security-reboot.yml \
   deploy/ansible/playbooks/security-patch-cleanup.yml
 ```
 
@@ -444,6 +543,7 @@ ansible-lint \
   deploy/ansible/roles/security_patching \
   deploy/ansible/playbooks/security-scan.yml \
   deploy/ansible/playbooks/security-patch.yml \
+  deploy/ansible/playbooks/security-reboot.yml \
   deploy/ansible/playbooks/security-patch-cleanup.yml
 ```
 
@@ -498,7 +598,7 @@ gh workflow run weekly-security-scan.yml --ref main
 gh issue view <scanner-issue-number> --json labels,body
 ```
 
-Expected result after the scanner update: labels are reset to `security-patching`, `production`, and `patch-scan-open`; stale `approved-production-update` is absent from the open scanner issue.
+Expected result after the scanner update: labels are reset to `security-patching`, `production`, and `patch-scan-open`; stale `approved-production-update` and `approved-production-reboot` labels are absent from the open scanner issue.
 
 ### dry-run apply-path exercise
 

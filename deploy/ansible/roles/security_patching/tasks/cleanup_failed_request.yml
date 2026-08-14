@@ -48,7 +48,7 @@
     body_format: json
     body:
       body: |
-        Production security update workflow did not complete successfully.
+        {{ security_patching_failed_request_message }}
 
         - Workflow outcome: `{{ security_patching_workflow_outcome | default('failure') }}`
         - Workflow run: {{ security_patching_workflow_run_url }}

@@ -1,0 +1,32 @@
+- name: Resolve approved reboot advisory IDs for host
+  ansible.builtin.set_fact:
+    security_patching_reboot_approved_advisory_ids: >-
+      {{
+        (hostvars['localhost'].security_patching_request_instances | default({}))
+        .get(inventory_hostname, {})
+        .get('advisory_ids', [])
+        | unique
+        | sort
+        | list
+      }}
+    security_patching_reboot_current_advisory_ids: >-
+      {{ security_patching_update_advisory_ids | default([]) | unique | sort | list }}
+
+- name: Refuse reboot if security finding set drifted
+  ansible.builtin.assert:
+    that:
+      - security_patching_reboot_current_advisory_ids == security_patching_reboot_approved_advisory_ids
+    fail_msg: >-
+      Current security finding set for {{ inventory_hostname }} does not match the approved scanner issue.
+      Current={{ security_patching_reboot_current_advisory_ids }}
+      Approved={{ security_patching_reboot_approved_advisory_ids }}
+
+- name: Record skipped reboot state when host has no approved findings
+  ansible.builtin.set_fact:
+    security_patching_reboot_completed: false
+    security_patching_pre_reboot_kernel_release: ""
+    security_patching_post_reboot_kernel_release: ""
+    security_patching_installonly_cleanup_changed: false
+    security_patching_installonly_cleanup_stdout: ""
+    security_patching_installonly_cleanup_stderr: ""
+  when: security_patching_reboot_approved_advisory_ids | length == 0

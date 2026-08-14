@@ -1,0 +1,76 @@
+- name: Validate matching security reboot state
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Record matching approved reboot issue metadata
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          localhost:
+            advisory_ids:
+              - ELSA-2026-22222
+        security_patching_update_advisory_ids:
+          - ELSA-2026-22222
+
+    - name: Validate current matching reboot finding set
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: validate_reboot_state
+
+    - name: Assert matching reboot state is accepted
+      ansible.builtin.assert:
+        that:
+          - security_patching_reboot_approved_advisory_ids == ['ELSA-2026-22222']
+          - security_patching_reboot_current_advisory_ids == ['ELSA-2026-22222']
+          - security_patching_reboot_completed is not defined
+
+- name: Validate skipped clean security reboot state
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Record clean approved reboot issue metadata
+      ansible.builtin.set_fact:
+        security_patching_request_instances: {}
+        security_patching_update_advisory_ids: []
+
+    - name: Validate current clean reboot finding set
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: validate_reboot_state
+
+    - name: Assert clean reboot state is skipped
+      ansible.builtin.assert:
+        that:
+          - security_patching_reboot_approved_advisory_ids == []
+          - security_patching_reboot_current_advisory_ids == []
+          - not security_patching_reboot_completed
+
+- name: Validate drifted security reboot state rejection
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_reboot_state_drift_rejected: false
+  tasks:
+    - name: Record drifted approved reboot issue metadata
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          localhost:
+            advisory_ids:
+              - ELSA-2026-33333
+        security_patching_update_advisory_ids:
+          - ELSA-2026-44444
+
+    - name: Run reboot state validation until expected drift failure
+      block:
+        - name: Attempt drifted reboot finding set validation
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: validate_reboot_state
+      rescue:
+        - name: Record expected reboot state drift rejection
+          ansible.builtin.set_fact:
+            security_reboot_state_drift_rejected: true
+
+    - name: Assert drifted reboot state was rejected
+      ansible.builtin.assert:
+        that:
+          - security_reboot_state_drift_rejected

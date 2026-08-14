@@ -1,0 +1,155 @@
+- name: Validate security reboot result refreshes remaining findings
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_result_fixture_runtime
+    security_patching_scan_id: security-reboot-result-refresh-test
+    security_patching_scan_timestamp: "2026-08-14T00:00:00Z"
+    security_patching_issue_number: "123"
+    security_patching_github_api_url: http://127.0.0.1:1
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_approval_label: approved-production-reboot
+    security_patching_report_max_cves_per_row: 2
+    security_patching_report_max_body_bytes: 60000
+    security_patching_report_path: /tmp/autographs-security-reboot-refresh-test.md
+    security_patching_result_comment_path: /tmp/autographs-security-reboot-refresh-comment-test.md
+    security_reboot_refresh_path_reached: false
+    stale_advisory_id: ELSA-2026-11111
+    remaining_advisory_id: ELSA-2026-22222
+  tasks:
+    - name: Add reboot fixture host with remaining findings
+      ansible.builtin.add_host:
+        name: production
+        groups: security_reboot_result_fixture_runtime
+        security_patching_reboot_completed: true
+        security_patching_pre_reboot_kernel_release: 6.12.0-202.76.4.1.el10uek.x86_64
+        security_patching_post_reboot_kernel_release: 6.12.0-205.92.4.2.el10uek.x86_64
+        security_patching_installonly_cleanup_changed: true
+        security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_advisory_ids:
+          - ELSA-2026-22222
+        security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_advisories:
+          - advisory_id: ELSA-2026-22222
+            severity: Important
+            cves:
+              - CVE-2026-0001
+              - CVE-2026-0002
+              - CVE-2026-0003
+            errata_link: https://linux.oracle.com/errata/ELSA-2026-22222.html
+            summary: ELSA-2026-22222 remaining security update
+            package_count: 2
+            packages:
+              - kernel-uek-core
+              - kernel-uek-modules
+            ksplice_aware: false
+        security_patching_post_reboot_entries:
+          - advisory_id: ELSA-2026-22222
+            severity: Important
+            cves:
+              - CVE-2026-0001
+              - CVE-2026-0002
+              - CVE-2026-0003
+            errata_link: https://linux.oracle.com/errata/ELSA-2026-22222.html
+            summary: ELSA-2026-22222 remaining security update
+            package_count: 2
+            packages:
+              - kernel-uek-core
+              - kernel-uek-modules
+            ksplice_aware: false
+        security_patching_update_advisories:
+          - advisory_id: ELSA-2026-11111
+            severity: Important
+            cves:
+              - CVE-2026-9999
+            errata_link: https://linux.oracle.com/errata/ELSA-2026-11111.html
+            summary: ELSA-2026-11111 stale pre-reboot security update
+            package_count: 1
+            packages:
+              - stale-kernel
+            ksplice_aware: false
+
+    - name: Run reboot result publication until fake GitHub refresh fails
+      block:
+        - name: Attempt to publish reboot result with fake GitHub endpoint
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_reboot_result
+      rescue:
+        - name: Record expected fake GitHub refresh failure
+          ansible.builtin.set_fact:
+            security_reboot_refresh_path_reached: true
+
+    - name: Extract refreshed reboot issue metadata fixture
+      ansible.builtin.set_fact:
+        security_reboot_refresh_metadata_blocks: "{{ security_patching_refreshed_report_body | regex_findall(metadata_block_pattern) }}"
+      vars:
+        metadata_block_pattern: '(?s)<!-- autographs-security-patch-metadata[\r\n]+(.*?)[\r\n]+-->'
+
+    - name: Parse refreshed reboot issue metadata fixture
+      ansible.builtin.set_fact:
+        security_reboot_refresh_metadata: "{{ security_reboot_refresh_metadata_blocks[0] | from_yaml }}"
+
+    - name: Assert reboot result issue refresh uses only remaining findings
+      ansible.builtin.assert:
+        that:
+          - security_reboot_refresh_path_reached
+          - security_patching_remaining_hosts == ['production']
+          - security_patching_hosts_with_findings == ['production']
+          - security_reboot_refresh_metadata_blocks | length == 1
+          - security_reboot_refresh_metadata.instances.production.advisory_ids == [remaining_advisory_id]
+          - stale_advisory_id not in security_patching_refreshed_report_body
+          - remaining_advisory_id in security_patching_refreshed_report_body
+          - "'| `production` | 1 | 1 | 0 |' in security_patching_refreshed_report_body"
+          - "'Package sample' in security_patching_refreshed_report_body"
+          - "'`kernel-uek-core`, `kernel-uek-modules`' in security_patching_refreshed_report_body"
+
+- name: Validate clean security reboot result comment contract
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_clean_fixture_runtime
+    security_patching_scan_id: security-reboot-result-clean-test
+    security_patching_scan_timestamp: "2026-08-14T01:00:00Z"
+    security_patching_issue_number: "124"
+    security_patching_github_api_url: http://127.0.0.1:1
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_approval_label: approved-production-reboot
+    security_patching_result_comment_path: /tmp/autographs-security-reboot-clean-comment-test.md
+    security_reboot_clean_comment_path_reached: false
+  tasks:
+    - name: Add reboot fixture host with clean findings
+      ansible.builtin.add_host:
+        name: clean-production
+        groups: security_reboot_clean_fixture_runtime
+        security_patching_reboot_completed: true
+        security_patching_pre_reboot_kernel_release: 6.12.0-202.76.4.1.el10uek.x86_64
+        security_patching_post_reboot_kernel_release: 6.12.0-205.92.4.2.el10uek.x86_64
+        security_patching_installonly_cleanup_changed: true
+        security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_advisory_ids: []
+        security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_advisories: []
+        security_patching_post_reboot_entries: []
+
+    - name: Run clean reboot result publication until fake GitHub comment fails
+      block:
+        - name: Attempt to publish clean reboot result with fake GitHub endpoint
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_reboot_result
+      rescue:
+        - name: Record expected fake GitHub comment failure
+          ansible.builtin.set_fact:
+            security_reboot_clean_comment_path_reached: true
+
+    - name: Assert clean reboot result comment is rendered before GitHub write
+      ansible.builtin.assert:
+        that:
+          - security_reboot_clean_comment_path_reached
+          - security_patching_remaining_hosts == []
+          - "'Post-reboot OpenSCAP scan is clean' in security_patching_reboot_result_comment_body"
+          - "'This issue will be closed automatically' in security_patching_reboot_result_comment_body"
+          - "'clean-production' in security_patching_reboot_result_comment_body"
