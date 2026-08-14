@@ -201,6 +201,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         reboot_tasks = REBOOT_CLEANUP_TASKS_PATH.read_text(encoding="utf-8")
         validate_reboot_tasks = VALIDATE_REBOOT_STATE_TASKS_PATH.read_text(encoding="utf-8")
         post_reboot_tasks = POST_REBOOT_RESULT_TASKS_PATH.read_text(encoding="utf-8")
+        reboot_state_test = REBOOT_STATE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         reboot_playbook = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name("security-reboot.yml").read_text(
             encoding="utf-8"
         )
@@ -211,8 +212,13 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security_patching_reboot_approval_label: approved-production-reboot", defaults)
         self.assertIn("security_patching_reboot_validate_dnf_noop: true", defaults)
         self.assertIn("security_patching_reboot_allowed_package_regex", defaults)
+        self.assertIn("security_patching_failure_context_path", defaults)
+        self.assertIn("security_patching_failure_refresh_path", defaults)
+        self.assertIn("security_patching_failure_refresh_approval_label: approved-production-update", defaults)
         self.assertIn("name: approved-production-reboot", defaults)
         self.assertIn("github.event.label.name == 'approved-production-reboot'", workflow)
+        self.assertIn("SECURITY_PATCHING_FAILURE_CONTEXT_PATH", workflow)
+        self.assertIn("SECURITY_PATCHING_FAILURE_REFRESH_PATH", workflow)
         self.assertIn("--extra-vars security_patching_approval_label=approved-production-reboot", workflow)
         self.assertIn(
             """--extra-vars '{"security_patching_failed_request_message":"Production security reboot workflow did not complete successfully."}'""",
@@ -226,6 +232,12 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("tasks_from: post_reboot_result", reboot_playbook)
         self.assertIn("when: security_patching_reboot_approved_advisory_ids | default([]) | length > 0", reboot_playbook)
         self.assertIn("security_patching_reboot_current_advisory_ids == security_patching_reboot_approved_advisory_ids", validate_reboot_tasks)
+        self.assertIn("Write reboot advisory drift failure context", validate_reboot_tasks)
+        self.assertIn("Write reboot advisory drift issue refresh payload", validate_reboot_tasks)
+        self.assertIn("security_patching_reboot_added_advisory_ids", validate_reboot_tasks)
+        self.assertIn("security_patching_reboot_removed_advisory_ids", validate_reboot_tasks)
+        self.assertIn("Write reboot package eligibility failure context", validate_reboot_tasks)
+        self.assertIn("Write reboot DNF no-op failure context", validate_reboot_tasks)
         self.assertIn("security_patching_reboot_allowed_package_regex", validate_reboot_tasks)
         self.assertIn("security_patching_reboot_disallowed_packages", validate_reboot_tasks)
         self.assertIn("dnf", validate_reboot_tasks)
@@ -234,6 +246,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("--advisories={{ security_patching_reboot_approved_advisory_ids | join(',') }}", validate_reboot_tasks)
         self.assertIn("Refuse reboot if DNF still has advisory-scoped package work", validate_reboot_tasks)
         self.assertIn("Record skipped reboot state when host has no approved findings", validate_reboot_tasks)
+        self.assertIn("Validate failed reboot cleanup refreshes drifted scanner issue", reboot_state_test)
         self.assertIn("ansible.builtin.reboot", reboot_tasks)
         self.assertIn("--oldinstallonly", reboot_tasks)
         self.assertIn("--setopt=installonly_limit={{ security_patching_installonly_limit | int }}", reboot_tasks)

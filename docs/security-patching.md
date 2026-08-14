@@ -82,7 +82,7 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
   security_patching_reboot_health_domain=<AUTOGRAPHS_DOMAIN>
   ```
 
-- Runs the same cleanup playbook as failed update requests, but removes `approved-production-reboot` instead of `approved-production-update`.
+- Runs the same cleanup playbook as failed update requests, but removes `approved-production-reboot` instead of `approved-production-update`. Pre-reboot validation failures write a short failure-context file so the cleanup comment can include added/removed advisory drift, disallowed packages, or DNF no-op evidence when available. Advisory drift also writes a refresh payload so cleanup can update the scanner issue body from the current pre-reboot OpenSCAP findings before posting the failure comment.
 - Fails the workflow after cleanup when the main reboot step did not succeed.
 
 `.github/production-patch-approvers.yml`
@@ -475,7 +475,7 @@ When the reboot playbook reaches `tasks/post_reboot_result.yml`, it follows the 
 
 ## Failure cleanup behavior
 
-If validation, drift detection, SSH, OpenSCAP, Ksplice, DNF, reboot, health checks, installonly cleanup, or another update step fails, Ansible may not reach `post_result` or `post_reboot_result`. The GitHub Actions workflows handle that with an `always()` cleanup step.
+If validation, drift detection, SSH, OpenSCAP, Ksplice, DNF, reboot, health checks, installonly cleanup, or another update step fails, Ansible may not reach `post_result` or `post_reboot_result`. The GitHub Actions workflows handle that with an `always()` cleanup step. Reboot validation failures also persist operator-facing failure context for the cleanup comment, including advisory IDs added to or removed from the approved scanner metadata when drift is the reason for refusal. When reboot drift includes current OpenSCAP findings, cleanup refreshes the scanner issue body and hidden metadata with those findings, resets the issue approval instruction to `approved-production-update`, and then removes the failed reboot approval label.
 
 `tasks/cleanup_failed_request.yml`:
 

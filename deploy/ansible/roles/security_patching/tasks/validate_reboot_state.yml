@@ -12,6 +12,79 @@
     security_patching_reboot_current_advisory_ids: >-
       {{ security_patching_update_advisory_ids | default([]) | unique | sort | list }}
 
+- name: Compute reboot advisory drift
+  ansible.builtin.set_fact:
+    security_patching_reboot_added_advisory_ids: >-
+      {{
+        security_patching_reboot_current_advisory_ids
+        | difference(security_patching_reboot_approved_advisory_ids)
+        | sort
+        | list
+      }}
+    security_patching_reboot_removed_advisory_ids: >-
+      {{
+        security_patching_reboot_approved_advisory_ids
+        | difference(security_patching_reboot_current_advisory_ids)
+        | sort
+        | list
+      }}
+
+- name: Write reboot advisory drift failure context
+  ansible.builtin.copy:
+    dest: "{{ security_patching_failure_context_path }}"
+    mode: "0600"
+    content: |
+      Validation failed before reboot: current OpenSCAP advisories drifted from the approved issue metadata.
+
+      - Host: `{{ inventory_hostname }}`
+      - Approved advisories: {{ security_patching_reboot_approved_advisory_ids | length }}
+      - Current advisories: {{ security_patching_reboot_current_advisory_ids | length }}
+
+      Added advisories:
+      {% for advisory_id in security_patching_reboot_added_advisory_ids %}
+      - `{{ advisory_id }}`
+      {% else %}
+      - None
+      {% endfor %}
+
+      Removed advisories:
+      {% for advisory_id in security_patching_reboot_removed_advisory_ids %}
+      - `{{ advisory_id }}`
+      {% else %}
+      - None
+      {% endfor %}
+
+      Re-run the scanner to refresh the issue before approving reboot cleanup again.
+  delegate_to: localhost
+  become: false
+  when:
+    - security_patching_failure_context_path | trim | length > 0
+    - security_patching_reboot_current_advisory_ids != security_patching_reboot_approved_advisory_ids
+
+- name: Write reboot advisory drift issue refresh payload
+  ansible.builtin.copy:
+    dest: "{{ security_patching_failure_refresh_path }}"
+    mode: "0600"
+    content: >-
+      {{
+        {
+          'reason': 'reboot_advisory_drift',
+          'host': inventory_hostname,
+          'scan_status': security_patching_scan_status | default('complete'),
+          'advisory_ids': security_patching_reboot_current_advisory_ids,
+          'advisories': security_patching_update_advisories | default([]),
+          'entries': security_patching_update_entries | default([]),
+          'ksplice_aware_advisory_ids': security_patching_update_ksplice_aware_advisory_ids | default([]),
+          'added_advisory_ids': security_patching_reboot_added_advisory_ids,
+          'removed_advisory_ids': security_patching_reboot_removed_advisory_ids
+        } | to_nice_json
+      }}
+  delegate_to: localhost
+  become: false
+  when:
+    - security_patching_failure_refresh_path | trim | length > 0
+    - security_patching_reboot_current_advisory_ids != security_patching_reboot_approved_advisory_ids
+
 - name: Refuse reboot if security finding set drifted
   ansible.builtin.assert:
     that:
@@ -52,6 +125,40 @@
     security_patching_reboot_approved_advisory_ids | length > 0
     and item.1 is not match(security_patching_reboot_allowed_package_regex)
 
+- name: Write reboot package eligibility failure context
+  ansible.builtin.copy:
+    dest: "{{ security_patching_failure_context_path }}"
+    mode: "0600"
+    content: |
+      Validation failed before reboot: current OpenSCAP findings are not limited to reboot/installonly cleanup candidates.
+
+      - Host: `{{ inventory_hostname }}`
+      - Allowed package regex: `{{ security_patching_reboot_allowed_package_regex }}`
+
+      Findings without package metadata:
+      {% for advisory_id in security_patching_reboot_entries_without_packages %}
+      - `{{ advisory_id }}`
+      {% else %}
+      - None
+      {% endfor %}
+
+      Disallowed packages:
+      {% for package_name in security_patching_reboot_disallowed_packages %}
+      - `{{ package_name }}`
+      {% else %}
+      - None
+      {% endfor %}
+
+      Re-run the scanner or use the normal update approval path before approving reboot cleanup again.
+  delegate_to: localhost
+  become: false
+  when:
+    - security_patching_failure_context_path | trim | length > 0
+    - security_patching_reboot_approved_advisory_ids | length > 0
+    - >-
+      security_patching_reboot_entries_without_packages | length > 0
+      or security_patching_reboot_disallowed_packages | length > 0
+
 - name: Refuse reboot when findings are not kernel installonly candidates
   ansible.builtin.assert:
     that:
@@ -79,6 +186,43 @@
   when:
     - security_patching_reboot_approved_advisory_ids | length > 0
     - security_patching_reboot_validate_dnf_noop | bool
+
+- name: Write reboot DNF no-op failure context
+  ansible.builtin.copy:
+    dest: "{{ security_patching_failure_context_path }}"
+    mode: "0600"
+    content: |
+      Validation failed before reboot: DNF did not prove that approved advisories are already a no-op.
+
+      - Host: `{{ inventory_hostname }}`
+      - DNF rc: `{{ security_patching_reboot_dnf_noop_check.rc | default('missing') }}`
+      - Approved advisories: {{ security_patching_reboot_approved_advisory_ids | length }}
+
+      DNF stdout:
+
+      ```text
+      {{ security_patching_reboot_dnf_noop_check.stdout | default('') }}
+      ```
+
+      DNF stderr:
+
+      ```text
+      {{ security_patching_reboot_dnf_noop_check.stderr | default('') }}
+      ```
+
+      Use the normal update approval path until DNF reports no advisory-scoped package work.
+  delegate_to: localhost
+  become: false
+  when:
+    - security_patching_failure_context_path | trim | length > 0
+    - security_patching_reboot_approved_advisory_ids | length > 0
+    - security_patching_reboot_validate_dnf_noop | bool
+    - security_patching_reboot_dnf_noop_check is defined
+    - >-
+      security_patching_reboot_dnf_noop_check.rc != 0
+      or (
+        security_patching_reboot_dnf_noop_check.stdout ~ security_patching_reboot_dnf_noop_check.stderr
+      ) is not search('(?i)(nothing to do|no packages marked)')
 
 - name: Refuse reboot if DNF still has advisory-scoped package work
   ansible.builtin.assert:

@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-08-14T15:54:25Z"
-last_activity: 2026-08-14 -- Quick task 260814-g3u added approved production reboot and installonly cleanup follow-up
+last_updated: "2026-08-14T19:34:00Z"
+last_activity: 2026-08-14 -- Quick task 260814-kzc tightened reboot drift failure handling
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-14 -- Quick task 260814-g3u added approved production reboot and installonly cleanup follow-up
+Last activity: 2026-08-14 -- Quick task 260814-kzc tightened reboot drift failure handling
 
 Progress: [███████░░░] 70% of milestone phases complete; Phase 8 is next
 
@@ -174,6 +174,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-14 | improve-security-reboot-drift-failure-co | Reboot drift failures now persist operator-facing failure context, refresh the scanner issue from current pre-reboot OpenSCAP findings, reset the approval instruction to `approved-production-update`, and keep refusing downtime until the refreshed issue is reviewed. |
 | 2026-08-14 | add-approved-production-reboot-workflow | Added a separately approved production reboot workflow that drift-checks OpenSCAP findings, requires a DNF no-op/package-family gate, reboots healthy targets, removes old installonly kernels, re-scans, and refreshes or closes the scanner issue. |
 | 2026-08-03 | replace-production-security-patch-scanne | Replaced the production security scanner with OpenSCAP Oracle OVAL findings, advisory-ID approval metadata, Ksplice-first remediation, and DNF advisory-scoped fallback updates. |
 | 2026-08-02 | harden-apply-security-update-issue-metad | Replaced brittle apply-side scanner metadata extraction with a quoted role task, added diagnostics and CI fixture coverage, and verified live issue #198 parses under Ansible 2.21. |

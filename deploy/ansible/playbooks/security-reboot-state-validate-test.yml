@@ -58,15 +58,42 @@
   gather_facts: false
   vars:
     security_reboot_state_drift_rejected: false
+    security_reboot_state_drift_context_path: /tmp/autographs-security-reboot-drift-context-test.md
+    security_reboot_state_drift_refresh_path: /tmp/autographs-security-reboot-drift-refresh-test.json
   tasks:
+    - name: Remove old drift failure context fixture
+      ansible.builtin.file:
+        path: "{{ security_reboot_state_drift_context_path }}"
+        state: absent
+
+    - name: Remove old drift issue refresh fixture
+      ansible.builtin.file:
+        path: "{{ security_reboot_state_drift_refresh_path }}"
+        state: absent
+
     - name: Record drifted approved reboot issue metadata
       ansible.builtin.set_fact:
         security_patching_request_instances:
           localhost:
             advisory_ids:
               - ELSA-2026-33333
+              - ELSA-2026-55555
         security_patching_update_advisory_ids:
           - ELSA-2026-44444
+          - ELSA-2026-55555
+        security_patching_failure_context_path: "{{ security_reboot_state_drift_context_path }}"
+        security_patching_failure_refresh_path: "{{ security_reboot_state_drift_refresh_path }}"
+        security_patching_scan_status: complete
+        security_patching_update_advisories:
+          - advisory_id: ELSA-2026-44444
+            severity: IMPORTANT
+            cves:
+              - CVE-2026-44444
+            ksplice_aware: false
+            packages:
+              - kernel-uek-core
+            package_count: 1
+            summary: ELSA-2026-44444 new kernel finding
 
     - name: Run reboot state validation until expected drift failure
       block:
@@ -79,10 +106,127 @@
           ansible.builtin.set_fact:
             security_reboot_state_drift_rejected: true
 
+    - name: Read drift failure context fixture
+      ansible.builtin.slurp:
+        src: "{{ security_reboot_state_drift_context_path }}"
+      register: security_reboot_state_drift_context
+
+    - name: Read drift issue refresh fixture
+      ansible.builtin.slurp:
+        src: "{{ security_reboot_state_drift_refresh_path }}"
+      register: security_reboot_state_drift_refresh
+
+    - name: Decode drift issue refresh fixture
+      ansible.builtin.set_fact:
+        security_reboot_state_drift_refresh_payload: >-
+          {{ security_reboot_state_drift_refresh.content | b64decode | from_json }}
+
     - name: Assert drifted reboot state was rejected
       ansible.builtin.assert:
         that:
           - security_reboot_state_drift_rejected
+          - security_patching_reboot_added_advisory_ids == ['ELSA-2026-44444']
+          - security_patching_reboot_removed_advisory_ids == ['ELSA-2026-33333']
+          - "'Validation failed before reboot' in (security_reboot_state_drift_context.content | b64decode)"
+          - "'Added advisories' in (security_reboot_state_drift_context.content | b64decode)"
+          - "'`ELSA-2026-44444`' in (security_reboot_state_drift_context.content | b64decode)"
+          - "'Removed advisories' in (security_reboot_state_drift_context.content | b64decode)"
+          - "'`ELSA-2026-33333`' in (security_reboot_state_drift_context.content | b64decode)"
+          - security_reboot_state_drift_refresh_payload.reason == 'reboot_advisory_drift'
+          - security_reboot_state_drift_refresh_payload.advisory_ids == ['ELSA-2026-44444', 'ELSA-2026-55555']
+          - security_reboot_state_drift_refresh_payload.added_advisory_ids == ['ELSA-2026-44444']
+          - security_reboot_state_drift_refresh_payload.removed_advisory_ids == ['ELSA-2026-33333']
+
+- name: Validate failed reboot cleanup refreshes drifted scanner issue
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_reboot_cleanup_refresh_failed_at_github: false
+    security_reboot_cleanup_refresh_context_path: /tmp/autographs-security-reboot-cleanup-context-test.md
+    security_reboot_cleanup_refresh_payload_path: /tmp/autographs-security-reboot-cleanup-refresh-test.json
+    security_patching_github_api_url: http://127.0.0.1:9
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fake-token
+    security_patching_issue_number: 198
+    security_patching_approval_label: approved-production-reboot
+    security_patching_workflow_outcome: failure
+    security_patching_failure_context_path: "{{ security_reboot_cleanup_refresh_context_path }}"
+    security_patching_failure_refresh_path: "{{ security_reboot_cleanup_refresh_payload_path }}"
+    security_patching_report_path: /tmp/autographs-security-reboot-cleanup-refresh-report-test.md
+    security_patching_scan_id: security-reboot-cleanup-refresh-test
+    security_patching_scan_timestamp: "2026-08-14T19:20:00Z"
+  tasks:
+    - name: Record failed cleanup refresh fixture paths
+      ansible.builtin.set_fact:
+        security_patching_failure_context_path: "{{ security_reboot_cleanup_refresh_context_path }}"
+        security_patching_failure_refresh_path: "{{ security_reboot_cleanup_refresh_payload_path }}"
+
+    - name: Write failed cleanup context fixture
+      ansible.builtin.copy:
+        dest: "{{ security_reboot_cleanup_refresh_context_path }}"
+        mode: "0600"
+        content: |
+          Validation failed before reboot: current OpenSCAP advisories drifted from the approved issue metadata.
+
+          Added advisories:
+          - `ELSA-2026-77777`
+
+    - name: Write failed cleanup refresh payload fixture
+      ansible.builtin.copy:
+        dest: "{{ security_reboot_cleanup_refresh_payload_path }}"
+        mode: "0600"
+        content: >-
+          {{
+            {
+              'reason': 'reboot_advisory_drift',
+              'host': 'production',
+              'scan_status': 'complete',
+              'advisory_ids': ['ELSA-2026-77777'],
+              'advisories': [
+                {
+                  'advisory_id': 'ELSA-2026-77777',
+                  'severity': 'IMPORTANT',
+                  'cves': ['CVE-2026-77777'],
+                  'ksplice_aware': false,
+                  'packages': ['kernel-uek-core'],
+                  'package_count': 1,
+                  'summary': 'ELSA-2026-77777 new kernel finding'
+                }
+              ],
+              'entries': [
+                {
+                  'advisory_id': 'ELSA-2026-77777',
+                  'definition_id': 'oval:com.oracle.elsa:def:202677777',
+                  'packages': ['kernel-uek-core'],
+                  'title': 'ELSA-2026-77777 new kernel finding'
+                }
+              ],
+              'ksplice_aware_advisory_ids': [],
+              'added_advisory_ids': ['ELSA-2026-77777'],
+              'removed_advisory_ids': []
+            } | to_nice_json
+          }}
+
+    - name: Run failed cleanup until fake GitHub comment fails
+      block:
+        - name: Attempt failed cleanup with drift refresh payload
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: cleanup_failed_request
+      rescue:
+        - name: Record expected fake GitHub cleanup failure
+          ansible.builtin.set_fact:
+            security_reboot_cleanup_refresh_failed_at_github: true
+
+    - name: Assert failed cleanup rendered refreshed scanner issue body
+      ansible.builtin.assert:
+        that:
+          - security_reboot_cleanup_refresh_failed_at_github
+          - security_patching_refreshed_report_body is defined
+          - "'ELSA-2026-77777' in security_patching_refreshed_report_body"
+          - "'approved-production-update' in security_patching_refreshed_report_body"
+          - "'approved-production-reboot' not in security_patching_refreshed_report_body"
+          - "'security-reboot-cleanup-refresh-test' in security_patching_refreshed_report_body"
 
 - name: Validate non-kernel security reboot state rejection
   hosts: localhost
