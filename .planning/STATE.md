@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-08-03T03:17:20Z"
-last_activity: 2026-08-03 -- Quick task 260802-vx8 replaced production security scanner with OpenSCAP OVAL remediation
+last_updated: "2026-08-14T15:54:25Z"
+last_activity: 2026-08-14 -- Quick task 260814-g3u added approved production reboot and installonly cleanup follow-up
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-03 -- Quick task 260802-vx8 replaced production security scanner with OpenSCAP OVAL remediation
+Last activity: 2026-08-14 -- Quick task 260814-g3u added approved production reboot and installonly cleanup follow-up
 
 Progress: [███████░░░] 70% of milestone phases complete; Phase 8 is next
 
@@ -140,6 +140,7 @@ Recent decisions affecting current work:
 - [Phase 08]: Phase 8 media adjustment must include a dedicated review view, multiple overlays, draft-local save/cancel/reset, before/after comparison, and required auto-assisted deskew/perspective correction with manual fallback. — Uploaded images can be misaligned or askew, and visual guide overlays plus auto-assisted/manual correction are necessary for the admin to prepare publish-safe derivatives.
 - [Phase 08]: Production security remediation now runs Ksplice before DNF, re-scans after Ksplice, applies only remaining approved advisories with `dnf upgrade-minimal --security --advisories`, and closes issues only after OpenSCAP reports no findings.
 - [Phase 08]: Scanner approval metadata remains advisory-ID-only; CVEs, severity, summaries, affected packages, Ksplice-aware status, and advisory links stay visible report detail outside the hidden metadata block.
+- [Phase 08]: Production reboot/installonly cleanup uses a separate `approved-production-reboot` issue label, validates current OpenSCAP findings against the approved issue before downtime, requires DNF to prove there is no advisory-scoped package work left, rejects non-kernel-family findings, waits for runtime health after reboot, removes old installonly kernels, re-runs OpenSCAP, and refreshes or closes the original scanner issue.
 
 ### Pending Todos
 
@@ -173,6 +174,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-14 | add-approved-production-reboot-workflow | Added a separately approved production reboot workflow that drift-checks OpenSCAP findings, requires a DNF no-op/package-family gate, reboots healthy targets, removes old installonly kernels, re-scans, and refreshes or closes the scanner issue. |
 | 2026-08-03 | replace-production-security-patch-scanne | Replaced the production security scanner with OpenSCAP Oracle OVAL findings, advisory-ID approval metadata, Ksplice-first remediation, and DNF advisory-scoped fallback updates. |
 | 2026-08-02 | harden-apply-security-update-issue-metad | Replaced brittle apply-side scanner metadata extraction with a quoted role task, added diagnostics and CI fixture coverage, and verified live issue #198 parses under Ansible 2.21. |
 | 2026-05-20 | podman-quadlet-deploy | Replaced compose/cloud-init runtime setup with Ansible-managed Podman quadlets and added manual runtime VM taint support. |

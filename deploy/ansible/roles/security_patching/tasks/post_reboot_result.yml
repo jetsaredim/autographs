@@ -1,0 +1,189 @@
+- name: Initialize incomplete post-reboot host list
+  ansible.builtin.set_fact:
+    security_patching_incomplete_post_reboot_hosts: []
+
+- name: Collect hosts without complete post-reboot scan results
+  ansible.builtin.set_fact:
+    security_patching_incomplete_post_reboot_hosts: "{{ security_patching_incomplete_post_reboot_hosts + [item] }}"
+  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  when: >-
+    hostvars[item].security_patching_post_reboot_entries is not defined
+    or hostvars[item].security_patching_post_reboot_advisory_ids is not defined
+    or hostvars[item].security_patching_post_reboot_scan_status | default('missing') != 'complete'
+
+- name: Require complete post-reboot scan results for all target hosts
+  ansible.builtin.assert:
+    that:
+      - security_patching_incomplete_post_reboot_hosts | length == 0
+    fail_msg: >-
+      Refusing to publish a security reboot result because these hosts do not have complete
+      post-reboot OpenSCAP scan results: {{ security_patching_incomplete_post_reboot_hosts }}
+
+- name: Initialize remaining post-reboot finding host list
+  ansible.builtin.set_fact:
+    security_patching_remaining_hosts: []
+
+- name: Collect hosts with remaining post-reboot security findings
+  ansible.builtin.set_fact:
+    security_patching_remaining_hosts: "{{ security_patching_remaining_hosts + [item] }}"
+  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  when: (hostvars[item].security_patching_post_reboot_entries | default([]) | length) > 0
+
+- name: Build GitHub issue URLs
+  ansible.builtin.set_fact:
+    security_patching_issue_url: >-
+      {{
+        [
+          security_patching_github_api_url,
+          'repos',
+          security_patching_github_repository,
+          'issues',
+          security_patching_issue_number
+        ] | join('/')
+      }}
+    security_patching_workflow_run_url: >-
+      {{
+        [
+          lookup('env', 'GITHUB_SERVER_URL'),
+          lookup('env', 'GITHUB_REPOSITORY'),
+          'actions',
+          'runs',
+          lookup('env', 'GITHUB_RUN_ID')
+        ] | join('/')
+      }}
+
+- name: Build GitHub issue label URL
+  ansible.builtin.set_fact:
+    security_patching_issue_label_url: >-
+      {{
+        [
+          security_patching_issue_url,
+          'labels',
+          security_patching_approval_label
+        ] | join('/')
+      }}
+
+- name: Mirror remaining post-reboot findings into scanner report facts
+  ansible.builtin.set_fact:
+    security_patching_update_entries: "{{ hostvars[item].security_patching_post_reboot_entries | default([]) }}"
+    security_patching_update_advisories: "{{ hostvars[item].security_patching_post_reboot_advisories | default([]) }}"
+    security_patching_update_advisory_ids: "{{ hostvars[item].security_patching_post_reboot_advisory_ids | default([]) }}"
+    security_patching_update_ksplice_aware_advisory_ids: >-
+      {{ hostvars[item].security_patching_post_reboot_ksplice_aware_advisory_ids | default([]) }}
+  loop: "{{ security_patching_remaining_hosts }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Prepare remaining post-reboot findings issue refresh context
+  ansible.builtin.set_fact:
+    security_patching_hosts_with_findings: "{{ security_patching_remaining_hosts }}"
+    security_patching_enrichment_status: complete
+    security_patching_enrichment_message: >-
+      Oracle Linux OpenSCAP OVAL evaluation completed after approved reboot and installonly cleanup.
+    security_patching_enrichment_by_host: {}
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Index remaining post-reboot OpenSCAP findings by host
+  ansible.builtin.set_fact:
+    security_patching_enrichment_by_host: >-
+      {{
+        security_patching_enrichment_by_host
+        | combine(
+            {
+              item: {
+                'advisories': hostvars[item].security_patching_post_reboot_advisories | default([]),
+                'entries': hostvars[item].security_patching_post_reboot_entries | default([])
+              }
+            },
+            recursive=True
+          )
+      }}
+  loop: "{{ security_patching_remaining_hosts }}"
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Render refreshed post-reboot security update issue body
+  ansible.builtin.template:
+    src: security-report.md.j2
+    dest: "{{ security_patching_report_path }}"
+    mode: "0600"
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Inspect refreshed post-reboot security update issue body
+  ansible.builtin.stat:
+    path: "{{ security_patching_report_path }}"
+  register: security_patching_refreshed_report_file
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Require refreshed post-reboot GitHub issue body within safety limit
+  ansible.builtin.assert:
+    that:
+      - (security_patching_refreshed_report_file.stat.size | int) <= (security_patching_report_max_body_bytes | int)
+    fail_msg: >-
+      Refreshed security update issue body is {{ security_patching_refreshed_report_file.stat.size | int }} bytes,
+      above the configured {{ security_patching_report_max_body_bytes | int }} byte safety limit.
+      Re-run the scanner manually or reduce visible security report detail before retrying.
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Read refreshed post-reboot security update issue body
+  ansible.builtin.set_fact:
+    security_patching_refreshed_report_body: "{{ lookup('ansible.builtin.file', security_patching_report_path) }}"
+  when: security_patching_remaining_hosts | length > 0
+
+- name: Refresh production security update issue with remaining post-reboot findings
+  ansible.builtin.uri:
+    url: "{{ security_patching_issue_url }}"
+    method: PATCH
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      title: "Production security update report - {{ security_patching_scan_timestamp }}"
+      body: "{{ security_patching_refreshed_report_body }}"
+      labels: "{{ security_patching_issue_labels }}"
+    status_code: 200
+  when: security_patching_remaining_hosts | length > 0
+  no_log: true
+
+- name: Render production security reboot result comment
+  ansible.builtin.template:
+    src: security-reboot-result.md.j2
+    dest: "{{ security_patching_result_comment_path }}"
+    mode: "0600"
+
+- name: Read production security reboot result comment
+  ansible.builtin.set_fact:
+    security_patching_reboot_result_comment_body: "{{ lookup('ansible.builtin.file', security_patching_result_comment_path) }}"
+
+- name: Comment production security reboot result
+  ansible.builtin.uri:
+    url: "{{ security_patching_issue_url }}/comments"
+    method: POST
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      body: "{{ security_patching_reboot_result_comment_body }}"
+    status_code: 201
+  no_log: true
+
+- name: Remove reboot approval label after workflow starts
+  ansible.builtin.uri:
+    url: "{{ security_patching_issue_label_url }}"
+    method: DELETE
+    headers: "{{ security_patching_github_headers }}"
+    status_code:
+      - 200
+      - 404
+  no_log: true
+
+- name: Close issue when no post-reboot security findings remain
+  ansible.builtin.uri:
+    url: "{{ security_patching_issue_url }}"
+    method: PATCH
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      state: closed
+      state_reason: completed
+    status_code: 200
+  when: security_patching_remaining_hosts | length == 0
+  no_log: true

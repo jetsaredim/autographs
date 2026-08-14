@@ -20,6 +20,9 @@ VALIDATE_REQUEST_TASKS_PATH = TASKS_PATH.with_name("validate_request.yml")
 EXTRACT_METADATA_TASKS_PATH = TASKS_PATH.with_name("extract_issue_metadata.yml")
 PATCH_TASKS_PATH = TASKS_PATH.with_name("patch.yml")
 POST_RESULT_TASKS_PATH = TASKS_PATH.with_name("post_result.yml")
+REBOOT_CLEANUP_TASKS_PATH = TASKS_PATH.with_name("reboot_cleanup.yml")
+VALIDATE_REBOOT_STATE_TASKS_PATH = TASKS_PATH.with_name("validate_reboot_state.yml")
+POST_REBOOT_RESULT_TASKS_PATH = TASKS_PATH.with_name("post_reboot_result.yml")
 REPORT_RENDER_TEST_PLAYBOOK_PATH = (
     Path(__file__).resolve().parents[1]
     / "deploy"
@@ -39,6 +42,13 @@ POST_RESULT_STATUS_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_na
 POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
     "security-post-result-refresh-validate-test.yml"
 )
+REBOOT_STATE_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
+    "security-reboot-state-validate-test.yml"
+)
+REBOOT_RESULT_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
+    "security-reboot-result-validate-test.yml"
+)
+REBOOT_WORKFLOW_PATH = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "reboot-security-runtime.yml"
 
 
 def task_block(task_name: str) -> str:
@@ -142,6 +152,8 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         create_status_test = CREATE_ISSUE_STATUS_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         post_result_status_test = POST_RESULT_STATUS_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         post_result_refresh_test = POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        reboot_state_test = REBOOT_STATE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        reboot_result_test = REBOOT_RESULT_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         ci = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml").read_text(
             encoding="utf-8"
         )
@@ -159,6 +171,14 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security_patching_refreshed_report_body", post_result_refresh_test)
         self.assertIn("stale_advisory_id not in security_patching_refreshed_report_body", post_result_refresh_test)
         self.assertIn("security-post-result-refresh-validate-test.yml", ci)
+        self.assertIn("tasks_from: validate_reboot_state", reboot_state_test)
+        self.assertIn("security_reboot_state_drift_rejected", reboot_state_test)
+        self.assertIn("security_reboot_state_package_rejected", reboot_state_test)
+        self.assertIn("openssl", reboot_state_test)
+        self.assertIn("security-reboot-state-validate-test.yml", ci)
+        self.assertIn("tasks_from: post_reboot_result", reboot_result_test)
+        self.assertIn("security_patching_reboot_result_comment_body", reboot_result_test)
+        self.assertIn("security-reboot-result-validate-test.yml", ci)
 
     def test_apply_path_reports_ksplice_and_uses_advisory_scoped_dnf(self):
         patch_tasks = PATCH_TASKS_PATH.read_text(encoding="utf-8")
@@ -174,6 +194,55 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("--security", patch_tasks)
         self.assertIn("--advisories={{ security_patching_remaining_approved_advisory_ids | join(',') }}", patch_tasks)
         self.assertNotIn("security_patching_approved_package_specs", patch_tasks)
+
+    def test_reboot_workflow_uses_separate_label_and_installonly_cleanup(self):
+        defaults = DEFAULTS_PATH.read_text(encoding="utf-8")
+        workflow = REBOOT_WORKFLOW_PATH.read_text(encoding="utf-8")
+        reboot_tasks = REBOOT_CLEANUP_TASKS_PATH.read_text(encoding="utf-8")
+        validate_reboot_tasks = VALIDATE_REBOOT_STATE_TASKS_PATH.read_text(encoding="utf-8")
+        post_reboot_tasks = POST_REBOOT_RESULT_TASKS_PATH.read_text(encoding="utf-8")
+        reboot_playbook = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name("security-reboot.yml").read_text(
+            encoding="utf-8"
+        )
+        result_template = (TASKS_PATH.parents[1] / "templates" / "security-reboot-result.md.j2").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("security_patching_reboot_approval_label: approved-production-reboot", defaults)
+        self.assertIn("security_patching_reboot_validate_dnf_noop: true", defaults)
+        self.assertIn("security_patching_reboot_allowed_package_regex", defaults)
+        self.assertIn("name: approved-production-reboot", defaults)
+        self.assertIn("github.event.label.name == 'approved-production-reboot'", workflow)
+        self.assertIn("--extra-vars security_patching_approval_label=approved-production-reboot", workflow)
+        self.assertIn(
+            """--extra-vars '{"security_patching_failed_request_message":"Production security reboot workflow did not complete successfully."}'""",
+            workflow,
+        )
+        self.assertIn("playbook: playbooks/security-reboot.yml", workflow)
+        self.assertIn("tasks_from: validate_request", reboot_playbook)
+        self.assertIn("tasks_from: validate_reboot_state", reboot_playbook)
+        self.assertIn("tasks_from: reboot_cleanup", reboot_playbook)
+        self.assertGreaterEqual(reboot_playbook.count("tasks_from: scan"), 2)
+        self.assertIn("tasks_from: post_reboot_result", reboot_playbook)
+        self.assertIn("when: security_patching_reboot_approved_advisory_ids | default([]) | length > 0", reboot_playbook)
+        self.assertIn("security_patching_reboot_current_advisory_ids == security_patching_reboot_approved_advisory_ids", validate_reboot_tasks)
+        self.assertIn("security_patching_reboot_allowed_package_regex", validate_reboot_tasks)
+        self.assertIn("security_patching_reboot_disallowed_packages", validate_reboot_tasks)
+        self.assertIn("dnf", validate_reboot_tasks)
+        self.assertIn("--assumeno", validate_reboot_tasks)
+        self.assertIn("upgrade-minimal", validate_reboot_tasks)
+        self.assertIn("--advisories={{ security_patching_reboot_approved_advisory_ids | join(',') }}", validate_reboot_tasks)
+        self.assertIn("Refuse reboot if DNF still has advisory-scoped package work", validate_reboot_tasks)
+        self.assertIn("Record skipped reboot state when host has no approved findings", validate_reboot_tasks)
+        self.assertIn("ansible.builtin.reboot", reboot_tasks)
+        self.assertIn("--oldinstallonly", reboot_tasks)
+        self.assertIn("--setopt=installonly_limit={{ security_patching_installonly_limit | int }}", reboot_tasks)
+        self.assertIn("Verify Caddy-fronted admin health after reboot", reboot_tasks)
+        self.assertIn("Refresh production security update issue with remaining post-reboot findings", post_reboot_tasks)
+        self.assertIn("Close issue when no post-reboot security findings remain", post_reboot_tasks)
+        self.assertIn("security_patching_reboot_result_comment_body", post_reboot_tasks)
+        self.assertIn("Kernel before", result_template)
+        self.assertIn("Installonly cleanup", result_template)
 
     def test_scan_defaults_use_release_scoped_oval_and_configurable_ssh_target(self):
         defaults = DEFAULTS_PATH.read_text(encoding="utf-8")

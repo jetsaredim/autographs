@@ -225,11 +225,15 @@ jobs:
             deploy/ansible/playbooks/system-cleanup.yml \
             deploy/ansible/playbooks/security-scan.yml \
             deploy/ansible/playbooks/security-patch.yml \
+            deploy/ansible/playbooks/security-reboot.yml \
+            deploy/ansible/playbooks/security-patch-cleanup.yml \
             deploy/ansible/playbooks/security-report-render-test.yml \
             deploy/ansible/playbooks/security-request-metadata-validate-test.yml \
             deploy/ansible/playbooks/security-create-issue-status-validate-test.yml \
             deploy/ansible/playbooks/security-post-result-status-validate-test.yml \
-            deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml
+            deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml \
+            deploy/ansible/playbooks/security-reboot-state-validate-test.yml \
+            deploy/ansible/playbooks/security-reboot-result-validate-test.yml
 
       - name: Test security report rendering and metadata validation
         run: |
@@ -244,6 +248,10 @@ jobs:
             deploy/ansible/playbooks/security-post-result-status-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            deploy/ansible/playbooks/security-reboot-state-validate-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            deploy/ansible/playbooks/security-reboot-result-validate-test.yml
 
       - name: Lint Ansible playbook
         run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/

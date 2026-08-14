@@ -1,0 +1,93 @@
+- name: Record running kernel before reboot
+  ansible.builtin.command:
+    argv:
+      - uname
+      - -r
+  register: security_patching_pre_reboot_kernel
+  changed_when: false
+
+- name: Reboot approved production runtime
+  ansible.builtin.reboot:
+    msg: "Autographs approved production security reboot from GitHub issue #{{ security_patching_issue_number }}"
+    reboot_timeout: "{{ security_patching_reboot_timeout_seconds | int }}"
+    connect_timeout: "{{ security_patching_reboot_connect_timeout_seconds | int }}"
+    post_reboot_delay: "{{ security_patching_reboot_post_delay_seconds | int }}"
+  register: security_patching_reboot_result
+
+- name: Record running kernel after reboot
+  ansible.builtin.command:
+    argv:
+      - uname
+      - -r
+  register: security_patching_post_reboot_kernel
+  changed_when: false
+
+- name: Wait for Autographs quadlet services after reboot
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - autographs-controller.service
+      - autographs-caddy.service
+  register: security_patching_reboot_services
+  changed_when: false
+  retries: 30
+  delay: 10
+  until: security_patching_reboot_services.rc == 0
+
+- name: Verify static public route after reboot
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ security_patching_reboot_health_preview_port }}/manifest.json"
+    method: GET
+    status_code:
+      - 200
+    return_content: false
+  register: security_patching_reboot_static_health
+  retries: 30
+  delay: 10
+  until: security_patching_reboot_static_health.status | default(0) == 200
+
+- name: Verify Caddy-fronted admin health after reboot
+  ansible.builtin.command:
+    argv:
+      - curl
+      - --fail
+      - --silent
+      - --show-error
+      - --output
+      - /dev/null
+      - --connect-timeout
+      - "5"
+      - --max-time
+      - "15"
+      - --resolve
+      - "{{ security_patching_reboot_health_domain }}:{{ security_patching_reboot_health_https_port }}:127.0.0.1"
+      - "https://{{ security_patching_reboot_health_domain }}:{{ security_patching_reboot_health_https_port }}/admin/api/health"
+  register: security_patching_reboot_admin_health
+  changed_when: false
+  retries: 30
+  delay: 10
+  until: security_patching_reboot_admin_health.rc == 0
+
+- name: Remove old installonly kernel packages after healthy reboot # noqa: command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - -y
+      - remove
+      - --oldinstallonly
+      - "--setopt=installonly_limit={{ security_patching_installonly_limit | int }}"
+  register: security_patching_installonly_cleanup
+  changed_when: >-
+    security_patching_installonly_cleanup.rc == 0
+    and (security_patching_installonly_cleanup.stdout ~ security_patching_installonly_cleanup.stderr)
+    is not search('(?i)nothing to do')
+
+- name: Record reboot cleanup facts
+  ansible.builtin.set_fact:
+    security_patching_reboot_completed: true
+    security_patching_pre_reboot_kernel_release: "{{ security_patching_pre_reboot_kernel.stdout | default('') | trim }}"
+    security_patching_post_reboot_kernel_release: "{{ security_patching_post_reboot_kernel.stdout | default('') | trim }}"
+    security_patching_installonly_cleanup_changed: "{{ security_patching_installonly_cleanup.changed | default(false) }}"
+    security_patching_installonly_cleanup_stdout: "{{ security_patching_installonly_cleanup.stdout | default('') }}"
+    security_patching_installonly_cleanup_stderr: "{{ security_patching_installonly_cleanup.stderr | default('') }}"

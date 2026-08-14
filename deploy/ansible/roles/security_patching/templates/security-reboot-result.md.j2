@@ -1,0 +1,27 @@
+## Production security reboot result
+
+- Approved by: `{{ security_patching_approver }}`
+- Scan ID: `{{ security_patching_request_scan_id | default(security_patching_scan_id) }}`
+- Target group: `{{ security_patching_target_group }}`
+{% if security_patching_workflow_run_url | default('') | length > 0 -%}
+- Workflow run: {{ security_patching_workflow_run_url }}
+{% endif %}
+
+| Instance | Rebooted | Kernel before | Kernel after | Installonly cleanup | Remaining OpenSCAP findings |
+|---|---:|---|---|---:|---:|
+{% for host in groups[security_patching_target_group] | default([]) -%}
+| `{{ host }}` | {{ hostvars[host].security_patching_reboot_completed | default(false) }} | `{{ hostvars[host].security_patching_pre_reboot_kernel_release | default('unknown') }}` | `{{ hostvars[host].security_patching_post_reboot_kernel_release | default('unknown') }}` | {{ hostvars[host].security_patching_installonly_cleanup_changed | default(false) }} | {{ hostvars[host].security_patching_post_reboot_entries | default([]) | length }} |
+{% endfor %}
+
+{% if security_patching_remaining_hosts | default([]) | length == 0 -%}
+Post-reboot OpenSCAP scan is clean for the approved target group. This issue will be closed automatically.
+{% else -%}
+Post-reboot OpenSCAP scan still reports findings on:
+
+{% for host in security_patching_remaining_hosts -%}
+- `{{ host }}`: {{ hostvars[host].security_patching_post_reboot_entries | default([]) | length }} remaining security update(s)
+{% endfor %}
+
+This issue has been refreshed with the remaining findings and is intentionally left open for follow-up review.
+Re-apply the `{{ security_patching_approval_label }}` label after reviewing the refreshed advisory set.
+{% endif %}

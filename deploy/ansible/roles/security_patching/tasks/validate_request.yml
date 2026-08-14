@@ -72,7 +72,7 @@
     body_format: json
     body:
       body: |
-        Production security update request accepted.
+        {{ security_patching_request_accepted_message }}
 
         - Approved by: `{{ security_patching_approver }}`
         - Scan ID: `{{ security_patching_request_scan_id }}`
