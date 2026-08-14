@@ -21,6 +21,82 @@
       Current={{ security_patching_reboot_current_advisory_ids }}
       Approved={{ security_patching_reboot_approved_advisory_ids }}
 
+- name: Initialize reboot finding package eligibility state
+  ansible.builtin.set_fact:
+    security_patching_reboot_entries_without_packages: []
+    security_patching_reboot_disallowed_packages: []
+  when: security_patching_reboot_approved_advisory_ids | length > 0
+
+- name: Collect reboot findings without package metadata
+  ansible.builtin.set_fact:
+    security_patching_reboot_entries_without_packages: >-
+      {{
+        (
+          security_patching_reboot_entries_without_packages
+          + [item.advisory_id | default(item.definition_id | default('unknown'))]
+        )
+        | unique
+        | sort
+      }}
+  loop: "{{ security_patching_update_entries | default([]) }}"
+  when: >-
+    security_patching_reboot_approved_advisory_ids | length > 0
+    and (item.packages is not defined or item.packages | length == 0)
+
+- name: Collect packages outside reboot-eligible kernel families
+  ansible.builtin.set_fact:
+    security_patching_reboot_disallowed_packages: >-
+      {{ (security_patching_reboot_disallowed_packages + [item.1]) | unique | sort }}
+  loop: "{{ security_patching_update_entries | default([]) | subelements('packages', skip_missing=True) }}"
+  when: >-
+    security_patching_reboot_approved_advisory_ids | length > 0
+    and item.1 is not match(security_patching_reboot_allowed_package_regex)
+
+- name: Refuse reboot when findings are not kernel installonly candidates
+  ansible.builtin.assert:
+    that:
+      - security_patching_reboot_entries_without_packages | length == 0
+      - security_patching_reboot_disallowed_packages | length == 0
+    fail_msg: >-
+      Refusing reboot for {{ inventory_hostname }} because current findings are not limited to
+      reboot/installonly cleanup candidates. Findings without package metadata={{
+      security_patching_reboot_entries_without_packages }} disallowed packages={{
+      security_patching_reboot_disallowed_packages }} allowed regex={{
+      security_patching_reboot_allowed_package_regex }}
+  when: security_patching_reboot_approved_advisory_ids | length > 0
+
+- name: Check DNF has no package work for reboot-approved advisories # noqa: command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - --assumeno
+      - upgrade-minimal
+      - --security
+      - "--advisories={{ security_patching_reboot_approved_advisory_ids | join(',') }}"
+  register: security_patching_reboot_dnf_noop_check
+  changed_when: false
+  failed_when: false
+  when:
+    - security_patching_reboot_approved_advisory_ids | length > 0
+    - security_patching_reboot_validate_dnf_noop | bool
+
+- name: Refuse reboot if DNF still has advisory-scoped package work
+  ansible.builtin.assert:
+    that:
+      - security_patching_reboot_dnf_noop_check.rc == 0
+      - >-
+        (security_patching_reboot_dnf_noop_check.stdout ~ security_patching_reboot_dnf_noop_check.stderr)
+        is search('(?i)(nothing to do|no packages marked)')
+    fail_msg: >-
+      Refusing reboot for {{ inventory_hostname }} because DNF still has package work or could
+      not prove a no-op for approved advisories {{ security_patching_reboot_approved_advisory_ids }}.
+      rc={{ security_patching_reboot_dnf_noop_check.rc | default('missing') }}
+      stdout={{ security_patching_reboot_dnf_noop_check.stdout | default('') }}
+      stderr={{ security_patching_reboot_dnf_noop_check.stderr | default('') }}
+  when:
+    - security_patching_reboot_approved_advisory_ids | length > 0
+    - security_patching_reboot_validate_dnf_noop | bool
+
 - name: Record skipped reboot state when host has no approved findings
   ansible.builtin.set_fact:
     security_patching_reboot_completed: false

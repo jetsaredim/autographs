@@ -10,6 +10,13 @@
               - ELSA-2026-22222
         security_patching_update_advisory_ids:
           - ELSA-2026-22222
+        security_patching_update_entries:
+          - advisory_id: ELSA-2026-22222
+            packages:
+              - kernel-uek-core
+              - kernel-uek-modules
+              - perf
+        security_patching_reboot_validate_dnf_noop: false
 
     - name: Validate current matching reboot finding set
       ansible.builtin.import_role:
@@ -21,6 +28,7 @@
         that:
           - security_patching_reboot_approved_advisory_ids == ['ELSA-2026-22222']
           - security_patching_reboot_current_advisory_ids == ['ELSA-2026-22222']
+          - security_patching_reboot_disallowed_packages == []
           - security_patching_reboot_completed is not defined
 
 - name: Validate skipped clean security reboot state
@@ -31,6 +39,7 @@
       ansible.builtin.set_fact:
         security_patching_request_instances: {}
         security_patching_update_advisory_ids: []
+        security_patching_update_entries: []
 
     - name: Validate current clean reboot finding set
       ansible.builtin.import_role:
@@ -74,3 +83,40 @@
       ansible.builtin.assert:
         that:
           - security_reboot_state_drift_rejected
+
+- name: Validate non-kernel security reboot state rejection
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_reboot_state_package_rejected: false
+  tasks:
+    - name: Record non-kernel approved reboot issue metadata
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          localhost:
+            advisory_ids:
+              - ELSA-2026-55555
+        security_patching_update_advisory_ids:
+          - ELSA-2026-55555
+        security_patching_update_entries:
+          - advisory_id: ELSA-2026-55555
+            packages:
+              - openssl
+        security_patching_reboot_validate_dnf_noop: false
+
+    - name: Run reboot state validation until expected package rejection
+      block:
+        - name: Attempt non-kernel reboot finding set validation
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: validate_reboot_state
+      rescue:
+        - name: Record expected reboot state package rejection
+          ansible.builtin.set_fact:
+            security_reboot_state_package_rejected: true
+
+    - name: Assert non-kernel reboot state was rejected
+      ansible.builtin.assert:
+        that:
+          - security_reboot_state_package_rejected
+          - security_patching_reboot_disallowed_packages == ['openssl']

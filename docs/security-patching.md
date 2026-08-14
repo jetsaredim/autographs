@@ -124,7 +124,7 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 - First play targets `localhost` and imports `tasks_from: validate_request`, using the reboot approval label.
 - Second play targets `security_patching_target_group`, runs with `become: true`, and uses `serial: 1`.
 - On each runtime host, it imports `tasks_from: scan`, imports `tasks_from: validate_reboot_state`, then imports `tasks_from: reboot_cleanup` only for hosts with approved findings.
-- `tasks/validate_reboot_state.yml` compares the current OpenSCAP advisory IDs to the approved issue metadata before downtime. Hosts with no approved findings record a skipped reboot state.
+- `tasks/validate_reboot_state.yml` compares the current OpenSCAP advisory IDs to the approved issue metadata before downtime, rejects non-kernel-family findings, and requires DNF to prove there is no advisory-scoped package work left. Hosts with no approved findings record a skipped reboot state.
 - `tasks/reboot_cleanup.yml` records the running kernel, reboots, waits for SSH, records the new running kernel, waits for Autographs quadlet services, verifies local static Caddy health, verifies Caddy-fronted `/admin/api/health`, and runs:
 
   ```bash
@@ -146,6 +146,7 @@ The scanner and updater communicate through a GitHub issue. The scanner writes a
 `deploy/ansible/roles/security_patching/defaults/main.yml`
 
 - Defines the GitHub API URL, repository, token, request headers, scan ID, timestamp, issue number, approver, temp file paths, Oracle OVAL URL, OpenSCAP result paths, default approval label, and default target group.
+- Defines the reboot follow-up guard defaults, including `security_patching_reboot_validate_dnf_noop` and `security_patching_reboot_allowed_package_regex`.
 - Defines labels managed by the scanner:
 
   ```text
@@ -208,7 +209,7 @@ The apply workflow validates that:
 
 If the advisory set has drifted, the workflow refuses to apply updates. For ordinary partial updates, the apply workflow refreshes the issue with the post-update findings before removing the approval label; for unrelated drift, run the scanner again to refresh the issue.
 
-The reboot workflow uses the same approver allowlist and scanner metadata validation but a separate label so package remediation approval never implies downtime. It also performs a fresh pre-reboot OpenSCAP drift check before taking downtime. The reboot path is intended for cases where DNF has already installed all applicable updates, but OpenSCAP still reports installed stale installonly kernel packages or the system must boot into a newly installed kernel before old kernel cleanup can finish.
+The reboot workflow uses the same approver allowlist and scanner metadata validation but a separate label so package remediation approval never implies downtime. It also performs a fresh pre-reboot OpenSCAP drift check, rejects non-kernel-family findings, and requires a DNF no-op check before taking downtime. The reboot path is intended for cases where DNF has already installed all applicable updates, but OpenSCAP still reports installed stale installonly kernel packages or the system must boot into a newly installed kernel before old kernel cleanup can finish.
 
 ## Scan flow
 
@@ -382,7 +383,7 @@ The apply playbook treats OpenSCAP as the authority for detection and closure. D
 
 The workflow runs hosts serially and re-scans after applying updates. It removes the approval label after the run starts, comments the result back to the issue, and closes the issue only when the post-update scan has no remaining findings. If findings remain after a successful partial update, the workflow rewrites the same issue body with the remaining post-update advisory set so an operator can re-apply the approval label without manually running the weekly scanner first.
 
-When the remaining findings are kernel or UEK installonly findings, the update workflow can fail intentionally if DNF reports no package changes for still-approved advisories. That means DNF has no more advisory-scoped package updates to install. Review the issue and current runtime state, then use the separate `approved-production-reboot` label when downtime is acceptable. The reboot workflow boots the instance into the newest installed kernel, waits for Autographs health, removes old installonly kernels, re-runs OpenSCAP, and refreshes or closes the same issue.
+When the remaining findings are kernel or UEK installonly findings, the update workflow can fail intentionally if DNF reports no package changes for still-approved advisories. That means DNF has no more advisory-scoped package updates to install. Review the issue and current runtime state, then use the separate `approved-production-reboot` label when downtime is acceptable. The reboot workflow independently rechecks that DNF is a no-op for the approved advisories, boots the instance into the newest installed kernel, waits for Autographs health, removes old installonly kernels, re-runs OpenSCAP, and refreshes or closes the same issue.
 
 ## Reboot flow
 
@@ -390,7 +391,13 @@ The reboot path starts when an allowed operator applies `approved-production-reb
 
 `tasks/validate_request.yml` runs first on `localhost` with the reboot approval label and the same scanner metadata contract used by the update workflow. It confirms the actor is allowed, the issue is open, the issue is scanner-created, the reboot approval label is present, and metadata targets the requested group.
 
-The reboot playbook scans each runtime host again before downtime. `tasks/validate_reboot_state.yml` refuses to proceed unless the current OpenSCAP advisory ID set exactly matches the issue metadata for that host. If a host in the target group has no approved findings and remains clean, it records a skipped reboot state instead of rebooting.
+The reboot playbook scans each runtime host again before downtime. `tasks/validate_reboot_state.yml` refuses to proceed unless the current OpenSCAP advisory ID set exactly matches the issue metadata for that host, the advisory package names match the configured kernel/UEK package-family regex, and this DNF check reports no remaining package work:
+
+```bash
+dnf --assumeno upgrade-minimal --security --advisories=<comma-separated ELSA IDs>
+```
+
+If DNF would still apply package updates, the workflow fails before reboot and removes the reboot approval label through cleanup. If a host in the target group has no approved findings and remains clean, it records a skipped reboot state instead of rebooting.
 
 `tasks/reboot_cleanup.yml` then runs per runtime host that still has approved findings:
 

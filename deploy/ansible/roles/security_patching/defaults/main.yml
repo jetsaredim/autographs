@@ -34,6 +34,8 @@ security_patching_target_group: runtime
 security_patching_request_accepted_message: Production security update request accepted.
 security_patching_failed_request_message: Production security update workflow did not complete successfully.
 security_patching_installonly_limit: 2
+security_patching_reboot_validate_dnf_noop: true
+security_patching_reboot_allowed_package_regex: '^(kernel($|-.*)|bpftool$|libperf$|perf$|python3-perf$|rtla$|rv$)$'
 security_patching_reboot_timeout_seconds: 900
 security_patching_reboot_connect_timeout_seconds: 20
 security_patching_reboot_post_delay_seconds: 15
