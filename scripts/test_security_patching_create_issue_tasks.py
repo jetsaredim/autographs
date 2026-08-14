@@ -78,6 +78,12 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertNotIn("security_patching_report_max_detail_rows", defaults)
         self.assertIn("security_patching_report_max_cves_per_row: 4", defaults)
         self.assertIn("security_patching_report_max_body_bytes: 60000", defaults)
+        self.assertIn('security_patching_report_approval_label: "{{ security_patching_approval_label }}"', defaults)
+        self.assertIn(
+            "report_approval_label = security_patching_report_approval_label | default(security_patching_approval_label)",
+            template,
+        )
+        self.assertIn('approval_label: "{{ report_approval_label }}"', template)
         self.assertIn(
             "shown_cves = advisory_cves[:security_patching_report_max_cves_per_row | int]",
             template,
@@ -219,6 +225,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security_patching_failure_refresh_approval_label: approved-production-update", defaults)
         self.assertIn("security_patching_failure_context_max_chars", defaults)
         self.assertIn("security_patching_failure_context_stream_max_chars", defaults)
+        self.assertIn('security_patching_report_approval_label: "{{ security_patching_approval_label }}"', defaults)
         self.assertIn("name: approved-production-reboot", defaults)
         self.assertIn("github.event.label.name == 'approved-production-reboot'", workflow)
         self.assertIn("SECURITY_PATCHING_FAILURE_CONTEXT_PATH", workflow)
@@ -256,7 +263,11 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("Validate failed reboot cleanup reports oversized scanner issue refresh", reboot_state_test)
         self.assertIn("Validate failed reboot cleanup closes stale scanner issue when current scan is clean", reboot_state_test)
         self.assertIn("Validate failed reboot cleanup truncates oversized failure context", reboot_state_test)
+        self.assertIn("Validate failed reboot cleanup tolerates malformed refresh payload", reboot_state_test)
         self.assertIn("Record failed request refreshed issue body size outcome", failed_cleanup_tasks)
+        self.assertIn("Parse failed request issue refresh payload", failed_cleanup_tasks)
+        self.assertIn("Record invalid failed request issue refresh payload", failed_cleanup_tasks)
+        self.assertIn("security_patching_report_approval_label", failed_cleanup_tasks)
         self.assertIn("Prepare clean current scanner issue body after reboot drift", failed_cleanup_tasks)
         self.assertIn("Close stale scanner issue after clean current reboot drift", failed_cleanup_tasks)
         self.assertIn("Bound failed request details for GitHub comment", failed_cleanup_tasks)

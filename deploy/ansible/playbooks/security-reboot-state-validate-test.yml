@@ -448,6 +448,59 @@
           - "'tail-marker-should-be-truncated' not in security_patching_failed_request_details"
           - security_patching_failed_request_label_removal_response is defined
 
+- name: Validate failed reboot cleanup tolerates malformed refresh payload
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_reboot_cleanup_malformed_failed_at_github: false
+    security_reboot_cleanup_malformed_context_path: /tmp/autographs-security-reboot-cleanup-malformed-context-test.md
+    security_reboot_cleanup_malformed_payload_path: /tmp/autographs-security-reboot-cleanup-malformed-refresh-test.json
+    security_patching_github_api_url: http://127.0.0.1:9
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fake-token
+    security_patching_issue_number: 198
+    security_patching_approval_label: approved-production-reboot
+    security_patching_workflow_outcome: failure
+    security_patching_failure_context_path: "{{ security_reboot_cleanup_malformed_context_path }}"
+    security_patching_failure_refresh_path: "{{ security_reboot_cleanup_malformed_payload_path }}"
+  tasks:
+    - name: Record malformed cleanup fixture paths
+      ansible.builtin.set_fact:
+        security_patching_failure_context_path: "{{ security_reboot_cleanup_malformed_context_path }}"
+        security_patching_failure_refresh_path: "{{ security_reboot_cleanup_malformed_payload_path }}"
+
+    - name: Write malformed cleanup context fixture
+      ansible.builtin.copy:
+        dest: "{{ security_reboot_cleanup_malformed_context_path }}"
+        mode: "0600"
+        content: |
+          Validation failed before reboot: current OpenSCAP advisories drifted from the approved issue metadata.
+
+    - name: Write malformed cleanup refresh payload fixture
+      ansible.builtin.copy:
+        dest: "{{ security_reboot_cleanup_malformed_payload_path }}"
+        mode: "0600"
+        content: '{"reason":"reboot_advisory_drift","host":"production","advisory_ids":'
+
+    - name: Run malformed failed cleanup until fake GitHub comment fails
+      block:
+        - name: Attempt failed cleanup with malformed drift refresh payload
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: cleanup_failed_request
+      rescue:
+        - name: Record expected fake GitHub malformed cleanup failure
+          ansible.builtin.set_fact:
+            security_reboot_cleanup_malformed_failed_at_github: true
+
+    - name: Assert malformed refresh payload does not stop label cleanup
+      ansible.builtin.assert:
+        that:
+          - security_reboot_cleanup_malformed_failed_at_github
+          - security_patching_failed_request_issue_refresh_attempted | bool
+          - "'Failed to decode security patching issue refresh payload' in security_patching_failed_request_issue_refresh_failure"
+          - security_patching_failed_request_label_removal_response is defined
+
 - name: Validate non-kernel security reboot state rejection
   hosts: localhost
   gather_facts: false

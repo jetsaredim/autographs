@@ -106,10 +106,21 @@
     - security_patching_failure_refresh_stat.stat.isreg | default(false)
 
 - name: Decode failed request issue refresh payload
-  ansible.builtin.set_fact:
-    security_patching_failed_request_refresh_payload: >-
-      {{ security_patching_failure_refresh_slurp.content | b64decode | from_json }}
   when: security_patching_failure_refresh_slurp.content is defined
+  block:
+    - name: Parse failed request issue refresh payload
+      ansible.builtin.set_fact:
+        security_patching_failed_request_refresh_payload: >-
+          {{ security_patching_failure_refresh_slurp.content | b64decode | from_json }}
+  rescue:
+    - name: Record invalid failed request issue refresh payload
+      ansible.builtin.set_fact:
+        security_patching_failed_request_issue_refresh_attempted: true
+        security_patching_failed_request_issue_refresh_failure: >-
+          Failed to decode security patching issue refresh payload from
+          {{ security_patching_failure_refresh_path }}. The workflow will skip issue refresh
+          and continue cleanup.
+        security_patching_failed_request_refresh_payload: {}
 
 - name: Detect failed request issue refresh availability
   ansible.builtin.set_fact:
@@ -155,7 +166,7 @@
 
 - name: Prepare failed request issue refresh context
   ansible.builtin.set_fact:
-    security_patching_approval_label: "{{ security_patching_failure_refresh_approval_label }}"
+    security_patching_report_approval_label: "{{ security_patching_failure_refresh_approval_label }}"
     security_patching_hosts_with_findings:
       - "{{ security_patching_failed_request_refresh_payload.host }}"
     security_patching_enrichment_status: complete

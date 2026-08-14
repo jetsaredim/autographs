@@ -34,6 +34,7 @@ security_patching_oscap_ssh_user: "{{ ansible_user | default('', true) }}"
 security_patching_oscap_ssh_target: >-
   {% if security_patching_oscap_ssh_user | trim | length > 0 %}{{ security_patching_oscap_ssh_user | trim }}@{% endif %}{{ security_patching_oscap_ssh_host }}
 security_patching_approval_label: approved-production-update
+security_patching_report_approval_label: "{{ security_patching_approval_label }}"
 security_patching_reboot_approval_label: approved-production-reboot
 security_patching_target_group: runtime
 security_patching_request_accepted_message: Production security update request accepted.
