@@ -187,6 +187,32 @@
     - security_patching_reboot_approved_advisory_ids | length > 0
     - security_patching_reboot_validate_dnf_noop | bool
 
+- name: Build bounded reboot DNF no-op failure evidence
+  ansible.builtin.set_fact:
+    security_patching_reboot_dnf_noop_stdout_excerpt: |-
+      {% set output = security_patching_reboot_dnf_noop_check.stdout | default('') %}
+      {% set limit = security_patching_failure_context_stream_max_chars | int %}
+      {% if output | length > limit %}
+      {{ output[:limit] | trim }}
+
+      [... truncated {{ (output | length) - limit }} characters from DNF stdout ...]
+      {% else %}
+      {{ output }}
+      {% endif %}
+    security_patching_reboot_dnf_noop_stderr_excerpt: |-
+      {% set output = security_patching_reboot_dnf_noop_check.stderr | default('') %}
+      {% set limit = security_patching_failure_context_stream_max_chars | int %}
+      {% if output | length > limit %}
+      {{ output[:limit] | trim }}
+
+      [... truncated {{ (output | length) - limit }} characters from DNF stderr ...]
+      {% else %}
+      {{ output }}
+      {% endif %}
+  when:
+    - security_patching_reboot_dnf_noop_check is defined
+    - security_patching_reboot_validate_dnf_noop | bool
+
 - name: Write reboot DNF no-op failure context
   ansible.builtin.copy:
     dest: "{{ security_patching_failure_context_path }}"
@@ -201,13 +227,13 @@
       DNF stdout:
 
       ```text
-      {{ security_patching_reboot_dnf_noop_check.stdout | default('') }}
+      {{ security_patching_reboot_dnf_noop_stdout_excerpt | default('') }}
       ```
 
       DNF stderr:
 
       ```text
-      {{ security_patching_reboot_dnf_noop_check.stderr | default('') }}
+      {{ security_patching_reboot_dnf_noop_stderr_excerpt | default('') }}
       ```
 
       Use the normal update approval path until DNF reports no advisory-scoped package work.
@@ -235,8 +261,8 @@
       Refusing reboot for {{ inventory_hostname }} because DNF still has package work or could
       not prove a no-op for approved advisories {{ security_patching_reboot_approved_advisory_ids }}.
       rc={{ security_patching_reboot_dnf_noop_check.rc | default('missing') }}
-      stdout={{ security_patching_reboot_dnf_noop_check.stdout | default('') }}
-      stderr={{ security_patching_reboot_dnf_noop_check.stderr | default('') }}
+      stdout={{ security_patching_reboot_dnf_noop_stdout_excerpt | default('') }}
+      stderr={{ security_patching_reboot_dnf_noop_stderr_excerpt | default('') }}
   when:
     - security_patching_reboot_approved_advisory_ids | length > 0
     - security_patching_reboot_validate_dnf_noop | bool
