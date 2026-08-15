@@ -1,8 +1,9 @@
+{% set report_approval_label = security_patching_report_approval_label | default(security_patching_approval_label) %}
 <!-- autographs-security-patch-metadata
 scan_id: "{{ security_patching_scan_id }}"
 created_at: "{{ security_patching_scan_timestamp }}"
 target_group: "{{ security_patching_target_group }}"
-approval_label: "{{ security_patching_approval_label }}"
+approval_label: "{{ report_approval_label }}"
 instances:
 {% for host in security_patching_hosts_with_findings %}
   {{ host }}:
@@ -62,6 +63,6 @@ _Advisory details were unavailable for this host; review the hidden metadata and
 
 ## One-click approval
 
-Apply the label `{{ security_patching_approval_label }}` to this issue to run the production security update workflow.
+Apply the label `{{ report_approval_label }}` to this issue to run the production security update workflow.
 
 Only users listed in `.github/production-patch-approvers.yml` are allowed to approve production updates. The workflow removes the approval label after it starts and closes this issue only if the post-update scan is clean.

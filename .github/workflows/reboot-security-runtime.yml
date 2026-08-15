@@ -70,6 +70,8 @@ jobs:
           GITHUB_SERVER_URL: ${{ github.server_url }}
           PATCH_APPROVER: ${{ github.actor }}
           PATCH_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SECURITY_PATCHING_FAILURE_CONTEXT_PATH: ${{ github.workspace }}/.security-patching-failure-context.md
+          SECURITY_PATCHING_FAILURE_REFRESH_PATH: ${{ github.workspace }}/.security-patching-failure-refresh.json
           SECURITY_PATCHING_SSH_PRIVATE_KEY_PATH: ${{ runner.temp }}/autographs-deploy-key
         with:
           playbook: playbooks/security-reboot.yml
@@ -94,6 +96,8 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
+          SECURITY_PATCHING_FAILURE_CONTEXT_PATH: ${{ github.workspace }}/.security-patching-failure-context.md
+          SECURITY_PATCHING_FAILURE_REFRESH_PATH: ${{ github.workspace }}/.security-patching-failure-refresh.json
         run: |
           ansible-playbook \
             --extra-vars security_patching_issue_number=${{ github.event.issue.number }} \

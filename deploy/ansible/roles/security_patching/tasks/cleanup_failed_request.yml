@@ -40,6 +40,315 @@
         ] | join('/')
       }}
 
+- name: Initialize failed request details
+  ansible.builtin.set_fact:
+    security_patching_failed_request_details: ""
+    security_patching_failed_request_details_raw: ""
+    security_patching_failed_request_issue_refreshed: false
+    security_patching_failed_request_issue_refresh_attempted: false
+    security_patching_failed_request_issue_refresh_failure: ""
+    security_patching_failed_request_refresh_available: false
+    security_patching_failed_request_refresh_size_ok: false
+    security_patching_failed_request_refresh_with_findings: false
+    security_patching_failed_request_clean_current_scan: false
+    security_patching_failed_request_issue_closed: false
+    security_patching_failed_request_label_removal_status: 0
+    security_patching_failed_request_refresh_payload: {}
+
+- name: Inspect failed request context file
+  ansible.builtin.stat:
+    path: "{{ security_patching_failure_context_path }}"
+  register: security_patching_failure_context_stat
+  when: security_patching_failure_context_path | trim | length > 0
+
+- name: Read failed request context file
+  ansible.builtin.slurp:
+    src: "{{ security_patching_failure_context_path }}"
+  register: security_patching_failure_context_slurp
+  when:
+    - security_patching_failure_context_stat is defined
+    - security_patching_failure_context_stat.stat.exists | default(false)
+    - security_patching_failure_context_stat.stat.isreg | default(false)
+
+- name: Record failed request details
+  ansible.builtin.set_fact:
+    security_patching_failed_request_details_raw: >-
+      {{ security_patching_failure_context_slurp.content | b64decode | trim }}
+  when: security_patching_failure_context_slurp.content is defined
+
+- name: Bound failed request details for GitHub comment
+  ansible.builtin.set_fact:
+    security_patching_failed_request_details: |-
+      {% set details = security_patching_failed_request_details_raw | default('') | trim %}
+      {% set limit = security_patching_failure_context_max_chars | int %}
+      {% if details | length > limit %}
+      {{ details[:limit] | trim }}
+
+      [... truncated {{ (details | length) - limit }} characters from failure details ...]
+      {% else %}
+      {{ details }}
+      {% endif %}
+  when: security_patching_failed_request_details_raw | trim | length > 0
+
+- name: Inspect failed request issue refresh payload
+  ansible.builtin.stat:
+    path: "{{ security_patching_failure_refresh_path }}"
+  register: security_patching_failure_refresh_stat
+  when: security_patching_failure_refresh_path | trim | length > 0
+
+- name: Read failed request issue refresh payload
+  ansible.builtin.slurp:
+    src: "{{ security_patching_failure_refresh_path }}"
+  register: security_patching_failure_refresh_slurp
+  when:
+    - security_patching_failure_refresh_stat is defined
+    - security_patching_failure_refresh_stat.stat.exists | default(false)
+    - security_patching_failure_refresh_stat.stat.isreg | default(false)
+
+- name: Decode failed request issue refresh payload
+  when: security_patching_failure_refresh_slurp.content is defined
+  block:
+    - name: Parse failed request issue refresh payload
+      ansible.builtin.set_fact:
+        security_patching_failed_request_refresh_payload: >-
+          {{ security_patching_failure_refresh_slurp.content | b64decode | from_json }}
+  rescue:
+    - name: Record invalid failed request issue refresh payload
+      ansible.builtin.set_fact:
+        security_patching_failed_request_issue_refresh_attempted: true
+        security_patching_failed_request_issue_refresh_failure: >-
+          Failed to decode security patching issue refresh payload from
+          {{ security_patching_failure_refresh_path }}. The workflow will skip issue refresh
+          and continue cleanup.
+        security_patching_failed_request_refresh_payload: {}
+
+- name: Detect failed request issue refresh availability
+  ansible.builtin.set_fact:
+    security_patching_failed_request_refresh_available: >-
+      {{-
+        (
+          security_patching_failed_request_refresh_payload is defined
+          and security_patching_failed_request_refresh_payload.reason | default('') == 'reboot_advisory_drift'
+          and security_patching_failed_request_refresh_payload.host | default('') | length > 0
+          and security_patching_failed_request_refresh_payload.advisory_ids is defined
+        )
+      -}}
+
+- name: Classify failed request issue refresh payload
+  ansible.builtin.set_fact:
+    security_patching_failed_request_refresh_with_findings: >-
+      {{-
+        (
+          security_patching_failed_request_refresh_available | bool
+          and (security_patching_failed_request_refresh_payload.advisory_ids | default([]) | length | int) > 0
+        )
+      -}}
+    security_patching_failed_request_clean_current_scan: >-
+      {{-
+        (
+          security_patching_failed_request_refresh_available | bool
+          and (security_patching_failed_request_refresh_payload.advisory_ids | default([]) | length | int) == 0
+        )
+      -}}
+  when: security_patching_failed_request_refresh_available | bool
+
+- name: Add current drifted OpenSCAP findings as refresh host
+  ansible.builtin.add_host:
+    name: "{{ security_patching_failed_request_refresh_payload.host }}"
+    groups: security_patching_failed_request_refresh_group
+    security_patching_scan_status: "{{ security_patching_failed_request_refresh_payload.scan_status | default('complete') }}"
+    security_patching_update_entries: "{{ security_patching_failed_request_refresh_payload.entries | default([]) }}"
+    security_patching_update_advisories: "{{ security_patching_failed_request_refresh_payload.advisories | default([]) }}"
+    security_patching_update_advisory_ids: "{{ security_patching_failed_request_refresh_payload.advisory_ids | default([]) }}"
+    security_patching_update_ksplice_aware_advisory_ids: >-
+      {{ security_patching_failed_request_refresh_payload.ksplice_aware_advisory_ids | default([]) }}
+  when: security_patching_failed_request_refresh_with_findings | bool
+
+- name: Prepare failed request issue refresh context
+  ansible.builtin.set_fact:
+    security_patching_report_approval_label: "{{ security_patching_failure_refresh_approval_label }}"
+    security_patching_hosts_with_findings:
+      - "{{ security_patching_failed_request_refresh_payload.host }}"
+    security_patching_enrichment_status: complete
+    security_patching_enrichment_message: >-
+      Oracle Linux OpenSCAP OVAL evaluation completed before approved reboot cleanup,
+      but the advisory set drifted from the approved issue metadata.
+    security_patching_enrichment_by_host: >-
+      {{
+        {
+          security_patching_failed_request_refresh_payload.host: {
+            'advisories': security_patching_failed_request_refresh_payload.advisories | default([]),
+            'entries': security_patching_failed_request_refresh_payload.entries | default([])
+          }
+        }
+      }}
+  when: security_patching_failed_request_refresh_with_findings | bool
+
+- name: Render failed request refreshed issue body
+  ansible.builtin.template:
+    src: security-report.md.j2
+    dest: "{{ security_patching_report_path }}"
+    mode: "0600"
+  when: security_patching_failed_request_refresh_with_findings | bool
+
+- name: Inspect failed request refreshed issue body
+  ansible.builtin.stat:
+    path: "{{ security_patching_report_path }}"
+  register: security_patching_failed_request_refreshed_report_file
+  when: security_patching_failed_request_refresh_with_findings | bool
+
+- name: Record failed request refreshed issue body size outcome
+  ansible.builtin.set_fact:
+    security_patching_failed_request_refresh_size_ok: >-
+      {{-
+        (
+          (security_patching_failed_request_refreshed_report_file.stat.size | int)
+          <= (security_patching_report_max_body_bytes | int)
+        )
+      -}}
+    security_patching_failed_request_issue_refresh_attempted: >-
+      {{-
+        (
+          (security_patching_failed_request_refreshed_report_file.stat.size | int)
+          > (security_patching_report_max_body_bytes | int)
+        )
+      -}}
+    security_patching_failed_request_issue_refresh_failure: >-
+      {% if (security_patching_failed_request_refreshed_report_file.stat.size | int) > (security_patching_report_max_body_bytes | int) %}
+      Refreshed security update issue body is {{ security_patching_failed_request_refreshed_report_file.stat.size | int }} bytes,
+      above the configured {{ security_patching_report_max_body_bytes | int }} byte safety limit.
+      Re-run the scanner manually or reduce visible security report detail before retrying.
+      {% else %}{{ security_patching_failed_request_issue_refresh_failure | default('') }}{% endif %}
+  when: security_patching_failed_request_refresh_with_findings | bool
+
+- name: Read failed request refreshed issue body
+  ansible.builtin.set_fact:
+    security_patching_refreshed_report_body: "{{ lookup('ansible.builtin.file', security_patching_report_path) }}"
+  when:
+    - security_patching_failed_request_refresh_with_findings | bool
+    - security_patching_failed_request_refresh_size_ok | bool
+
+- name: Refresh security update issue after reboot advisory drift
+  ansible.builtin.uri:
+    url: "{{ security_patching_issue_url }}"
+    method: PATCH
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      title: "Production security update report - {{ security_patching_scan_timestamp }}"
+      body: "{{ security_patching_refreshed_report_body }}"
+      labels: "{{ security_patching_issue_labels }}"
+    status_code: 200
+  register: security_patching_failed_request_refresh_response
+  failed_when: false
+  when:
+    - security_patching_failed_request_refresh_with_findings | bool
+    - security_patching_failed_request_refresh_size_ok | bool
+  no_log: true
+
+- name: Record failed request issue refresh outcome
+  ansible.builtin.set_fact:
+    security_patching_failed_request_issue_refresh_attempted: true
+    security_patching_failed_request_issue_refreshed: >-
+      {{- (security_patching_failed_request_refresh_response.status | default(0) | int) == 200 -}}
+    security_patching_failed_request_issue_refresh_failure: >-
+      {% if (security_patching_failed_request_refresh_response.status | default(0) | int) == 200 %}
+      {{ security_patching_failed_request_issue_refresh_failure | default('') }}
+      {% else %}
+      GitHub issue refresh returned HTTP {{ security_patching_failed_request_refresh_response.status | default('unknown') }}.
+      {% endif %}
+  when:
+    - security_patching_failed_request_refresh_response is defined
+    - security_patching_failed_request_refresh_response.status is defined
+
+- name: Prepare clean current scanner issue labels after reboot drift
+  ansible.builtin.set_fact:
+    security_patching_failed_request_clean_issue_labels: >-
+      {{ security_patching_issue_labels | reject('equalto', 'patch-scan-open') | list }}
+  when: security_patching_failed_request_clean_current_scan | bool
+
+- name: Prepare clean current scanner issue body after reboot drift
+  ansible.builtin.set_fact:
+    security_patching_clean_current_report_body: |
+      <!-- autographs-security-patch-metadata
+      scan_id: "{{ security_patching_scan_id }}"
+      created_at: "{{ security_patching_scan_timestamp }}"
+      target_group: "{{ security_patching_target_group }}"
+      approval_label: "{{ security_patching_failure_refresh_approval_label }}"
+      instances: {}
+      -->
+      # Production security update report
+
+      Scan ID: `{{ security_patching_scan_id }}`
+
+      Generated: `{{ security_patching_scan_timestamp }}`
+
+      Target group: `{{ security_patching_target_group }}`
+
+      OpenSCAP evaluation: `{{ security_patching_failed_request_refresh_payload.scan_status | default('complete') }}`
+
+      The current pre-reboot OpenSCAP scan reported no security findings.
+      The approved scanner issue metadata was stale, so the reboot workflow refused downtime
+      and closed this issue without rebooting.
+
+      Previous approved advisories now absent from the current scan:
+      {{ security_patching_failed_request_refresh_payload.removed_advisory_ids | default([]) | length }}
+
+      Re-run the scanner if you need a fresh open issue for future security findings.
+  when: security_patching_failed_request_clean_current_scan | bool
+
+- name: Close stale scanner issue after clean current reboot drift
+  ansible.builtin.uri:
+    url: "{{ security_patching_issue_url }}"
+    method: PATCH
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body:
+      title: "Production security update report - {{ security_patching_scan_timestamp }}"
+      body: "{{ security_patching_clean_current_report_body }}"
+      labels: "{{ security_patching_failed_request_clean_issue_labels }}"
+      state: closed
+      state_reason: completed
+    status_code: 200
+  register: security_patching_failed_request_clean_current_response
+  failed_when: false
+  when: security_patching_failed_request_clean_current_scan | bool
+  no_log: true
+
+- name: Record clean current scanner issue close outcome
+  ansible.builtin.set_fact:
+    security_patching_failed_request_issue_refresh_attempted: true
+    security_patching_failed_request_issue_refreshed: >-
+      {{- (security_patching_failed_request_clean_current_response.status | default(0) | int) == 200 -}}
+    security_patching_failed_request_issue_closed: >-
+      {{- (security_patching_failed_request_clean_current_response.status | default(0) | int) == 200 -}}
+    security_patching_failed_request_issue_refresh_failure: >-
+      {% if (security_patching_failed_request_clean_current_response.status | default(0) | int) == 200 %}
+      {{ security_patching_failed_request_issue_refresh_failure | default('') }}
+      {% else %}
+      GitHub issue close returned HTTP {{ security_patching_failed_request_clean_current_response.status | default('unknown') }}.
+      {% endif %}
+  when:
+    - security_patching_failed_request_clean_current_response is defined
+    - security_patching_failed_request_clean_current_response.status is defined
+
+- name: Remove approval label after failed workflow
+  ansible.builtin.uri:
+    url: "{{ security_patching_issue_label_url }}"
+    method: DELETE
+    headers: "{{ security_patching_github_headers }}"
+    status_code:
+      - 200
+      - 404
+  register: security_patching_failed_request_label_removal_response
+  failed_when: false
+  no_log: true
+
+- name: Record approval label removal outcome
+  ansible.builtin.set_fact:
+    security_patching_failed_request_label_removal_status: >-
+      {{ security_patching_failed_request_label_removal_response.status | default(0) | int }}
+
 - name: Comment failed production security update result
   ansible.builtin.uri:
     url: "{{ security_patching_issue_url }}/comments"
@@ -52,18 +361,42 @@
 
         - Workflow outcome: `{{ security_patching_workflow_outcome | default('failure') }}`
         - Workflow run: {{ security_patching_workflow_run_url }}
+        {% if security_patching_failed_request_details | trim | length > 0 %}
+
+        Failure details:
+
+        {{ security_patching_failed_request_details | trim }}
+        {% endif %}
+        {% if security_patching_failed_request_issue_closed | bool %}
+
+        The scanner issue was closed because the current pre-reboot OpenSCAP findings are clean.
+        The approved issue metadata was stale, so no reboot was attempted.
+        {% elif security_patching_failed_request_issue_refreshed | bool %}
+
+        The scanner issue was refreshed with the current pre-reboot OpenSCAP findings.
+        Review the updated advisory set before approving another update or reboot cleanup.
+        {% elif security_patching_failed_request_issue_refresh_attempted | bool %}
+
+        The workflow tried to refresh or close the scanner issue with the current pre-reboot
+        OpenSCAP findings, but the GitHub issue update did not succeed. Re-run the scanner to refresh
+        the issue before approving another update or reboot cleanup.
+        {% if security_patching_failed_request_issue_refresh_failure | trim | length > 0 %}
+
+        Issue refresh failure:
+
+        {{ security_patching_failed_request_issue_refresh_failure | trim }}
+        {% endif %}
+        {% endif %}
+
+        {% if (security_patching_failed_request_label_removal_status | int) in [200, 404] %}
 
         The approval label has been removed so this request cannot be retried accidentally.
+        {% else %}
+
+        The workflow tried to remove the approval label, but GitHub returned HTTP {{ security_patching_failed_request_label_removal_status }}.
+        Remove `{{ security_patching_approval_label }}` manually before retrying.
+        {% endif %}
+
         Re-run the scanner or re-apply the approval label after reviewing the workflow logs.
     status_code: 201
-  no_log: true
-
-- name: Remove approval label after failed workflow
-  ansible.builtin.uri:
-    url: "{{ security_patching_issue_label_url }}"
-    method: DELETE
-    headers: "{{ security_patching_github_headers }}"
-    status_code:
-      - 200
-      - 404
   no_log: true

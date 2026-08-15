@@ -11,6 +11,11 @@ security_patching_issue_number: ""
 security_patching_approver: "{{ lookup('env', 'PATCH_APPROVER') | default('', true) }}"
 security_patching_report_path: "/tmp/autographs-security-report-{{ security_patching_scan_id }}.md"
 security_patching_result_comment_path: "/tmp/autographs-security-update-result-{{ security_patching_issue_number | default('unknown', true) }}.md"
+security_patching_failure_context_path: "{{ lookup('env', 'SECURITY_PATCHING_FAILURE_CONTEXT_PATH') | default('', true) }}"
+security_patching_failure_refresh_path: "{{ lookup('env', 'SECURITY_PATCHING_FAILURE_REFRESH_PATH') | default('', true) }}"
+security_patching_failure_refresh_approval_label: approved-production-update
+security_patching_failure_context_max_chars: 12000
+security_patching_failure_context_stream_max_chars: 4000
 security_patching_oval_url: https://linux.oracle.com/security/oval/com.oracle.elsa-ol10.xml.bz2
 security_patching_errata_base_url: https://linux.oracle.com/errata/
 security_patching_oval_download_path: "/tmp/autographs-security-oval-{{ security_patching_scan_id }}-{{ inventory_hostname | default('localhost') }}.xml.bz2"
@@ -29,6 +34,7 @@ security_patching_oscap_ssh_user: "{{ ansible_user | default('', true) }}"
 security_patching_oscap_ssh_target: >-
   {% if security_patching_oscap_ssh_user | trim | length > 0 %}{{ security_patching_oscap_ssh_user | trim }}@{% endif %}{{ security_patching_oscap_ssh_host }}
 security_patching_approval_label: approved-production-update
+security_patching_report_approval_label: "{{ security_patching_approval_label }}"
 security_patching_reboot_approval_label: approved-production-reboot
 security_patching_target_group: runtime
 security_patching_request_accepted_message: Production security update request accepted.
