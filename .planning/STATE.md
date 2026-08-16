@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-08-16T11:45:55Z"
-last_activity: 2026-08-16 -- Quick task 260816-aoi added a production Oracle catalog heartbeat
+last_updated: "2026-08-16T20:36:54Z"
+last_activity: 2026-08-16 -- Quick task 260816-n0o made the Oracle catalog heartbeat run after startup
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-16 -- Quick task 260816-aoi added a production Oracle catalog heartbeat
+Last activity: 2026-08-16 -- Quick task 260816-n0o made the Oracle catalog heartbeat run after startup
 
 Progress: [███████░░░] 70% of milestone phases complete; Phase 8 is next
 
@@ -175,6 +175,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-16 | run-oracle-heartbeat-once-shortly-after- | Made the production Oracle catalog heartbeat run its first lightweight SQL command immediately after controller startup, then continue on the configured interval, with docs updated for immediate deploy/reboot confirmation. |
 | 2026-08-16 | add-a-production-oracle-database-heartbe | Added a production Oracle catalog heartbeat that defaults to daily `select 1 from dual`, can be disabled with `AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS=0`, and is documented in deploy/config surfaces. |
 | 2026-08-14 | improve-security-reboot-drift-failure-co | Reboot drift failures now persist operator-facing failure context, refresh the scanner issue from current pre-reboot OpenSCAP findings, reset the approval instruction to `approved-production-update`, and keep refusing downtime until the refreshed issue is reviewed. |
 | 2026-08-14 | add-approved-production-reboot-workflow | Added a separately approved production reboot workflow that drift-checks OpenSCAP findings, requires a DNF no-op/package-family gate, reboots healthy targets, removes old installonly kernels, re-scans, and refreshes or closes the scanner issue. |
