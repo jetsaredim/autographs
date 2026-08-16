@@ -19,9 +19,7 @@ pub fn spawn(user: String, credential: String, connect_string: String) -> Result
     );
 
     tokio::spawn(async move {
-        let first_tick = time::Instant::now() + interval;
-        let mut ticker = time::interval_at(first_tick, interval);
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        let mut ticker = heartbeat_ticker(interval);
 
         loop {
             ticker.tick().await;
@@ -47,6 +45,12 @@ pub fn spawn(user: String, credential: String, connect_string: String) -> Result
     });
 
     Ok(())
+}
+
+fn heartbeat_ticker(interval: Duration) -> time::Interval {
+    let mut ticker = time::interval_at(time::Instant::now(), interval);
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    ticker
 }
 
 fn heartbeat_interval_from_env() -> Result<Option<Duration>, String> {
@@ -132,6 +136,24 @@ mod tests {
             parse_heartbeat_interval(Some("3600")).unwrap(),
             Some(Duration::from_secs(3600))
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn oracle_heartbeat_ticker_ticks_immediately_then_repeats_on_interval() {
+        let interval = Duration::from_secs(60);
+        let mut ticker = heartbeat_ticker(interval);
+
+        ticker.tick().await;
+
+        let second_tick = ticker.tick();
+        tokio::pin!(second_tick);
+        tokio::select! {
+            _ = &mut second_tick => panic!("second heartbeat tick fired before interval"),
+            _ = tokio::task::yield_now() => {}
+        }
+
+        time::advance(interval).await;
+        second_tick.await;
     }
 
     #[test]
