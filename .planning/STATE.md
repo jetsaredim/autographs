@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-08-14T19:34:00Z"
-last_activity: 2026-08-14 -- Quick task 260814-kzc tightened reboot drift failure handling
+last_updated: "2026-08-16T11:45:55Z"
+last_activity: 2026-08-16 -- Quick task 260816-aoi added a production Oracle catalog heartbeat
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-14 -- Quick task 260814-kzc tightened reboot drift failure handling
+Last activity: 2026-08-16 -- Quick task 260816-aoi added a production Oracle catalog heartbeat
 
 Progress: [███████░░░] 70% of milestone phases complete; Phase 8 is next
 
@@ -104,6 +104,7 @@ Recent decisions affecting current work:
 - Phase 8: Repair the current production security patching workflow, run a repo-wide posture pass, and add private admin image previews plus non-destructive image adjustment foundations before more media-heavy taxonomy or AI work.
 - Phase 8 CDN posture: CDN/cache behavior is first-class Phase 8 work; define cache keys, TTLs, purge triggers, admin/API bypass, and rollback before the detailed media editor, then enable CDN only after adjusted-media cache behavior is proven.
 - Phase 8 security patching: The old runtime-IP resolution issue is resolved, but latest weekly scans still fail after IP resolution in the Ansible scan step; the repair should reduce host-side data gathering and use authoritative external Oracle Linux advisory sources where practical.
+- Quick task: Production Oracle persistence now starts a read-only daily heartbeat that runs lightweight SQL to keep Always Free Autonomous Database inactivity tracking fresh without writing synthetic catalog data.
 - Phase 9: Add optional taxonomy/media cues for franchise, product-line, set, and non-default language values, keeping text metadata canonical and any public derivatives small, optional, privacy/copyright reviewed, and independent from OCR/AI provider work.
 - Phase 10: Add advisory AI-assisted ingest after the admin workflow and richer metadata model exist, without making manual entry dependent on AI.
 - Review follow-up: Phase 6, Phase 7, Phase 8, Phase 9, and Phase 10 now carry explicit security/documentation completion criteria for the new admin, metadata, media, operations, and AI surfaces they introduce.
@@ -174,6 +175,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-16 | add-a-production-oracle-database-heartbe | Added a production Oracle catalog heartbeat that defaults to daily `select 1 from dual`, can be disabled with `AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS=0`, and is documented in deploy/config surfaces. |
 | 2026-08-14 | improve-security-reboot-drift-failure-co | Reboot drift failures now persist operator-facing failure context, refresh the scanner issue from current pre-reboot OpenSCAP findings, reset the approval instruction to `approved-production-update`, and keep refusing downtime until the refreshed issue is reviewed. |
 | 2026-08-14 | add-approved-production-reboot-workflow | Added a separately approved production reboot workflow that drift-checks OpenSCAP findings, requires a DNF no-op/package-family gate, reboots healthy targets, removes old installonly kernels, re-scans, and refreshes or closes the scanner issue. |
 | 2026-08-03 | replace-production-security-patch-scanne | Replaced the production security scanner with OpenSCAP Oracle OVAL findings, advisory-ID approval metadata, Ksplice-first remediation, and DNF advisory-scoped fallback updates. |
