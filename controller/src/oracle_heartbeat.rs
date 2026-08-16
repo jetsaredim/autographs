@@ -14,7 +14,6 @@ pub fn spawn(user: String, credential: String, connect_string: String) -> Result
 
     tracing::info!(
         %user,
-        %connect_string,
         interval_seconds = interval.as_secs(),
         "starting Oracle catalog heartbeat"
     );
@@ -38,10 +37,10 @@ pub fn spawn(user: String, credential: String, connect_string: String) -> Result
             match result {
                 Ok(Ok(())) => tracing::info!("Oracle catalog heartbeat succeeded"),
                 Ok(Err(error)) => {
-                    tracing::warn!(%error, "Oracle catalog heartbeat failed");
+                    tracing::warn!(error_kind = error.kind(), "Oracle catalog heartbeat failed");
                 }
-                Err(error) => {
-                    tracing::warn!(%error, "Oracle catalog heartbeat task failed");
+                Err(_error) => {
+                    tracing::warn!("Oracle catalog heartbeat task failed");
                 }
             }
         }
@@ -77,19 +76,33 @@ fn parse_heartbeat_interval(raw: Option<&str>) -> Result<Option<Duration>, Strin
     Ok(Some(Duration::from_secs(seconds)))
 }
 
-fn run_heartbeat(user: &str, credential: &str, connect_string: &str) -> Result<(), String> {
+fn run_heartbeat(user: &str, credential: &str, connect_string: &str) -> Result<(), HeartbeatError> {
     let connection = Connection::connect(user, credential, connect_string)
-        .map_err(|error| format!("connect to Oracle catalog for heartbeat: {error}"))?;
+        .map_err(|_error| HeartbeatError::Connect)?;
     let value: i64 = connection
         .query_row_as("select 1 from dual", &[])
-        .map_err(|error| format!("run Oracle catalog heartbeat query: {error}"))?;
+        .map_err(|_error| HeartbeatError::Query)?;
     if value != 1 {
-        return Err(format!(
-            "Oracle catalog heartbeat returned {value}, expected 1"
-        ));
+        return Err(HeartbeatError::UnexpectedResult);
     }
 
     Ok(())
+}
+
+enum HeartbeatError {
+    Connect,
+    Query,
+    UnexpectedResult,
+}
+
+impl HeartbeatError {
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::Connect => "connect",
+            Self::Query => "query",
+            Self::UnexpectedResult => "unexpected_result",
+        }
+    }
 }
 
 #[cfg(test)]

@@ -6,6 +6,7 @@ fn controller_route_tracing_does_not_log_private_or_secret_terms() {
         "controller/src/publisher.rs",
         "controller/src/routes.rs",
         "controller/src/routes/admin_items.rs",
+        "controller/src/oracle_heartbeat.rs",
     ] {
         let source = read_repo(path);
         for block in tracing_blocks(&source) {
@@ -22,6 +23,8 @@ fn controller_route_tracing_does_not_log_private_or_secret_terms() {
                 "secret",
                 "token",
                 "password",
+                "connect_string",
+                "ORACLE_DB_CONNECT_STRING",
             ] {
                 assert!(
                     !block.contains(denied),

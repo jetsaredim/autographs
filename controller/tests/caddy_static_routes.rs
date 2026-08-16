@@ -135,6 +135,22 @@ fn controller_quadlet_keeps_private_api_off_host_ports() {
 }
 
 #[test]
+fn deploy_wires_oracle_heartbeat_interval_override() {
+    let deploy_workflow = read_repo(".github/workflows/deploy.yml");
+    let app_env = read_repo("deploy/ansible/roles/autographs_deploy/templates/app.env.j2");
+
+    assert!(deploy_workflow.contains(
+        "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS: ${{ vars.AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS || '86400' }}"
+    ));
+    assert!(deploy_workflow.contains(
+        "--extra-vars autographs_oracle_heartbeat_interval_seconds=${{ env.AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS }}"
+    ));
+    assert!(app_env.contains(
+        "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS={{ autographs_oracle_heartbeat_interval_seconds | default(86400) }}"
+    ));
+}
+
+#[test]
 fn deploy_tasks_hash_rotation_discards_preserved_plaintext_credentials() {
     let deploy_tasks = read_repo("deploy/ansible/roles/autographs_deploy/tasks/main.yml");
     let select_start = deploy_tasks
