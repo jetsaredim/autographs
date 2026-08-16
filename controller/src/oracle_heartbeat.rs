@@ -19,9 +19,7 @@ pub fn spawn(user: String, credential: String, connect_string: String) -> Result
     );
 
     tokio::spawn(async move {
-        let first_tick = time::Instant::now() + interval;
-        let mut ticker = time::interval_at(first_tick, interval);
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        let mut ticker = heartbeat_ticker(interval);
 
         loop {
             ticker.tick().await;
@@ -47,6 +45,17 @@ pub fn spawn(user: String, credential: String, connect_string: String) -> Result
     });
 
     Ok(())
+}
+
+fn heartbeat_ticker(interval: Duration) -> time::Interval {
+    let first_tick = first_heartbeat_tick(time::Instant::now(), interval);
+    let mut ticker = time::interval_at(first_tick, interval);
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    ticker
+}
+
+fn first_heartbeat_tick(now: time::Instant, _interval: Duration) -> time::Instant {
+    now
 }
 
 fn heartbeat_interval_from_env() -> Result<Option<Duration>, String> {
@@ -132,6 +141,12 @@ mod tests {
             parse_heartbeat_interval(Some("3600")).unwrap(),
             Some(Duration::from_secs(3600))
         );
+    }
+
+    #[test]
+    fn oracle_heartbeat_first_tick_is_immediate() {
+        let now = time::Instant::now();
+        assert_eq!(first_heartbeat_tick(now, Duration::from_secs(3600)), now);
     }
 
     #[test]

@@ -93,7 +93,7 @@ Terraform defines the end-state Oracle Autonomous Database Free metadata store a
 
 Runtime containers receive database and media coordinates through Ansible-managed environment files consumed by Podman quadlets, not committed files. The deploy workflow writes VM-local env files under `${DEPLOY_PATH}/env`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values.
 
-When production persistence uses Oracle, the controller starts a read-only heartbeat that periodically connects and runs `select 1 from dual`. This keeps Always Free Autonomous Database inactivity tracking fresh without writing synthetic catalog records.
+When production persistence uses Oracle, the controller starts a read-only heartbeat that connects and runs `select 1 from dual` once after startup, then repeats on the configured interval. This keeps Always Free Autonomous Database inactivity tracking fresh without writing synthetic catalog records and gives operators an immediate success or failure log after a deploy or reboot.
 
 ## Runtime Image Contract
 
