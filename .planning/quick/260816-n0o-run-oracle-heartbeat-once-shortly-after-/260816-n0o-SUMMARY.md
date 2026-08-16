@@ -11,6 +11,8 @@ Updated the production Oracle catalog heartbeat so a controller start, deploy, o
 
 Documented the startup heartbeat behavior in the runtime configuration contract and `.env.example`.
 
+Review/coder follow-up on PR #206 replaced the trivial first-tick helper assertion with a paused Tokio timer test that exercises the actual heartbeat ticker, verifies the first tick is immediate, and verifies the next tick waits for the configured interval.
+
 ## Verification
 
 - `cargo fmt --manifest-path controller/Cargo.toml`
