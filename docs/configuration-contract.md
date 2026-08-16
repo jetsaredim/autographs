@@ -73,6 +73,7 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `GHCR_CLEANUP_PROTECTED_TAGS` | Optional comma-separated immutable tags that both GHCR and VM-local cleanup must preserve |
 | `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` | Number of newest local controller images to retain on the runtime VM during scheduled/manual cleanup; defaults to `3` |
 | `AUTOGRAPHS_CONTROLLER_DB_PROVIDER` | Deploy-time value must be `oracle`; `local` is only for direct local controller runs |
+| `AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS` | Seconds between production Oracle heartbeat SQL commands; defaults to `86400`; set `0` to disable |
 | `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER` | Deploy-time value must be `oci-instance-principal`; `local` is only for direct local controller runs |
 
 The deploy workflow intentionally codifies the single-region tenancy defaults: runtime region and home region are both `us-ashburn-1`, the Terraform state bucket is `autographs-tf-state`, and the runtime state object key is `envs/prod/terraform.tfstate`. Keep non-secret deployment coordinates visible as GitHub Variables so deploy behavior can be audited without opening secrets.
@@ -91,6 +92,8 @@ Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, me
 Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, ADMIN password, and runtime connection values.
 
 Runtime containers receive database and media coordinates through Ansible-managed environment files consumed by Podman quadlets, not committed files. The deploy workflow writes VM-local env files under `${DEPLOY_PATH}/env`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values.
+
+When production persistence uses Oracle, the controller starts a read-only heartbeat that periodically connects and runs `select 1 from dual`. This keeps Always Free Autonomous Database inactivity tracking fresh without writing synthetic catalog records.
 
 ## Runtime Image Contract
 
@@ -114,6 +117,7 @@ Runtime controller settings:
 | `AUTOGRAPHS_CONTROLLER_IMAGE` | release metadata | Deployed semver-tagged controller image reference |
 | `AUTOGRAPHS_SOURCE_REVISION` | release metadata | Source revision that triggered the version workflow |
 | `AUTOGRAPHS_CONTROLLER_DB_PROVIDER` | runtime coordinate | Deploy-time value must be `oracle`; `local` is only for direct local controller runs |
+| `AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS` | runtime coordinate | Seconds between lightweight Oracle heartbeat SQL commands in production persistence mode; defaults to `86400`; set `0` to disable |
 | `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER` | runtime coordinate | Deploy-time value must be `oci-instance-principal`; `local` is only for direct local controller runs |
 | `AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT` | local/staged coordinate | Local private-media path used only when the controller media provider is `local` |
 | `AUTOGRAPHS_PUBLIC_ORIGIN` | runtime coordinate | Canonical HTTPS origin used for browser mutation checks |
