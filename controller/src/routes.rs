@@ -113,7 +113,7 @@ fn provider(name: &str) -> String {
 
 #[cfg(feature = "production-persistence")]
 fn production_repository() -> Result<Arc<dyn CatalogRepository>, String> {
-    use crate::{oracle_catalog::OracleCatalogRepository, oracle_schema};
+    use crate::{oracle_catalog::OracleCatalogRepository, oracle_heartbeat, oracle_schema};
 
     tracing::info!("configuring Oracle catalog repository");
 
@@ -124,6 +124,12 @@ fn production_repository() -> Result<Arc<dyn CatalogRepository>, String> {
     oracle_schema::ensure_initialized(&oracle_user, &oracle_password, &oracle_connect_string)?;
 
     tracing::info!("Oracle catalog schema is ready");
+
+    oracle_heartbeat::spawn(
+        oracle_user.clone(),
+        oracle_password.clone(),
+        oracle_connect_string.clone(),
+    )?;
 
     Ok(Arc::new(OracleCatalogRepository::new(
         oracle_user,
