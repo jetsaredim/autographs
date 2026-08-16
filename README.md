@@ -8,12 +8,12 @@
 <!-- autographs-release-status:start -->
 ## Release Status
 
-- Repo version: `v0.0.15`
+- Repo version: `v0.0.16`
 - Deployed controller image: `v0.0.7`
-- Latest deploy-impact version: `v0.0.15`
+- Latest deploy-impact version: `v0.0.16`
 - Version state: repo ahead of deployed controller
 - Last bump: `patch`
-- Last deploy impact: `runtime-config`
+- Last deploy impact: `controller-image`
 <!-- autographs-release-status:end -->
 
 Autographs is a production-lean personal autograph collection site. The current public runtime serves a generated static catalog through Caddy, with the Rust private controller publishing public-safe pages, JSON, and derived media from Oracle metadata and private OCI Object Storage.
