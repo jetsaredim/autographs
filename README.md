@@ -8,7 +8,7 @@
 <!-- autographs-release-status:start -->
 ## Release Status
 
-- Repo version: `v0.0.19`
+- Repo version: `v0.0.20`
 - Deployed controller image: `v0.0.18`
 - Latest deploy-impact version: `v0.0.18`
 - Version state: repo ahead of deployed controller
