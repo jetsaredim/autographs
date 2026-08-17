@@ -4,6 +4,7 @@ pub mod catalog_admin;
 pub mod config;
 pub mod contracts;
 pub mod derivatives;
+pub mod image_adjustments;
 pub mod media;
 #[cfg(feature = "production-persistence")]
 pub mod oci_media;
