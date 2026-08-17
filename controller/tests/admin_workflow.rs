@@ -969,7 +969,10 @@ async fn replacing_image_preserves_id_and_clears_stale_adjustment() {
         .unwrap();
 
     assert_eq!(replacement.images[0].id, image_id);
-    assert_eq!(replacement.images[0].object_key, "originals/private/replacement.png");
+    assert_eq!(
+        replacement.images[0].object_key,
+        "originals/private/replacement.png"
+    );
     assert_eq!(replacement.images[0].adjustment, None);
 }
 

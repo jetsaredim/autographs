@@ -140,8 +140,18 @@ impl ImageCrop {
 impl ImagePerspective {
     fn validate(&self) -> Result<(), String> {
         for corner in self.corners {
-            validate_f32(corner.x, 0.0, 1.0, "perspective corner x must be normalized")?;
-            validate_f32(corner.y, 0.0, 1.0, "perspective corner y must be normalized")?;
+            validate_f32(
+                corner.x,
+                0.0,
+                1.0,
+                "perspective corner x must be normalized",
+            )?;
+            validate_f32(
+                corner.y,
+                0.0,
+                1.0,
+                "perspective corner y must be normalized",
+            )?;
         }
         Ok(())
     }
@@ -239,7 +249,10 @@ fn validate_f32(value: f32, min: f32, max: f32, message: &str) -> Result<(), Str
     Ok(())
 }
 
-fn apply_perspective(image: &RgbaImage, perspective: &ImagePerspective) -> Result<RgbaImage, String> {
+fn apply_perspective(
+    image: &RgbaImage,
+    perspective: &ImagePerspective,
+) -> Result<RgbaImage, String> {
     let (width, height) = image.dimensions();
     let source = perspective.corners.map(|corner| {
         (
@@ -283,8 +296,12 @@ fn zoom_and_pan(image: &RgbaImage, zoom: f32, pan_x: f32, pan_y: f32) -> RgbaIma
     let max_y = height - crop_height;
     let center_x = max_x as f32 / 2.0;
     let center_y = max_y as f32 / 2.0;
-    let x = (center_x + pan_x * center_x).round().clamp(0.0, max_x as f32) as u32;
-    let y = (center_y + pan_y * center_y).round().clamp(0.0, max_y as f32) as u32;
+    let x = (center_x + pan_x * center_x)
+        .round()
+        .clamp(0.0, max_x as f32) as u32;
+    let y = (center_y + pan_y * center_y)
+        .round()
+        .clamp(0.0, max_y as f32) as u32;
     imageops::crop_imm(image, x, y, crop_width, crop_height).to_image()
 }
 

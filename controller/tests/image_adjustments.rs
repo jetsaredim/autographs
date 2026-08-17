@@ -1,7 +1,7 @@
 use autographs_controller::{
     derivatives::{DerivativeVariant, generate_derivative},
     image_adjustments::{
-        ImageAdjustment, ImageCrop, ImagePerspective, ImagePoint, ImageAdjustmentProposalStatus,
+        ImageAdjustment, ImageAdjustmentProposalStatus, ImageCrop, ImagePerspective, ImagePoint,
         generate_adjusted_derivative, propose_image_adjustment,
     },
 };
