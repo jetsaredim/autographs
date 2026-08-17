@@ -54,7 +54,7 @@
 ### Admin Media Review and Operational Posture
 
 - [ ] **MEDIA-05**: Admin can view authenticated, same-origin previews of private uploaded item images without exposing direct Object Storage URLs, bucket/object identifiers, original filenames, or unpublished media publicly.
-- [ ] **MEDIA-06**: Admin can store non-destructive image adjustment metadata for small rotation, crop/zoom, pan, and required auto-assisted deskew/perspective corrections with manual fallback, and generated public derivatives apply those adjustments without mutating private originals or reusing stale derivative cache entries.
+- [x] **MEDIA-06**: Admin can store non-destructive image adjustment metadata for small rotation, crop/zoom, pan, and required auto-assisted deskew/perspective corrections with manual fallback, and generated public derivatives apply those adjustments without mutating private originals or reusing stale derivative cache entries.
 - [x] **OPS-01**: Production security patching scan/apply workflows are repaired and verified so scanner runs collect the minimum necessary host-side update inventory, avoid timing out while gathering advisory detail from the instance, and use authoritative external advisory sources for enrichment where practical.
 - [ ] **OPS-02**: A repo-wide posture pass reviews source, docs, workflows, deployment/process scripts, configuration names, stale planning/codebase maps, validation gaps, public-edge/CDN readiness, and cache hygiene, then fixes actionable findings in separate pre-media PRs, adds enforceable CI hygiene guardrails where feasible, and implements/verifies CDN enablement after media adjustment cache behavior is proven.
 
@@ -126,7 +126,7 @@ None currently. Future scope should be added only if it directly supports the pe
 | STATIC-06 | Phase 5 | Complete |
 | STATIC-07 | Phase 5 | Complete |
 | MEDIA-05 | Phase 8 | Pending |
-| MEDIA-06 | Phase 8 | Pending |
+| MEDIA-06 | Phase 8 | Complete |
 | OPS-01 | Phase 8 | Complete |
 | OPS-02 | Phase 8 | Pending |
 | CUE-01 | Phase 9 | Pending |
