@@ -26,4 +26,13 @@ Verification commands for this pre-media boundary:
 
 ## Pre-media PR evidence
 
-The pre-media PR has not landed yet. Task 3 is the blocking checkpoint that must record the normal ready-for-review pre-media PR URL and merge commit SHA before Plan 08-03, CDN work, or admin media implementation begins.
+The pre-media PR landed before downstream CDN or admin media work began.
+
+- PR: [#207](https://github.com/jetsaredim/autographs/pull/207)
+- Merge commit: `5b0d8ebb69f5342b84ce75dfae8eb56ade6523e5`
+- Merged at: `2026-08-17T01:57:29Z`
+- PR head: `03354ee9931e897cd368552d9a58d28182ed6ceb`
+- CI: green on PR #207 before merge.
+- Review evidence: automated review findings were posted to PR #207, fixed in `03354ee`, and followed by a clean review confirmation comment on the PR.
+
+Plan 08-03 is unblocked only after this pre-media PR evidence is recorded in this register and in `.planning/phases/08-admin-media-review-and-operational-posture/08-02-SUMMARY.md`.
