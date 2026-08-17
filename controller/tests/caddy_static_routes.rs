@@ -83,6 +83,7 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
 fn cdn_cache_contract_matches_caddy_origin_headers() {
     let caddyfile = read_repo("deploy/ansible/roles/autographs_deploy/files/Caddyfile");
     let contract = read_repo("docs/cdn-cache-contract.md");
+    let deployment_runbook = read_repo("docs/deployment-runbook.md");
 
     assert!(contract.contains("Bypass admin and API"));
     assert!(contract.contains("Respect rollback-sensitive public documents"));
@@ -109,6 +110,13 @@ fn cdn_cache_contract_matches_caddy_origin_headers() {
     assert!(caddyfile.contains("@staticDocuments path / /index.html /404.html"));
     assert!(caddyfile.contains("/collection/* /items/* /architecture/* /data/* /manifest.json"));
     assert!(caddyfile.contains("Cache-Control \"public, max-age=60, must-revalidate\""));
+
+    assert!(deployment_runbook.contains(
+        "Public assets such as `/assets/*`, `/favicon.ico`, and `/icon.png`:"
+    ));
+    let stale_architecture_asset_phrase = ["and the architecture", "SVG"].join(" ");
+    assert!(!deployment_runbook.contains(&stale_architecture_asset_phrase));
+    assert!(deployment_runbook.contains("`/architecture/*`, `/data/*`, `/manifest.json`"));
 }
 
 #[test]

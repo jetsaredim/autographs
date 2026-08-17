@@ -309,7 +309,7 @@ Caddy now sets explicit origin cache headers for the deployed static runtime:
 - `/admin`, `/admin/*`, and `/admin/api/*`: `Cache-Control: no-store`.
 - Generated public media under `/media/*`:
   `Cache-Control: public, max-age=86400`.
-- Public assets such as `/assets/*`, `/favicon.ico`, `/icon.png`, and the architecture SVG:
+- Public assets such as `/assets/*`, `/favicon.ico`, and `/icon.png`:
   `Cache-Control: public, max-age=3600`.
 - Public documents/data such as `/`, `/collection/*`, `/items/*`,
   `/architecture/*`, `/data/*`, `/manifest.json`, `index.html`, and `404.html`:

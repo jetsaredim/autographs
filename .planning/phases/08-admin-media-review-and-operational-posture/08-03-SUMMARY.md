@@ -117,7 +117,7 @@ None.
 
 ## Issues Encountered
 
-PR review caught two contract-drift issues after the initial implementation: `/architecture/architecture-diagram.svg` had overlapping 3600-second and 60-second cache contracts, and the original plan artifact still referenced the rejected public-host probe variable. Both were corrected before merge.
+PR review caught contract-drift issues after the initial implementation: the architecture diagram path had overlapping 3600-second and 60-second cache contracts, the original plan artifact still referenced the rejected public-host probe variable, and the deployment runbook had one stale asset-cache sentence. All were corrected before merge.
 
 ## Verification
 
