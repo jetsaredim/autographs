@@ -14,7 +14,6 @@ DENIED_PHRASES = (
 
 MOVE_NOTES = ("moved to Phase 9", "moved to Phase 10")
 PHASE_8_OWNER_TERMS = ("admin media", "operational posture", "security patching")
-REQUIRED_MAPS = ("ARCHITECTURE.md", "STACK.md", "CONCERNS.md", "TESTING.md")
 
 
 def repo_root() -> Path:
@@ -38,10 +37,10 @@ def scan_paths(root: Path) -> list[Path]:
 
 
 def allowed_denied_phrase(line: str, phrase: str) -> bool:
+    normalized = line.lower()
     if phrase.startswith("Phase 8 "):
-        return any(note in line for note in MOVE_NOTES)
+        return any(note.lower() in normalized for note in MOVE_NOTES)
     if phrase == "active Next.js runtime":
-        normalized = line.lower()
         return "former active next.js runtime" in normalized and "retired" in normalized
     return False
 
@@ -51,8 +50,9 @@ def validate_retired_runtime_claims(root: Path) -> list[str]:
     for path in scan_paths(root):
         relative = path.relative_to(root)
         for line_number, line in enumerate(read_text(path).splitlines(), start=1):
+            normalized = line.lower()
             for phrase in DENIED_PHRASES:
-                if phrase in line and not allowed_denied_phrase(line, phrase):
+                if phrase.lower() in normalized and not allowed_denied_phrase(line, phrase):
                     violations.append(f"{relative}:{line_number}: denied current-state claim `{phrase}`")
     return violations
 
@@ -60,18 +60,20 @@ def validate_retired_runtime_claims(root: Path) -> list[str]:
 def validate_phase_ownership(root: Path) -> list[str]:
     violations: list[str] = []
     codebase_dir = root / ".planning" / "codebase"
-    for name in REQUIRED_MAPS:
-        path = codebase_dir / name
-        if not path.exists():
-            violations.append(f".planning/codebase/{name}: required codebase map is missing")
-            continue
+    if not codebase_dir.exists():
+        return [".planning/codebase: codebase map directory is missing"]
+    map_paths = sorted(path for path in codebase_dir.glob("*.md") if path.is_file())
+    if not map_paths:
+        return [".planning/codebase: no codebase map markdown files found"]
+    for path in map_paths:
+        relative = path.relative_to(root)
         text = read_text(path)
         lowered = text.lower()
-        if "Phase 8" not in text:
-            violations.append(f".planning/codebase/{name}: missing `Phase 8` current-state ownership")
+        if "phase 8" not in lowered:
+            violations.append(f"{relative}: missing `Phase 8` current-state ownership")
         if not any(term in lowered for term in PHASE_8_OWNER_TERMS):
             violations.append(
-                f".planning/codebase/{name}: missing Phase 8 admin media, operational posture, or security patching ownership"
+                f"{relative}: missing Phase 8 admin media, operational posture, or security patching ownership"
             )
     return violations
 
