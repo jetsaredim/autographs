@@ -119,7 +119,7 @@ None.
 - `cargo test --manifest-path controller/Cargo.toml --test caddy_static_routes -- --nocapture` passed.
 - `rg -n "Bypass admin and API|Respect rollback-sensitive public documents|Cache fingerprinted media and assets|/admin/api/\\*|/media/\\*|no-store|rollback|purge" docs/cdn-cache-contract.md` passed.
 - `rg -n "cdn-cache-contract.md|Phase 8 CDN/cache contract" docs/dns-runbook.md docs/static-runtime-runbook.md` passed.
-- `rg -n "CF-Cache-Status|AUTOGRAPHS_PUBLIC_HOST|admin/api/status|data/collection.json|media/\\.\\.\\.webp|adjusted-media cache behavior" docs/cdn-cache-contract.md docs/deployment-runbook.md docs/dns-runbook.md` passed.
+- `rg -n "CF-Cache-Status|AUTOGRAPHS_DOMAIN|admin/api/status|data/collection.json|media/\\.\\.\\.webp|adjusted-media cache behavior" docs/cdn-cache-contract.md docs/deployment-runbook.md docs/dns-runbook.md` passed.
 - `rg -n "docs/cdn-cache-contract.md|Bypass admin and API|Cache fingerprinted media and assets" controller/tests/caddy_static_routes.rs` passed.
 - `rg -n "handle /admin/api/\\*|Cache-Control \\\"no-store\\\"|@staticMedia path /media/\\*" deploy/ansible/roles/autographs_deploy/files/Caddyfile` passed.
 - `git diff --check` passed.

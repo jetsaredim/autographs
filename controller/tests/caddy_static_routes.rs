@@ -93,6 +93,7 @@ fn cdn_cache_contract_matches_caddy_origin_headers() {
     assert!(contract.contains("/assets/*"));
     assert!(contract.contains("/collection/*"));
     assert!(contract.contains("/items/*"));
+    assert!(contract.contains("/architecture/*"));
     assert!(contract.contains("/data/*"));
     assert!(contract.contains("/manifest.json"));
     assert!(contract.contains("rollback"));

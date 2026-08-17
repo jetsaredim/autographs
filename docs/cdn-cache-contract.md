@@ -16,7 +16,7 @@ The deployed Caddyfile owns the origin `Cache-Control` posture:
 | `/media/*` | `Cache-Control: public, max-age=86400` | Serves generated public-safe WebP derivatives with fingerprinted URLs. |
 | `/assets/*` | `Cache-Control: public, max-age=3600` | Serves generated public assets with origin freshness respected. |
 | `/favicon.ico`, `/icon.png`, `/architecture/architecture-diagram.svg` | `Cache-Control: public, max-age=3600` | Serves small static assets with origin freshness respected. |
-| `/`, `/index.html`, `/404.html`, `/collection/*`, `/items/*`, `/data/*`, `/manifest.json` | `Cache-Control: public, max-age=60, must-revalidate` | Keeps public documents and JSON rollback-friendly. |
+| `/`, `/index.html`, `/404.html`, `/collection/*`, `/items/*`, `/architecture/*`, `/data/*`, `/manifest.json` | `Cache-Control: public, max-age=60, must-revalidate` | Keeps public documents and JSON rollback-friendly. |
 
 The public edge must not expose Object Storage URLs, bucket names, object keys,
 private image UUIDs, original filenames, or unpublished media paths. Public
@@ -34,7 +34,7 @@ enabled:
      matching is available in the account plan.
 2. `Respect rollback-sensitive public documents`
    - Match `/`, `/index.html`, `/404.html`, `/collection/*`, `/items/*`,
-     `/data/*`, and `/manifest.json`.
+     `/architecture/*`, `/data/*`, and `/manifest.json`.
    - Respect origin cache headers or cap edge/browser freshness at 60 seconds.
    - Keep rollback visible quickly after the `current` static release points to
      a prior release.
@@ -85,11 +85,11 @@ new fingerprinted `/media/*` URL. Run these probes before and after enabling
 Cloudflare proxying:
 
 ```bash
-curl -I https://$AUTOGRAPHS_PUBLIC_HOST/admin/
-curl -I https://$AUTOGRAPHS_PUBLIC_HOST/admin/api/status
-curl -I https://$AUTOGRAPHS_PUBLIC_HOST/data/collection.json
-curl -I https://$AUTOGRAPHS_PUBLIC_HOST/media/...webp
-curl -I https://$AUTOGRAPHS_PUBLIC_HOST/media/...webp
+curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/api/status"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/data/collection.json"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/media/...webp"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/media/...webp"
 ```
 
 Expected behavior:

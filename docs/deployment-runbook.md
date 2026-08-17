@@ -140,11 +140,11 @@ Use the contract probes after deploy and again when production CDN proxying is
 enabled:
 
 ```bash
-curl -I https://$AUTOGRAPHS_PUBLIC_HOST/admin/
-curl -I https://$AUTOGRAPHS_PUBLIC_HOST/admin/api/status
-curl -I https://$AUTOGRAPHS_PUBLIC_HOST/data/collection.json
-curl -I https://$AUTOGRAPHS_PUBLIC_HOST/media/...webp
-curl -I https://$AUTOGRAPHS_PUBLIC_HOST/media/...webp
+curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/admin/api/status"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/data/collection.json"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/media/...webp"
+curl -I "https://${AUTOGRAPHS_DOMAIN}/media/...webp"
 ```
 
 Inspect `Cache-Control` on every response and `CF-Cache-Status` on the repeated
