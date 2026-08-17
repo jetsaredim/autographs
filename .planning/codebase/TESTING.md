@@ -112,7 +112,8 @@ Covered areas include:
   mocked or live-safe role behavior where practical, and operator-run workflow
   verification for production.
 - Operational posture guardrail validation for stale retired-runtime and wrong
-  Phase 8 ownership claims in repository docs and codebase maps.
+  Phase 8 ownership claims in repository docs and codebase maps through
+  `scripts/validate_repo_hygiene.py`.
 - Admin image preview route/UI validation behind the session-cookie boundary.
 - Image adjustment metadata, derivative transform, cache invalidation, static
   contract/privacy, and publish behavior validation.

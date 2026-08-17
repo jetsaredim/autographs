@@ -13,3 +13,17 @@ This register records the pre-media repository posture pass for Phase 8. It keep
 | P8-POSTURE-007 | Stale codebase maps | Codebase maps can misroute future executors if they describe Phase 8 as taxonomy media cues or AI-assisted ingest. | High | Fixed | Architecture, concerns, stack, testing, and AGENTS current-state sections now point Phase 8 at admin media review and operational posture. | `rg -n "Phase 8.*admin media|Phase 8.*operational posture|production security patching repair" .planning/codebase/*.md AGENTS.md` |
 | P8-POSTURE-008 | Validation gaps | Existing CI validates runtime, workflows, Terraform, Ansible, and scripts, but did not yet validate stale current-state claims. | Medium | Guarded by CI | Plan 08-02 adds standard-library Python tests and the repository hygiene validator. | `python3 -m unittest scripts/test_validate_repo_hygiene.py` |
 | P8-POSTURE-009 | Public edge/cache hygiene | CDN/cache behavior is Phase 8 work, but enablement must wait until adjusted-media cache behavior can be verified after the media adjustment pipeline exists. | High | Tracked in Phase 8 plan | The posture pass records CDN/cache as a pre-media contract and post-media verification concern, not a Task 1 implementation. | Phase 8 downstream plans retain CDN/cache contract and post-media verification gates. |
+
+## Pre-media evidence
+
+Plan 08-02 changed only posture documentation, planning/codebase maps, AGENTS current-state guidance, CI workflow wiring, and the repository hygiene scripts/tests. It did not modify `controller/static-admin/`, `controller/src/image_adjustments.rs`, `controller/src/derivatives.rs`, `controller/src/publisher.rs`, or image-adjustment migration files.
+
+Verification commands for this pre-media boundary:
+
+- `python3 -m unittest scripts/test_validate_repo_hygiene.py`
+- `python3 scripts/validate_repo_hygiene.py`
+- `git diff --name-only 97a8fdd..HEAD`
+
+## Pre-media PR evidence
+
+The pre-media PR has not landed yet. Task 3 is the blocking checkpoint that must record the normal ready-for-review pre-media PR URL and merge commit SHA before Plan 08-03, CDN work, or admin media implementation begins.

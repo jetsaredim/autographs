@@ -46,8 +46,8 @@
   assumptions about retired runtime surfaces, Phase 9 taxonomy media cues, or
   Phase 10 advisory AI-assisted ingest.
 - Mitigation: Keep the Phase 8 posture findings register current, land
-  pre-media cleanup separately, and add CI checks for stale map/current-state
-  claims before media implementation begins.
+  pre-media cleanup separately, and use `scripts/validate_repo_hygiene.py` in
+  CI to fail stale map/current-state claims before media implementation begins.
 
 **Live OCI verification depends on real secrets and tenancy state**
 - Issue: Routine local tests avoid live OCI credentials.
