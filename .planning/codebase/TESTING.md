@@ -5,7 +5,8 @@
 ## Validation Contract
 
 The current validation surface is centered on the Rust controller/static
-runtime, Terraform, Ansible, Docker, workflow linting, and secret scanning.
+runtime, Terraform, Ansible, Docker, workflow linting, repository hygiene, and
+secret scanning.
 
 ### Primary Commands
 
@@ -16,6 +17,7 @@ cargo check --manifest-path controller/Cargo.toml --features production-persiste
 cargo build --manifest-path controller/Cargo.toml --features production-persistence
 cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
 node --check controller/static-admin/admin.js
+python3 scripts/validate_repo_hygiene.py
 terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff
 ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml deploy/ansible/playbooks/system-cleanup.yml deploy/ansible/playbooks/security-scan.yml deploy/ansible/playbooks/security-patch.yml deploy/ansible/playbooks/security-patch-cleanup.yml
 ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/
@@ -106,9 +108,11 @@ Covered areas include:
 
 ### Pending Phase 8 Areas
 
-- Security patching scan/apply repair validation, including local syntax checks,
+- Production security patching repair validation, including local syntax checks,
   mocked or live-safe role behavior where practical, and operator-run workflow
   verification for production.
+- Operational posture guardrail validation for stale retired-runtime and wrong
+  Phase 8 ownership claims in repository docs and codebase maps.
 - Admin image preview route/UI validation behind the session-cookie boundary.
 - Image adjustment metadata, derivative transform, cache invalidation, static
   contract/privacy, and publish behavior validation.
@@ -127,4 +131,4 @@ Covered areas include:
 
 ---
 
-*Testing analysis refreshed: 2026-07-28 after Phase 8/9/10 roadmap split*
+*Testing analysis refreshed: 2026-08-17 during Phase 8 pre-media posture pass*

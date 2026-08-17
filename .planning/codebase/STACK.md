@@ -106,9 +106,9 @@
   signer profile tables, item signer credits, admin signer merge repair,
   taxonomy backfill artifacts, schema version 2 public facets, rollout docs,
   security review, and live smoke taxonomy assertions.
-- Phase 8 operational posture, CDN/cache, and admin media review/adjustment
-  work remains pending; Phase 9 taxonomy media cues and Phase 10 advisory
-  AI-assisted ingest follow separately.
+- Phase 8 production security patching repair, operational posture, CDN/cache,
+  and admin media review/adjustment work is active; Phase 9 taxonomy media cues
+  and Phase 10 advisory AI-assisted ingest follow separately.
 
 ## Practical Guidance
 
@@ -133,4 +133,4 @@
 
 ---
 
-*Stack analysis refreshed: 2026-07-28 after Phase 8/9/10 roadmap split*
+*Stack analysis refreshed: 2026-08-17 during Phase 8 pre-media posture pass*
