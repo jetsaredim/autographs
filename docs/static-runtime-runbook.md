@@ -502,6 +502,13 @@ purges for emergency takedown, accidental public exposure, or CDN incident
 response. See `docs/dns-runbook.md` for the deferred Cloudflare checklist and
 purge guidance.
 
+## Phase 8 CDN/cache contract
+
+The Phase 8 CDN/cache rule, purge, rollback, and production verification
+contract is maintained in [cdn-cache-contract.md](cdn-cache-contract.md). Keep
+the Caddy origin headers above aligned with that contract before implementing
+or verifying admin image adjustment cache behavior.
+
 ## Phase 6 Admin Live Smoke
 
 Use this operator-run smoke when an admin workflow, publisher, retention, or

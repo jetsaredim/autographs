@@ -258,7 +258,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 08-03-PLAN.md - Define the Phase 8 CDN/cache contract and source-test origin cache behavior.
+- [x] 08-03-PLAN.md - Define the Phase 8 CDN/cache contract and source-test origin cache behavior.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -328,6 +328,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
 | 6. Admin Collection Workflow | 9/9 | Complete | 2026-07-02 |
 | 7. Metadata Taxonomy and Public Facets | 5/5 | Complete    | 2026-07-11 |
-| 8. Admin Media Review and Operational Posture | 2/8 | In Progress|  |
+| 8. Admin Media Review and Operational Posture | 3/8 | In Progress|  |
 | 9. Taxonomy Media Cues | 0/TBD | Not started | - |
 | 10. Advisory AI-Assisted Ingest | 0/TBD | Not started | - |
