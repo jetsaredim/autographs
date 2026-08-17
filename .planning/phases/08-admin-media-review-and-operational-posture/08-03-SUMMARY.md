@@ -28,7 +28,9 @@ key-files:
     - docs/dns-runbook.md
     - docs/static-runtime-runbook.md
     - docs/deployment-runbook.md
+    - deploy/ansible/roles/autographs_deploy/files/Caddyfile
     - controller/tests/caddy_static_routes.rs
+    - .planning/phases/08-admin-media-review-and-operational-posture/08-03-PLAN.md
     - .planning/STATE.md
     - .planning/ROADMAP.md
 
@@ -57,7 +59,7 @@ completed: 2026-08-17
 - **Started:** 2026-08-17T03:00:24Z
 - **Completed:** 2026-08-17T03:07:48Z
 - **Tasks:** 3
-- **Files modified:** 6
+- **Files modified:** 8
 
 ## Accomplishments
 
@@ -66,6 +68,7 @@ completed: 2026-08-17
 - Linked the contract from `docs/dns-runbook.md`, `docs/static-runtime-runbook.md`, and `docs/deployment-runbook.md`.
 - Added Caddy route tests that read the contract and assert admin/API bypass paths, fingerprinted media/assets paths, rollback-sensitive public paths, and origin cache headers.
 - Added production verification probes for admin, admin API, public JSON, repeated media requests, `Cache-Control`, and `CF-Cache-Status`.
+- Aligned `/architecture/*` under the rollback-sensitive public document cache rule at both the origin and CDN contract.
 
 ## Task Commits
 
@@ -81,13 +84,15 @@ completed: 2026-08-17
 - `docs/dns-runbook.md` - Links to the contract and records that CDN enablement waits for adjusted-media cache proof.
 - `docs/static-runtime-runbook.md` - Links Caddy cache verification guidance to the Phase 8 contract.
 - `docs/deployment-runbook.md` - Links deployment verification to the Phase 8 CDN/cache probes.
+- `deploy/ansible/roles/autographs_deploy/files/Caddyfile` - Keeps `/architecture/*` under the rollback-sensitive public document matcher instead of the 3600-second static asset matcher.
 - `controller/tests/caddy_static_routes.rs` - Adds source assertions that the Caddyfile and documented CDN/cache contract stay aligned.
+- `.planning/phases/08-admin-media-review-and-operational-posture/08-03-PLAN.md` - Reconciles the plan artifact with the final `AUTOGRAPHS_DOMAIN` probes and `/architecture/*` rollback path contract.
 
 ## Decisions Made
 
 - Production CDN enablement is not part of this plan. It remains deferred until adjusted-media cache behavior is proven after the admin media and publisher cache-key work exists.
 - `OPS-02` remains pending overall because later Phase 8 plans still own production CDN enablement and verification after adjusted media is implemented.
-- Caddy route shape stayed unchanged because existing origin headers already satisfied the documented contract.
+- Caddy cache route shape changed only to keep all `/architecture/*` responses under rollback-sensitive public-document freshness.
 
 ## Deviations from Plan
 
@@ -112,12 +117,12 @@ None.
 
 ## Issues Encountered
 
-None.
+PR review caught two contract-drift issues after the initial implementation: `/architecture/architecture-diagram.svg` had overlapping 3600-second and 60-second cache contracts, and the original plan artifact still referenced the rejected public-host probe variable. Both were corrected before merge.
 
 ## Verification
 
 - `cargo test --manifest-path controller/Cargo.toml --test caddy_static_routes -- --nocapture` passed.
-- `rg -n "Bypass admin and API|Respect rollback-sensitive public documents|Cache fingerprinted media and assets|/admin/api/\\*|/media/\\*|no-store|rollback|purge" docs/cdn-cache-contract.md` passed.
+- `rg -n "Bypass admin and API|Respect rollback-sensitive public documents|Cache fingerprinted media and assets|/admin/api/\\*|/architecture/\\*|/media/\\*|no-store|rollback|purge" docs/cdn-cache-contract.md` passed.
 - `rg -n "cdn-cache-contract.md|Phase 8 CDN/cache contract" docs/dns-runbook.md docs/static-runtime-runbook.md` passed.
 - `rg -n "CF-Cache-Status|AUTOGRAPHS_DOMAIN|admin/api/status|data/collection.json|media/\\.\\.\\.webp|adjusted-media cache behavior" docs/cdn-cache-contract.md docs/deployment-runbook.md docs/dns-runbook.md` passed.
 - `rg -n "docs/cdn-cache-contract.md|Bypass admin and API|Cache fingerprinted media and assets" controller/tests/caddy_static_routes.rs` passed.

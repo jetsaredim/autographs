@@ -15,7 +15,7 @@ The deployed Caddyfile owns the origin `Cache-Control` posture:
 | `/admin/api/*` | `Cache-Control: no-store` | Proxies same-origin private controller API calls and must never be cached. |
 | `/media/*` | `Cache-Control: public, max-age=86400` | Serves generated public-safe WebP derivatives with fingerprinted URLs. |
 | `/assets/*` | `Cache-Control: public, max-age=3600` | Serves generated public assets with origin freshness respected. |
-| `/favicon.ico`, `/icon.png`, `/architecture/architecture-diagram.svg` | `Cache-Control: public, max-age=3600` | Serves small static assets with origin freshness respected. |
+| `/favicon.ico`, `/icon.png` | `Cache-Control: public, max-age=3600` | Serves small static assets with origin freshness respected. |
 | `/`, `/index.html`, `/404.html`, `/collection/*`, `/items/*`, `/architecture/*`, `/data/*`, `/manifest.json` | `Cache-Control: public, max-age=60, must-revalidate` | Keeps public documents and JSON rollback-friendly. |
 
 The public edge must not expose Object Storage URLs, bucket names, object keys,

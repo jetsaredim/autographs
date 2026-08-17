@@ -104,7 +104,8 @@ fn cdn_cache_contract_matches_caddy_origin_headers() {
     assert!(caddyfile.contains("handle /admin/api/*"));
     assert!(caddyfile.contains("@staticMedia path /media/*"));
     assert!(caddyfile.contains("Cache-Control \"public, max-age=86400\""));
-    assert!(caddyfile.contains("@staticAssets path /assets/*"));
+    assert!(caddyfile.contains("@staticAssets path /assets/* /favicon.ico /icon.png"));
+    assert!(!caddyfile.contains("/architecture/architecture-diagram.svg"));
     assert!(caddyfile.contains("@staticDocuments path / /index.html /404.html"));
     assert!(caddyfile.contains("/collection/* /items/* /architecture/* /data/* /manifest.json"));
     assert!(caddyfile.contains("Cache-Control \"public, max-age=60, must-revalidate\""));
