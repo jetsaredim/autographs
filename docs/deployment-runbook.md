@@ -128,6 +128,28 @@ Published images are served as generated static derivatives from the promoted re
 
 Current operator work uses the static admin shell and Rust controller under `/admin` and `/admin/api/*`.
 
+### Phase 8 CDN/cache verification probes
+
+The Phase 8 CDN/cache contract and production probe list live in
+[cdn-cache-contract.md](cdn-cache-contract.md). Do not enable production CDN
+proxying until adjusted-media cache behavior is proven: an adjusted image must
+publish new derivative bytes and a new fingerprinted `/media/*` URL without a
+manual purge.
+
+Use the contract probes after deploy and again when production CDN proxying is
+enabled:
+
+```bash
+curl -I https://$AUTOGRAPHS_PUBLIC_HOST/admin/
+curl -I https://$AUTOGRAPHS_PUBLIC_HOST/admin/api/status
+curl -I https://$AUTOGRAPHS_PUBLIC_HOST/data/collection.json
+curl -I https://$AUTOGRAPHS_PUBLIC_HOST/media/...webp
+curl -I https://$AUTOGRAPHS_PUBLIC_HOST/media/...webp
+```
+
+Inspect `Cache-Control` on every response and `CF-Cache-Status` on the repeated
+media probes after Cloudflare is proxying the hostname.
+
 ## Oracle Schema Updates
 
 The committed [`controller/db/schema.sql`](../controller/db/schema.sql) is the

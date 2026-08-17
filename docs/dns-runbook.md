@@ -102,7 +102,9 @@ The detailed Phase 8 CDN/cache rule, purge, rollback, and verification contract
 lives in [cdn-cache-contract.md](cdn-cache-contract.md). Use that contract when
 creating Cloudflare rules named `Bypass admin and API`,
 `Respect rollback-sensitive public documents`, and
-`Cache fingerprinted media and assets`.
+`Cache fingerprinted media and assets`. Production CDN enablement happens after
+adjusted-media cache behavior is proven through the contract probes, not before
+the admin media adjustment and publisher cache-key work exists.
 
 References checked during this decision:
 

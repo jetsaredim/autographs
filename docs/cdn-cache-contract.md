@@ -79,23 +79,31 @@ image adjustments publish new fingerprints and should not need manual purge.
 
 ## Verification
 
-Before enabling production CDN proxying, verify origin behavior directly against
-Caddy:
+Production CDN enablement waits until adjusted-media cache behavior is proven by
+publishing an adjusted image and observing that the public HTML/JSON points to a
+new fingerprinted `/media/*` URL. Run these probes before and after enabling
+Cloudflare proxying:
 
 ```bash
 curl -I https://$AUTOGRAPHS_PUBLIC_HOST/admin/
 curl -I https://$AUTOGRAPHS_PUBLIC_HOST/admin/api/status
 curl -I https://$AUTOGRAPHS_PUBLIC_HOST/data/collection.json
 curl -I https://$AUTOGRAPHS_PUBLIC_HOST/media/...webp
+curl -I https://$AUTOGRAPHS_PUBLIC_HOST/media/...webp
 ```
 
-Expected origin behavior:
+Expected behavior:
 
 - `/admin/` and `/admin/api/status` return `Cache-Control: no-store`.
 - `/data/collection.json` returns
   `Cache-Control: public, max-age=60, must-revalidate`.
 - `/media/...webp` returns `Cache-Control: public, max-age=86400`.
+- After Cloudflare proxying is enabled, inspect `CF-Cache-Status` on the two
+  repeated `/media/...webp` requests. The first request may miss or revalidate;
+  the second should demonstrate the edge behavior for the fingerprinted
+  derivative while preserving the origin `Cache-Control` header.
 
-Production CDN enablement waits until adjusted-media cache behavior is proven by
-publishing an adjusted image and observing that the public HTML/JSON points to a
-new fingerprinted `/media/*` URL.
+Rollback behavior stays the same with or without Cloudflare: restore the prior
+static release, keep HTML/JSON freshness at 60 seconds, and purge `/media/*`
+only for emergency remediation because normal adjustment publishes produce new
+fingerprints.
