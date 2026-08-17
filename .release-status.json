@@ -1,9 +1,9 @@
 {
   "deployedControllerVersion": "v0.0.18",
   "lastBump": "patch",
-  "lastDeployImpact": "repo-only",
-  "latestDeployImpactVersion": "v0.0.18",
-  "repoVersion": "v0.0.20",
-  "sourceRevision": "7e13e684dd1384e8ad8b4632a85c4c23daaf26fc",
-  "updatedAt": "2026-08-17T02:12:05Z"
+  "lastDeployImpact": "controller-image",
+  "latestDeployImpactVersion": "v0.0.21",
+  "repoVersion": "v0.0.21",
+  "sourceRevision": "9e9c74a81c0e151dbd267717df337d04cfe5d9ae",
+  "updatedAt": "2026-08-17T03:34:13Z"
 }
