@@ -105,15 +105,29 @@ fn cdn_cache_contract_matches_caddy_origin_headers() {
     assert!(caddyfile.contains("handle /admin/api/*"));
     assert!(caddyfile.contains("@staticMedia path /media/*"));
     assert!(caddyfile.contains("Cache-Control \"public, max-age=86400\""));
-    assert!(caddyfile.contains("@staticAssets path /assets/* /favicon.ico /icon.png"));
-    assert!(!caddyfile.contains("/architecture/architecture-diagram.svg"));
+    let static_asset_matchers = caddyfile
+        .lines()
+        .filter(|line| line.contains("@staticAssets path"))
+        .collect::<Vec<_>>();
+    assert_eq!(static_asset_matchers.len(), 2);
+    assert!(
+        static_asset_matchers
+            .iter()
+            .all(|line| line.contains("/assets/* /favicon.ico /icon.png"))
+    );
+    assert!(
+        static_asset_matchers
+            .iter()
+            .all(|line| !line.contains("/architecture"))
+    );
     assert!(caddyfile.contains("@staticDocuments path / /index.html /404.html"));
     assert!(caddyfile.contains("/collection/* /items/* /architecture/* /data/* /manifest.json"));
     assert!(caddyfile.contains("Cache-Control \"public, max-age=60, must-revalidate\""));
 
-    assert!(deployment_runbook.contains(
-        "Public assets such as `/assets/*`, `/favicon.ico`, and `/icon.png`:"
-    ));
+    assert!(
+        deployment_runbook
+            .contains("Public assets such as `/assets/*`, `/favicon.ico`, and `/icon.png`:")
+    );
     let stale_architecture_asset_phrase = ["and the architecture", "SVG"].join(" ");
     assert!(!deployment_runbook.contains(&stale_architecture_asset_phrase));
     assert!(deployment_runbook.contains("`/architecture/*`, `/data/*`, `/manifest.json`"));
