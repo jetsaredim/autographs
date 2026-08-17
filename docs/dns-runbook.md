@@ -96,6 +96,14 @@ Rollback if Cloudflare causes stale public content or admin issues:
 3. Verify origin behavior directly with `curl --resolve` against the runtime VM
    IP and then through public DNS.
 
+## Phase 8 CDN/cache contract
+
+The detailed Phase 8 CDN/cache rule, purge, rollback, and verification contract
+lives in [cdn-cache-contract.md](cdn-cache-contract.md). Use that contract when
+creating Cloudflare rules named `Bypass admin and API`,
+`Respect rollback-sensitive public documents`, and
+`Cache fingerprinted media and assets`.
+
 References checked during this decision:
 
 - <https://developers.cloudflare.com/cache/how-to/cache-rules/>
