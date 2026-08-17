@@ -29,7 +29,7 @@
 - Mitigation: Treat Phase 6 admin expansion as security-sensitive and keep
   retired operator APIs blocked at Caddy.
 
-**Production security patching can affect the live VM**
+**Phase 8 production security patching repair can affect the live VM**
 - Issue: Applying `approved-production-update` runs Ansible against production
   and can update OS packages.
 - Impact: Supply-chain, approval, drift-check, SSH, or `dnf` failures can
@@ -37,6 +37,17 @@
 - Mitigation: Keep action SHA pins updateable/reviewed, preserve approver
   allowlist checks, refuse drifted package sets, remove stale approval labels on
   failure, and document the workflow in `docs/security-patching.md`.
+
+**Phase 8 operational posture must stay ahead of admin media work**
+- Issue: Repo/process hygiene, stale current-state maps, CDN/cache contracts,
+  and public-edge guidance can mislead media executors if they lag behind the
+  implemented Rust/static runtime.
+- Impact: Admin image preview or adjustment work could inherit stale
+  assumptions about retired runtime surfaces, Phase 9 taxonomy media cues, or
+  Phase 10 advisory AI-assisted ingest.
+- Mitigation: Keep the Phase 8 posture findings register current, land
+  pre-media cleanup separately, and use `scripts/validate_repo_hygiene.py` in
+  CI to fail stale map/current-state claims before media implementation begins.
 
 **Live OCI verification depends on real secrets and tenancy state**
 - Issue: Routine local tests avoid live OCI credentials.
@@ -55,7 +66,8 @@
   immutable action references where practical.
 - Phase 6 and Phase 7 completed fresh security review for the new admin and
   metadata surfaces they introduced. Phase 8 must add security review for
-  security patching repair and admin image preview/adjustment surfaces; Phase 9
+  production security patching repair, operational posture, and admin image
+  preview/adjustment surfaces; Phase 9
   must cover taxonomy/media thumbnail processing, generated public derivatives,
   and copyright/publication risks; Phase 10 must cover advisory AI/OCR
   providers, prompts, privacy boundaries, and model configuration.
@@ -72,7 +84,8 @@
 
 ## Near-Term Recommendations
 
-1. Use the Phase 7 closeout artifacts as the baseline for Phase 8 planning.
+1. Use the Phase 7 closeout artifacts and Phase 8 posture findings register as
+   the baseline for Phase 8 admin media and operational posture work.
 2. Keep README, public readiness, dependency update, security, and patching docs
    aligned with the Rust/static runtime.
 3. Preserve live smoke and cleanup checks as operator-run verification when
@@ -81,4 +94,4 @@
 
 ---
 
-*Concerns refreshed: 2026-07-28 after Phase 8/9/10 roadmap split*
+*Concerns refreshed: 2026-08-17 during Phase 8 pre-media posture pass*

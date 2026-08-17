@@ -134,8 +134,8 @@ repair, first-class character/franchise/productLine/setName/format/origin/
 language taxonomy, reviewed backfill artifacts, schema version 2 public static
 facets, rollout docs, security review, and live static publish smoke taxonomy
 assertions. Phase 8 starts with production security patching repair, aggressive
-repo posture cleanup in separate pre-media PRs, enforceable CI hygiene
-guardrails where feasible, and a CDN/cache contract. Admin image
+operational posture cleanup in separate pre-media PRs, enforceable CI hygiene
+guardrails where feasible, and a CDN/cache contract. Admin media image
 preview/adjustment follows that clean baseline, including required
 auto-assisted deskew/perspective correction with manual fallback, then
 production CDN enablement is verified after adjusted-media cache behavior is
