@@ -80,6 +80,36 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
 }
 
 #[test]
+fn cdn_cache_contract_matches_caddy_origin_headers() {
+    let caddyfile = read_repo("deploy/ansible/roles/autographs_deploy/files/Caddyfile");
+    let contract = read_repo("docs/cdn-cache-contract.md");
+
+    assert!(contract.contains("Bypass admin and API"));
+    assert!(contract.contains("Respect rollback-sensitive public documents"));
+    assert!(contract.contains("Cache fingerprinted media and assets"));
+    assert!(contract.contains("/admin*"));
+    assert!(contract.contains("/admin/api/*"));
+    assert!(contract.contains("/media/*"));
+    assert!(contract.contains("/assets/*"));
+    assert!(contract.contains("/collection/*"));
+    assert!(contract.contains("/items/*"));
+    assert!(contract.contains("/data/*"));
+    assert!(contract.contains("/manifest.json"));
+    assert!(contract.contains("rollback"));
+    assert!(contract.contains("purge"));
+    assert!(contract.contains("fingerprinted media URLs"));
+
+    assert!(caddyfile.matches("Cache-Control \"no-store\"").count() >= 3);
+    assert!(caddyfile.contains("handle /admin/api/*"));
+    assert!(caddyfile.contains("@staticMedia path /media/*"));
+    assert!(caddyfile.contains("Cache-Control \"public, max-age=86400\""));
+    assert!(caddyfile.contains("@staticAssets path /assets/*"));
+    assert!(caddyfile.contains("@staticDocuments path / /index.html /404.html"));
+    assert!(caddyfile.contains("/collection/* /items/* /architecture/* /data/* /manifest.json"));
+    assert!(caddyfile.contains("Cache-Control \"public, max-age=60, must-revalidate\""));
+}
+
+#[test]
 fn controller_dockerfile_copies_compile_time_static_assets() {
     let dockerfile = read_repo("controller/Dockerfile");
     let dockerignore = read_repo(".dockerignore");
