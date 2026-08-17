@@ -631,6 +631,7 @@ async fn publisher_validates_detail_derivatives_when_item_slug_contains_thumbnai
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -710,6 +711,7 @@ async fn publisher_changes_public_media_paths_when_image_content_changes() {
                     is_primary: false,
                     sort_order: 99,
                     alt_text: None,
+                    adjustment: None,
                 },
             },
         )
@@ -949,6 +951,7 @@ async fn publisher_allows_generic_private_filenames_in_admin_shell_copy() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1024,6 +1027,7 @@ async fn publisher_allows_original_filenames_that_only_match_generated_media_pat
                     is_primary: sort_order == 0,
                     sort_order: sort_order as i32,
                     alt_text: None,
+                    adjustment: None,
                 },
             )
             .await
@@ -1115,6 +1119,7 @@ async fn publisher_rejects_original_filename_embedded_in_catalog_path_token() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1179,6 +1184,7 @@ async fn publisher_rejects_original_filename_leak_with_case_normalization() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1243,6 +1249,7 @@ async fn publisher_rejects_original_filename_leak_with_unicode_case_normalizatio
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1309,6 +1316,7 @@ async fn publisher_rejects_original_filename_leak_with_url_escaped_basename() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1376,6 +1384,7 @@ async fn publisher_rejects_original_filename_leak_with_double_url_escaped_basena
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1442,6 +1451,7 @@ async fn publisher_rejects_original_filename_path_leak_with_double_url_escaping(
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1506,6 +1516,7 @@ async fn publisher_rejects_original_filename_path_leak_with_generic_basename() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1572,6 +1583,7 @@ async fn publisher_rejects_backslash_original_filename_path_leak_in_json_with_ge
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1638,6 +1650,7 @@ async fn publisher_rejects_original_filename_matching_static_not_found_quotes() 
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1705,6 +1718,7 @@ async fn publisher_rejects_percent_encoded_private_object_key() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1772,6 +1786,7 @@ async fn publisher_rejects_double_percent_encoded_private_object_key() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1836,6 +1851,7 @@ async fn publisher_rejects_private_object_key_in_admin_shell_copy() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1959,6 +1975,7 @@ async fn publisher_uses_primary_image_first_for_gallery_and_derivatives() {
                 is_primary: false,
                 sort_order: 0,
                 alt_text: Some("Supporting image".to_owned()),
+                adjustment: None,
             },
         )
         .await
@@ -1982,6 +1999,7 @@ async fn publisher_uses_primary_image_first_for_gallery_and_derivatives() {
                 is_primary: true,
                 sort_order: 1,
                 alt_text: Some("Primary image".to_owned()),
+                adjustment: None,
             },
         )
         .await
@@ -2262,6 +2280,7 @@ async fn publisher_does_not_reuse_derivatives_for_matching_etags_without_checksu
                 is_primary: false,
                 sort_order: 1,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -2568,6 +2587,7 @@ async fn fixture_with_stored_checksum(stored_checksum: Option<String>) -> Fixtur
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await

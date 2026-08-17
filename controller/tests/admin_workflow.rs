@@ -292,6 +292,7 @@ async fn admin_can_list_get_update_and_read_history() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: Some("Signed Jedi Card by Mark Hamill".to_owned()),
+                adjustment: None,
             },
         )
         .await
@@ -1239,6 +1240,7 @@ async fn publish_keeps_in_flight_same_second_edit_pending() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1317,6 +1319,7 @@ async fn admin_status_reports_safe_publish_error_without_private_media_details()
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
