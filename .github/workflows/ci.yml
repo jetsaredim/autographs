@@ -97,9 +97,6 @@ jobs:
       - name: Check production persistence adapters
         run: cargo check --manifest-path controller/Cargo.toml --features production-persistence
 
-      - name: Build controller
-        run: cargo build --manifest-path controller/Cargo.toml --features production-persistence
-
       - name: Run Clippy
         run: cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
 
