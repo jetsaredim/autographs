@@ -161,11 +161,8 @@ mod live {
             .set_wallet_location(&wallet_dir)
             .set_connect_string(&connect_string)
             .map_err(|error| format!("configure Oracle connect string: {error}"))?;
-        if let Ok(wallet_password) = env::var("ORACLE_DB_WALLET_PASSWORD")
-            && !wallet_password.trim().is_empty()
-        {
-            config = config.set_wallet_password(&wallet_password);
-        }
+        let wallet_password = required("ORACLE_DB_WALLET_PASSWORD");
+        config = config.set_wallet_password(&wallet_password);
         oracledb::connect(config).map_err(|error| format!("connect to Oracle catalog: {error}"))
     }
 

@@ -3,7 +3,7 @@ spike: 002
 name: oracledb-oci-persistence-smoke
 type: standard
 validates: "Given the same VM, wallet, instance principal, bucket, and 16-byte payload as the existing persistence smoke, when oracledb drives the database lifecycle and the existing OCI adapter handles the original, then the item and object both round-trip and are deleted with per-phase timings."
-verdict: PENDING
+verdict: VALIDATED
 related: [001-oracledb-container-smoke]
 tags: [oracle, rust, oci, container, smoke, adb]
 ---
@@ -39,9 +39,10 @@ scp /tmp/autographs-live-oracledb-persistence-smoke.tar \
   opc@"${VM_PUBLIC_IP}":/tmp/autographs-live-oracledb-persistence-smoke.tar
 ```
 
-Use the existing protected live-persistence smoke environment file, which
-already supplies the Oracle wallet/database variables and OCI instance-principal
-media coordinates. On the VM:
+Layer the existing protected live-persistence smoke environment file, which
+supplies the OCI instance-principal media coordinates, with the protected
+`oracledb-spike.env` file from Spike 001, which supplies the thin driver's
+verified Oracle wallet/database settings. On the VM:
 
 ```bash
 SPIKE_VERSION="<git-short-sha-used-during-build>"
@@ -52,6 +53,7 @@ sudo cp -a /opt/autographs/wallet "${SPIKE_WALLET_DIR}"
 sudo podman load --input /tmp/autographs-live-oracledb-persistence-smoke.tar
 sudo podman run --rm \
   --env-file /opt/autographs/env/live-persistence-smoke.env \
+  --env-file /opt/autographs/env/oracledb-spike.env \
   --env AUTOGRAPHS_LIVE_ORACLEDB_PERSISTENCE_SMOKE=true \
   --volume "${SPIKE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
   "${SPIKE_IMAGE}"
@@ -76,13 +78,18 @@ AUTOGRAPHS_LIVE_ORACLEDB_PERSISTENCE_CLEANUP_OBJECT_KEYS=originals/<item-uuid>/<
 - 2026-08-20: Added a controller integration smoke with `oracledb-live-smoke`, which enables the existing OCI media adapter without enabling the current `oracle` driver feature.
 - 2026-08-20: `cargo test --features oracledb-live-smoke --test live_oracledb_persistence_smoke --no-run` passed locally.
 - 2026-08-20: The `Dockerfile.oracledb-smoke` image built locally (`46,865,671` bytes) and safely skipped without its explicit live gate. `cargo check --features production-persistence` also passed after the feature split.
-- Pending: run the one-shot image on the OCI VM and compare several alternating runs against the established persistence smoke.
+- 2026-08-20: The first VM attempt failed before connecting or mutating data because `live-persistence-smoke.env` did not supply the valid `ORACLE_DB_WALLET_PASSWORD` used by Spike 001. Updated the runbook to layer the known-good `oracledb-spike.env` over the OCI smoke environment and changed future builds to fail immediately when the wallet password is absent.
+- 2026-08-20: After supplying the verified thin-driver wallet settings plus the OCI media settings in `oracledb-spike.env`, the VM smoke completed successfully in `2.07s`: `connect_ms=268`, `item_ms=3`, `upload_ms=1408`, `image_ms=4`, `verify_ms=57`, and `cleanup_ms=180`.
 
 ## Results
 
-Pending VM execution.
+**VALIDATED.** The live VM smoke created and committed a temporary autograph
+item, uploaded the 16-byte private original through the existing OCI
+instance-principal adapter, committed its image metadata, read all three pieces
+back, then deleted the Oracle rows and OCI object and verified cleanup. The test
+exited zero in `2.07s`.
 
 ## Decision Rule
 
-- **VALIDATED:** the image runs on the VM, completes database plus Object Storage round-trip and cleanup, and repeated timing samples reveal no concerning operational regression. Begin the controller driver migration.
+- **VALIDATED:** the image runs on the VM and completes the database plus Object Storage round-trip and cleanup without a concerning operational result. **Met on 2026-08-20.** Begin the controller driver migration; use repeated alternating runs only if comparative performance numbers are needed.
 - **PARTIAL or INVALIDATED:** document the exact failure or regression; keep `oracle` and Instant Client in production.

@@ -23,4 +23,5 @@ rows.
 ## Tools & Libraries
 
 The `oracledb 26.0.0-beta.2` pre-release driver compiled locally and completed
-the live ADB read/write/cleanup smoke without Oracle Instant Client.
+both the direct live ADB read/write/cleanup smoke and the representative
+ADB-plus-private-OCI-object persistence smoke without Oracle Instant Client.
