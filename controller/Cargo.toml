@@ -14,10 +14,9 @@ production-oci = [
 ]
 production-persistence = [
   "production-oci",
-  "dep:oracle",
+  "dep:oracledb",
 ]
 live-persistence = ["production-persistence"]
-oracledb-live-smoke = ["production-oci", "dep:oracledb"]
 
 [dependencies]
 argon2 = "0.5.3"
@@ -34,7 +33,6 @@ tokio = { version = "1.53.1", features = ["fs", "macros", "net", "rt-multi-threa
 uuid = { version = "1.24.1", features = ["serde", "v4"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23" , features = ["env-filter", "fmt"] }
-oracle = { version = "0.6.3", optional = true }
 oracledb = { version = "26.0.0-beta.2", optional = true }
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls"], optional = true }
 rsa = { version = "0.9.10", features = ["sha2"], optional = true }

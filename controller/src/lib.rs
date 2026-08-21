@@ -11,6 +11,8 @@ pub mod oci_media;
 #[cfg(feature = "production-persistence")]
 pub mod oracle_catalog;
 #[cfg(feature = "production-persistence")]
+pub mod oracle_connection;
+#[cfg(feature = "production-persistence")]
 pub mod oracle_heartbeat;
 #[cfg(feature = "production-persistence")]
 pub mod oracle_schema;

@@ -3,10 +3,10 @@ mod live {
     use std::{env, time::Duration};
 
     use autographs_controller::{
-        media::PrivateMediaStore, oci_media::OciInstancePrincipalMediaStore,
+        media::PrivateMediaStore, oci_media::OciInstancePrincipalMediaStore, oracle_connection,
         storage_keys::build_original_object_key,
     };
-    use oracle::Connection;
+    use oracledb::Connection;
     use sha2::{Digest, Sha256};
     use uuid::Uuid;
 
@@ -50,7 +50,7 @@ mod live {
         let bucket_name = required("OCI_MEDIA_BUCKET_NAME");
 
         let connection =
-            Connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
+            oracle_connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
                 .expect("connect to Oracle Autonomous Database");
         assert_static_runtime_schema(&connection);
         let media =
@@ -148,7 +148,7 @@ mod live {
         let bucket_name = required("OCI_MEDIA_BUCKET_NAME");
 
         let connection =
-            Connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
+            oracle_connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
                 .expect("connect to Oracle Autonomous Database for cleanup");
         assert_static_runtime_schema(&connection);
         let media =
@@ -229,7 +229,7 @@ mod live {
         let oracle_password = required("ORACLE_DB_PASSWORD");
         let oracle_connect_string = required("ORACLE_DB_CONNECT_STRING");
         let connection =
-            Connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
+            oracle_connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
                 .expect("connect to Oracle Autonomous Database for listing smoke rows");
         assert_static_runtime_schema(&connection);
 
@@ -288,7 +288,7 @@ mod live {
         let bucket_name = required("OCI_MEDIA_BUCKET_NAME");
 
         let connection =
-            Connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
+            oracle_connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
                 .expect("connect to Oracle Autonomous Database for checksum audit");
         assert_static_runtime_schema(&connection);
         let media =
@@ -498,30 +498,35 @@ mod live {
     }
 
     fn assert_count_zero(connection: &Connection, sql: &str, value: &str, label: &str) {
-        let count: i64 = connection
-            .query_row_as(sql, &[&value])
+        let row = connection
+            .query_row(sql, &[&value])
             .unwrap_or_else(|error| panic!("verify {label}: {error}"));
+        let count: i64 = row
+            .get(0)
+            .unwrap_or_else(|error| panic!("decode {label} count: {error}"));
         assert_eq!(count, 0, "{label} still present for {value}");
         println!("verified {label}: 0");
     }
 
     fn assert_static_runtime_schema(connection: &Connection) {
-        let count: i64 = connection
-            .query_row_as(
+        let row = connection
+            .query_row(
                 "select count(*) from user_tab_columns where table_name = 'AUTOGRAPH_IMAGES' and column_name = 'ORIGINAL_FILENAME'",
                 &[],
             )
             .expect("inspect static runtime schema");
+        let count: i64 = row.get(0).expect("decode static runtime schema count");
         assert_eq!(
             count, 1,
             "static runtime schema is missing ORIGINAL_FILENAME; initialize the database from controller/db/schema.sql before the live persistence smoke"
         );
-        let cleanup_count: i64 = connection
-            .query_row_as(
+        let row = connection
+            .query_row(
                 "select count(*) from user_tab_columns where table_name = 'AUTOGRAPH_CLEANUP_EVENTS' and column_name in ('ADMIN_MESSAGE', 'TARGET_OBJECT_KEY')",
                 &[],
             )
             .expect("inspect cleanup event schema");
+        let cleanup_count: i64 = row.get(0).expect("decode cleanup event schema count");
         assert_eq!(
             cleanup_count, 2,
             "static runtime schema is missing AUTOGRAPH_CLEANUP_EVENTS cleanup columns; initialize or update the database from controller/db/schema.sql and controller/db/updates/06-03-media-cleanup.sql before the live persistence smoke"
@@ -535,9 +540,7 @@ mod live {
                 &[&checksum, &image_id],
             )
             .expect("update live image checksum");
-        let rows_updated = statement
-            .row_count()
-            .expect("read image checksum update row count");
+        let rows_updated = statement.rows_affected();
         assert_eq!(rows_updated, 1, "expected one image checksum row update");
     }
 

@@ -26,8 +26,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 
 FROM oraclelinux:10-slim
 
-RUN microdnf install -y oracle-instantclient-release-26ai-el10-1.0-6.el10 \
-    && microdnf install -y ca-certificates-2025.2.80_v9.0.305-102.el10_1 oracle-instantclient-basiclite-23.26.2.0.0-2.el10 \
+RUN microdnf install -y ca-certificates-2025.2.80_v9.0.305-102.el10_1 \
     && microdnf clean all
 
 COPY --from=builder /tmp/autographs-controller /usr/local/bin/autographs-controller

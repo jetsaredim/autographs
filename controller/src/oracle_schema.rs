@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use oracle::Connection;
+use oracledb::{Connection, ToDbValue};
+
+use crate::oracle_connection;
 
 const SCHEMA_SQL: &str = include_str!("../db/schema.sql");
 const EXPECTED_TABLES: &[&str] = &[
@@ -86,7 +88,7 @@ pub fn ensure_initialized(
 ) -> Result<(), String> {
     tracing::info!(%user, %connect_string, "checking Oracle catalog schema state");
 
-    let connection = Connection::connect(user, credential, connect_string)
+    let connection = oracle_connection::connect(user, credential, connect_string)
         .map_err(|error| format!("connect to Oracle catalog for schema bootstrap: {error}"))?;
 
     ensure_initialized_on_connection(&connection)
@@ -114,14 +116,12 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
     }
 
     for (table, column) in REQUIRED_COLUMNS {
-        let count: i64 = connection
-            .query_row_as(
-                "select count(*) from user_tab_columns where table_name = :1 and column_name = :2",
-                &[table, column],
-            )
-            .map_err(|error| {
-                format!("inspect Oracle catalog schema column {table}.{column}: {error}")
-            })?;
+        let count = query_count(
+            connection,
+            "select count(*) from user_tab_columns where table_name = :1 and column_name = :2",
+            &[table, column],
+            &format!("schema column {table}.{column}"),
+        )?;
         if count != 1 {
             return Err(format!(
                 "Oracle catalog schema is partially initialized; missing expected column {table}.{column}"
@@ -131,21 +131,17 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
 
     for (table, constraint, required_texts, update_script) in REQUIRED_CHECK_CONSTRAINTS {
         for required_text in *required_texts {
-            let count: i64 = connection
-                .query_row_as(
-                    "select count(*) from user_constraints
+            let count = query_count(
+                connection,
+                "select count(*) from user_constraints
                       where table_name = :1
                         and constraint_name = :2
                         and constraint_type = 'C'
                         and status = 'ENABLED'
                         and search_condition_vc like '%' || :3 || '%'",
-                    &[table, constraint, required_text],
-                )
-                .map_err(|error| {
-                    format!(
-                        "inspect Oracle catalog schema constraint {table}.{constraint}: {error}"
-                    )
-                })?;
+                &[table, constraint, required_text],
+                &format!("schema constraint {table}.{constraint}"),
+            )?;
             if count != 1 {
                 return Err(format!(
                     "Oracle catalog schema is partially initialized; constraint {table}.{constraint} is missing required value {required_text}; run {update_script} before deploying this controller"
@@ -156,9 +152,9 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
 
     for (table, constraint, columns, update_script) in REQUIRED_UNIQUE_CONSTRAINTS {
         let expected_columns = columns.join(",");
-        let count: i64 = connection
-            .query_row_as(
-                "select count(*)
+        let count = query_count(
+            connection,
+            "select count(*)
                    from (
                      select c.constraint_name
                        from user_constraints c
@@ -172,13 +168,9 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
                       group by c.constraint_name
                      having listagg(col.column_name, ',') within group (order by col.position) = :3
                    )",
-                &[table, constraint, &expected_columns],
-            )
-            .map_err(|error| {
-                format!(
-                    "inspect Oracle catalog schema unique constraint {table}.{constraint}: {error}"
-                )
-            })?;
+            &[table, constraint, &expected_columns],
+            &format!("schema unique constraint {table}.{constraint}"),
+        )?;
         if count != 1 {
             return Err(format!(
                 "Oracle catalog schema is partially initialized; unique constraint {table}.{constraint} is missing expected column set {expected_columns}; run {update_script} before deploying this controller"
@@ -188,6 +180,19 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
 
     tracing::info!("Oracle catalog schema preflight passed");
     Ok(())
+}
+
+fn query_count(
+    connection: &Connection,
+    sql: &str,
+    params: &[&dyn ToDbValue],
+    label: &str,
+) -> Result<i64, String> {
+    let row = connection
+        .query_row(sql, params)
+        .map_err(|error| format!("inspect Oracle catalog {label}: {error}"))?;
+    row.get(0)
+        .map_err(|error| format!("decode Oracle catalog {label}: {error}"))
 }
 
 fn existing_autograph_tables(connection: &Connection) -> Result<HashSet<String>, String> {
