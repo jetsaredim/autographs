@@ -11,7 +11,7 @@ score: 3/3 documentation must-haves verified
 |---|-------|--------|----------|
 | 1 | The smoke environment example includes both required passwords. | VERIFIED | `docs/static-runtime-runbook.md` includes explicit database and wallet password placeholders beside the Oracle wallet settings. |
 | 2 | Spike 002 cannot be mistaken for a current runnable procedure. | VERIFIED | Its execution section is labeled historical/non-runnable and directs current operators to `Dockerfile.smoke`, `live-persistence`, and the active runbook. |
-| 3 | Operators have a safe pre-merge migrated-controller gate. | VERIFIED | The runbook builds the exact candidate, starts it alongside production with copied wallet/secrets, targets it from the established static-publish smoke, defines success, and cleans up. |
+| 3 | Operators have a safe pre-merge migrated-controller gate. | VERIFIED | The runbook builds the exact candidate, starts it alongside production with copied wallet/secrets, targets it from the established static-publish smoke, defines success, and uses a strict subshell plus exit/signal trap for mandatory cleanup on every outcome. The extracted Bash block passes `bash -n`. |
 
 ## Human Verification Required
 

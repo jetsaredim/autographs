@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-08-21T02:13:13Z"
+last_updated: "2026-08-21T02:30:26Z"
 last_activity: 2026-08-20 -- Prepared PR 211 candidate-controller live gate and addressed reviewer documentation findings
 progress:
   total_phases: 10
@@ -186,7 +186,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
-| 2026-08-20 | address-pr-211-reviewer-documentation-fi | Needs Review: fixed both reviewer documentation warnings and documented the pre-merge candidate-controller static-publish gate; VM execution and PR evidence remain required. Implementation commit `7078503`. |
+| 2026-08-20 | address-pr-211-reviewer-documentation-fi | Needs Review: fixed all reviewer documentation warnings and documented a fail-safe pre-merge candidate-controller static-publish gate; VM execution and PR evidence remain required. Implementation commits `7078503`, `393700f`. |
 | 2026-08-20 | remove-the-redundant-host-cargo-build-fr | Verified: removed the redundant host-side production controller link while retaining formatting, tests, production compilation, Clippy, and the parallel release Docker image build. Implementation commit `eb96da0`. |
 | 2026-08-20 | migrate-the-production-rust-controller-a | Verified: migrated production Oracle persistence and established smoke images to `oracledb 26.0.0-beta.2`, removed Instant Client, enforced the wallet password deploy contract, and retained OL10 slim as the measured runtime base. Implementation commit `56bf5a5`. |
 | 2026-08-16 | run-oracle-heartbeat-once-shortly-after- | Made the production Oracle catalog heartbeat run its first lightweight SQL command immediately after controller startup, then continue on the configured interval, with docs updated for immediate deploy/reboot confirmation. |
