@@ -153,7 +153,12 @@ impl ImagePerspective {
                 "perspective corner y must be normalized",
             )?;
         }
+        perspective_projection(self.normalized_source_points(), unit_target_points())?;
         Ok(())
+    }
+
+    fn normalized_source_points(&self) -> [(f32, f32); 4] {
+        self.corners.map(|corner| (corner.x, corner.y))
     }
 }
 
@@ -269,14 +274,25 @@ fn apply_perspective(
         ),
         (0.0, height.saturating_sub(1) as f32),
     ];
-    let projection = Projection::from_control_points(target, source)
-        .ok_or_else(|| "perspective corners do not form a valid projection".to_owned())?;
+    let projection = perspective_projection(source, target)?;
     Ok(warp(
         image,
         projection,
         Interpolation::Bilinear,
         Border::Constant(Rgba([0, 0, 0, 0])),
     ))
+}
+
+fn perspective_projection(
+    source: [(f32, f32); 4],
+    target: [(f32, f32); 4],
+) -> Result<Projection, String> {
+    Projection::from_control_points(source, target)
+        .ok_or_else(|| "perspective corners do not form a valid projection".to_owned())
+}
+
+fn unit_target_points() -> [(f32, f32); 4] {
+    [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
 }
 
 fn crop_normalized(image: &RgbaImage, crop: ImageCrop) -> RgbaImage {

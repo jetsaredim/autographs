@@ -56,6 +56,31 @@ fn adjustment_validation_rejects_unbounded_values() {
 }
 
 #[test]
+fn adjustment_validation_rejects_degenerate_perspective_corners() {
+    let mut duplicate = ImageAdjustment::identity();
+    duplicate.perspective = Some(ImagePerspective {
+        corners: [
+            ImagePoint { x: 0.1, y: 0.1 },
+            ImagePoint { x: 0.1, y: 0.1 },
+            ImagePoint { x: 0.9, y: 0.9 },
+            ImagePoint { x: 0.1, y: 0.9 },
+        ],
+    });
+    assert!(duplicate.validate().unwrap_err().contains("projection"));
+
+    let mut collinear = ImageAdjustment::identity();
+    collinear.perspective = Some(ImagePerspective {
+        corners: [
+            ImagePoint { x: 0.1, y: 0.1 },
+            ImagePoint { x: 0.5, y: 0.1 },
+            ImagePoint { x: 0.9, y: 0.1 },
+            ImagePoint { x: 0.1, y: 0.9 },
+        ],
+    });
+    assert!(collinear.validate().unwrap_err().contains("projection"));
+}
+
+#[test]
 fn adjusted_derivative_generates_webp_without_changing_plain_derivative() {
     let source = fixture_png([220, 20, 20], 96, 72);
     let plain = generate_derivative(&source, DerivativeVariant::Thumbnail).unwrap();
@@ -83,6 +108,41 @@ fn adjusted_derivative_generates_webp_without_changing_plain_derivative() {
     assert!(!adjusted.bytes.is_empty());
     assert_eq!(plain.bytes, plain_after.bytes);
     assert_ne!(plain.bytes, adjusted.bytes);
+}
+
+#[test]
+fn perspective_adjustment_maps_skewed_source_corners_to_output_rectangle() {
+    let width = 64;
+    let height = 64;
+    let source_corners = [(16, 8), (49, 14), (43, 54), (10, 47)];
+    let corner_colors = [
+        Rgba([240, 10, 10, 255]),
+        Rgba([10, 220, 10, 255]),
+        Rgba([10, 10, 230, 255]),
+        Rgba([230, 220, 10, 255]),
+    ];
+    let mut image = RgbaImage::new(width, height);
+    for (corner, color) in source_corners.into_iter().zip(corner_colors) {
+        image.put_pixel(corner.0, corner.1, color);
+    }
+
+    let adjustment = ImageAdjustment {
+        perspective: Some(ImagePerspective {
+            corners: source_corners.map(|(x, y)| normalized_test_point(x, y, width, height)),
+        }),
+        ..ImageAdjustment::identity()
+    };
+    let adjusted = autographs_controller::image_adjustments::apply_image_adjustment(
+        DynamicImage::ImageRgba8(image),
+        &adjustment,
+    )
+    .unwrap()
+    .to_rgba8();
+
+    assert_pixel_close(*adjusted.get_pixel(0, 0), corner_colors[0]);
+    assert_pixel_close(*adjusted.get_pixel(width - 1, 0), corner_colors[1]);
+    assert_pixel_close(*adjusted.get_pixel(width - 1, height - 1), corner_colors[2]);
+    assert_pixel_close(*adjusted.get_pixel(0, height - 1), corner_colors[3]);
 }
 
 #[test]
@@ -142,4 +202,20 @@ fn encode_png(image: RgbaImage) -> Vec<u8> {
         .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)
         .unwrap();
     bytes
+}
+
+fn normalized_test_point(x: u32, y: u32, width: u32, height: u32) -> ImagePoint {
+    ImagePoint {
+        x: x as f32 / width.saturating_sub(1).max(1) as f32,
+        y: y as f32 / height.saturating_sub(1).max(1) as f32,
+    }
+}
+
+fn assert_pixel_close(actual: Rgba<u8>, expected: Rgba<u8>) {
+    for (actual, expected) in actual.0.into_iter().zip(expected.0) {
+        assert!(
+            actual.abs_diff(expected) <= 2,
+            "expected pixel channel near {expected}, got {actual}"
+        );
+    }
 }
