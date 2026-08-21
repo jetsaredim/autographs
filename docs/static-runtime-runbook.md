@@ -176,12 +176,13 @@ migration chain. The probe performs a read-only schema preflight and stops
 before inserting an item or uploading an object when the static-runtime schema
 is absent.
 
-The native Oracle probe uses Oracle Instant Client and the same wallet alias as
+The Oracle probe uses the same pure-Rust `oracledb` driver and wallet alias as
 the deployed controller. It requires `ORACLE_DB_CONNECT_STRING`,
-`ORACLE_DB_USER`, and the matching Oracle credential; the smoke container sets
-`TNS_ADMIN` to the mounted wallet directory. Instance-principal media access
-requires `OCI_AUTH_MODE`, `OCI_MEDIA_NAMESPACE`, `OCI_MEDIA_BUCKET_NAME`, and
-the runtime dynamic-group policy for the media bucket.
+`ORACLE_DB_USER`, the matching Oracle credential, `ORACLE_DB_WALLET_DIR`, and
+`ORACLE_DB_WALLET_PASSWORD`; the password decrypts `ewallet.pem` after the
+wallet is unpacked. Instance-principal media access requires `OCI_AUTH_MODE`,
+`OCI_MEDIA_NAMESPACE`, `OCI_MEDIA_BUCKET_NAME`, and the runtime dynamic-group
+policy for the media bucket.
 
 ### Run the Smoke as a Temporary VM Container
 
@@ -212,8 +213,10 @@ wallet, and OCI media coordinates used by the deployed controller, including:
 ```text
 AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE=true
 ORACLE_DB_USER=ADMIN
+ORACLE_DB_PASSWORD=replace-with-runtime-db-password
 ORACLE_DB_CONNECT_STRING=autographsdb_medium
 ORACLE_DB_WALLET_DIR=/opt/autographs/wallet
+ORACLE_DB_WALLET_PASSWORD=replace-with-wallet-download-password
 OCI_REGION=us-ashburn-1
 OCI_AUTH_MODE=instance_principal
 OCI_MEDIA_NAMESPACE=replace-with-object-storage-namespace
@@ -243,17 +246,14 @@ sudo podman run --rm \
   "${SMOKE_IMAGE}"
 ```
 
-The image contains the compiled smoke-test executable, CA certificates, and
-Oracle Instant Client Basic Lite. It does not contain the Oracle wallet, database
-credential, or Object Storage credentials.
+The image contains the compiled smoke-test executable and CA certificates. It
+does not contain Oracle Instant Client, the Oracle wallet, database credential,
+or Object Storage credentials. Oracle connectivity is provided by the
+Oracle-maintained pure-Rust `oracledb` crate compiled into the executable.
 
-The controller and one-shot smoke images intentionally use Oracle Instant Client
-Basic Lite to keep runtime images smaller. Basic Lite is acceptable for the
-current `AL32UTF8` Oracle catalog path, but it has a narrower client/database
-character-set and collation surface than the full Basic package and client-side
-errors are reported in English. Rerun the live persistence and static publish
-smokes after client package updates, especially if catalog metadata, `NLS_LANG`,
-or `NLS_SORT` behavior changes.
+Rerun the live persistence and static publish smokes after `oracledb` updates,
+especially when connection, wallet, catalog encoding, or value-conversion
+behavior changes.
 
 Use a copied wallet directory for one-shot smoke containers instead of mounting
 the controller's live wallet path. The deployed controller owns
@@ -376,12 +376,106 @@ sudo podman run --rm \
   "${SMOKE_IMAGE}"
 ```
 
+### Run a Candidate Controller Before Merge
+
+When a controller persistence driver or runtime dependency changes, do not make
+the automatic post-merge deployment its first full repository exercise. Build
+and transfer the candidate controller from the exact reviewed commit alongside
+the static-publish smoke image:
+
+```bash
+CANDIDATE_VERSION="$(git rev-parse --short HEAD)"
+CANDIDATE_IMAGE="localhost/autographs-controller-candidate:${CANDIDATE_VERSION}"
+
+docker build \
+  --file controller/Dockerfile \
+  --tag "${CANDIDATE_IMAGE}" \
+  .
+docker save \
+  --output /tmp/autographs-controller-candidate.tar \
+  "${CANDIDATE_IMAGE}"
+scp /tmp/autographs-controller-candidate.tar \
+  opc@"${VM_PUBLIC_IP}":/tmp/autographs-controller-candidate.tar
+```
+
+On the VM, start the candidate beside the deployed controller on the private
+Podman network. Use copied wallet and secret directories so applying private
+SELinux labels cannot relabel the deployed controller's live mounts. The
+candidate shares the static volume because the smoke verifies its promoted
+release through the existing Caddy preview. Do not run a separate operator
+publish concurrently with this gate.
+
+```bash
+run_candidate_gate() (
+  set -Eeuo pipefail
+
+  CANDIDATE_VERSION="<git-short-sha-used-during-build>"
+  CANDIDATE_IMAGE="localhost/autographs-controller-candidate:${CANDIDATE_VERSION}"
+  CANDIDATE_NAME="autographs-controller-candidate"
+  CANDIDATE_WALLET_DIR="/tmp/autographs-controller-candidate-wallet"
+  CANDIDATE_SECRETS_DIR="/tmp/autographs-controller-candidate-secrets"
+  SMOKE_IMAGE="localhost/autographs-live-static-publish-smoke:${CANDIDATE_VERSION}"
+  SMOKE_WALLET_DIR="/tmp/autographs-smoke-wallet"
+
+  cleanup_candidate_gate() {
+    sudo podman rm --force "${CANDIDATE_NAME}" >/dev/null 2>&1 || true
+    sudo rm -rf \
+      "${CANDIDATE_WALLET_DIR}" \
+      "${CANDIDATE_SECRETS_DIR}" \
+      "${SMOKE_WALLET_DIR}" || true
+  }
+  trap cleanup_candidate_gate EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  cleanup_candidate_gate
+
+  sudo cp -a /opt/autographs/wallet "${CANDIDATE_WALLET_DIR}"
+  sudo cp -a /opt/autographs/secrets "${CANDIDATE_SECRETS_DIR}"
+  sudo podman load --input /tmp/autographs-controller-candidate.tar
+  sudo podman run --replace --detach \
+    --name "${CANDIDATE_NAME}" \
+    --network autographs \
+    --env-file /opt/autographs/env/app.env \
+    --env-file /opt/autographs/env/controller.env \
+    --volume "${CANDIDATE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
+    --volume "${CANDIDATE_SECRETS_DIR}":/opt/autographs/secrets:ro,Z \
+    --volume autographs-static:/var/lib/autographs/static \
+    "${CANDIDATE_IMAGE}"
+
+  for attempt in {1..30}; do
+    sudo podman logs "${CANDIDATE_NAME}" 2>&1 \
+      | grep -q "Oracle catalog schema preflight passed" && break
+    sleep 2
+  done
+  sudo podman logs "${CANDIDATE_NAME}" 2>&1 \
+    | grep "Oracle catalog schema preflight passed"
+
+  sudo cp -a /opt/autographs/wallet "${SMOKE_WALLET_DIR}"
+  sudo podman load --input /tmp/autographs-live-static-publish-smoke.tar
+  sudo podman run --rm \
+    --network autographs \
+    --env-file /opt/autographs/env/live-persistence-smoke.env \
+    --env AUTOGRAPHS_CONTROLLER_BASE_URL="http://${CANDIDATE_NAME}:8080" \
+    --volume "${SMOKE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
+    "${SMOKE_IMAGE}"
+)
+
+run_candidate_gate
+```
+
+The gate passes only when the smoke creates and updates the item through the
+candidate controller, publishes and verifies the generated static release,
+unpublishes it, republishes the removal, and cleans up the Oracle rows and OCI
+original. Record the exact candidate commit and complete result on the PR before
+merge. The subshell's exit/signal trap removes the candidate container and all
+copied wallet/API-key material after success, failure, or interruption.
+
 The static smoke result was recorded for Phase 5 closeout. The public hostname
 now serves generated output through Caddy; rerunning the smoke proves that the
 deployed Rust/static path can still publish a fresh item end to end and remove
-it again. For Oracle Instant Client Basic Lite changes, include non-English
-catalog metadata in the smoke evidence so the real controller persistence path
-continues to prove the app's UTF-8 catalog behavior.
+it again. For `oracledb` updates, include non-English catalog metadata in the
+smoke evidence so the real controller persistence path continues to prove the
+app's UTF-8 catalog behavior.
 If a failed run stops before cleanup, search Oracle for a title beginning with
 `Live Static Smoke`, remove that temporary draft through the available
 operator-maintenance path, and delete its logged `originals/{item-id}/{image-id}`

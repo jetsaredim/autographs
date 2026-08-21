@@ -11,10 +11,11 @@ mod live {
         media::PrivateMediaStore,
         oci_media::OciInstancePrincipalMediaStore,
         oracle_catalog::OracleCatalogRepository,
+        oracle_connection,
         storage_keys::build_original_object_key,
     };
     use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
-    use oracle::Connection;
+    use oracledb::Connection;
     use serde_json::{Value, json};
     use tempfile::NamedTempFile;
     use uuid::Uuid;
@@ -46,7 +47,7 @@ mod live {
         let bucket_name = required("OCI_MEDIA_BUCKET_NAME");
 
         let connection =
-            Connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
+            oracle_connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
                 .expect("connect to Oracle Autonomous Database");
         let repository = OracleCatalogRepository::new(
             oracle_user.clone(),
@@ -789,12 +790,15 @@ mod live {
         image_id: Uuid,
         object_key: &str,
     ) {
-        let stored_key: String = connection
-            .query_row_as(
+        let row = connection
+            .query_row(
                 "select object_key from autograph_images where id = :1 and item_id = :2",
                 &[&image_id.to_string(), &item_id.to_string()],
             )
             .expect("read live static smoke image metadata from Oracle");
+        let stored_key: String = row
+            .get(0)
+            .expect("decode live static smoke image object key");
         assert_eq!(stored_key, object_key);
     }
 

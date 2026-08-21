@@ -20,8 +20,7 @@ ARG AUTOGRAPHS_SMOKE_IMAGE_VERSION=unknown
 ENV AUTOGRAPHS_SMOKE_IMAGE_VERSION=${AUTOGRAPHS_SMOKE_IMAGE_VERSION}
 LABEL org.opencontainers.image.revision=${AUTOGRAPHS_SMOKE_IMAGE_VERSION}
 
-RUN microdnf install -y oracle-instantclient-release-26ai-el10 \
-    && microdnf install -y ca-certificates curl oracle-instantclient-basiclite \
+RUN microdnf install -y ca-certificates curl \
     && microdnf clean all
 
 ENV TNS_ADMIN=/opt/autographs/wallet

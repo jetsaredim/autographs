@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use async_trait::async_trait;
-use oracle::{Connection, Row};
+use oracledb::{Connection, FromDbValue, Row, ToDbValue};
 use serde_json::Value;
 use tokio::task;
 use uuid::Uuid;
@@ -15,6 +15,7 @@ use crate::catalog::{
     event_kind_for_diffs, event_summary, normalize_profile_link, normalize_signer_name,
     now_epoch_seconds, signer_match_rank, signer_profile_field_diffs, validate_required_fields,
 };
+use crate::oracle_connection;
 
 const ITEM_SELECT_COLUMNS: &str = "title, signer, description, category, object_reference,
     event_name, event_location, source, inscription,
@@ -122,7 +123,7 @@ impl OracleCatalogRepository {
     {
         let repository = self.clone();
         task::spawn_blocking(move || {
-            let connection = Connection::connect(
+            let connection = oracle_connection::connect(
                 &repository.user,
                 &repository.password,
                 &repository.connect_string,
@@ -284,9 +285,7 @@ impl CatalogRepository for OracleCatalogRepository {
                     ],
                 )
                 .map_err(|error| format!("update Oracle catalog item: {error}"))?;
-            let rows_updated = statement
-                .row_count()
-                .map_err(|error| format!("read Oracle catalog update row count: {error}"))?;
+            let rows_updated = statement.rows_affected();
             if rows_updated == 0 {
                 return Err("autograph item was not found".to_owned());
             }
@@ -423,10 +422,12 @@ impl CatalogRepository for OracleCatalogRepository {
         self.with_connection(move |connection| {
             let item_id_text = item_id.to_string();
             let image_id_text = image_id.to_string();
-            let exists: i64 = connection.query_row_as(
+            let exists: i64 = query_row_value(
+                &connection,
                 "select count(*) from autograph_images where id = :1 and item_id = :2",
                 &[&image_id_text, &item_id_text],
-            ).map_err(|error| format!("check Oracle primary image: {error}"))?;
+                "primary image existence",
+            )?;
             if exists != 1 { return Err("autograph image was not found".to_owned()); }
             connection.execute(
                 "update autograph_images set is_primary = case when id = :1 then 'Y' else 'N' end, updated_at = current_timestamp where item_id = :2",
@@ -457,9 +458,7 @@ impl CatalogRepository for OracleCatalogRepository {
                     &[&image_id_text, &item_id_text],
                 )
                 .map_err(|error| format!("delete Oracle catalog image metadata: {error}"))?;
-            let rows_deleted = statement
-                .row_count()
-                .map_err(|error| format!("read Oracle image delete row count: {error}"))?;
+            let rows_deleted = statement.rows_affected();
             if rows_deleted == 0 {
                 return Err("autograph image was not found".to_owned());
             }
@@ -537,9 +536,7 @@ impl CatalogRepository for OracleCatalogRepository {
                     ],
                 )
                 .map_err(|error| format!("replace Oracle catalog image metadata: {error}"))?;
-            let rows_updated = statement
-                .row_count()
-                .map_err(|error| format!("read Oracle image replacement row count: {error}"))?;
+            let rows_updated = statement.rows_affected();
             if rows_updated == 0 {
                 return Err("autograph image was not found".to_owned());
             }
@@ -617,9 +614,7 @@ impl CatalogRepository for OracleCatalogRepository {
                     &[&item_id_text, &image_id_text, &target_object_key],
                 )
                 .map_err(|error| format!("mark Oracle cleanup retry succeeded: {error}"))?;
-            let rows_updated = statement
-                .row_count()
-                .map_err(|error| format!("read Oracle cleanup retry row count: {error}"))?;
+            let rows_updated = statement.rows_affected();
             if rows_updated == 0 {
                 return Ok(false);
             }
@@ -1209,7 +1204,7 @@ fn load_signer_profile_by_normalized_name(
 fn load_signer_profile_by_query(
     connection: &Connection,
     sql: &str,
-    params: &[&dyn oracle::sql_type::ToSql],
+    params: &[&dyn ToDbValue],
     lookup: &str,
 ) -> Result<Option<SignerProfile>, String> {
     let mut rows = connection
@@ -1663,12 +1658,12 @@ fn load_signer_credits(connection: &Connection, id: Uuid) -> Result<Vec<SignerCr
 
 fn has_persisted_signer_credits(connection: &Connection, id: Uuid) -> Result<bool, String> {
     let id_text = id.to_string();
-    let count: i64 = connection
-        .query_row_as(
-            "select count(*) from autograph_item_signers where item_id = :1",
-            &[&id_text],
-        )
-        .map_err(|error| format!("read Oracle catalog signer credit count: {error}"))?;
+    let count: i64 = query_row_value(
+        connection,
+        "select count(*) from autograph_item_signers where item_id = :1",
+        &[&id_text],
+        "signer credit count",
+    )?;
     Ok(count > 0)
 }
 
@@ -1777,12 +1772,13 @@ fn image_from_row(row: &Row, offset: usize) -> Result<AutographImage, String> {
 
 fn promote_first_remaining_image(connection: &Connection, item_id: Uuid) -> Result<(), String> {
     let item_id_text = item_id.to_string();
-    let next_primary = connection
-        .query_row_as::<String>(
-            "select id from autograph_images where item_id = :1 order by sort_order, id fetch first 1 row only",
-            &[&item_id_text],
-        )
-        .ok();
+    let next_primary = query_row_value::<String>(
+        connection,
+        "select id from autograph_images where item_id = :1 order by sort_order, id fetch first 1 row only",
+        &[&item_id_text],
+        "next primary image",
+    )
+    .ok();
     if let Some(next_primary) = next_primary {
         connection
             .execute(
@@ -1969,9 +1965,7 @@ fn sync_signer_credits(
                 ],
             )
             .map_err(|error| format!("update Oracle catalog signer credit: {error}"))?;
-        let rows_updated = statement
-            .row_count()
-            .map_err(|error| format!("read Oracle signer credit update row count: {error}"))?;
+        let rows_updated = statement.rows_affected();
         if rows_updated == 0 {
             connection
                 .execute(
@@ -2277,13 +2271,21 @@ fn parse_uuid(value: &str) -> Result<Uuid, String> {
     Uuid::parse_str(value).map_err(|error| format!("parse Oracle UUID: {error}"))
 }
 
-fn row_value<T: oracle::sql_type::FromSql>(
-    row: &Row,
-    index: usize,
-    name: &str,
-) -> Result<T, String> {
+fn row_value<T: FromDbValue>(row: &Row, index: usize, name: &str) -> Result<T, String> {
     row.get(index)
         .map_err(|error| format!("read Oracle catalog {name}: {error}"))
+}
+
+fn query_row_value<T: FromDbValue>(
+    connection: &Connection,
+    sql: &str,
+    params: &[&dyn ToDbValue],
+    name: &str,
+) -> Result<T, String> {
+    let row = connection
+        .query_row(sql, params)
+        .map_err(|error| format!("read Oracle catalog {name}: {error}"))?;
+    row_value(&row, 0, name)
 }
 
 fn compact_signer_text(credits: &[SignerCredit]) -> String {

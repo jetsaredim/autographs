@@ -1,7 +1,8 @@
 use std::{env, time::Duration};
 
-use oracle::Connection;
 use tokio::time::{self, MissedTickBehavior};
+
+use crate::oracle_connection;
 
 const HEARTBEAT_INTERVAL_ENV: &str = "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS";
 const DEFAULT_HEARTBEAT_INTERVAL_SECONDS: u64 = 24 * 60 * 60;
@@ -81,11 +82,12 @@ fn parse_heartbeat_interval(raw: Option<&str>) -> Result<Option<Duration>, Strin
 }
 
 fn run_heartbeat(user: &str, credential: &str, connect_string: &str) -> Result<(), HeartbeatError> {
-    let connection = Connection::connect(user, credential, connect_string)
+    let connection = oracle_connection::connect(user, credential, connect_string)
         .map_err(|_error| HeartbeatError::Connect)?;
-    let value: i64 = connection
-        .query_row_as("select 1 from dual", &[])
+    let row = connection
+        .query_row("select 1 from dual", &[])
         .map_err(|_error| HeartbeatError::Query)?;
+    let value: i64 = row.get(0).map_err(|_error| HeartbeatError::Query)?;
     if value != 1 {
         return Err(HeartbeatError::UnexpectedResult);
     }

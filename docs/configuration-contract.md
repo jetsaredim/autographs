@@ -28,7 +28,7 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `ADB_ADMIN_PASSWORD` | deploy workflow / Terraform | Initial Oracle Autonomous Database ADMIN password when database creation is enabled |
 | `ORACLE_DB_PASSWORD` | deploy workflow / runtime | Runtime database password passed to the Rust controller container |
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / runtime | Base64-encoded ADB wallet zip used for mTLS connections |
-| `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Optional wallet password retained for wallet compatibility |
+| `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Wallet download password required by the `oracledb` driver when `ORACLE_DB_WALLET_DIR` is set |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Optional compatibility token for non-management diagnostics; not a collection-management credential |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | Rust controller runtime | Argon2 hash for the single-admin browser login |
 
@@ -58,7 +58,7 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |
 | `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect alias or descriptor; use the wallet alias such as `autographsdb_medium` for mTLS |
 | `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the Rust controller container; defaults to `/opt/autographs/wallet` in deploy |
-| `TNS_ADMIN` | Runtime Oracle Instant Client Basic Lite wallet directory; deployed controller and one-shot smoke containers set this to `/opt/autographs/wallet` |
+| `TNS_ADMIN` | Runtime Oracle network configuration directory retained for tool compatibility; deployed controller and one-shot smoke containers set this to `/opt/autographs/wallet` |
 | `RUST_LOG` | Runtime controller log filter; defaults to `autographs_controller=info,tower_http=info` and can be raised temporarily for debugging |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
 | `DEPLOY_SSH_USER` | SSH user for deploys, usually `opc` |

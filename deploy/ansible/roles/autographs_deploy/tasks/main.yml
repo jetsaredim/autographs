@@ -140,6 +140,9 @@
       - autographs_deploy_controller_db_provider == 'oracle'
       - autographs_deploy_controller_media_storage_provider == 'oci-instance-principal'
       - >-
+        autographs_deploy_controller_db_provider != 'oracle'
+        or lookup('env', 'ORACLE_DB_WALLET_PASSWORD') | default('', true) | trim | length > 0
+      - >-
         autographs_deploy_controller_media_storage_provider != 'oci-instance-principal'
         or (
           oci_media_namespace | default(lookup('env', 'OCI_MEDIA_NAMESPACE') | default('', true), true) | trim | length > 0
@@ -149,7 +152,8 @@
       Deployed controller providers must be persistent:
       AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle and
       AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-instance-principal
-      with OCI_MEDIA_NAMESPACE and OCI_MEDIA_BUCKET_NAME.
+      with ORACLE_DB_WALLET_PASSWORD, OCI_MEDIA_NAMESPACE, and
+      OCI_MEDIA_BUCKET_NAME.
   no_log: true
 
 - name: Inspect deployed app environment file
@@ -427,7 +431,7 @@
   notify:
     - Restart controller container
 
-- name: Normalize Oracle DB wallet location for native clients
+- name: Normalize Oracle DB wallet network configuration
   ansible.builtin.copy:
     src: sqlnet.ora
     dest: "{{ autographs_deploy_wallet_path }}/sqlnet.ora"

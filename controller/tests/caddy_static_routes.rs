@@ -153,8 +153,8 @@ fn controller_dockerfile_copies_compile_time_static_assets() {
     assert!(dockerfile.contains("COPY controller/static-admin ./static-admin"));
     assert!(dockerfile.contains("cargo build --release --features production-persistence"));
     assert!(dockerfile.contains("COPY controller/static-admin /opt/autographs/static-admin"));
-    assert!(dockerfile.contains("oracle-instantclient-basiclite-23.26.2.0.0-2.el10"));
-    assert!(!dockerfile.contains("oracle-instantclient-basic-23.26.2.0.0-2.el10"));
+    assert!(dockerfile.contains("ca-certificates-2025.2.80_v9.0.305-102.el10_1"));
+    assert!(!dockerfile.contains("oracle-instantclient"));
     assert!(dockerignore.contains("controller/static-public/data/collection.json"));
     assert!(dockerignore.contains("controller/static-public/data/facets.json"));
     assert!(dockerignore.contains("controller/static-public/data/items"));
@@ -169,10 +169,10 @@ fn controller_dockerfile_copies_compile_time_static_assets() {
     assert!(gitignore.contains("controller/static-public/media/*"));
     assert!(smoke_dockerfile.contains("COPY controller/static-admin ./static-admin"));
     assert!(static_smoke_dockerfile.contains("COPY controller/static-admin ./static-admin"));
-    assert!(smoke_dockerfile.contains("oracle-instantclient-basiclite"));
-    assert!(static_smoke_dockerfile.contains("oracle-instantclient-basiclite"));
-    assert!(!smoke_dockerfile.contains("oracle-instantclient-basic "));
-    assert!(!static_smoke_dockerfile.contains("oracle-instantclient-basic "));
+    assert!(smoke_dockerfile.contains("microdnf install -y ca-certificates"));
+    assert!(static_smoke_dockerfile.contains("microdnf install -y ca-certificates curl"));
+    assert!(!smoke_dockerfile.contains("oracle-instantclient"));
+    assert!(!static_smoke_dockerfile.contains("oracle-instantclient"));
 }
 
 #[test]
@@ -192,6 +192,7 @@ fn controller_quadlet_keeps_private_api_off_host_ports() {
 fn deploy_wires_oracle_heartbeat_interval_override() {
     let deploy_workflow = read_repo(".github/workflows/deploy.yml");
     let app_env = read_repo("deploy/ansible/roles/autographs_deploy/templates/app.env.j2");
+    let deploy_tasks = read_repo("deploy/ansible/roles/autographs_deploy/tasks/main.yml");
 
     assert!(deploy_workflow.contains(
         "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS: ${{ vars.AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS || '86400' }}"
@@ -201,6 +202,16 @@ fn deploy_wires_oracle_heartbeat_interval_override() {
     ));
     assert!(app_env.contains(
         "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS={{ autographs_oracle_heartbeat_interval_seconds | default(86400) }}"
+    ));
+    assert!(
+        deploy_workflow
+            .contains("ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}")
+    );
+    assert!(app_env.contains(
+        "ORACLE_DB_WALLET_PASSWORD={{ lookup('env', 'ORACLE_DB_WALLET_PASSWORD') | default('', true) }}"
+    ));
+    assert!(deploy_tasks.contains(
+        "lookup('env', 'ORACLE_DB_WALLET_PASSWORD') | default('', true) | trim | length > 0"
     ));
 }
 

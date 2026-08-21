@@ -6,10 +6,12 @@ pub mod contracts;
 pub mod derivatives;
 pub mod image_adjustments;
 pub mod media;
-#[cfg(feature = "production-persistence")]
+#[cfg(any(feature = "production-persistence", feature = "production-oci"))]
 pub mod oci_media;
 #[cfg(feature = "production-persistence")]
 pub mod oracle_catalog;
+#[cfg(feature = "production-persistence")]
+pub mod oracle_connection;
 #[cfg(feature = "production-persistence")]
 pub mod oracle_heartbeat;
 #[cfg(feature = "production-persistence")]
