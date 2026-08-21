@@ -20,6 +20,7 @@ argon2 = "0.5.3"
 async-trait = "0.1.92"
 axum = { version = "0.8.9", features = ["multipart"] }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+imageproc = { version = "0.27.0", default-features = false }
 base64 = { version = "0.23.1", optional = true }
 httpdate = { version = "1.0.3", optional = true }
 serde = { version = "1.0.229", features = ["derive"] }

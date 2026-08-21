@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-03-PLAN.md; ready for 08-04-PLAN.md
-last_updated: "2026-08-17T03:09:14.648Z"
-last_activity: 2026-08-17 -- Completed Phase 08 Plan 03; ready for Plan 04
+stopped_at: Completed 08-04-PLAN.md
+last_updated: "2026-08-17T12:57:22.265Z"
+last_activity: 2026-08-17 -- Phase 08 execution started
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 47
-  completed_plans: 42
-  percent: 89
+  completed_plans: 43
+  percent: 70
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 ## Current Position
 
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
-Plan: 4 of 8
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-17 -- Completed Phase 08 Plan 03; ready for Plan 04
+Last activity: 2026-08-17 -- Phase 08 execution started
 
 Progress: [█████████░] 89% of milestone plans complete; Phase 8 Plan 4 is next
 
@@ -82,6 +82,7 @@ Progress: [█████████░] 89% of milestone plans complete; Phas
 | Phase 08 P01 | 8min | 3 tasks | 7 files |
 | Phase 08 P02 | live session plus PR checkpoint | 3 tasks | 10 files |
 | Phase 08 P03 | 8min | 3 tasks | 6 files |
+| Phase 08 P04 | 13min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -149,6 +150,9 @@ Recent decisions affecting current work:
 - [Phase 08-03]: Production CDN enablement remains deferred until adjusted-media cache behavior is proven by later Phase 8 media and publisher work.
 - [Phase 08-03]: Cloudflare cache rules are named exactly `Bypass admin and API`, `Respect rollback-sensitive public documents`, and `Cache fingerprinted media and assets`.
 - [Phase 08-03]: OPS-02 remains pending overall because production CDN enablement and post-media verification are owned by later Phase 8 plans.
+- [Phase ?]: [Phase 08-04]: Use the 08-RESEARCH.md package-legitimacy approval for imageproc 0.27.0 and resolve Cargo.lock through the compile/test gate.
+- [Phase ?]: [Phase 08-04]: Keep public static JSON/HTML contracts unchanged in Plan 08-04; Plan 08-07 owns adjustment-aware public publisher/cache behavior.
+- [Phase ?]: [Phase 08-04]: Expose adjustment metadata through the private admin item response while keeping public static artifacts untouched.
 
 ### Pending Todos
 
@@ -174,8 +178,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-17T03:09:14.648Z
-Stopped at: Completed 08-03-PLAN.md; ready for 08-04-PLAN.md
+Last session: 2026-08-17T12:56:48.996Z
+Stopped at: Completed 08-04-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed

@@ -79,6 +79,7 @@ async fn seed_content_local_repository_and_media_use_filename_free_keys() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await

@@ -1771,6 +1771,7 @@ fn image_from_row(row: &Row, offset: usize) -> Result<AutographImage, String> {
         is_primary: row_value::<String>(row, offset + 7, "image primary flag")? == "Y",
         sort_order: row_value(row, offset + 8, "image sort order")?,
         alt_text: row_value(row, offset + 9, "image alt text")?,
+        adjustment: None,
     })
 }
 

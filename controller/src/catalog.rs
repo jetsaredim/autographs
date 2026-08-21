@@ -9,6 +9,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::image_adjustments::ImageAdjustment;
+
 pub(crate) const REQUIRED_FIELDS_ERROR: &str = "title, signer, and category are required";
 const DEFAULT_FORMAT: &str = "Trading Card";
 const DEFAULT_LANGUAGE: &str = "English";
@@ -275,6 +277,7 @@ pub struct AutographImage {
     pub is_primary: bool,
     pub sort_order: i32,
     pub alt_text: Option<String>,
+    pub adjustment: Option<ImageAdjustment>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -383,6 +386,7 @@ pub enum EditEventKind {
     ImageAdded,
     ImageRemoved,
     ImageReplaced,
+    ImageAdjustmentChanged,
     PrimaryImageChanged,
     PublicationChanged,
     CleanupChanged,
@@ -396,6 +400,7 @@ impl EditEventKind {
             Self::ImageAdded => "imageAdded",
             Self::ImageRemoved => "imageRemoved",
             Self::ImageReplaced => "imageReplaced",
+            Self::ImageAdjustmentChanged => "imageAdjustmentChanged",
             Self::PrimaryImageChanged => "primaryImageChanged",
             Self::PublicationChanged => "publicationChanged",
             Self::CleanupChanged => "cleanupChanged",
@@ -413,6 +418,7 @@ impl std::str::FromStr for EditEventKind {
             "imageAdded" => Ok(Self::ImageAdded),
             "imageRemoved" => Ok(Self::ImageRemoved),
             "imageReplaced" => Ok(Self::ImageReplaced),
+            "imageAdjustmentChanged" => Ok(Self::ImageAdjustmentChanged),
             "primaryImageChanged" => Ok(Self::PrimaryImageChanged),
             "publicationChanged" => Ok(Self::PublicationChanged),
             "cleanupChanged" => Ok(Self::CleanupChanged),
@@ -502,6 +508,15 @@ pub trait CatalogRepository: Send + Sync {
         _input: ImageReplacementInput,
     ) -> Result<AutographItem, String> {
         Err("image metadata replacement is not supported by this repository".to_owned())
+    }
+
+    async fn update_image_adjustment(
+        &self,
+        _item_id: Uuid,
+        _image_id: Uuid,
+        _adjustment: Option<ImageAdjustment>,
+    ) -> Result<AutographItem, String> {
+        Err("image adjustment updates are not supported by this repository".to_owned())
     }
 
     async fn record_cleanup_event(
@@ -871,6 +886,7 @@ impl CatalogRepository for MemoryCatalogRepository {
             replacement.id = existing.id;
             replacement.is_primary = existing.is_primary;
             replacement.sort_order = existing.sort_order;
+            replacement.adjustment = None;
             *existing = replacement;
             item.updated_at_epoch_seconds = now;
             item.clone()
@@ -882,6 +898,43 @@ impl CatalogRepository for MemoryCatalogRepository {
                 item_id,
                 EditEventKind::ImageReplaced,
                 "Image replaced",
+                Vec::new(),
+                now,
+            ));
+        Ok(updated)
+    }
+
+    async fn update_image_adjustment(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+        adjustment: Option<ImageAdjustment>,
+    ) -> Result<AutographItem, String> {
+        if let Some(adjustment) = adjustment.as_ref() {
+            adjustment.validate()?;
+        }
+        let now = now_epoch_seconds();
+        let updated = {
+            let mut items = self.items.lock().expect("catalog state lock");
+            let item = items
+                .get_mut(&item_id)
+                .ok_or_else(|| "autograph item was not found".to_owned())?;
+            let image = item
+                .images
+                .iter_mut()
+                .find(|image| image.id == image_id)
+                .ok_or_else(|| "autograph image was not found".to_owned())?;
+            image.adjustment = adjustment;
+            item.updated_at_epoch_seconds = now;
+            item.clone()
+        };
+        self.events
+            .lock()
+            .expect("catalog event lock")
+            .push(AutographEditEvent::new(
+                item_id,
+                EditEventKind::ImageAdjustmentChanged,
+                "Image adjustments changed",
                 Vec::new(),
                 now,
             ));
@@ -1848,6 +1901,7 @@ pub(crate) fn event_summary(kind: EditEventKind, field_diffs: &[FieldDiff]) -> S
         EditEventKind::ImageAdded => "Image added".to_owned(),
         EditEventKind::ImageRemoved => "Image removed".to_owned(),
         EditEventKind::ImageReplaced => "Image replaced".to_owned(),
+        EditEventKind::ImageAdjustmentChanged => "Image adjustments changed".to_owned(),
         EditEventKind::PrimaryImageChanged => "Primary image changed".to_owned(),
         EditEventKind::CleanupChanged => "Cleanup status changed".to_owned(),
     }

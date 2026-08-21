@@ -1,3 +1,4 @@
+use crate::image_adjustments::{ImageAdjustment, apply_image_adjustment};
 use image::{ExtendedColorType, ImageReader, codecs::webp::WebPEncoder, imageops::FilterType};
 use std::io::Cursor;
 
@@ -38,14 +39,33 @@ pub fn generate_derivative(
     source: &[u8],
     variant: DerivativeVariant,
 ) -> Result<GeneratedDerivative, String> {
+    generate_adjusted_derivative(source, variant, None)
+}
+
+pub fn generate_adjusted_derivative(
+    source: &[u8],
+    variant: DerivativeVariant,
+    adjustment: Option<&ImageAdjustment>,
+) -> Result<GeneratedDerivative, String> {
+    generate_derivative_from_adjustment(source, variant, adjustment)
+}
+
+pub(crate) fn generate_derivative_from_adjustment(
+    source: &[u8],
+    variant: DerivativeVariant,
+    adjustment: Option<&ImageAdjustment>,
+) -> Result<GeneratedDerivative, String> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err("private original exceeds the derivative source limit".to_owned());
     }
-    let decoded = ImageReader::new(Cursor::new(source))
+    let mut decoded = ImageReader::new(Cursor::new(source))
         .with_guessed_format()
         .map_err(|error| format!("detect private original format: {error}"))?
         .decode()
         .map_err(|error| format!("decode private original: {error}"))?;
+    if let Some(adjustment) = adjustment {
+        decoded = apply_image_adjustment(decoded, adjustment)?;
+    }
     let (max_width, max_height) = variant.max_dimensions();
     let resized = decoded.resize(max_width, max_height, FilterType::Lanczos3);
     let rgba = resized.to_rgba8();

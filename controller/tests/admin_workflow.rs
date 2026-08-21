@@ -2,10 +2,11 @@ use async_trait::async_trait;
 use autographs_controller::{
     catalog::{
         AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository, CleanupStatus,
-        EditEventKind, FieldPatch, ImageCleanupEvent, ItemOrigin, MemoryCatalogRepository,
-        PublicationStatus, SignerCreditInput, SignerProfileUpdateInput,
+        EditEventKind, FieldPatch, ImageCleanupEvent, ImageReplacementInput, ItemOrigin,
+        MemoryCatalogRepository, PublicationStatus, SignerCreditInput, SignerProfileUpdateInput,
     },
     config::ControllerConfig,
+    image_adjustments::{ImageAdjustment, ImageCrop},
     media::{LocalMediaStore, PrivateMediaStore},
     routes::router_with_stores,
     storage_keys::build_original_object_key,
@@ -291,6 +292,7 @@ async fn admin_can_list_get_update_and_read_history() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: Some("Signed Jedi Card by Mark Hamill".to_owned()),
+                adjustment: None,
             },
         )
         .await
@@ -840,6 +842,141 @@ async fn image_upload_response_includes_pending_changes() {
 }
 
 #[tokio::test]
+async fn memory_repository_saves_and_resets_image_adjustment_history() {
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(test_item_input(
+            "Adjustable Image Item",
+            "Hayden Christensen",
+            "Photos",
+            vec!["sith"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: image_id,
+                object_key: "originals/private/adjustable.png".to_owned(),
+                original_filename: "private-adjustable.png".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: 128,
+                checksum: None,
+                etag: None,
+                is_primary: true,
+                sort_order: 0,
+                alt_text: None,
+                adjustment: None,
+            },
+        )
+        .await
+        .unwrap();
+    let adjustment = test_adjustment();
+
+    let saved = repository
+        .update_image_adjustment(item.id, image_id, Some(adjustment.clone()))
+        .await
+        .unwrap();
+
+    assert_eq!(saved.images[0].adjustment.as_ref(), Some(&adjustment));
+    assert!(saved.updated_at_epoch_seconds >= item.updated_at_epoch_seconds);
+    let pending = repository.pending_changes_for_item(item.id).await.unwrap();
+    assert!(pending.count >= 3);
+    let history = repository.history(item.id).await.unwrap();
+    assert!(history.iter().any(|event| {
+        event.kind == EditEventKind::ImageAdjustmentChanged
+            && event.summary == "Image adjustments changed"
+    }));
+
+    let reset = repository
+        .update_image_adjustment(item.id, image_id, None)
+        .await
+        .unwrap();
+
+    assert_eq!(reset.images[0].adjustment, None);
+    let reset_history = repository.history(item.id).await.unwrap();
+    assert_eq!(
+        reset_history
+            .iter()
+            .filter(|event| event.kind == EditEventKind::ImageAdjustmentChanged)
+            .count(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn replacing_image_preserves_id_and_clears_stale_adjustment() {
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(test_item_input(
+            "Replacement Adjustment Item",
+            "Ewan McGregor",
+            "Photos",
+            vec!["jedi"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    repository
+        .attach_image(
+            item.id,
+            AutographImage {
+                id: image_id,
+                object_key: "originals/private/original.png".to_owned(),
+                original_filename: "private-original.png".to_owned(),
+                content_type: "image/png".to_owned(),
+                byte_size: 128,
+                checksum: None,
+                etag: None,
+                is_primary: true,
+                sort_order: 0,
+                alt_text: Some("Original image".to_owned()),
+                adjustment: None,
+            },
+        )
+        .await
+        .unwrap();
+    repository
+        .update_image_adjustment(item.id, image_id, Some(test_adjustment()))
+        .await
+        .unwrap();
+
+    let replacement = repository
+        .replace_image_metadata(
+            item.id,
+            image_id,
+            ImageReplacementInput {
+                image: AutographImage {
+                    id: uuid::Uuid::new_v4(),
+                    object_key: "originals/private/replacement.png".to_owned(),
+                    original_filename: "replacement.png".to_owned(),
+                    content_type: "image/png".to_owned(),
+                    byte_size: 256,
+                    checksum: None,
+                    etag: None,
+                    is_primary: false,
+                    sort_order: 99,
+                    alt_text: Some("Replacement image".to_owned()),
+                    adjustment: Some(test_adjustment()),
+                },
+            },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(replacement.images[0].id, image_id);
+    assert_eq!(
+        replacement.images[0].object_key,
+        "originals/private/replacement.png"
+    );
+    assert_eq!(replacement.images[0].adjustment, None);
+}
+
+#[tokio::test]
 async fn admin_status_reports_pending_publish_cleanup_and_retention() {
     let repository = Arc::new(MemoryCatalogRepository::default());
     let item = repository
@@ -1106,6 +1243,7 @@ async fn publish_keeps_in_flight_same_second_edit_pending() {
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -1184,6 +1322,7 @@ async fn admin_status_reports_safe_publish_error_without_private_media_details()
                 is_primary: true,
                 sort_order: 0,
                 alt_text: None,
+                adjustment: None,
             },
         )
         .await
@@ -2164,6 +2303,22 @@ fn png_fixture() -> Vec<u8> {
         .write_to(&mut body, ImageFormat::Png)
         .unwrap();
     body.into_inner()
+}
+
+fn test_adjustment() -> ImageAdjustment {
+    ImageAdjustment {
+        rotation_degrees: 2.5,
+        zoom: 1.2,
+        pan_x: 0.1,
+        pan_y: -0.1,
+        crop: Some(ImageCrop {
+            left: 0.05,
+            top: 0.05,
+            right: 0.95,
+            bottom: 0.95,
+        }),
+        perspective: None,
+    }
 }
 
 fn assert_redacted(body: &str) {

@@ -20,6 +20,7 @@ use crate::{
         MemoryCatalogRepository, PublicationStatus, REQUIRED_FIELDS_ERROR, now_epoch_seconds,
     },
     config::ControllerConfig,
+    image_adjustments::ImageAdjustment,
     media::{LocalMediaStore, PrivateMediaStore},
     publisher::{LocalPublisher, PublishMode, PublishStatus, ReleaseRetentionPolicy},
     storage_keys::build_original_object_key,
@@ -627,6 +628,7 @@ async fn upload_image(
             .unwrap_or(-1)
             + 1,
         alt_text,
+        adjustment: None,
     };
     match state.repository.attach_image(item_id, image).await {
         Ok(item) => {
@@ -836,6 +838,7 @@ async fn replace_image(
         is_primary: existing_image.is_primary,
         sort_order: existing_image.sort_order,
         alt_text: upload.alt_text,
+        adjustment: None,
     };
 
     let item = match state
@@ -1333,6 +1336,7 @@ mod tests {
                     is_primary: true,
                     sort_order: 0,
                     alt_text: None,
+                    adjustment: None,
                 },
             )
             .await
@@ -1603,6 +1607,7 @@ struct ImageResponse {
     is_primary: bool,
     sort_order: i32,
     alt_text: Option<String>,
+    adjustment: Option<ImageAdjustment>,
 }
 
 #[derive(Serialize)]
@@ -1806,6 +1811,7 @@ impl ItemResponse {
                     is_primary: image.is_primary,
                     sort_order: image.sort_order,
                     alt_text: image.alt_text,
+                    adjustment: image.adjustment,
                 })
                 .collect(),
             pending_changes: None,
