@@ -424,7 +424,9 @@ run_candidate_gate() (
       "${CANDIDATE_SECRETS_DIR}" \
       "${SMOKE_WALLET_DIR}" || true
   }
-  trap cleanup_candidate_gate EXIT INT TERM
+  trap cleanup_candidate_gate EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   cleanup_candidate_gate
 
   sudo cp -a /opt/autographs/wallet "${CANDIDATE_WALLET_DIR}"
