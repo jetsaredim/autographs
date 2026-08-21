@@ -406,64 +406,67 @@ release through the existing Caddy preview. Do not run a separate operator
 publish concurrently with this gate.
 
 ```bash
-CANDIDATE_VERSION="<git-short-sha-used-during-build>"
-CANDIDATE_IMAGE="localhost/autographs-controller-candidate:${CANDIDATE_VERSION}"
-CANDIDATE_NAME="autographs-controller-candidate"
-CANDIDATE_WALLET_DIR="/tmp/autographs-controller-candidate-wallet"
-CANDIDATE_SECRETS_DIR="/tmp/autographs-controller-candidate-secrets"
+run_candidate_gate() (
+  set -Eeuo pipefail
 
-sudo rm -rf "${CANDIDATE_WALLET_DIR}" "${CANDIDATE_SECRETS_DIR}"
-sudo cp -a /opt/autographs/wallet "${CANDIDATE_WALLET_DIR}"
-sudo cp -a /opt/autographs/secrets "${CANDIDATE_SECRETS_DIR}"
-sudo podman load --input /tmp/autographs-controller-candidate.tar
-sudo podman run --replace --detach \
-  --name "${CANDIDATE_NAME}" \
-  --network autographs \
-  --env-file /opt/autographs/env/app.env \
-  --env-file /opt/autographs/env/controller.env \
-  --volume "${CANDIDATE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
-  --volume "${CANDIDATE_SECRETS_DIR}":/opt/autographs/secrets:ro,Z \
-  --volume autographs-static:/var/lib/autographs/static \
-  "${CANDIDATE_IMAGE}"
+  CANDIDATE_VERSION="<git-short-sha-used-during-build>"
+  CANDIDATE_IMAGE="localhost/autographs-controller-candidate:${CANDIDATE_VERSION}"
+  CANDIDATE_NAME="autographs-controller-candidate"
+  CANDIDATE_WALLET_DIR="/tmp/autographs-controller-candidate-wallet"
+  CANDIDATE_SECRETS_DIR="/tmp/autographs-controller-candidate-secrets"
+  SMOKE_IMAGE="localhost/autographs-live-static-publish-smoke:${CANDIDATE_VERSION}"
+  SMOKE_WALLET_DIR="/tmp/autographs-smoke-wallet"
 
-for attempt in {1..30}; do
+  cleanup_candidate_gate() {
+    sudo podman rm --force "${CANDIDATE_NAME}" >/dev/null 2>&1 || true
+    sudo rm -rf \
+      "${CANDIDATE_WALLET_DIR}" \
+      "${CANDIDATE_SECRETS_DIR}" \
+      "${SMOKE_WALLET_DIR}" || true
+  }
+  trap cleanup_candidate_gate EXIT INT TERM
+  cleanup_candidate_gate
+
+  sudo cp -a /opt/autographs/wallet "${CANDIDATE_WALLET_DIR}"
+  sudo cp -a /opt/autographs/secrets "${CANDIDATE_SECRETS_DIR}"
+  sudo podman load --input /tmp/autographs-controller-candidate.tar
+  sudo podman run --replace --detach \
+    --name "${CANDIDATE_NAME}" \
+    --network autographs \
+    --env-file /opt/autographs/env/app.env \
+    --env-file /opt/autographs/env/controller.env \
+    --volume "${CANDIDATE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
+    --volume "${CANDIDATE_SECRETS_DIR}":/opt/autographs/secrets:ro,Z \
+    --volume autographs-static:/var/lib/autographs/static \
+    "${CANDIDATE_IMAGE}"
+
+  for attempt in {1..30}; do
+    sudo podman logs "${CANDIDATE_NAME}" 2>&1 \
+      | grep -q "Oracle catalog schema preflight passed" && break
+    sleep 2
+  done
   sudo podman logs "${CANDIDATE_NAME}" 2>&1 \
-    | grep -q "Oracle catalog schema preflight passed" && break
-  sleep 2
-done
-sudo podman logs "${CANDIDATE_NAME}" 2>&1 \
-  | grep "Oracle catalog schema preflight passed"
-```
+    | grep "Oracle catalog schema preflight passed"
 
-After the candidate reports a successful schema preflight, run the established
-static-publish smoke with its controller URL overridden to the candidate name:
+  sudo cp -a /opt/autographs/wallet "${SMOKE_WALLET_DIR}"
+  sudo podman load --input /tmp/autographs-live-static-publish-smoke.tar
+  sudo podman run --rm \
+    --network autographs \
+    --env-file /opt/autographs/env/live-persistence-smoke.env \
+    --env AUTOGRAPHS_CONTROLLER_BASE_URL="http://${CANDIDATE_NAME}:8080" \
+    --volume "${SMOKE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
+    "${SMOKE_IMAGE}"
+)
 
-```bash
-SMOKE_VERSION="<git-short-sha-used-during-build>"
-SMOKE_IMAGE="localhost/autographs-live-static-publish-smoke:${SMOKE_VERSION}"
-SMOKE_WALLET_DIR="/tmp/autographs-smoke-wallet"
-
-sudo rm -rf "${SMOKE_WALLET_DIR}"
-sudo cp -a /opt/autographs/wallet "${SMOKE_WALLET_DIR}"
-sudo podman load --input /tmp/autographs-live-static-publish-smoke.tar
-sudo podman run --rm \
-  --network autographs \
-  --env-file /opt/autographs/env/live-persistence-smoke.env \
-  --env AUTOGRAPHS_CONTROLLER_BASE_URL="http://${CANDIDATE_NAME}:8080" \
-  --volume "${SMOKE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
-  "${SMOKE_IMAGE}"
+run_candidate_gate
 ```
 
 The gate passes only when the smoke creates and updates the item through the
 candidate controller, publishes and verifies the generated static release,
 unpublishes it, republishes the removal, and cleans up the Oracle rows and OCI
 original. Record the exact candidate commit and complete result on the PR before
-merge. Then remove the temporary candidate and copied secrets:
-
-```bash
-sudo podman rm --force "${CANDIDATE_NAME}"
-sudo rm -rf "${CANDIDATE_WALLET_DIR}" "${CANDIDATE_SECRETS_DIR}"
-```
+merge. The subshell's exit/signal trap removes the candidate container and all
+copied wallet/API-key material after success, failure, or interruption.
 
 The static smoke result was recorded for Phase 5 closeout. The public hostname
 now serves generated output through Caddy; rerunning the smoke proves that the
