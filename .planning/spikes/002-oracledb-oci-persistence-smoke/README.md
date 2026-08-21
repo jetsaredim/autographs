@@ -18,11 +18,19 @@ test payload, private object upload/read/delete, database child-first cleanup,
 and recovery pattern from `live_persistence_smoke`. Only the database driver is
 different: it uses `oracledb` rather than `oracle`.
 
-The test prints phase timings, but one execution is not a benchmark. Compare
-multiple alternating runs of this image and `Dockerfile.smoke` on the same VM;
-report medians and retain any failure output.
+The temporary test printed phase timings, but one execution was not treated as
+a benchmark. Its original comparison method was to alternate this image and
+the then-current `Dockerfile.smoke` on the same VM and report medians.
 
-## How to Run
+## Historical Execution Record
+
+The commands below record exactly how Spike 002 was run and are intentionally
+not runnable after the production migration. PR #211 removed the temporary
+`Dockerfile.oracledb-smoke`, `oracledb-live-smoke` feature, and
+`live_oracledb_persistence_smoke` test when the validated driver became the
+production implementation. Current operator runs must use the surviving
+`controller/Dockerfile.smoke`, `live-persistence` feature, and procedures in
+`docs/static-runtime-runbook.md`.
 
 Build and transfer the one-shot image from a trusted Linux `amd64` workstation:
 
