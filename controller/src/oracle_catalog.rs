@@ -289,7 +289,7 @@ impl CatalogRepository for OracleCatalogRepository {
             if rows_updated == 0 {
                 return Err("autograph item was not found".to_owned());
             }
-            if input_updates_tags {
+            if should_replace_submitted_collection(input_updates_tags, &field_diffs, "tags") {
                 replace_tags(&connection, id, &item.tags)?;
             }
             let signer_credits_changed = field_diffs.iter().any(|diff| diff.field == "signers");
@@ -300,10 +300,18 @@ impl CatalogRepository for OracleCatalogRepository {
             ) {
                 sync_signer_credits(&connection, id, &item.signer_credits)?;
             }
-            if input_updates_characters {
+            if should_replace_submitted_collection(
+                input_updates_characters,
+                &field_diffs,
+                "characters",
+            ) {
                 replace_characters(&connection, id, &item.characters)?;
             }
-            if input_updates_franchises {
+            if should_replace_submitted_collection(
+                input_updates_franchises,
+                &field_diffs,
+                "franchises",
+            ) {
                 replace_franchises(&connection, id, &item.franchises)?;
             }
             let kind = event_kind_for_diffs(&field_diffs);
@@ -1679,6 +1687,14 @@ fn should_sync_signer_credits(
     input_updates_signer_credits && (signer_credits_changed || !has_persisted_signer_credits)
 }
 
+fn should_replace_submitted_collection(
+    input_updates_field: bool,
+    field_diffs: &[FieldDiff],
+    field: &str,
+) -> bool {
+    input_updates_field && field_diffs.iter().any(|diff| diff.field == field)
+}
+
 fn load_characters(connection: &Connection, id: Uuid) -> Result<Vec<String>, String> {
     load_ordered_values(
         connection,
@@ -2469,6 +2485,36 @@ mod tests {
         assert!(!should_sync_signer_credits(true, true, false));
         assert!(should_sync_signer_credits(true, true, true));
         assert!(should_sync_signer_credits(true, false, false));
+    }
+
+    #[test]
+    fn oracle_skips_unchanged_submitted_collection_writeback() {
+        let unrelated_diffs = vec![FieldDiff {
+            field: "description".to_owned(),
+            before: Value::Null,
+            after: Value::String("Updated".to_owned()),
+        }];
+        let franchise_diffs = vec![FieldDiff {
+            field: "franchises".to_owned(),
+            before: Value::Array(Vec::new()),
+            after: Value::Array(vec![Value::String("Star Wars".to_owned())]),
+        }];
+
+        assert!(!should_replace_submitted_collection(
+            false,
+            &franchise_diffs,
+            "franchises"
+        ));
+        assert!(!should_replace_submitted_collection(
+            true,
+            &unrelated_diffs,
+            "franchises"
+        ));
+        assert!(should_replace_submitted_collection(
+            true,
+            &franchise_diffs,
+            "franchises"
+        ));
     }
 
     #[test]
