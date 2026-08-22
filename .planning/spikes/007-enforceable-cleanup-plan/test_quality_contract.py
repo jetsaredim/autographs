@@ -51,9 +51,20 @@ class QualityContractTests(unittest.TestCase):
             {
                 "distributed-env-read",
                 "production-placeholder-macro",
-                "repeated-numeric-sql-bind",
+                "unsafe-numeric-sql-bind-order",
             },
         )
+
+    def test_out_of_order_numeric_binds_are_found(self) -> None:
+        self.write(
+            "controller/src/oracle_catalog.rs",
+            'let sql = r#"update credits set sort_order = :3, role = :4, '
+            'context = :5 where item_id = :1 and signer_id = :2"#;\n',
+        )
+
+        findings = inspect(self.root)["findings"]
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["rule"], "unsafe-numeric-sql-bind-order")
 
     def test_string_extractor_handles_raw_and_escaped_strings(self) -> None:
         values = rust_strings('let a = r##"select :1"##; let b = "update x\\\" :2";')
@@ -63,14 +74,31 @@ class QualityContractTests(unittest.TestCase):
         self.write(
             "deploy/role/templates/controller.env.j2",
             "ORACLE_DB_PASSWORD={{ lookup('env', 'ORACLE_DB_PASSWORD') }}\n"
+            "OCI_PRIVATE_KEY_PEM={{ private_key }}\n"
+            "ORACLE_DB_WALLET_ZIP_BASE64={{ wallet_zip }}\n"
+            "ORACLE_DB_WALLET_PEM={{ wallet_pem }}\n"
+            "PORKBUN_SECRET_KEY={{ secret_key }}\n"
+            "EXAMPLE_API_KEY={{ api_key }}\n"
             "ORACLE_DB_PASSWORD_SECRET_OCID=ocid1.vaultsecret.example\n"
             "AUTOGRAPHS_PUBLIC_ORIGIN=https://example.test\n",
         )
 
         findings = inspect(self.root)["findings"]
-        self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0]["rule"], "persistent-secret-env-sink")
-        self.assertEqual(findings[0]["variable"], "ORACLE_DB_PASSWORD")
+        self.assertEqual(len(findings), 6)
+        self.assertTrue(
+            all(finding["rule"] == "persistent-secret-env-sink" for finding in findings)
+        )
+        self.assertEqual(
+            {finding["variable"] for finding in findings},
+            {
+                "EXAMPLE_API_KEY",
+                "OCI_PRIVATE_KEY_PEM",
+                "ORACLE_DB_PASSWORD",
+                "ORACLE_DB_WALLET_ZIP_BASE64",
+                "ORACLE_DB_WALLET_PEM",
+                "PORKBUN_SECRET_KEY",
+            },
+        )
 
 
 if __name__ == "__main__":

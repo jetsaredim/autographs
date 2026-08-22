@@ -29,9 +29,18 @@ SECRET_TERMS = (
     "PRIVATE_KEY_PEM",
     "SSH_PRIVATE_KEY",
     "SECRET_KEY",
+    "WALLET_PEM",
     "WALLET_ZIP",
     "API_KEY",
 )
+CONTRACT_ROLES = {
+    "canonical-contract",
+    "deployment-contract",
+    "example-contract",
+    "github-workflow",
+    "persistent-env-template",
+    "terraform",
+}
 SENSITIVE_TERMS = (
     "PASSWORD_HASH",
     "FINGERPRINT",
@@ -74,10 +83,16 @@ def source_role(path: Path) -> str:
         return "persistent-env-template"
     if text.endswith((".env.example", ".env.github.example")):
         return "example-contract"
+    if text == "docs/configuration-contract.md":
+        return "canonical-contract"
     if text.startswith("controller/src/") or text.startswith("controller/tests/"):
         return "rust"
     if text.startswith(".github/workflows/"):
         return "github-workflow"
+    if text.startswith("deploy/") and any(
+        part in path.parts for part in ("defaults", "tasks", "templates", "vars")
+    ):
+        return "deployment-contract"
     if text.startswith("deploy/"):
         return "deployment"
     if text.startswith("infra/terraform/"):
@@ -156,7 +171,12 @@ def collect_repo(root: Path) -> dict[str, Any]:
                 )
             )
         if "rust" in roles and not roles.intersection(
-            {"example-contract", "persistent-env-template", "deployment", "github-workflow"}
+            {
+                "deployment-contract",
+                "example-contract",
+                "github-workflow",
+                "persistent-env-template",
+            }
         ):
             findings.append(
                 finding(
@@ -168,6 +188,13 @@ def collect_repo(root: Path) -> dict[str, Any]:
                 )
             )
 
+    contract_keys = sorted(
+        name
+        for name, entry in variables.items()
+        if any(source["role"] in CONTRACT_ROLES for source in entry["sources"])
+    )
+    incidental_keys = sorted(set(variables) - set(contract_keys))
+
     return {
         "schema_version": SCHEMA_VERSION,
         "kind": "repository",
@@ -176,6 +203,8 @@ def collect_repo(root: Path) -> dict[str, Any]:
         "root": root.name,
         "scanned_files": scanned_files,
         "variables": dict(sorted(variables.items())),
+        "contract_keys": contract_keys,
+        "incidental_keys": incidental_keys,
         "findings": findings,
     }
 
@@ -333,16 +362,28 @@ def collect_vm(opt_root: Path, var_root: Path, quadlet_root: Path, tmp_root: Pat
 
 
 def render_comparison(repo: dict[str, Any], vm: dict[str, Any]) -> str:
-    repo_keys = set(repo.get("variables", {}))
+    variables = repo.get("variables", {})
+    contract_keys = set(repo.get("contract_keys", []))
+    if "contract_keys" not in repo:
+        contract_keys = {
+            name
+            for name, entry in variables.items()
+            if any(
+                source.get("role") in CONTRACT_ROLES
+                for source in entry.get("sources", [])
+            )
+        }
+    incidental_keys = set(repo.get("incidental_keys", set(variables) - contract_keys))
     vm_files = vm.get("env_files", [])
     vm_keys = {key for entry in vm_files for key in entry.get("keys", [])}
     secret_keys = sorted(key for key in vm_keys if classify_key(key) == "secret-scalar")
-    unknown_keys = sorted(vm_keys - repo_keys)
-    absent_keys = sorted(repo_keys - vm_keys)
+    unknown_keys = sorted(vm_keys - contract_keys)
+    absent_keys = sorted(contract_keys - vm_keys)
     lines = [
         "# Ecosystem Inventory Comparison",
         "",
-        f"- Repository keys: {len(repo_keys)}",
+        f"- Repository declared contract keys: {len(contract_keys)}",
+        f"- Repository incidental/historical mentions: {len(incidental_keys)}",
         f"- VM env keys: {len(vm_keys)}",
         f"- VM env files: {len(vm_files)}",
         f"- Persistent secret-like keys: {len(secret_keys)}",
@@ -357,9 +398,13 @@ def render_comparison(repo: dict[str, Any], vm: dict[str, Any]) -> str:
     lines.extend(f"- `{key}`" for key in unknown_keys)
     if not unknown_keys:
         lines.append("- None")
-    lines.extend(["", "## Repository Keys Absent From VM Env Files", ""])
+    lines.extend(["", "## Declared Repository Keys Absent From VM Env Files", ""])
     lines.extend(f"- `{key}`" for key in absent_keys)
     if not absent_keys:
+        lines.append("- None")
+    lines.extend(["", "## Incidental or Historical Repository Mentions", ""])
+    lines.extend(f"- `{key}`" for key in sorted(incidental_keys))
+    if not incidental_keys:
         lines.append("- None")
     lines.extend(["", "## Env File Overlap", ""])
     for entry in vm_files:
@@ -375,8 +420,26 @@ def render_comparison(repo: dict[str, Any], vm: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def write_private_text(path: Path, content: str) -> None:
+    """Create a private output without following or replacing an existing path."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            descriptor = -1
+            output.write(content)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_private_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 def parse_args() -> argparse.Namespace:
@@ -413,7 +476,7 @@ def main() -> int:
     else:
         repo = json.loads(args.repo.read_text(encoding="utf-8"))
         vm = json.loads(args.vm.read_text(encoding="utf-8"))
-        args.output.write_text(render_comparison(repo, vm), encoding="utf-8")
+        write_private_text(args.output, render_comparison(repo, vm))
     return 0
 
 

@@ -30,12 +30,17 @@ class SecretDeliveryProbeTests(unittest.TestCase):
         self.assertEqual(model["ephemeral_secret_file_count"], 4)
         self.assertTrue(all(mode == 0o400 for mode in model["runtime_file_modes"].values()))
 
-    def test_direct_application_keeps_scalars_off_disk_but_materializes_wallet(self):
+    def test_direct_application_avoids_app_managed_persistent_secret_files(self):
         model = self.models["direct-application"]
         self.assertEqual(model["persistent_secret_file_count"], 0)
         self.assertEqual(model["ephemeral_secret_file_count"], 1)
         self.assertEqual(model["process_env_secret_count"], 0)
         self.assertTrue(model["supports_wallet_file_requirement"])
+
+    def test_report_discloses_unmeasured_kernel_persistence_surfaces(self):
+        self.assertIn("process memory paging", self.report["excluded_surfaces"])
+        self.assertIn("tmpfs paging to swap", self.report["excluded_surfaces"])
+        self.assertIn("core dumps", self.report["excluded_surfaces"])
 
 
 if __name__ == "__main__":

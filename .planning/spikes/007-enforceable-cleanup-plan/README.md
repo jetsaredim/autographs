@@ -18,14 +18,16 @@ making every SQL string, bind style, error, or module look identical.
 
 ## Prototype
 
-`quality_contract.py` exercises three deterministic Rust rules against the
-current controller and fixture tests:
+`quality_contract.py` exercises deterministic rules against the current
+controller and fixture tests:
 
 - direct production env reads outside `config.rs`;
 - production `todo!`, `unimplemented!`, and `dbg!` macros;
-- repeated numeric SQL bind placeholders;
-- password, password-hash, and token values rendered into persistent deploy env
-  templates, while allowing non-secret Vault secret OCIDs.
+- numeric SQL bind placeholders that repeat or do not appear exactly as
+  `:1..:N` in left-to-right occurrence order;
+- password, password-hash, token, private-key, wallet, secret-key, and API-key
+  values rendered into persistent deploy env templates, while explicitly
+  allowing non-secret Vault secret OCIDs.
 
 The prototype is intentionally report-only. It identifies existing debt before
 the cleanup establishes a baseline; it is not wired into CI from `.planning`.
@@ -44,10 +46,11 @@ python3 .planning/spikes/007-enforceable-cleanup-plan/quality_contract.py \
 ## Results
 
 - Fixture tests distinguish allowed named repeated binds from forbidden
-  repeated numeric positional binds.
+  repeated and out-of-order numeric positional binds, including the prior
+  `sync_signer_credits` regression shape.
 - The current report exposes four distributed configuration-read owners and
   five persistent secret env sinks as expected from Spikes 003-005. It finds no
-  repeated numeric SQL binds or production placeholder/debug macros.
+  unsafe numeric SQL bind order or production placeholder/debug macros.
 - The style guide assigns Block, Warn, Measure, or Document treatment so CI
   does not turn architectural preferences into noisy failures.
 - The cleanup plan places feature-supporting changes in Waves 5-7, closeout

@@ -1,0 +1,21 @@
+---
+quick_id: 260822-gqz
+status: human_needed
+score: 6/6 reviewed findings addressed locally
+---
+
+# Quick Task 260822-gqz Verification
+
+| # | Review finding | Status | Evidence |
+|---|----------------|--------|----------|
+| 1 | Swap/pageable-secret boundary | VERIFIED | Spike 004 narrows the claim, exposes unmeasured surfaces, and requires core, crash-dump, swap, reboot, and negative-file gates. |
+| 2 | Out-of-order numeric SQL binds | VERIFIED | The checker requires exact `1..N` occurrence order and the production regression shape has a fixture. |
+| 3 | Pre-Vault image rollback | VERIFIED | C4 defines retained versions/artifacts, a rollback materializer, exact runtime paths/directives, command sequence, smokes, and retirement gate. |
+| 4 | Incidental mentions treated as contract | VERIFIED | Contract keys derive only from authoritative roles; incidental keys are separate and a docs-only mention cannot mask VM drift. |
+| 5 | Root writer symlink/mode risk | VERIFIED | Exclusive no-follow creation with forced mode `0600` is covered by a symlink/victim regression. |
+| 6 | Secret sink false negatives | VERIFIED | Shared vocabulary covers reviewed private-key, wallet, secret-key, and API-key forms with an explicit secret-OCID exception. |
+
+## Human Verification Required
+
+The reviewer agent must inspect the pushed head, post its result to PR #213, and
+confirm no actionable findings remain before merge.

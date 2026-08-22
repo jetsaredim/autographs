@@ -25,7 +25,12 @@ the repository validator and CI.
   authorized OCI Vault secrets. A secret OCID is configuration, not a secret.
 - File-required wallet material is materialized mode `0400` into container
   tmpfs and removed with the container. Scalar secrets remain in process memory
-  and are not logged.
+  and are not logged. This prevents application-managed durable copies, not all
+  storage exposure: process and tmpfs pages can enter swap, and dumps can retain
+  memory.
+- Before Vault cutover, disable controller core dumps, review kernel crash-dump
+  behavior, and prove that swap is disabled or encrypted with a boot-only key
+  that is never stored durably.
 - Secret retrieval fails closed. Do not keep a plaintext filesystem fallback
   after the Vault cutover.
 - Runtime OCI user API keys are forbidden. Deployment automation may retain its
@@ -59,9 +64,9 @@ the repository validator and CI.
   arguments follow placeholder occurrence order.
 - Named binds are required when a value repeats, argument order differs from
   placeholder order, or statement composition makes occurrence order unclear.
-- Never assume that a repeated numeric placeholder consumes one positional
-  argument. CI must reject repeated numeric bind placeholders in application
-  SQL.
+- Numeric positional placeholders must appear exactly as `:1..:N` in
+  left-to-right occurrence order. CI must reject repeated, skipped, or
+  out-of-order numeric bind placeholders in application SQL.
 - Named and positional styles may coexist because the rule follows statement
   semantics, not a cosmetic repository-wide preference. Do not mix the two
   styles within one statement.
@@ -96,7 +101,7 @@ the repository validator and CI.
 
 | Level | Meaning | Examples |
 |-------|---------|----------|
-| Block | Deterministic safety or contract violation | New distributed env read, persistent secret sink, unsafe repeated numeric bind, production debug macro |
+| Block | Deterministic safety or contract violation | New distributed env read, persistent secret sink, unsafe numeric bind order, production debug macro |
 | Warn | Structural review signal | Module exceeds baseline, new stringly typed boundary error, synchronous work added to async publish path |
 | Measure | Efficiency decision needs workload evidence | Connection pool, image worker changes, CI topology, base image change |
 | Document | Intentional variation remains supported | Named versus positional binds, inline SQL versus justified constants |

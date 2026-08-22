@@ -17,9 +17,25 @@ RAW_STRING = re.compile(r'r(?P<hashes>#{0,8})"(?P<body>.*?)"(?P=hashes)', re.DOT
 NORMAL_STRING = re.compile(r'"(?:\\.|[^"\\])*"', re.DOTALL)
 NUMERIC_BIND = re.compile(r"(?<!:):([1-9][0-9]*)\b")
 SQL_START = re.compile(r"\b(?:select|insert|update|delete|merge|with)\b", re.IGNORECASE)
-SECRET_ASSIGNMENT = re.compile(
-    r"^(?P<name>[A-Z][A-Z0-9_]*(?:PASSWORD(?:_HASH)?|TOKEN))=(?P<value>.*)$"
+ENV_ASSIGNMENT = re.compile(r"^(?P<name>[A-Z][A-Z0-9_]*)=(?P<value>.*)$")
+SECRET_TERMS = (
+    "PASSWORD",
+    "TOKEN",
+    "PRIVATE_KEY_PEM",
+    "SSH_PRIVATE_KEY",
+    "SECRET_KEY",
+    "WALLET_PEM",
+    "WALLET_ZIP",
+    "API_KEY",
 )
+SECRET_REFERENCE_SUFFIXES = ("_SECRET_OCID",)
+
+
+def is_secret_value_name(name: str) -> bool:
+    """Match secret-bearing values while excluding non-secret Vault coordinates."""
+    return not name.endswith(SECRET_REFERENCE_SUFFIXES) and any(
+        term in name for term in SECRET_TERMS
+    )
 
 
 def rust_strings(text: str) -> list[str]:
@@ -58,20 +74,21 @@ def inspect_rust(path: Path, relative: str) -> list[dict[str, Any]]:
             }
         )
 
-    repeated_statements = 0
+    unsafe_numeric_bind_statements = 0
     for literal in rust_strings(text):
         if not SQL_START.search(literal):
             continue
         binds = NUMERIC_BIND.findall(literal)
-        if len(binds) != len(set(binds)):
-            repeated_statements += 1
-    if repeated_statements:
+        expected = list(range(1, len(binds) + 1))
+        if [int(bind) for bind in binds] != expected:
+            unsafe_numeric_bind_statements += 1
+    if unsafe_numeric_bind_statements:
         findings.append(
             {
-                "rule": "repeated-numeric-sql-bind",
+                "rule": "unsafe-numeric-sql-bind-order",
                 "level": "block",
                 "path": relative,
-                "count": repeated_statements,
+                "count": unsafe_numeric_bind_statements,
             }
         )
 
@@ -81,8 +98,8 @@ def inspect_rust(path: Path, relative: str) -> list[dict[str, Any]]:
 def inspect_env_template(path: Path, relative: str) -> list[dict[str, Any]]:
     findings = []
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        match = SECRET_ASSIGNMENT.match(line.strip())
-        if not match or match.group("name").endswith("_SECRET_OCID"):
+        match = ENV_ASSIGNMENT.match(line.strip())
+        if not match or not is_secret_value_name(match.group("name")):
             continue
         findings.append(
             {

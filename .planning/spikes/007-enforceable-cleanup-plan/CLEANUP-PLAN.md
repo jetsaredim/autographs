@@ -29,9 +29,10 @@ touched feature and has characterization coverage.
 
 - Promote this style guide to `docs/` and extend the existing repository
   validator.
-- Block new direct production env reads outside typed config, repeated numeric
-  SQL binds, production placeholder/debug macros, and new persistent secret
-  sinks.
+- Block new direct production env reads outside typed config, numeric SQL binds
+  that do not appear exactly as `:1..:N` in occurrence order, production
+  placeholder/debug macros, and persistent password/token/private-key/wallet/
+  secret-key/API-key env sinks. Secret OCID references remain allowed.
 - Baseline existing violations as debt; CI blocks increases while later PRs
   reduce the baseline to zero.
 - Report module size, `Result<T, String>` boundary use, and sync work in async
@@ -86,14 +87,56 @@ test and audit-log evidence.
 - Replace plaintext env values with secret OCIDs. Fetch scalar secrets directly
   at startup and materialize file-required wallet contents mode `0400` on
   container tmpfs.
-- Fail closed without a filesystem fallback. Validate restart and rollback
-  using the previously deployed immutable image while old Vault versions remain
-  available for the bounded rollback window.
+- Before cutover, disable controller core dumps, review kernel crash-dump
+  behavior, and replace persistent plaintext swap with either no swap or
+  encrypted swap using a random boot-only key that is not stored durably. Prove
+  those settings after reboot; tmpfs alone is not a no-disk guarantee.
+- Fail the current controller closed without an automatic filesystem fallback.
+  Keep the previous image digest, its exact Quadlet, and pinned legacy Vault
+  versions for a bounded rollback window.
+- Ship a small, separately invoked rollback materializer before cutover. Using
+  the VM instance principal, it fetches the pinned legacy secret versions into
+  `/run/autographs-rollback/legacy.env` (mode `0600`) and
+  `/run/autographs-rollback/wallet/` (files mode `0400`) on the host's runtime
+  tmpfs. It never writes beneath `/opt/autographs/env`,
+  `/opt/autographs/secrets`, or `/opt/autographs/wallet`.
+- Rehearse the old-image rollback exactly: stop the controller; run the helper;
+  install the saved Quadlet with the previous image digest, the durable
+  non-secret `controller.env`, `EnvironmentFile=/run/autographs-rollback/legacy.env`,
+  and `Volume=/run/autographs-rollback/wallet:/opt/autographs/wallet:ro,Z`;
+  run `systemctl daemon-reload`; start the service; then pass health, Oracle
+  heartbeat, login, persistence, and full static-publish smokes.
+- C4 must turn that contract into an operator-tested command sequence using
+  `/usr/local/libexec/autographs-vault-rollback-materialize`, a non-secret
+  manifest at `/opt/autographs/rollback/pre-vault.json`, the saved Quadlet at
+  `/opt/autographs/rollback/autographs-controller.container`, and the active
+  Quadlet path `/etc/containers/systemd/autographs-controller.container`:
+
+  ```bash
+  sudo systemctl stop autographs-controller.service
+  sudo /usr/local/libexec/autographs-vault-rollback-materialize \
+    --manifest /opt/autographs/rollback/pre-vault.json \
+    --output-root /run/autographs-rollback
+  sudo install -o root -g root -m 0644 \
+    /opt/autographs/rollback/autographs-controller.container \
+    /etc/containers/systemd/autographs-controller.container
+  sudo systemctl daemon-reload
+  sudo systemctl start autographs-controller.service
+  ```
+
+  The saved Quadlet pins the previous image digest and contains the two
+  `EnvironmentFile`/`Volume` directives above. The helper and saved Quadlet are
+  deliverables of C4, not commands that exist in the current runtime.
+- Return to the Vault-capable image, remove `/run/autographs-rollback`, and
+  verify service readiness. Retire the helper, saved Quadlet, and pinned secret
+  versions only after the rollback rehearsal succeeds and the rollback window
+  closes.
 - Run health, Oracle heartbeat, persistence, login, and full static-publish
   smokes before retiring old files.
 
 **Exit:** no password, token, private key, hash, or wallet content persists in
-the controller env/secrets directories; live smokes pass after reboot.
+the controller env/secrets directories; swap/core gates and live smokes pass
+after reboot; the documented old-image rollback has been executed successfully.
 
 ### C5: VM Cruft Reconciliation
 

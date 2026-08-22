@@ -118,6 +118,13 @@ def run_probe() -> dict[str, Any]:
             models.append(probe(Path(directory)))
     return {
         "redaction_contract": "Counts and modes only; fake and real secret values are never emitted.",
+        "scope": "Application-managed persistent and runtime files plus process-environment placement.",
+        "excluded_surfaces": [
+            "core dumps",
+            "kernel crash dumps",
+            "process memory paging",
+            "tmpfs paging to swap",
+        ],
         "models": models,
     }
 

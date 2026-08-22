@@ -1,4 +1,86 @@
 {
+  "contract_keys": [
+    "ADB_ADMIN_PASSWORD",
+    "ANSIBLE_CONFIG",
+    "AUTOGRAPHS_ADMIN_PASSWORD",
+    "AUTOGRAPHS_ADMIN_PASSWORD_HASH",
+    "AUTOGRAPHS_ADMIN_SECURE_COOKIES",
+    "AUTOGRAPHS_CONTROLLER_BASE_URL",
+    "AUTOGRAPHS_CONTROLLER_BIND_ADDR",
+    "AUTOGRAPHS_CONTROLLER_DB_PROVIDER",
+    "AUTOGRAPHS_CONTROLLER_IMAGE",
+    "AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT",
+    "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER",
+    "AUTOGRAPHS_CONTROLLER_VERSION",
+    "AUTOGRAPHS_DNS_DOMAIN",
+    "AUTOGRAPHS_DNS_RECORD_ID",
+    "AUTOGRAPHS_DNS_SUBDOMAIN",
+    "AUTOGRAPHS_DNS_TTL",
+    "AUTOGRAPHS_DOMAIN",
+    "AUTOGRAPHS_HTTPS_PORT",
+    "AUTOGRAPHS_HTTP_PORT",
+    "AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE",
+    "AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT",
+    "AUTOGRAPHS_OPERATOR_API_TOKEN",
+    "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS",
+    "AUTOGRAPHS_PUBLIC_ORIGIN",
+    "AUTOGRAPHS_PUBLISH_MODE",
+    "AUTOGRAPHS_REPO_VERSION",
+    "AUTOGRAPHS_SOURCE_REVISION",
+    "AUTOGRAPHS_STATIC_CURRENT_LINK",
+    "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT",
+    "AUTOGRAPHS_STATIC_PREVIEW_BASE_URL",
+    "AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT",
+    "AUTOGRAPHS_STATIC_RELEASE_ROOT",
+    "DATABASE_URL",
+    "DEPLOY_PATH",
+    "DEPLOY_SSH_PRIVATE_KEY",
+    "DEPLOY_SSH_READY_INTERVAL_SECONDS",
+    "DEPLOY_SSH_READY_TIMEOUT_SECONDS",
+    "DEPLOY_SSH_USER",
+    "GHCR_CLEANUP_DRY_RUN",
+    "GHCR_CLEANUP_MIN_AGE_DAYS",
+    "GHCR_CLEANUP_PROTECTED_TAGS",
+    "GHCR_CLEANUP_RETAIN_SEMVER_TAGGED",
+    "GHCR_CLEANUP_RETAIN_TAGGED",
+    "GHCR_CONTROLLER_IMAGE_REPOSITORY",
+    "GHCR_IMAGE_REPOSITORY",
+    "GHCR_TOKEN",
+    "OCI_AUTH_MODE",
+    "OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME",
+    "OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED",
+    "OCI_AUTONOMOUS_DATABASE_NAME",
+    "OCI_AVAILABILITY_DOMAIN",
+    "OCI_CLI_USER_OCID",
+    "OCI_COMPARTMENT_OCID",
+    "OCI_CREATE_AUTONOMOUS_DATABASE",
+    "OCI_CREATE_MEDIA_BUCKET",
+    "OCI_FINGERPRINT",
+    "OCI_HOME_REGION",
+    "OCI_MEDIA_BUCKET_NAME",
+    "OCI_MEDIA_NAMESPACE",
+    "OCI_OBJECT_STORAGE_NAMESPACE",
+    "OCI_PRIVATE_KEY_PATH",
+    "OCI_PRIVATE_KEY_PEM",
+    "OCI_REGION",
+    "OCI_RUNTIME_IMAGE_OCID",
+    "OCI_RUNTIME_MEMORY_GBS",
+    "OCI_RUNTIME_OCPUS",
+    "OCI_RUNTIME_SHAPE",
+    "OCI_RUNTIME_SSH_PUBLIC_KEYS",
+    "OCI_TENANCY_OCID",
+    "ORACLE_DB_CONNECT_STRING",
+    "ORACLE_DB_PASSWORD",
+    "ORACLE_DB_USER",
+    "ORACLE_DB_WALLET_DIR",
+    "ORACLE_DB_WALLET_PASSWORD",
+    "ORACLE_DB_WALLET_ZIP_BASE64",
+    "PORKBUN_API_KEY",
+    "PORKBUN_SECRET_KEY",
+    "RUST_LOG",
+    "TNS_ADMIN",
+    "VM_PUBLIC_IP"
+  ],
   "findings": [
     {
       "evidence": "A production env template materializes this secret on persistent storage.",
@@ -176,11 +258,97 @@
       "subject": "ORACLE_DB_WALLET_PASSWORD"
     }
   ],
-  "generated_at": "2026-08-22T04:36:41.408795+00:00",
+  "generated_at": "2026-08-22T16:12:12.748935+00:00",
+  "incidental_keys": [
+    "ACTION_PATH",
+    "ADVISORY_RE",
+    "ANSIBLE_LOCAL_TEMP",
+    "ANSIBLE_REMOTE_TEMP",
+    "API_VERSION",
+    "AUTOGRAPHS_APP_IMAGE",
+    "AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_ALL_IMAGES",
+    "AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_IMAGE_CHECKSUMS",
+    "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_ID",
+    "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_IDS",
+    "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEY",
+    "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS",
+    "AUTOGRAPHS_LIVE_PERSISTENCE_LIST_SMOKE_ROWS",
+    "AUTOGRAPHS_LIVE_PERSISTENCE_REPAIR_IMAGE_CHECKSUMS",
+    "AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE",
+    "AUTOGRAPHS_LIVE_STATIC_PUBLISH_TIMEOUT_SECONDS",
+    "AUTOGRAPHS_MEDIA",
+    "AUTOGRAPHS_MEDIA_STORAGE_PROVIDER",
+    "AUTOGRAPHS_OPERATOR",
+    "AUTOGRAPHS_PRINT_DERIVATIVE_MEASUREMENT",
+    "AUTOGRAPHS_PUBLIC_HOST",
+    "AUTOGRAPHS_SMOKE_BASE_URL",
+    "AUTOGRAPHS_SMOKE_IMAGE_VERSION",
+    "AUTOGRAPHS_TEST_INVALID_RETAIN_COUNT",
+    "AUTOGRAPHS_TEST_MISSING_RETAIN_COUNT",
+    "AUTOGRAPHS_TEST_VALID_RETAIN_COUNT",
+    "AUTOGRAPHS_TEST_ZERO_RETAIN_COUNT",
+    "CANDIDATE_IMAGE",
+    "CANDIDATE_NAME",
+    "CANDIDATE_SECRETS_DIR",
+    "CANDIDATE_VERSION",
+    "CANDIDATE_WALLET_DIR",
+    "CLEAN_RESULTS",
+    "CODEBASE_MAPS",
+    "CREATE_ISSUE_STATUS_TEST_PLAYBOOK_PATH",
+    "DEFAULTS_PATH",
+    "DEFAULT_ERRATA_BASE_URL",
+    "DEFAULT_OVAL_URL",
+    "DENIED_PHRASES",
+    "EXTRACT_METADATA_TASKS_PATH",
+    "FAILED_CLEANUP_TASKS_PATH",
+    "FINDING_RESULTS",
+    "GHCR_CLEANUP_DEPLOYED_CONTROLLER_VERSION",
+    "GHCR_CLEANUP_RELEASE_STATUS_PATH",
+    "GH_TOKEN",
+    "MOVE_NOTES",
+    "OCI_API",
+    "OCI_PRIVATE_KEY",
+    "OCI_REALM_DOMAIN",
+    "OCI_STATE_BUCKET_NAME",
+    "OCI_STATE_OBJECT_KEY",
+    "OCI_USER_OCID",
+    "OVAL_XML",
+    "PACKAGE_COMMENT_RE",
+    "PATCH_TASKS_PATH",
+    "PHASE_8_OWNER_TERMS",
+    "POST_REBOOT_RESULT_TASKS_PATH",
+    "POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH",
+    "POST_RESULT_STATUS_TEST_PLAYBOOK_PATH",
+    "POST_RESULT_TASKS_PATH",
+    "README_END",
+    "README_START",
+    "REBOOT_CLEANUP_TASKS_PATH",
+    "REBOOT_RESULT_TEST_PLAYBOOK_PATH",
+    "REBOOT_STATE_TEST_PLAYBOOK_PATH",
+    "REBOOT_WORKFLOW_PATH",
+    "REPORT_RENDER_TEST_PLAYBOOK_PATH",
+    "REPORT_TEMPLATE_PATH",
+    "REQUEST_METADATA_TEST_PLAYBOOK_PATH",
+    "RESOLVED_VM_PUBLIC_IP",
+    "RESULTS_WITH_EMPTY_DEFINITIONS_XML",
+    "RESULTS_WITH_EVALUATION_PROBLEMS_XML",
+    "RESULTS_WITH_MISSING_RESULT_XML",
+    "RESULTS_XML",
+    "SCRIPT_PATH",
+    "SEMVER_RE",
+    "SEMVER_TAG_RE",
+    "SMOKE_IMAGE",
+    "SMOKE_VERSION",
+    "SMOKE_WALLET_DIR",
+    "TASKS_PATH",
+    "TERRAFORM_VERSIONS_PATH",
+    "VALIDATE_REBOOT_STATE_TASKS_PATH",
+    "VALIDATE_REQUEST_TASKS_PATH"
+  ],
   "kind": "repository",
   "redaction_contract": "Variable names and source locations only; values are never emitted.",
   "root": "autographs",
-  "scanned_files": 401,
+  "scanned_files": 404,
   "schema_version": 1,
   "variables": {
     "ACTION_PATH": {
@@ -524,17 +692,17 @@
         {
           "line": 178,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 193,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 257,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 20,
@@ -544,12 +712,12 @@
         {
           "line": 126,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 143,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 54,
@@ -664,17 +832,17 @@
         {
           "line": 185,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 204,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 258,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 21,
@@ -684,17 +852,17 @@
         {
           "line": 33,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 125,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 143,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 75,
@@ -729,7 +897,7 @@
         {
           "line": 124,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 33,
@@ -764,7 +932,7 @@
         {
           "line": 152,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 353,
@@ -824,7 +992,7 @@
         {
           "line": 114,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         }
       ]
     },
@@ -894,12 +1062,12 @@
         {
           "line": 22,
           "path": "deploy/ansible/roles/autographs_deploy/defaults/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 153,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 1,
@@ -909,12 +1077,12 @@
         {
           "line": 75,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 119,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 142,
@@ -954,12 +1122,12 @@
         {
           "line": 6,
           "path": "deploy/ansible/roles/autographs_system_cleanup/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 117,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         }
       ]
     },
@@ -984,7 +1152,7 @@
         {
           "line": 26,
           "path": "deploy/ansible/roles/autographs_deploy/defaults/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 3,
@@ -994,7 +1162,7 @@
         {
           "line": 122,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         }
       ]
     },
@@ -1064,12 +1232,12 @@
         {
           "line": 24,
           "path": "deploy/ansible/roles/autographs_deploy/defaults/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 154,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 2,
@@ -1079,12 +1247,12 @@
         {
           "line": 77,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 121,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 143,
@@ -1124,7 +1292,7 @@
         {
           "line": 116,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         }
       ]
     },
@@ -1299,12 +1467,12 @@
         {
           "line": 12,
           "path": "deploy/ansible/roles/autographs_deploy/templates/autographs-caddy.container.j2",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 48,
           "path": "deploy/ansible/roles/security_patching/defaults/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 88,
@@ -1334,7 +1502,7 @@
         {
           "line": 68,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 107,
@@ -1729,7 +1897,7 @@
         {
           "line": 151,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 89,
@@ -1789,7 +1957,7 @@
         {
           "line": 74,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 106,
@@ -1999,7 +2167,7 @@
         {
           "line": 259,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 15,
@@ -2009,17 +2177,17 @@
         {
           "line": 32,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 127,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 143,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 74,
@@ -2052,7 +2220,7 @@
           "role": "github-workflow"
         },
         {
-          "line": 193,
+          "line": 194,
           "path": ".planning/STATE.md",
           "role": "documentation"
         },
@@ -2099,12 +2267,12 @@
         {
           "line": 76,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 120,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         }
       ]
     },
@@ -2154,7 +2322,7 @@
         {
           "line": 123,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 34,
@@ -2174,7 +2342,7 @@
         {
           "line": 132,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         }
       ]
     },
@@ -2194,7 +2362,7 @@
         {
           "line": 115,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         }
       ]
     },
@@ -2254,7 +2422,7 @@
         {
           "line": 118,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         }
       ]
     },
@@ -2269,7 +2437,7 @@
         {
           "line": 129,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         }
       ]
     },
@@ -2359,12 +2527,12 @@
         {
           "line": 131,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 145,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         }
       ]
     },
@@ -2379,7 +2547,7 @@
         {
           "line": 153,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 354,
@@ -2514,12 +2682,12 @@
         {
           "line": 130,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 145,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         }
       ]
     },
@@ -2559,7 +2727,7 @@
         {
           "line": 128,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 91,
@@ -2844,17 +3012,17 @@
         {
           "line": 65,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 88,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 94,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 98,
@@ -2949,7 +3117,7 @@
         {
           "line": 27,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 69,
@@ -2974,7 +3142,7 @@
         {
           "line": 67,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 100,
@@ -3004,7 +3172,7 @@
         {
           "line": 66,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 99,
@@ -3074,7 +3242,7 @@
         {
           "line": 64,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 97,
@@ -3199,7 +3367,7 @@
         {
           "line": 72,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 104,
@@ -3239,7 +3407,7 @@
         {
           "line": 73,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 105,
@@ -3299,7 +3467,7 @@
         {
           "line": 71,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 103,
@@ -3339,12 +3507,12 @@
         {
           "line": 70,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 71,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 102,
@@ -3434,7 +3602,7 @@
         {
           "line": 69,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 101,
@@ -3514,7 +3682,7 @@
         {
           "line": 457,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         }
       ]
     },
@@ -3579,7 +3747,7 @@
         {
           "line": 133,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 299,
@@ -3624,7 +3792,7 @@
         {
           "line": 53,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 89,
@@ -3649,7 +3817,7 @@
         {
           "line": 54,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 117,
@@ -3679,7 +3847,7 @@
         {
           "line": 52,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 55,
@@ -3714,7 +3882,7 @@
         {
           "line": 44,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 50,
@@ -3824,7 +3992,7 @@
         {
           "line": 23,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 65,
@@ -3869,7 +4037,7 @@
         {
           "line": 43,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 49,
@@ -3909,7 +4077,7 @@
         {
           "line": 51,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 54,
@@ -3954,7 +4122,7 @@
         {
           "line": 55,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 56,
@@ -4069,7 +4237,7 @@
         {
           "line": 25,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 67,
@@ -4184,7 +4352,7 @@
         {
           "line": 156,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 28,
@@ -4194,12 +4362,12 @@
         {
           "line": 56,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 135,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 57,
@@ -4304,12 +4472,12 @@
         {
           "line": 148,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 155,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 29,
@@ -4319,12 +4487,12 @@
         {
           "line": 57,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 134,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 58,
@@ -4429,12 +4597,12 @@
         {
           "line": 50,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 57,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 53,
@@ -4499,7 +4667,7 @@
         {
           "line": 88,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 119,
@@ -4589,17 +4757,17 @@
         {
           "line": 394,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 26,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 88,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 68,
@@ -4724,7 +4892,7 @@
         {
           "line": 45,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 51,
@@ -4759,7 +4927,7 @@
         {
           "line": 48,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 84,
@@ -4794,7 +4962,7 @@
         {
           "line": 47,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 83,
@@ -4829,7 +4997,7 @@
         {
           "line": 46,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 82,
@@ -4864,7 +5032,7 @@
         {
           "line": 49,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 52,
@@ -4989,7 +5157,7 @@
         {
           "line": 24,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 66,
@@ -5079,7 +5247,7 @@
         {
           "line": 59,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 94,
@@ -5179,7 +5347,7 @@
         {
           "line": 29,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 71,
@@ -5254,7 +5422,7 @@
         {
           "line": 58,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 93,
@@ -5319,12 +5487,12 @@
         {
           "line": 31,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 60,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 95,
@@ -5399,12 +5567,12 @@
         {
           "line": 144,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 155,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 14,
@@ -5414,7 +5582,7 @@
         {
           "line": 31,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 73,
@@ -5454,12 +5622,12 @@
         {
           "line": 405,
           "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
-          "role": "deployment"
+          "role": "deployment-contract"
         },
         {
           "line": 30,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 72,
@@ -5744,7 +5912,7 @@
         {
           "line": 62,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 516,
@@ -5939,7 +6107,7 @@
         {
           "line": 61,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 178,
@@ -6104,7 +6272,7 @@
         {
           "line": 63,
           "path": "docs/configuration-contract.md",
-          "role": "documentation"
+          "role": "canonical-contract"
         },
         {
           "line": 59,

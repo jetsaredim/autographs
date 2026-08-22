@@ -41,8 +41,13 @@ Repository inventory and tests:
 python3 .planning/spikes/003-ecosystem-inventory/test_inventory.py
 python3 .planning/spikes/003-ecosystem-inventory/inventory.py repo \
   --root . \
-  --output .planning/spikes/003-ecosystem-inventory/repository-inventory.json
+  --output /tmp/autographs-repository-inventory.json
 ```
+
+Output creation is fail-closed: the collector refuses to follow or replace an
+existing path and creates new files mode `0600`. Choose a path that does not
+already exist. Review a newly generated snapshot before deliberately replacing
+the committed `repository-inventory.json` evidence.
 
 Copy only the collector to the VM and run it as root so file ownership and
 Podman/systemd listings are complete:
@@ -51,9 +56,14 @@ Podman/systemd listings are complete:
 scp .planning/spikes/003-ecosystem-inventory/inventory.py \
   opc@autographs:~/autographs-ecosystem-inventory.py
 ssh opc@autographs \
-  'sudo python3 ~/autographs-ecosystem-inventory.py vm --output /tmp/autographs-vm-inventory.json && sudo chown opc:opc /tmp/autographs-vm-inventory.json'
-scp opc@autographs:/tmp/autographs-vm-inventory.json /tmp/
+  'test ! -e /home/opc/autographs-vm-inventory.json && sudo python3 ~/autographs-ecosystem-inventory.py vm --output /home/opc/autographs-vm-inventory.json && sudo chown opc:opc /home/opc/autographs-vm-inventory.json'
+scp opc@autographs:/home/opc/autographs-vm-inventory.json /tmp/
 ```
+
+The fixed handoff path is safe because the root collector opens it exclusively
+with no-follow semantics and forces mode `0600`; a pre-existing file or symlink
+causes the run to fail instead of being overwritten. Remove the returned VM
+artifact after review so a later inventory can create a fresh file.
 
 Review the JSON before retaining it, then compare it with the repository:
 
@@ -90,10 +100,18 @@ collector uses fixed listing formats rather than general inspect output.
    extraction was added and tested.
 3. The collector excludes `.planning/spikes/` so its fixture keys and generated
    evidence cannot feed back into later reports.
-4. Static review found that the controller quadlet loads both `app.env` and
+4. Repository comparison initially treated every variable-shaped token as a
+   contract declaration. It now derives the contract only from canonical
+   configuration docs, examples, deployment sources, workflows, and Terraform,
+   while reporting Rust/prose/historical mentions separately.
+5. The VM writer initially used ordinary `Path.write_text` at a predictable
+   root-written path. It now refuses existing paths and symlinks and creates
+   output mode `0600`; regression coverage proves a symlink cannot redirect the
+   write.
+6. Static review found that the controller quadlet loads both `app.env` and
    `controller.env`. The split is historical rather than a documented ownership
    boundary.
-5. `controller.env` selects `OCI_AUTH_MODE=instance_principal`, but `app.env`
+7. `controller.env` selects `OCI_AUTH_MODE=instance_principal`, but `app.env`
    still declares tenancy/user/fingerprint/private-key-path fields and Ansible
    still copies `OCI_PRIVATE_KEY_PEM` into the controller-mounted secrets
    directory. The private key is needed by GitHub/Terraform deployment, but the
@@ -101,13 +119,16 @@ collector uses fixed listing formats rather than general inspect output.
 
 ## Results
 
-**Verdict: PARTIAL.** The redaction contract and repository inventory are
-validated by four tests. Production-VM coverage remains a human-run checkpoint.
+**Verdict: PARTIAL.** The redaction, contract-boundary, and private-output
+contracts are validated by six tests. Production-VM coverage remains a
+human-run checkpoint.
 
 Repository evidence:
 
-- 401 relevant text files scanned.
+- 404 relevant text files scanned.
 - 164 distinct configuration names found.
+- 80 names declared by authoritative contract sources and 84 incidental or
+  historical mentions retained separately for review.
 - 13 names classified as secret scalars.
 - Five secret-like values are rendered into the persistent production env
   template: Oracle DB password, Oracle wallet password, admin password, admin

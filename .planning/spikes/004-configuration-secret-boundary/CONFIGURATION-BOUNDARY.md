@@ -34,6 +34,27 @@ increase reconnaissance value.
 credential material. Measure every wallet component against OCI Vault's 25 KB
 secret-bundle limit before implementation.
 
+## Kernel Persistence Boundary
+
+"Retain in process memory" and "materialize in tmpfs" mean the controller does
+not intentionally write those values to an application-managed durable file.
+They are not an absolute off-disk guarantee: ordinary process pages and tmpfs
+pages are pageable, the production host currently has a persistent swap file,
+and core or kernel crash dumps can retain memory.
+
+Production cutover requires all of the following evidence:
+
+- controller core dumps disabled by the systemd unit and confirmed from the
+  running process limits;
+- kernel crash-dump behavior reviewed so controller memory is not retained;
+- swap disabled, or backed by encryption with a fresh boot-only key that is
+  never stored durably;
+- a reboot proof showing the selected swap contract and controller readiness;
+- redacted negative checks showing no application-managed secret files remain.
+
+These controls reduce durable recovery of secrets. They do not claim to defend
+against a privileged attacker inspecting the live host or running process.
+
 ## Remove From Production Runtime
 
 - `OCI_TENANCY_OCID`
@@ -65,6 +86,9 @@ boundary. They are removed only from the runtime controller boundary.
 - A configured secret OCID with an unavailable, malformed, empty, or
   unauthorized secret prevents controller readiness.
 - No fallback reads the retired plaintext environment variable.
+- The no-fallback rule applies to the current controller. A separately invoked,
+  time-bounded rollback helper may materialize legacy inputs from pinned Vault
+  versions only for a rehearsed rollback to the recorded pre-cutover image.
 - Secret contents never appear in logs, health responses, errors, generated
   static output, or inventory reports.
 - Initial rotation takes effect on controlled controller restart. Hot reload is

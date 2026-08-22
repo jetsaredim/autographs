@@ -46,12 +46,17 @@ something still has to populate the host secret store. [Podman tmpfs](https://do
 |----------|------|------|--------|
 | Persistent mode-0600 env files | Simple; survives Vault outage during restart | Secrets persist on disk and enter the container environment; rotation remains deploy-coupled | Baseline only |
 | Host/service startup materialization | Keeps secrets out of durable env and app secret-fetch logic | Requires OCI CLI/helper and refresh orchestration on the host; all scalars become files | Viable fallback |
-| Direct controller retrieval plus tmpfs wallet | Reuses existing Rust instance-principal code; scalar secrets stay off disk; one runtime owner | Requires extracting a generic OCI signer/client; startup depends on Vault; wallet still needs a file | Chosen |
+| Direct controller retrieval plus tmpfs wallet | Reuses existing Rust instance-principal code; avoids application-managed persistent secret files; one runtime owner | Process and tmpfs pages remain pageable; requires swap/core mitigations, a generic OCI client, and Vault at startup | Chosen, conditional on production gates |
 
 **Chosen approach:** Direct controller retrieval for scalar secrets, with only
 the driver-required wallet/config files materialized in a dedicated container
-tmpfs. Keep a single durable env file containing non-secret configuration and
-secret OCIDs. Do not add OCI CLI or a second long-lived service to the VM.
+tmpfs. This removes application-managed durable secret files; it does not by
+itself guarantee that bytes never reach storage. The current production VM has
+a persistent `/.swapfile`, and ordinary process and tmpfs pages may be paged to
+it. Core dumps are another persistence path. C4 therefore cannot cut over until
+swap and core-dump gates below are proven on the VM. Keep a single durable env
+file containing non-secret configuration and secret OCIDs. Do not add OCI CLI
+or a second long-lived service to the steady-state runtime.
 
 ## How to Run
 
@@ -62,10 +67,13 @@ python3 .planning/spikes/004-configuration-secret-boundary/secret_delivery_probe
 
 ## What to Expect
 
-The persistent-env model reports one persistent secret-bearing file and three
-process-environment secrets. Startup materialization reports no persistent
-secret file but four ephemeral files. Direct application retrieval reports only
-the required ephemeral wallet file; scalar values remain application memory.
+The persistent-env model reports one application-managed persistent
+secret-bearing file and three process-environment secrets. Startup
+materialization reports no application-managed persistent secret file but four
+runtime files. Direct application retrieval reports only the required runtime
+wallet file; scalar values remain application memory. The report explicitly
+lists swap, process/tmpfs paging, and core dumps as excluded surfaces. It does
+not prove those kernel-managed persistence paths are absent.
 
 ## Investigation Trail
 
@@ -86,13 +94,17 @@ the required ephemeral wallet file; scalar values remain application memory.
 6. The thin Oracle driver requires `ewallet.pem` plus its password, and an alias
    connect string also needs `tnsnames.ora`. Secret management reduces durable
    exposure but cannot make this file interface disappear.
+7. Production deliberately configures persistent swap. Both controller memory
+   and wallet tmpfs pages can be written there, so tmpfs is a lifecycle and file
+   ownership improvement rather than a complete off-disk guarantee.
 
 ## Results
 
-**Verdict: PARTIAL.** Four local tests validate exposure and redaction behavior,
-and official OCI/Podman contracts support the design. A live read of a disposable
-Vault secret using the production VM's exact dynamic group and a secret-ID-bound
-policy is still required.
+**Verdict: PARTIAL.** Five local tests validate the bounded
+application-managed exposure and redaction behavior, and official OCI/Podman
+contracts support the design. A live read of a disposable Vault secret using
+the production VM's exact dynamic group and a secret-ID-bound policy is still
+required. The VM swap/core gates are also unproven.
 
 Recommended sequence:
 
@@ -103,10 +115,18 @@ Recommended sequence:
    state.
 4. Extract the existing instance-principal session/signing code into a generic
    OCI client and add a Vault secret provider.
-5. Add a bounded tmpfs wallet directory to the Quadlet and fetch only the files
-   required by the Rust driver.
-6. Remove plaintext fallback variables and fail readiness closed.
-7. Prove restart, rotation-by-restart, Vault denial, redaction, and Oracle/OCI
-   smoke behavior before deleting old host files.
+5. Disable controller core dumps with the systemd service limit and verify the
+   running process reports a zero core-file limit. Confirm the host's kernel
+   crash-dump policy cannot retain controller memory.
+6. Replace persistent plaintext swap with a reviewed non-persistent strategy:
+   either no swap, or encrypted swap whose random boot-only key is not stored
+   durably. Reboot and verify the chosen contract before secret cutover.
+7. Add a bounded tmpfs wallet directory to the Quadlet and fetch only the files
+   required by the Rust driver. Treat tmpfs as pageable unless the VM proof
+   demonstrates otherwise.
+8. Remove automatic plaintext fallback variables and fail readiness closed.
+   Retain only the explicit, bounded rollback helper described in C4.
+9. Prove restart, rotation-by-restart, Vault denial, redaction, core limits,
+   swap behavior, and Oracle/OCI smoke behavior before deleting old host files.
 
 See `CONFIGURATION-BOUNDARY.md` for the proposed value-by-value boundary.

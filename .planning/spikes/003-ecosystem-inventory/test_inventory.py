@@ -1,6 +1,8 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
+import stat
 import tempfile
 import unittest
 
@@ -86,6 +88,8 @@ class InventoryTests(unittest.TestCase):
 
     def test_comparison_reports_names_without_values(self):
         repo = {
+            "contract_keys": ["AUTOGRAPHS_HTTP_PORT", "ORACLE_DB_PASSWORD"],
+            "incidental_keys": [],
             "variables": {
                 "AUTOGRAPHS_HTTP_PORT": {},
                 "ORACLE_DB_PASSWORD": {},
@@ -105,6 +109,55 @@ class InventoryTests(unittest.TestCase):
         self.assertIn("ORACLE_DB_PASSWORD", rendered)
         self.assertIn("UNTRACKED_SETTING", rendered)
         self.assertIn("AUTOGRAPHS_HTTP_PORT", rendered)
+
+    def test_docs_only_mention_does_not_mask_undocumented_vm_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".env.example").write_text(
+                "AUTOGRAPHS_HTTP_PORT=8080\n", encoding="utf-8"
+            )
+            docs = root / ".planning" / "history"
+            docs.mkdir(parents=True)
+            (docs / "old-plan.md").write_text(
+                "Retired AUTOGRAPHS_DOCS_ONLY setting.\n", encoding="utf-8"
+            )
+
+            repo = inventory.collect_repo(root)
+            vm = {
+                "env_files": [
+                    {
+                        "path": "env/controller.env",
+                        "keys": ["AUTOGRAPHS_DOCS_ONLY", "AUTOGRAPHS_HTTP_PORT"],
+                    }
+                ]
+            }
+            rendered = inventory.render_comparison(repo, vm)
+
+            self.assertIn("AUTOGRAPHS_DOCS_ONLY", repo["incidental_keys"])
+            missing_section = rendered.split(
+                "## VM Keys Missing From Repository Contract", 1
+            )[1].split("##", 1)[0]
+            self.assertIn("AUTOGRAPHS_DOCS_ONLY", missing_section)
+
+    def test_private_writer_rejects_symlink_and_forces_mode_0600(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            victim = root / "victim.json"
+            victim.write_text("unchanged\n", encoding="utf-8")
+            output_link = root / "inventory.json"
+            output_link.symlink_to(victim)
+
+            with self.assertRaises(FileExistsError):
+                inventory.write_json(output_link, {"kind": "vm"})
+
+            self.assertEqual(victim.read_text(encoding="utf-8"), "unchanged\n")
+            output = root / "safe.json"
+            old_umask = os.umask(0)
+            try:
+                inventory.write_json(output, {"kind": "vm"})
+            finally:
+                os.umask(old_umask)
+            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
 
 
 if __name__ == "__main__":
