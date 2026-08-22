@@ -87,3 +87,27 @@ invalid:
       fn read_setting() -> Option<OsString> {
           read_env_os("AUTOGRAPHS_SETTING")
       }
+  - |
+      use std::env::{self as process_env};
+
+      fn read_setting() -> String {
+          process_env::var("AUTOGRAPHS_SETTING").unwrap_or_default()
+      }
+  - |
+      use ::std::env::{var as read_env};
+
+      fn read_setting() -> String {
+          read_env("AUTOGRAPHS_SETTING").unwrap_or_default()
+      }
+  - |
+      use ::std::{env::var as read_env, fs};
+
+      fn read_setting() -> String {
+          read_env("AUTOGRAPHS_SETTING").unwrap_or_default()
+      }
+  - |
+      use ::std::{env::{self as process_env}, fs};
+
+      fn read_setting() -> String {
+          process_env::var("AUTOGRAPHS_SETTING").unwrap_or_default()
+      }

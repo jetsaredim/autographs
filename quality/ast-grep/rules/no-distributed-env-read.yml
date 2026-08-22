@@ -13,23 +13,32 @@ rule:
     - pattern: use ::std::env::$FUNCTION;
     - pattern: use ::std::env::$FUNCTION as $ALIAS;
     - all:
-        - pattern: use std::{$$$ITEMS};
+        - any:
+            - pattern: use std::{$$$ITEMS};
+            - pattern: use ::std::{$$$ITEMS};
         - has:
             pattern:
               context: use env as $ALIAS;
               selector: use_as_clause
             stopBy: end
     - all:
-        - pattern: use std::env::{$$$ITEMS};
+        - any:
+            - pattern: use std::env::{$$$ITEMS};
+            - pattern: use ::std::env::{$$$ITEMS};
         - has:
             any:
               - pattern: var
               - pattern: var_os
               - pattern: vars
               - pattern: vars_os
+              - pattern:
+                  context: use self as $ALIAS;
+                  selector: use_as_clause
             stopBy: end
     - all:
-        - pattern: use std::{$$$ITEMS};
+        - any:
+            - pattern: use std::{$$$ITEMS};
+            - pattern: use ::std::{$$$ITEMS};
         - has:
             any:
               - pattern: env::$FUNCTION
@@ -43,6 +52,9 @@ rule:
                         - pattern: var_os
                         - pattern: vars
                         - pattern: vars_os
+                        - pattern:
+                            context: use self as $ALIAS;
+                            selector: use_as_clause
                       stopBy: end
             stopBy: end
 constraints:
