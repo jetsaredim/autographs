@@ -8,6 +8,20 @@ valid:
       fn parse_setting(value: Option<String>) -> String {
           value.unwrap_or_default()
       }
+  - |
+      fn read_args() -> Vec<String> {
+          std::env::args().collect()
+      }
+  - |
+      use std::{env, fs};
+
+      fn read_args() -> Vec<String> {
+          env::args().collect()
+      }
+  - |
+      fn read_setting(settings: &Settings) -> String {
+          settings::var("AUTOGRAPHS_SETTING")
+      }
 invalid:
   - |
       fn read_setting() -> String {
@@ -24,4 +38,52 @@ invalid:
   - |
       fn read_setting() -> Option<OsString> {
           env::var_os("AUTOGRAPHS_SETTING")
+      }
+  - |
+      fn read_setting() -> String {
+          ::std::env::var("AUTOGRAPHS_SETTING").unwrap_or_default()
+      }
+  - |
+      fn read_settings() -> Vec<(String, String)> {
+          std::env::vars().collect()
+      }
+  - |
+      fn read_settings() -> Vec<(OsString, OsString)> {
+          env::vars_os().collect()
+      }
+  - |
+      use std::env as process_env;
+
+      fn read_setting() -> String {
+          process_env::var("AUTOGRAPHS_SETTING").unwrap_or_default()
+      }
+  - |
+      use std::env::var as read_env;
+
+      fn read_setting() -> String {
+          read_env("AUTOGRAPHS_SETTING").unwrap_or_default()
+      }
+  - |
+      use std::{env as process_env, fs};
+
+      fn read_setting() -> String {
+          process_env::var("AUTOGRAPHS_SETTING").unwrap_or_default()
+      }
+  - |
+      use std::env::{var_os as read_env_os, vars};
+
+      fn read_setting() -> Option<OsString> {
+          read_env_os("AUTOGRAPHS_SETTING")
+      }
+  - |
+      use std::{env::{var as read_env, vars_os}, fs};
+
+      fn read_setting() -> String {
+          read_env("AUTOGRAPHS_SETTING").unwrap_or_default()
+      }
+  - |
+      use ::std::env::var_os as read_env_os;
+
+      fn read_setting() -> Option<OsString> {
+          read_env_os("AUTOGRAPHS_SETTING")
       }

@@ -5,7 +5,48 @@ message: Read process environment through controller/src/config.rs and inject ty
 note: Existing suppressions are C2 typed-configuration debt and must name this rule explicitly.
 rule:
   any:
-    - pattern: std::env::var($NAME)
-    - pattern: std::env::var_os($NAME)
-    - pattern: env::var($NAME)
-    - pattern: env::var_os($NAME)
+    - pattern: $MODULE::$FUNCTION($$$ARGS)
+    - pattern: use std::env as $ALIAS;
+    - pattern: use ::std::env as $ALIAS;
+    - pattern: use std::env::$FUNCTION;
+    - pattern: use std::env::$FUNCTION as $ALIAS;
+    - pattern: use ::std::env::$FUNCTION;
+    - pattern: use ::std::env::$FUNCTION as $ALIAS;
+    - all:
+        - pattern: use std::{$$$ITEMS};
+        - has:
+            pattern:
+              context: use env as $ALIAS;
+              selector: use_as_clause
+            stopBy: end
+    - all:
+        - pattern: use std::env::{$$$ITEMS};
+        - has:
+            any:
+              - pattern: var
+              - pattern: var_os
+              - pattern: vars
+              - pattern: vars_os
+            stopBy: end
+    - all:
+        - pattern: use std::{$$$ITEMS};
+        - has:
+            any:
+              - pattern: env::$FUNCTION
+              - all:
+                  - pattern:
+                      context: use env::{$$$ENV_ITEMS};
+                      selector: scoped_use_list
+                  - has:
+                      any:
+                        - pattern: var
+                        - pattern: var_os
+                        - pattern: vars
+                        - pattern: vars_os
+                      stopBy: end
+            stopBy: end
+constraints:
+  MODULE:
+    regex: ^(?:(?:::)?std::env|env)$
+  FUNCTION:
+    regex: ^(?:var|var_os|vars|vars_os)$

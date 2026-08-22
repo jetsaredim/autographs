@@ -82,10 +82,11 @@ Requirements:
 Common checks:
 
 ```bash
+ast-grep test --skip-snapshot-tests
+ast-grep scan --error=unused-suppression --error=no-suppress-all controller/src
 cargo fmt --manifest-path controller/Cargo.toml --check
-cargo test --manifest-path controller/Cargo.toml
-cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
-cargo check --manifest-path controller/Cargo.toml --features production-persistence
+cargo llvm-cov --manifest-path controller/Cargo.toml --features production-persistence --summary-only --fail-under-lines 62
+cargo clippy --manifest-path controller/Cargo.toml --all-targets --features production-persistence -- -D warnings
 terraform -chdir=infra/terraform fmt -check -recursive -list=true -diff
 ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook --syntax-check deploy/ansible/playbooks/deploy.yml deploy/ansible/playbooks/system-cleanup.yml
 ```

@@ -1,4 +1,4 @@
-use std::{env, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
 
 use axum::{
     Json, Router,
@@ -94,7 +94,7 @@ pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
     {
         "local" => {
             // ast-grep-ignore: no-distributed-env-read
-            let root = env::var("AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT")
+            let root = std::env::var("AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT")
                 .unwrap_or_else(|_| "/tmp/autographs-controller-media".to_owned());
             tracing::info!(%root, "configuring local media store");
             Arc::new(LocalMediaStore::new(root))
@@ -111,7 +111,7 @@ pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
 
 fn provider(name: &str) -> String {
     // ast-grep-ignore: no-distributed-env-read
-    env::var(name).unwrap_or_else(|_| "local".to_owned())
+    std::env::var(name).unwrap_or_else(|_| "local".to_owned())
 }
 
 #[cfg(feature = "production-persistence")]
@@ -170,7 +170,7 @@ fn production_media_store() -> Result<Arc<dyn PrivateMediaStore>, String> {
 #[cfg(feature = "production-persistence")]
 fn required_env(name: &str) -> Result<String, String> {
     // ast-grep-ignore: no-distributed-env-read
-    env::var(name)
+    std::env::var(name)
         .ok()
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| format!("{name} is required"))

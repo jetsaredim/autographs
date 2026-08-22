@@ -27,7 +27,7 @@ systemd rather than attempting to parse Rust.
 
 ## Verification
 
-- ast-grep rule tests: 1 rule and 6 fixtures passed.
+- ast-grep rule tests: 1 rule and 18 fixtures passed.
 - ast-grep repository scan passed with unused and suppress-all directives
   rejected.
 - Production-feature Rust suite passed at `62.30%` line coverage.
