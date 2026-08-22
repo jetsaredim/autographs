@@ -43,6 +43,26 @@ const SIGNER_CREDIT_ROWS_FOR_UPDATE_SQL: &str =
     order by signer_id
     for update";
 
+const SIGNER_SUGGESTION_PROFILES_SQL: &str = "select
+    id, display_name, normalized_name, default_role, wikipedia_url, imdb_url,
+    cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
+    cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
+from autograph_signers
+where normalized_name = :1
+   or normalized_name like :2
+   or normalized_name like :3
+order by case when normalized_name = :4 then 0 else 1 end, display_name, id
+fetch first 10 rows only";
+
+const UPSERT_SIGNER_PROFILE_LOOKUP_SQL: &str = "select
+    id, display_name, normalized_name, default_role, wikipedia_url, imdb_url,
+    cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
+    cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
+from autograph_signers
+where id = :1 or normalized_name = :2
+order by case when id = :3 then 0 else 1 end
+fetch first 1 row only";
+
 const GLOBAL_PENDING_CHANGES_SQL: &str = "with latest_publish as (
     select id, started_at, snapshot_event_count
     from (
@@ -1225,17 +1245,13 @@ fn load_signer_suggestion_profiles(
     let contains_query = format!("%{normalized_query}%");
     let mut rows = connection
         .query(
-            "select
-                id, display_name, normalized_name, default_role, wikipedia_url, imdb_url,
-                cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
-                cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
-            from autograph_signers
-            where normalized_name = :1
-               or normalized_name like :2
-               or normalized_name like :3
-            order by case when normalized_name = :1 then 0 else 1 end, display_name, id
-            fetch first 10 rows only",
-            &[&normalized_query, &prefix_query, &contains_query],
+            SIGNER_SUGGESTION_PROFILES_SQL,
+            &[
+                &normalized_query,
+                &prefix_query,
+                &contains_query,
+                &normalized_query,
+            ],
         )
         .map_err(|error| format!("read Oracle signer suggestion profiles: {error}"))?;
     let mut profiles = Vec::new();
@@ -2036,15 +2052,8 @@ fn upsert_signer_profile(
     let requested_id = credit.signer.id.to_string();
     let mut rows = connection
         .query(
-            "select
-                id, display_name, normalized_name, default_role, wikipedia_url, imdb_url,
-                cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
-                cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
-            from autograph_signers
-            where id = :1 or normalized_name = :2
-            order by case when id = :1 then 0 else 1 end
-            fetch first 1 row only",
-            &[&requested_id, &normalized_name],
+            UPSERT_SIGNER_PROFILE_LOOKUP_SQL,
+            &[&requested_id, &normalized_name, &requested_id],
         )
         .map_err(|error| format!("read Oracle signer profile: {error}"))?;
     if let Some(row) = rows.next() {
@@ -2493,6 +2502,23 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn oracle_signer_queries_use_unique_positional_bind_occurrences() {
+        assert_unique_positional_binds(SIGNER_SUGGESTION_PROFILES_SQL, 4);
+        assert_unique_positional_binds(UPSERT_SIGNER_PROFILE_LOOKUP_SQL, 3);
+    }
+
+    fn assert_unique_positional_binds(sql: &str, expected: usize) {
+        assert_eq!(sql.matches(':').count(), expected);
+        for position in 1..=expected {
+            assert_eq!(
+                sql.matches(&format!(":{position}")).count(),
+                1,
+                "Oracle positional bind :{position} must occur exactly once"
+            );
+        }
     }
 
     fn signer_credit(
