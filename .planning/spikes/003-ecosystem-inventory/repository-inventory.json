@@ -1,0 +1,6177 @@
+{
+  "findings": [
+    {
+      "evidence": "A production env template materializes this secret on persistent storage.",
+      "kind": "persistent-plaintext-secret-contract",
+      "recommended_disposition": "Move the value to a runtime secret provider or document a narrow exception.",
+      "severity": "high",
+      "subject": "AUTOGRAPHS_ADMIN_PASSWORD"
+    },
+    {
+      "evidence": "A production env template materializes this secret on persistent storage.",
+      "kind": "persistent-plaintext-secret-contract",
+      "recommended_disposition": "Move the value to a runtime secret provider or document a narrow exception.",
+      "severity": "high",
+      "subject": "AUTOGRAPHS_ADMIN_PASSWORD_HASH"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_CONTROLLER_BASE_URL"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_ALL_IMAGES"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_IMAGE_CHECKSUMS"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_ID"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_IDS"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEY"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_LIVE_PERSISTENCE_LIST_SMOKE_ROWS"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_LIVE_PERSISTENCE_REPAIR_IMAGE_CHECKSUMS"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_LIVE_STATIC_PUBLISH_TIMEOUT_SECONDS"
+    },
+    {
+      "evidence": "A production env template materializes this secret on persistent storage.",
+      "kind": "persistent-plaintext-secret-contract",
+      "recommended_disposition": "Move the value to a runtime secret provider or document a narrow exception.",
+      "severity": "high",
+      "subject": "AUTOGRAPHS_OPERATOR_API_TOKEN"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_PRINT_DERIVATIVE_MEASUREMENT"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_SMOKE_IMAGE_VERSION"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_STATIC_PREVIEW_BASE_URL"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_TEST_INVALID_RETAIN_COUNT"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_TEST_MISSING_RETAIN_COUNT"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_TEST_VALID_RETAIN_COUNT"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "AUTOGRAPHS_TEST_ZERO_RETAIN_COUNT"
+    },
+    {
+      "evidence": "Rust references this key without a matching example, deploy, or workflow contract.",
+      "kind": "undocumented-rust-config",
+      "recommended_disposition": "Declare the key in the canonical configuration contract or remove the reference.",
+      "severity": "medium",
+      "subject": "OCI_REALM_DOMAIN"
+    },
+    {
+      "evidence": "A production env template materializes this secret on persistent storage.",
+      "kind": "persistent-plaintext-secret-contract",
+      "recommended_disposition": "Move the value to a runtime secret provider or document a narrow exception.",
+      "severity": "high",
+      "subject": "ORACLE_DB_PASSWORD"
+    },
+    {
+      "evidence": "A production env template materializes this secret on persistent storage.",
+      "kind": "persistent-plaintext-secret-contract",
+      "recommended_disposition": "Move the value to a runtime secret provider or document a narrow exception.",
+      "severity": "high",
+      "subject": "ORACLE_DB_WALLET_PASSWORD"
+    }
+  ],
+  "generated_at": "2026-08-22T04:36:41.408795+00:00",
+  "kind": "repository",
+  "redaction_contract": "Variable names and source locations only; values are never emitted.",
+  "root": "autographs",
+  "scanned_files": 401,
+  "schema_version": 1,
+  "variables": {
+    "ACTION_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 8,
+          "path": "scripts/validate-terraform-version-alignment.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "ADB_ADMIN_PASSWORD": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 16,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 186,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 441,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        }
+      ]
+    },
+    "ADVISORY_RE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 17,
+          "path": "scripts/oracle_linux_advisory_enrichment.py",
+          "role": "repository"
+        },
+        {
+          "line": 14,
+          "path": "scripts/oracle_linux_oscap_results.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "ANSIBLE_CONFIG": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 89,
+          "path": "README.md",
+          "role": "repository"
+        },
+        {
+          "line": 224,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 241,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 244,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 246,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 248,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 250,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 252,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 254,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 22,
+          "path": ".planning/codebase/TESTING.md",
+          "role": "documentation"
+        },
+        {
+          "line": 23,
+          "path": ".planning/codebase/TESTING.md",
+          "role": "documentation"
+        },
+        {
+          "line": 347,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 536,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 549,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 620,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 107,
+          "path": "docs/security-review.md",
+          "role": "documentation"
+        },
+        {
+          "line": 108,
+          "path": "docs/security-review.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "ANSIBLE_LOCAL_TEMP": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 580,
+          "path": ".planning/phases/08-admin-media-review-and-operational-posture/08-RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 581,
+          "path": ".planning/phases/08-admin-media-review-and-operational-posture/08-RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 31,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 32,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 345,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 534,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 547,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 618,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "ANSIBLE_REMOTE_TEMP": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 346,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 535,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 548,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 619,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "API_VERSION": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 14,
+          "path": "scripts/cleanup-ghcr-images.py",
+          "role": "repository"
+        },
+        {
+          "line": 16,
+          "path": "scripts/release-version.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "AUTOGRAPHS_ADMIN_PASSWORD": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 70,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 111,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 135,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 140,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 121,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-05-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 146,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 89,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 91,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 122,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 127,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 64,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 85,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 91,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 117,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 94,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 594,
+          "path": ".planning/phases/06-admin-collection-workflow/06-PATTERNS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 308,
+          "path": ".planning/phases/06-admin-collection-workflow/06-RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 655,
+          "path": ".planning/phases/07-metadata-taxonomy-and-public-facets/07-PATTERNS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 42,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 106,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 1037,
+          "path": "controller/tests/admin_workflow.rs",
+          "role": "rust"
+        },
+        {
+          "line": 40,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 7,
+          "path": "controller/tests/static_admin.rs",
+          "role": "rust"
+        },
+        {
+          "line": 178,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 193,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 257,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 20,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 126,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 143,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 54,
+          "path": "docs/security-review.md",
+          "role": "documentation"
+        },
+        {
+          "line": 35,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 45,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 356,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_ADMIN_PASSWORD_HASH": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 68,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 69,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 21,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 475,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 111,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 135,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 136,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 86,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 96,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 89,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 91,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 127,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 64,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 94,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 308,
+          "path": ".planning/phases/06-admin-collection-workflow/06-RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 43,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 106,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 185,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 204,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 258,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 21,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 33,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 125,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 143,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 75,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 54,
+          "path": "docs/security-review.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_ADMIN_SECURE_COOKIES": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 67,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 34,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 18,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 124,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 33,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_APP_IMAGE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 83,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 96,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_CONTROLLER_BASE_URL": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 37,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 152,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 353,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 458,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_CONTROLLER_BIND_ADDR": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 62,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 94,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 135,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 136,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 96,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 28,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 31,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 16,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 114,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_CONTROLLER_DB_PROVIDER": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 63,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 42,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 36,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 501,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 512,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 533,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 534,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 502,
+          "path": ".planning/phases/06-admin-collection-workflow/06-PATTERNS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 78,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 86,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 277,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 325,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 22,
+          "path": "deploy/ansible/roles/autographs_deploy/defaults/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 153,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 1,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/controller.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 75,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 119,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 142,
+          "path": "docs/controller-walkthrough.md",
+          "role": "documentation"
+        },
+        {
+          "line": 108,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 299,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 17,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_CONTROLLER_IMAGE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 65,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 1,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 6,
+          "path": "deploy/ansible/roles/autographs_system_cleanup/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 117,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 65,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 504,
+          "path": ".planning/phases/06-admin-collection-workflow/06-PATTERNS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 96,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 26,
+          "path": "deploy/ansible/roles/autographs_deploy/defaults/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 3,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/controller.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 122,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 64,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 43,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 37,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 502,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 513,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 537,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 538,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 503,
+          "path": ".planning/phases/06-admin-collection-workflow/06-PATTERNS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 91,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 104,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 278,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 326,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 24,
+          "path": "deploy/ansible/roles/autographs_deploy/defaults/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 154,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 2,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/controller.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 77,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 121,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 143,
+          "path": "docs/controller-walkthrough.md",
+          "role": "documentation"
+        },
+        {
+          "line": 109,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 299,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 18,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_CONTROLLER_VERSION": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 64,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 3,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 116,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_DNS_DOMAIN": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 193,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 448,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        }
+      ]
+    },
+    "AUTOGRAPHS_DNS_RECORD_ID": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 196,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 451,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        }
+      ]
+    },
+    "AUTOGRAPHS_DNS_SUBDOMAIN": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 194,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 449,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        }
+      ]
+    },
+    "AUTOGRAPHS_DNS_TTL": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 195,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 450,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        }
+      ]
+    },
+    "AUTOGRAPHS_DOMAIN": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 50,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 35,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 498,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 511,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 520,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 521,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 527,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 17,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 66,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 89,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 258,
+          "path": ".planning/phases/04-public-showcase-and-hardening/RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 259,
+          "path": ".planning/phases/04-public-showcase-and-hardening/RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 134,
+          "path": ".planning/phases/08-admin-media-review-and-operational-posture/08-03-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 136,
+          "path": ".planning/phases/08-admin-media-review-and-operational-posture/08-03-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 141,
+          "path": ".planning/phases/08-admin-media-review-and-operational-posture/08-03-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 89,
+          "path": ".planning/phases/08-admin-media-review-and-operational-posture/08-03-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 127,
+          "path": ".planning/phases/08-admin-media-review-and-operational-posture/08-03-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 647,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 1,
+          "path": "deploy/ansible/roles/autographs_deploy/files/Caddyfile",
+          "role": "deployment"
+        },
+        {
+          "line": 5,
+          "path": "deploy/ansible/roles/autographs_deploy/files/Caddyfile",
+          "role": "deployment"
+        },
+        {
+          "line": 5,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 12,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/autographs-caddy.container.j2",
+          "role": "deployment"
+        },
+        {
+          "line": 48,
+          "path": "deploy/ansible/roles/security_patching/defaults/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 88,
+          "path": "docs/cdn-cache-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 89,
+          "path": "docs/cdn-cache-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 90,
+          "path": "docs/cdn-cache-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 91,
+          "path": "docs/cdn-cache-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 92,
+          "path": "docs/cdn-cache-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 68,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 107,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 143,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 144,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 145,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 146,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 147,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 368,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 378,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 379,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 380,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 381,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 393,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 394,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 82,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 409,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 579,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 580,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 581,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 582,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_HTTPS_PORT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 34,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 500,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 7,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        }
+      ]
+    },
+    "AUTOGRAPHS_HTTP_PORT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 6,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 33,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 499,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 83,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 96,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 6,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_ALL_IMAGES": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 299,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_IMAGE_CHECKSUMS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 31,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_ID": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 17,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_IDS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 16,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 272,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEY": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 20,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 19,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 273,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LIVE_PERSISTENCE_LIST_SMOKE_ROWS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 26,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LIVE_PERSISTENCE_REPAIR_IMAGE_CHECKSUMS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 33,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 163,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-03-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 164,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-03-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 166,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-03-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 177,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-03-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 115,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-03-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 39,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 41,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 304,
+          "path": "docs/controller-walkthrough.md",
+          "role": "documentation"
+        },
+        {
+          "line": 159,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 214,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 92,
+          "path": ".planning/codebase/STACK.md",
+          "role": "documentation"
+        },
+        {
+          "line": 82,
+          "path": ".planning/codebase/TESTING.md",
+          "role": "documentation"
+        },
+        {
+          "line": 16,
+          "path": ".planning/debug/oracledb-repeated-bind-values.md",
+          "role": "documentation"
+        },
+        {
+          "line": 74,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 75,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 77,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 124,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 35,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 112,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 100,
+          "path": ".planning/phases/07-metadata-taxonomy-and-public-facets/07-05-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 148,
+          "path": ".planning/phases/07-metadata-taxonomy-and-public-facets/07-05-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 120,
+          "path": ".planning/phases/07-metadata-taxonomy-and-public-facets/07-05-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 138,
+          "path": ".planning/phases/07-metadata-taxonomy-and-public-facets/07-05-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 158,
+          "path": ".planning/phases/07-metadata-taxonomy-and-public-facets/07-05-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 158,
+          "path": ".planning/phases/08-admin-media-review-and-operational-posture/08-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 26,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 28,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 151,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 89,
+          "path": "docs/security-review.md",
+          "role": "documentation"
+        },
+        {
+          "line": 123,
+          "path": "docs/security-review.md",
+          "role": "documentation"
+        },
+        {
+          "line": 352,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 611,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 632,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LIVE_STATIC_PUBLISH_TIMEOUT_SECONDS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 785,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 55,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 28,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 73,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 74,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 106,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 334,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_MEDIA": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 34,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-03-SUMMARY.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_MEDIA_STORAGE_PROVIDER": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 50,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-03-SUMMARY.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_OPERATOR": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 34,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-03-SUMMARY.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_OPERATOR_API_TOKEN": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 72,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 20,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 474,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 42,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-03-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 112,
+          "path": ".planning/phases/03-public-gallery-mvp/03-05-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 118,
+          "path": ".planning/phases/03-public-gallery-mvp/03-05-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 79,
+          "path": ".planning/phases/03-public-gallery-mvp/03-CONTEXT.md",
+          "role": "documentation"
+        },
+        {
+          "line": 166,
+          "path": ".planning/phases/03-public-gallery-mvp/03-CONTEXT.md",
+          "role": "documentation"
+        },
+        {
+          "line": 124,
+          "path": ".planning/phases/03-public-gallery-mvp/03-DISCUSSION-LOG.md",
+          "role": "documentation"
+        },
+        {
+          "line": 436,
+          "path": ".planning/phases/03-public-gallery-mvp/03-PATTERNS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 519,
+          "path": ".planning/phases/03-public-gallery-mvp/03-PATTERNS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 61,
+          "path": ".planning/phases/03-public-gallery-mvp/03-RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 550,
+          "path": ".planning/phases/03-public-gallery-mvp/03-RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 148,
+          "path": ".planning/phases/04-public-showcase-and-hardening/RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 111,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 135,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 136,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 86,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 96,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-02-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 121,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-05-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 70,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 89,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 91,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 122,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 152,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 64,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 91,
+          "path": ".planning/phases/06-admin-collection-workflow/06-06-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 94,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 595,
+          "path": ".planning/phases/06-admin-collection-workflow/06-PATTERNS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 308,
+          "path": ".planning/phases/06-admin-collection-workflow/06-RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 44,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 8,
+          "path": "controller/tests/static_admin.rs",
+          "role": "rust"
+        },
+        {
+          "line": 259,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 15,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 32,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 127,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 143,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 74,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 24,
+          "path": "docs/temporary-production-data-entry.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 49,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 38,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 503,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 193,
+          "path": ".planning/STATE.md",
+          "role": "documentation"
+        },
+        {
+          "line": 13,
+          "path": ".planning/quick/260816-aoi-add-a-production-oracle-database-heartbe/260816-aoi-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 10,
+          "path": ".planning/quick/260816-aoi-add-a-production-oracle-database-heartbe/260816-aoi-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 13,
+          "path": ".planning/quick/260816-n0o-run-oracle-heartbeat-once-shortly-after-/260816-n0o-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 7,
+          "path": "controller/src/oracle_heartbeat.rs",
+          "role": "rust"
+        },
+        {
+          "line": 198,
+          "path": "controller/tests/caddy_static_routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 201,
+          "path": "controller/tests/caddy_static_routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 204,
+          "path": "controller/tests/caddy_static_routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 11,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 76,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 120,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_PRINT_DERIVATIVE_MEASUREMENT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 813,
+          "path": "controller/tests/publisher.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "AUTOGRAPHS_PUBLIC_HOST": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 183,
+          "path": ".planning/phases/08-admin-media-review-and-operational-posture/08-08-PLAN.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_PUBLIC_ORIGIN": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 66,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 32,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 642,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 17,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 123,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 34,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_PUBLISH_MODE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 77,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 132,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_REPO_VERSION": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 63,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 2,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 115,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_SMOKE_BASE_URL": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 22,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-04-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 43,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-04-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 46,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-04-SUMMARY.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_SMOKE_IMAGE_VERSION": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 47,
+          "path": ".planning/quick/260727-issue-170-oracle-basiclite/SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 34,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 337,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_SOURCE_REVISION": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 66,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 4,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 118,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_STATIC_CURRENT_LINK": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 74,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 129,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 76,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 58,
+          "path": ".planning/codebase/INTEGRATIONS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 77,
+          "path": ".planning/codebase/STACK.md",
+          "role": "documentation"
+        },
+        {
+          "line": 36,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 84,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 108,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 110,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 114,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 139,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 78,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 94,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 96,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 451,
+          "path": ".planning/phases/06-admin-collection-workflow/06-RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 60,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 5,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/controller.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 131,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 145,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_STATIC_PREVIEW_BASE_URL": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 38,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 153,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 354,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 75,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 57,
+          "path": ".planning/codebase/INTEGRATIONS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 76,
+          "path": ".planning/codebase/STACK.md",
+          "role": "documentation"
+        },
+        {
+          "line": 33,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 84,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 107,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 110,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 114,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 139,
+          "path": ".planning/phases/06-admin-collection-workflow/06-04-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 39,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 78,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 94,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 96,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 103,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 173,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 103,
+          "path": ".planning/phases/06-admin-collection-workflow/06-07-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 39,
+          "path": ".planning/phases/06-admin-collection-workflow/06-08-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 106,
+          "path": ".planning/phases/06-admin-collection-workflow/06-08-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 110,
+          "path": ".planning/phases/06-admin-collection-workflow/06-08-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 85,
+          "path": ".planning/phases/06-admin-collection-workflow/06-08-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 451,
+          "path": ".planning/phases/06-admin-collection-workflow/06-RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 56,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 4,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/controller.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 130,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 145,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_STATIC_RELEASE_ROOT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 73,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 310,
+          "path": ".planning/phases/06-admin-collection-workflow/06-RESEARCH.md",
+          "role": "documentation"
+        },
+        {
+          "line": 51,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 52,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 42,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 22,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 128,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 91,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 92,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 96,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 355,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "AUTOGRAPHS_TEST_INVALID_RETAIN_COUNT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 182,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 190,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "AUTOGRAPHS_TEST_MISSING_RETAIN_COUNT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 177,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "AUTOGRAPHS_TEST_VALID_RETAIN_COUNT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 183,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 194,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "AUTOGRAPHS_TEST_ZERO_RETAIN_COUNT": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 181,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 186,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "CANDIDATE_IMAGE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 388,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 413,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "CANDIDATE_NAME": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 414,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "CANDIDATE_SECRETS_DIR": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 416,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "CANDIDATE_VERSION": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 387,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 412,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "CANDIDATE_WALLET_DIR": {
+      "classification": "sensitive-metadata",
+      "sources": [
+        {
+          "line": 415,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "CLEAN_RESULTS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 17,
+          "path": "scripts/oracle_linux_oscap_results.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "CODEBASE_MAPS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 10,
+          "path": "scripts/test_validate_repo_hygiene.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "CREATE_ISSUE_STATUS_TEST_PLAYBOOK_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 37,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "DATABASE_URL": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 53,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 86,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-01-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 28,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-01-SUMMARY.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "DEFAULTS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 17,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "DEFAULT_ERRATA_BASE_URL": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 15,
+          "path": "scripts/oracle_linux_advisory_enrichment.py",
+          "role": "repository"
+        },
+        {
+          "line": 13,
+          "path": "scripts/oracle_linux_oscap_results.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "DEFAULT_OVAL_URL": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 16,
+          "path": "scripts/oracle_linux_advisory_enrichment.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "DENIED_PHRASES": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 7,
+          "path": "scripts/validate_repo_hygiene.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "DEPLOY_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 40,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 47,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 182,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 437,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 76,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 83,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 88,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 90,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 96,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 65,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 88,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 94,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 98,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 119,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 334,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 353,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "DEPLOY_SSH_PRIVATE_KEY": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 15,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 35,
+          "path": ".github/workflows/apply-security-updates.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 37,
+          "path": ".github/workflows/apply-security-updates.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 73,
+          "path": ".github/workflows/apply-security-updates.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 488,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 66,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 38,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 40,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 79,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 32,
+          "path": ".github/workflows/weekly-security-scan.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 34,
+          "path": ".github/workflows/weekly-security-scan.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 61,
+          "path": ".github/workflows/weekly-security-scan.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 27,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 69,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "DEPLOY_SSH_READY_INTERVAL_SECONDS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 49,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 507,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 67,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 100,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "DEPLOY_SSH_READY_TIMEOUT_SECONDS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 48,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 506,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 66,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 99,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "DEPLOY_SSH_USER": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 39,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 46,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 76,
+          "path": ".github/workflows/apply-security-updates.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 181,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 436,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 491,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 69,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 82,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 64,
+          "path": ".github/workflows/weekly-security-scan.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 95,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 64,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 97,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 320,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "EXTRACT_METADATA_TASKS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 20,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "FAILED_CLEANUP_TASKS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 24,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "FINDING_RESULTS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 16,
+          "path": "scripts/oracle_linux_oscap_results.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "GHCR_CLEANUP_DEPLOYED_CONTROLLER_VERSION": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 107,
+          "path": "scripts/cleanup-ghcr-images.py",
+          "role": "repository"
+        },
+        {
+          "line": 26,
+          "path": "scripts/test_cleanup_ghcr_images.py",
+          "role": "repository"
+        },
+        {
+          "line": 28,
+          "path": "scripts/test_cleanup_ghcr_images.py",
+          "role": "repository"
+        },
+        {
+          "line": 32,
+          "path": "scripts/test_cleanup_ghcr_images.py",
+          "role": "repository"
+        },
+        {
+          "line": 34,
+          "path": "scripts/test_cleanup_ghcr_images.py",
+          "role": "repository"
+        },
+        {
+          "line": 37,
+          "path": "scripts/test_cleanup_ghcr_images.py",
+          "role": "repository"
+        },
+        {
+          "line": 50,
+          "path": "scripts/test_cleanup_ghcr_images.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "GHCR_CLEANUP_DRY_RUN": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 27,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 75,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 29,
+          "path": "scripts/cleanup-ghcr-images.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "GHCR_CLEANUP_MIN_AGE_DAYS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 53,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 25,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 72,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 104,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 334,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 26,
+          "path": "scripts/cleanup-ghcr-images.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "GHCR_CLEANUP_PROTECTED_TAGS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 54,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 26,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 74,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 73,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 105,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 334,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 27,
+          "path": "scripts/cleanup-ghcr-images.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "GHCR_CLEANUP_RELEASE_STATUS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 110,
+          "path": "scripts/cleanup-ghcr-images.py",
+          "role": "repository"
+        },
+        {
+          "line": 38,
+          "path": "scripts/test_cleanup_ghcr_images.py",
+          "role": "repository"
+        },
+        {
+          "line": 46,
+          "path": "scripts/test_cleanup_ghcr_images.py",
+          "role": "repository"
+        },
+        {
+          "line": 52,
+          "path": "scripts/test_cleanup_ghcr_images.py",
+          "role": "repository"
+        },
+        {
+          "line": 54,
+          "path": "scripts/test_cleanup_ghcr_images.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "GHCR_CLEANUP_RETAIN_SEMVER_TAGGED": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 24,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 71,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 103,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 334,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 23,
+          "path": "scripts/cleanup-ghcr-images.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "GHCR_CLEANUP_RETAIN_TAGGED": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 52,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 23,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 24,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 70,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 71,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 102,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 334,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 21,
+          "path": "scripts/cleanup-ghcr-images.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "GHCR_CONTROLLER_IMAGE_REPOSITORY": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 41,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 51,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 12,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 116,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 32,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 219,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 304,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 319,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 344,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 362,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 22,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 72,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 88,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 69,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 101,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 111,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 241,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "GHCR_IMAGE_REPOSITORY": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 88,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 43,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 117,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 121,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 143,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 20,
+          "path": "scripts/cleanup-ghcr-images.py",
+          "role": "repository"
+        },
+        {
+          "line": 132,
+          "path": "scripts/cleanup-ghcr-images.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "GHCR_TOKEN": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 477,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 95,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 457,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        }
+      ]
+    },
+    "GH_TOKEN": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 616,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "MOVE_NOTES": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 15,
+          "path": "scripts/validate_repo_hygiene.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "OCI_API": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 121,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_AUTH_MODE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 78,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 505,
+          "path": ".planning/phases/06-admin-collection-workflow/06-PATTERNS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 60,
+          "path": "controller/src/oci_media.rs",
+          "role": "rust"
+        },
+        {
+          "line": 62,
+          "path": "controller/src/oci_media.rs",
+          "role": "rust"
+        },
+        {
+          "line": 6,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/controller.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 133,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 299,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 26,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 183,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 221,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 35,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 185,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 440,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 53,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 89,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 187,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 442,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 54,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 117,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_AUTONOMOUS_DATABASE_NAME": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 34,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 184,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 439,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 52,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 55,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 88,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_AVAILABILITY_DOMAIN": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 26,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 175,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 430,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 44,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 50,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 80,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_CLI_USER_OCID": {
+      "classification": "sensitive-metadata",
+      "sources": [
+        {
+          "line": 14,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 8,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 78,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 51,
+          "path": ".github/workflows/apply-security-updates.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 161,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 167,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 171,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 416,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 422,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 426,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 478,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 45,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 54,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 42,
+          "path": ".github/workflows/weekly-security-scan.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 27,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 61,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 66,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 25,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 23,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 65,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_COMPARTMENT_OCID": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 12,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 25,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 174,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 429,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 39,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 117,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 43,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 49,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 79,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_CREATE_AUTONOMOUS_DATABASE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 33,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 183,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 438,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 50,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-02-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 51,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 54,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 87,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 115,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_CREATE_MEDIA_BUCKET": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 36,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 188,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 443,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 50,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-02-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 55,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 56,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 90,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 115,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_FINGERPRINT": {
+      "classification": "sensitive-metadata",
+      "sources": [
+        {
+          "line": 15,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 10,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 80,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 53,
+          "path": ".github/workflows/apply-security-updates.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 163,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 168,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 172,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 418,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 423,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 427,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 479,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 47,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 56,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 44,
+          "path": ".github/workflows/weekly-security-scan.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 31,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 143,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 67,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 26,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 25,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 67,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_HOME_REGION": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 11,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 37,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 117,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 165,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 167,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 169,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_MEDIA_BUCKET_NAME": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 57,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 37,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 190,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 445,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 505,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 50,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 140,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 156,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 2410,
+          "path": "controller/tests/admin_workflow.rs",
+          "role": "rust"
+        },
+        {
+          "line": 50,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 148,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 288,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 47,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 156,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 28,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 56,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 135,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 57,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 91,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 299,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 20,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 184,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 223,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 495,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_MEDIA_NAMESPACE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 58,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 38,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 189,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 444,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 504,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 50,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 139,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 155,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 49,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 147,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 287,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 46,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 148,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 155,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 29,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 57,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 134,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 58,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 92,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 299,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 19,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 184,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 222,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 494,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_OBJECT_STORAGE_NAMESPACE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 27,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 32,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 54,
+          "path": ".github/workflows/apply-security-updates.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 189,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 200,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 444,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 455,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 504,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 48,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 57,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 45,
+          "path": ".github/workflows/weekly-security-scan.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 72,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 50,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 57,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 53,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 86,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_PRIVATE_KEY": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 34,
+          "path": ".planning/phases/02-oracle-and-private-media-core/02-03-SUMMARY.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_PRIVATE_KEY_PATH": {
+      "classification": "sensitive-metadata",
+      "sources": [
+        {
+          "line": 16,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 12,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 81,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 164,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 419,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 68,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 27,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 88,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 119,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_PRIVATE_KEY_PEM": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 13,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 66,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 69,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 50,
+          "path": ".github/workflows/apply-security-updates.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 151,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 154,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 393,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 396,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 480,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 44,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 53,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 41,
+          "path": ".github/workflows/weekly-security-scan.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 33,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 143,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 147,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 394,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 26,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 88,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 68,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 119,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_REALM_DOMAIN": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 66,
+          "path": "controller/src/oci_media.rs",
+          "role": "rust"
+        }
+      ]
+    },
+    "OCI_REGION": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 10,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 77,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 165,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 420,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 35,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 117,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 121,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 143,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 165,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 167,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 169,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 73,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 64,
+          "path": "controller/src/oci_media.rs",
+          "role": "rust"
+        },
+        {
+          "line": 23,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 220,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_RUNTIME_IMAGE_OCID": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 27,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 176,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 431,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 45,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 51,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 81,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_RUNTIME_MEMORY_GBS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 30,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 179,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 434,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 48,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 84,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_RUNTIME_OCPUS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 29,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 178,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 433,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 47,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 83,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_RUNTIME_SHAPE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 28,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 177,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 432,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 46,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 82,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_RUNTIME_SSH_PUBLIC_KEYS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 31,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 180,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 435,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 49,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 52,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 85,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_STATE_BUCKET_NAME": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 71,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_STATE_OBJECT_KEY": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 74,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_TENANCY_OCID": {
+      "classification": "sensitive-metadata",
+      "sources": [
+        {
+          "line": 13,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 9,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 79,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 52,
+          "path": ".github/workflows/apply-security-updates.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 162,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 166,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 170,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 417,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 421,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 425,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 481,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 46,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 55,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 43,
+          "path": ".github/workflows/weekly-security-scan.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 29,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 65,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 24,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 24,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 66,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OCI_USER_OCID": {
+      "classification": "sensitive-metadata",
+      "sources": [
+        {
+          "line": 66,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "ORACLE_DB_CONNECT_STRING": {
+      "classification": "sensitive-metadata",
+      "sources": [
+        {
+          "line": 47,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 40,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 67,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-03-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 48,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 123,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 2410,
+          "path": "controller/tests/admin_workflow.rs",
+          "role": "rust"
+        },
+        {
+          "line": 48,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 146,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 230,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 286,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 45,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 27,
+          "path": "controller/tests/logging_contract.rs",
+          "role": "rust"
+        },
+        {
+          "line": 10,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 59,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 94,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 117,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 179,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 180,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 217,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "ORACLE_DB_PASSWORD": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 46,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 17,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 482,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 147,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-06-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 14,
+          "path": ".planning/quick/260820-uqf-address-pr-211-reviewer-documentation-fi/260820-uqf-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 47,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 122,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 47,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 145,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 229,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 285,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 44,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 9,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 29,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 71,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 179,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 216,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "ORACLE_DB_USER": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 45,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 39,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 46,
+          "path": "controller/src/config.rs",
+          "role": "rust"
+        },
+        {
+          "line": 121,
+          "path": "controller/src/routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 46,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 144,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 228,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 284,
+          "path": "controller/tests/live_persistence_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 43,
+          "path": "controller/tests/live_static_publish_smoke.rs",
+          "role": "rust"
+        },
+        {
+          "line": 8,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 58,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 93,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 179,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 181,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 215,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "ORACLE_DB_WALLET_DIR": {
+      "classification": "sensitive-metadata",
+      "sources": [
+        {
+          "line": 50,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 51,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 41,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 23,
+          "path": ".planning/quick/260820-tvc-migrate-the-production-rust-controller-a/260820-tvc-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 8,
+          "path": "controller/src/oracle_connection.rs",
+          "role": "rust"
+        },
+        {
+          "line": 23,
+          "path": "controller/src/oracle_connection.rs",
+          "role": "rust"
+        },
+        {
+          "line": 12,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 31,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 60,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 95,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 117,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 181,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 218,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "ORACLE_DB_WALLET_PASSWORD": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 52,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 18,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 483,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 23,
+          "path": ".planning/quick/260820-tvc-migrate-the-production-rust-controller-a/260820-tvc-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 14,
+          "path": ".planning/quick/260820-uqf-address-pr-211-reviewer-documentation-fi/260820-uqf-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 9,
+          "path": "controller/src/oracle_connection.rs",
+          "role": "rust"
+        },
+        {
+          "line": 208,
+          "path": "controller/tests/caddy_static_routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 211,
+          "path": "controller/tests/caddy_static_routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 214,
+          "path": "controller/tests/caddy_static_routes.rs",
+          "role": "rust"
+        },
+        {
+          "line": 144,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 155,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 14,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 31,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 73,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 117,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 182,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 219,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "ORACLE_DB_WALLET_ZIP_BASE64": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 19,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 484,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 405,
+          "path": "deploy/ansible/roles/autographs_deploy/tasks/main.yml",
+          "role": "deployment"
+        },
+        {
+          "line": 30,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 72,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 117,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "OVAL_XML": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 19,
+          "path": "scripts/test_oracle_linux_oscap_results.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "PACKAGE_COMMENT_RE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 15,
+          "path": "scripts/oracle_linux_oscap_results.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "PATCH_TASKS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 21,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "PHASE_8_OWNER_TERMS": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 16,
+          "path": "scripts/validate_repo_hygiene.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "PORKBUN_API_KEY": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 191,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 446,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        }
+      ]
+    },
+    "PORKBUN_SECRET_KEY": {
+      "classification": "secret-scalar",
+      "sources": [
+        {
+          "line": 192,
+          "path": ".github/workflows/ci.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 447,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        }
+      ]
+    },
+    "POST_REBOOT_RESULT_TASKS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 26,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 43,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "POST_RESULT_STATUS_TEST_PLAYBOOK_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 40,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "POST_RESULT_TASKS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 22,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "README_END": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 19,
+          "path": "scripts/release-version.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "README_START": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 18,
+          "path": "scripts/release-version.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "REBOOT_CLEANUP_TASKS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 23,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "REBOOT_RESULT_TEST_PLAYBOOK_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 49,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "REBOOT_STATE_TEST_PLAYBOOK_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 46,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "REBOOT_WORKFLOW_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 52,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "REPORT_RENDER_TEST_PLAYBOOK_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 27,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "REPORT_TEMPLATE_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 18,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "REQUEST_METADATA_TEST_PLAYBOOK_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 34,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "RESOLVED_VM_PUBLIC_IP": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 88,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 96,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 104,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        }
+      ]
+    },
+    "RESULTS_WITH_EMPTY_DEFINITIONS_XML": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 112,
+          "path": "scripts/test_oracle_linux_oscap_results.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "RESULTS_WITH_EVALUATION_PROBLEMS_XML": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 84,
+          "path": "scripts/test_oracle_linux_oscap_results.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "RESULTS_WITH_MISSING_RESULT_XML": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 99,
+          "path": "scripts/test_oracle_linux_oscap_results.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "RESULTS_XML": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 70,
+          "path": "scripts/test_oracle_linux_oscap_results.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "RUST_LOG": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 19,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 62,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 516,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 524,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "SCRIPT_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 11,
+          "path": "scripts/test_cleanup_ghcr_images.py",
+          "role": "repository"
+        },
+        {
+          "line": 10,
+          "path": "scripts/test_oracle_linux_advisory_enrichment.py",
+          "role": "repository"
+        },
+        {
+          "line": 12,
+          "path": "scripts/test_oracle_linux_oscap_results.py",
+          "role": "repository"
+        },
+        {
+          "line": 11,
+          "path": "scripts/test_release_version.py",
+          "role": "repository"
+        },
+        {
+          "line": 9,
+          "path": "scripts/test_validate_repo_hygiene.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "SEMVER_RE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 17,
+          "path": "scripts/release-version.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "SEMVER_TAG_RE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 15,
+          "path": "scripts/cleanup-ghcr-images.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "SMOKE_IMAGE": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 194,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 234,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 280,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 333,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 365,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 417,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "SMOKE_VERSION": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 193,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 233,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 279,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 332,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 364,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "SMOKE_WALLET_DIR": {
+      "classification": "sensitive-metadata",
+      "sources": [
+        {
+          "line": 235,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 281,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 366,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 418,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "TASKS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 8,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "TERRAFORM_VERSIONS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 9,
+          "path": "scripts/validate-terraform-version-alignment.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "TNS_ADMIN": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 48,
+          "path": ".planning/phases/05-static-runtime-migration-foundation/05-06-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 35,
+          "path": "controller/Dockerfile",
+          "role": "repository"
+        },
+        {
+          "line": 13,
+          "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+          "role": "persistent-env-template"
+        },
+        {
+          "line": 61,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 178,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    },
+    "VALIDATE_REBOOT_STATE_TASKS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 25,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "VALIDATE_REQUEST_TASKS_PATH": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 19,
+          "path": "scripts/test_security_patching_create_issue_tasks.py",
+          "role": "repository"
+        }
+      ]
+    },
+    "VM_PUBLIC_IP": {
+      "classification": "public-config",
+      "sources": [
+        {
+          "line": 36,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 38,
+          "path": ".env.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 45,
+          "path": ".github/.env.github.example",
+          "role": "example-contract"
+        },
+        {
+          "line": 2,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 86,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 98,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 101,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 104,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 107,
+          "path": ".github/actions/resolve-runtime-ip/action.yml",
+          "role": "repository"
+        },
+        {
+          "line": 55,
+          "path": ".github/workflows/apply-security-updates.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 491,
+          "path": ".github/workflows/deploy.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 49,
+          "path": ".github/workflows/image-cleanup.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 58,
+          "path": ".github/workflows/reboot-security-runtime.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 46,
+          "path": ".github/workflows/weekly-security-scan.yml",
+          "role": "github-workflow"
+        },
+        {
+          "line": 11,
+          "path": ".planning/debug/weekly-security-scan-runtime-ip.md",
+          "role": "documentation"
+        },
+        {
+          "line": 17,
+          "path": ".planning/debug/weekly-security-scan-runtime-ip.md",
+          "role": "documentation"
+        },
+        {
+          "line": 18,
+          "path": ".planning/debug/weekly-security-scan-runtime-ip.md",
+          "role": "documentation"
+        },
+        {
+          "line": 23,
+          "path": ".planning/debug/weekly-security-scan-runtime-ip.md",
+          "role": "documentation"
+        },
+        {
+          "line": 24,
+          "path": ".planning/debug/weekly-security-scan-runtime-ip.md",
+          "role": "documentation"
+        },
+        {
+          "line": 25,
+          "path": ".planning/debug/weekly-security-scan-runtime-ip.md",
+          "role": "documentation"
+        },
+        {
+          "line": 41,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 117,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 121,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 143,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-PLAN.md",
+          "role": "documentation"
+        },
+        {
+          "line": 95,
+          "path": ".planning/phases/01-delivery-spine-and-oci-bootstrap/01-04-REVIEW.md",
+          "role": "documentation"
+        },
+        {
+          "line": 424,
+          "path": ".planning/phases/03-public-gallery-mvp/03-PATTERNS.md",
+          "role": "documentation"
+        },
+        {
+          "line": 63,
+          "path": "docs/configuration-contract.md",
+          "role": "documentation"
+        },
+        {
+          "line": 59,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 96,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 113,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 400,
+          "path": "docs/deployment-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 17,
+          "path": "docs/dns-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 39,
+          "path": "docs/dns-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 25,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 45,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 320,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 323,
+          "path": "docs/security-patching.md",
+          "role": "documentation"
+        },
+        {
+          "line": 206,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 346,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        },
+        {
+          "line": 398,
+          "path": "docs/static-runtime-runbook.md",
+          "role": "documentation"
+        }
+      ]
+    }
+  }
+}
