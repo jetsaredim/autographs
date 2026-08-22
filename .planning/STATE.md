@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-08-21T02:30:26Z"
-last_activity: 2026-08-20 -- Prepared PR 211 candidate-controller live gate and addressed reviewer documentation findings
+last_updated: "2026-08-22T22:12:14Z"
+last_activity: 2026-08-22 -- Replaced the prototype Rust parser with native quality gates and measured coverage
 progress:
   total_phases: 10
   completed_phases: 7
@@ -186,6 +186,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-22 | replace-the-ecosystem-cleanup-prototype | Added Clippy, measured LLVM coverage, fixture-tested ast-grep structural rules, and maintained engineering standards while retaining Python only for operational inventory. |
 | 2026-08-22 | make-ecosystem-inventory-boundary-aware | Verified: classified repository configuration by execution boundary, limited VM drift to like-for-like runtime and smoke comparisons, and received a clean independent counter-review. |
 | 2026-08-22 | address-every-blocker-and-warning-from-p | Verified: addressed all seven PR #213 review findings with hardened analyzers, regression fixtures, accurate swap/core boundaries, an executable old-image rollback contract, regenerated evidence, and a clean reviewer-agent confirmation. |
 | 2026-08-20 | address-pr-211-reviewer-documentation-fi | Needs Review: fixed all reviewer documentation warnings and documented a fail-safe pre-merge candidate-controller static-publish gate; VM execution and PR evidence remain required. Implementation commits `7078503`, `393700f`, `e36e544`. |

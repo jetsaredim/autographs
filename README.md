@@ -65,6 +65,7 @@ Operator workstation
 Useful docs:
 
 - [Configuration contract](docs/configuration-contract.md)
+- [Controller engineering standards](docs/controller-engineering-standards.md)
 - [Deployment runbook](docs/deployment-runbook.md)
 - [Temporary production data entry](docs/temporary-production-data-entry.md)
 - [Security review and current security posture](docs/security-review.md)

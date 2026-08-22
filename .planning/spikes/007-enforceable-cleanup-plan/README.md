@@ -16,7 +16,7 @@ The broad ecosystem concerns can be expressed as semantic rules, enforced at
 different levels, and delivered in bounded PRs. Consistency does not require
 making every SQL string, bind style, error, or module look identical.
 
-## Prototype
+## Historical Prototype
 
 `quality_contract.py` exercises deterministic rules against the current
 controller and fixture tests:
@@ -29,10 +29,11 @@ controller and fixture tests:
   values rendered into persistent deploy env templates, while explicitly
   allowing non-secret Vault secret OCIDs.
 
-The prototype is intentionally report-only. It identifies existing debt before
-the cleanup establishes a baseline; it is not wired into CI from `.planning`.
-The production version belongs beside `scripts/validate_repo_hygiene.py` and
-must add persistent-secret-template checks using the configuration inventory.
+The prototype is intentionally report-only and remains reproducible research
+evidence. It is not a permanent CI parser: Cleanup C1 assigns Rust semantics to
+the compiler and Clippy, coverage to `cargo-llvm-cov`, structural source rules
+to ast-grep, committed values to Gitleaks, and runtime secret delivery to
+Ansible/configuration contract tests.
 
 ## How to Run
 
@@ -64,3 +65,7 @@ rewrite. The next implementation is C1, followed by runtime configuration/key
 removal and a live Vault proof. The VM portion of the inventory and the live
 Vault retrieval remain separate partial evidence in Spikes 003 and 004; this
 planning verdict does not claim those production checks have run.
+
+Cleanup C1 supersedes `quality_contract.py` as an enforcement proposal. The
+script and its report are retained only to preserve the spike's investigation
+trail.

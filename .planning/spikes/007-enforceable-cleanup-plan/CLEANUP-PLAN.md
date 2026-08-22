@@ -27,6 +27,12 @@ touched feature and has characterization coverage.
 
 **When:** before or alongside Wave 5. **Risk:** low.
 
+**Implementation contract:** promote the maintained standard to `docs/`; use
+Cargo/Clippy and measured LLVM coverage for Rust semantics, fixture-tested
+ast-grep rules for structural source boundaries, Gitleaks for committed values,
+and Rust/Ansible contract tests for Oracle and runtime secret behavior. The
+Python quality checker remains historical spike evidence and is not a CI gate.
+
 - Promote this style guide to `docs/` and extend the existing repository
   validator.
 - Block new direct production env reads outside typed config, numeric SQL binds

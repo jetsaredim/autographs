@@ -93,6 +93,7 @@ pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
     .as_str()
     {
         "local" => {
+            // ast-grep-ignore: no-distributed-env-read
             let root = env::var("AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT")
                 .unwrap_or_else(|_| "/tmp/autographs-controller-media".to_owned());
             tracing::info!(%root, "configuring local media store");
@@ -109,6 +110,7 @@ pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
 }
 
 fn provider(name: &str) -> String {
+    // ast-grep-ignore: no-distributed-env-read
     env::var(name).unwrap_or_else(|_| "local".to_owned())
 }
 
@@ -167,6 +169,7 @@ fn production_media_store() -> Result<Arc<dyn PrivateMediaStore>, String> {
 
 #[cfg(feature = "production-persistence")]
 fn required_env(name: &str) -> Result<String, String> {
+    // ast-grep-ignore: no-distributed-env-read
     env::var(name)
         .ok()
         .filter(|value| !value.trim().is_empty())

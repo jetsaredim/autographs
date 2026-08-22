@@ -1,0 +1,11 @@
+id: no-distributed-env-read
+language: Rust
+severity: error
+message: Read process environment through controller/src/config.rs and inject typed configuration.
+note: Existing suppressions are C2 typed-configuration debt and must name this rule explicitly.
+rule:
+  any:
+    - pattern: std::env::var($NAME)
+    - pattern: std::env::var_os($NAME)
+    - pattern: env::var($NAME)
+    - pattern: env::var_os($NAME)

@@ -1,0 +1,27 @@
+id: no-distributed-env-read
+valid:
+  - |
+      fn media_root(config: &ControllerConfig) -> &Path {
+          &config.local_media_root
+      }
+  - |
+      fn parse_setting(value: Option<String>) -> String {
+          value.unwrap_or_default()
+      }
+invalid:
+  - |
+      fn read_setting() -> String {
+          std::env::var("AUTOGRAPHS_SETTING").unwrap_or_default()
+      }
+  - |
+      fn read_setting() -> Option<OsString> {
+          std::env::var_os("AUTOGRAPHS_SETTING")
+      }
+  - |
+      fn read_setting() -> String {
+          env::var("AUTOGRAPHS_SETTING").unwrap_or_default()
+      }
+  - |
+      fn read_setting() -> Option<OsString> {
+          env::var_os("AUTOGRAPHS_SETTING")
+      }

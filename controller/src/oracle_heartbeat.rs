@@ -55,6 +55,7 @@ fn heartbeat_ticker(interval: Duration) -> time::Interval {
 }
 
 fn heartbeat_interval_from_env() -> Result<Option<Duration>, String> {
+    // ast-grep-ignore: no-distributed-env-read
     match env::var(HEARTBEAT_INTERVAL_ENV) {
         Ok(value) => parse_heartbeat_interval(Some(value.as_str())),
         Err(env::VarError::NotPresent) => parse_heartbeat_interval(None),

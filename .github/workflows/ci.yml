@@ -72,10 +72,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Scan Rust structural contracts
+        uses: ast-grep/action@cf62e780f0c88301228978d593a7784427a097a6 # v1
+        with:
+          version: 0.45.0
+          config: sgconfig.yml
+          paths: controller/src
+
+      - name: Test Rust structural rules
+        run: |
+          ast-grep test --skip-snapshot-tests
+          ast-grep scan \
+            --error=unused-suppression \
+            --error=no-suppress-all \
+            controller/src
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
+
+      - name: Install Rust coverage tooling
+        uses: taiki-e/install-action@ba47c86ac325773530516bb756137ac718732518 # v2
+        with:
+          tool: cargo-llvm-cov@0.8.7
+          fallback: none
 
       - name: Cache Cargo artifacts
         uses: actions/cache@v6
@@ -91,14 +112,21 @@ jobs:
       - name: Check formatting
         run: cargo fmt --manifest-path controller/Cargo.toml --check
 
-      - name: Run tests
-        run: cargo test --manifest-path controller/Cargo.toml
-
-      - name: Check production persistence adapters
-        run: cargo check --manifest-path controller/Cargo.toml --features production-persistence
+      - name: Run production-feature tests with coverage
+        run: |
+          cargo llvm-cov \
+            --manifest-path controller/Cargo.toml \
+            --features production-persistence \
+            --summary-only \
+            --fail-under-lines 62
 
       - name: Run Clippy
-        run: cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings
+        run: |
+          cargo clippy \
+            --manifest-path controller/Cargo.toml \
+            --all-targets \
+            --features production-persistence \
+            -- -D warnings
 
   image-build:
     name: Build runtime images
