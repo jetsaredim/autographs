@@ -68,6 +68,7 @@ mod live {
         let format_name = "Trading Card";
         let legacy_category = format_name;
         let franchise = format!("Live Smoke Franchise {marker}");
+        let second_franchise = format!("Live Smoke Franchise Updated {marker}");
         let product_line = format!("Live Smoke Product Line {marker}");
         let language = "Japanese";
         let origin = "Custom";
@@ -110,6 +111,27 @@ mod live {
             admin_cookie: admin_cookie.clone(),
             published: false,
         };
+
+        let updated_description = "Temporary live static publish update proof";
+        let update_body = json!({
+            "description": updated_description,
+            "franchises": [franchise, second_franchise],
+            "tags": [tag]
+        })
+        .to_string();
+        let updated: Value = json_request(
+            "PATCH",
+            &format!("{controller}/admin/api/items/{item_id}"),
+            &public_origin,
+            &admin_cookie,
+            Some(&update_body),
+        );
+        assert_eq!(updated["description"], updated_description);
+        assert_eq!(
+            updated["franchises"],
+            json!([franchise.clone(), second_franchise.clone()])
+        );
+        assert_eq!(updated["tags"], json!([tag.clone()]));
 
         let signer_suggestions = json_request(
             "GET",
@@ -269,7 +291,10 @@ mod live {
         assert_eq!(public_item.format, format_name);
         assert_eq!(public_item.origin, origin);
         assert_eq!(public_item.language, language);
-        assert_eq!(public_item.franchises, vec![franchise.clone()]);
+        assert_eq!(
+            public_item.franchises,
+            vec![franchise.clone(), second_franchise.clone()]
+        );
         assert_eq!(
             public_item.product_line.as_deref(),
             Some(product_line.as_str())
@@ -303,6 +328,7 @@ mod live {
         assert!(collection_html.contains("Collection"));
         assert_facet_contains(&facets, FacetId::Signer, &signer_name);
         assert_facet_contains(&facets, FacetId::Franchise, &franchise);
+        assert_facet_contains(&facets, FacetId::Franchise, &second_franchise);
         assert_facet_contains(&facets, FacetId::ProductLine, &product_line);
         assert_facet_contains(&facets, FacetId::Format, format_name);
         assert_facet_contains(&facets, FacetId::Language, language);
