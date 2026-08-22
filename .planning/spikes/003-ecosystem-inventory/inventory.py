@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import grp
+from itertools import combinations
 import json
 import os
 from pathlib import Path
@@ -16,7 +17,7 @@ import subprocess
 from typing import Any, Iterable
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 KEY_PATTERN = re.compile(
     r"\b(?:AUTOGRAPHS|OCI|ORACLE_DB|TF_VAR|DEPLOY|GHCR)_[A-Z0-9_]+\b"
     r"|\b(?:DATABASE_URL|TNS_ADMIN|RUST_LOG|VM_PUBLIC_IP)\b"
@@ -35,11 +36,36 @@ SECRET_TERMS = (
 )
 CONTRACT_ROLES = {
     "canonical-contract",
+    "container-build",
     "deployment-contract",
     "example-contract",
     "github-workflow",
     "persistent-env-template",
     "terraform",
+}
+BOUNDARY_ORDER = (
+    "vm-runtime",
+    "vm-smoke",
+    "build",
+    "deployment",
+    "ci",
+    "maintenance",
+    "infrastructure",
+    "local-test",
+    "documentation-only",
+    "repository-other",
+)
+BOUNDARY_LABELS = {
+    "vm-runtime": "VM Runtime",
+    "vm-smoke": "VM Smoke",
+    "build": "Build",
+    "deployment": "Deployment",
+    "ci": "CI",
+    "maintenance": "Maintenance",
+    "infrastructure": "Infrastructure",
+    "local-test": "Local/Test",
+    "documentation-only": "Documentation Only",
+    "repository-other": "Repository Other",
 }
 SENSITIVE_TERMS = (
     "PASSWORD_HASH",
@@ -51,6 +77,11 @@ SENSITIVE_TERMS = (
     "USER_OCID",
 )
 SKIP_PARTS = {".git", ".terraform", "node_modules", "target"}
+GENERATED_INVENTORY_NAMES = {
+    "autographs-ecosystem-comparison.md",
+    "autographs-repository-inventory.json",
+    "autographs-vm-inventory.json",
+}
 TEXT_SUFFIXES = {
     ".example",
     ".j2",
@@ -97,15 +128,140 @@ def source_role(path: Path) -> str:
         return "deployment"
     if text.startswith("infra/terraform/"):
         return "terraform"
+    if path.name.startswith("Dockerfile"):
+        return "container-build"
     if text.startswith("docs/") or text.startswith(".planning/"):
         return "documentation"
     return "repository"
 
 
+def source_boundaries(path: Path) -> set[str]:
+    """Classify a source by where its configuration is consumed."""
+    text = path.as_posix()
+    if text.endswith(("app.env.j2", "controller.env.j2")):
+        return {"vm-runtime", "deployment"}
+    if text.startswith("controller/src/"):
+        return {"vm-runtime"}
+    if text.startswith("controller/tests/live"):
+        return {"vm-smoke"}
+    if text.startswith("controller/tests/"):
+        return {"local-test"}
+    if text == ".github/.env.github.example":
+        return {"deployment"}
+    if text == ".env.example":
+        return {"local-test"}
+    if text.startswith(".github/workflows/"):
+        name = path.name
+        if name == "deploy.yml":
+            return {"deployment"}
+        if name == "ci.yml":
+            return {"ci"}
+        if name in {
+            "apply-security-updates.yml",
+            "image-cleanup.yml",
+            "reboot-security-runtime.yml",
+            "weekly-security-scan.yml",
+        }:
+            return {"maintenance"}
+        return {"build"}
+    if text.startswith("deploy/"):
+        return {"deployment"}
+    if text.startswith("infra/terraform/"):
+        return {"infrastructure"}
+    if text.startswith("scripts/"):
+        if path.name.startswith("test_"):
+            return {"local-test"}
+        if any(term in path.name for term in ("cleanup", "oscap", "advisory")):
+            return {"maintenance"}
+        return {"ci"}
+    if path.name.startswith("Dockerfile"):
+        return {"build"}
+    if text.startswith("docs/") or text.startswith(".planning/"):
+        return {"documentation"}
+    return {"repository-other"}
+
+
+def normalized_boundaries(boundaries: set[str]) -> list[str]:
+    boundaries.discard("documentation")
+    if len(boundaries) > 1:
+        boundaries.discard("documentation-only")
+        boundaries.discard("repository-other")
+    if not boundaries:
+        boundaries.add("documentation-only")
+    return sorted(boundaries, key=boundary_sort_key)
+
+
+def boundary_sort_key(boundary: str) -> tuple[int, str]:
+    try:
+        return (BOUNDARY_ORDER.index(boundary), boundary)
+    except ValueError:
+        return (len(BOUNDARY_ORDER), boundary)
+
+
+def entry_boundaries(entry: dict[str, Any], name: str | None = None) -> list[str]:
+    if name and name.startswith("AUTOGRAPHS_TEST_"):
+        return ["local-test"]
+    explicit = entry.get("boundaries")
+    if explicit:
+        boundaries = set(explicit)
+        add_semantic_boundaries(name, boundaries)
+        return normalized_boundaries(boundaries)
+    boundaries: set[str] = set()
+    for source in entry.get("sources", []):
+        source_explicit = source.get("boundaries")
+        if source_explicit:
+            boundaries.update(source_explicit)
+        elif source.get("path"):
+            boundaries.update(source_boundaries(Path(source["path"])))
+    add_semantic_boundaries(name, boundaries)
+    return normalized_boundaries(boundaries)
+
+
+def add_semantic_boundaries(name: str | None, boundaries: set[str]) -> None:
+    """Add project contract boundaries that are mediated through workflow names."""
+    if not name:
+        return
+    infrastructure_prefixes = (
+        "AUTOGRAPHS_DNS_",
+        "OCI_AUTONOMOUS_DATABASE_",
+        "OCI_CREATE_",
+        "OCI_RUNTIME_",
+    )
+    infrastructure_names = {
+        "ADB_ADMIN_PASSWORD",
+        "OCI_AVAILABILITY_DOMAIN",
+        "OCI_COMPARTMENT_OCID",
+        "OCI_HOME_REGION",
+        "OCI_OBJECT_STORAGE_NAMESPACE",
+        "VM_PUBLIC_IP",
+    }
+    if name.startswith(infrastructure_prefixes) or name in infrastructure_names:
+        boundaries.add("infrastructure")
+
+
+def keys_by_boundary(
+    variables: dict[str, dict[str, Any]], include: set[str] | None = None
+) -> dict[str, list[str]]:
+    grouped: dict[str, list[str]] = {}
+    for name, entry in variables.items():
+        if include is not None and name not in include:
+            continue
+        for boundary in entry_boundaries(entry, name):
+            grouped.setdefault(boundary, []).append(name)
+    return {
+        boundary: sorted(names)
+        for boundary, names in sorted(
+            grouped.items(), key=lambda item: boundary_sort_key(item[0])
+        )
+    }
+
+
 def is_text_candidate(path: Path) -> bool:
     if any(part in SKIP_PARTS for part in path.parts):
         return False
-    if path.name in {"Dockerfile", "Caddyfile", "AGENTS.md"}:
+    if path.name in GENERATED_INVENTORY_NAMES:
+        return False
+    if path.name.startswith("Dockerfile") or path.name in {"Caddyfile", "AGENTS.md"}:
         return True
     return path.suffix in TEXT_SUFFIXES or path.name.startswith(".env")
 
@@ -188,6 +344,9 @@ def collect_repo(root: Path) -> dict[str, Any]:
                 )
             )
 
+    for name, entry in variables.items():
+        entry["boundaries"] = entry_boundaries(entry, name)
+
     contract_keys = sorted(
         name
         for name, entry in variables.items()
@@ -203,6 +362,8 @@ def collect_repo(root: Path) -> dict[str, Any]:
         "root": root.name,
         "scanned_files": scanned_files,
         "variables": dict(sorted(variables.items())),
+        "keys_by_boundary": keys_by_boundary(variables),
+        "contract_keys_by_boundary": keys_by_boundary(variables, set(contract_keys)),
         "contract_keys": contract_keys,
         "incidental_keys": incidental_keys,
         "findings": findings,
@@ -259,7 +420,17 @@ def env_file_metadata(path: Path, base: Path) -> dict[str, Any]:
         classification: sum(classify_key(key) == classification for key in result["keys"])
         for classification in ("public-config", "sensitive-metadata", "secret-scalar")
     }
+    result["boundary"] = env_file_boundary(result["path"])
     return result
+
+
+def env_file_boundary(path: str) -> str:
+    name = Path(path).name.lower()
+    if name in {"app.env", "controller.env"}:
+        return "vm-runtime"
+    if "smoke" in name or "spike" in name:
+        return "vm-smoke"
+    return "vm-other"
 
 
 def safe_children(root: Path, depth: int = 1) -> list[dict[str, Any]]:
@@ -375,10 +546,52 @@ def render_comparison(repo: dict[str, Any], vm: dict[str, Any]) -> str:
         }
     incidental_keys = set(repo.get("incidental_keys", set(variables) - contract_keys))
     vm_files = vm.get("env_files", [])
+    for entry in vm_files:
+        entry.setdefault("boundary", env_file_boundary(entry.get("path", "")))
     vm_keys = {key for entry in vm_files for key in entry.get("keys", [])}
-    secret_keys = sorted(key for key in vm_keys if classify_key(key) == "secret-scalar")
-    unknown_keys = sorted(vm_keys - contract_keys)
-    absent_keys = sorted(contract_keys - vm_keys)
+    runtime_files = [entry for entry in vm_files if entry["boundary"] == "vm-runtime"]
+    smoke_files = [entry for entry in vm_files if entry["boundary"] == "vm-smoke"]
+    runtime_vm_keys = {key for entry in runtime_files for key in entry.get("keys", [])}
+    smoke_vm_keys = {key for entry in smoke_files for key in entry.get("keys", [])}
+
+    runtime_template_keys = {
+        name
+        for name, entry in variables.items()
+        if any(
+            source.get("role") == "persistent-env-template"
+            for source in entry.get("sources", [])
+        )
+    }
+    runtime_consumer_keys = {
+        name
+        for name, entry in variables.items()
+        if any(
+            source.get("path", "").startswith("controller/src/")
+            for source in entry.get("sources", [])
+        )
+        and not name.startswith("AUTOGRAPHS_TEST_")
+    }
+    runtime_known_keys = runtime_template_keys | runtime_consumer_keys
+
+    visible_boundary_keys = contract_keys | runtime_consumer_keys
+    visible_boundary_keys.update(
+        name
+        for name, entry in variables.items()
+        if "vm-smoke" in entry_boundaries(entry, name)
+    )
+    repo_boundaries = keys_by_boundary(variables, visible_boundary_keys)
+    smoke_repo_keys = set(repo_boundaries.get("vm-smoke", []))
+
+    unknown_runtime_keys = sorted(runtime_vm_keys - runtime_known_keys)
+    missing_template_keys = sorted(runtime_template_keys - runtime_vm_keys)
+    defaulted_runtime_keys = sorted(
+        runtime_consumer_keys - runtime_vm_keys - runtime_template_keys
+    )
+    unknown_smoke_keys = sorted(
+        smoke_vm_keys - smoke_repo_keys - runtime_consumer_keys - runtime_template_keys
+    )
+    absent_smoke_keys = sorted(smoke_repo_keys - smoke_vm_keys)
+
     lines = [
         "# Ecosystem Inventory Comparison",
         "",
@@ -386,38 +599,107 @@ def render_comparison(repo: dict[str, Any], vm: dict[str, Any]) -> str:
         f"- Repository incidental/historical mentions: {len(incidental_keys)}",
         f"- VM env keys: {len(vm_keys)}",
         f"- VM env files: {len(vm_files)}",
-        f"- Persistent secret-like keys: {len(secret_keys)}",
         "",
-        "## Persistent Secret-Like Keys",
+        "## Repository Variables By Boundary",
         "",
     ]
-    lines.extend(f"- `{key}`" for key in secret_keys)
-    if not secret_keys:
-        lines.append("- None")
-    lines.extend(["", "## VM Keys Missing From Repository Contract", ""])
-    lines.extend(f"- `{key}`" for key in unknown_keys)
-    if not unknown_keys:
-        lines.append("- None")
-    lines.extend(["", "## Declared Repository Keys Absent From VM Env Files", ""])
-    lines.extend(f"- `{key}`" for key in absent_keys)
-    if not absent_keys:
-        lines.append("- None")
-    lines.extend(["", "## Incidental or Historical Repository Mentions", ""])
-    lines.extend(f"- `{key}`" for key in sorted(incidental_keys))
-    if not incidental_keys:
-        lines.append("- None")
-    lines.extend(["", "## Env File Overlap", ""])
-    for entry in vm_files:
-        keys = set(entry.get("keys", []))
-        lines.append(f"- `{entry['path']}`: {len(keys)} keys")
+    lines.extend(
+        [
+            "Variables may appear in multiple boundaries when they are handed from one system to another.",
+            "Only the VM Runtime and VM Smoke boundaries participate in VM env comparisons.",
+            "",
+            "| Boundary | Keys |",
+            "|----------|-----:|",
+        ]
+    )
+    for boundary, names in repo_boundaries.items():
+        lines.append(f"| {BOUNDARY_LABELS.get(boundary, boundary)} | {len(names)} |")
+    for boundary, names in repo_boundaries.items():
+        lines.extend(["", f"### {BOUNDARY_LABELS.get(boundary, boundary)}", ""])
+        append_key_list(lines, names)
+
+    lines.extend(["", "## Persistent Secret-Like Keys By VM Boundary", ""])
+    for boundary in ("vm-runtime", "vm-smoke", "vm-other"):
+        matching = [entry for entry in vm_files if entry["boundary"] == boundary]
+        secret_locations: dict[str, list[str]] = {}
+        for entry in matching:
+            for key in entry.get("keys", []):
+                if classify_key(key) == "secret-scalar":
+                    secret_locations.setdefault(key, []).append(entry["path"])
+        lines.extend([f"### {BOUNDARY_LABELS.get(boundary, 'VM Other')}", ""])
+        if secret_locations:
+            for key, paths in sorted(secret_locations.items()):
+                rendered_paths = ", ".join(f"`{path}`" for path in sorted(paths))
+                lines.append(f"- `{key}`: {rendered_paths}")
+        else:
+            lines.append("- None")
+        lines.append("")
+
+    lines.extend(["## VM Runtime Contract Drift", ""])
+    lines.extend(
+        ["### VM Runtime Keys Without a Runtime Template or Controller Consumer", ""]
+    )
+    append_key_list(lines, unknown_runtime_keys)
+    lines.extend(
+        ["", "### Deployed Runtime Template Keys Absent From Runtime Env Files", ""]
+    )
+    append_key_list(lines, missing_template_keys)
     lines.extend(
         [
             "",
-            "Absence is evidence for review, not automatic deletion: some repository keys are local, CI-only, or derived by deployment.",
+            "### Controller Consumers Not Materialized in Runtime Env",
+            "",
+            "These keys are not emitted by the deployed runtime templates. They may intentionally use code defaults or be optional overrides; review them rather than adding them automatically.",
+            "",
+        ]
+    )
+    append_key_list(lines, defaulted_runtime_keys)
+
+    lines.extend(["", "## VM Smoke Contract Review", ""])
+    lines.extend(["### Smoke Env Keys Without a Repository Smoke Consumer", ""])
+    append_key_list(lines, unknown_smoke_keys)
+    lines.extend(
+        [
+            "",
+            "### Repository Smoke Keys Absent From Retained Smoke Env Files",
+            "",
+            "These may be optional gates, command-line injections, or task-specific settings. They are not production-runtime drift.",
+            "",
+        ]
+    )
+    append_key_list(lines, absent_smoke_keys)
+
+    lines.extend(["", "## Actual Env File Key Overlap", ""])
+    overlaps = []
+    for left, right in combinations(vm_files, 2):
+        shared = sorted(set(left.get("keys", [])) & set(right.get("keys", [])))
+        if shared:
+            overlaps.append((left["path"], right["path"], shared))
+    if overlaps:
+        for left, right, shared in overlaps:
+            rendered_keys = ", ".join(f"`{key}`" for key in shared)
+            lines.append(f"- `{left}` and `{right}` ({len(shared)}): {rendered_keys}")
+    else:
+        lines.append("- None")
+
+    lines.extend(["", "## Incidental or Historical Repository Mentions", ""])
+    append_key_list(lines, sorted(incidental_keys))
+    lines.extend(
+        [
+            "",
+            "Runtime drift sections compare only like-for-like boundaries. External-boundary and defaulted variables remain evidence for review, not instructions to add them to VM env files.",
             "",
         ]
     )
     return "\n".join(lines)
+
+
+def append_key_list(lines: list[str], keys: Iterable[str]) -> None:
+    rendered = list(keys)
+    if rendered:
+        lines.extend(f"- `{key}`" for key in rendered)
+    else:
+        lines.append("- None")
 
 
 def write_private_text(path: Path, content: str) -> None:
