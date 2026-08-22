@@ -1,0 +1,69 @@
+{
+  "by_rule": {
+    "distributed-env-read": 4,
+    "persistent-secret-env-sink": 5
+  },
+  "finding_count": 9,
+  "findings": [
+    {
+      "count": 3,
+      "level": "block",
+      "path": "controller/src/oci_media.rs",
+      "rule": "distributed-env-read"
+    },
+    {
+      "count": 1,
+      "level": "block",
+      "path": "controller/src/oracle_connection.rs",
+      "rule": "distributed-env-read"
+    },
+    {
+      "count": 1,
+      "level": "block",
+      "path": "controller/src/oracle_heartbeat.rs",
+      "rule": "distributed-env-read"
+    },
+    {
+      "count": 3,
+      "level": "block",
+      "path": "controller/src/routes.rs",
+      "rule": "distributed-env-read"
+    },
+    {
+      "level": "block",
+      "line": 9,
+      "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+      "rule": "persistent-secret-env-sink",
+      "variable": "ORACLE_DB_PASSWORD"
+    },
+    {
+      "level": "block",
+      "line": 14,
+      "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+      "rule": "persistent-secret-env-sink",
+      "variable": "ORACLE_DB_WALLET_PASSWORD"
+    },
+    {
+      "level": "block",
+      "line": 15,
+      "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+      "rule": "persistent-secret-env-sink",
+      "variable": "AUTOGRAPHS_OPERATOR_API_TOKEN"
+    },
+    {
+      "level": "block",
+      "line": 20,
+      "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+      "rule": "persistent-secret-env-sink",
+      "variable": "AUTOGRAPHS_ADMIN_PASSWORD"
+    },
+    {
+      "level": "block",
+      "line": 21,
+      "path": "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+      "rule": "persistent-secret-env-sink",
+      "variable": "AUTOGRAPHS_ADMIN_PASSWORD_HASH"
+    }
+  ],
+  "schema_version": 1
+}

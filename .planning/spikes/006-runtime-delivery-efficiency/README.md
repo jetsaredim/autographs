@@ -83,4 +83,3 @@ local build caches need observable cleanup, while runtime optimizations should
 wait for Wave 7 measurements. Broad code cleanup should prioritize secret and
 configuration boundaries, module ownership, and error contracts rather than
 speculative pooling or async rewrites.
-
