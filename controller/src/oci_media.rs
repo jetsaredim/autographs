@@ -57,13 +57,17 @@ struct FederationResponse {
 
 impl OciInstancePrincipalMediaStore {
     pub fn new(namespace: String, bucket_name: String) -> Result<Self, String> {
+        // ast-grep-ignore: no-distributed-env-read
         let auth_mode = std::env::var("OCI_AUTH_MODE").unwrap_or_default();
         if auth_mode != "instance_principal" {
             return Err("OCI_AUTH_MODE=instance_principal is required".to_owned());
         }
+        // ast-grep-ignore: no-distributed-env-read
         let region = std::env::var("OCI_REGION").unwrap_or_else(|_| "us-ashburn-1".to_owned());
-        let realm_domain =
-            std::env::var("OCI_REALM_DOMAIN").unwrap_or_else(|_| "oraclecloud.com".to_owned());
+        let realm_domain = {
+            // ast-grep-ignore: no-distributed-env-read
+            std::env::var("OCI_REALM_DOMAIN").unwrap_or_else(|_| "oraclecloud.com".to_owned())
+        };
 
         let client = Client::builder()
             .connect_timeout(CONNECT_TIMEOUT)

@@ -1,3 +1,5 @@
+// ast-grep-ignore: no-distributed-env-read
+
 use std::{env, net::SocketAddr, path::PathBuf};
 
 use crate::contracts::PublishGeneratorMetadata;

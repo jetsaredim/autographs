@@ -1,8 +1,9 @@
 # Controller Ecosystem Style Guide
 
-This guide records the proposed enforceable conventions from Spikes 003-006.
-It is a design artifact until the cleanup plan promotes each blocking rule into
-the repository validator and CI.
+This is the historical design artifact produced by Spikes 003-006. Cleanup C1
+promoted the maintained standard to
+`docs/controller-engineering-standards.md`; update that document and its native
+tooling rather than extending the prototype rules below.
 
 ## Configuration Ownership
 

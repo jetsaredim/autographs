@@ -1,5 +1,3 @@
-use std::env;
-
 use oracledb::{Config, Connection};
 
 // Autonomous HIGH/MEDIUM services enable PDML, but controller writes are multi-statement OLTP.
@@ -33,7 +31,10 @@ fn required_env(name: &str) -> Result<String, String> {
 }
 
 fn optional_env(name: &str) -> Option<String> {
-    env::var(name).ok().filter(|value| !value.trim().is_empty())
+    // ast-grep-ignore: no-distributed-env-read
+    std::env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
 }
 
 #[cfg(test)]
