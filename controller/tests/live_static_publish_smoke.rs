@@ -111,6 +111,22 @@ mod live {
             published: false,
         };
 
+        let signer_suggestions = json_request(
+            "GET",
+            &format!("{controller}/admin/api/signers?query={marker}"),
+            &public_origin,
+            &admin_cookie,
+            None,
+        );
+        assert!(
+            signer_suggestions["suggestions"]
+                .as_array()
+                .expect("signer suggestions array")
+                .iter()
+                .any(|suggestion| suggestion["profile"]["displayName"] == signer_name),
+            "live static smoke signer missing from suggestions"
+        );
+
         let image_body = png_fixture();
         let mut upload = NamedTempFile::new().expect("create temporary live smoke image");
         std::io::Write::write_all(&mut upload, &image_body).expect("write live smoke image");
