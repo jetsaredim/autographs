@@ -1224,18 +1224,22 @@ fn load_signer_suggestion_profiles(
     let prefix_query = format!("{normalized_query}%");
     let contains_query = format!("%{normalized_query}%");
     let mut rows = connection
-        .query(
+        .query_named(
             "select
                 id, display_name, normalized_name, default_role, wikipedia_url, imdb_url,
                 cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
                 cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
             from autograph_signers
-            where normalized_name = :1
-               or normalized_name like :2
-               or normalized_name like :3
-            order by case when normalized_name = :1 then 0 else 1 end, display_name, id
+            where normalized_name = :exact_query
+               or normalized_name like :prefix_query
+               or normalized_name like :contains_query
+            order by case when normalized_name = :exact_query then 0 else 1 end, display_name, id
             fetch first 10 rows only",
-            &[&normalized_query, &prefix_query, &contains_query],
+            &[
+                ("exact_query", &normalized_query),
+                ("prefix_query", &prefix_query),
+                ("contains_query", &contains_query),
+            ],
         )
         .map_err(|error| format!("read Oracle signer suggestion profiles: {error}"))?;
     let mut profiles = Vec::new();
@@ -1950,18 +1954,18 @@ fn sync_signer_credits(
 
     for row in &desired_rows {
         let statement = connection
-            .execute(
+            .execute_named(
                 "update autograph_item_signers set
-                    sort_order = :3,
-                    item_role = :4,
-                    item_context = :5
-                where item_id = :1 and signer_id = :2",
+                    sort_order = :sort_order,
+                    item_role = :item_role,
+                    item_context = :item_context
+                where item_id = :item_id and signer_id = :signer_id",
                 &[
-                    &id_text,
-                    &row.signer_id,
-                    &row.sort_order,
-                    &row.item_role,
-                    &row.item_context,
+                    ("item_id", &id_text),
+                    ("signer_id", &row.signer_id),
+                    ("sort_order", &row.sort_order),
+                    ("item_role", &row.item_role),
+                    ("item_context", &row.item_context),
                 ],
             )
             .map_err(|error| format!("update Oracle catalog signer credit: {error}"))?;
@@ -2035,16 +2039,19 @@ fn upsert_signer_profile(
     }
     let requested_id = credit.signer.id.to_string();
     let mut rows = connection
-        .query(
+        .query_named(
             "select
                 id, display_name, normalized_name, default_role, wikipedia_url, imdb_url,
                 cast(round((cast(created_at as date) - date '1970-01-01') * 86400) as number(19)),
                 cast(round((cast(updated_at as date) - date '1970-01-01') * 86400) as number(19))
             from autograph_signers
-            where id = :1 or normalized_name = :2
-            order by case when id = :1 then 0 else 1 end
+            where id = :requested_id or normalized_name = :normalized_name
+            order by case when id = :requested_id then 0 else 1 end
             fetch first 1 row only",
-            &[&requested_id, &normalized_name],
+            &[
+                ("requested_id", &requested_id),
+                ("normalized_name", &normalized_name),
+            ],
         )
         .map_err(|error| format!("read Oracle signer profile: {error}"))?;
     if let Some(row) = rows.next() {
