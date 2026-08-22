@@ -3,7 +3,7 @@ spike: 003
 name: ecosystem-inventory
 type: standard
 validates: "Given the repository and production VM, when a bounded redacted inventory runs, then configuration drift, persistent secrets, stale runtime artifacts, and cleanup candidates are visible without collecting secret values."
-verdict: PARTIAL
+verdict: VALIDATED
 related: [001, 002]
 tags: [inventory, configuration, secrets, podman, systemd, hygiene]
 ---
@@ -16,9 +16,9 @@ Given the repository and production VM, when a bounded redacted inventory runs,
 then configuration drift, persistent secrets, stale runtime artifacts, and
 cleanup candidates are visible without collecting secret values.
 
-The repository half is validated. The VM half remains pending until the
-read-only collector is copied to the production host and its output is returned
-for comparison.
+The repository and VM collectors have both run successfully. Production
+metadata remains in local redacted artifacts rather than committed evidence;
+the checked-in repository inventory contains no VM data.
 
 ## Research
 
@@ -76,12 +76,16 @@ python3 .planning/spikes/003-ecosystem-inventory/inventory.py compare \
 
 ## What to Expect
 
-- Repository variable names, classifications, and source locations.
+- Repository variable names, classifications, source locations, and execution
+  boundaries: VM runtime, VM smoke, build, deployment, CI, maintenance,
+  infrastructure, local/test, or documentation-only.
 - VM env-file paths, permissions, ownership, and key names without values.
 - Bounded wallet, secret-directory, quadlet, static-release, and temporary-file
   metadata.
 - Podman container/image/volume/network/secret names and systemd unit names.
 - Findings for persistent secret-like env keys and overly broad permissions.
+- Like-for-like runtime-template drift, controller variables using code
+  defaults, smoke-only review, and actual pairwise env-key intersections.
 
 ## Observability
 
@@ -116,27 +120,37 @@ collector uses fixed listing formats rather than general inspect output.
    still copies `OCI_PRIVATE_KEY_PEM` into the controller-mounted secrets
    directory. The private key is needed by GitHub/Terraform deployment, but the
    deployed controller has no demonstrated runtime need for it.
+8. The first comparison flattened every authoritative repository key into a VM
+   expectation. Schema 2 derives multi-boundary classifications from consumers
+   and handoff paths, compares only runtime/smoke keys to corresponding VM env
+   files, and labels controller-consumed but unset values as possible defaults
+   rather than drift.
+9. Root-level generated comparison output could feed its variable list back
+   into a later repository scan. Known inventory artifact names are now skipped,
+   and test-prefixed settings embedded in Rust source are classified local/test.
 
 ## Results
 
-**Verdict: PARTIAL.** The redaction, contract-boundary, and private-output
-contracts are validated by six tests. Production-VM coverage remains a
-human-run checkpoint.
+**Verdict: VALIDATED.** The redaction, boundary classification, schema-1
+compatibility, private-output, and comparison contracts are validated by eleven
+tests. The production collector completed without values, and its schema-1 VM
+output renders through the schema-2 boundary-aware comparison.
 
 Repository evidence:
 
-- 404 relevant text files scanned.
+- 409 relevant text files scanned.
 - 164 distinct configuration names found.
-- 80 names declared by authoritative contract sources and 84 incidental or
+- 81 names declared by authoritative contract sources and 83 incidental or
   historical mentions retained separately for review.
 - 13 names classified as secret scalars.
 - Five secret-like values are rendered into the persistent production env
   template: Oracle DB password, Oracle wallet password, admin password, admin
   password hash, and the legacy operator token.
-- 20 Rust-only configuration references lack a matching example/deploy/workflow
-  contract. Most are live-smoke, repair, measurement, or test flags; the next
-  spike must distinguish legitimate test-only settings from undocumented
-  runtime configuration rather than treating absence as automatic deletion.
+- Runtime-template comparison found no missing or unknown production VM keys.
+  `OCI_REALM_DOMAIN` is the only controller-consumed setting not materialized by
+  deploy and intentionally uses the code default `oraclecloud.com`.
+- Build, deployment, CI, maintenance, infrastructure, local/test, and smoke
+  variables are now listed without being treated as production-runtime drift.
 - Runtime OCI API-key material appears redundant with instance-principal media
   authentication and should be treated as a high-priority removal candidate.
 

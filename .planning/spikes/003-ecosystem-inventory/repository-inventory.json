@@ -26,6 +26,7 @@
     "AUTOGRAPHS_PUBLIC_ORIGIN",
     "AUTOGRAPHS_PUBLISH_MODE",
     "AUTOGRAPHS_REPO_VERSION",
+    "AUTOGRAPHS_SMOKE_IMAGE_VERSION",
     "AUTOGRAPHS_SOURCE_REVISION",
     "AUTOGRAPHS_STATIC_CURRENT_LINK",
     "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT",
@@ -81,6 +82,250 @@
     "TNS_ADMIN",
     "VM_PUBLIC_IP"
   ],
+  "contract_keys_by_boundary": {
+    "build": [
+      "AUTOGRAPHS_SMOKE_IMAGE_VERSION",
+      "TNS_ADMIN"
+    ],
+    "ci": [
+      "ADB_ADMIN_PASSWORD",
+      "ANSIBLE_CONFIG",
+      "AUTOGRAPHS_DNS_DOMAIN",
+      "AUTOGRAPHS_DNS_RECORD_ID",
+      "AUTOGRAPHS_DNS_SUBDOMAIN",
+      "AUTOGRAPHS_DNS_TTL",
+      "DEPLOY_PATH",
+      "DEPLOY_SSH_USER",
+      "GHCR_CONTROLLER_IMAGE_REPOSITORY",
+      "OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME",
+      "OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED",
+      "OCI_AUTONOMOUS_DATABASE_NAME",
+      "OCI_AVAILABILITY_DOMAIN",
+      "OCI_CLI_USER_OCID",
+      "OCI_COMPARTMENT_OCID",
+      "OCI_CREATE_AUTONOMOUS_DATABASE",
+      "OCI_CREATE_MEDIA_BUCKET",
+      "OCI_FINGERPRINT",
+      "OCI_MEDIA_BUCKET_NAME",
+      "OCI_MEDIA_NAMESPACE",
+      "OCI_OBJECT_STORAGE_NAMESPACE",
+      "OCI_PRIVATE_KEY_PATH",
+      "OCI_PRIVATE_KEY_PEM",
+      "OCI_REGION",
+      "OCI_RUNTIME_IMAGE_OCID",
+      "OCI_RUNTIME_MEMORY_GBS",
+      "OCI_RUNTIME_OCPUS",
+      "OCI_RUNTIME_SHAPE",
+      "OCI_RUNTIME_SSH_PUBLIC_KEYS",
+      "OCI_TENANCY_OCID",
+      "PORKBUN_API_KEY",
+      "PORKBUN_SECRET_KEY"
+    ],
+    "deployment": [
+      "ADB_ADMIN_PASSWORD",
+      "AUTOGRAPHS_ADMIN_PASSWORD",
+      "AUTOGRAPHS_ADMIN_PASSWORD_HASH",
+      "AUTOGRAPHS_ADMIN_SECURE_COOKIES",
+      "AUTOGRAPHS_CONTROLLER_BIND_ADDR",
+      "AUTOGRAPHS_CONTROLLER_DB_PROVIDER",
+      "AUTOGRAPHS_CONTROLLER_IMAGE",
+      "AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT",
+      "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER",
+      "AUTOGRAPHS_CONTROLLER_VERSION",
+      "AUTOGRAPHS_DNS_DOMAIN",
+      "AUTOGRAPHS_DNS_RECORD_ID",
+      "AUTOGRAPHS_DNS_SUBDOMAIN",
+      "AUTOGRAPHS_DNS_TTL",
+      "AUTOGRAPHS_DOMAIN",
+      "AUTOGRAPHS_HTTPS_PORT",
+      "AUTOGRAPHS_HTTP_PORT",
+      "AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT",
+      "AUTOGRAPHS_OPERATOR_API_TOKEN",
+      "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS",
+      "AUTOGRAPHS_PUBLIC_ORIGIN",
+      "AUTOGRAPHS_REPO_VERSION",
+      "AUTOGRAPHS_SOURCE_REVISION",
+      "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_RELEASE_ROOT",
+      "DEPLOY_PATH",
+      "DEPLOY_SSH_PRIVATE_KEY",
+      "DEPLOY_SSH_READY_INTERVAL_SECONDS",
+      "DEPLOY_SSH_READY_TIMEOUT_SECONDS",
+      "DEPLOY_SSH_USER",
+      "GHCR_CLEANUP_MIN_AGE_DAYS",
+      "GHCR_CLEANUP_PROTECTED_TAGS",
+      "GHCR_CLEANUP_RETAIN_TAGGED",
+      "GHCR_CONTROLLER_IMAGE_REPOSITORY",
+      "GHCR_TOKEN",
+      "OCI_AUTH_MODE",
+      "OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME",
+      "OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED",
+      "OCI_AUTONOMOUS_DATABASE_NAME",
+      "OCI_AVAILABILITY_DOMAIN",
+      "OCI_CLI_USER_OCID",
+      "OCI_COMPARTMENT_OCID",
+      "OCI_CREATE_AUTONOMOUS_DATABASE",
+      "OCI_CREATE_MEDIA_BUCKET",
+      "OCI_FINGERPRINT",
+      "OCI_MEDIA_BUCKET_NAME",
+      "OCI_MEDIA_NAMESPACE",
+      "OCI_OBJECT_STORAGE_NAMESPACE",
+      "OCI_PRIVATE_KEY_PATH",
+      "OCI_PRIVATE_KEY_PEM",
+      "OCI_REGION",
+      "OCI_RUNTIME_IMAGE_OCID",
+      "OCI_RUNTIME_MEMORY_GBS",
+      "OCI_RUNTIME_OCPUS",
+      "OCI_RUNTIME_SHAPE",
+      "OCI_RUNTIME_SSH_PUBLIC_KEYS",
+      "OCI_TENANCY_OCID",
+      "ORACLE_DB_CONNECT_STRING",
+      "ORACLE_DB_PASSWORD",
+      "ORACLE_DB_USER",
+      "ORACLE_DB_WALLET_DIR",
+      "ORACLE_DB_WALLET_PASSWORD",
+      "ORACLE_DB_WALLET_ZIP_BASE64",
+      "PORKBUN_API_KEY",
+      "PORKBUN_SECRET_KEY",
+      "RUST_LOG",
+      "TNS_ADMIN",
+      "VM_PUBLIC_IP"
+    ],
+    "infrastructure": [
+      "ADB_ADMIN_PASSWORD",
+      "AUTOGRAPHS_DNS_DOMAIN",
+      "AUTOGRAPHS_DNS_RECORD_ID",
+      "AUTOGRAPHS_DNS_SUBDOMAIN",
+      "AUTOGRAPHS_DNS_TTL",
+      "OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME",
+      "OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED",
+      "OCI_AUTONOMOUS_DATABASE_NAME",
+      "OCI_AVAILABILITY_DOMAIN",
+      "OCI_COMPARTMENT_OCID",
+      "OCI_CREATE_AUTONOMOUS_DATABASE",
+      "OCI_CREATE_MEDIA_BUCKET",
+      "OCI_HOME_REGION",
+      "OCI_OBJECT_STORAGE_NAMESPACE",
+      "OCI_RUNTIME_IMAGE_OCID",
+      "OCI_RUNTIME_MEMORY_GBS",
+      "OCI_RUNTIME_OCPUS",
+      "OCI_RUNTIME_SHAPE",
+      "OCI_RUNTIME_SSH_PUBLIC_KEYS",
+      "VM_PUBLIC_IP"
+    ],
+    "local-test": [
+      "AUTOGRAPHS_ADMIN_PASSWORD",
+      "AUTOGRAPHS_ADMIN_PASSWORD_HASH",
+      "AUTOGRAPHS_ADMIN_SECURE_COOKIES",
+      "AUTOGRAPHS_CONTROLLER_BIND_ADDR",
+      "AUTOGRAPHS_CONTROLLER_DB_PROVIDER",
+      "AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT",
+      "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER",
+      "AUTOGRAPHS_HTTP_PORT",
+      "AUTOGRAPHS_OPERATOR_API_TOKEN",
+      "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS",
+      "AUTOGRAPHS_PUBLIC_ORIGIN",
+      "AUTOGRAPHS_PUBLISH_MODE",
+      "AUTOGRAPHS_STATIC_CURRENT_LINK",
+      "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_RELEASE_ROOT",
+      "DATABASE_URL",
+      "DEPLOY_PATH",
+      "DEPLOY_SSH_USER",
+      "GHCR_CONTROLLER_IMAGE_REPOSITORY",
+      "OCI_AUTH_MODE",
+      "OCI_CLI_USER_OCID",
+      "OCI_COMPARTMENT_OCID",
+      "OCI_FINGERPRINT",
+      "OCI_HOME_REGION",
+      "OCI_MEDIA_BUCKET_NAME",
+      "OCI_MEDIA_NAMESPACE",
+      "OCI_OBJECT_STORAGE_NAMESPACE",
+      "OCI_PRIVATE_KEY_PATH",
+      "OCI_REGION",
+      "OCI_TENANCY_OCID",
+      "ORACLE_DB_CONNECT_STRING",
+      "ORACLE_DB_PASSWORD",
+      "ORACLE_DB_USER",
+      "ORACLE_DB_WALLET_DIR",
+      "ORACLE_DB_WALLET_PASSWORD",
+      "VM_PUBLIC_IP"
+    ],
+    "maintenance": [
+      "AUTOGRAPHS_DOMAIN",
+      "AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT",
+      "DEPLOY_PATH",
+      "DEPLOY_SSH_PRIVATE_KEY",
+      "DEPLOY_SSH_USER",
+      "GHCR_CLEANUP_DRY_RUN",
+      "GHCR_CLEANUP_MIN_AGE_DAYS",
+      "GHCR_CLEANUP_PROTECTED_TAGS",
+      "GHCR_CLEANUP_RETAIN_SEMVER_TAGGED",
+      "GHCR_CLEANUP_RETAIN_TAGGED",
+      "GHCR_CONTROLLER_IMAGE_REPOSITORY",
+      "GHCR_IMAGE_REPOSITORY",
+      "OCI_CLI_USER_OCID",
+      "OCI_FINGERPRINT",
+      "OCI_OBJECT_STORAGE_NAMESPACE",
+      "OCI_PRIVATE_KEY_PEM",
+      "OCI_TENANCY_OCID",
+      "VM_PUBLIC_IP"
+    ],
+    "vm-runtime": [
+      "AUTOGRAPHS_ADMIN_PASSWORD",
+      "AUTOGRAPHS_ADMIN_PASSWORD_HASH",
+      "AUTOGRAPHS_ADMIN_SECURE_COOKIES",
+      "AUTOGRAPHS_CONTROLLER_BIND_ADDR",
+      "AUTOGRAPHS_CONTROLLER_DB_PROVIDER",
+      "AUTOGRAPHS_CONTROLLER_IMAGE",
+      "AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT",
+      "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER",
+      "AUTOGRAPHS_CONTROLLER_VERSION",
+      "AUTOGRAPHS_DOMAIN",
+      "AUTOGRAPHS_HTTPS_PORT",
+      "AUTOGRAPHS_HTTP_PORT",
+      "AUTOGRAPHS_OPERATOR_API_TOKEN",
+      "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS",
+      "AUTOGRAPHS_PUBLIC_ORIGIN",
+      "AUTOGRAPHS_REPO_VERSION",
+      "AUTOGRAPHS_SOURCE_REVISION",
+      "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_RELEASE_ROOT",
+      "OCI_AUTH_MODE",
+      "OCI_CLI_USER_OCID",
+      "OCI_FINGERPRINT",
+      "OCI_MEDIA_BUCKET_NAME",
+      "OCI_MEDIA_NAMESPACE",
+      "OCI_PRIVATE_KEY_PATH",
+      "OCI_REGION",
+      "OCI_TENANCY_OCID",
+      "ORACLE_DB_CONNECT_STRING",
+      "ORACLE_DB_PASSWORD",
+      "ORACLE_DB_USER",
+      "ORACLE_DB_WALLET_DIR",
+      "ORACLE_DB_WALLET_PASSWORD",
+      "RUST_LOG",
+      "TNS_ADMIN"
+    ],
+    "vm-smoke": [
+      "AUTOGRAPHS_ADMIN_PASSWORD",
+      "AUTOGRAPHS_CONTROLLER_BASE_URL",
+      "AUTOGRAPHS_DOMAIN",
+      "AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE",
+      "AUTOGRAPHS_PUBLIC_ORIGIN",
+      "AUTOGRAPHS_SMOKE_IMAGE_VERSION",
+      "AUTOGRAPHS_STATIC_PREVIEW_BASE_URL",
+      "AUTOGRAPHS_STATIC_RELEASE_ROOT",
+      "OCI_MEDIA_BUCKET_NAME",
+      "OCI_MEDIA_NAMESPACE",
+      "ORACLE_DB_CONNECT_STRING",
+      "ORACLE_DB_PASSWORD",
+      "ORACLE_DB_USER"
+    ]
+  },
   "findings": [
     {
       "evidence": "A production env template materializes this secret on persistent storage.",
@@ -258,7 +503,7 @@
       "subject": "ORACLE_DB_WALLET_PASSWORD"
     }
   ],
-  "generated_at": "2026-08-22T16:12:12.748935+00:00",
+  "generated_at": "2026-08-22T17:59:45.223757+00:00",
   "incidental_keys": [
     "ACTION_PATH",
     "ADVISORY_RE",
@@ -282,7 +527,6 @@
     "AUTOGRAPHS_PRINT_DERIVATIVE_MEASUREMENT",
     "AUTOGRAPHS_PUBLIC_HOST",
     "AUTOGRAPHS_SMOKE_BASE_URL",
-    "AUTOGRAPHS_SMOKE_IMAGE_VERSION",
     "AUTOGRAPHS_TEST_INVALID_RETAIN_COUNT",
     "AUTOGRAPHS_TEST_MISSING_RETAIN_COUNT",
     "AUTOGRAPHS_TEST_VALID_RETAIN_COUNT",
@@ -345,13 +589,350 @@
     "VALIDATE_REBOOT_STATE_TASKS_PATH",
     "VALIDATE_REQUEST_TASKS_PATH"
   ],
+  "keys_by_boundary": {
+    "build": [
+      "AUTOGRAPHS_SMOKE_IMAGE_VERSION",
+      "TNS_ADMIN"
+    ],
+    "ci": [
+      "ACTION_PATH",
+      "ADB_ADMIN_PASSWORD",
+      "ANSIBLE_CONFIG",
+      "API_VERSION",
+      "AUTOGRAPHS_DNS_DOMAIN",
+      "AUTOGRAPHS_DNS_RECORD_ID",
+      "AUTOGRAPHS_DNS_SUBDOMAIN",
+      "AUTOGRAPHS_DNS_TTL",
+      "DENIED_PHRASES",
+      "DEPLOY_PATH",
+      "DEPLOY_SSH_USER",
+      "GHCR_CONTROLLER_IMAGE_REPOSITORY",
+      "MOVE_NOTES",
+      "OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME",
+      "OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED",
+      "OCI_AUTONOMOUS_DATABASE_NAME",
+      "OCI_AVAILABILITY_DOMAIN",
+      "OCI_CLI_USER_OCID",
+      "OCI_COMPARTMENT_OCID",
+      "OCI_CREATE_AUTONOMOUS_DATABASE",
+      "OCI_CREATE_MEDIA_BUCKET",
+      "OCI_FINGERPRINT",
+      "OCI_MEDIA_BUCKET_NAME",
+      "OCI_MEDIA_NAMESPACE",
+      "OCI_OBJECT_STORAGE_NAMESPACE",
+      "OCI_PRIVATE_KEY_PATH",
+      "OCI_PRIVATE_KEY_PEM",
+      "OCI_REGION",
+      "OCI_RUNTIME_IMAGE_OCID",
+      "OCI_RUNTIME_MEMORY_GBS",
+      "OCI_RUNTIME_OCPUS",
+      "OCI_RUNTIME_SHAPE",
+      "OCI_RUNTIME_SSH_PUBLIC_KEYS",
+      "OCI_TENANCY_OCID",
+      "PHASE_8_OWNER_TERMS",
+      "PORKBUN_API_KEY",
+      "PORKBUN_SECRET_KEY",
+      "README_END",
+      "README_START",
+      "SEMVER_RE",
+      "TERRAFORM_VERSIONS_PATH"
+    ],
+    "deployment": [
+      "ADB_ADMIN_PASSWORD",
+      "AUTOGRAPHS_ADMIN_PASSWORD",
+      "AUTOGRAPHS_ADMIN_PASSWORD_HASH",
+      "AUTOGRAPHS_ADMIN_SECURE_COOKIES",
+      "AUTOGRAPHS_CONTROLLER_BIND_ADDR",
+      "AUTOGRAPHS_CONTROLLER_DB_PROVIDER",
+      "AUTOGRAPHS_CONTROLLER_IMAGE",
+      "AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT",
+      "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER",
+      "AUTOGRAPHS_CONTROLLER_VERSION",
+      "AUTOGRAPHS_DNS_DOMAIN",
+      "AUTOGRAPHS_DNS_RECORD_ID",
+      "AUTOGRAPHS_DNS_SUBDOMAIN",
+      "AUTOGRAPHS_DNS_TTL",
+      "AUTOGRAPHS_DOMAIN",
+      "AUTOGRAPHS_HTTPS_PORT",
+      "AUTOGRAPHS_HTTP_PORT",
+      "AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT",
+      "AUTOGRAPHS_OPERATOR_API_TOKEN",
+      "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS",
+      "AUTOGRAPHS_PUBLIC_ORIGIN",
+      "AUTOGRAPHS_REPO_VERSION",
+      "AUTOGRAPHS_SOURCE_REVISION",
+      "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_RELEASE_ROOT",
+      "DEPLOY_PATH",
+      "DEPLOY_SSH_PRIVATE_KEY",
+      "DEPLOY_SSH_READY_INTERVAL_SECONDS",
+      "DEPLOY_SSH_READY_TIMEOUT_SECONDS",
+      "DEPLOY_SSH_USER",
+      "GHCR_CLEANUP_MIN_AGE_DAYS",
+      "GHCR_CLEANUP_PROTECTED_TAGS",
+      "GHCR_CLEANUP_RETAIN_TAGGED",
+      "GHCR_CONTROLLER_IMAGE_REPOSITORY",
+      "GHCR_TOKEN",
+      "OCI_AUTH_MODE",
+      "OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME",
+      "OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED",
+      "OCI_AUTONOMOUS_DATABASE_NAME",
+      "OCI_AVAILABILITY_DOMAIN",
+      "OCI_CLI_USER_OCID",
+      "OCI_COMPARTMENT_OCID",
+      "OCI_CREATE_AUTONOMOUS_DATABASE",
+      "OCI_CREATE_MEDIA_BUCKET",
+      "OCI_FINGERPRINT",
+      "OCI_MEDIA_BUCKET_NAME",
+      "OCI_MEDIA_NAMESPACE",
+      "OCI_OBJECT_STORAGE_NAMESPACE",
+      "OCI_PRIVATE_KEY_PATH",
+      "OCI_PRIVATE_KEY_PEM",
+      "OCI_REGION",
+      "OCI_RUNTIME_IMAGE_OCID",
+      "OCI_RUNTIME_MEMORY_GBS",
+      "OCI_RUNTIME_OCPUS",
+      "OCI_RUNTIME_SHAPE",
+      "OCI_RUNTIME_SSH_PUBLIC_KEYS",
+      "OCI_TENANCY_OCID",
+      "ORACLE_DB_CONNECT_STRING",
+      "ORACLE_DB_PASSWORD",
+      "ORACLE_DB_USER",
+      "ORACLE_DB_WALLET_DIR",
+      "ORACLE_DB_WALLET_PASSWORD",
+      "ORACLE_DB_WALLET_ZIP_BASE64",
+      "PORKBUN_API_KEY",
+      "PORKBUN_SECRET_KEY",
+      "RUST_LOG",
+      "TNS_ADMIN",
+      "VM_PUBLIC_IP"
+    ],
+    "documentation-only": [
+      "ANSIBLE_LOCAL_TEMP",
+      "ANSIBLE_REMOTE_TEMP",
+      "AUTOGRAPHS_APP_IMAGE",
+      "AUTOGRAPHS_MEDIA",
+      "AUTOGRAPHS_MEDIA_STORAGE_PROVIDER",
+      "AUTOGRAPHS_OPERATOR",
+      "AUTOGRAPHS_PUBLIC_HOST",
+      "AUTOGRAPHS_SMOKE_BASE_URL",
+      "CANDIDATE_IMAGE",
+      "CANDIDATE_NAME",
+      "CANDIDATE_SECRETS_DIR",
+      "CANDIDATE_VERSION",
+      "CANDIDATE_WALLET_DIR",
+      "GH_TOKEN",
+      "OCI_API",
+      "OCI_PRIVATE_KEY",
+      "OCI_STATE_BUCKET_NAME",
+      "OCI_STATE_OBJECT_KEY",
+      "OCI_USER_OCID",
+      "SMOKE_IMAGE",
+      "SMOKE_VERSION",
+      "SMOKE_WALLET_DIR"
+    ],
+    "infrastructure": [
+      "ADB_ADMIN_PASSWORD",
+      "AUTOGRAPHS_DNS_DOMAIN",
+      "AUTOGRAPHS_DNS_RECORD_ID",
+      "AUTOGRAPHS_DNS_SUBDOMAIN",
+      "AUTOGRAPHS_DNS_TTL",
+      "OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME",
+      "OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED",
+      "OCI_AUTONOMOUS_DATABASE_NAME",
+      "OCI_AVAILABILITY_DOMAIN",
+      "OCI_COMPARTMENT_OCID",
+      "OCI_CREATE_AUTONOMOUS_DATABASE",
+      "OCI_CREATE_MEDIA_BUCKET",
+      "OCI_HOME_REGION",
+      "OCI_OBJECT_STORAGE_NAMESPACE",
+      "OCI_RUNTIME_IMAGE_OCID",
+      "OCI_RUNTIME_MEMORY_GBS",
+      "OCI_RUNTIME_OCPUS",
+      "OCI_RUNTIME_SHAPE",
+      "OCI_RUNTIME_SSH_PUBLIC_KEYS",
+      "VM_PUBLIC_IP"
+    ],
+    "local-test": [
+      "AUTOGRAPHS_ADMIN_PASSWORD",
+      "AUTOGRAPHS_ADMIN_PASSWORD_HASH",
+      "AUTOGRAPHS_ADMIN_SECURE_COOKIES",
+      "AUTOGRAPHS_CONTROLLER_BIND_ADDR",
+      "AUTOGRAPHS_CONTROLLER_DB_PROVIDER",
+      "AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT",
+      "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER",
+      "AUTOGRAPHS_HTTP_PORT",
+      "AUTOGRAPHS_OPERATOR_API_TOKEN",
+      "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS",
+      "AUTOGRAPHS_PRINT_DERIVATIVE_MEASUREMENT",
+      "AUTOGRAPHS_PUBLIC_ORIGIN",
+      "AUTOGRAPHS_PUBLISH_MODE",
+      "AUTOGRAPHS_STATIC_CURRENT_LINK",
+      "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_RELEASE_ROOT",
+      "AUTOGRAPHS_TEST_INVALID_RETAIN_COUNT",
+      "AUTOGRAPHS_TEST_MISSING_RETAIN_COUNT",
+      "AUTOGRAPHS_TEST_VALID_RETAIN_COUNT",
+      "AUTOGRAPHS_TEST_ZERO_RETAIN_COUNT",
+      "CODEBASE_MAPS",
+      "CREATE_ISSUE_STATUS_TEST_PLAYBOOK_PATH",
+      "DATABASE_URL",
+      "DEFAULTS_PATH",
+      "DEPLOY_PATH",
+      "DEPLOY_SSH_USER",
+      "EXTRACT_METADATA_TASKS_PATH",
+      "FAILED_CLEANUP_TASKS_PATH",
+      "GHCR_CLEANUP_DEPLOYED_CONTROLLER_VERSION",
+      "GHCR_CLEANUP_RELEASE_STATUS_PATH",
+      "GHCR_CONTROLLER_IMAGE_REPOSITORY",
+      "OCI_AUTH_MODE",
+      "OCI_CLI_USER_OCID",
+      "OCI_COMPARTMENT_OCID",
+      "OCI_FINGERPRINT",
+      "OCI_HOME_REGION",
+      "OCI_MEDIA_BUCKET_NAME",
+      "OCI_MEDIA_NAMESPACE",
+      "OCI_OBJECT_STORAGE_NAMESPACE",
+      "OCI_PRIVATE_KEY_PATH",
+      "OCI_REGION",
+      "OCI_TENANCY_OCID",
+      "ORACLE_DB_CONNECT_STRING",
+      "ORACLE_DB_PASSWORD",
+      "ORACLE_DB_USER",
+      "ORACLE_DB_WALLET_DIR",
+      "ORACLE_DB_WALLET_PASSWORD",
+      "OVAL_XML",
+      "PATCH_TASKS_PATH",
+      "POST_REBOOT_RESULT_TASKS_PATH",
+      "POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH",
+      "POST_RESULT_STATUS_TEST_PLAYBOOK_PATH",
+      "POST_RESULT_TASKS_PATH",
+      "REBOOT_CLEANUP_TASKS_PATH",
+      "REBOOT_RESULT_TEST_PLAYBOOK_PATH",
+      "REBOOT_STATE_TEST_PLAYBOOK_PATH",
+      "REBOOT_WORKFLOW_PATH",
+      "REPORT_RENDER_TEST_PLAYBOOK_PATH",
+      "REPORT_TEMPLATE_PATH",
+      "REQUEST_METADATA_TEST_PLAYBOOK_PATH",
+      "RESULTS_WITH_EMPTY_DEFINITIONS_XML",
+      "RESULTS_WITH_EVALUATION_PROBLEMS_XML",
+      "RESULTS_WITH_MISSING_RESULT_XML",
+      "RESULTS_XML",
+      "SCRIPT_PATH",
+      "TASKS_PATH",
+      "VALIDATE_REBOOT_STATE_TASKS_PATH",
+      "VALIDATE_REQUEST_TASKS_PATH",
+      "VM_PUBLIC_IP"
+    ],
+    "maintenance": [
+      "ADVISORY_RE",
+      "API_VERSION",
+      "AUTOGRAPHS_DOMAIN",
+      "AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT",
+      "CLEAN_RESULTS",
+      "DEFAULT_ERRATA_BASE_URL",
+      "DEFAULT_OVAL_URL",
+      "DEPLOY_PATH",
+      "DEPLOY_SSH_PRIVATE_KEY",
+      "DEPLOY_SSH_USER",
+      "FINDING_RESULTS",
+      "GHCR_CLEANUP_DEPLOYED_CONTROLLER_VERSION",
+      "GHCR_CLEANUP_DRY_RUN",
+      "GHCR_CLEANUP_MIN_AGE_DAYS",
+      "GHCR_CLEANUP_PROTECTED_TAGS",
+      "GHCR_CLEANUP_RELEASE_STATUS_PATH",
+      "GHCR_CLEANUP_RETAIN_SEMVER_TAGGED",
+      "GHCR_CLEANUP_RETAIN_TAGGED",
+      "GHCR_CONTROLLER_IMAGE_REPOSITORY",
+      "GHCR_IMAGE_REPOSITORY",
+      "OCI_CLI_USER_OCID",
+      "OCI_FINGERPRINT",
+      "OCI_OBJECT_STORAGE_NAMESPACE",
+      "OCI_PRIVATE_KEY_PEM",
+      "OCI_TENANCY_OCID",
+      "PACKAGE_COMMENT_RE",
+      "SEMVER_TAG_RE",
+      "VM_PUBLIC_IP"
+    ],
+    "repository-other": [
+      "RESOLVED_VM_PUBLIC_IP"
+    ],
+    "vm-runtime": [
+      "AUTOGRAPHS_ADMIN_PASSWORD",
+      "AUTOGRAPHS_ADMIN_PASSWORD_HASH",
+      "AUTOGRAPHS_ADMIN_SECURE_COOKIES",
+      "AUTOGRAPHS_CONTROLLER_BIND_ADDR",
+      "AUTOGRAPHS_CONTROLLER_DB_PROVIDER",
+      "AUTOGRAPHS_CONTROLLER_IMAGE",
+      "AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT",
+      "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER",
+      "AUTOGRAPHS_CONTROLLER_VERSION",
+      "AUTOGRAPHS_DOMAIN",
+      "AUTOGRAPHS_HTTPS_PORT",
+      "AUTOGRAPHS_HTTP_PORT",
+      "AUTOGRAPHS_OPERATOR_API_TOKEN",
+      "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS",
+      "AUTOGRAPHS_PUBLIC_ORIGIN",
+      "AUTOGRAPHS_REPO_VERSION",
+      "AUTOGRAPHS_SOURCE_REVISION",
+      "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT",
+      "AUTOGRAPHS_STATIC_RELEASE_ROOT",
+      "OCI_AUTH_MODE",
+      "OCI_CLI_USER_OCID",
+      "OCI_FINGERPRINT",
+      "OCI_MEDIA_BUCKET_NAME",
+      "OCI_MEDIA_NAMESPACE",
+      "OCI_PRIVATE_KEY_PATH",
+      "OCI_REALM_DOMAIN",
+      "OCI_REGION",
+      "OCI_TENANCY_OCID",
+      "ORACLE_DB_CONNECT_STRING",
+      "ORACLE_DB_PASSWORD",
+      "ORACLE_DB_USER",
+      "ORACLE_DB_WALLET_DIR",
+      "ORACLE_DB_WALLET_PASSWORD",
+      "RUST_LOG",
+      "TNS_ADMIN"
+    ],
+    "vm-smoke": [
+      "AUTOGRAPHS_ADMIN_PASSWORD",
+      "AUTOGRAPHS_CONTROLLER_BASE_URL",
+      "AUTOGRAPHS_DOMAIN",
+      "AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_ALL_IMAGES",
+      "AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_IMAGE_CHECKSUMS",
+      "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_ID",
+      "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_IDS",
+      "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEY",
+      "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS",
+      "AUTOGRAPHS_LIVE_PERSISTENCE_LIST_SMOKE_ROWS",
+      "AUTOGRAPHS_LIVE_PERSISTENCE_REPAIR_IMAGE_CHECKSUMS",
+      "AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE",
+      "AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE",
+      "AUTOGRAPHS_LIVE_STATIC_PUBLISH_TIMEOUT_SECONDS",
+      "AUTOGRAPHS_PUBLIC_ORIGIN",
+      "AUTOGRAPHS_SMOKE_IMAGE_VERSION",
+      "AUTOGRAPHS_STATIC_PREVIEW_BASE_URL",
+      "AUTOGRAPHS_STATIC_RELEASE_ROOT",
+      "OCI_MEDIA_BUCKET_NAME",
+      "OCI_MEDIA_NAMESPACE",
+      "ORACLE_DB_CONNECT_STRING",
+      "ORACLE_DB_PASSWORD",
+      "ORACLE_DB_USER"
+    ]
+  },
   "kind": "repository",
   "redaction_contract": "Variable names and source locations only; values are never emitted.",
   "root": "autographs",
-  "scanned_files": 404,
-  "schema_version": 1,
+  "scanned_files": 409,
+  "schema_version": 2,
   "variables": {
     "ACTION_PATH": {
+      "boundaries": [
+        "ci"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -362,6 +943,11 @@
       ]
     },
     "ADB_ADMIN_PASSWORD": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -382,6 +968,9 @@
       ]
     },
     "ADVISORY_RE": {
+      "boundaries": [
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -397,6 +986,9 @@
       ]
     },
     "ANSIBLE_CONFIG": {
+      "boundaries": [
+        "ci"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -487,6 +1079,9 @@
       ]
     },
     "ANSIBLE_LOCAL_TEMP": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -532,6 +1127,9 @@
       ]
     },
     "ANSIBLE_REMOTE_TEMP": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -557,6 +1155,10 @@
       ]
     },
     "API_VERSION": {
+      "boundaries": [
+        "ci",
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -572,6 +1174,12 @@
       ]
     },
     "AUTOGRAPHS_ADMIN_PASSWORD": {
+      "boundaries": [
+        "vm-runtime",
+        "vm-smoke",
+        "deployment",
+        "local-test"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -742,6 +1350,11 @@
       ]
     },
     "AUTOGRAPHS_ADMIN_PASSWORD_HASH": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -877,6 +1490,11 @@
       ]
     },
     "AUTOGRAPHS_ADMIN_SECURE_COOKIES": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -907,6 +1525,9 @@
       ]
     },
     "AUTOGRAPHS_APP_IMAGE": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -922,6 +1543,9 @@
       ]
     },
     "AUTOGRAPHS_CONTROLLER_BASE_URL": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -947,6 +1571,11 @@
       ]
     },
     "AUTOGRAPHS_CONTROLLER_BIND_ADDR": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -997,6 +1626,11 @@
       ]
     },
     "AUTOGRAPHS_CONTROLLER_DB_PROVIDER": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1107,6 +1741,10 @@
       ]
     },
     "AUTOGRAPHS_CONTROLLER_IMAGE": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1132,6 +1770,11 @@
       ]
     },
     "AUTOGRAPHS_CONTROLLER_LOCAL_MEDIA_ROOT": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1167,6 +1810,11 @@
       ]
     },
     "AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1277,6 +1925,10 @@
       ]
     },
     "AUTOGRAPHS_CONTROLLER_VERSION": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1297,6 +1949,11 @@
       ]
     },
     "AUTOGRAPHS_DNS_DOMAIN": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1312,6 +1969,11 @@
       ]
     },
     "AUTOGRAPHS_DNS_RECORD_ID": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1327,6 +1989,11 @@
       ]
     },
     "AUTOGRAPHS_DNS_SUBDOMAIN": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1342,6 +2009,11 @@
       ]
     },
     "AUTOGRAPHS_DNS_TTL": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1357,6 +2029,12 @@
       ]
     },
     "AUTOGRAPHS_DOMAIN": {
+      "boundaries": [
+        "vm-runtime",
+        "vm-smoke",
+        "deployment",
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1607,6 +2285,10 @@
       ]
     },
     "AUTOGRAPHS_HTTPS_PORT": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1627,6 +2309,11 @@
       ]
     },
     "AUTOGRAPHS_HTTP_PORT": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1662,6 +2349,9 @@
       ]
     },
     "AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_ALL_IMAGES": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1672,6 +2362,9 @@
       ]
     },
     "AUTOGRAPHS_LIVE_PERSISTENCE_AUDIT_IMAGE_CHECKSUMS": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1682,6 +2375,9 @@
       ]
     },
     "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_ID": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1692,6 +2388,9 @@
       ]
     },
     "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_IDS": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1707,6 +2406,9 @@
       ]
     },
     "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEY": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1717,6 +2419,9 @@
       ]
     },
     "AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1732,6 +2437,9 @@
       ]
     },
     "AUTOGRAPHS_LIVE_PERSISTENCE_LIST_SMOKE_ROWS": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1742,6 +2450,9 @@
       ]
     },
     "AUTOGRAPHS_LIVE_PERSISTENCE_REPAIR_IMAGE_CHECKSUMS": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1752,6 +2463,9 @@
       ]
     },
     "AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1807,6 +2521,9 @@
       ]
     },
     "AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1927,6 +2644,9 @@
       ]
     },
     "AUTOGRAPHS_LIVE_STATIC_PUBLISH_TIMEOUT_SECONDS": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1937,6 +2657,10 @@
       ]
     },
     "AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT": {
+      "boundaries": [
+        "deployment",
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1972,6 +2696,9 @@
       ]
     },
     "AUTOGRAPHS_MEDIA": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1982,6 +2709,9 @@
       ]
     },
     "AUTOGRAPHS_MEDIA_STORAGE_PROVIDER": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -1992,6 +2722,9 @@
       ]
     },
     "AUTOGRAPHS_OPERATOR": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2002,6 +2735,11 @@
       ]
     },
     "AUTOGRAPHS_OPERATOR_API_TOKEN": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -2202,6 +2940,11 @@
       ]
     },
     "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2220,7 +2963,7 @@
           "role": "github-workflow"
         },
         {
-          "line": 194,
+          "line": 195,
           "path": ".planning/STATE.md",
           "role": "documentation"
         },
@@ -2277,6 +3020,9 @@
       ]
     },
     "AUTOGRAPHS_PRINT_DERIVATIVE_MEASUREMENT": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2287,6 +3033,9 @@
       ]
     },
     "AUTOGRAPHS_PUBLIC_HOST": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2297,6 +3046,12 @@
       ]
     },
     "AUTOGRAPHS_PUBLIC_ORIGIN": {
+      "boundaries": [
+        "vm-runtime",
+        "vm-smoke",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2332,6 +3087,9 @@
       ]
     },
     "AUTOGRAPHS_PUBLISH_MODE": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2347,6 +3105,10 @@
       ]
     },
     "AUTOGRAPHS_REPO_VERSION": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2367,6 +3129,9 @@
       ]
     },
     "AUTOGRAPHS_SMOKE_BASE_URL": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2387,12 +3152,31 @@
       ]
     },
     "AUTOGRAPHS_SMOKE_IMAGE_VERSION": {
+      "boundaries": [
+        "vm-smoke",
+        "build"
+      ],
       "classification": "public-config",
       "sources": [
         {
           "line": 47,
           "path": ".planning/quick/260727-issue-170-oracle-basiclite/SUMMARY.md",
           "role": "documentation"
+        },
+        {
+          "line": 19,
+          "path": "controller/Dockerfile.static-smoke",
+          "role": "container-build"
+        },
+        {
+          "line": 20,
+          "path": "controller/Dockerfile.static-smoke",
+          "role": "container-build"
+        },
+        {
+          "line": 21,
+          "path": "controller/Dockerfile.static-smoke",
+          "role": "container-build"
         },
         {
           "line": 34,
@@ -2407,6 +3191,10 @@
       ]
     },
     "AUTOGRAPHS_SOURCE_REVISION": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2427,6 +3215,9 @@
       ]
     },
     "AUTOGRAPHS_STATIC_CURRENT_LINK": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2442,6 +3233,11 @@
       ]
     },
     "AUTOGRAPHS_STATIC_FAILED_CANDIDATE_RETAIN_COUNT": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2537,6 +3333,9 @@
       ]
     },
     "AUTOGRAPHS_STATIC_PREVIEW_BASE_URL": {
+      "boundaries": [
+        "vm-smoke"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2557,6 +3356,11 @@
       ]
     },
     "AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2692,6 +3496,12 @@
       ]
     },
     "AUTOGRAPHS_STATIC_RELEASE_ROOT": {
+      "boundaries": [
+        "vm-runtime",
+        "vm-smoke",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2752,6 +3562,9 @@
       ]
     },
     "AUTOGRAPHS_TEST_INVALID_RETAIN_COUNT": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2767,6 +3580,9 @@
       ]
     },
     "AUTOGRAPHS_TEST_MISSING_RETAIN_COUNT": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2777,6 +3593,9 @@
       ]
     },
     "AUTOGRAPHS_TEST_VALID_RETAIN_COUNT": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2792,6 +3611,9 @@
       ]
     },
     "AUTOGRAPHS_TEST_ZERO_RETAIN_COUNT": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2807,6 +3629,9 @@
       ]
     },
     "CANDIDATE_IMAGE": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2822,6 +3647,9 @@
       ]
     },
     "CANDIDATE_NAME": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2832,6 +3660,9 @@
       ]
     },
     "CANDIDATE_SECRETS_DIR": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2842,6 +3673,9 @@
       ]
     },
     "CANDIDATE_VERSION": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2857,6 +3691,9 @@
       ]
     },
     "CANDIDATE_WALLET_DIR": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "sensitive-metadata",
       "sources": [
         {
@@ -2867,6 +3704,9 @@
       ]
     },
     "CLEAN_RESULTS": {
+      "boundaries": [
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2877,6 +3717,9 @@
       ]
     },
     "CODEBASE_MAPS": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2887,6 +3730,9 @@
       ]
     },
     "CREATE_ISSUE_STATUS_TEST_PLAYBOOK_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2897,6 +3743,9 @@
       ]
     },
     "DATABASE_URL": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2917,6 +3766,9 @@
       ]
     },
     "DEFAULTS_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2927,6 +3779,9 @@
       ]
     },
     "DEFAULT_ERRATA_BASE_URL": {
+      "boundaries": [
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2942,6 +3797,9 @@
       ]
     },
     "DEFAULT_OVAL_URL": {
+      "boundaries": [
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2952,6 +3810,9 @@
       ]
     },
     "DENIED_PHRASES": {
+      "boundaries": [
+        "ci"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -2962,6 +3823,12 @@
       ]
     },
     "DEPLOY_PATH": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "maintenance",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3052,6 +3919,10 @@
       ]
     },
     "DEPLOY_SSH_PRIVATE_KEY": {
+      "boundaries": [
+        "deployment",
+        "maintenance"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -3127,6 +3998,9 @@
       ]
     },
     "DEPLOY_SSH_READY_INTERVAL_SECONDS": {
+      "boundaries": [
+        "deployment"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3157,6 +4031,9 @@
       ]
     },
     "DEPLOY_SSH_READY_TIMEOUT_SECONDS": {
+      "boundaries": [
+        "deployment"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3187,6 +4064,12 @@
       ]
     },
     "DEPLOY_SSH_USER": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "maintenance",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3262,6 +4145,9 @@
       ]
     },
     "EXTRACT_METADATA_TASKS_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3272,6 +4158,9 @@
       ]
     },
     "FAILED_CLEANUP_TASKS_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3282,6 +4171,9 @@
       ]
     },
     "FINDING_RESULTS": {
+      "boundaries": [
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3292,6 +4184,10 @@
       ]
     },
     "GHCR_CLEANUP_DEPLOYED_CONTROLLER_VERSION": {
+      "boundaries": [
+        "maintenance",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3332,6 +4228,9 @@
       ]
     },
     "GHCR_CLEANUP_DRY_RUN": {
+      "boundaries": [
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3352,6 +4251,10 @@
       ]
     },
     "GHCR_CLEANUP_MIN_AGE_DAYS": {
+      "boundaries": [
+        "deployment",
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3387,6 +4290,10 @@
       ]
     },
     "GHCR_CLEANUP_PROTECTED_TAGS": {
+      "boundaries": [
+        "deployment",
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3427,6 +4334,10 @@
       ]
     },
     "GHCR_CLEANUP_RELEASE_STATUS_PATH": {
+      "boundaries": [
+        "maintenance",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3457,6 +4368,9 @@
       ]
     },
     "GHCR_CLEANUP_RETAIN_SEMVER_TAGGED": {
+      "boundaries": [
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3487,6 +4401,10 @@
       ]
     },
     "GHCR_CLEANUP_RETAIN_TAGGED": {
+      "boundaries": [
+        "deployment",
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3532,6 +4450,12 @@
       ]
     },
     "GHCR_CONTROLLER_IMAGE_REPOSITORY": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "maintenance",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3627,6 +4551,9 @@
       ]
     },
     "GHCR_IMAGE_REPOSITORY": {
+      "boundaries": [
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3667,6 +4594,9 @@
       ]
     },
     "GHCR_TOKEN": {
+      "boundaries": [
+        "deployment"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -3687,6 +4617,9 @@
       ]
     },
     "GH_TOKEN": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -3697,6 +4630,9 @@
       ]
     },
     "MOVE_NOTES": {
+      "boundaries": [
+        "ci"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3707,6 +4643,9 @@
       ]
     },
     "OCI_API": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3717,6 +4656,11 @@
       ]
     },
     "OCI_AUTH_MODE": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3772,6 +4716,11 @@
       ]
     },
     "OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3802,6 +4751,11 @@
       ]
     },
     "OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3827,6 +4781,11 @@
       ]
     },
     "OCI_AUTONOMOUS_DATABASE_NAME": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3862,6 +4821,11 @@
       ]
     },
     "OCI_AVAILABILITY_DOMAIN": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -3897,6 +4861,13 @@
       ]
     },
     "OCI_CLI_USER_OCID": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "ci",
+        "maintenance",
+        "local-test"
+      ],
       "classification": "sensitive-metadata",
       "sources": [
         {
@@ -4002,6 +4973,12 @@
       ]
     },
     "OCI_COMPARTMENT_OCID": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4052,6 +5029,11 @@
       ]
     },
     "OCI_CREATE_AUTONOMOUS_DATABASE": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4097,6 +5079,11 @@
       ]
     },
     "OCI_CREATE_MEDIA_BUCKET": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4142,6 +5129,13 @@
       ]
     },
     "OCI_FINGERPRINT": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "ci",
+        "maintenance",
+        "local-test"
+      ],
       "classification": "sensitive-metadata",
       "sources": [
         {
@@ -4247,6 +5241,10 @@
       ]
     },
     "OCI_HOME_REGION": {
+      "boundaries": [
+        "infrastructure",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4282,6 +5280,13 @@
       ]
     },
     "OCI_MEDIA_BUCKET_NAME": {
+      "boundaries": [
+        "vm-runtime",
+        "vm-smoke",
+        "deployment",
+        "ci",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4407,6 +5412,13 @@
       ]
     },
     "OCI_MEDIA_NAMESPACE": {
+      "boundaries": [
+        "vm-runtime",
+        "vm-smoke",
+        "deployment",
+        "ci",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4532,6 +5544,13 @@
       ]
     },
     "OCI_OBJECT_STORAGE_NAMESPACE": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "maintenance",
+        "infrastructure",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4617,6 +5636,9 @@
       ]
     },
     "OCI_PRIVATE_KEY": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4627,6 +5649,12 @@
       ]
     },
     "OCI_PRIVATE_KEY_PATH": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "ci",
+        "local-test"
+      ],
       "classification": "sensitive-metadata",
       "sources": [
         {
@@ -4677,6 +5705,11 @@
       ]
     },
     "OCI_PRIVATE_KEY_PEM": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "maintenance"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -4782,8 +5815,21 @@
       ]
     },
     "OCI_REALM_DOMAIN": {
+      "boundaries": [
+        "vm-runtime"
+      ],
       "classification": "public-config",
       "sources": [
+        {
+          "line": 20,
+          "path": ".planning/quick/260822-j5d-make-ecosystem-inventory-boundary-aware-/260822-j5d-SUMMARY.md",
+          "role": "documentation"
+        },
+        {
+          "line": 13,
+          "path": ".planning/quick/260822-j5d-make-ecosystem-inventory-boundary-aware-/260822-j5d-VERIFICATION.md",
+          "role": "documentation"
+        },
         {
           "line": 66,
           "path": "controller/src/oci_media.rs",
@@ -4792,6 +5838,12 @@
       ]
     },
     "OCI_REGION": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "ci",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4872,6 +5924,11 @@
       ]
     },
     "OCI_RUNTIME_IMAGE_OCID": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4907,6 +5964,11 @@
       ]
     },
     "OCI_RUNTIME_MEMORY_GBS": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4942,6 +6004,11 @@
       ]
     },
     "OCI_RUNTIME_OCPUS": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -4977,6 +6044,11 @@
       ]
     },
     "OCI_RUNTIME_SHAPE": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5012,6 +6084,11 @@
       ]
     },
     "OCI_RUNTIME_SSH_PUBLIC_KEYS": {
+      "boundaries": [
+        "deployment",
+        "ci",
+        "infrastructure"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5047,6 +6124,9 @@
       ]
     },
     "OCI_STATE_BUCKET_NAME": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5057,6 +6137,9 @@
       ]
     },
     "OCI_STATE_OBJECT_KEY": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5067,6 +6150,13 @@
       ]
     },
     "OCI_TENANCY_OCID": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "ci",
+        "maintenance",
+        "local-test"
+      ],
       "classification": "sensitive-metadata",
       "sources": [
         {
@@ -5167,6 +6257,9 @@
       ]
     },
     "OCI_USER_OCID": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "sensitive-metadata",
       "sources": [
         {
@@ -5177,6 +6270,12 @@
       ]
     },
     "ORACLE_DB_CONNECT_STRING": {
+      "boundaries": [
+        "vm-runtime",
+        "vm-smoke",
+        "deployment",
+        "local-test"
+      ],
       "classification": "sensitive-metadata",
       "sources": [
         {
@@ -5277,6 +6376,12 @@
       ]
     },
     "ORACLE_DB_PASSWORD": {
+      "boundaries": [
+        "vm-runtime",
+        "vm-smoke",
+        "deployment",
+        "local-test"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -5367,6 +6472,12 @@
       ]
     },
     "ORACLE_DB_USER": {
+      "boundaries": [
+        "vm-runtime",
+        "vm-smoke",
+        "deployment",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5447,6 +6558,11 @@
       ]
     },
     "ORACLE_DB_WALLET_DIR": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "sensitive-metadata",
       "sources": [
         {
@@ -5517,6 +6633,11 @@
       ]
     },
     "ORACLE_DB_WALLET_PASSWORD": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment",
+        "local-test"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -5607,6 +6728,9 @@
       ]
     },
     "ORACLE_DB_WALLET_ZIP_BASE64": {
+      "boundaries": [
+        "deployment"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -5642,6 +6766,9 @@
       ]
     },
     "OVAL_XML": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5652,6 +6779,9 @@
       ]
     },
     "PACKAGE_COMMENT_RE": {
+      "boundaries": [
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5662,6 +6792,9 @@
       ]
     },
     "PATCH_TASKS_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5672,6 +6805,9 @@
       ]
     },
     "PHASE_8_OWNER_TERMS": {
+      "boundaries": [
+        "ci"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5682,6 +6818,10 @@
       ]
     },
     "PORKBUN_API_KEY": {
+      "boundaries": [
+        "deployment",
+        "ci"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -5697,6 +6837,10 @@
       ]
     },
     "PORKBUN_SECRET_KEY": {
+      "boundaries": [
+        "deployment",
+        "ci"
+      ],
       "classification": "secret-scalar",
       "sources": [
         {
@@ -5712,6 +6856,9 @@
       ]
     },
     "POST_REBOOT_RESULT_TASKS_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5722,6 +6869,9 @@
       ]
     },
     "POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5732,6 +6882,9 @@
       ]
     },
     "POST_RESULT_STATUS_TEST_PLAYBOOK_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5742,6 +6895,9 @@
       ]
     },
     "POST_RESULT_TASKS_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5752,6 +6908,9 @@
       ]
     },
     "README_END": {
+      "boundaries": [
+        "ci"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5762,6 +6921,9 @@
       ]
     },
     "README_START": {
+      "boundaries": [
+        "ci"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5772,6 +6934,9 @@
       ]
     },
     "REBOOT_CLEANUP_TASKS_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5782,6 +6947,9 @@
       ]
     },
     "REBOOT_RESULT_TEST_PLAYBOOK_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5792,6 +6960,9 @@
       ]
     },
     "REBOOT_STATE_TEST_PLAYBOOK_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5802,6 +6973,9 @@
       ]
     },
     "REBOOT_WORKFLOW_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5812,6 +6986,9 @@
       ]
     },
     "REPORT_RENDER_TEST_PLAYBOOK_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5822,6 +6999,9 @@
       ]
     },
     "REPORT_TEMPLATE_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5832,6 +7012,9 @@
       ]
     },
     "REQUEST_METADATA_TEST_PLAYBOOK_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5842,6 +7025,9 @@
       ]
     },
     "RESOLVED_VM_PUBLIC_IP": {
+      "boundaries": [
+        "repository-other"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5862,6 +7048,9 @@
       ]
     },
     "RESULTS_WITH_EMPTY_DEFINITIONS_XML": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5872,6 +7061,9 @@
       ]
     },
     "RESULTS_WITH_EVALUATION_PROBLEMS_XML": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5882,6 +7074,9 @@
       ]
     },
     "RESULTS_WITH_MISSING_RESULT_XML": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5892,6 +7087,9 @@
       ]
     },
     "RESULTS_XML": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5902,6 +7100,10 @@
       ]
     },
     "RUST_LOG": {
+      "boundaries": [
+        "vm-runtime",
+        "deployment"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5927,6 +7129,9 @@
       ]
     },
     "SCRIPT_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5957,6 +7162,9 @@
       ]
     },
     "SEMVER_RE": {
+      "boundaries": [
+        "ci"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5967,6 +7175,9 @@
       ]
     },
     "SEMVER_TAG_RE": {
+      "boundaries": [
+        "maintenance"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -5977,6 +7188,9 @@
       ]
     },
     "SMOKE_IMAGE": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -6012,6 +7226,9 @@
       ]
     },
     "SMOKE_VERSION": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -6042,6 +7259,9 @@
       ]
     },
     "SMOKE_WALLET_DIR": {
+      "boundaries": [
+        "documentation-only"
+      ],
       "classification": "sensitive-metadata",
       "sources": [
         {
@@ -6067,6 +7287,9 @@
       ]
     },
     "TASKS_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -6077,6 +7300,9 @@
       ]
     },
     "TERRAFORM_VERSIONS_PATH": {
+      "boundaries": [
+        "ci"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -6087,6 +7313,11 @@
       ]
     },
     "TNS_ADMIN": {
+      "boundaries": [
+        "vm-runtime",
+        "build",
+        "deployment"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -6097,7 +7328,17 @@
         {
           "line": 35,
           "path": "controller/Dockerfile",
-          "role": "repository"
+          "role": "container-build"
+        },
+        {
+          "line": 22,
+          "path": "controller/Dockerfile.smoke",
+          "role": "container-build"
+        },
+        {
+          "line": 26,
+          "path": "controller/Dockerfile.static-smoke",
+          "role": "container-build"
         },
         {
           "line": 13,
@@ -6117,6 +7358,9 @@
       ]
     },
     "VALIDATE_REBOOT_STATE_TASKS_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -6127,6 +7371,9 @@
       ]
     },
     "VALIDATE_REQUEST_TASKS_PATH": {
+      "boundaries": [
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
@@ -6137,6 +7384,12 @@
       ]
     },
     "VM_PUBLIC_IP": {
+      "boundaries": [
+        "deployment",
+        "maintenance",
+        "infrastructure",
+        "local-test"
+      ],
       "classification": "public-config",
       "sources": [
         {
