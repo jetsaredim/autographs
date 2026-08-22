@@ -22,6 +22,8 @@ counter-review.
   pre-creation regression.
 - Expanded persistent-secret detection to passwords, tokens, private keys,
   wallet PEM/archives, secret keys, and API keys while allowing secret OCIDs.
+- Regenerated the committed secret-delivery result after re-review caught that
+  its executable evidence still used the probe's previous schema.
 
 All spike suites, Python compilation, repository hygiene checks, and diff checks
 pass. Independent re-review remains required before PR #213 can merge.

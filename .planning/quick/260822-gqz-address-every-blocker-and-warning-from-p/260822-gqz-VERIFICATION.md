@@ -1,7 +1,7 @@
 ---
 quick_id: 260822-gqz
 status: human_needed
-score: 6/6 reviewed findings addressed locally
+score: 7/7 reviewed findings addressed locally
 ---
 
 # Quick Task 260822-gqz Verification
@@ -14,6 +14,7 @@ score: 6/6 reviewed findings addressed locally
 | 4 | Incidental mentions treated as contract | VERIFIED | Contract keys derive only from authoritative roles; incidental keys are separate and a docs-only mention cannot mask VM drift. |
 | 5 | Root writer symlink/mode risk | VERIFIED | Exclusive no-follow creation with forced mode `0600` is covered by a symlink/victim regression. |
 | 6 | Secret sink false negatives | VERIFIED | Shared vocabulary covers reviewed private-key, wallet, secret-key, and API-key forms with an explicit secret-OCID exception. |
+| 7 | Stale committed probe evidence | VERIFIED | `secret-delivery-results.json` is regenerated with the probe's scope and excluded kernel-persistence surfaces. |
 
 ## Human Verification Required
 
