@@ -85,7 +85,7 @@ For local runs, copy `.env.example` to an untracked file such as `.env.local`, t
 - `infra/terraform/tenancy/environments/prod/terraform.tfvars.example` to `infra/terraform/tenancy/environments/prod/terraform.tfvars`
 - `infra/terraform/environments/prod/terraform.tfvars.example` to `infra/terraform/environments/prod/terraform.tfvars`
 
-Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, media bucket, Object Storage backend, DNS, and SSH inputs. GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_PRIVATE_KEY_PEM` to a temporary private key file for Terraform. During VM deploy, the same secret is copied to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounted read-only into the Rust controller container, and exposed as `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. The multiline PEM is intentionally not written into the quadlet environment file.
+Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, media bucket, Object Storage backend, DNS, and SSH inputs. GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_PRIVATE_KEY_PEM` to a temporary private key file for Terraform. The deployment key is not a controller runtime credential; the running controller uses instance-principal authentication for OCI media access.
 
 ## Data Services
 

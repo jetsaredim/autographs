@@ -3,7 +3,6 @@ autographs_deploy_user: opc
 autographs_deploy_deploy_path: /opt/autographs
 autographs_deploy_env_path: "{{ autographs_deploy_deploy_path }}/env"
 autographs_deploy_wallet_path: "{{ autographs_deploy_deploy_path }}/wallet"
-autographs_deploy_secrets_path: "{{ autographs_deploy_deploy_path }}/secrets"
 autographs_deploy_caddy_path: "{{ autographs_deploy_deploy_path }}/caddy"
 autographs_deploy_static_path: "{{ autographs_deploy_deploy_path }}/static"
 
