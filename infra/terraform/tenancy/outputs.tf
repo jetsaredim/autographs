@@ -18,6 +18,26 @@ output "runtime_object_access_policy_name" {
   value       = module.iam.runtime_object_access_policy_name
 }
 
+output "runtime_secret_bundle_access_policy_name" {
+  description = "OCI policy name allowing runtime instance principals to read approved Vault secret bundles."
+  value       = oci_identity_policy.runtime_secret_bundle_access.name
+}
+
+output "runtime_secrets_vault_id" {
+  description = "OCI Vault OCID for Autographs runtime secret bundles."
+  value       = oci_kms_vault.runtime_secrets.id
+}
+
+output "runtime_secrets_key_id" {
+  description = "OCI KMS key OCID used by Autographs runtime Vault secrets."
+  value       = oci_kms_key.runtime_secrets.id
+}
+
+output "runtime_vault_proof_secret_id" {
+  description = "Disposable proof secret OCID for runtime instance-principal Vault retrieval."
+  value       = oci_vault_secret.runtime_vault_proof.id
+}
+
 output "deploy_group_id" {
   description = "OCI group OCID for GitHub deployment automation when created by this root."
   value       = module.iam.deploy_group_id

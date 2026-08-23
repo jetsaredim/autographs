@@ -136,7 +136,9 @@ Runtime controller settings:
 
 The runtime dynamic group matches compute instances in the project compartment, which keeps tenancy bootstrap independent of runtime instance IDs. Its IAM policy grants bucket discovery and media-bucket-scoped object access so the private controller can use OCI instance principals for Object Storage without long-lived S3 Customer Secret credentials.
 
-The controller media adapter uses native OCI Object Storage requests signed with runtime instance-principal credentials. Do not create new Terraform-managed IAM users, Vault secrets, or Customer Secret keys for controller media access.
+The tenancy bootstrap root also creates a default OCI Vault, a software-protected runtime secrets key, and a disposable `autographs-runtime-vault-proof` secret with OCI-generated content for the instance-principal retrieval proof. It grants the runtime dynamic group read access to that proof secret bundle by secret OCID. Future runtime secrets should add explicit secret-ID policy statements rather than broad `secret-family` or compartment-wide secret-bundle access.
+
+The controller media adapter uses native OCI Object Storage requests signed with runtime instance-principal credentials. Do not create new Terraform-managed IAM users, Vault secrets, or Customer Secret keys for controller media access; the Vault resources above are for the separate runtime configuration-hardening proof.
 
 The static release root and current pointer live on the runtime VM. Public artifacts are generated inside the OCI boundary from Oracle metadata and private originals. GitHub-hosted jobs may receive deploy secrets needed to render the private controller environment, but must not publish generated static release content outside the VM.
 
