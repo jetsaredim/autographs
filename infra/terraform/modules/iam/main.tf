@@ -153,3 +153,15 @@ resource "oci_identity_policy" "runtime_object_access" {
 
   freeform_tags = var.tags
 }
+
+resource "oci_identity_policy" "runtime_secret_bundle_access" {
+  provider       = oci.home
+  compartment_id = var.parent_compartment_ocid
+  name           = "${var.name_prefix}-runtime-secret-bundle-access-policy"
+  description    = "Allows Autographs runtime instance principals to read approved OCI Vault secret bundles."
+  statements = [
+    "Allow ${local.runtime_dynamic_group} to read secret-bundles in compartment id ${local.compartment_ocid}"
+  ]
+
+  freeform_tags = var.tags
+}

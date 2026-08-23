@@ -14,6 +14,10 @@ output "runtime_object_access_policy_name" {
   value = oci_identity_policy.runtime_object_access.name
 }
 
+output "runtime_secret_bundle_access_policy_name" {
+  value = oci_identity_policy.runtime_secret_bundle_access.name
+}
+
 output "deploy_group_id" {
   value = oci_identity_group.deploy.id
 }
