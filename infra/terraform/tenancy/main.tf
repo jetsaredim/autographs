@@ -73,3 +73,15 @@ resource "oci_vault_secret" "runtime_vault_proof" {
 
   freeform_tags = local.tags
 }
+
+resource "oci_identity_policy" "runtime_secret_bundle_access" {
+  provider       = oci.home
+  compartment_id = var.parent_compartment_ocid
+  name           = "${var.name_prefix}-runtime-secret-bundle-access-policy"
+  description    = "Allows Autographs runtime instance principals to read approved OCI Vault secret bundles."
+  statements = [
+    "Allow dynamic-group id ${module.iam.runtime_dynamic_group_id} to read secret-bundles in compartment id ${module.iam.compartment_ocid} where target.secret.id = '${oci_vault_secret.runtime_vault_proof.id}'"
+  ]
+
+  freeform_tags = local.tags
+}

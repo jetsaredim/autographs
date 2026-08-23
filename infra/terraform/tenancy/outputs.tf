@@ -20,7 +20,7 @@ output "runtime_object_access_policy_name" {
 
 output "runtime_secret_bundle_access_policy_name" {
   description = "OCI policy name allowing runtime instance principals to read approved Vault secret bundles."
-  value       = module.iam.runtime_secret_bundle_access_policy_name
+  value       = oci_identity_policy.runtime_secret_bundle_access.name
 }
 
 output "runtime_secrets_vault_id" {
