@@ -8,10 +8,10 @@
 <!-- autographs-release-status:start -->
 ## Release Status
 
-- Repo version: `v0.0.28`
+- Repo version: `v0.0.29`
 - Deployed controller image: `v0.0.28`
-- Latest deploy-impact version: `v0.0.28`
-- Version state: in sync
+- Latest deploy-impact version: `v0.0.29`
+- Version state: repo ahead of deployed controller
 - Last bump: `patch`
 - Last deploy impact: `controller-image`
 <!-- autographs-release-status:end -->
