@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-08-22T22:12:14Z"
-last_activity: 2026-08-22 -- Replaced the prototype Rust parser with native quality gates and measured coverage
+last_updated: "2026-08-23T14:13:44Z"
+last_activity: 2026-08-23 -- Removed the candidate controller's legacy deploy-key mount and added a runtime contract regression
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-20 -- Prepared PR 211 candidate-controller live gate and addressed reviewer documentation findings
+Last activity: 2026-08-23 -- Removed the candidate controller's legacy deploy-key mount and added a runtime contract regression
 
 Progress: [█████████░] 89% of milestone plans complete; Phase 8 Plan 4 is next
 
@@ -178,14 +178,15 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-17T12:56:48.996Z
-Stopped at: Completed 08-04-PLAN.md
+Last session: 2026-08-23T14:13:44Z
+Stopped at: Completed PR #217 candidate-controller credential-boundary follow-up
 Resume file: None
 
 ## Quick Tasks Completed
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-23 | remove-legacy-controller-secret-copying | Removed the candidate-controller deploy-key copy/mount, added a runtime contract regression, and recorded the review finding on PR #217. Implementation commit `cd521aa`. |
 | 2026-08-22 | replace-the-ecosystem-cleanup-prototype | Added Clippy, measured LLVM coverage, fixture-tested ast-grep structural rules, and maintained engineering standards while retaining Python only for operational inventory. |
 | 2026-08-22 | make-ecosystem-inventory-boundary-aware | Verified: classified repository configuration by execution boundary, limited VM drift to like-for-like runtime and smoke comparisons, and received a clean independent counter-review. |
 | 2026-08-22 | address-every-blocker-and-warning-from-p | Verified: addressed all seven PR #213 review findings with hardened analyzers, regression fixtures, accurate swap/core boundaries, an executable old-image rollback contract, regenerated evidence, and a clean reviewer-agent confirmation. |

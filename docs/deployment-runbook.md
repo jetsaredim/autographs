@@ -116,7 +116,7 @@ Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` 
 
 For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Store the wallet download password in `ORACLE_DB_WALLET_PASSWORD`; the pure-Rust `oracledb` driver uses it to decrypt `ewallet.pem` even though the wallet has already been unpacked. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the Rust controller container.
 
-The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM`. Terraform uses it from the runner temp directory. Runtime deploy copies it to `${DEPLOY_PATH}/secrets/oci_api_key.pem`, mounts `${DEPLOY_PATH}/secrets` read-only into the Rust controller container, and sets `OCI_PRIVATE_KEY_PATH=/opt/autographs/secrets/oci_api_key.pem`. This preserves PEM newlines for the OCI SDK and avoids putting multiline private keys in the quadlet environment file.
+The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM` for Terraform and deployment control-plane operations. Runtime deploy does not copy it to the VM or mount it into the Rust controller. The controller's OCI media adapter uses the VM instance principal instead.
 
 ## Data and Media Smoke
 

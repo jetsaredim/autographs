@@ -115,10 +115,6 @@
       owner: "{{ autographs_deploy_user }}"
       group: "{{ autographs_deploy_user }}"
       mode: "0700"
-    - path: "{{ autographs_deploy_secrets_path }}"
-      owner: "{{ autographs_deploy_user }}"
-      group: "{{ autographs_deploy_user }}"
-      mode: "0700"
     - path: "{{ autographs_deploy_caddy_path }}"
       owner: "{{ autographs_deploy_user }}"
       group: "{{ autographs_deploy_user }}"
@@ -389,13 +385,10 @@
     mode: "0644"
   notify: Restart Caddy container
 
-- name: Install OCI private key
-  ansible.builtin.copy:
-    content: "{{ lookup('env', 'OCI_PRIVATE_KEY_PEM') | default('', true) }}"
-    dest: "{{ autographs_deploy_secrets_path }}/oci_api_key.pem"
-    owner: "{{ autographs_deploy_user }}"
-    group: "{{ autographs_deploy_user }}"
-    mode: "0600"
+- name: Remove legacy OCI private key from controller runtime
+  ansible.builtin.file:
+    path: "{{ autographs_deploy_deploy_path }}/secrets/oci_api_key.pem"
+    state: absent
   no_log: true
   notify:
     - Restart controller container
