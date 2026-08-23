@@ -189,6 +189,27 @@ fn controller_quadlet_keeps_private_api_off_host_ports() {
 }
 
 #[test]
+fn controller_runtime_excludes_deploy_oci_credentials() {
+    let controller_quadlet = read_repo(
+        "deploy/ansible/roles/autographs_deploy/templates/autographs-controller.container.j2",
+    );
+    let app_env = read_repo("deploy/ansible/roles/autographs_deploy/templates/app.env.j2");
+    let deploy_tasks = read_repo("deploy/ansible/roles/autographs_deploy/tasks/main.yml");
+    let static_runtime_runbook = read_repo("docs/static-runtime-runbook.md");
+
+    for runtime_contract in [&controller_quadlet, &app_env, &static_runtime_runbook] {
+        assert!(!runtime_contract.contains("OCI_PRIVATE_KEY_PATH"));
+        assert!(!runtime_contract.contains("/opt/autographs/secrets"));
+    }
+    assert!(!app_env.contains("OCI_CLI_USER_OCID"));
+    assert!(!app_env.contains("OCI_TENANCY_OCID"));
+    assert!(!app_env.contains("OCI_FINGERPRINT"));
+    assert!(!static_runtime_runbook.contains("CANDIDATE_SECRETS_DIR"));
+    assert!(deploy_tasks.contains("Remove legacy OCI private key from controller runtime"));
+    assert!(!deploy_tasks.contains("- name: Install OCI private key"));
+}
+
+#[test]
 fn deploy_wires_oracle_heartbeat_interval_override() {
     let deploy_workflow = read_repo(".github/workflows/deploy.yml");
     let app_env = read_repo("deploy/ansible/roles/autographs_deploy/templates/app.env.j2");

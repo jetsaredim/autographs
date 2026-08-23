@@ -399,11 +399,12 @@ scp /tmp/autographs-controller-candidate.tar \
 ```
 
 On the VM, start the candidate beside the deployed controller on the private
-Podman network. Use copied wallet and secret directories so applying private
-SELinux labels cannot relabel the deployed controller's live mounts. The
-candidate shares the static volume because the smoke verifies its promoted
-release through the existing Caddy preview. Do not run a separate operator
-publish concurrently with this gate.
+Podman network. Use a copied wallet directory so applying a private SELinux
+label cannot relabel the deployed controller's live mount. The candidate uses
+the VM instance principal for OCI media access and does not receive a deploy API
+key or secrets-directory mount. It shares the static volume because the smoke
+verifies its promoted release through the existing Caddy preview. Do not run a
+separate operator publish concurrently with this gate.
 
 ```bash
 run_candidate_gate() (
@@ -413,7 +414,6 @@ run_candidate_gate() (
   CANDIDATE_IMAGE="localhost/autographs-controller-candidate:${CANDIDATE_VERSION}"
   CANDIDATE_NAME="autographs-controller-candidate"
   CANDIDATE_WALLET_DIR="/tmp/autographs-controller-candidate-wallet"
-  CANDIDATE_SECRETS_DIR="/tmp/autographs-controller-candidate-secrets"
   SMOKE_IMAGE="localhost/autographs-live-static-publish-smoke:${CANDIDATE_VERSION}"
   SMOKE_WALLET_DIR="/tmp/autographs-smoke-wallet"
 
@@ -421,7 +421,6 @@ run_candidate_gate() (
     sudo podman rm --force "${CANDIDATE_NAME}" >/dev/null 2>&1 || true
     sudo rm -rf \
       "${CANDIDATE_WALLET_DIR}" \
-      "${CANDIDATE_SECRETS_DIR}" \
       "${SMOKE_WALLET_DIR}" || true
   }
   trap cleanup_candidate_gate EXIT
@@ -430,7 +429,6 @@ run_candidate_gate() (
   cleanup_candidate_gate
 
   sudo cp -a /opt/autographs/wallet "${CANDIDATE_WALLET_DIR}"
-  sudo cp -a /opt/autographs/secrets "${CANDIDATE_SECRETS_DIR}"
   sudo podman load --input /tmp/autographs-controller-candidate.tar
   sudo podman run --replace --detach \
     --name "${CANDIDATE_NAME}" \
@@ -438,7 +436,6 @@ run_candidate_gate() (
     --env-file /opt/autographs/env/app.env \
     --env-file /opt/autographs/env/controller.env \
     --volume "${CANDIDATE_WALLET_DIR}":/opt/autographs/wallet:ro,Z \
-    --volume "${CANDIDATE_SECRETS_DIR}":/opt/autographs/secrets:ro,Z \
     --volume autographs-static:/var/lib/autographs/static \
     "${CANDIDATE_IMAGE}"
 
