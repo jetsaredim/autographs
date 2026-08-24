@@ -57,12 +57,14 @@ resource "oci_kms_key" "runtime_secrets" {
   freeform_tags = local.tags
 }
 
-resource "oci_vault_secret" "runtime_vault_proof" {
+resource "oci_vault_secret" "runtime" {
+  for_each = local.runtime_controller_secret_definitions
+
   compartment_id         = module.iam.compartment_ocid
-  description            = "Disposable Autographs proof secret for runtime instance-principal Vault retrieval."
+  description            = each.value.description
   enable_auto_generation = true
   key_id                 = oci_kms_key.runtime_secrets.id
-  secret_name            = "autographs-runtime-vault-proof"
+  secret_name            = each.value.secret_name
   vault_id               = oci_kms_vault.runtime_secrets.id
 
   secret_generation_context {
@@ -78,9 +80,10 @@ resource "oci_identity_policy" "runtime_secret_bundle_access" {
   provider       = oci.home
   compartment_id = var.parent_compartment_ocid
   name           = "${var.name_prefix}-runtime-secret-bundle-access-policy"
-  description    = "Allows Autographs runtime instance principals to read approved OCI Vault secret bundles."
+  description    = "Allows Autographs runtime instance principals to read Terraform-managed OCI Vault secret bundles."
   statements = [
-    "Allow dynamic-group id ${module.iam.runtime_dynamic_group_id} to read secret-bundles in compartment id ${module.iam.compartment_ocid} where target.secret.id = '${oci_vault_secret.runtime_vault_proof.id}'"
+    for name in keys(local.runtime_controller_secret_definitions) :
+    "Allow dynamic-group id ${module.iam.runtime_dynamic_group_id} to read secret-bundles in compartment id ${module.iam.compartment_ocid} where target.secret.id = '${oci_vault_secret.runtime[name].id}'"
   ]
 
   freeform_tags = local.tags

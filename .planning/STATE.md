@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-08-23T14:13:44Z"
-last_activity: 2026-08-23 -- Removed the candidate controller's legacy deploy-key mount and added a runtime contract regression
+last_updated: "2026-08-24T09:20:00-04:00"
+last_activity: 2026-08-24 -- Added and live-proved a temporary Vault instance-principal smoke container.
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-23 -- Removed the candidate controller's legacy deploy-key mount and added a runtime contract regression
+Last activity: 2026-08-24 -- Added and live-proved a temporary Vault instance-principal smoke container.
 
 Progress: [█████████░] 89% of milestone plans complete; Phase 8 Plan 4 is next
 
@@ -186,6 +186,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-24 | vault-instance-principal-smoke | Added a one-shot Vault smoke container, extracted reusable OCI instance-principal signing, documented the VM runbook path, and live-proved retrieval of the Terraform-generated proof secret from the runtime VM container. |
 | 2026-08-23 | remove-legacy-controller-secret-copying | Removed the candidate-controller deploy-key copy/mount, added a runtime contract regression, and recorded the review finding on PR #217. Implementation commit `cd521aa`. |
 | 2026-08-22 | replace-the-ecosystem-cleanup-prototype | Added Clippy, measured LLVM coverage, fixture-tested ast-grep structural rules, and maintained engineering standards while retaining Python only for operational inventory. |
 | 2026-08-22 | make-ecosystem-inventory-boundary-aware | Verified: classified repository configuration by execution boundary, limited VM drift to like-for-like runtime and smoke comparisons, and received a clean independent counter-review. |

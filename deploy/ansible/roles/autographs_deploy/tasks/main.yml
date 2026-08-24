@@ -138,6 +138,7 @@
       - >-
         autographs_deploy_controller_db_provider != 'oracle'
         or lookup('env', 'ORACLE_DB_WALLET_PASSWORD') | default('', true) | trim | length > 0
+        or lookup('env', 'ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID') | default('', true) | trim | length > 0
       - >-
         autographs_deploy_controller_media_storage_provider != 'oci-instance-principal'
         or (
@@ -179,6 +180,12 @@
         autographs_deploy_admin_password_hash
         | default(autographs_admin_password_hash | default('', true), true)
         | default(lookup('env', 'AUTOGRAPHS_ADMIN_PASSWORD_HASH') | default('', true), true)
+        | trim
+      }}
+    autographs_deploy_admin_password_hash_vault_secret_id_input: >-
+      {{
+        lookup('env', 'AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID')
+        | default('', true)
         | trim
       }}
     autographs_deploy_admin_password_existing: >-
@@ -233,7 +240,11 @@
         else (
           ''
           if autographs_deploy_admin_password_input | length > 0
-          else autographs_deploy_admin_password_hash_existing
+          else (
+            ''
+            if autographs_deploy_admin_password_hash_vault_secret_id_input | length > 0
+            else autographs_deploy_admin_password_hash_existing
+          )
         )
       }}
   no_log: true
@@ -247,6 +258,9 @@
         ) > 0
         or (
           autographs_deploy_admin_password_hash_resolved | default('', true) | trim | length
+        ) > 0
+        or (
+          autographs_deploy_admin_password_hash_vault_secret_id_input | default('', true) | trim | length
         ) > 0
     fail_msg: >-
       Set a non-empty autographs_deploy_admin_password,

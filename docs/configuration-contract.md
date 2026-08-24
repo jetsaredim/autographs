@@ -31,6 +31,10 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Wallet download password required by the `oracledb` driver when `ORACLE_DB_WALLET_DIR` is set |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Optional compatibility token for non-management diagnostics; not a collection-management credential |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | Rust controller runtime | Argon2 hash for the single-admin browser login |
+| `ORACLE_DB_PASSWORD_VAULT_SECRET_ID` | deploy workflow / runtime coordinate | OCI Vault secret OCID used by the controller to resolve `ORACLE_DB_PASSWORD` with instance principals |
+| `ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID` | deploy workflow / runtime coordinate | OCI Vault secret OCID used by the controller to resolve `ORACLE_DB_WALLET_PASSWORD` with instance principals |
+| `AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID` | deploy workflow / runtime coordinate | OCI Vault secret OCID used by the controller to resolve `AUTOGRAPHS_ADMIN_PASSWORD_HASH` with instance principals |
+| `AUTOGRAPHS_OPERATOR_API_TOKEN_VAULT_SECRET_ID` | deploy workflow / runtime coordinate | OCI Vault secret OCID used by the controller to resolve `AUTOGRAPHS_OPERATOR_API_TOKEN` with instance principals |
 
 The current OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the controller image build, Terraform, or VM deployment steps.
 
@@ -125,6 +129,10 @@ Runtime controller settings:
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | runtime secret | Argon2 single-admin password hash |
 | `AUTOGRAPHS_ADMIN_PASSWORD` | local-development secret only | Optional local plaintext shortcut; never deploy it |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime/operator secret | Optional CLI-friendly bearer token for non-management diagnostics such as protected auth probes; item create/edit/publish operations use `/admin/api/login` |
+| `ORACLE_DB_PASSWORD_VAULT_SECRET_ID` | runtime coordinate | OCI Vault secret OCID for the Oracle runtime password |
+| `ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID` | runtime coordinate | OCI Vault secret OCID for the Oracle wallet password |
+| `AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID` | runtime coordinate | OCI Vault secret OCID for the admin password hash |
+| `AUTOGRAPHS_OPERATOR_API_TOKEN_VAULT_SECRET_ID` | runtime coordinate | OCI Vault secret OCID for the diagnostic operator token |
 | `AUTOGRAPHS_STATIC_RELEASE_ROOT` | runtime coordinate | Static root containing `releases/`, `failed/`, and the active `current` pointer |
 | `AUTOGRAPHS_STATIC_CURRENT_LINK` | runtime coordinate | Active static release pointer |
 | `AUTOGRAPHS_STATIC_PROMOTED_RELEASE_RETAIN_COUNT` | runtime coordinate | Number of promoted releases retained after successful publish; defaults to `5` |
@@ -136,9 +144,9 @@ Runtime controller settings:
 
 The runtime dynamic group matches compute instances in the project compartment, which keeps tenancy bootstrap independent of runtime instance IDs. Its IAM policy grants bucket discovery and media-bucket-scoped object access so the private controller can use OCI instance principals for Object Storage without long-lived S3 Customer Secret credentials.
 
-The tenancy bootstrap root also creates a default OCI Vault, a software-protected runtime secrets key, and a disposable `autographs-runtime-vault-proof` secret with OCI-generated content for the instance-principal retrieval proof. It grants the runtime dynamic group read access to that proof secret bundle by secret OCID. Future runtime secrets should add explicit secret-ID policy statements rather than broad `secret-family` or compartment-wide secret-bundle access.
+The tenancy bootstrap root also creates a default OCI Vault, a software-protected runtime secrets key, and Terraform-managed runtime secret shells with OCI-generated placeholder content for the controller secrets that will move to Vault: Oracle database password, Oracle wallet password, admin password hash, and diagnostic operator API token. The runtime secret-bundle policy is generated from those Terraform-managed secret OCIDs, so the runtime dynamic group can read only the curated Autographs runtime secrets without passing secret IDs between Terraform stacks. Operators should rotate or replace the generated placeholder secret versions outside Terraform before switching deploy variables to the Vault OCIDs; secret contents must not enter Terraform inputs, state, GitHub repository variables, or committed files.
 
-The controller media adapter uses native OCI Object Storage requests signed with runtime instance-principal credentials. Do not create new Terraform-managed IAM users, Vault secrets, or Customer Secret keys for controller media access; the Vault resources above are for the separate runtime configuration-hardening proof.
+The controller media adapter uses native OCI Object Storage requests signed with runtime instance-principal credentials. The controller startup path can also resolve `*_VAULT_SECRET_ID` environment variables through OCI Vault Secret Retrieval before normal configuration loads. Direct secret env vars remain supported as a transition fallback, but production should move `ORACLE_DB_PASSWORD`, `ORACLE_DB_WALLET_PASSWORD`, `AUTOGRAPHS_ADMIN_PASSWORD_HASH`, and diagnostic-only `AUTOGRAPHS_OPERATOR_API_TOKEN` to Vault secret OCIDs. `AUTOGRAPHS_ADMIN_PASSWORD` is not moved to Vault for production; the production path is hash-only, so operators must retain the original admin password outside this repo or rotate it by generating and storing a new Argon2 hash. Do not create new Terraform-managed IAM users or Customer Secret keys for controller media or runtime configuration access.
 
 The static release root and current pointer live on the runtime VM. Public artifacts are generated inside the OCI boundary from Oracle metadata and private originals. GitHub-hosted jobs may receive deploy secrets needed to render the private controller environment, but must not publish generated static release content outside the VM.
 

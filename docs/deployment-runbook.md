@@ -116,6 +116,31 @@ Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` 
 
 For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Store the wallet download password in `ORACLE_DB_WALLET_PASSWORD`; the pure-Rust `oracledb` driver uses it to decrypt `ewallet.pem` even though the wallet has already been unpacked. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the Rust controller container.
 
+Runtime secret values can be moved to OCI Vault after the corresponding secret
+contents are populated outside Terraform. The tenancy root creates the runtime
+secret shells and generates the runtime dynamic-group policy from those secret
+OCIDs, so the controller can read only the Terraform-managed Autographs runtime
+secret bundles. Use `terraform -chdir=infra/terraform/tenancy output
+runtime_secret_id_env_vars` to get the GitHub repository variable name for each
+runtime secret OCID, then set the matching repository variables:
+
+- `ORACLE_DB_PASSWORD_VAULT_SECRET_ID`
+- `ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID`
+- `AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID`
+- `AUTOGRAPHS_OPERATOR_API_TOKEN_VAULT_SECRET_ID`
+
+The controller resolves these OCIDs with runtime instance-principal
+authentication during startup and then uses the existing runtime configuration
+names in memory. Do not put the secret contents themselves in Terraform inputs
+or repository variables. Rotate or replace the OCI-generated placeholder secret
+versions with the real runtime values before switching deploy to the Vault
+secret IDs.
+
+Production admin authentication is hash-only. Do not deploy
+`AUTOGRAPHS_ADMIN_PASSWORD` and do not create a Vault secret for it. Keep the
+actual login password in the operator's password manager, and rotate access by
+generating a new Argon2 hash for `AUTOGRAPHS_ADMIN_PASSWORD_HASH`.
+
 The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM` for Terraform and deployment control-plane operations. Runtime deploy does not copy it to the VM or mount it into the Rust controller. The controller's OCI media adapter uses the VM instance principal instead.
 
 ## Data and Media Smoke

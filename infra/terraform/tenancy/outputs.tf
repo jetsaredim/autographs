@@ -19,7 +19,7 @@ output "runtime_object_access_policy_name" {
 }
 
 output "runtime_secret_bundle_access_policy_name" {
-  description = "OCI policy name allowing runtime instance principals to read approved Vault secret bundles."
+  description = "OCI policy name allowing runtime instance principals to read Terraform-managed Vault secret bundles."
   value       = oci_identity_policy.runtime_secret_bundle_access.name
 }
 
@@ -33,9 +33,19 @@ output "runtime_secrets_key_id" {
   value       = oci_kms_key.runtime_secrets.id
 }
 
-output "runtime_vault_proof_secret_id" {
-  description = "Disposable proof secret OCID for runtime instance-principal Vault retrieval."
-  value       = oci_vault_secret.runtime_vault_proof.id
+output "runtime_secret_ids" {
+  description = "Terraform-managed Autographs runtime Vault secret OCIDs keyed by runtime secret name."
+  value = {
+    for name, secret in oci_vault_secret.runtime : name => secret.id
+  }
+}
+
+output "runtime_secret_id_env_vars" {
+  description = "GitHub repository variable names and OCI Vault secret OCIDs for controller runtime secret resolution."
+  value = {
+    for name, definition in local.runtime_controller_secret_definitions :
+    definition.secret_id_env => oci_vault_secret.runtime[name].id
+  }
 }
 
 output "deploy_group_id" {

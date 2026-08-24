@@ -7,7 +7,11 @@ pub mod derivatives;
 pub mod image_adjustments;
 pub mod media;
 #[cfg(any(feature = "production-persistence", feature = "production-oci"))]
+pub mod oci_auth;
+#[cfg(any(feature = "production-persistence", feature = "production-oci"))]
 pub mod oci_media;
+#[cfg(any(feature = "production-persistence", feature = "production-oci"))]
+pub mod oci_secrets;
 #[cfg(feature = "production-persistence")]
 pub mod oracle_catalog;
 #[cfg(feature = "production-persistence")]
@@ -18,5 +22,7 @@ pub mod oracle_heartbeat;
 pub mod oracle_schema;
 pub mod publisher;
 pub mod routes;
+#[cfg(any(feature = "production-persistence", feature = "production-oci"))]
+pub mod runtime_secrets;
 pub mod storage_keys;
 pub mod taxonomy_migration;
