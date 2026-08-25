@@ -240,28 +240,33 @@ fn deploy_wires_oracle_heartbeat_interval_override() {
 }
 
 #[test]
-fn deploy_tasks_hash_rotation_discards_preserved_plaintext_credentials() {
+fn deploy_tasks_require_hash_only_admin_credentials_and_fail_closed_without_vault_id() {
     let deploy_tasks = read_repo("deploy/ansible/roles/autographs_deploy/tasks/main.yml");
-    let select_start = deploy_tasks
-        .find("- name: Select deployed admin credentials")
-        .expect("select deployed admin credentials exists");
-    let validate_start = deploy_tasks
-        .find("- name: Validate deployed admin authentication secret")
-        .expect("credential validation exists");
-    let select_tasks = &deploy_tasks[select_start..validate_start];
+    let credential_tasks =
+        read_repo("deploy/ansible/roles/autographs_deploy/tasks/admin_credentials.yml");
+    let validation_playbook =
+        read_repo("deploy/ansible/playbooks/deploy-admin-credentials-validate-test.yml");
+
+    assert!(deploy_tasks.contains("ansible.builtin.include_tasks: admin_credentials.yml"));
 
     for expected in [
+        "autographs_deploy_admin_password_resolved: \"\"",
         "''\n        if autographs_deploy_admin_password_hash_vault_secret_id_input | length > 0",
-        "if autographs_deploy_admin_password_input | length > 0\n            and autographs_deploy_admin_password_hash_input | length == 0",
-        "''\n            if autographs_deploy_admin_password_hash_input | length > 0",
-        "''\n                if autographs_deploy_admin_password_hash_existing | length > 0",
-        "''\n            if autographs_deploy_admin_password_input | length > 0",
+        "else autographs_deploy_admin_password_hash_existing",
+        "AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID for deployed admin routes",
+        "Production deployment is hash-only",
     ] {
         assert!(
-            select_tasks.contains(expected),
-            "deploy tasks should prefer the configured hash and drop preserved plaintext with {expected}"
+            credential_tasks.contains(expected),
+            "deploy tasks should enforce the hash-only authentication contract with {expected}"
         );
     }
+
+    assert!(!credential_tasks.contains("lookup('password'"));
+    assert!(!credential_tasks.contains("autographs_deploy_admin_password_input"));
+    assert!(!credential_tasks.contains("autographs_deploy_admin_password_existing"));
+    assert!(validation_playbook.contains("previous Vault deployment"));
+    assert!(validation_playbook.contains("autographs_admin_missing_secret_failed_closed"));
 }
 
 fn read_repo(relative: &str) -> String {

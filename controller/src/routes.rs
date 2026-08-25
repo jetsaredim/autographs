@@ -80,7 +80,7 @@ pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
                 tracing::info!("configuring local in-memory catalog repository");
                 Arc::new(MemoryCatalogRepository::default())
             }
-            "oracle" => production_repository()?,
+            "oracle" => production_repository(&config)?,
             provider => {
                 return Err(format!(
                     "AUTOGRAPHS_CONTROLLER_DB_PROVIDER must be local or oracle, got {provider}"
@@ -115,37 +115,46 @@ fn provider(name: &str) -> String {
 }
 
 #[cfg(feature = "production-persistence")]
-fn production_repository() -> Result<Arc<dyn CatalogRepository>, String> {
-    use crate::{oracle_catalog::OracleCatalogRepository, oracle_heartbeat, oracle_schema};
+fn production_repository(config: &ControllerConfig) -> Result<Arc<dyn CatalogRepository>, String> {
+    use crate::{
+        oracle_catalog::OracleCatalogRepository, oracle_connection::OracleConnectionSettings,
+        oracle_heartbeat, oracle_schema,
+    };
 
     tracing::info!("configuring Oracle catalog repository");
 
-    let oracle_user = required_env("ORACLE_DB_USER")?;
-    let oracle_password = required_env("ORACLE_DB_PASSWORD")?;
-    let oracle_connect_string = required_env("ORACLE_DB_CONNECT_STRING")?;
+    let connection_settings = OracleConnectionSettings::new(
+        required_config(&config.oracle_user, "ORACLE_DB_USER")?,
+        required_config(&config.oracle_password, "ORACLE_DB_PASSWORD")?,
+        required_config(&config.oracle_connect_string, "ORACLE_DB_CONNECT_STRING")?,
+        config.oracle_wallet_dir.clone(),
+        config.oracle_wallet_password.clone(),
+    );
 
-    oracle_schema::ensure_initialized(&oracle_user, &oracle_password, &oracle_connect_string)?;
+    oracle_schema::ensure_initialized(&connection_settings)?;
 
     tracing::info!("Oracle catalog schema is ready");
 
-    oracle_heartbeat::spawn(
-        oracle_user.clone(),
-        oracle_password.clone(),
-        oracle_connect_string.clone(),
-    )?;
+    oracle_heartbeat::spawn(connection_settings.clone())?;
 
-    Ok(Arc::new(OracleCatalogRepository::new(
-        oracle_user,
-        oracle_password,
-        oracle_connect_string,
+    Ok(Arc::new(OracleCatalogRepository::with_connection_settings(
+        connection_settings,
         required_env("OCI_MEDIA_NAMESPACE")?,
         required_env("OCI_MEDIA_BUCKET_NAME")?,
     )))
 }
 
 #[cfg(not(feature = "production-persistence"))]
-fn production_repository() -> Result<Arc<dyn CatalogRepository>, String> {
+fn production_repository(_config: &ControllerConfig) -> Result<Arc<dyn CatalogRepository>, String> {
     Err("Oracle controller persistence requires the production-persistence feature".to_owned())
+}
+
+#[cfg(feature = "production-persistence")]
+fn required_config(value: &Option<String>, name: &str) -> Result<String, String> {
+    value
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("{name} is required"))
 }
 
 #[cfg(feature = "production-persistence")]

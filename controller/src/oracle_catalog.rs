@@ -15,7 +15,7 @@ use crate::catalog::{
     event_kind_for_diffs, event_summary, normalize_profile_link, normalize_signer_name,
     now_epoch_seconds, signer_match_rank, signer_profile_field_diffs, validate_required_fields,
 };
-use crate::oracle_connection;
+use crate::oracle_connection::{self, OracleConnectionSettings};
 
 const ITEM_SELECT_COLUMNS: &str = "title, signer, description, category, object_reference,
     event_name, event_location, source, inscription,
@@ -92,9 +92,7 @@ where e.item_id = :1
 
 #[derive(Clone)]
 pub struct OracleCatalogRepository {
-    user: String,
-    password: String,
-    connect_string: String,
+    connection_settings: OracleConnectionSettings,
     storage_namespace: String,
     bucket_name: String,
 }
@@ -107,10 +105,23 @@ impl OracleCatalogRepository {
         storage_namespace: String,
         bucket_name: String,
     ) -> Self {
-        Self {
+        let connection_settings = OracleConnectionSettings::new(
             user,
             password,
             connect_string,
+            optional_env("ORACLE_DB_WALLET_DIR"),
+            optional_env("ORACLE_DB_WALLET_PASSWORD"),
+        );
+        Self::with_connection_settings(connection_settings, storage_namespace, bucket_name)
+    }
+
+    pub fn with_connection_settings(
+        connection_settings: OracleConnectionSettings,
+        storage_namespace: String,
+        bucket_name: String,
+    ) -> Self {
+        Self {
+            connection_settings,
             storage_namespace,
             bucket_name,
         }
@@ -123,17 +134,21 @@ impl OracleCatalogRepository {
     {
         let repository = self.clone();
         task::spawn_blocking(move || {
-            let connection = oracle_connection::connect(
-                &repository.user,
-                &repository.password,
-                &repository.connect_string,
-            )
-            .map_err(|error| format!("connect to Oracle catalog: {error}"))?;
+            let connection =
+                oracle_connection::connect_with_settings(&repository.connection_settings)
+                    .map_err(|error| format!("connect to Oracle catalog: {error}"))?;
             operation(connection)
         })
         .await
         .map_err(|error| format!("join Oracle catalog task: {error}"))?
     }
+}
+
+fn optional_env(name: &str) -> Option<String> {
+    // ast-grep-ignore: no-distributed-env-read
+    std::env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
 }
 
 #[async_trait]
