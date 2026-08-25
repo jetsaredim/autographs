@@ -15,10 +15,6 @@ const SECRET_ENV_MAPPINGS: &[SecretEnvMapping] = &[
         value_env: "AUTOGRAPHS_ADMIN_PASSWORD_HASH",
         secret_id_env: "AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID",
     },
-    SecretEnvMapping {
-        value_env: "AUTOGRAPHS_OPERATOR_API_TOKEN",
-        secret_id_env: "AUTOGRAPHS_OPERATOR_API_TOKEN_VAULT_SECRET_ID",
-    },
 ];
 
 #[derive(Clone, Copy)]
@@ -59,12 +55,16 @@ pub async fn resolve_env_secret_references() -> Result<(), String> {
 }
 
 fn requested_mappings() -> Vec<SecretEnvMapping> {
+    requested_mappings_from(env_value)
+}
+
+fn requested_mappings_from(
+    mut lookup: impl FnMut(&str) -> Option<String>,
+) -> Vec<SecretEnvMapping> {
     SECRET_ENV_MAPPINGS
         .iter()
         .copied()
-        .filter(|mapping| {
-            env_value(mapping.secret_id_env).is_some() && env_value(mapping.value_env).is_none()
-        })
+        .filter(|mapping| lookup(mapping.secret_id_env).is_some())
         .collect()
 }
 
@@ -88,44 +88,32 @@ fn set_env_before_controller_threads(name: &str, value: String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
-    fn only_missing_values_with_secret_ids_are_requested() {
+    fn secret_ids_request_vault_resolution_even_when_direct_values_exist() {
         let id_env = "ORACLE_DB_PASSWORD_VAULT_SECRET_ID";
         let value_env = "ORACLE_DB_PASSWORD";
-        with_env_removed(id_env);
-        with_env_removed(value_env);
+        let mut env = HashMap::new();
 
         assert!(
-            !requested_mappings()
+            !requested_mappings_from(|name| env.get(name).cloned())
                 .iter()
                 .any(|mapping| mapping.secret_id_env == id_env)
         );
 
-        set_env_before_controller_threads(id_env, "ocid1.vaultsecret.example".to_owned());
+        env.insert(id_env, "ocid1.vaultsecret.example".to_owned());
         assert!(
-            requested_mappings()
+            requested_mappings_from(|name| env.get(name).cloned())
                 .iter()
                 .any(|mapping| mapping.secret_id_env == id_env)
         );
 
-        set_env_before_controller_threads(value_env, "already-present".to_owned());
+        env.insert(value_env, "already-present".to_owned());
         assert!(
-            !requested_mappings()
+            requested_mappings_from(|name| env.get(name).cloned())
                 .iter()
                 .any(|mapping| mapping.secret_id_env == id_env)
         );
-
-        with_env_removed(id_env);
-        with_env_removed(value_env);
-    }
-
-    fn with_env_removed(name: &str) {
-        // SAFETY: These unit tests run synchronously and clean up their own
-        // process env keys; the test only uses task-specific env names already
-        // owned by the controller configuration contract.
-        unsafe {
-            std::env::remove_var(name);
-        }
     }
 }

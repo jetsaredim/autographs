@@ -15,11 +15,13 @@ Consumed the successful temporary-container Vault proof and pivoted the PR towar
 - Extracted OCI instance-principal metadata/federation/request-signing behavior from `oci_media` into a reusable `oci_auth` helper.
 - Kept `OciInstancePrincipalMediaStore` behavior focused on Object Storage URL construction and delegated signing/session management to the shared helper.
 - Added `oci_secrets`, a narrow OCI Vault Secret Retrieval client that reads current base64 secret bundles by OCID through the shared instance-principal signer.
-- Added `runtime_secrets`, a controller startup resolver for `ORACLE_DB_PASSWORD_VAULT_SECRET_ID`, `ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID`, `AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID`, and `AUTOGRAPHS_OPERATOR_API_TOKEN_VAULT_SECRET_ID`.
+- Added `runtime_secrets`, a controller startup resolver for `ORACLE_DB_PASSWORD_VAULT_SECRET_ID`, `ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID`, and `AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID`.
 - Updated the controller entrypoint so startup Vault resolution runs before the normal config/router initialization path.
 - Updated deploy workflow and Ansible `app.env` rendering so Vault secret OCID coordinates can be deployed while direct secret values remain a transition fallback.
-- Updated tenancy Terraform so the tenancy root creates four runtime secret shells and derives the runtime secret-bundle policy statements from those same Terraform-managed secret OCIDs, avoiding cross-stack secret-ID inputs while keeping access tightly scoped.
+- Updated tenancy Terraform so the tenancy root creates three runtime secret shells and derives the runtime secret-bundle policy statements from those same Terraform-managed secret OCIDs, avoiding cross-stack secret-ID inputs while keeping access tightly scoped.
 - Explicitly chose the production hash-only admin path: `AUTOGRAPHS_ADMIN_PASSWORD_HASH` moves to Vault, while legacy `AUTOGRAPHS_ADMIN_PASSWORD` is eliminated from production rather than stored as another Vault secret.
+- Removed the diagnostic-only `AUTOGRAPHS_OPERATOR_API_TOKEN` from the Vault migration set while preserving the direct compatibility env var.
+- Addressed review findings by making Vault secret IDs authoritative over direct env values, clearing stale plaintext admin password when the admin hash Vault ID is configured, documenting Vault coordinates as GitHub Variables, and serializing env-mutating OCI auth tests.
 - Removed the temporary Vault smoke Dockerfile/test/runbook surface from the branch.
 - Updated configuration/deployment docs with the real Vault migration contract.
 
@@ -33,11 +35,12 @@ Consumed the successful temporary-container Vault proof and pivoted the PR towar
 - `cargo check --manifest-path controller/Cargo.toml --features production-oci` — passed
 - `cargo check --manifest-path controller/Cargo.toml --features production-persistence` — passed
 - `terraform -chdir=infra/terraform/tenancy fmt -check -diff` — passed
-- `terraform -chdir=infra/terraform/tenancy validate` — passed
-- `terraform -chdir=infra/terraform/tenancy plan -var-file=environments/prod/terraform.tfvars` — blocked by expired/unusable OCI authentication while reading the Object Storage remote state bucket (`401 NotAuthenticated` on `ListObjects`)
+- `terraform -chdir=infra/terraform/tenancy validate` — passed after retrying a transient OCI provider plugin handshake failure
+- `terraform -chdir=infra/terraform/tenancy plan -var-file=environments/prod/terraform.tfvars` — passed; 3 to add, 1 to change, 1 to destroy
+- `ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ANSIBLE_LOCAL_TEMP=/tmp/autographs-ansible-local ansible-playbook -i localhost, deploy/ansible/playbooks/deploy.yml --syntax-check` — passed
 - `git diff --check` — passed
 
-Ansible syntax check was attempted, but the local sandbox could not create Ansible's default temp directory under `/home/jgreenwa/.ansible/tmp` because that path is read-only in this environment.
+An earlier Ansible syntax check failed because the local sandbox could not create Ansible's default temp directory under `/home/jgreenwa/.ansible/tmp`; rerunning with `ANSIBLE_LOCAL_TEMP=/tmp/autographs-ansible-local` passed.
 
 ## Live proof
 
@@ -65,4 +68,4 @@ This proves a containerized process on the runtime VM can retrieve the scoped pr
 
 ## Next step
 
-Review the controller/Terraform/deploy scaffold, then rotate/populate the four Terraform-managed OCI Vault secret shells outside Terraform and set the matching GitHub repository variables from the `runtime_secret_id_env_vars` output for deploy.
+Review the controller/Terraform/deploy scaffold, then rotate/populate the three Terraform-managed OCI Vault secret shells outside Terraform and set the matching GitHub repository variables from the `runtime_secret_id_env_vars` output for deploy.

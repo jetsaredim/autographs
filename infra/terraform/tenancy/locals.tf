@@ -22,10 +22,5 @@ locals {
       secret_id_env = "AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID"
       secret_name   = "${var.name_prefix}-admin-password-hash"
     }
-    operator_api_token = {
-      description   = "Autographs runtime diagnostic operator API token placeholder."
-      secret_id_env = "AUTOGRAPHS_OPERATOR_API_TOKEN_VAULT_SECRET_ID"
-      secret_name   = "${var.name_prefix}-operator-api-token"
-    }
   }
 }

@@ -229,7 +229,10 @@ fn deploy_wires_oracle_heartbeat_interval_override() {
             .contains("ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}")
     );
     assert!(app_env.contains(
-        "ORACLE_DB_WALLET_PASSWORD={{ lookup('env', 'ORACLE_DB_WALLET_PASSWORD') | default('', true) }}"
+        "ORACLE_DB_WALLET_PASSWORD={{ '' if oracle_db_wallet_password_vault_secret_id | length > 0 else lookup('env', 'ORACLE_DB_WALLET_PASSWORD') | default('', true) }}"
+    ));
+    assert!(app_env.contains(
+        "ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID={{ oracle_db_wallet_password_vault_secret_id }}"
     ));
     assert!(deploy_tasks.contains(
         "lookup('env', 'ORACLE_DB_WALLET_PASSWORD') | default('', true) | trim | length > 0"
@@ -248,10 +251,11 @@ fn deploy_tasks_hash_rotation_discards_preserved_plaintext_credentials() {
     let select_tasks = &deploy_tasks[select_start..validate_start];
 
     for expected in [
-        "if autographs_deploy_admin_password_input | length > 0\n          and autographs_deploy_admin_password_hash_input | length == 0",
-        "''\n          if autographs_deploy_admin_password_hash_input | length > 0",
-        "''\n              if autographs_deploy_admin_password_hash_existing | length > 0",
-        "''\n          if autographs_deploy_admin_password_input | length > 0",
+        "''\n        if autographs_deploy_admin_password_hash_vault_secret_id_input | length > 0",
+        "if autographs_deploy_admin_password_input | length > 0\n            and autographs_deploy_admin_password_hash_input | length == 0",
+        "''\n            if autographs_deploy_admin_password_hash_input | length > 0",
+        "''\n                if autographs_deploy_admin_password_hash_existing | length > 0",
+        "''\n            if autographs_deploy_admin_password_input | length > 0",
     ] {
         assert!(
             select_tasks.contains(expected),

@@ -360,9 +360,13 @@ fn jwt_expiration(token: &str) -> Result<SystemTime, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn new_requires_instance_principal_auth_mode() {
+        let _guard = ENV_LOCK.lock().expect("env test lock");
         with_env_removed("OCI_AUTH_MODE");
         assert_eq!(
             OciInstancePrincipalClient::new().err().unwrap(),
@@ -380,6 +384,7 @@ mod tests {
 
     #[test]
     fn new_uses_region_and_realm_defaults() {
+        let _guard = ENV_LOCK.lock().expect("env test lock");
         set_env_for_test("OCI_AUTH_MODE", "instance_principal");
         with_env_removed("OCI_REGION");
         with_env_removed("OCI_REALM_DOMAIN");
@@ -393,6 +398,7 @@ mod tests {
 
     #[test]
     fn new_uses_configured_region_and_realm() {
+        let _guard = ENV_LOCK.lock().expect("env test lock");
         set_env_for_test("OCI_AUTH_MODE", "instance_principal");
         set_env_for_test("OCI_REGION", "eu-frankfurt-1");
         set_env_for_test("OCI_REALM_DOMAIN", "oraclecloud.eu");

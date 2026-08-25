@@ -107,6 +107,9 @@ Populate repo-level GitHub Variables:
 - `AUTOGRAPHS_DOMAIN`
 - `AUTOGRAPHS_CONTROLLER_DB_PROVIDER`
 - `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER`
+- `ORACLE_DB_PASSWORD_VAULT_SECRET_ID`
+- `ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID`
+- `AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID`
 
 `GHCR_CONTROLLER_IMAGE_REPOSITORY` should be the exact `ghcr.io` image path used for the controller image, such as `ghcr.io/jetsaredim/autographs/controller`. The deployed runtime no longer publishes, pulls, or starts the old Next.js runner or tools images.
 
@@ -127,12 +130,13 @@ runtime secret OCID, then set the matching repository variables:
 - `ORACLE_DB_PASSWORD_VAULT_SECRET_ID`
 - `ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID`
 - `AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID`
-- `AUTOGRAPHS_OPERATOR_API_TOKEN_VAULT_SECRET_ID`
 
 The controller resolves these OCIDs with runtime instance-principal
 authentication during startup and then uses the existing runtime configuration
 names in memory. Do not put the secret contents themselves in Terraform inputs
-or repository variables. Rotate or replace the OCI-generated placeholder secret
+or repository variables. When one of these Vault ID variables is set, deploy
+renders the matching direct secret env value blank and the controller treats
+Vault as authoritative even if the old GitHub Secret remains populated. Rotate or replace the OCI-generated placeholder secret
 versions with the real runtime values before switching deploy to the Vault
 secret IDs.
 

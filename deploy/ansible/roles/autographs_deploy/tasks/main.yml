@@ -216,33 +216,37 @@
   ansible.builtin.set_fact:
     autographs_deploy_admin_password_resolved: >-
       {{
-        autographs_deploy_admin_password_input
-        if autographs_deploy_admin_password_input | length > 0
-          and autographs_deploy_admin_password_hash_input | length == 0
+        ''
+        if autographs_deploy_admin_password_hash_vault_secret_id_input | length > 0
         else (
-          ''
-          if autographs_deploy_admin_password_hash_input | length > 0
+          autographs_deploy_admin_password_input
+          if autographs_deploy_admin_password_input | length > 0
+            and autographs_deploy_admin_password_hash_input | length == 0
           else (
-            autographs_deploy_admin_password_existing
-            if autographs_deploy_admin_password_existing | length > 0
+            ''
+            if autographs_deploy_admin_password_hash_input | length > 0
             else (
-              ''
-              if autographs_deploy_admin_password_hash_existing | length > 0
-              else lookup('password', '/dev/null length=32 chars=ascii_letters,digits')
+              autographs_deploy_admin_password_existing
+              if autographs_deploy_admin_password_existing | length > 0
+              else (
+                ''
+                if autographs_deploy_admin_password_hash_existing | length > 0
+                else lookup('password', '/dev/null length=32 chars=ascii_letters,digits')
+              )
             )
           )
         )
       }}
     autographs_deploy_admin_password_hash_resolved: >-
       {{
-        autographs_deploy_admin_password_hash_input
-        if autographs_deploy_admin_password_hash_input | length > 0
+        ''
+        if autographs_deploy_admin_password_hash_vault_secret_id_input | length > 0
         else (
-          ''
-          if autographs_deploy_admin_password_input | length > 0
+          autographs_deploy_admin_password_hash_input
+          if autographs_deploy_admin_password_hash_input | length > 0
           else (
             ''
-            if autographs_deploy_admin_password_hash_vault_secret_id_input | length > 0
+            if autographs_deploy_admin_password_input | length > 0
             else autographs_deploy_admin_password_hash_existing
           )
         )
