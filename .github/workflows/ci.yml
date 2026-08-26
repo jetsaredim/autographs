@@ -279,8 +279,8 @@ jobs:
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-reboot-result-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg \
-            AUTOGRAPHS_ADMIN_PASSWORD_HASH= \
-            AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID= \
+            AUTOGRAPHS_ADMIN_PASSWORD_HASH='' \
+            AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID='' \
             ansible-playbook deploy/ansible/playbooks/deploy-admin-credentials-validate-test.yml
 
       - name: Lint Ansible playbook
