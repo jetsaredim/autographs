@@ -186,7 +186,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
-| 2026-08-25 | address-pr-222-review-findings-for-vault | Replaced unsafe runtime env mutation with typed secret overrides, enforced production hash-only admin deploy authentication, and added executable fail-closed regression coverage. Implementation commit `01194d4`. |
+| 2026-08-25 | address-pr-222-review-findings-for-vault | Replaced unsafe runtime env mutation with typed secret overrides, enforced production hash-only admin deploy authentication, added executable fail-closed regression coverage, and fixed the follow-up Workflow checks warning. Implementation commits `01194d4`, `273750e`. |
 | 2026-08-24 | vault-instance-principal-smoke | Added a one-shot Vault smoke container, extracted reusable OCI instance-principal signing, documented the VM runbook path, and live-proved retrieval of the Terraform-generated proof secret from the runtime VM container. |
 | 2026-08-23 | remove-legacy-controller-secret-copying | Removed the candidate-controller deploy-key copy/mount, added a runtime contract regression, and recorded the review finding on PR #217. Implementation commit `cd521aa`. |
 | 2026-08-22 | replace-the-ecosystem-cleanup-prototype | Added Clippy, measured LLVM coverage, fixture-tested ast-grep structural rules, and maintained engineering standards while retaining Python only for operational inventory. |

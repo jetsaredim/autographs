@@ -2,6 +2,7 @@
 quick_id: 260825-ocd
 status: complete
 implementation_commit: 01194d4
+follow_up_commit: 273750e
 completed: 2026-08-25
 ---
 
@@ -16,6 +17,7 @@ Resolved both actionable deep-review findings on PR 222.
 - Added a startup-path regression proving Vault values override direct values and reach controller configuration without process-environment mutation.
 - Made the production Ansible deploy role hash-only for admin authentication, removed the generated/plaintext password fallback, and preserved only direct hash or current Vault secret ID inputs.
 - Extracted credential selection into an includable Ansible task unit and added a CI-run localhost regression proving a previous Vault-style blank env fails closed when both the current Vault ID and direct hash are absent.
+- Quoted the regression command's two explicit empty environment values after deep re-review found ShellCheck SC1007 in the mandatory Workflow checks job.
 
 ## Validation
 
@@ -27,7 +29,8 @@ Resolved both actionable deep-review findings on PR 222.
 - `ansible-lint deploy/ansible/` — 50 files clean
 - Terraform tenancy format check and validation
 - `git diff --check`
+- Shell syntax check and executable fail-closed playbook re-run after quoting empty environment values
 
 ## Follow-up
 
-Push implementation and GSD commits to PR 222, reply directly to both original inline findings, and run a fresh deep reviewer agent against the updated head.
+Both original inline findings were answered directly on PR 222. The first deep re-review confirmed those findings resolved and identified the Workflow checks warning addressed by `273750e`; a final deep re-review remains required against the updated head.
