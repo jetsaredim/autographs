@@ -136,7 +136,7 @@ authentication during startup and then uses the existing runtime configuration
 names in memory. Do not put the secret contents themselves in Terraform inputs
 or repository variables. When one of these Vault ID variables is set, deploy
 renders the matching direct secret env value blank and the controller treats
-Vault as authoritative even if the old GitHub Secret remains populated. Rotate or replace the OCI-generated placeholder secret
+Vault as authoritative even if the old GitHub Secret remains populated. Rotate or replace the intentionally invalid Terraform bootstrap secret
 versions with the real runtime values before switching deploy to the Vault
 secret IDs.
 

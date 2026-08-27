@@ -62,15 +62,23 @@ resource "oci_vault_secret" "runtime" {
 
   compartment_id         = module.iam.compartment_ocid
   description            = each.value.description
-  enable_auto_generation = true
+  enable_auto_generation = false
   key_id                 = oci_kms_key.runtime_secrets.id
   secret_name            = each.value.secret_name
   vault_id               = oci_kms_vault.runtime_secrets.id
 
-  secret_generation_context {
-    generation_template = "SECRETS_DEFAULT_PASSWORD"
-    generation_type     = "PASSPHRASE"
-    passphrase_length   = 32
+  secret_content {
+    content_type = "BASE64"
+    content      = base64encode("AUTOGRAPHS_UNCONFIGURED_${upper(each.key)}")
+    name         = "terraform-bootstrap"
+    stage        = "CURRENT"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      secret_content,
+      secret_generation_context,
+    ]
   }
 
   freeform_tags = local.tags
