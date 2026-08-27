@@ -107,9 +107,6 @@ Populate repo-level GitHub Variables:
 - `AUTOGRAPHS_DOMAIN`
 - `AUTOGRAPHS_CONTROLLER_DB_PROVIDER`
 - `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER`
-- `ORACLE_DB_PASSWORD_VAULT_SECRET_ID`
-- `ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID`
-- `AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID`
 
 `GHCR_CONTROLLER_IMAGE_REPOSITORY` should be the exact `ghcr.io` image path used for the controller image, such as `ghcr.io/jetsaredim/autographs/controller`. The deployed runtime no longer publishes, pulls, or starts the old Next.js runner or tools images.
 
@@ -123,9 +120,9 @@ Runtime secret values can be moved to OCI Vault after the corresponding secret
 contents are populated outside Terraform. The tenancy root creates the runtime
 secret shells and generates the runtime dynamic-group policy from those secret
 OCIDs, so the controller can read only the Terraform-managed Autographs runtime
-secret bundles. Use `terraform -chdir=infra/terraform/tenancy output
-runtime_secret_id_env_vars` to get the GitHub repository variable name for each
-runtime secret OCID, then set the matching repository variables:
+secret bundles. The runtime Terraform root discovers each uniquely named ACTIVE
+secret through metadata-only OCI data lookups and exports the matching controller
+environment coordinates:
 
 - `ORACLE_DB_PASSWORD_VAULT_SECRET_ID`
 - `ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID`
@@ -133,8 +130,10 @@ runtime secret OCID, then set the matching repository variables:
 
 The controller resolves these OCIDs with runtime instance-principal
 authentication during startup and then uses the existing runtime configuration
-names in memory. Do not put the secret contents themselves in Terraform inputs
-or repository variables. When one of these Vault ID variables is set, deploy
+names in memory. The deploy workflow reads the OCIDs directly from the runtime
+Terraform outputs; do not duplicate them in GitHub Variables. Do not put the
+secret contents themselves in Terraform inputs or repository variables. When
+one of these Vault ID coordinates is set, deploy
 renders the matching direct secret env value blank and the controller treats
 Vault as authoritative even if the old GitHub Secret remains populated. Rotate or replace the intentionally invalid Terraform bootstrap secret
 versions with the real runtime values before switching deploy to the Vault

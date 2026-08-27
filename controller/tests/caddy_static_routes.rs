@@ -240,6 +240,41 @@ fn deploy_wires_oracle_heartbeat_interval_override() {
 }
 
 #[test]
+fn deploy_discovers_vault_secret_ids_without_github_variables() {
+    let runtime_secrets = read_repo("infra/terraform/runtime_secrets.tf");
+    let runtime_outputs = read_repo("infra/terraform/outputs.tf");
+    let tenancy_iam = read_repo("infra/terraform/modules/iam/main.tf");
+    let deploy_workflow = read_repo(".github/workflows/deploy.yml");
+
+    assert!(runtime_secrets.contains("data \"oci_vault_secrets\" \"runtime_controller\""));
+    assert!(runtime_secrets.contains("state          = \"ACTIVE\""));
+    assert!(runtime_secrets.contains("env_name => one(secret_lookup.secrets[*].id)"));
+    assert!(runtime_outputs.contains("output \"runtime_secret_id_env_vars\""));
+    assert!(tenancy_iam.contains("to inspect secrets in compartment id"));
+
+    for (env_name, output_name) in [
+        (
+            "AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID",
+            "admin_password_hash_vault_secret_id",
+        ),
+        (
+            "ORACLE_DB_PASSWORD_VAULT_SECRET_ID",
+            "oracle_db_password_vault_secret_id",
+        ),
+        (
+            "ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID",
+            "oracle_db_wallet_password_vault_secret_id",
+        ),
+    ] {
+        assert!(deploy_workflow.contains(&format!("'.{env_name}'")));
+        assert!(deploy_workflow.contains(&format!(
+            "steps.terraform_apply.outputs.{output_name}"
+        )));
+        assert!(!deploy_workflow.contains(&format!("vars.{env_name}")));
+    }
+}
+
+#[test]
 fn deploy_tasks_require_hash_only_admin_credentials_and_fail_closed_without_vault_id() {
     let deploy_tasks = read_repo("deploy/ansible/roles/autographs_deploy/tasks/main.yml");
     let credential_tasks =

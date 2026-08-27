@@ -41,7 +41,7 @@ output "runtime_secret_ids" {
 }
 
 output "runtime_secret_id_env_vars" {
-  description = "GitHub repository variable names and OCI Vault secret OCIDs for controller runtime secret resolution."
+  description = "Controller environment variable names and Terraform-managed OCI Vault secret OCIDs for operator inspection."
   value = {
     for name, definition in local.runtime_controller_secret_definitions :
     definition.secret_id_env => oci_vault_secret.runtime[name].id
