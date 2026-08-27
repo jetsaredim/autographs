@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-08-25T17:45:00-04:00"
-last_activity: 2026-08-25 -- Addressed PR 222 Vault secret review findings and added fail-closed regressions.
+last_updated: "2026-08-26T21:40:00-04:00"
+last_activity: 2026-08-26 -- Made Terraform preserve operator-managed OCI Vault secret versions and verified the live tenancy plan is non-destructive.
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-25 -- Addressed PR 222 Vault secret review findings and added fail-closed regressions.
+Last activity: 2026-08-26 -- Made Terraform preserve operator-managed OCI Vault secret versions and verified the live tenancy plan is non-destructive.
 
 Progress: [█████████░] 89% of milestone plans complete; Phase 8 Plan 4 is next
 
@@ -186,6 +186,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-27 | make-oci-vault-secrets-manual-with-ignor | Replaced automatically generated placeholders with ignored manual bootstrap content and live-planned the already-rotated tenancy secrets with zero replacement, zero content change, and zero destruction. Implementation commit `719b55b`. |
 | 2026-08-25 | address-pr-222-review-findings-for-vault | Replaced unsafe runtime env mutation with typed secret overrides, enforced production hash-only admin deploy authentication, added executable fail-closed regression coverage, and fixed the follow-up Workflow checks warning. Implementation commits `01194d4`, `273750e`. |
 | 2026-08-24 | vault-instance-principal-smoke | Added a one-shot Vault smoke container, extracted reusable OCI instance-principal signing, documented the VM runbook path, and live-proved retrieval of the Terraform-generated proof secret from the runtime VM container. |
 | 2026-08-23 | remove-legacy-controller-secret-copying | Removed the candidate-controller deploy-key copy/mount, added a runtime contract regression, and recorded the review finding on PR #217. Implementation commit `cd521aa`. |
