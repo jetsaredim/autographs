@@ -26,6 +26,9 @@
   loop: "{{ autographs_deploy_masked_services }}"
   failed_when: false
 
+- name: Apply kernel persistence controls
+  ansible.builtin.include_tasks: kernel_persistence.yml
+
 - name: Check swap file size
   ansible.builtin.shell:
     cmd: |

@@ -1,0 +1,48 @@
+- name: Ensure systemd-coredump configuration directory exists
+  ansible.builtin.file:
+    path: "{{ autographs_deploy_coredump_config_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Disable userspace core-dump storage and processing
+  ansible.builtin.template:
+    src: autographs-coredump.conf.j2
+    dest: "{{ autographs_deploy_coredump_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Stop and mask Kdump
+  ansible.builtin.systemd:
+    name: kdump.service
+    state: stopped
+    enabled: false
+    masked: true
+
+- name: Inspect installed kernel boot arguments
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - --info=ALL
+  register: autographs_deploy_grubby_info
+  changed_when: false
+
+- name: Remove crashkernel from installed kernel boot entries
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - --update-kernel=ALL
+      - --remove-args=crashkernel
+  register: autographs_deploy_crashkernel_removal
+  changed_when: true
+  when: "'crashkernel' in autographs_deploy_grubby_info.stdout"
+
+- name: Report required operator-approved reboot # noqa: no-handler
+  ansible.builtin.debug:
+    msg: >-
+      crashkernel was removed from installed boot entries. An operator-approved
+      reboot is required before the running-kernel Kdump gate can be verified.
+  when: autographs_deploy_crashkernel_removal is changed
