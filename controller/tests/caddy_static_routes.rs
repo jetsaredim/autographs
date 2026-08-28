@@ -267,9 +267,7 @@ fn deploy_discovers_vault_secret_ids_without_github_variables() {
         ),
     ] {
         assert!(deploy_workflow.contains(&format!("'.{env_name}'")));
-        assert!(deploy_workflow.contains(&format!(
-            "steps.terraform_apply.outputs.{output_name}"
-        )));
+        assert!(deploy_workflow.contains(&format!("steps.terraform_apply.outputs.{output_name}")));
         assert!(!deploy_workflow.contains(&format!("vars.{env_name}")));
     }
 }
