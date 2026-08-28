@@ -248,6 +248,7 @@ fn deploy_discovers_vault_secret_ids_without_github_variables() {
 
     assert!(runtime_secrets.contains("data \"oci_vault_secrets\" \"runtime_controller\""));
     assert!(runtime_secrets.contains("state          = \"ACTIVE\""));
+    assert!(runtime_secrets.contains("condition     = length(self.secrets) == 1"));
     assert!(runtime_secrets.contains("env_name => one(secret_lookup.secrets[*].id)"));
     assert!(runtime_outputs.contains("output \"runtime_secret_id_env_vars\""));
     assert!(tenancy_iam.contains("to inspect secrets in compartment id"));
@@ -268,6 +269,11 @@ fn deploy_discovers_vault_secret_ids_without_github_variables() {
     ] {
         assert!(deploy_workflow.contains(&format!("'.{env_name}'")));
         assert!(deploy_workflow.contains(&format!("steps.terraform_apply.outputs.{output_name}")));
+        assert!(deploy_workflow.contains(&format!(
+            "{output_name}=\"$(jq -er '.{env_name}' <<< \"$runtime_secret_ids\")\""
+        )));
+        assert!(deploy_workflow.contains(&format!("echo \"{output_name}=${{{output_name}}}\"")));
+        assert!(!deploy_workflow.contains(&format!("echo \"{output_name}=$(jq")));
         assert!(!deploy_workflow.contains(&format!("vars.{env_name}")));
     }
 }

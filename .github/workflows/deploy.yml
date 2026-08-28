@@ -466,11 +466,14 @@ jobs:
           fi
           terraform apply -auto-approve
           runtime_secret_ids="$(terraform output -json runtime_secret_id_env_vars)"
+          admin_password_hash_vault_secret_id="$(jq -er '.AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
+          oracle_db_password_vault_secret_id="$(jq -er '.ORACLE_DB_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
+          oracle_db_wallet_password_vault_secret_id="$(jq -er '.ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
           {
             echo "runtime_public_ip=$(terraform output -raw runtime_public_ip)"
-            echo "admin_password_hash_vault_secret_id=$(jq -er '.AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
-            echo "oracle_db_password_vault_secret_id=$(jq -er '.ORACLE_DB_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
-            echo "oracle_db_wallet_password_vault_secret_id=$(jq -er '.ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
+            echo "admin_password_hash_vault_secret_id=${admin_password_hash_vault_secret_id}"
+            echo "oracle_db_password_vault_secret_id=${oracle_db_password_vault_secret_id}"
+            echo "oracle_db_wallet_password_vault_secret_id=${oracle_db_wallet_password_vault_secret_id}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Run playbook

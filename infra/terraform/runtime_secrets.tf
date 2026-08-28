@@ -12,6 +12,13 @@ data "oci_vault_secrets" "runtime_controller" {
   compartment_id = var.compartment_ocid
   name           = each.value
   state          = "ACTIVE"
+
+  lifecycle {
+    postcondition {
+      condition     = length(self.secrets) == 1
+      error_message = "Expected exactly one ACTIVE OCI Vault secret named ${each.value} in the runtime compartment."
+    }
+  }
 }
 
 locals {
