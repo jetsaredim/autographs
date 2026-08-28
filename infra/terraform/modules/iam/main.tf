@@ -96,6 +96,7 @@ locals {
   deploy_policy_statements = [
     "Allow ${local.deploy_group} to inspect compartments in tenancy",
     "Allow ${local.deploy_group} to read objectstorage-namespaces in tenancy",
+    "Allow ${local.deploy_group} to inspect secrets in compartment id ${local.compartment_ocid}",
     "Allow ${local.deploy_group} to manage instance-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.deploy_group} to manage virtual-network-family in compartment id ${local.compartment_ocid}",
     "Allow ${local.deploy_group} to manage volume-family in compartment id ${local.compartment_ocid}",

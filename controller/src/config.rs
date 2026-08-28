@@ -5,7 +5,14 @@ use std::{env, net::SocketAddr, path::PathBuf};
 use crate::contracts::PublishGeneratorMetadata;
 use crate::publisher::ReleaseRetentionPolicy;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Default, Eq, PartialEq)]
+pub struct RuntimeSecretOverrides {
+    pub(crate) oracle_db_password: Option<String>,
+    pub(crate) oracle_db_wallet_password: Option<String>,
+    pub(crate) admin_password_hash: Option<String>,
+}
+
+#[derive(Clone)]
 pub struct ControllerConfig {
     pub bind_addr: SocketAddr,
     pub public_origin: String,
@@ -14,6 +21,11 @@ pub struct ControllerConfig {
     pub admin_password_hash: Option<String>,
     pub operator_token: Option<String>,
     pub oracle_configured: bool,
+    pub(crate) oracle_user: Option<String>,
+    pub(crate) oracle_password: Option<String>,
+    pub(crate) oracle_connect_string: Option<String>,
+    pub(crate) oracle_wallet_dir: Option<String>,
+    pub(crate) oracle_wallet_password: Option<String>,
     pub media_configured: bool,
     pub static_release_configured: bool,
     pub static_release_root: PathBuf,
@@ -37,6 +49,14 @@ impl ControllerConfig {
             .map(|value| value != "false")
             .unwrap_or(true);
 
+        let oracle_user = non_blank_env("ORACLE_DB_USER");
+        let oracle_password = non_blank_env("ORACLE_DB_PASSWORD");
+        let oracle_connect_string = non_blank_env("ORACLE_DB_CONNECT_STRING");
+        let oracle_wallet_dir = non_blank_env("ORACLE_DB_WALLET_DIR");
+        let oracle_wallet_password = non_blank_env("ORACLE_DB_WALLET_PASSWORD");
+        let oracle_configured =
+            oracle_user.is_some() && oracle_password.is_some() && oracle_connect_string.is_some();
+
         Ok(Self {
             bind_addr,
             public_origin,
@@ -44,11 +64,12 @@ impl ControllerConfig {
             admin_password: non_blank_env("AUTOGRAPHS_ADMIN_PASSWORD"),
             admin_password_hash: non_blank_env("AUTOGRAPHS_ADMIN_PASSWORD_HASH"),
             operator_token: non_blank_env("AUTOGRAPHS_OPERATOR_API_TOKEN"),
-            oracle_configured: all_present(&[
-                "ORACLE_DB_USER",
-                "ORACLE_DB_PASSWORD",
-                "ORACLE_DB_CONNECT_STRING",
-            ]),
+            oracle_configured,
+            oracle_user,
+            oracle_password,
+            oracle_connect_string,
+            oracle_wallet_dir,
+            oracle_wallet_password,
             media_configured: all_present(&["OCI_MEDIA_BUCKET_NAME", "OCI_MEDIA_NAMESPACE"]),
             static_release_configured: env::var("AUTOGRAPHS_STATIC_RELEASE_ROOT").is_ok(),
             static_release_root: env::var("AUTOGRAPHS_STATIC_RELEASE_ROOT")
@@ -69,6 +90,29 @@ impl ControllerConfig {
         })
     }
 
+    pub fn from_env_with_secret_overrides(
+        overrides: RuntimeSecretOverrides,
+    ) -> Result<Self, String> {
+        let mut config = Self::from_env()?;
+        config.apply_secret_overrides(overrides);
+        Ok(config)
+    }
+
+    pub(crate) fn apply_secret_overrides(&mut self, overrides: RuntimeSecretOverrides) {
+        if let Some(value) = overrides.oracle_db_password {
+            self.oracle_password = Some(value);
+        }
+        if let Some(value) = overrides.oracle_db_wallet_password {
+            self.oracle_wallet_password = Some(value);
+        }
+        if let Some(value) = overrides.admin_password_hash {
+            self.admin_password_hash = Some(value);
+        }
+        self.oracle_configured = self.oracle_user.is_some()
+            && self.oracle_password.is_some()
+            && self.oracle_connect_string.is_some();
+    }
+
     pub fn for_test(secure_cookies: bool) -> Self {
         Self {
             bind_addr: "127.0.0.1:0".parse().expect("test bind address"),
@@ -78,6 +122,11 @@ impl ControllerConfig {
             admin_password_hash: None,
             operator_token: Some("operator-test-token".to_owned()),
             oracle_configured: false,
+            oracle_user: None,
+            oracle_password: None,
+            oracle_connect_string: None,
+            oracle_wallet_dir: None,
+            oracle_wallet_password: None,
             media_configured: false,
             static_release_configured: false,
             static_release_root: PathBuf::from("/tmp/autographs-static"),

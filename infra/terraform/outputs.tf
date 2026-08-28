@@ -18,6 +18,11 @@ output "runtime_instance_id" {
   value       = module.compute.instance_id
 }
 
+output "runtime_secret_id_env_vars" {
+  description = "Controller environment variable names mapped to uniquely discovered ACTIVE OCI Vault secret OCIDs."
+  value       = local.runtime_secret_id_env_vars
+}
+
 output "vcn_id" {
   description = "OCI VCN ID for the Phase 1 runtime network baseline."
   value       = module.network.vcn_id

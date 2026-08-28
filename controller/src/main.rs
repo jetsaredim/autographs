@@ -1,10 +1,22 @@
-use autographs_controller::{config::ControllerConfig, routes::runtime_router};
+use autographs_controller::{
+    config::{ControllerConfig, RuntimeSecretOverrides},
+    routes::runtime_router,
+};
 
-#[tokio::main]
-async fn main() {
+fn main() {
     init_logging();
+    let secret_overrides = resolve_startup_secrets();
 
-    let config = ControllerConfig::from_env().expect("load controller configuration");
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("build controller runtime");
+    runtime.block_on(run_controller(secret_overrides));
+}
+
+async fn run_controller(secret_overrides: RuntimeSecretOverrides) {
+    let config = ControllerConfig::from_env_with_secret_overrides(secret_overrides)
+        .expect("load controller configuration");
     let bind_addr = config.bind_addr;
     tracing::info!(
         %bind_addr,
@@ -27,6 +39,22 @@ async fn main() {
     )
     .await
     .expect("serve controller routes");
+}
+
+fn resolve_startup_secrets() -> RuntimeSecretOverrides {
+    #[cfg(any(feature = "production-persistence", feature = "production-oci"))]
+    {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build startup secret resolver runtime");
+        runtime
+            .block_on(autographs_controller::runtime_secrets::resolve_secret_references())
+            .expect("resolve runtime secrets")
+    }
+
+    #[cfg(not(any(feature = "production-persistence", feature = "production-oci")))]
+    RuntimeSecretOverrides::default()
 }
 
 fn init_logging() {

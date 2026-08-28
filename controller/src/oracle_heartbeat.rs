@@ -2,19 +2,19 @@ use std::time::Duration;
 
 use tokio::time::{self, MissedTickBehavior};
 
-use crate::oracle_connection;
+use crate::oracle_connection::{self, OracleConnectionSettings};
 
 const HEARTBEAT_INTERVAL_ENV: &str = "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS";
 const DEFAULT_HEARTBEAT_INTERVAL_SECONDS: u64 = 24 * 60 * 60;
 
-pub fn spawn(user: String, credential: String, connect_string: String) -> Result<(), String> {
+pub fn spawn(settings: OracleConnectionSettings) -> Result<(), String> {
     let Some(interval) = heartbeat_interval_from_env()? else {
         tracing::info!("Oracle catalog heartbeat disabled");
         return Ok(());
     };
 
     tracing::info!(
-        %user,
+        user = settings.user(),
         interval_seconds = interval.as_secs(),
         "starting Oracle catalog heartbeat"
     );
@@ -26,10 +26,8 @@ pub fn spawn(user: String, credential: String, connect_string: String) -> Result
             ticker.tick().await;
 
             let result = tokio::task::spawn_blocking({
-                let user = user.clone();
-                let credential = credential.clone();
-                let connect_string = connect_string.clone();
-                move || run_heartbeat(&user, &credential, &connect_string)
+                let settings = settings.clone();
+                move || run_heartbeat(&settings)
             })
             .await;
 
@@ -82,8 +80,8 @@ fn parse_heartbeat_interval(raw: Option<&str>) -> Result<Option<Duration>, Strin
     Ok(Some(Duration::from_secs(seconds)))
 }
 
-fn run_heartbeat(user: &str, credential: &str, connect_string: &str) -> Result<(), HeartbeatError> {
-    let connection = oracle_connection::connect(user, credential, connect_string)
+fn run_heartbeat(settings: &OracleConnectionSettings) -> Result<(), HeartbeatError> {
+    let connection = oracle_connection::connect_with_settings(settings)
         .map_err(|_error| HeartbeatError::Connect)?;
     let row = connection
         .query_row("select 1 from dual", &[])

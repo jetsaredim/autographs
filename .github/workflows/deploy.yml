@@ -465,7 +465,16 @@ jobs:
             fi
           fi
           terraform apply -auto-approve
-          echo "runtime_public_ip=$(terraform output -raw runtime_public_ip)" >> "$GITHUB_OUTPUT"
+          runtime_secret_ids="$(terraform output -json runtime_secret_id_env_vars)"
+          admin_password_hash_vault_secret_id="$(jq -er '.AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
+          oracle_db_password_vault_secret_id="$(jq -er '.ORACLE_DB_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
+          oracle_db_wallet_password_vault_secret_id="$(jq -er '.ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
+          {
+            echo "runtime_public_ip=$(terraform output -raw runtime_public_ip)"
+            echo "admin_password_hash_vault_secret_id=${admin_password_hash_vault_secret_id}"
+            echo "oracle_db_password_vault_secret_id=${oracle_db_password_vault_secret_id}"
+            echo "oracle_db_wallet_password_vault_secret_id=${oracle_db_wallet_password_vault_secret_id}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v9
@@ -473,6 +482,7 @@ jobs:
           ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
           AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
           AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
+          AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID: ${{ steps.terraform_apply.outputs.admin_password_hash_vault_secret_id }}
           GITHUB_ACTOR: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
@@ -480,7 +490,9 @@ jobs:
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           ORACLE_DB_PASSWORD: ${{ secrets.ORACLE_DB_PASSWORD }}
+          ORACLE_DB_PASSWORD_VAULT_SECRET_ID: ${{ steps.terraform_apply.outputs.oracle_db_password_vault_secret_id }}
           ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
+          ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID: ${{ steps.terraform_apply.outputs.oracle_db_wallet_password_vault_secret_id }}
           ORACLE_DB_WALLET_ZIP_BASE64: ${{ secrets.ORACLE_DB_WALLET_ZIP_BASE64 }}
         with:
           playbook: playbooks/deploy.yml

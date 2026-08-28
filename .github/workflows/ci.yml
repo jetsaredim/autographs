@@ -258,9 +258,10 @@ jobs:
             deploy/ansible/playbooks/security-post-result-status-validate-test.yml \
             deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml \
             deploy/ansible/playbooks/security-reboot-state-validate-test.yml \
-            deploy/ansible/playbooks/security-reboot-result-validate-test.yml
+            deploy/ansible/playbooks/security-reboot-result-validate-test.yml \
+            deploy/ansible/playbooks/deploy-admin-credentials-validate-test.yml
 
-      - name: Test security report rendering and metadata validation
+      - name: Test Ansible validation playbooks
         run: |
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             -i deploy/ansible/test-fixtures/security-report-inventory.yml \
@@ -277,6 +278,10 @@ jobs:
             deploy/ansible/playbooks/security-reboot-state-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-reboot-result-validate-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg \
+            AUTOGRAPHS_ADMIN_PASSWORD_HASH='' \
+            AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID='' \
+            ansible-playbook deploy/ansible/playbooks/deploy-admin-credentials-validate-test.yml
 
       - name: Lint Ansible playbook
         run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/

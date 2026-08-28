@@ -82,13 +82,15 @@ const REQUIRED_UNIQUE_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[(
 )];
 
 pub fn ensure_initialized(
-    user: &str,
-    credential: &str,
-    connect_string: &str,
+    settings: &oracle_connection::OracleConnectionSettings,
 ) -> Result<(), String> {
-    tracing::info!(%user, %connect_string, "checking Oracle catalog schema state");
+    tracing::info!(
+        user = settings.user(),
+        connect_string = settings.connect_string(),
+        "checking Oracle catalog schema state"
+    );
 
-    let connection = oracle_connection::connect(user, credential, connect_string)
+    let connection = oracle_connection::connect_with_settings(settings)
         .map_err(|error| format!("connect to Oracle catalog for schema bootstrap: {error}"))?;
 
     ensure_initialized_on_connection(&connection)

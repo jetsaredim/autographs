@@ -229,7 +229,10 @@ fn deploy_wires_oracle_heartbeat_interval_override() {
             .contains("ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}")
     );
     assert!(app_env.contains(
-        "ORACLE_DB_WALLET_PASSWORD={{ lookup('env', 'ORACLE_DB_WALLET_PASSWORD') | default('', true) }}"
+        "ORACLE_DB_WALLET_PASSWORD={{ '' if oracle_db_wallet_password_vault_secret_id | length > 0 else lookup('env', 'ORACLE_DB_WALLET_PASSWORD') | default('', true) }}"
+    ));
+    assert!(app_env.contains(
+        "ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID={{ oracle_db_wallet_password_vault_secret_id }}"
     ));
     assert!(deploy_tasks.contains(
         "lookup('env', 'ORACLE_DB_WALLET_PASSWORD') | default('', true) | trim | length > 0"
@@ -237,27 +240,72 @@ fn deploy_wires_oracle_heartbeat_interval_override() {
 }
 
 #[test]
-fn deploy_tasks_hash_rotation_discards_preserved_plaintext_credentials() {
+fn deploy_discovers_vault_secret_ids_without_github_variables() {
+    let runtime_secrets = read_repo("infra/terraform/runtime_secrets.tf");
+    let runtime_outputs = read_repo("infra/terraform/outputs.tf");
+    let tenancy_iam = read_repo("infra/terraform/modules/iam/main.tf");
+    let deploy_workflow = read_repo(".github/workflows/deploy.yml");
+
+    assert!(runtime_secrets.contains("data \"oci_vault_secrets\" \"runtime_controller\""));
+    assert!(runtime_secrets.contains("state          = \"ACTIVE\""));
+    assert!(runtime_secrets.contains("condition     = length(self.secrets) == 1"));
+    assert!(runtime_secrets.contains("env_name => one(secret_lookup.secrets[*].id)"));
+    assert!(runtime_outputs.contains("output \"runtime_secret_id_env_vars\""));
+    assert!(tenancy_iam.contains("to inspect secrets in compartment id"));
+
+    for (env_name, output_name) in [
+        (
+            "AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID",
+            "admin_password_hash_vault_secret_id",
+        ),
+        (
+            "ORACLE_DB_PASSWORD_VAULT_SECRET_ID",
+            "oracle_db_password_vault_secret_id",
+        ),
+        (
+            "ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID",
+            "oracle_db_wallet_password_vault_secret_id",
+        ),
+    ] {
+        assert!(deploy_workflow.contains(&format!("'.{env_name}'")));
+        assert!(deploy_workflow.contains(&format!("steps.terraform_apply.outputs.{output_name}")));
+        assert!(deploy_workflow.contains(&format!(
+            "{output_name}=\"$(jq -er '.{env_name}' <<< \"$runtime_secret_ids\")\""
+        )));
+        assert!(deploy_workflow.contains(&format!("echo \"{output_name}=${{{output_name}}}\"")));
+        assert!(!deploy_workflow.contains(&format!("echo \"{output_name}=$(jq")));
+        assert!(!deploy_workflow.contains(&format!("vars.{env_name}")));
+    }
+}
+
+#[test]
+fn deploy_tasks_require_hash_only_admin_credentials_and_fail_closed_without_vault_id() {
     let deploy_tasks = read_repo("deploy/ansible/roles/autographs_deploy/tasks/main.yml");
-    let select_start = deploy_tasks
-        .find("- name: Select deployed admin credentials")
-        .expect("select deployed admin credentials exists");
-    let validate_start = deploy_tasks
-        .find("- name: Validate deployed admin authentication secret")
-        .expect("credential validation exists");
-    let select_tasks = &deploy_tasks[select_start..validate_start];
+    let credential_tasks =
+        read_repo("deploy/ansible/roles/autographs_deploy/tasks/admin_credentials.yml");
+    let validation_playbook =
+        read_repo("deploy/ansible/playbooks/deploy-admin-credentials-validate-test.yml");
+
+    assert!(deploy_tasks.contains("ansible.builtin.include_tasks: admin_credentials.yml"));
 
     for expected in [
-        "if autographs_deploy_admin_password_input | length > 0\n          and autographs_deploy_admin_password_hash_input | length == 0",
-        "''\n          if autographs_deploy_admin_password_hash_input | length > 0",
-        "''\n              if autographs_deploy_admin_password_hash_existing | length > 0",
-        "''\n          if autographs_deploy_admin_password_input | length > 0",
+        "autographs_deploy_admin_password_resolved: \"\"",
+        "''\n        if autographs_deploy_admin_password_hash_vault_secret_id_input | length > 0",
+        "else autographs_deploy_admin_password_hash_existing",
+        "AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID for deployed admin routes",
+        "Production deployment is hash-only",
     ] {
         assert!(
-            select_tasks.contains(expected),
-            "deploy tasks should prefer the configured hash and drop preserved plaintext with {expected}"
+            credential_tasks.contains(expected),
+            "deploy tasks should enforce the hash-only authentication contract with {expected}"
         );
     }
+
+    assert!(!credential_tasks.contains("lookup('password'"));
+    assert!(!credential_tasks.contains("autographs_deploy_admin_password_input"));
+    assert!(!credential_tasks.contains("autographs_deploy_admin_password_existing"));
+    assert!(validation_playbook.contains("previous Vault deployment"));
+    assert!(validation_playbook.contains("autographs_admin_missing_secret_failed_closed"));
 }
 
 fn read_repo(relative: &str) -> String {
