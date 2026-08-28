@@ -108,6 +108,9 @@ jobs:
       - name: Check formatting
         run: cargo fmt --manifest-path controller/Cargo.toml --check
 
+      - name: Validate runtime persistence contracts
+        run: bash scripts/validate-runtime.sh
+
       - name: Run production-feature tests with coverage
         run: |
           cargo llvm-cov \
