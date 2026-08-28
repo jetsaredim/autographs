@@ -80,8 +80,10 @@ the live publish smoke passes; no user API key is mounted into the controller.
   the disposable secret after the proof.
 - Do not put secret content in Terraform state or GitHub logs.
 
-**Exit:** Spike 004 changes from PARTIAL to VALIDATED, including a negative IAM
-test and audit-log evidence.
+**Status:** completed 2026-08-24 with a live production-runtime
+instance-principal read of the Terraform-generated proof secret. Spike 004
+remains PARTIAL until C4's kernel-persistence, encrypted-swap, wallet, secret
+cutover, reboot, and rollback gates are complete.
 
 ### C4: Production Secret Cutover
 
@@ -97,6 +99,14 @@ test and audit-log evidence.
   behavior, and replace persistent plaintext swap with either no swap or
   encrypted swap using a random boot-only key that is not stored durably. Prove
   those settings after reboot; tmpfs alone is not a no-disk guarantee.
+- The controller core limit, systemd-coredump policy, and Kdump desired state are
+  implemented as the first C4 slice. They remain PENDING live proof until an
+  ordinary deploy plus an operator-approved reboot confirms the running limits,
+  `kexec_crash_loaded=0`, and no running `crashkernel` argument.
+- The next C4 slice owns encrypted boot-only-key swap. Its opt-in cutover must
+  repeat the memory-safety preflight after stopping the Autographs services,
+  immediately before `swapoff`; production conversion and reboot evidence
+  follow that implementation.
 - Fail the current controller closed without an automatic filesystem fallback.
   Keep the previous image digest, its exact Quadlet, and pinned legacy Vault
   versions for a bounded rollback window.
@@ -157,6 +167,16 @@ after reboot; the documented old-image rollback has been executed successfully.
   Keep manual-only deletion for artifacts whose ownership cannot be proved.
 - Re-run the collector after cleanup and attach the redacted before/after
   comparison to the PR or operator record.
+- Treat PCP and `/var/oled` as a separate C5 decision. Production has a 20 GiB
+  XFS OLED logical volume with only an empty crash directory and one stale PCP
+  archive; the application does not consume PCP, and the deploy role masks the
+  PCP archive timers. Decide explicitly whether to restore useful monitoring or
+  retire PCP. Because XFS cannot shrink, reclaiming the OLED allocation requires
+  an opt-in maintenance operation with a boot-volume backup and OCI serial
+  console access: stop the selected services, verify allowlisted contents,
+  remove the mount/fstab and logical-volume ownership safely, extend root, and
+  grow XFS. Do not combine it with encrypted-swap conversion, and do not add
+  those destructive commands to the ordinary deploy role.
 
 **Exit:** no unowned production artifact remains; future deployment recreates
 the declared state without resurrecting removed credentials.

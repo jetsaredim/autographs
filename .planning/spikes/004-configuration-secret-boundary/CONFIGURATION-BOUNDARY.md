@@ -55,6 +55,13 @@ Production cutover requires all of the following evidence:
 These controls reduce durable recovery of secrets. They do not claim to defend
 against a privileged attacker inspecting the live host or running process.
 
+Current status: C3's live OCI Vault retrieval proof completed on 2026-08-24.
+The repository now has the C4 controller core limit, systemd-coredump policy,
+and Kdump desired state, but those controls remain unproven until an ordinary
+deploy and operator-approved reboot pass the live checks. Encrypted boot-only-key
+swap is the next C4 slice. Its cutover must repeat the memory-safety preflight
+after stopping the Autographs services, immediately before `swapoff`.
+
 ## Remove From Production Runtime
 
 - `OCI_TENANCY_OCID`

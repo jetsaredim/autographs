@@ -102,9 +102,12 @@ not prove those kernel-managed persistence paths are absent.
 
 **Verdict: PARTIAL.** Five local tests validate the bounded
 application-managed exposure and redaction behavior, and official OCI/Podman
-contracts support the design. A live read of a disposable Vault secret using
-the production VM's exact dynamic group and a secret-ID-bound policy is still
-required. The VM swap/core gates are also unproven.
+contracts support the design. C3's live instance-principal Vault retrieval proof
+completed on 2026-08-24, including production-runtime retrieval from the
+Terraform-generated proof secret. The full spike remains PARTIAL: the C4
+controller/core/Kdump desired state still requires an ordinary deploy and
+operator-approved reboot proof, and encrypted boot-only-key swap is the next C4
+implementation slice.
 
 Recommended sequence:
 
@@ -115,12 +118,13 @@ Recommended sequence:
    state.
 4. Extract the existing instance-principal session/signing code into a generic
    OCI client and add a Vault secret provider.
-5. Disable controller core dumps with the systemd service limit and verify the
-   running process reports a zero core-file limit. Confirm the host's kernel
-   crash-dump policy cannot retain controller memory.
-6. Replace persistent plaintext swap with a reviewed non-persistent strategy:
-   either no swap, or encrypted swap whose random boot-only key is not stored
-   durably. Reboot and verify the chosen contract before secret cutover.
+5. Deploy the implemented controller/core/Kdump desired state, obtain approval
+   for the required reboot, and verify the running process limit, coredump
+   policy, Kdump state, `kexec_crash_loaded`, and boot arguments.
+6. Implement encrypted swap whose random boot-only key is not stored durably.
+   During cutover, repeat the memory-safety preflight after stopping the
+   Autographs services, immediately before `swapoff`; reboot and verify the
+   encrypted mapper before secret cutover.
 7. Add a bounded tmpfs wallet directory to the Quadlet and fetch only the files
    required by the Rust driver. Treat tmpfs as pageable unless the VM proof
    demonstrates otherwise.

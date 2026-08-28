@@ -351,9 +351,62 @@ matches the WebP bytes instead of reusing a stale public path. Keep CDN purge
 access available for emergency takedown, accidental public exposure, or CDN
 incident response, but routine image replacement should not need a purge.
 
-The Ansible deploy role keeps `/.swapfile` at 2 GiB and writes `vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is intentional for the Always Free runtime shape because controller publishing, image processing, and tools/smoke scripts can briefly exceed the VM's physical memory.
+The Ansible deploy role currently keeps `/.swapfile` at 2 GiB and writes
+`vm.swappiness=20` through `/etc/sysctl.d/99-autographs-swap.conf`. This is
+intentional for the Always Free runtime shape because controller publishing,
+image processing, and tools/smoke scripts can briefly exceed the VM's physical
+memory. The current file is still plaintext; encrypted boot-only-key swap is a
+later C4 maintenance slice and is not changed by the core/Kdump deploy below.
 
 The role also installs `python3-oci-cli` from the Oracle Linux 10 Development Packages repo for operator diagnostics. The application does not depend on the OCI CLI, but keeping it on the VM lets an operator verify instance-principal Object Storage access independently from the Rust controller, including emergency listing or deletion of orphaned private media objects.
+
+### Core and Kdump Persistence Gate
+
+An ordinary deploy sets `LimitCORE=0` on the generated controller service,
+installs `/etc/systemd/coredump.conf.d/99-autographs.conf` with `Storage=none`
+and `ProcessSizeMax=0`, stops and masks `kdump.service`, and removes
+`crashkernel` from installed boot entries. It preserves historical dump files
+and does not reboot the VM. After that deploy, connect to the VM and verify the
+staged state:
+
+```bash
+sudo systemctl show autographs-controller.service --property=LimitCORE
+controller_pid="$(sudo podman inspect --format '{{.State.Pid}}' autographs-controller)"
+sudo grep '^Max core file size' "/proc/${controller_pid}/limits"
+sudo grep -E '^(Storage=none|ProcessSizeMax=0)$' /etc/systemd/coredump.conf.d/99-autographs.conf
+sudo systemctl is-enabled kdump.service || true
+sudo systemctl is-active kdump.service || true
+cat /sys/kernel/kexec_crash_loaded
+if sudo grubby --info=ALL | grep -q 'crashkernel'; then
+  echo 'installed boot entry still contains crashkernel' >&2
+  exit 1
+fi
+grep -o 'crashkernel[^ ]*' /proc/cmdline || true
+```
+
+Expected before reboot: `LimitCORE=0`, both process core-limit columns are `0`,
+the coredump file prints both managed settings, Kdump is `masked` and
+`inactive`, `kexec_crash_loaded` is `0`, and installed boot entries contain no
+`crashkernel`. The final command may still print the running kernel's old boot
+argument. That is a required checkpoint, not a deploy failure: obtain approval
+for the downtime and reboot through the established production reboot process.
+The deploy role never initiates this reboot.
+
+After the approved reboot, repeat the checks above and require this additional
+gate plus normal runtime health:
+
+```bash
+if grep -qE '(^| )crashkernel(=| |$)' /proc/cmdline; then
+  echo 'running kernel still contains crashkernel' >&2
+  exit 1
+fi
+test "$(cat /sys/kernel/kexec_crash_loaded)" = "0"
+curl --fail --silent --show-error https://autographs.jetsaredim.net/admin/api/health
+```
+
+This proves only the C4 controller/core/Kdump slice. Encrypted swap conversion,
+wallet tmpfs materialization, secret cutover, and `/var/oled` reclamation remain
+pending and require their own implementation and production evidence.
 
 ### Runtime VM Recreation
 
