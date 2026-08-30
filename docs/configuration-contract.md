@@ -25,7 +25,6 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `OCI_FINGERPRINT` | deploy workflow | OCI API signing key fingerprint |
 | `OCI_PRIVATE_KEY_PEM` | deploy workflow | OCI API signing private key PEM |
 | `DEPLOY_SSH_PRIVATE_KEY` | deploy workflow | SSH private key for the OCI runtime VM |
-| `ADB_ADMIN_PASSWORD` | deploy workflow / Terraform | Initial Oracle Autonomous Database ADMIN password when database creation is enabled |
 | `ORACLE_DB_PASSWORD` | deploy workflow / runtime | Runtime database password passed to the Rust controller container |
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / runtime | Base64-encoded ADB wallet zip used for mTLS connections |
 | `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Wallet download password required by the `oracledb` driver when `ORACLE_DB_WALLET_DIR` is set |
@@ -89,7 +88,18 @@ Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, me
 
 ## Data Services
 
-Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, ADMIN password, and runtime connection values.
+Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, named Vault secrets, and runtime connection values.
+
+The runtime Terraform root resolves the uniquely named ACTIVE Oracle database
+password secret through the existing metadata-only Vault lookup and passes its
+OCID to the Autonomous Database resource as `secret_id`. Neither the pull-request
+plan nor the merge-triggered apply workflow receives the plaintext database
+ADMIN password. This control-plane use is distinct from the running controller:
+the controller receives the same secret OCID and retrieves the current secret
+bundle with its VM instance principal during startup. A successful Terraform
+plan proves the lookup and provider planning path only; a controlled apply and
+fresh controller connection are required to prove that OCI can consume the
+secret for the database update.
 
 Runtime containers receive database and media coordinates through Ansible-managed environment files consumed by Podman quadlets, not committed files. The deploy workflow writes VM-local env files under `${DEPLOY_PATH}/env`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values.
 

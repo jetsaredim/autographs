@@ -67,7 +67,6 @@ Populate repo-level GitHub Secrets:
 - `OCI_FINGERPRINT`
 - `OCI_PRIVATE_KEY_PEM`
 - `DEPLOY_SSH_PRIVATE_KEY`
-- `ADB_ADMIN_PASSWORD`
 - `ORACLE_DB_PASSWORD`
 - `ORACLE_DB_WALLET_ZIP_BASE64` when using an mTLS wallet
 - `ORACLE_DB_WALLET_PASSWORD` when using the mTLS wallet path
@@ -112,7 +111,7 @@ Populate repo-level GitHub Variables:
 
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
-Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, ADMIN password, and runtime connection values are ready. When enabling data services, Terraform provisions the ADB and bucket, while the deploy step passes runtime coordinates through VM-local quadlet environment files.
+Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, uniquely named ACTIVE Vault secrets, and runtime connection values are ready. When enabling data services, Terraform provisions the ADB and bucket, while the deploy step passes runtime coordinates through VM-local quadlet environment files.
 
 For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Store the wallet download password in `ORACLE_DB_WALLET_PASSWORD`; the pure-Rust `oracledb` driver uses it to decrypt `ewallet.pem` even though the wallet has already been unpacked. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the Rust controller container.
 
@@ -127,6 +126,14 @@ environment coordinates:
 - `ORACLE_DB_PASSWORD_VAULT_SECRET_ID`
 - `ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID`
 - `AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID`
+
+The same Oracle database password secret OCID is also passed to the Terraform
+Autonomous Database resource as its control-plane `secret_id`; the workflows do
+not receive the plaintext database ADMIN password. That provider path is
+separate from the controller's runtime instance-principal retrieval. A green
+pull-request plan verifies the metadata lookup and planned in-place resource
+change, but only a later controlled apply and fresh database connection prove
+that OCI can consume the Vault value for the ADB update.
 
 The controller resolves these OCIDs with runtime instance-principal
 authentication during startup and then uses the existing runtime configuration
