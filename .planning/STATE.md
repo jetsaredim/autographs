@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-26 -- Made Terraform preserve operator-managed OCI Vault secret versions and verified the live tenancy plan is non-destructive.
+Last activity: 2026-08-30 -- Opened PR #224 to migrate ADB from the GitHub plaintext password to the existing Vault secret OCID; the no-IAM production plan passed with an in-place update and zero destruction.
 
 Progress: [█████████░] 89% of milestone plans complete; Phase 8 Plan 4 is next
 
@@ -186,6 +186,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-30 | migrate-adb-terraform-from-the-github-ad | Opened ready PR #224 without IAM changes: replaced the plaintext ADB Terraform password with the existing Vault secret OCID, removed the workflow contract, and proved the production-state plan is an in-place update with `0 to add, 1 to change, 0 to destroy`; apply-time authorization remains intentionally unproven. Implementation commits `b2612f7`, `03d53ab`. |
 | 2026-08-28 | c4-kernel-persistence-gates-disable-cont | Verified and clean-reviewed on PR #223: disabled controller/system userspace core persistence and Kdump, added live fail-closed deploy assertions, exact structural CI contracts, and checked reboot proof commands while keeping encrypted swap and OLED reclamation separate. Implementation commits `3c24e0d`, `f960dba`, `49052e0`; review fixes `b5faa89`, `961023b`. |
 | 2026-08-27 | make-oci-vault-secrets-manual-with-ignor | Replaced automatically generated placeholders with ignored manual bootstrap content and live-planned the already-rotated tenancy secrets with zero replacement, zero content change, and zero destruction. Implementation commit `719b55b`. |
 | 2026-08-25 | address-pr-222-review-findings-for-vault | Replaced unsafe runtime env mutation with typed secret overrides, enforced production hash-only admin deploy authentication, added executable fail-closed regression coverage, and fixed the follow-up Workflow checks warning. Implementation commits `01194d4`, `273750e`. |
