@@ -75,7 +75,13 @@ Example policy shape:
 "Allow group id ${module.iam.deploy_group_id} to read secret-bundles in compartment id ${module.iam.compartment_ocid} where target.secret.id = '${oci_vault_secret.runtime["oracle_db_password"].id}'"
 ```
 
-Oracle reference: <https://docs.oracle.com/en/cloud/paas/autonomous-database/serverless/adbsb/manage-users-create.html#GUID-B5846072-995B-4B81-BDCB-AF530BC42847>
+Oracle references:
+
+- [Use Oracle Cloud Infrastructure Vault Secret for ADMIN Password](https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/manage-users-create.html)
+  (under **Manage the Administrator Account on Autonomous AI Database**)
+- [Details for Vault, Key Management, and Secret Management Service](https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/keypolicyreference.htm)
+  (`read secret-bundles` grants `SECRET_BUNDLE_READ`, and
+  `target.secret.id` scopes the policy to one secret OCID)
 
 PR audit-trail comment:
 <https://github.com/jetsaredim/autographs/pull/224#discussion_r3890026250>
