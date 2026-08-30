@@ -25,7 +25,6 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `OCI_FINGERPRINT` | deploy workflow | OCI API signing key fingerprint |
 | `OCI_PRIVATE_KEY_PEM` | deploy workflow | OCI API signing private key PEM |
 | `DEPLOY_SSH_PRIVATE_KEY` | deploy workflow | SSH private key for the OCI runtime VM |
-| `ADB_ADMIN_PASSWORD` | deploy workflow / Terraform | Initial Oracle Autonomous Database ADMIN password when database creation is enabled |
 | `ORACLE_DB_PASSWORD` | deploy workflow / runtime | Runtime database password passed to the Rust controller container |
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / runtime | Base64-encoded ADB wallet zip used for mTLS connections |
 | `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Wallet download password required by the `oracledb` driver when `ORACLE_DB_WALLET_DIR` is set |
@@ -89,7 +88,22 @@ Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, me
 
 ## Data Services
 
-Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, ADMIN password, and runtime connection values.
+Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, named Vault secrets, and runtime connection values.
+
+The runtime Terraform root resolves the uniquely named ACTIVE Oracle database
+password secret through the existing metadata-only Vault lookup and passes its
+OCID to the Autonomous Database resource as `secret_id`. Neither the pull-request
+plan nor the merge-triggered apply workflow receives the plaintext database
+ADMIN password. This control-plane use is distinct from the running controller:
+the controller receives the same secret OCID and retrieves the current secret
+bundle with its VM instance principal during startup. A successful Terraform
+plan proves the lookup and provider planning path only; a controlled apply and
+fresh controller connection are required to prove that OCI can consume the
+secret for the database update. Before that runtime apply, the tenancy root must
+be applied so its dedicated deploy policy grants `read secret-bundles` for only
+the Oracle database password secret OCID. The broader metadata lookup remains
+limited to `inspect secrets`; deployment automation does not receive bundle
+access to the wallet-password or admin-password-hash secrets.
 
 Runtime containers receive database and media coordinates through Ansible-managed environment files consumed by Podman quadlets, not committed files. The deploy workflow writes VM-local env files under `${DEPLOY_PATH}/env`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values.
 
@@ -159,7 +173,7 @@ The runtime dynamic group matches compute instances in the project compartment, 
 
 The tenancy bootstrap root also creates a default OCI Vault, a software-protected runtime secrets key, and Terraform-managed runtime secret shells with non-sensitive, intentionally invalid bootstrap content for the controller secrets that will move to Vault: Oracle database password, Oracle wallet password, and admin password hash. Terraform creates the initial manual secret versions but ignores subsequent secret-content changes so operator-managed OCI CLI rotations remain authoritative and real values never enter Terraform configuration or state. The runtime secret-bundle policy is generated from those Terraform-managed secret OCIDs, so the runtime dynamic group can read only the curated Autographs runtime secrets without passing secret IDs between Terraform stacks. Operators must replace the bootstrap versions outside Terraform before switching deploy to the Vault OCIDs; secret contents must not enter Terraform inputs, state, GitHub repository variables, or committed files.
 
-The controller media adapter uses native OCI Object Storage requests signed with runtime instance-principal credentials. The runtime Terraform root uses the deploy identity's metadata-only `inspect secrets` permission to resolve each uniquely named ACTIVE controller secret and exports the OCIDs for Ansible without reading secret-bundle contents. The controller startup path resolves those `*_VAULT_SECRET_ID` environment variables through OCI Vault Secret Retrieval before normal configuration loads. When a supported Vault secret OCID is configured, deploy renders the matching direct secret value blank and the controller treats Vault as authoritative even if a direct value is accidentally present. Direct secret env vars remain supported only as a transition fallback, but production should move `ORACLE_DB_PASSWORD`, `ORACLE_DB_WALLET_PASSWORD`, and `AUTOGRAPHS_ADMIN_PASSWORD_HASH` to Vault secret OCIDs. `AUTOGRAPHS_ADMIN_PASSWORD` is not moved to Vault for production; the production path is hash-only, so operators must retain the original admin password outside this repo or rotate it by generating and storing a new Argon2 hash. Do not create new Terraform-managed IAM users or Customer Secret keys for controller media or runtime configuration access.
+The controller media adapter uses native OCI Object Storage requests signed with runtime instance-principal credentials. The runtime Terraform root uses the deploy identity's metadata-only `inspect secrets` permission to resolve each uniquely named ACTIVE controller secret and exports the OCIDs for Ansible without reading secret-bundle contents itself. A separate tenancy policy allows that deploy identity to read only the Oracle database password bundle when OCI handles the Autonomous Database `secret_id` update; it does not grant bundle access to the other controller secrets. The controller startup path resolves those `*_VAULT_SECRET_ID` environment variables through OCI Vault Secret Retrieval before normal configuration loads. When a supported Vault secret OCID is configured, deploy renders the matching direct secret value blank and the controller treats Vault as authoritative even if a direct value is accidentally present. Direct secret env vars remain supported only as a transition fallback, but production should move `ORACLE_DB_PASSWORD`, `ORACLE_DB_WALLET_PASSWORD`, and `AUTOGRAPHS_ADMIN_PASSWORD_HASH` to Vault secret OCIDs. `AUTOGRAPHS_ADMIN_PASSWORD` is not moved to Vault for production; the production path is hash-only, so operators must retain the original admin password outside this repo or rotate it by generating and storing a new Argon2 hash. Do not create new Terraform-managed IAM users or Customer Secret keys for controller media or runtime configuration access.
 
 The static release root and current pointer live on the runtime VM. Public artifacts are generated inside the OCI boundary from Oracle metadata and private originals. GitHub-hosted jobs may receive deploy secrets needed to render the private controller environment, but must not publish generated static release content outside the VM.
 

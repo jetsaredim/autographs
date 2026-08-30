@@ -96,3 +96,15 @@ resource "oci_identity_policy" "runtime_secret_bundle_access" {
 
   freeform_tags = local.tags
 }
+
+resource "oci_identity_policy" "deploy_database_password_secret_bundle_access" {
+  provider       = oci.home
+  compartment_id = var.parent_compartment_ocid
+  name           = "${var.name_prefix}-deploy-database-password-secret-bundle-access-policy"
+  description    = "Allows Autographs deployment automation to supply the Terraform-managed database password secret to Autonomous Database."
+  statements = [
+    "Allow group id ${module.iam.deploy_group_id} to read secret-bundles in compartment id ${module.iam.compartment_ocid} where target.secret.id = '${oci_vault_secret.runtime["oracle_db_password"].id}'"
+  ]
+
+  freeform_tags = local.tags
+}

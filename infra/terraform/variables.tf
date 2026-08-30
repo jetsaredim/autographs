@@ -205,13 +205,6 @@ variable "autonomous_database_display_name" {
   default     = "autographs-prod-adb"
 }
 
-variable "autonomous_database_admin_password" {
-  description = "Initial ADMIN password for the Oracle Autonomous Database. Required only when create_autonomous_database is true."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 variable "autonomous_database_is_free_tier" {
   description = "Whether the Autonomous Database should use Oracle Always Free sizing."
   type        = bool

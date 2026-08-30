@@ -37,7 +37,7 @@ module "data_services" {
   create_autonomous_database                      = var.create_autonomous_database
   autonomous_database_name                        = var.autonomous_database_name
   autonomous_database_display_name                = var.autonomous_database_display_name
-  autonomous_database_admin_password              = var.autonomous_database_admin_password
+  autonomous_database_admin_password_secret_id    = local.runtime_secret_id_env_vars["ORACLE_DB_PASSWORD_VAULT_SECRET_ID"]
   autonomous_database_is_free_tier                = var.autonomous_database_is_free_tier
   autonomous_database_is_mtls_connection_required = var.autonomous_database_is_mtls_connection_required
   autonomous_database_db_workload                 = var.autonomous_database_db_workload
