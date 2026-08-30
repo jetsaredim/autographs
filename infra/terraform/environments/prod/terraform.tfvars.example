@@ -45,12 +45,11 @@ runtime_deploy_user = "opc"
 runtime_deploy_path = "/opt/autographs"
 assign_public_ip = true
 
-# Phase 2 data services. Keep create_autonomous_database false until the
-# admin password is supplied through an untracked tfvars file or GitHub Secret.
+# Phase 2 data services. The runtime root discovers the existing Oracle database
+# password Vault secret OCID by its unique ACTIVE secret name.
 create_autonomous_database                   = false
 autonomous_database_name                     = "autographsdb"
 autonomous_database_display_name             = "autographs-prod-adb"
-autonomous_database_admin_password           = ""
 autonomous_database_is_free_tier             = true
 autonomous_database_is_mtls_connection_required = true
 autonomous_database_db_workload              = "OLTP"

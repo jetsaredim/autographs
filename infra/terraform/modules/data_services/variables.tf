@@ -18,10 +18,9 @@ variable "autonomous_database_display_name" {
   type        = string
 }
 
-variable "autonomous_database_admin_password" {
-  description = "Initial ADMIN password for the Autonomous Database."
+variable "autonomous_database_admin_password_secret_id" {
+  description = "OCI Vault secret OCID containing the Autonomous Database ADMIN password."
   type        = string
-  sensitive   = true
 }
 
 variable "autonomous_database_is_free_tier" {

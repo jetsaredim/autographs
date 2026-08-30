@@ -4,7 +4,7 @@ resource "oci_database_autonomous_database" "catalog" {
   compartment_id              = var.compartment_id
   db_name                     = var.autonomous_database_name
   display_name                = var.autonomous_database_display_name
-  admin_password              = var.autonomous_database_admin_password
+  secret_id                   = var.autonomous_database_admin_password_secret_id
   db_workload                 = var.autonomous_database_db_workload
   is_free_tier                = var.autonomous_database_is_free_tier
   is_mtls_connection_required = var.autonomous_database_is_mtls_connection_required
@@ -12,12 +12,6 @@ resource "oci_database_autonomous_database" "catalog" {
   data_storage_size_in_tbs    = var.autonomous_database_data_storage_size_in_tbs
   freeform_tags               = var.tags
 
-  lifecycle {
-    precondition {
-      condition     = !var.create_autonomous_database || var.autonomous_database_admin_password != ""
-      error_message = "autonomous_database_admin_password is required when create_autonomous_database is true."
-    }
-  }
 }
 
 resource "oci_objectstorage_bucket" "media" {
