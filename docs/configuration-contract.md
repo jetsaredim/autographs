@@ -113,8 +113,10 @@ The generated controller Quadlet sets `LimitCORE=0`. Host configuration writes
 `/etc/systemd/coredump.conf.d/99-autographs.conf` with `Storage=none` and
 `ProcessSizeMax=0`, and the deploy role stops and masks `kdump.service`. It also
 removes `crashkernel` from installed boot entries when present, but never
-reboots automatically. The configuration contract is not a live proof: after
-deployment, an operator-approved reboot and the checks in
+reboots automatically. Deployment fails unless the restarted controller's
+generated service limit and live process soft/hard core limits are all zero.
+The configuration contract is still not a complete running-kernel proof: after
+deployment, an operator-approved reboot and the checked script in
 [deployment-runbook.md](deployment-runbook.md#core-and-kdump-persistence-gate)
 must confirm the running process limit, coredump policy, Kdump state,
 `kexec_crash_loaded=0`, and absence of `crashkernel` from `/proc/cmdline`.

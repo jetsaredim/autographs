@@ -448,6 +448,59 @@
     - autographs-controller.service
     - autographs-caddy.service
 
+- name: Read generated controller service core limit
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - autographs-controller.service
+      - --property=LimitCORE
+      - --value
+  register: autographs_deploy_controller_service_core_limit
+  changed_when: false
+
+- name: Require generated controller service core limit is zero
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_controller_service_core_limit.stdout | trim == '0'
+    fail_msg: >-
+      autographs-controller.service did not activate LimitCORE=0 after the
+      fail-closed controller restart.
+
+- name: Inspect live controller container PID
+  ansible.builtin.command:
+    argv:
+      - podman
+      - inspect
+      - --format
+      - "{% raw %}{{.State.Pid}}{% endraw %}"
+      - "{{ autographs_deploy_controller_container_name }}"
+  register: autographs_deploy_controller_pid
+  changed_when: false
+
+- name: Require a live controller container PID
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_controller_pid.stdout | trim is match('^[1-9][0-9]*$')
+    fail_msg: The controller container did not report a live process ID.
+
+- name: Read live controller process limits
+  ansible.builtin.slurp:
+    src: "/proc/{{ autographs_deploy_controller_pid.stdout | trim }}/limits"
+  register: autographs_deploy_controller_process_limits
+
+- name: Require live controller soft and hard core limits are zero
+  ansible.builtin.assert:
+    that:
+      - >-
+        autographs_deploy_controller_process_limits.content
+        | b64decode
+        | regex_search('(?m)^Max core file size\s+0\s+0\s+bytes\s*$')
+        is not none
+    fail_msg: >-
+      The live controller process does not have zero soft and hard core-file
+      limits after deployment.
+
 - name: Verify current static release listener
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ autographs_deploy_candidate_preview_port }}/manifest.json"

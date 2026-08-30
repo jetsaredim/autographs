@@ -370,33 +370,64 @@ and does not reboot the VM. After that deploy, connect to the VM and verify the
 staged state:
 
 ```bash
-sudo systemctl show autographs-controller.service --property=LimitCORE
+set -euo pipefail
+
+test "$(sudo systemctl show autographs-controller.service --property=LimitCORE --value)" = "0"
 controller_pid="$(sudo podman inspect --format '{{.State.Pid}}' autographs-controller)"
-sudo grep '^Max core file size' "/proc/${controller_pid}/limits"
-sudo grep -E '^(Storage=none|ProcessSizeMax=0)$' /etc/systemd/coredump.conf.d/99-autographs.conf
-sudo systemctl is-enabled kdump.service || true
-sudo systemctl is-active kdump.service || true
-cat /sys/kernel/kexec_crash_loaded
-if sudo grubby --info=ALL | grep -q 'crashkernel'; then
+[[ "${controller_pid}" =~ ^[1-9][0-9]*$ ]]
+sudo grep -Eq '^Max core file size[[:space:]]+0[[:space:]]+0[[:space:]]+bytes[[:space:]]*$' \
+  "/proc/${controller_pid}/limits"
+
+effective_coredump="$(sudo systemd-analyze cat-config systemd/coredump.conf)"
+effective_storage="$(
+  awk -F= '/^[[:space:]]*Storage[[:space:]]*=/ {
+    value=$2; gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+  } END { print value }' <<<"${effective_coredump}"
+)"
+effective_process_max="$(
+  awk -F= '/^[[:space:]]*ProcessSizeMax[[:space:]]*=/ {
+    value=$2; gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+  } END { print value }' <<<"${effective_coredump}"
+)"
+test "${effective_storage}" = "none"
+test "${effective_process_max}" = "0"
+
+kdump_enabled="$(sudo systemctl is-enabled kdump.service 2>/dev/null || true)"
+kdump_active="$(sudo systemctl is-active kdump.service 2>/dev/null || true)"
+test "${kdump_enabled}" = "masked"
+test "${kdump_active}" = "inactive"
+test "$(cat /sys/kernel/kexec_crash_loaded)" = "0"
+
+installed_entries="$(sudo grubby --info=ALL)"
+if grep -Eq '(^|[="[:space:]])crashkernel(=[^"[:space:]]*)?(["[:space:]]|$)' \
+  <<<"${installed_entries}"; then
   echo 'installed boot entry still contains crashkernel' >&2
   exit 1
 fi
-grep -o 'crashkernel[^ ]*' /proc/cmdline || true
+
+running_crashkernel=absent
+if grep -Eq '(^|[[:space:]])crashkernel(=[^[:space:]]*)?([[:space:]]|$)' /proc/cmdline; then
+  running_crashkernel=present
+fi
+printf 'staged persistence gate passed; running crashkernel=%s\n' "${running_crashkernel}"
 ```
 
-Expected before reboot: `LimitCORE=0`, both process core-limit columns are `0`,
-the coredump file prints both managed settings, Kdump is `masked` and
-`inactive`, `kexec_crash_loaded` is `0`, and installed boot entries contain no
-`crashkernel`. The final command may still print the running kernel's old boot
+The script exits nonzero if the generated or live core limit, effective merged
+coredump policy, Kdump state, crash-kernel load state, or installed boot entries
+do not match the staged contract. A successful run can report
+`running crashkernel=present` because the active kernel may retain its old boot
 argument. That is a required checkpoint, not a deploy failure: obtain approval
 for the downtime and reboot through the established production reboot process.
-The deploy role never initiates this reboot.
+The deploy role repeats this reminder on every run while the active argument is
+present and never initiates the reboot.
 
 After the approved reboot, repeat the checks above and require this additional
 gate plus normal runtime health:
 
 ```bash
-if grep -qE '(^| )crashkernel(=| |$)' /proc/cmdline; then
+set -euo pipefail
+
+if grep -Eq '(^|[[:space:]])crashkernel(=[^[:space:]]*)?([[:space:]]|$)' /proc/cmdline; then
   echo 'running kernel still contains crashkernel' >&2
   exit 1
 fi

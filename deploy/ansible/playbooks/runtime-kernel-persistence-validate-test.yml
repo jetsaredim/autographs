@@ -1,0 +1,109 @@
+- name: Validate runtime kernel persistence contracts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_role_dir: "{{ playbook_dir }}/../roles/autographs_deploy"
+    runtime_main_tasks: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/main.yml') | from_yaml }}
+    runtime_kernel_tasks: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/kernel_persistence.yml') | from_yaml }}
+    runtime_handlers: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/handlers/main.yml') | from_yaml }}
+    autographs_deploy_controller_container_name: contract-controller
+    autographs_controller_image: ghcr.io/example/controller:v0.0.0
+    autographs_deploy_env_path: /opt/autographs/env
+    autographs_deploy_wallet_path: /opt/autographs/wallet
+    runtime_controller_quadlet: >-
+      {{ lookup('ansible.builtin.template', runtime_role_dir ~ '/templates/autographs-controller.container.j2') }}
+    runtime_coredump_config: >-
+      {{ lookup('ansible.builtin.template', runtime_role_dir ~ '/templates/autographs-coredump.conf.j2') }}
+  tasks:
+    - name: Select persistence contract tasks
+      ansible.builtin.set_fact:
+        runtime_include_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Apply kernel persistence controls') | list }}
+        runtime_kdump_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Stop and mask Kdump') | list }}
+        runtime_grubby_info_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect installed kernel boot arguments') | list }}
+        runtime_grubby_remove_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Remove crashkernel from installed kernel boot entries') | list }}
+        runtime_cmdline_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect running kernel boot arguments') | list }}
+        runtime_reboot_notice_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Report required operator-approved reboot') | list }}
+        runtime_service_limit_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Require generated controller service core limit is zero') | list }}
+        runtime_process_limit_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Require live controller soft and hard core limits are zero') | list }}
+        runtime_controller_restart_matches: >-
+          {{ runtime_handlers | selectattr('name', 'equalto', 'Restart controller container') | list }}
+
+    - name: Require every persistence contract task exactly once
+      ansible.builtin.assert:
+        that:
+          - runtime_include_matches | length == 1
+          - runtime_kdump_matches | length == 1
+          - runtime_grubby_info_matches | length == 1
+          - runtime_grubby_remove_matches | length == 1
+          - runtime_cmdline_matches | length == 1
+          - runtime_reboot_notice_matches | length == 1
+          - runtime_service_limit_matches | length == 1
+          - runtime_process_limit_matches | length == 1
+          - runtime_controller_restart_matches | length == 1
+
+    - name: Capture structured persistence tasks
+      ansible.builtin.set_fact:
+        runtime_include_task: "{{ runtime_include_matches | first }}"
+        runtime_kdump_task: "{{ runtime_kdump_matches | first }}"
+        runtime_grubby_info_task: "{{ runtime_grubby_info_matches | first }}"
+        runtime_grubby_remove_task: "{{ runtime_grubby_remove_matches | first }}"
+        runtime_cmdline_task: "{{ runtime_cmdline_matches | first }}"
+        runtime_reboot_notice_task: "{{ runtime_reboot_notice_matches | first }}"
+        runtime_service_limit_task: "{{ runtime_service_limit_matches | first }}"
+        runtime_process_limit_task: "{{ runtime_process_limit_matches | first }}"
+        runtime_controller_restart_task: "{{ runtime_controller_restart_matches | first }}"
+
+    - name: Require unguarded fail-closed task wiring
+      ansible.builtin.assert:
+        that:
+          - runtime_include_task['ansible.builtin.include_tasks'] == 'kernel_persistence.yml'
+          - "'when' not in runtime_include_task"
+          - "'failed_when' not in runtime_include_task"
+          - "'ignore_errors' not in runtime_include_task"
+          - runtime_kdump_task['ansible.builtin.systemd'].name == 'kdump.service'
+          - runtime_kdump_task['ansible.builtin.systemd'].state == 'stopped'
+          - runtime_kdump_task['ansible.builtin.systemd'].enabled == false
+          - runtime_kdump_task['ansible.builtin.systemd'].masked == true
+          - "'failed_when' not in runtime_kdump_task"
+          - "'ignore_errors' not in runtime_kdump_task"
+          - runtime_grubby_info_task['ansible.builtin.command'].argv == ['grubby', '--info=ALL']
+          - runtime_grubby_remove_task['ansible.builtin.command'].argv == ['grubby', '--update-kernel=ALL', '--remove-args=crashkernel']
+          - runtime_grubby_remove_task.when is defined
+          - runtime_grubby_remove_task.when == "'crashkernel' in autographs_deploy_grubby_info.stdout"
+          - "'failed_when' not in runtime_grubby_remove_task"
+          - "'ignore_errors' not in runtime_grubby_remove_task"
+          - runtime_cmdline_task['ansible.builtin.command'].argv == ['cat', '/proc/cmdline']
+          - runtime_reboot_notice_task.when is defined
+          - "'autographs_deploy_running_kernel_cmdline.stdout' in runtime_reboot_notice_task.when"
+          - "'is search' in runtime_reboot_notice_task.when"
+          - runtime_service_limit_task['ansible.builtin.assert'].that | length == 1
+          - "'when' not in runtime_service_limit_task"
+          - "'failed_when' not in runtime_service_limit_task"
+          - "'ignore_errors' not in runtime_service_limit_task"
+          - runtime_process_limit_task['ansible.builtin.assert'].that | length == 1
+          - "'when' not in runtime_process_limit_task"
+          - "'failed_when' not in runtime_process_limit_task"
+          - "'ignore_errors' not in runtime_process_limit_task"
+          - runtime_controller_restart_task['ansible.builtin.systemd'].name == 'autographs-controller.service'
+          - runtime_controller_restart_task['ansible.builtin.systemd'].state == 'restarted'
+          - "'failed_when' not in runtime_controller_restart_task"
+          - "'ignore_errors' not in runtime_controller_restart_task"
+
+    - name: Require rendered persistence configuration semantics
+      ansible.builtin.assert:
+        that:
+          - runtime_controller_quadlet | regex_findall('(?m)^LimitCORE=0$') | length == 1
+          - runtime_coredump_config | regex_findall('(?m)^Storage=none$') | length == 1
+          - runtime_coredump_config | regex_findall('(?m)^ProcessSizeMax=0$') | length == 1

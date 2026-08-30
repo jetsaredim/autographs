@@ -36,13 +36,22 @@
       - grubby
       - --update-kernel=ALL
       - --remove-args=crashkernel
-  register: autographs_deploy_crashkernel_removal
   changed_when: true
   when: "'crashkernel' in autographs_deploy_grubby_info.stdout"
 
-- name: Report required operator-approved reboot # noqa: no-handler
+- name: Inspect running kernel boot arguments
+  ansible.builtin.command:
+    argv:
+      - cat
+      - /proc/cmdline
+  register: autographs_deploy_running_kernel_cmdline
+  changed_when: false
+
+- name: Report required operator-approved reboot
   ansible.builtin.debug:
     msg: >-
-      crashkernel was removed from installed boot entries. An operator-approved
+      The running kernel still has a crashkernel argument. An operator-approved
       reboot is required before the running-kernel Kdump gate can be verified.
-  when: autographs_deploy_crashkernel_removal is changed
+  when: >-
+    autographs_deploy_running_kernel_cmdline.stdout
+    is search('(^|\s)crashkernel(=[^\s]*)?(\s|$)')

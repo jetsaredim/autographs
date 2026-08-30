@@ -9,6 +9,7 @@ required_artifacts=(
   deploy/ansible/roles/autographs_deploy/tasks/kernel_persistence.yml
   deploy/ansible/roles/autographs_deploy/templates/autographs-coredump.conf.j2
   deploy/ansible/roles/autographs_deploy/templates/autographs-controller.container.j2
+  deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml
   controller/tests/runtime_kernel_persistence.rs
 )
 
