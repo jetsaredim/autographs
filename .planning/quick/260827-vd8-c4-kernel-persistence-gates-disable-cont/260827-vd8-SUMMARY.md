@@ -5,6 +5,9 @@ implementation_commits:
   - 3c24e0d
   - f960dba
   - 49052e0
+review_fix_commits:
+  - b5faa89
+  - 961023b
 completed: 2026-08-28
 ---
 
@@ -30,6 +33,15 @@ Implemented the first bounded C4 slice. The repository now converges controller 
 - `ansible-lint deploy/ansible/ --profile production` — passed during execution.
 - Documentation boundary searches and negative OLED/LVM mutation search — passed.
 - `git diff --check` — passed.
+- PR #223 GitHub CI — all seven checks passed after rerunning one transient OCI provider-download connection reset.
+- Deep PR review — one blocker and three original warnings, plus one follow-up semantic-coverage warning, were fixed with direct inline replies; final re-review at `961023b` is clean.
+
+## Review Follow-up
+
+- Made controller restart failures fatal and added deploy-time assertions for the generated systemd limit plus the live controller process soft/hard core limits.
+- Made the reboot reminder depend on the active `/proc/cmdline` state so it survives idempotent reruns before reboot.
+- Replaced print-only operator checks with fail-closed staged and post-reboot scripts.
+- Added an executable structural Ansible validator for exact task/handler ownership, command-register-assert dataflow, and section-aware rendered configuration semantics.
 
 ## Remaining Checkpoints
 
