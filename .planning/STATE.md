@@ -178,14 +178,15 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-08-23T14:13:44Z
-Stopped at: Completed PR #217 candidate-controller credential-boundary follow-up
+Last session: 2026-08-30T04:34:34Z
+Stopped at: PR #223 clean re-review and all GitHub CI checks passed for C4 core/Kdump slice 260827-vd8
 Resume file: None
 
 ## Quick Tasks Completed
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-28 | c4-kernel-persistence-gates-disable-cont | Verified and clean-reviewed on PR #223: disabled controller/system userspace core persistence and Kdump, added live fail-closed deploy assertions, exact structural CI contracts, and checked reboot proof commands while keeping encrypted swap and OLED reclamation separate. Implementation commits `3c24e0d`, `f960dba`, `49052e0`; review fixes `b5faa89`, `961023b`. |
 | 2026-08-27 | make-oci-vault-secrets-manual-with-ignor | Replaced automatically generated placeholders with ignored manual bootstrap content and live-planned the already-rotated tenancy secrets with zero replacement, zero content change, and zero destruction. Implementation commit `719b55b`. |
 | 2026-08-25 | address-pr-222-review-findings-for-vault | Replaced unsafe runtime env mutation with typed secret overrides, enforced production hash-only admin deploy authentication, added executable fail-closed regression coverage, and fixed the follow-up Workflow checks warning. Implementation commits `01194d4`, `273750e`. |
 | 2026-08-24 | vault-instance-principal-smoke | Added a one-shot Vault smoke container, extracted reusable OCI instance-principal signing, documented the VM runbook path, and live-proved retrieval of the Terraform-generated proof secret from the runtime VM container. |

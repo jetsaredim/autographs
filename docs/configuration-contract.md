@@ -101,7 +101,25 @@ Deployments publish the prebuilt Rust controller image to `ghcr.io` with the rep
 
 Scheduled/manual image cleanup handles old GHCR versions and unused VM-local Podman images while preserving the deployed controller semver tag, `latest`, protected tags, and the configured newest image counts. Git repo `v*` tags may exist without a matching GHCR image when a merge did not change controller image inputs.
 
-The Ansible deploy role also maintains a 2 GiB `/.swapfile` with `vm.swappiness=20`, installs runtime packages, opens HTTP/HTTPS, and masks unnecessary systemd services. This gives the Always Free VM enough headroom for deploy churn and one-off smoke/admin scripts without changing the compute shape.
+The Ansible deploy role also maintains a 2 GiB `/.swapfile` with
+`vm.swappiness=20`, installs runtime packages, opens HTTP/HTTPS, and masks
+unnecessary systemd services. This gives the Always Free VM enough headroom for
+deploy churn and one-off smoke/admin scripts without changing the compute
+shape. The current swap file remains plaintext until the separately invoked C4
+encrypted boot-only-key swap conversion is implemented and proven; this
+core/Kdump slice does not mutate swap.
+
+The generated controller Quadlet sets `LimitCORE=0`. Host configuration writes
+`/etc/systemd/coredump.conf.d/99-autographs.conf` with `Storage=none` and
+`ProcessSizeMax=0`, and the deploy role stops and masks `kdump.service`. It also
+removes `crashkernel` from installed boot entries when present, but never
+reboots automatically. Deployment fails unless the restarted controller's
+generated service limit and live process soft/hard core limits are all zero.
+The configuration contract is still not a complete running-kernel proof: after
+deployment, an operator-approved reboot and the checked script in
+[deployment-runbook.md](deployment-runbook.md#core-and-kdump-persistence-gate)
+must confirm the running process limit, coredump policy, Kdump state,
+`kexec_crash_loaded=0`, and absence of `crashkernel` from `/proc/cmdline`.
 
 ## Private Controller Contract
 

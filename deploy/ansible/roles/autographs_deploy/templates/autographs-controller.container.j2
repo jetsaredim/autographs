@@ -15,6 +15,7 @@ Volume={{ autographs_deploy_wallet_path }}:/opt/autographs/wallet:ro,Z
 Volume=autographs-static.volume:/var/lib/autographs/static
 
 [Service]
+LimitCORE=0
 Restart=always
 RestartSec=5
 TimeoutStartSec=120

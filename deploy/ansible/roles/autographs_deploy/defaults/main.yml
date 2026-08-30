@@ -55,6 +55,8 @@ autographs_deploy_masked_services:
   - pmlogger_farm_check.timer
   - pmlogger_daily.timer
 
+autographs_deploy_coredump_config_path: /etc/systemd/coredump.conf.d/99-autographs.conf
+
 autographs_deploy_swap_file: /.swapfile
 autographs_deploy_swap_size_mib: 2048
 autographs_deploy_swappiness: 20

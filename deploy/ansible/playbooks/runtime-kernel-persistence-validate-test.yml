@@ -1,0 +1,163 @@
+- name: Validate runtime kernel persistence contracts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_role_dir: "{{ playbook_dir }}/../roles/autographs_deploy"
+    runtime_main_tasks: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/main.yml') | from_yaml }}
+    runtime_kernel_tasks: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/kernel_persistence.yml') | from_yaml }}
+    runtime_handlers: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/handlers/main.yml') | from_yaml }}
+    autographs_deploy_controller_container_name: contract-controller
+    autographs_controller_image: ghcr.io/example/controller:v0.0.0
+    autographs_deploy_env_path: /opt/autographs/env
+    autographs_deploy_wallet_path: /opt/autographs/wallet
+    runtime_controller_quadlet: >-
+      {{ lookup('ansible.builtin.template', runtime_role_dir ~ '/templates/autographs-controller.container.j2') }}
+    runtime_coredump_config: >-
+      {{ lookup('ansible.builtin.template', runtime_role_dir ~ '/templates/autographs-coredump.conf.j2') }}
+    runtime_controller_service_section: >-
+      {{ runtime_controller_quadlet | regex_search('(?ms)^\[Service\]\n.*?(?=^\[|\Z)') }}
+    runtime_controller_service_ini: >-
+      {{ runtime_controller_service_section | community.general.from_ini }}
+    runtime_coredump_ini: >-
+      {{ runtime_coredump_config | community.general.from_ini }}
+    runtime_expected_pid_format: !unsafe "{% raw %}{{.State.Pid}}{% endraw %}"
+    runtime_expected_container_name: !unsafe "{{ autographs_deploy_controller_container_name }}"
+    runtime_expected_limits_path: !unsafe "/proc/{{ autographs_deploy_controller_pid.stdout | trim }}/limits"
+    runtime_expected_service_assertion: >-
+      autographs_deploy_controller_service_core_limit.stdout | trim == '0'
+    runtime_expected_pid_assertion: >-
+      autographs_deploy_controller_pid.stdout | trim is match('^[1-9][0-9]*$')
+    runtime_expected_process_assertion: >-
+      autographs_deploy_controller_process_limits.content | b64decode
+      | regex_search('(?m)^Max core file size\s+0\s+0\s+bytes\s*$') is not none
+  tasks:
+    - name: Select persistence contract tasks
+      ansible.builtin.set_fact:
+        runtime_include_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Apply kernel persistence controls') | list }}
+        runtime_kdump_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Stop and mask Kdump') | list }}
+        runtime_grubby_info_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect installed kernel boot arguments') | list }}
+        runtime_grubby_remove_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Remove crashkernel from installed kernel boot entries') | list }}
+        runtime_cmdline_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect running kernel boot arguments') | list }}
+        runtime_reboot_notice_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Report required operator-approved reboot') | list }}
+        runtime_service_limit_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Require generated controller service core limit is zero') | list }}
+        runtime_service_limit_read_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Read generated controller service core limit') | list }}
+        runtime_pid_inspect_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Inspect live controller container PID') | list }}
+        runtime_pid_assert_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Require a live controller container PID') | list }}
+        runtime_process_limit_read_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Read live controller process limits') | list }}
+        runtime_process_limit_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Require live controller soft and hard core limits are zero') | list }}
+        runtime_controller_restart_matches: >-
+          {{ runtime_handlers | selectattr('name', 'equalto', 'Restart controller container') | list }}
+
+    - name: Require every persistence contract task exactly once
+      ansible.builtin.assert:
+        that:
+          - runtime_include_matches | length == 1
+          - runtime_kdump_matches | length == 1
+          - runtime_grubby_info_matches | length == 1
+          - runtime_grubby_remove_matches | length == 1
+          - runtime_cmdline_matches | length == 1
+          - runtime_reboot_notice_matches | length == 1
+          - runtime_service_limit_matches | length == 1
+          - runtime_service_limit_read_matches | length == 1
+          - runtime_pid_inspect_matches | length == 1
+          - runtime_pid_assert_matches | length == 1
+          - runtime_process_limit_read_matches | length == 1
+          - runtime_process_limit_matches | length == 1
+          - runtime_controller_restart_matches | length == 1
+
+    - name: Capture structured persistence tasks
+      ansible.builtin.set_fact:
+        runtime_include_task: "{{ runtime_include_matches | first }}"
+        runtime_kdump_task: "{{ runtime_kdump_matches | first }}"
+        runtime_grubby_info_task: "{{ runtime_grubby_info_matches | first }}"
+        runtime_grubby_remove_task: "{{ runtime_grubby_remove_matches | first }}"
+        runtime_cmdline_task: "{{ runtime_cmdline_matches | first }}"
+        runtime_reboot_notice_task: "{{ runtime_reboot_notice_matches | first }}"
+        runtime_service_limit_task: "{{ runtime_service_limit_matches | first }}"
+        runtime_service_limit_read_task: "{{ runtime_service_limit_read_matches | first }}"
+        runtime_pid_inspect_task: "{{ runtime_pid_inspect_matches | first }}"
+        runtime_pid_assert_task: "{{ runtime_pid_assert_matches | first }}"
+        runtime_process_limit_read_task: "{{ runtime_process_limit_read_matches | first }}"
+        runtime_process_limit_task: "{{ runtime_process_limit_matches | first }}"
+        runtime_controller_restart_task: "{{ runtime_controller_restart_matches | first }}"
+
+    - name: Require unguarded fail-closed task wiring
+      ansible.builtin.assert:
+        that:
+          - runtime_include_task['ansible.builtin.include_tasks'] == 'kernel_persistence.yml'
+          - "'when' not in runtime_include_task"
+          - "'failed_when' not in runtime_include_task"
+          - "'ignore_errors' not in runtime_include_task"
+          - runtime_kdump_task['ansible.builtin.systemd'].name == 'kdump.service'
+          - runtime_kdump_task['ansible.builtin.systemd'].state == 'stopped'
+          - runtime_kdump_task['ansible.builtin.systemd'].enabled == false
+          - runtime_kdump_task['ansible.builtin.systemd'].masked == true
+          - "'failed_when' not in runtime_kdump_task"
+          - "'ignore_errors' not in runtime_kdump_task"
+          - runtime_grubby_info_task['ansible.builtin.command'].argv == ['grubby', '--info=ALL']
+          - runtime_grubby_remove_task['ansible.builtin.command'].argv == ['grubby', '--update-kernel=ALL', '--remove-args=crashkernel']
+          - runtime_grubby_remove_task.when is defined
+          - runtime_grubby_remove_task.when == "'crashkernel' in autographs_deploy_grubby_info.stdout"
+          - "'failed_when' not in runtime_grubby_remove_task"
+          - "'ignore_errors' not in runtime_grubby_remove_task"
+          - runtime_cmdline_task['ansible.builtin.command'].argv == ['cat', '/proc/cmdline']
+          - runtime_reboot_notice_task.when is defined
+          - "'autographs_deploy_running_kernel_cmdline.stdout' in runtime_reboot_notice_task.when"
+          - "'is search' in runtime_reboot_notice_task.when"
+          - >-
+            runtime_service_limit_read_task['ansible.builtin.command'].argv
+            == ['systemctl', 'show', 'autographs-controller.service',
+                '--property=LimitCORE', '--value']
+          - runtime_service_limit_read_task.register == 'autographs_deploy_controller_service_core_limit'
+          - >-
+            runtime_service_limit_task['ansible.builtin.assert'].that
+            == [runtime_expected_service_assertion]
+          - "'when' not in runtime_service_limit_task"
+          - "'failed_when' not in runtime_service_limit_task"
+          - "'ignore_errors' not in runtime_service_limit_task"
+          - >-
+            runtime_pid_inspect_task['ansible.builtin.command'].argv
+            == ['podman', 'inspect', '--format', runtime_expected_pid_format,
+                runtime_expected_container_name]
+          - runtime_pid_inspect_task.register == 'autographs_deploy_controller_pid'
+          - >-
+            runtime_pid_assert_task['ansible.builtin.assert'].that
+            == [runtime_expected_pid_assertion]
+          - runtime_process_limit_read_task['ansible.builtin.slurp'].src == runtime_expected_limits_path
+          - runtime_process_limit_read_task.register == 'autographs_deploy_controller_process_limits'
+          - >-
+            runtime_process_limit_task['ansible.builtin.assert'].that
+            == [runtime_expected_process_assertion]
+          - "'when' not in runtime_process_limit_task"
+          - "'failed_when' not in runtime_process_limit_task"
+          - "'ignore_errors' not in runtime_process_limit_task"
+          - runtime_controller_restart_task['ansible.builtin.systemd'].name == 'autographs-controller.service'
+          - runtime_controller_restart_task['ansible.builtin.systemd'].state == 'restarted'
+          - "'failed_when' not in runtime_controller_restart_task"
+          - "'ignore_errors' not in runtime_controller_restart_task"
+
+    - name: Require rendered persistence configuration semantics
+      ansible.builtin.assert:
+        that:
+          - runtime_controller_quadlet | regex_findall('(?m)^LimitCORE=0$') | length == 1
+          - runtime_coredump_config | regex_findall('(?m)^Storage=none$') | length == 1
+          - runtime_coredump_config | regex_findall('(?m)^ProcessSizeMax=0$') | length == 1
+          - runtime_controller_service_ini.Service.LimitCORE == '0'
+          - runtime_coredump_ini.Coredump.Storage == 'none'
+          - runtime_coredump_ini.Coredump.ProcessSizeMax == '0'
