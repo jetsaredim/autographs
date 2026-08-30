@@ -135,6 +135,15 @@ pull-request plan verifies the metadata lookup and planned in-place resource
 change, but only a later controlled apply and fresh database connection prove
 that OCI can consume the Vault value for the ADB update.
 
+Before merging the runtime change that introduces `secret_id`, apply the tenancy
+root from the same revision. Its dedicated deploy policy grants the GitHub deploy
+group `read secret-bundles` for only the Oracle database password secret OCID;
+the deploy group retains metadata-only `inspect secrets` access for the wallet
+password and admin password hash. Confirm the tenancy plan contains only the
+intended IAM policy/output changes, apply it, and then allow the runtime workflow
+to update ADB. Applying these in the opposite order is expected to fail the ADB
+update authorization check before Ansible runs.
+
 The controller resolves these OCIDs with runtime instance-principal
 authentication during startup and then uses the existing runtime configuration
 names in memory. The deploy workflow reads the OCIDs directly from the runtime
