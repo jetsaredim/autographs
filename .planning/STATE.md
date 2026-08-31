@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-08-31T00:14:42Z"
-last_activity: 2026-08-31 -- Shared one immutable Oracle connection configuration across schema bootstrap, repository operations, and heartbeat without adding refresh behavior.
+last_updated: "2026-08-31T02:49:13Z"
+last_activity: 2026-08-31 -- Added an immutable shared database credential-provider seam without changing Vault, retry, or rotation behavior.
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-31 -- Shared one immutable Oracle connection configuration across schema bootstrap, repository operations, and heartbeat without adding refresh behavior.
+Last activity: 2026-08-31 -- Added an immutable shared database credential-provider seam without changing Vault, retry, or rotation behavior.
 
 Progress: [█████████░] 89% of milestone plans complete; Phase 8 Plan 4 is next
 
@@ -186,6 +186,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-08-31 | introduce-a-static-database-credential-p | Moved the Oracle password behind an immutable shared snapshot provider, injected it at production composition, and preserved all existing startup and connection behavior. Implementation commit `5372520`. |
 | 2026-08-31 | share-complete-oracle-connection-setting | Shared the complete Oracle settings allocation across schema bootstrap, repository operations, and heartbeat; removed per-operation secret/config copies and drained Oracle values from long-lived router state without adding refresh behavior. Implementation commit `43bab87`. |
 | 2026-08-30 | grant-deploy-identity-least-privilege-re | Resolved PR #224 CR-01 with a dedicated tenancy policy scoped by `target.secret.id` to only the Oracle database password bundle, plus tests and deployment-order documentation. Implementation commit `c3c77bd`; authenticated tenancy plan/apply remains operator-owned. |
 | 2026-08-30 | migrate-adb-terraform-from-the-github-ad | Opened ready PR #224 without IAM changes: replaced the plaintext ADB Terraform password with the existing Vault secret OCID, removed the workflow contract, and proved the production-state plan is an in-place update with `0 to add, 1 to change, 0 to destroy`; apply-time authorization remains intentionally unproven. Implementation commits `b2612f7`, `03d53ab`. |
