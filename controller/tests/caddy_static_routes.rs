@@ -251,7 +251,7 @@ fn deploy_discovers_vault_secret_ids_without_github_variables() {
     assert!(runtime_secrets.contains("condition     = length(self.secrets) == 1"));
     assert!(runtime_secrets.contains("env_name => one(secret_lookup.secrets[*].id)"));
     assert!(runtime_outputs.contains("output \"runtime_secret_id_env_vars\""));
-    assert!(tenancy_iam.contains("to inspect secrets in compartment id"));
+    assert!(tenancy_iam.contains("to manage secret-family in compartment id"));
 
     for (env_name, output_name) in [
         (

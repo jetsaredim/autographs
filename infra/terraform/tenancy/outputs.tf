@@ -23,11 +23,6 @@ output "runtime_secret_bundle_access_policy_name" {
   value       = oci_identity_policy.runtime_secret_bundle_access.name
 }
 
-output "deploy_database_password_secret_bundle_access_policy_name" {
-  description = "OCI policy name allowing deployment automation to supply the database password Vault secret to Autonomous Database."
-  value       = oci_identity_policy.deploy_database_password_secret_bundle_access.name
-}
-
 output "runtime_secrets_vault_id" {
   description = "OCI Vault OCID for Autographs runtime secret bundles."
   value       = oci_kms_vault.runtime_secrets.id

@@ -108,9 +108,10 @@ The baseline is intentionally compartment-scoped:
 - Deploy automation gets a dedicated policy seam for routine changes inside the
   project compartment, including state-bucket object access but not direct media
   object access.
-- Deploy automation can read only the Oracle database password secret bundle so
-  the Autonomous Database API can consume its `secret_id`; the wallet-password
-  and admin-password-hash bundles remain outside the deploy identity boundary.
+- Deploy automation can manage vaults, keys, and the secret family only inside
+  the dedicated Autographs project compartment. This permits the runtime root to
+  own those regional resources and later coordinate native ADB secret rotation
+  without granting tenancy-wide security-resource management.
 - The human operator gets a separate policy seam for day-two management.
 - Runtime instances get a dynamic-group policy for private media bucket object
   access through OCI instance principals.

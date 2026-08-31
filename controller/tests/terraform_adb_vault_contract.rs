@@ -62,26 +62,19 @@ fn workflows_and_current_examples_do_not_accept_plaintext_adb_password() {
 }
 
 #[test]
-fn deploy_identity_can_read_only_the_adb_password_secret_bundle() {
+fn deploy_identity_can_manage_regional_vault_resources_in_project_compartment() {
+    let iam_main = read_repo("infra/terraform/modules/iam/main.tf");
     let tenancy_main = read_repo("infra/terraform/tenancy/main.tf");
-    let tenancy_outputs = read_repo("infra/terraform/tenancy/outputs.tf");
 
-    assert!(tenancy_main.contains(
-        "resource \"oci_identity_policy\" \"deploy_database_password_secret_bundle_access\""
-    ));
-    assert!(tenancy_main.contains(
-        "Allow group id ${module.iam.deploy_group_id} to read secret-bundles in compartment id ${module.iam.compartment_ocid} where target.secret.id = '${oci_vault_secret.runtime[\"oracle_db_password\"].id}'"
-    ));
-    assert!(!tenancy_main.contains(
-        "module.iam.deploy_group_id} to read secret-bundles in compartment id ${module.iam.compartment_ocid} where target.secret.id = '${oci_vault_secret.runtime[\"oracle_db_wallet_password\"].id}'"
-    ));
-    assert!(!tenancy_main.contains(
-        "module.iam.deploy_group_id} to read secret-bundles in compartment id ${module.iam.compartment_ocid} where target.secret.id = '${oci_vault_secret.runtime[\"admin_password_hash\"].id}'"
-    ));
-    assert!(
-        tenancy_outputs
-            .contains("output \"deploy_database_password_secret_bundle_access_policy_name\"")
-    );
+    for resource_type in ["vaults", "keys", "secret-family"] {
+        assert!(iam_main.contains(&format!(
+            "Allow ${{local.deploy_group}} to manage {resource_type} in compartment id ${{local.compartment_ocid}}"
+        )));
+    }
+    assert!(!iam_main.contains("to manage vaults in tenancy"));
+    assert!(!iam_main.contains("to manage keys in tenancy"));
+    assert!(!iam_main.contains("to manage secret-family in tenancy"));
+    assert!(!tenancy_main.contains("deploy_database_password_secret_bundle_access"));
 }
 
 fn read_repo(relative: &str) -> String {
