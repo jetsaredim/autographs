@@ -2,8 +2,8 @@
   "deployedControllerVersion": "v0.0.34",
   "lastBump": "patch",
   "lastDeployImpact": "controller-image",
-  "latestDeployImpactVersion": "v0.0.34",
-  "repoVersion": "v0.0.34",
-  "sourceRevision": "8ba1eeed90cabb6eac5a8ba244befb8b8090b588",
-  "updatedAt": "2026-08-30T23:22:15Z"
+  "latestDeployImpactVersion": "v0.0.35",
+  "repoVersion": "v0.0.35",
+  "sourceRevision": "dda0c0cfc1428a8db6bb53a7e5341ef8ac56a312",
+  "updatedAt": "2026-08-31T00:46:58Z"
 }
