@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use oracledb::{Connection, FromDbValue, Row, ToDbValue};
@@ -90,9 +93,8 @@ where e.item_id = :1
     or (p.snapshot_event_count is null and e.created_at >= p.started_at)
   )";
 
-#[derive(Clone)]
 pub struct OracleCatalogRepository {
-    connection_settings: OracleConnectionSettings,
+    connection_settings: Arc<OracleConnectionSettings>,
     storage_namespace: String,
     bucket_name: String,
 }
@@ -105,18 +107,18 @@ impl OracleCatalogRepository {
         storage_namespace: String,
         bucket_name: String,
     ) -> Self {
-        let connection_settings = OracleConnectionSettings::new(
+        let connection_settings = Arc::new(OracleConnectionSettings::new(
             user,
             password,
             connect_string,
             optional_env("ORACLE_DB_WALLET_DIR"),
             optional_env("ORACLE_DB_WALLET_PASSWORD"),
-        );
+        ));
         Self::with_connection_settings(connection_settings, storage_namespace, bucket_name)
     }
 
     pub fn with_connection_settings(
-        connection_settings: OracleConnectionSettings,
+        connection_settings: Arc<OracleConnectionSettings>,
         storage_namespace: String,
         bucket_name: String,
     ) -> Self {
@@ -132,11 +134,10 @@ impl OracleCatalogRepository {
         T: Send + 'static,
         F: FnOnce(Connection) -> Result<T, String> + Send + 'static,
     {
-        let repository = self.clone();
+        let connection_settings = Arc::clone(&self.connection_settings);
         task::spawn_blocking(move || {
-            let connection =
-                oracle_connection::connect_with_settings(&repository.connection_settings)
-                    .map_err(|error| format!("connect to Oracle catalog: {error}"))?;
+            let connection = oracle_connection::connect_with_settings(&connection_settings)
+                .map_err(|error| format!("connect to Oracle catalog: {error}"))?;
             operation(connection)
         })
         .await
@@ -2362,6 +2363,27 @@ fn normalize_unique_string_list(values: Vec<String>) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn oracle_repository_retains_shared_connection_settings() {
+        let connection_settings = Arc::new(OracleConnectionSettings::new(
+            "ADMIN".to_owned(),
+            "database-password".to_owned(),
+            "autographsdb_medium".to_owned(),
+            Some("/opt/autographs/wallet".to_owned()),
+            Some("wallet-password".to_owned()),
+        ));
+        let repository = OracleCatalogRepository::with_connection_settings(
+            Arc::clone(&connection_settings),
+            "namespace".to_owned(),
+            "bucket".to_owned(),
+        );
+
+        assert!(Arc::ptr_eq(
+            &repository.connection_settings,
+            &connection_settings
+        ));
+    }
 
     #[test]
     fn oracle_phase7_helper_functions_are_available() {

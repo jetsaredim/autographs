@@ -3,7 +3,6 @@ use oracledb::{Config, Connection};
 // Autonomous HIGH/MEDIUM services enable PDML, but controller writes are multi-statement OLTP.
 const SESSION_INITIALIZATION_SQL: [&str; 1] = ["alter session disable parallel dml"];
 
-#[derive(Clone)]
 pub struct OracleConnectionSettings {
     user: String,
     credential: String,
