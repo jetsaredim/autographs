@@ -195,10 +195,15 @@ where
 
             match outcome {
                 DatabaseCredentialRefreshOutcome::NotConfigured => Err(error.message),
-                DatabaseCredentialRefreshOutcome::Refreshed { generation } => {
+                DatabaseCredentialRefreshOutcome::Refreshed {
+                    generation,
+                    vault_version,
+                } => {
                     tracing::info!(
                         failed_generation,
                         generation,
+                        vault_version,
+                        stage = "CURRENT",
                         "refreshed Oracle database credential after ORA-01017"
                     );
                     connect(credential_provider.current())
@@ -210,10 +215,15 @@ where
                             )
                         })
                 }
-                DatabaseCredentialRefreshOutcome::AlreadyRefreshed { generation } => {
+                DatabaseCredentialRefreshOutcome::AlreadyRefreshed {
+                    generation,
+                    vault_version,
+                } => {
                     tracing::info!(
                         failed_generation,
                         generation,
+                        vault_version,
+                        stage = "CURRENT",
                         "reusing concurrently refreshed Oracle database credential after ORA-01017"
                     );
                     connect(credential_provider.current())
@@ -247,18 +257,23 @@ mod tests {
         atomic::{AtomicUsize, Ordering},
     };
 
-    use crate::oracle_credentials::DatabaseCredentialRefreshSource;
+    use crate::{
+        oci_secrets::VaultSecretValue, oracle_credentials::DatabaseCredentialRefreshSource,
+    };
 
     struct TestRefreshSource {
         reads: AtomicUsize,
-        result: Result<String, String>,
+        result: Result<(String, u64), String>,
     }
 
     #[async_trait]
     impl DatabaseCredentialRefreshSource for TestRefreshSource {
-        async fn read_current(&self) -> Result<String, String> {
+        async fn read_current(&self) -> Result<VaultSecretValue, String> {
             self.reads.fetch_add(1, Ordering::SeqCst);
-            self.result.clone()
+            self.result
+                .as_ref()
+                .map(|(value, version)| VaultSecretValue::new(value.clone(), *version))
+                .map_err(Clone::clone)
         }
     }
 
@@ -267,10 +282,13 @@ mod tests {
     ) -> (Arc<DatabaseCredentialProvider>, Arc<TestRefreshSource>) {
         let source = Arc::new(TestRefreshSource {
             reads: AtomicUsize::new(0),
-            result: result.map(str::to_owned).map_err(str::to_owned),
+            result: result
+                .map(|value| (value.to_owned(), 2))
+                .map_err(str::to_owned),
         });
         let provider = Arc::new(DatabaseCredentialProvider::with_refresh_source(
             "original-password".to_owned(),
+            1,
             source.clone(),
         ));
         (provider, source)
@@ -332,6 +350,7 @@ mod tests {
                 async move {
                     attempts.lock().unwrap().push((
                         credential.generation(),
+                        credential.vault_version(),
                         credential.expose_secret().to_owned(),
                     ));
                     if credential.generation() == 0 {
@@ -351,8 +370,8 @@ mod tests {
         assert_eq!(
             *attempts.lock().unwrap(),
             vec![
-                (0, "original-password".to_owned()),
-                (1, "rotated-password".to_owned())
+                (0, Some(1), "original-password".to_owned()),
+                (1, Some(2), "rotated-password".to_owned())
             ]
         );
         assert_eq!(source.reads.load(Ordering::SeqCst), 1);

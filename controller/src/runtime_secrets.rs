@@ -1,4 +1,7 @@
-use crate::{config::RuntimeSecretOverrides, oci_secrets::OciVaultSecretClient};
+use crate::{
+    config::RuntimeSecretOverrides,
+    oci_secrets::{OciVaultSecretClient, VaultSecretValue},
+};
 
 const SECRET_ENV_MAPPINGS: &[SecretEnvMapping] = &[
     SecretEnvMapping {
@@ -28,6 +31,16 @@ enum SecretTarget {
     AdminPasswordHash,
 }
 
+impl SecretTarget {
+    fn logical_name(self) -> &'static str {
+        match self {
+            Self::OracleDbPassword => "oracle_db_password",
+            Self::OracleDbWalletPassword => "oracle_db_wallet_password",
+            Self::AdminPasswordHash => "admin_password_hash",
+        }
+    }
+}
+
 pub async fn resolve_secret_references() -> Result<RuntimeSecretOverrides, String> {
     let requested = requested_mappings();
     if requested.is_empty() {
@@ -42,8 +55,8 @@ pub async fn resolve_secret_references() -> Result<RuntimeSecretOverrides, Strin
     let mut resolved = Vec::with_capacity(requested.len());
     for mapping in requested {
         let secret_id = env_value(mapping.secret_id_env).expect("requested mapping has secret id");
-        let value = client.read_current_secret(&secret_id).await?;
-        resolved.push((mapping, secret_id, value));
+        let secret = client.read_current_secret(&secret_id).await?;
+        resolved.push((mapping, secret_id, secret));
     }
     let resolved_count = resolved.len();
     let overrides = resolved_overrides(resolved)?;
@@ -76,20 +89,29 @@ fn env_value(name: &str) -> Option<String> {
 }
 
 fn resolved_overrides(
-    resolved: Vec<(SecretEnvMapping, String, String)>,
+    resolved: Vec<(SecretEnvMapping, String, VaultSecretValue)>,
 ) -> Result<RuntimeSecretOverrides, String> {
     let mut overrides = RuntimeSecretOverrides::default();
-    for (mapping, secret_id, value) in resolved {
-        if value.trim().is_empty() {
+    for (mapping, secret_id, secret) in resolved {
+        if secret.expose_secret().trim().is_empty() {
             return Err(format!(
                 "OCI Vault secret referenced by {} resolved to a blank value",
                 mapping.secret_id_env
             ));
         }
+        let vault_version = secret.version_number();
+        tracing::info!(
+            secret_kind = mapping.target.logical_name(),
+            vault_version,
+            stage = "CURRENT",
+            "resolved runtime secret from OCI Vault"
+        );
+        let value = secret.into_secret();
         match mapping.target {
             SecretTarget::OracleDbPassword => {
                 overrides.oracle_db_password = Some(value);
                 overrides.oracle_db_password_vault_secret_id = Some(secret_id);
+                overrides.oracle_db_password_vault_version = Some(vault_version);
             }
             SecretTarget::OracleDbWalletPassword => {
                 overrides.oracle_db_wallet_password = Some(value)
@@ -145,17 +167,17 @@ mod tests {
             (
                 SECRET_ENV_MAPPINGS[0],
                 "ocid1.vaultsecret.database".to_owned(),
-                "resolved-database-password".to_owned(),
+                VaultSecretValue::new("resolved-database-password".to_owned(), 7),
             ),
             (
                 SECRET_ENV_MAPPINGS[1],
                 "ocid1.vaultsecret.wallet".to_owned(),
-                "resolved-wallet-password".to_owned(),
+                VaultSecretValue::new("resolved-wallet-password".to_owned(), 11),
             ),
             (
                 SECRET_ENV_MAPPINGS[2],
                 "ocid1.vaultsecret.admin".to_owned(),
-                "resolved-admin-hash".to_owned(),
+                VaultSecretValue::new("resolved-admin-hash".to_owned(), 13),
             ),
         ])
         .expect("build typed secret overrides");
@@ -170,6 +192,7 @@ mod tests {
             config.oracle_password_vault_secret_id.as_deref(),
             Some("ocid1.vaultsecret.database")
         );
+        assert_eq!(config.oracle_password_vault_version, Some(7));
         assert_eq!(
             config.oracle_wallet_password.as_deref(),
             Some("resolved-wallet-password")

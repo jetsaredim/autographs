@@ -3,16 +3,21 @@ use std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 use tokio::sync::{Mutex, OnceCell};
 
-use crate::oci_secrets::OciVaultSecretClient;
+use crate::oci_secrets::{OciVaultSecretClient, VaultSecretValue};
 
 pub(crate) struct DatabaseCredential {
     value: String,
     generation: u64,
+    vault_version: Option<u64>,
 }
 
 impl DatabaseCredential {
-    fn new(value: String, generation: u64) -> Self {
-        Self { value, generation }
+    fn new(value: String, generation: u64, vault_version: Option<u64>) -> Self {
+        Self {
+            value,
+            generation,
+            vault_version,
+        }
     }
 
     pub(crate) fn expose_secret(&self) -> &str {
@@ -22,11 +27,15 @@ impl DatabaseCredential {
     pub(crate) fn generation(&self) -> u64 {
         self.generation
     }
+
+    pub(crate) fn vault_version(&self) -> Option<u64> {
+        self.vault_version
+    }
 }
 
 #[async_trait]
 pub(crate) trait DatabaseCredentialRefreshSource: Send + Sync {
-    async fn read_current(&self) -> Result<String, String>;
+    async fn read_current(&self) -> Result<VaultSecretValue, String>;
 }
 
 struct OciVaultDatabaseCredentialRefreshSource {
@@ -45,7 +54,7 @@ impl OciVaultDatabaseCredentialRefreshSource {
 
 #[async_trait]
 impl DatabaseCredentialRefreshSource for OciVaultDatabaseCredentialRefreshSource {
-    async fn read_current(&self) -> Result<String, String> {
+    async fn read_current(&self) -> Result<VaultSecretValue, String> {
         self.client.read_current_secret(&self.secret_id).await
     }
 }
@@ -73,32 +82,39 @@ impl DatabaseCredentialRefreshFlight {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum DatabaseCredentialRefreshOutcome {
     NotConfigured,
-    Refreshed { generation: u64 },
-    AlreadyRefreshed { generation: u64 },
+    Refreshed { generation: u64, vault_version: u64 },
+    AlreadyRefreshed { generation: u64, vault_version: u64 },
 }
 
 impl DatabaseCredentialProvider {
     pub(crate) fn new(credential: String) -> Self {
-        Self::with_optional_refresh_source(credential, None)
+        Self::with_optional_refresh_source(credential, None, None)
     }
 
     pub(crate) fn with_oci_vault_refresh(
         credential: String,
+        vault_version: u64,
         secret_id: String,
     ) -> Result<Self, String> {
         let source = OciVaultDatabaseCredentialRefreshSource::new(secret_id)?;
         Ok(Self::with_optional_refresh_source(
             credential,
+            Some(vault_version),
             Some(Arc::new(source)),
         ))
     }
 
     fn with_optional_refresh_source(
         credential: String,
+        vault_version: Option<u64>,
         refresh_source: Option<Arc<dyn DatabaseCredentialRefreshSource>>,
     ) -> Self {
         Self {
-            current: RwLock::new(Arc::new(DatabaseCredential::new(credential, 0))),
+            current: RwLock::new(Arc::new(DatabaseCredential::new(
+                credential,
+                0,
+                vault_version,
+            ))),
             refresh_source,
             active_refresh: Mutex::new(None),
         }
@@ -107,9 +123,10 @@ impl DatabaseCredentialProvider {
     #[cfg(test)]
     pub(crate) fn with_refresh_source(
         credential: String,
+        vault_version: u64,
         refresh_source: Arc<dyn DatabaseCredentialRefreshSource>,
     ) -> Self {
-        Self::with_optional_refresh_source(credential, Some(refresh_source))
+        Self::with_optional_refresh_source(credential, Some(vault_version), Some(refresh_source))
     }
 
     pub(crate) fn current(&self) -> Arc<DatabaseCredential> {
@@ -131,10 +148,14 @@ impl DatabaseCredentialProvider {
 
         let (flight, joined_existing) = {
             let mut active_refresh = self.active_refresh.lock().await;
-            let current_generation = self.current().generation();
-            if current_generation != failed_generation {
+            let current = self.current();
+            if current.generation() != failed_generation {
+                let vault_version = current.vault_version().ok_or_else(|| {
+                    "refreshable database credential is missing its Vault version".to_owned()
+                })?;
                 return Ok(DatabaseCredentialRefreshOutcome::AlreadyRefreshed {
-                    generation: current_generation,
+                    generation: current.generation(),
+                    vault_version,
                 });
             }
 
@@ -166,9 +187,16 @@ impl DatabaseCredentialProvider {
         drop(active_refresh);
 
         match (joined_existing, result) {
-            (true, Ok(DatabaseCredentialRefreshOutcome::Refreshed { generation })) => {
-                Ok(DatabaseCredentialRefreshOutcome::AlreadyRefreshed { generation })
-            }
+            (
+                true,
+                Ok(DatabaseCredentialRefreshOutcome::Refreshed {
+                    generation,
+                    vault_version,
+                }),
+            ) => Ok(DatabaseCredentialRefreshOutcome::AlreadyRefreshed {
+                generation,
+                vault_version,
+            }),
             (_, result) => result,
         }
     }
@@ -179,19 +207,27 @@ impl DatabaseCredentialProvider {
         failed_generation: u64,
     ) -> Result<DatabaseCredentialRefreshOutcome, String> {
         let refreshed = source.read_current().await?;
-        if refreshed.trim().is_empty() {
+        if refreshed.expose_secret().trim().is_empty() {
             return Err("OCI Vault database credential resolved to a blank value".to_owned());
         }
         let generation = failed_generation
             .checked_add(1)
             .ok_or_else(|| "database credential generation overflowed".to_owned())?;
+        let vault_version = refreshed.version_number();
+        let refreshed = Arc::new(DatabaseCredential::new(
+            refreshed.into_secret(),
+            generation,
+            Some(vault_version),
+        ));
         *self
             .current
             .write()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) =
-            Arc::new(DatabaseCredential::new(refreshed, generation));
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = refreshed;
 
-        Ok(DatabaseCredentialRefreshOutcome::Refreshed { generation })
+        Ok(DatabaseCredentialRefreshOutcome::Refreshed {
+            generation,
+            vault_version,
+        })
     }
 }
 
@@ -205,24 +241,34 @@ mod tests {
 
     struct TestRefreshSource {
         reads: AtomicUsize,
-        result: Result<String, String>,
+        result: Result<VaultSecretValue, String>,
     }
 
     impl TestRefreshSource {
         fn new(result: Result<&str, &str>) -> Self {
             Self {
                 reads: AtomicUsize::new(0),
-                result: result.map(str::to_owned).map_err(str::to_owned),
+                result: result
+                    .map(|value| VaultSecretValue::new(value.to_owned(), 2))
+                    .map_err(str::to_owned),
             }
         }
     }
 
     #[async_trait]
     impl DatabaseCredentialRefreshSource for TestRefreshSource {
-        async fn read_current(&self) -> Result<String, String> {
+        async fn read_current(&self) -> Result<VaultSecretValue, String> {
             self.reads.fetch_add(1, Ordering::SeqCst);
             tokio::task::yield_now().await;
-            self.result.clone()
+            self.result
+                .as_ref()
+                .map(|secret| {
+                    VaultSecretValue::new(
+                        secret.expose_secret().to_owned(),
+                        secret.version_number(),
+                    )
+                })
+                .map_err(Clone::clone)
         }
     }
 
@@ -244,7 +290,7 @@ mod tests {
 
     #[async_trait]
     impl DatabaseCredentialRefreshSource for BlockingFailureRefreshSource {
-        async fn read_current(&self) -> Result<String, String> {
+        async fn read_current(&self) -> Result<VaultSecretValue, String> {
             self.reads.fetch_add(1, Ordering::SeqCst);
             self.entered.add_permits(1);
             self.release
@@ -266,6 +312,7 @@ mod tests {
         assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(first.expose_secret(), "database-password");
         assert_eq!(first.generation(), 0);
+        assert_eq!(first.vault_version(), None);
     }
 
     #[tokio::test]
@@ -284,6 +331,7 @@ mod tests {
         let source = Arc::new(TestRefreshSource::new(Ok("rotated-password")));
         let provider = DatabaseCredentialProvider::with_refresh_source(
             "database-password".to_owned(),
+            1,
             source.clone(),
         );
         let previous = provider.current();
@@ -293,11 +341,16 @@ mod tests {
                 .refresh_if_stale(previous.generation())
                 .await
                 .unwrap(),
-            DatabaseCredentialRefreshOutcome::Refreshed { generation: 1 }
+            DatabaseCredentialRefreshOutcome::Refreshed {
+                generation: 1,
+                vault_version: 2,
+            }
         );
         let current = provider.current();
         assert_eq!(current.expose_secret(), "rotated-password");
         assert_eq!(current.generation(), 1);
+        assert_eq!(current.vault_version(), Some(2));
+        assert_eq!(previous.vault_version(), Some(1));
         assert_eq!(previous.expose_secret(), "database-password");
         assert_eq!(source.reads.load(Ordering::SeqCst), 1);
     }
@@ -308,6 +361,7 @@ mod tests {
             let source = Arc::new(TestRefreshSource::new(result));
             let provider = DatabaseCredentialProvider::with_refresh_source(
                 "database-password".to_owned(),
+                1,
                 source,
             );
             let previous = provider.current();
@@ -324,6 +378,7 @@ mod tests {
         let source = Arc::new(TestRefreshSource::new(Ok("rotated-password")));
         let provider = Arc::new(DatabaseCredentialProvider::with_refresh_source(
             "database-password".to_owned(),
+            1,
             source.clone(),
         ));
         let first = tokio::spawn({
@@ -336,10 +391,17 @@ mod tests {
         });
 
         let outcomes = [first.await.unwrap(), second.await.unwrap()];
-        assert!(outcomes.contains(&DatabaseCredentialRefreshOutcome::Refreshed { generation: 1 }));
         assert!(
-            outcomes
-                .contains(&DatabaseCredentialRefreshOutcome::AlreadyRefreshed { generation: 1 })
+            outcomes.contains(&DatabaseCredentialRefreshOutcome::Refreshed {
+                generation: 1,
+                vault_version: 2,
+            })
+        );
+        assert!(
+            outcomes.contains(&DatabaseCredentialRefreshOutcome::AlreadyRefreshed {
+                generation: 1,
+                vault_version: 2,
+            })
         );
         assert_eq!(source.reads.load(Ordering::SeqCst), 1);
     }
@@ -349,6 +411,7 @@ mod tests {
         let source = Arc::new(BlockingFailureRefreshSource::new());
         let provider = Arc::new(DatabaseCredentialProvider::with_refresh_source(
             "database-password".to_owned(),
+            1,
             source.clone(),
         ));
 

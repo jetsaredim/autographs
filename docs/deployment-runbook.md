@@ -150,6 +150,14 @@ OCID as a refresh coordinate: an exact `ORA-01017` on a later connection causes
 one serialized read of the Vault secret's `CURRENT` version for that failed
 credential generation and one connection retry. Other connection failures,
 session initialization, queries, and application operations are not retried.
+Each successful startup resolution logs the safe logical secret kind, numeric
+OCI Vault bundle version, and requested `CURRENT` stage. A successful database
+credential refresh also logs the failed and replacement controller generations
+with the replacement Vault version. The controller does not log secret values,
+secret OCIDs, user-defined version names, or customer metadata; these messages
+are emitted only when a secret is loaded or refreshed, not for every use or
+database connection. Controller generations reset on restart, while Vault
+bundle versions remain durable and can be correlated with OCI rotation history.
 Wallet-password and admin-hash changes still require a restart. Keep automatic
 OCI rotation disabled until a controlled live rotation proves this recovery
 path. The deploy workflow reads the OCIDs directly from the runtime
