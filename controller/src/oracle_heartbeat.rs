@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use tokio::time::{self, MissedTickBehavior};
 
@@ -7,7 +7,7 @@ use crate::oracle_connection::{self, OracleConnectionSettings};
 const HEARTBEAT_INTERVAL_ENV: &str = "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS";
 const DEFAULT_HEARTBEAT_INTERVAL_SECONDS: u64 = 24 * 60 * 60;
 
-pub fn spawn(settings: OracleConnectionSettings) -> Result<(), String> {
+pub fn spawn(settings: Arc<OracleConnectionSettings>) -> Result<(), String> {
     let Some(interval) = heartbeat_interval_from_env()? else {
         tracing::info!("Oracle catalog heartbeat disabled");
         return Ok(());
@@ -26,7 +26,7 @@ pub fn spawn(settings: OracleConnectionSettings) -> Result<(), String> {
             ticker.tick().await;
 
             let result = tokio::task::spawn_blocking({
-                let settings = settings.clone();
+                let settings = Arc::clone(&settings);
                 move || run_heartbeat(&settings)
             })
             .await;

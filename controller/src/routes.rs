@@ -72,7 +72,7 @@ pub fn router(config: ControllerConfig) -> Router {
     )
 }
 
-pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
+pub fn runtime_router(mut config: ControllerConfig) -> Result<Router, String> {
     config.validate_runtime_auth()?;
     let repository: Arc<dyn CatalogRepository> =
         match provider("AUTOGRAPHS_CONTROLLER_DB_PROVIDER").as_str() {
@@ -80,7 +80,7 @@ pub fn runtime_router(config: ControllerConfig) -> Result<Router, String> {
                 tracing::info!("configuring local in-memory catalog repository");
                 Arc::new(MemoryCatalogRepository::default())
             }
-            "oracle" => production_repository(&config)?,
+            "oracle" => production_repository(&mut config)?,
             provider => {
                 return Err(format!(
                     "AUTOGRAPHS_CONTROLLER_DB_PROVIDER must be local or oracle, got {provider}"
@@ -115,27 +115,20 @@ fn provider(name: &str) -> String {
 }
 
 #[cfg(feature = "production-persistence")]
-fn production_repository(config: &ControllerConfig) -> Result<Arc<dyn CatalogRepository>, String> {
-    use crate::{
-        oracle_catalog::OracleCatalogRepository, oracle_connection::OracleConnectionSettings,
-        oracle_heartbeat, oracle_schema,
-    };
+fn production_repository(
+    config: &mut ControllerConfig,
+) -> Result<Arc<dyn CatalogRepository>, String> {
+    use crate::{oracle_catalog::OracleCatalogRepository, oracle_heartbeat, oracle_schema};
 
     tracing::info!("configuring Oracle catalog repository");
 
-    let connection_settings = OracleConnectionSettings::new(
-        required_config(&config.oracle_user, "ORACLE_DB_USER")?,
-        required_config(&config.oracle_password, "ORACLE_DB_PASSWORD")?,
-        required_config(&config.oracle_connect_string, "ORACLE_DB_CONNECT_STRING")?,
-        config.oracle_wallet_dir.clone(),
-        config.oracle_wallet_password.clone(),
-    );
+    let connection_settings = take_oracle_connection_settings(config)?;
 
     oracle_schema::ensure_initialized(&connection_settings)?;
 
     tracing::info!("Oracle catalog schema is ready");
 
-    oracle_heartbeat::spawn(connection_settings.clone())?;
+    oracle_heartbeat::spawn(Arc::clone(&connection_settings))?;
 
     Ok(Arc::new(OracleCatalogRepository::with_connection_settings(
         connection_settings,
@@ -144,15 +137,35 @@ fn production_repository(config: &ControllerConfig) -> Result<Arc<dyn CatalogRep
     )))
 }
 
+#[cfg(feature = "production-persistence")]
+fn take_oracle_connection_settings(
+    config: &mut ControllerConfig,
+) -> Result<Arc<crate::oracle_connection::OracleConnectionSettings>, String> {
+    Ok(Arc::new(
+        crate::oracle_connection::OracleConnectionSettings::new(
+            take_required_config(&mut config.oracle_user, "ORACLE_DB_USER")?,
+            take_required_config(&mut config.oracle_password, "ORACLE_DB_PASSWORD")?,
+            take_required_config(
+                &mut config.oracle_connect_string,
+                "ORACLE_DB_CONNECT_STRING",
+            )?,
+            config.oracle_wallet_dir.take(),
+            config.oracle_wallet_password.take(),
+        ),
+    ))
+}
+
 #[cfg(not(feature = "production-persistence"))]
-fn production_repository(_config: &ControllerConfig) -> Result<Arc<dyn CatalogRepository>, String> {
+fn production_repository(
+    _config: &mut ControllerConfig,
+) -> Result<Arc<dyn CatalogRepository>, String> {
     Err("Oracle controller persistence requires the production-persistence feature".to_owned())
 }
 
 #[cfg(feature = "production-persistence")]
-fn required_config(value: &Option<String>, name: &str) -> Result<String, String> {
+fn take_required_config(value: &mut Option<String>, name: &str) -> Result<String, String> {
     value
-        .clone()
+        .take()
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| format!("{name} is required"))
 }
@@ -1314,6 +1327,29 @@ mod tests {
     };
     use serde_json::{Value, json};
     use tower::ServiceExt;
+
+    #[cfg(feature = "production-persistence")]
+    #[test]
+    fn oracle_settings_move_out_of_router_config_without_changing_health_flag() {
+        let mut config = ControllerConfig::for_test(true);
+        config.oracle_configured = true;
+        config.oracle_user = Some("ADMIN".to_owned());
+        config.oracle_password = Some("database-password".to_owned());
+        config.oracle_connect_string = Some("autographsdb_medium".to_owned());
+        config.oracle_wallet_dir = Some("/opt/autographs/wallet".to_owned());
+        config.oracle_wallet_password = Some("wallet-password".to_owned());
+
+        let settings = take_oracle_connection_settings(&mut config).unwrap();
+
+        assert_eq!(settings.user(), "ADMIN");
+        assert_eq!(settings.connect_string(), "autographsdb_medium");
+        assert!(config.oracle_user.is_none());
+        assert!(config.oracle_password.is_none());
+        assert!(config.oracle_connect_string.is_none());
+        assert!(config.oracle_wallet_dir.is_none());
+        assert!(config.oracle_wallet_password.is_none());
+        assert!(config.oracle_configured);
+    }
 
     #[tokio::test]
     async fn queued_publish_captures_boundary_after_waiting_for_publish_lock() {
