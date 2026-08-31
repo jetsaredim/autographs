@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 
 use crate::oci_secrets::OciVaultSecretClient;
 
@@ -53,10 +53,24 @@ impl DatabaseCredentialRefreshSource for OciVaultDatabaseCredentialRefreshSource
 pub(crate) struct DatabaseCredentialProvider {
     current: RwLock<Arc<DatabaseCredential>>,
     refresh_source: Option<Arc<dyn DatabaseCredentialRefreshSource>>,
-    refresh_lock: Mutex<()>,
+    active_refresh: Mutex<Option<Arc<DatabaseCredentialRefreshFlight>>>,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+struct DatabaseCredentialRefreshFlight {
+    failed_generation: u64,
+    result: OnceCell<Result<DatabaseCredentialRefreshOutcome, String>>,
+}
+
+impl DatabaseCredentialRefreshFlight {
+    fn new(failed_generation: u64) -> Self {
+        Self {
+            failed_generation,
+            result: OnceCell::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum DatabaseCredentialRefreshOutcome {
     NotConfigured,
     Refreshed { generation: u64 },
@@ -86,7 +100,7 @@ impl DatabaseCredentialProvider {
         Self {
             current: RwLock::new(Arc::new(DatabaseCredential::new(credential, 0))),
             refresh_source,
-            refresh_lock: Mutex::new(()),
+            active_refresh: Mutex::new(None),
         }
     }
 
@@ -115,14 +129,55 @@ impl DatabaseCredentialProvider {
             return Ok(DatabaseCredentialRefreshOutcome::NotConfigured);
         };
 
-        let _guard = self.refresh_lock.lock().await;
-        let current_generation = self.current().generation();
-        if current_generation != failed_generation {
-            return Ok(DatabaseCredentialRefreshOutcome::AlreadyRefreshed {
-                generation: current_generation,
-            });
-        }
+        let (flight, joined_existing) = {
+            let mut active_refresh = self.active_refresh.lock().await;
+            let current_generation = self.current().generation();
+            if current_generation != failed_generation {
+                return Ok(DatabaseCredentialRefreshOutcome::AlreadyRefreshed {
+                    generation: current_generation,
+                });
+            }
 
+            match active_refresh.as_ref() {
+                Some(flight) if flight.failed_generation == failed_generation => {
+                    (Arc::clone(flight), true)
+                }
+                _ => {
+                    let flight = Arc::new(DatabaseCredentialRefreshFlight::new(failed_generation));
+                    *active_refresh = Some(Arc::clone(&flight));
+                    (flight, false)
+                }
+            }
+        };
+
+        let result = flight
+            .result
+            .get_or_init(|| self.refresh_from_source(source, failed_generation))
+            .await
+            .clone();
+
+        let mut active_refresh = self.active_refresh.lock().await;
+        if active_refresh
+            .as_ref()
+            .is_some_and(|active| Arc::ptr_eq(active, &flight))
+        {
+            *active_refresh = None;
+        }
+        drop(active_refresh);
+
+        match (joined_existing, result) {
+            (true, Ok(DatabaseCredentialRefreshOutcome::Refreshed { generation })) => {
+                Ok(DatabaseCredentialRefreshOutcome::AlreadyRefreshed { generation })
+            }
+            (_, result) => result,
+        }
+    }
+
+    async fn refresh_from_source(
+        &self,
+        source: &Arc<dyn DatabaseCredentialRefreshSource>,
+        failed_generation: u64,
+    ) -> Result<DatabaseCredentialRefreshOutcome, String> {
         let refreshed = source.read_current().await?;
         if refreshed.trim().is_empty() {
             return Err("OCI Vault database credential resolved to a blank value".to_owned());
@@ -144,6 +199,9 @@ impl DatabaseCredentialProvider {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    use tokio::sync::Semaphore;
 
     struct TestRefreshSource {
         reads: AtomicUsize,
@@ -165,6 +223,36 @@ mod tests {
             self.reads.fetch_add(1, Ordering::SeqCst);
             tokio::task::yield_now().await;
             self.result.clone()
+        }
+    }
+
+    struct BlockingFailureRefreshSource {
+        reads: AtomicUsize,
+        entered: Semaphore,
+        release: Semaphore,
+    }
+
+    impl BlockingFailureRefreshSource {
+        fn new() -> Self {
+            Self {
+                reads: AtomicUsize::new(0),
+                entered: Semaphore::new(0),
+                release: Semaphore::new(0),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl DatabaseCredentialRefreshSource for BlockingFailureRefreshSource {
+        async fn read_current(&self) -> Result<String, String> {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            self.entered.add_permits(1);
+            self.release
+                .acquire()
+                .await
+                .expect("test semaphore remains open")
+                .forget();
+            Err("Vault unavailable".to_owned())
         }
     }
 
@@ -254,5 +342,62 @@ mod tests {
                 .contains(&DatabaseCredentialRefreshOutcome::AlreadyRefreshed { generation: 1 })
         );
         assert_eq!(source.reads.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn concurrent_failed_refreshes_share_one_error_but_a_later_call_retries() {
+        let source = Arc::new(BlockingFailureRefreshSource::new());
+        let provider = Arc::new(DatabaseCredentialProvider::with_refresh_source(
+            "database-password".to_owned(),
+            source.clone(),
+        ));
+
+        let first = tokio::spawn({
+            let provider = Arc::clone(&provider);
+            async move { provider.refresh_if_stale(0).await }
+        });
+        source
+            .entered
+            .acquire()
+            .await
+            .expect("test semaphore remains open")
+            .forget();
+
+        let second = tokio::spawn({
+            let provider = Arc::clone(&provider);
+            async move { provider.refresh_if_stale(0).await }
+        });
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                let joined_the_same_flight = provider
+                    .active_refresh
+                    .lock()
+                    .await
+                    .as_ref()
+                    .is_some_and(|flight| Arc::strong_count(flight) >= 3);
+                if joined_the_same_flight {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("both callers should join the active refresh flight");
+
+        source.release.add_permits(1);
+        let first_error = first.await.unwrap().unwrap_err();
+        let second_error = second.await.unwrap().unwrap_err();
+
+        assert_eq!(first_error, "Vault unavailable");
+        assert_eq!(second_error, first_error);
+        assert_eq!(source.reads.load(Ordering::SeqCst), 1);
+        assert_eq!(provider.current().generation(), 0);
+
+        source.release.add_permits(1);
+        assert_eq!(
+            provider.refresh_if_stale(0).await.unwrap_err(),
+            "Vault unavailable"
+        );
+        assert_eq!(source.reads.load(Ordering::SeqCst), 2);
     }
 }
