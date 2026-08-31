@@ -4,10 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use argon2::{
-    Argon2, PasswordHash, PasswordVerifier,
-    password_hash::{Error as PasswordHashError, SaltString},
-};
+use argon2::{Argon2, PasswordHash, PasswordVerifier, password_hash::Error as PasswordHashError};
 use uuid::Uuid;
 
 use crate::config::non_blank;
@@ -113,9 +110,8 @@ impl AuthState {
 pub fn hash_password(password: &str) -> Result<String, PasswordHashError> {
     use argon2::PasswordHasher;
 
-    let salt = SaltString::encode_b64(Uuid::new_v4().as_bytes())?;
     Ok(Argon2::default()
-        .hash_password(password.as_bytes(), &salt)?
+        .hash_password(password.as_bytes())?
         .to_string())
 }
 
@@ -140,5 +136,15 @@ mod tests {
 
         assert!(!auth.has_operator_token(""));
         assert!(!auth.has_operator_token("   "));
+    }
+
+    #[test]
+    fn generated_argon2_hashes_verify_and_use_unique_salts() {
+        let first = hash_password("correct horse battery staple").unwrap();
+        let second = hash_password("correct horse battery staple").unwrap();
+        let auth = AuthState::new(None, Some(first.clone()), None);
+
+        assert!(auth.login("correct horse battery staple").is_ok());
+        assert_ne!(first, second);
     }
 }

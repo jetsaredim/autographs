@@ -98,7 +98,16 @@ boundary. They are removed only from the runtime controller boundary.
   versions only for a rehearsed rollback to the recorded pre-cutover image.
 - Secret contents never appear in logs, health responses, errors, generated
   static output, or inventory reports.
-- Initial rotation takes effect on controlled controller restart. Hot reload is
-  deferred until a demonstrated operational need justifies it.
+- Successful Vault loads log only the logical secret kind, numeric bundle
+  version, and requested `CURRENT` stage. Database refresh/reuse logs also
+  include controller-local credential generations. They never include secret
+  OCIDs, user-defined version names, customer metadata, or secret contents, and
+  they are not emitted for each credential use or database connection.
+- The Oracle database password provider performs bounded failure-driven reload:
+  an exact `ORA-01017` serializes one `CURRENT`-stage Vault read per failed
+  credential generation and retries the connection once. Wallet-password and
+  admin-hash rotations still take effect on controlled controller restart.
+- Automatic OCI rotation remains disabled until the Oracle recovery path has
+  controlled live-rotation evidence.
 - Running containers retain their already-loaded scalar values through a Vault
   outage; a fresh start requires Vault availability and valid IAM.

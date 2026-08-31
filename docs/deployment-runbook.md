@@ -145,8 +145,22 @@ to update ADB. Applying these in the opposite order is expected to fail the ADB
 update authorization check before Ansible runs.
 
 The controller resolves these OCIDs with runtime instance-principal
-authentication during startup and then uses the existing runtime configuration
-names in memory. The deploy workflow reads the OCIDs directly from the runtime
+authentication during startup. It retains the Oracle database password secret
+OCID as a refresh coordinate: an exact `ORA-01017` on a later connection causes
+one serialized read of the Vault secret's `CURRENT` version for that failed
+credential generation and one connection retry. Other connection failures,
+session initialization, queries, and application operations are not retried.
+Each successful startup resolution logs the safe logical secret kind, numeric
+OCI Vault bundle version, and requested `CURRENT` stage. A successful database
+credential refresh also logs the failed and replacement controller generations
+with the replacement Vault version. The controller does not log secret values,
+secret OCIDs, user-defined version names, or customer metadata; these messages
+are emitted only when a secret is loaded or refreshed, not for every use or
+database connection. Controller generations reset on restart, while Vault
+bundle versions remain durable and can be correlated with OCI rotation history.
+Wallet-password and admin-hash changes still require a restart. Keep automatic
+OCI rotation disabled until a controlled live rotation proves this recovery
+path. The deploy workflow reads the OCIDs directly from the runtime
 Terraform outputs; do not duplicate them in GitHub Variables. Do not put the
 secret contents themselves in Terraform inputs or repository variables. When
 one of these Vault ID coordinates is set, deploy

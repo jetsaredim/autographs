@@ -147,9 +147,27 @@ fn take_oracle_connection_settings(
         &mut config.oracle_connect_string,
         "ORACLE_DB_CONNECT_STRING",
     )?;
-    let credential_provider = Arc::new(crate::oracle_credentials::DatabaseCredentialProvider::new(
-        credential,
-    ));
+    let credential_provider = Arc::new(
+        match (
+            config.oracle_password_vault_secret_id.take(),
+            config.oracle_password_vault_version.take(),
+        ) {
+            (Some(secret_id), Some(vault_version)) => {
+                crate::oracle_credentials::DatabaseCredentialProvider::with_oci_vault_refresh(
+                    credential,
+                    vault_version,
+                    secret_id,
+                )?
+            }
+            (None, None) => crate::oracle_credentials::DatabaseCredentialProvider::new(credential),
+            _ => {
+                return Err(
+                "Oracle database Vault secret ID and resolved version must be configured together"
+                    .to_owned(),
+            );
+            }
+        },
+    );
 
     Ok(Arc::new(
         crate::oracle_connection::OracleConnectionSettings::with_credential_provider(

@@ -135,13 +135,12 @@ impl OracleCatalogRepository {
         F: FnOnce(Connection) -> Result<T, String> + Send + 'static,
     {
         let connection_settings = Arc::clone(&self.connection_settings);
-        task::spawn_blocking(move || {
-            let connection = oracle_connection::connect_with_settings(&connection_settings)
-                .map_err(|error| format!("connect to Oracle catalog: {error}"))?;
-            operation(connection)
-        })
-        .await
-        .map_err(|error| format!("join Oracle catalog task: {error}"))?
+        let connection = oracle_connection::connect_with_recovery(connection_settings)
+            .await
+            .map_err(|error| format!("connect to Oracle catalog: {error}"))?;
+        task::spawn_blocking(move || operation(connection))
+            .await
+            .map_err(|error| format!("join Oracle catalog task: {error}"))?
     }
 }
 
