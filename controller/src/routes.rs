@@ -141,14 +141,21 @@ fn production_repository(
 fn take_oracle_connection_settings(
     config: &mut ControllerConfig,
 ) -> Result<Arc<crate::oracle_connection::OracleConnectionSettings>, String> {
+    let user = take_required_config(&mut config.oracle_user, "ORACLE_DB_USER")?;
+    let credential = take_required_config(&mut config.oracle_password, "ORACLE_DB_PASSWORD")?;
+    let connect_string = take_required_config(
+        &mut config.oracle_connect_string,
+        "ORACLE_DB_CONNECT_STRING",
+    )?;
+    let credential_provider = Arc::new(crate::oracle_credentials::DatabaseCredentialProvider::new(
+        credential,
+    ));
+
     Ok(Arc::new(
-        crate::oracle_connection::OracleConnectionSettings::new(
-            take_required_config(&mut config.oracle_user, "ORACLE_DB_USER")?,
-            take_required_config(&mut config.oracle_password, "ORACLE_DB_PASSWORD")?,
-            take_required_config(
-                &mut config.oracle_connect_string,
-                "ORACLE_DB_CONNECT_STRING",
-            )?,
+        crate::oracle_connection::OracleConnectionSettings::with_credential_provider(
+            user,
+            credential_provider,
+            connect_string,
             config.oracle_wallet_dir.take(),
             config.oracle_wallet_password.take(),
         ),
