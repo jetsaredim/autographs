@@ -147,9 +147,14 @@ fn take_oracle_connection_settings(
         &mut config.oracle_connect_string,
         "ORACLE_DB_CONNECT_STRING",
     )?;
-    let credential_provider = Arc::new(crate::oracle_credentials::DatabaseCredentialProvider::new(
-        credential,
-    ));
+    let credential_provider = Arc::new(match config.oracle_password_vault_secret_id.take() {
+        Some(secret_id) => {
+            crate::oracle_credentials::DatabaseCredentialProvider::with_oci_vault_refresh(
+                credential, secret_id,
+            )?
+        }
+        None => crate::oracle_credentials::DatabaseCredentialProvider::new(credential),
+    });
 
     Ok(Arc::new(
         crate::oracle_connection::OracleConnectionSettings::with_credential_provider(

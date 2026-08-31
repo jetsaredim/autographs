@@ -43,7 +43,7 @@ pub async fn resolve_secret_references() -> Result<RuntimeSecretOverrides, Strin
     for mapping in requested {
         let secret_id = env_value(mapping.secret_id_env).expect("requested mapping has secret id");
         let value = client.read_current_secret(&secret_id).await?;
-        resolved.push((mapping, value));
+        resolved.push((mapping, secret_id, value));
     }
     let resolved_count = resolved.len();
     let overrides = resolved_overrides(resolved)?;
@@ -76,10 +76,10 @@ fn env_value(name: &str) -> Option<String> {
 }
 
 fn resolved_overrides(
-    resolved: Vec<(SecretEnvMapping, String)>,
+    resolved: Vec<(SecretEnvMapping, String, String)>,
 ) -> Result<RuntimeSecretOverrides, String> {
     let mut overrides = RuntimeSecretOverrides::default();
-    for (mapping, value) in resolved {
+    for (mapping, secret_id, value) in resolved {
         if value.trim().is_empty() {
             return Err(format!(
                 "OCI Vault secret referenced by {} resolved to a blank value",
@@ -87,7 +87,10 @@ fn resolved_overrides(
             ));
         }
         match mapping.target {
-            SecretTarget::OracleDbPassword => overrides.oracle_db_password = Some(value),
+            SecretTarget::OracleDbPassword => {
+                overrides.oracle_db_password = Some(value);
+                overrides.oracle_db_password_vault_secret_id = Some(secret_id);
+            }
             SecretTarget::OracleDbWalletPassword => {
                 overrides.oracle_db_wallet_password = Some(value)
             }
@@ -141,13 +144,19 @@ mod tests {
         let overrides = resolved_overrides(vec![
             (
                 SECRET_ENV_MAPPINGS[0],
+                "ocid1.vaultsecret.database".to_owned(),
                 "resolved-database-password".to_owned(),
             ),
             (
                 SECRET_ENV_MAPPINGS[1],
+                "ocid1.vaultsecret.wallet".to_owned(),
                 "resolved-wallet-password".to_owned(),
             ),
-            (SECRET_ENV_MAPPINGS[2], "resolved-admin-hash".to_owned()),
+            (
+                SECRET_ENV_MAPPINGS[2],
+                "ocid1.vaultsecret.admin".to_owned(),
+                "resolved-admin-hash".to_owned(),
+            ),
         ])
         .expect("build typed secret overrides");
 
@@ -156,6 +165,10 @@ mod tests {
         assert_eq!(
             config.oracle_password.as_deref(),
             Some("resolved-database-password")
+        );
+        assert_eq!(
+            config.oracle_password_vault_secret_id.as_deref(),
+            Some("ocid1.vaultsecret.database")
         );
         assert_eq!(
             config.oracle_wallet_password.as_deref(),

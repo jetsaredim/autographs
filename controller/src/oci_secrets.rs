@@ -41,10 +41,7 @@ impl OciVaultSecretClient {
         if secret_id.is_empty() {
             return Err("Vault secret OCID must not be blank".to_owned());
         }
-        let path = format!(
-            "{}/20190301/secretbundles/{secret_id}",
-            self.endpoint.base_path
-        );
+        let path = self.endpoint.current_secret_bundle_path(secret_id);
         let response = self
             .auth
             .execute(Method::GET, &self.endpoint.host, &path, None, None)
@@ -107,6 +104,13 @@ impl SecretsEndpoint {
             base_path,
         }
     }
+
+    fn current_secret_bundle_path(&self, secret_id: &str) -> String {
+        format!(
+            "{}/20190301/secretbundles/{secret_id}?stage=CURRENT",
+            self.base_path
+        )
+    }
 }
 
 #[cfg(test)]
@@ -128,6 +132,19 @@ mod tests {
                 host: "example.test".to_owned(),
                 base_path: String::new(),
             }
+        );
+    }
+
+    #[test]
+    fn secret_retrieval_explicitly_requests_the_current_version() {
+        let endpoint = SecretsEndpoint {
+            host: "example.test".to_owned(),
+            base_path: "/prefix".to_owned(),
+        };
+
+        assert_eq!(
+            endpoint.current_secret_bundle_path("ocid1.vaultsecret.example"),
+            "/prefix/20190301/secretbundles/ocid1.vaultsecret.example?stage=CURRENT"
         );
     }
 }

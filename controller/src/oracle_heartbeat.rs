@@ -25,19 +25,12 @@ pub fn spawn(settings: Arc<OracleConnectionSettings>) -> Result<(), String> {
         loop {
             ticker.tick().await;
 
-            let result = tokio::task::spawn_blocking({
-                let settings = Arc::clone(&settings);
-                move || run_heartbeat(&settings)
-            })
-            .await;
+            let result = run_heartbeat(Arc::clone(&settings)).await;
 
             match result {
-                Ok(Ok(())) => tracing::info!("Oracle catalog heartbeat succeeded"),
-                Ok(Err(error)) => {
+                Ok(()) => tracing::info!("Oracle catalog heartbeat succeeded"),
+                Err(error) => {
                     tracing::warn!(error_kind = error.kind(), "Oracle catalog heartbeat failed");
-                }
-                Err(_error) => {
-                    tracing::warn!("Oracle catalog heartbeat task failed");
                 }
             }
         }
@@ -80,23 +73,29 @@ fn parse_heartbeat_interval(raw: Option<&str>) -> Result<Option<Duration>, Strin
     Ok(Some(Duration::from_secs(seconds)))
 }
 
-fn run_heartbeat(settings: &OracleConnectionSettings) -> Result<(), HeartbeatError> {
-    let connection = oracle_connection::connect_with_settings(settings)
+async fn run_heartbeat(settings: Arc<OracleConnectionSettings>) -> Result<(), HeartbeatError> {
+    let connection = oracle_connection::connect_with_recovery(settings)
+        .await
         .map_err(|_error| HeartbeatError::Connect)?;
-    let row = connection
-        .query_row("select 1 from dual", &[])
-        .map_err(|_error| HeartbeatError::Query)?;
-    let value: i64 = row.get(0).map_err(|_error| HeartbeatError::Query)?;
-    if value != 1 {
-        return Err(HeartbeatError::UnexpectedResult);
-    }
+    tokio::task::spawn_blocking(move || {
+        let row = connection
+            .query_row("select 1 from dual", &[])
+            .map_err(|_error| HeartbeatError::Query)?;
+        let value: i64 = row.get(0).map_err(|_error| HeartbeatError::Query)?;
+        if value != 1 {
+            return Err(HeartbeatError::UnexpectedResult);
+        }
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|_error| HeartbeatError::Task)?
 }
 
 enum HeartbeatError {
     Connect,
     Query,
+    Task,
     UnexpectedResult,
 }
 
@@ -105,6 +104,7 @@ impl HeartbeatError {
         match self {
             Self::Connect => "connect",
             Self::Query => "query",
+            Self::Task => "task",
             Self::UnexpectedResult => "unexpected_result",
         }
     }

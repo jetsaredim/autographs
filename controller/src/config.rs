@@ -8,6 +8,7 @@ use crate::publisher::ReleaseRetentionPolicy;
 #[derive(Clone, Default, Eq, PartialEq)]
 pub struct RuntimeSecretOverrides {
     pub(crate) oracle_db_password: Option<String>,
+    pub(crate) oracle_db_password_vault_secret_id: Option<String>,
     pub(crate) oracle_db_wallet_password: Option<String>,
     pub(crate) admin_password_hash: Option<String>,
 }
@@ -23,6 +24,7 @@ pub struct ControllerConfig {
     pub oracle_configured: bool,
     pub(crate) oracle_user: Option<String>,
     pub(crate) oracle_password: Option<String>,
+    pub(crate) oracle_password_vault_secret_id: Option<String>,
     pub(crate) oracle_connect_string: Option<String>,
     pub(crate) oracle_wallet_dir: Option<String>,
     pub(crate) oracle_wallet_password: Option<String>,
@@ -67,6 +69,7 @@ impl ControllerConfig {
             oracle_configured,
             oracle_user,
             oracle_password,
+            oracle_password_vault_secret_id: None,
             oracle_connect_string,
             oracle_wallet_dir,
             oracle_wallet_password,
@@ -102,6 +105,9 @@ impl ControllerConfig {
         if let Some(value) = overrides.oracle_db_password {
             self.oracle_password = Some(value);
         }
+        if let Some(value) = overrides.oracle_db_password_vault_secret_id {
+            self.oracle_password_vault_secret_id = Some(value);
+        }
         if let Some(value) = overrides.oracle_db_wallet_password {
             self.oracle_wallet_password = Some(value);
         }
@@ -124,6 +130,7 @@ impl ControllerConfig {
             oracle_configured: false,
             oracle_user: None,
             oracle_password: None,
+            oracle_password_vault_secret_id: None,
             oracle_connect_string: None,
             oracle_wallet_dir: None,
             oracle_wallet_password: None,
