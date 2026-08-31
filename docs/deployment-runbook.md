@@ -116,11 +116,11 @@ Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` 
 For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Store the wallet download password in `ORACLE_DB_WALLET_PASSWORD`; the pure-Rust `oracledb` driver uses it to decrypt `ewallet.pem` even though the wallet has already been unpacked. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the Rust controller container.
 
 Runtime secret values can be moved to OCI Vault after the corresponding secret
-contents are populated outside Terraform. The tenancy root creates the runtime
-secret shells and generates the runtime dynamic-group policy from those secret
-OCIDs, so the controller can read only the Terraform-managed Autographs runtime
-secret bundles. The runtime Terraform root discovers each uniquely named ACTIVE
-secret through metadata-only OCI data lookups and exports the matching controller
+contents are populated outside Terraform. The regional runtime root owns the
+Vault, software key, and runtime secret shells. The tenancy root retains IAM
+ownership and scopes runtime dynamic-group bundle reads to the three stable
+secret names, avoiding secret-OCID coupling between Terraform states. The
+runtime root exports its managed secret OCIDs as the matching controller
 environment coordinates:
 
 - `ORACLE_DB_PASSWORD_VAULT_SECRET_ID`
@@ -131,18 +131,16 @@ The same Oracle database password secret OCID is also passed to the Terraform
 Autonomous Database resource as its control-plane `secret_id`; the workflows do
 not receive the plaintext database ADMIN password. That provider path is
 separate from the controller's runtime instance-principal retrieval. A green
-pull-request plan verifies the metadata lookup and planned in-place resource
+pull-request plan verifies the resource linkage and planned in-place resource
 change, but only a later controlled apply and fresh database connection prove
 that OCI can consume the Vault value for the ADB update.
 
-Before merging the runtime change that introduces `secret_id`, apply the tenancy
-root from the same revision. Its dedicated deploy policy grants the GitHub deploy
-group `read secret-bundles` for only the Oracle database password secret OCID;
-the deploy group retains metadata-only `inspect secrets` access for the wallet
-password and admin password hash. Confirm the tenancy plan contains only the
-intended IAM policy/output changes, apply it, and then allow the runtime workflow
-to update ADB. Applying these in the opposite order is expected to fail the ADB
-update authorization check before Ansible runs.
+The manually operated tenancy root grants the GitHub deploy group
+compartment-scoped `manage vaults`, `manage keys`, and `manage secret-family`.
+It does not grant tenancy-wide security-resource management. Apply those IAM
+permissions before importing the regional Vault resources into runtime state;
+follow the guarded procedure in [terraform-state.md](terraform-state.md) and do
+not merge a plan that proposes creating, replacing, or destroying them.
 
 The controller resolves these OCIDs with runtime instance-principal
 authentication during startup. It retains the Oracle database password secret

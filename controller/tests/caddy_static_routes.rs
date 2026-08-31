@@ -240,16 +240,16 @@ fn deploy_wires_oracle_heartbeat_interval_override() {
 }
 
 #[test]
-fn deploy_discovers_vault_secret_ids_without_github_variables() {
+fn deploy_exports_managed_vault_secret_ids_without_github_variables() {
     let runtime_secrets = read_repo("infra/terraform/runtime_secrets.tf");
     let runtime_outputs = read_repo("infra/terraform/outputs.tf");
     let tenancy_iam = read_repo("infra/terraform/modules/iam/main.tf");
     let deploy_workflow = read_repo(".github/workflows/deploy.yml");
 
-    assert!(runtime_secrets.contains("data \"oci_vault_secrets\" \"runtime_controller\""));
-    assert!(runtime_secrets.contains("state          = \"ACTIVE\""));
-    assert!(runtime_secrets.contains("condition     = length(self.secrets) == 1"));
-    assert!(runtime_secrets.contains("env_name => one(secret_lookup.secrets[*].id)"));
+    assert!(runtime_secrets.contains("resource \"oci_vault_secret\" \"runtime\""));
+    assert!(
+        runtime_secrets.contains("definition.secret_id_env => oci_vault_secret.runtime[name].id")
+    );
     assert!(runtime_outputs.contains("output \"runtime_secret_id_env_vars\""));
     assert!(tenancy_iam.contains("to manage secret-family in compartment id"));
 

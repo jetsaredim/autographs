@@ -1,8 +1,9 @@
 # OCI Bootstrap Runbook
 
 This phase keeps OCI setup manual only where Terraform cannot bootstrap itself.
-The long-term tenancy owner is the Terraform root in `infra/terraform/tenancy/`;
-the runtime application root remains `infra/terraform/`.
+The root in `infra/terraform/tenancy/` owns tenancy/home-region IAM and the state
+bucket; the regional deployment root in `infra/terraform/` owns the runtime
+Vault, key, secrets, network, compute, database, and media resources.
 
 ## Manual-Once Boundary
 
@@ -30,7 +31,8 @@ manual bootstrap resources imported immediately afterward.
 
 - `home_region`: the OCI home region for IAM resources such as compartments and
   policies.
-- `region`: the region for the Terraform state bucket and runtime resources.
+- `region`: the region for the Terraform state bucket and regional deployment
+  resources, including Vault, keys, and secrets.
 
 Do not guess these values. Set them explicitly in `terraform.tfvars`.
 
@@ -86,9 +88,11 @@ cp infra/terraform/tenancy/environments/prod/terraform.tfvars.example \
   -var-file=environments/prod/terraform.tfvars
 ```
 
-8. After the tenancy root is applied, configure and run the runtime application
+8. After the tenancy root is applied, configure and run the regional deployment
    root in `infra/terraform/`. Its remote backend should continue to use the
-   runtime state key, `envs/prod/terraform.tfstate`.
+   runtime state key, `envs/prod/terraform.tfstate`. Existing Vault resources
+   that predate this ownership boundary must first follow the state-transfer
+   procedure in [terraform-state.md](terraform-state.md).
 
 ```bash
 cp infra/terraform/environments/prod/terraform.tfvars.example \

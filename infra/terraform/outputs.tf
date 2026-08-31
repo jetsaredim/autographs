@@ -19,8 +19,25 @@ output "runtime_instance_id" {
 }
 
 output "runtime_secret_id_env_vars" {
-  description = "Controller environment variable names mapped to uniquely discovered ACTIVE OCI Vault secret OCIDs."
+  description = "Controller environment variable names mapped to deployment-managed OCI Vault secret OCIDs."
   value       = local.runtime_secret_id_env_vars
+}
+
+output "runtime_secrets_vault_id" {
+  description = "OCI Vault OCID for Autographs runtime secret bundles."
+  value       = oci_kms_vault.runtime_secrets.id
+}
+
+output "runtime_secrets_key_id" {
+  description = "OCI KMS key OCID used by Autographs runtime Vault secrets."
+  value       = oci_kms_key.runtime_secrets.id
+}
+
+output "runtime_secret_ids" {
+  description = "Deployment-managed Autographs runtime Vault secret OCIDs keyed by runtime secret name."
+  value = {
+    for name, secret in oci_vault_secret.runtime : name => secret.id
+  }
 }
 
 output "vcn_id" {

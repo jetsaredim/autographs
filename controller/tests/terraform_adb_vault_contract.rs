@@ -2,19 +2,27 @@ use std::fs;
 use std::path::PathBuf;
 
 #[test]
-fn adb_password_uses_existing_runtime_vault_secret_ocid() {
+fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     let runtime_secrets = read_repo("infra/terraform/runtime_secrets.tf");
     let root_main = read_repo("infra/terraform/main.tf");
     let root_variables = read_repo("infra/terraform/variables.tf");
     let module_main = read_repo("infra/terraform/modules/data_services/main.tf");
     let module_variables = read_repo("infra/terraform/modules/data_services/variables.tf");
+    let tenancy_main = read_repo("infra/terraform/tenancy/main.tf");
 
-    assert!(runtime_secrets.contains(
-        "ORACLE_DB_PASSWORD_VAULT_SECRET_ID             = \"${var.name_prefix}-oracle-db-password\""
-    ));
-    assert!(runtime_secrets.contains("data \"oci_vault_secrets\" \"runtime_controller\""));
-    assert!(runtime_secrets.contains("condition     = length(self.secrets) == 1"));
-    assert!(runtime_secrets.contains("env_name => one(secret_lookup.secrets[*].id)"));
+    assert!(runtime_secrets.contains("secret_id_env = \"ORACLE_DB_PASSWORD_VAULT_SECRET_ID\""));
+    assert!(runtime_secrets.contains("resource \"oci_kms_vault\" \"runtime_secrets\""));
+    assert!(runtime_secrets.contains("resource \"oci_kms_key\" \"runtime_secrets\""));
+    assert!(runtime_secrets.contains("resource \"oci_vault_secret\" \"runtime\""));
+    assert!(
+        runtime_secrets.contains("definition.secret_id_env => oci_vault_secret.runtime[name].id")
+    );
+    assert!(runtime_secrets.contains("prevent_destroy = true"));
+    assert!(runtime_secrets.contains("enable_auto_generation = false"));
+    assert!(!runtime_secrets.contains("data \"oci_vault_secrets\""));
+    assert!(!tenancy_main.contains("resource \"oci_kms_vault\""));
+    assert!(!tenancy_main.contains("resource \"oci_kms_key\""));
+    assert!(!tenancy_main.contains("resource \"oci_vault_secret\""));
     assert!(root_main.contains(
         "autonomous_database_admin_password_secret_id    = local.runtime_secret_id_env_vars[\"ORACLE_DB_PASSWORD_VAULT_SECRET_ID\"]"
     ));
@@ -75,6 +83,22 @@ fn deploy_identity_can_manage_regional_vault_resources_in_project_compartment() 
     assert!(!iam_main.contains("to manage keys in tenancy"));
     assert!(!iam_main.contains("to manage secret-family in tenancy"));
     assert!(!tenancy_main.contains("deploy_database_password_secret_bundle_access"));
+}
+
+#[test]
+fn runtime_bundle_policy_uses_stable_secret_names_instead_of_cross_state_ocids() {
+    let tenancy_main = read_repo("infra/terraform/tenancy/main.tf");
+    let tenancy_locals = read_repo("infra/terraform/tenancy/locals.tf");
+
+    assert!(tenancy_main.contains("where target.secret.name = '${secret_name}'"));
+    assert!(!tenancy_main.contains("where target.secret.id"));
+    for suffix in [
+        "admin-password-hash",
+        "oracle-db-password",
+        "oracle-db-wallet-password",
+    ] {
+        assert!(tenancy_locals.contains(&format!("${{var.name_prefix}}-{suffix}")));
+    }
 }
 
 fn read_repo(relative: &str) -> String {
