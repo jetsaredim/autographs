@@ -1,11 +1,15 @@
+use std::sync::Arc;
+
 use oracledb::{Config, Connection};
+
+use crate::oracle_credentials::DatabaseCredentialProvider;
 
 // Autonomous HIGH/MEDIUM services enable PDML, but controller writes are multi-statement OLTP.
 const SESSION_INITIALIZATION_SQL: [&str; 1] = ["alter session disable parallel dml"];
 
 pub struct OracleConnectionSettings {
     user: String,
-    credential: String,
+    credential_provider: Arc<DatabaseCredentialProvider>,
     connect_string: String,
     wallet_dir: Option<String>,
     wallet_password: Option<String>,
@@ -19,9 +23,25 @@ impl OracleConnectionSettings {
         wallet_dir: Option<String>,
         wallet_password: Option<String>,
     ) -> Self {
+        Self::with_credential_provider(
+            user,
+            Arc::new(DatabaseCredentialProvider::new(credential)),
+            connect_string,
+            wallet_dir,
+            wallet_password,
+        )
+    }
+
+    pub(crate) fn with_credential_provider(
+        user: String,
+        credential_provider: Arc<DatabaseCredentialProvider>,
+        connect_string: String,
+        wallet_dir: Option<String>,
+        wallet_password: Option<String>,
+    ) -> Self {
         Self {
             user,
-            credential,
+            credential_provider,
             connect_string,
             wallet_dir,
             wallet_password,
@@ -34,6 +54,10 @@ impl OracleConnectionSettings {
 
     pub fn connect_string(&self) -> &str {
         &self.connect_string
+    }
+
+    pub(crate) fn credential_provider(&self) -> &Arc<DatabaseCredentialProvider> {
+        &self.credential_provider
     }
 }
 
@@ -49,7 +73,8 @@ pub fn connect(user: &str, credential: &str, connect_string: &str) -> Result<Con
 }
 
 pub fn connect_with_settings(settings: &OracleConnectionSettings) -> Result<Connection, String> {
-    let mut config = Config::default().set_credentials(&settings.user, &settings.credential);
+    let credential = settings.credential_provider().current();
+    let mut config = Config::default().set_credentials(&settings.user, credential.expose_secret());
 
     if let Some(wallet_dir) = settings.wallet_dir.as_deref() {
         let wallet_password = settings.wallet_password.as_deref().ok_or_else(|| {
@@ -90,5 +115,24 @@ mod tests {
             SESSION_INITIALIZATION_SQL,
             ["alter session disable parallel dml"]
         );
+    }
+
+    #[test]
+    fn connection_settings_retain_the_injected_credential_provider() {
+        let credential_provider = Arc::new(DatabaseCredentialProvider::new(
+            "database-password".to_owned(),
+        ));
+        let settings = OracleConnectionSettings::with_credential_provider(
+            "ADMIN".to_owned(),
+            Arc::clone(&credential_provider),
+            "autographsdb_medium".to_owned(),
+            None,
+            None,
+        );
+
+        assert!(Arc::ptr_eq(
+            settings.credential_provider(),
+            &credential_provider
+        ));
     }
 }
