@@ -101,6 +101,20 @@ fn runtime_bundle_policy_uses_stable_secret_names_instead_of_cross_state_ocids()
     }
 }
 
+#[test]
+fn vault_state_migration_script_stops_before_source_state_removal() {
+    let migration_script = read_repo("scripts/migrate-vault-state.sh");
+
+    assert!(migration_script.contains("read -r -s"));
+    assert!(migration_script.contains("state pull"));
+    assert!(migration_script.contains("import_if_missing"));
+    assert!(migration_script.contains("runtime-after-import.tfplan"));
+    assert!(migration_script.contains("Unexpected Vault resource changes"));
+    assert!(migration_script.contains("Do not run state rm until this plan is reviewed"));
+    assert!(!migration_script.contains("-chdir=\"${TENANCY_ROOT}\" state rm"));
+    assert!(!migration_script.contains(" apply "));
+}
+
 fn read_repo(relative: &str) -> String {
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()

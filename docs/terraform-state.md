@@ -65,93 +65,30 @@ cannot transfer resources between separate backends, so this is a controlled
 import-and-remove operation.
 
 Do not run either root's normal apply concurrently with this procedure. Finish
-the prerequisite tenancy IAM apply first, then initialize both roots against
-their existing remote state objects:
+the prerequisite tenancy IAM apply first, then run the guarded import script
+from the repository root:
 
 ```bash
-.tools/terraform/terraform -chdir=infra/terraform/tenancy init \
-  -reconfigure \
-  -backend-config=../bootstrap/backend.hcl \
-  -backend-config=key=envs/prod/tenancy-bootstrap.tfstate
-
-.tools/terraform/terraform -chdir=infra/terraform init \
-  -reconfigure \
-  -backend-config=bootstrap/backend.hcl \
-  -backend-config=key=envs/prod/terraform.tfstate
+bash scripts/migrate-vault-state.sh
 ```
 
-Create recoverable snapshots of both states and capture the resource OCIDs from
-the still-current tenancy state. These commands read identifiers only; they do
-not read secret bundle contents:
+The script prompts silently for the existing Porkbun provider credentials
+because that provider already has resources in the shared deployment state and
+Terraform initializes every provider referenced by that state. The credentials
+remain in the script process environment only. The script does not mutate DNS.
+
+The script initializes both remote backends, writes permission-restricted state
+snapshots under `/tmp`, imports or safely resumes all five resources, verifies
+their OCIDs, and saves a deployment plan. It fails closed if that plan proposes
+any Vault, key, or secret change. It deliberately leaves all source addresses
+in tenancy state for review. If a non-default Terraform executable is needed,
+set `TERRAFORM_BIN` for this command only.
+
+Copy the migration artifact directory printed by the script before running the
+remaining commands:
 
 ```bash
-umask 077
-migration_dir="$(mktemp -d /tmp/autographs-vault-state-migration.XXXXXX)"
-
-.tools/terraform/terraform -chdir=infra/terraform/tenancy state pull \
-  > "${migration_dir}/tenancy-before.json"
-.tools/terraform/terraform -chdir=infra/terraform state pull \
-  > "${migration_dir}/runtime-before.json"
-
-vault_id="$(.tools/terraform/terraform -chdir=infra/terraform/tenancy output -raw runtime_secrets_vault_id)"
-key_id="$(.tools/terraform/terraform -chdir=infra/terraform/tenancy output -raw runtime_secrets_key_id)"
-secret_ids="$(.tools/terraform/terraform -chdir=infra/terraform/tenancy output -json runtime_secret_ids)"
-management_endpoint="$(jq -er '
-  .resources[]
-  | select(.type == "oci_kms_vault" and .name == "runtime_secrets")
-  | .instances[0].attributes.management_endpoint
-' "${migration_dir}/tenancy-before.json")"
-```
-
-Before importing, verify that the five destination addresses are absent from
-runtime state and still present in tenancy state:
-
-```bash
-.tools/terraform/terraform -chdir=infra/terraform state list
-.tools/terraform/terraform -chdir=infra/terraform/tenancy state list
-```
-
-Import the existing resources into the deployment state. Vaults and secrets use
-their OCIDs directly; the OCI provider's KMS key importer requires the Vault
-management endpoint and key OCID in its compound identifier. If any import
-fails, stop; the tenancy state still owns every resource at this point.
-
-```bash
-.tools/terraform/terraform -chdir=infra/terraform import \
-  -var-file=environments/prod/terraform.tfvars \
-  oci_kms_vault.runtime_secrets "${vault_id}"
-
-.tools/terraform/terraform -chdir=infra/terraform import \
-  -var-file=environments/prod/terraform.tfvars \
-  oci_kms_key.runtime_secrets \
-  "managementEndpoint/${management_endpoint}/keys/${key_id}"
-
-.tools/terraform/terraform -chdir=infra/terraform import \
-  -var-file=environments/prod/terraform.tfvars \
-  'oci_vault_secret.runtime["oracle_db_password"]' \
-  "$(jq -r '.oracle_db_password' <<< "${secret_ids}")"
-
-.tools/terraform/terraform -chdir=infra/terraform import \
-  -var-file=environments/prod/terraform.tfvars \
-  'oci_vault_secret.runtime["oracle_db_wallet_password"]' \
-  "$(jq -r '.oracle_db_wallet_password' <<< "${secret_ids}")"
-
-.tools/terraform/terraform -chdir=infra/terraform import \
-  -var-file=environments/prod/terraform.tfvars \
-  'oci_vault_secret.runtime["admin_password_hash"]' \
-  "$(jq -r '.admin_password_hash' <<< "${secret_ids}")"
-```
-
-Run a deployment-root plan now. It must not propose creating, replacing,
-destroying, or changing the content of the imported resources:
-
-```bash
-.tools/terraform/terraform -chdir=infra/terraform plan \
-  -var-file=environments/prod/terraform.tfvars \
-  -out="${migration_dir}/runtime-after-import.tfplan"
-
-.tools/terraform/terraform -chdir=infra/terraform show \
-  "${migration_dir}/runtime-after-import.tfplan"
+migration_dir=/tmp/autographs-vault-state-migration.replace_me
 ```
 
 Only after all five imports and that plan succeed, remove the old addresses
@@ -159,7 +96,7 @@ from tenancy state. This changes Terraform ownership only; it does not delete
 the OCI resources:
 
 ```bash
-.tools/terraform/terraform -chdir=infra/terraform/tenancy state rm \
+terraform -chdir=infra/terraform/tenancy state rm \
   'oci_vault_secret.runtime["admin_password_hash"]' \
   'oci_vault_secret.runtime["oracle_db_password"]' \
   'oci_vault_secret.runtime["oracle_db_wallet_password"]' \
@@ -172,14 +109,14 @@ bundle policy from OCID conditions to stable secret-name conditions and remove
 obsolete outputs, but it must not contain Vault, key, or secret destruction:
 
 ```bash
-.tools/terraform/terraform -chdir=infra/terraform/tenancy plan \
+terraform -chdir=infra/terraform/tenancy plan \
   -var-file=environments/prod/terraform.tfvars \
   -out="${migration_dir}/tenancy-after-transfer.tfplan"
 
-.tools/terraform/terraform -chdir=infra/terraform/tenancy show \
+terraform -chdir=infra/terraform/tenancy show \
   "${migration_dir}/tenancy-after-transfer.tfplan"
 
-.tools/terraform/terraform -chdir=infra/terraform/tenancy apply \
+terraform -chdir=infra/terraform/tenancy apply \
   "${migration_dir}/tenancy-after-transfer.tfplan"
 ```
 
@@ -188,7 +125,7 @@ OCIDs and show no Vault-resource drift. Preserve the snapshot directory until
 the PR is merged and the merge-triggered deployment succeeds.
 
 ```bash
-.tools/terraform/terraform -chdir=infra/terraform plan \
+terraform -chdir=infra/terraform plan \
   -var-file=environments/prod/terraform.tfvars
 ```
 
