@@ -252,7 +252,11 @@ fn deploy_exports_managed_vault_secret_ids_without_github_variables() {
             .contains("definition.secret_id_env => try(oci_vault_secret.runtime[name].id, null)")
     );
     assert!(runtime_outputs.contains("output \"runtime_secret_id_env_vars\""));
+    assert!(runtime_outputs.contains("if var.runtime_secrets_ready"));
     assert!(tenancy_iam.contains("to manage secret-family in compartment id"));
+    assert!(deploy_workflow.contains(
+        "TF_VAR_runtime_secrets_ready: ${{ vars.OCI_RUNTIME_SECRETS_READY || 'false' }}"
+    ));
 
     for (env_name, output_name) in [
         (

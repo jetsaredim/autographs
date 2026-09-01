@@ -101,7 +101,26 @@ cp infra/terraform/environments/prod/terraform.tfvars.example \
   -backend-config=key=envs/prod/terraform.tfstate
 .tools/terraform/terraform -chdir=infra/terraform plan \
   -var-file=environments/prod/terraform.tfvars
+.tools/terraform/terraform -chdir=infra/terraform apply \
+  -var-file=environments/prod/terraform.tfvars
 ```
+
+9. For a fresh environment, leave both `runtime_secrets_ready` and
+   `create_autonomous_database` set to `false` for the first runtime-root
+   apply. That apply creates the Vault, key, and three deliberately unusable
+   secret shells without allowing ADB or deploy automation to consume them.
+   Replace all three `CURRENT` secret versions out of band with the real Oracle
+   database password, Oracle wallet password, and Argon2 admin password hash.
+   Secret contents must not be passed through Terraform, committed files, or
+   GitHub Variables.
+
+10. After verifying all three secret values in OCI Vault, set the local
+    `runtime_secrets_ready` input and the `OCI_RUNTIME_SECRETS_READY` GitHub
+    Variable to `true`. Only then enable `create_autonomous_database` /
+    `OCI_CREATE_AUTONOMOUS_DATABASE` and run the normal deployment. Terraform
+    fails closed if ADB is requested before readiness, and the deploy workflow
+    withholds the secret OCID outputs and stops before Ansible while readiness
+    remains false.
 
 ## IAM Boundary
 

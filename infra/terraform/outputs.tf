@@ -19,8 +19,11 @@ output "runtime_instance_id" {
 }
 
 output "runtime_secret_id_env_vars" {
-  description = "Controller environment variable names mapped to deployment-managed OCI Vault secret OCIDs."
-  value       = local.runtime_secret_id_env_vars
+  description = "Controller environment variable names mapped to deployment-managed OCI Vault secret OCIDs after the operator marks all runtime secret values ready."
+  value = {
+    for env_name, secret_id in local.runtime_secret_id_env_vars : env_name => secret_id
+    if var.runtime_secrets_ready
+  }
 }
 
 output "runtime_secrets_vault_id" {
@@ -34,9 +37,10 @@ output "runtime_secrets_key_id" {
 }
 
 output "runtime_secret_ids" {
-  description = "Deployment-managed Autographs runtime Vault secret OCIDs keyed by runtime secret name."
+  description = "Deployment-managed Autographs runtime Vault secret OCIDs keyed by runtime secret name after the operator marks all runtime secret values ready."
   value = {
     for name, secret in oci_vault_secret.runtime : name => secret.id
+    if var.runtime_secrets_ready
   }
 }
 

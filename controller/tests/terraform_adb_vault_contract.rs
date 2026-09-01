@@ -9,6 +9,7 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     let module_main = read_repo("infra/terraform/modules/data_services/main.tf");
     let module_variables = read_repo("infra/terraform/modules/data_services/variables.tf");
     let tenancy_main = read_repo("infra/terraform/tenancy/main.tf");
+    let runtime_outputs = read_repo("infra/terraform/outputs.tf");
 
     assert!(runtime_secrets.contains("secret_id_env = \"ORACLE_DB_PASSWORD_VAULT_SECRET_ID\""));
     assert!(runtime_secrets.contains("resource \"oci_kms_vault\" \"runtime_secrets\""));
@@ -20,7 +21,9 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     );
     assert!(runtime_secrets.contains("prevent_destroy = true"));
     assert!(runtime_secrets.contains("enable_auto_generation = false"));
-    assert!(runtime_secrets.contains("enable_auto_generation,"));
+    assert!(!runtime_secrets.contains("enable_auto_generation,"));
+    assert!(!runtime_secrets.contains("secret_generation_context,"));
+    assert!(runtime_secrets.contains("ignore_changes = [\n      secret_content,"));
     assert!(!runtime_secrets.contains("data \"oci_vault_secrets\""));
     assert!(!tenancy_main.contains("resource \"oci_kms_vault\""));
     assert!(!tenancy_main.contains("resource \"oci_kms_key\""));
@@ -29,9 +32,16 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
         "autonomous_database_admin_password_secret_id    = local.runtime_secret_id_env_vars[\"ORACLE_DB_PASSWORD_VAULT_SECRET_ID\"]"
     ));
     assert!(module_variables.contains("variable \"autonomous_database_admin_password_secret_id\""));
+    assert!(module_variables.contains("variable \"runtime_secrets_ready\""));
     assert!(module_main.contains(
         "secret_id                   = var.autonomous_database_admin_password_secret_id"
     ));
+    assert!(
+        module_main.contains(
+            "condition     = !var.create_autonomous_database || var.runtime_secrets_ready"
+        )
+    );
+    assert!(runtime_outputs.contains("if var.runtime_secrets_ready"));
 
     for source in [&runtime_secrets, &root_main, &root_variables, &module_main] {
         assert!(!source.contains("oci_vault_secret_bundle"));
@@ -42,6 +52,26 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     assert!(!root_main.contains("tenancy/"));
     assert!(!root_variables.contains("variable \"autonomous_database_admin_password\""));
     assert!(!module_main.contains("admin_password              ="));
+}
+
+#[test]
+fn fresh_runtime_bootstrap_fails_closed_until_secret_values_are_ready() {
+    let variables = read_repo("infra/terraform/variables.tf");
+    let example = read_repo("infra/terraform/environments/prod/terraform.tfvars.example");
+    let ci = read_repo(".github/workflows/ci.yml");
+    let deploy = read_repo(".github/workflows/deploy.yml");
+    let bootstrap = read_repo("docs/oci-bootstrap.md");
+
+    assert!(variables.contains("variable \"runtime_secrets_ready\""));
+    assert!(example.contains("runtime_secrets_ready                         = false"));
+    for workflow in [ci, deploy.clone()] {
+        assert!(workflow.contains(
+            "TF_VAR_runtime_secrets_ready: ${{ vars.OCI_RUNTIME_SECRETS_READY || 'false' }}"
+        ));
+    }
+    assert!(deploy.contains("OCI_RUNTIME_SECRETS_READY must be true before deploy"));
+    assert!(bootstrap.contains("`runtime_secrets_ready` and"));
+    assert!(bootstrap.contains("stops before Ansible"));
 }
 
 #[test]

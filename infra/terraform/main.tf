@@ -35,6 +35,7 @@ module "data_services" {
   source = "./modules/data_services"
 
   create_autonomous_database                      = var.create_autonomous_database
+  runtime_secrets_ready                           = var.runtime_secrets_ready
   autonomous_database_name                        = var.autonomous_database_name
   autonomous_database_display_name                = var.autonomous_database_display_name
   autonomous_database_admin_password_secret_id    = local.runtime_secret_id_env_vars["ORACLE_DB_PASSWORD_VAULT_SECRET_ID"]
