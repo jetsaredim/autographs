@@ -90,9 +90,7 @@ cp infra/terraform/tenancy/environments/prod/terraform.tfvars.example \
 
 8. After the tenancy root is applied, configure and run the regional deployment
    root in `infra/terraform/`. Its remote backend should continue to use the
-   runtime state key, `envs/prod/terraform.tfstate`. Existing Vault resources
-   that predate this ownership boundary must first follow the state-transfer
-   procedure in [terraform-state.md](terraform-state.md).
+   runtime state key, `envs/prod/terraform.tfstate`.
 
 ```bash
 cp infra/terraform/environments/prod/terraform.tfvars.example \
