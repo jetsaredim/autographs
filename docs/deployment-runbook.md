@@ -111,16 +111,16 @@ Populate repo-level GitHub Variables:
 
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
-Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, uniquely named ACTIVE Vault secrets, and runtime connection values are ready. When enabling data services, Terraform provisions the ADB and bucket, while the deploy step passes runtime coordinates through VM-local quadlet environment files.
+Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, all three named Vault secret shells, and runtime connection values are ready. Apply the runtime root once with ADB creation disabled, populate the three `CURRENT` secret versions outside Terraform, and verify that each advances beyond its version-1 bootstrap placeholder. Terraform derives readiness from those current version numbers; only then may ADB creation or the normal deployment consume the secret OCIDs. When enabling data services, Terraform provisions the ADB and bucket, while the deploy step passes runtime coordinates through VM-local quadlet environment files.
 
 For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Store the wallet download password in `ORACLE_DB_WALLET_PASSWORD`; the pure-Rust `oracledb` driver uses it to decrypt `ewallet.pem` even though the wallet has already been unpacked. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the Rust controller container.
 
 Runtime secret values can be moved to OCI Vault after the corresponding secret
-contents are populated outside Terraform. The tenancy root creates the runtime
-secret shells and generates the runtime dynamic-group policy from those secret
-OCIDs, so the controller can read only the Terraform-managed Autographs runtime
-secret bundles. The runtime Terraform root discovers each uniquely named ACTIVE
-secret through metadata-only OCI data lookups and exports the matching controller
+contents are populated outside Terraform. The regional runtime root owns the
+Vault, software key, and runtime secret shells. The tenancy root retains IAM
+ownership and scopes runtime dynamic-group bundle reads to the three stable
+secret names, avoiding secret-OCID coupling between Terraform states. The
+runtime root exports its managed secret OCIDs as the matching controller
 environment coordinates:
 
 - `ORACLE_DB_PASSWORD_VAULT_SECRET_ID`
@@ -131,18 +131,16 @@ The same Oracle database password secret OCID is also passed to the Terraform
 Autonomous Database resource as its control-plane `secret_id`; the workflows do
 not receive the plaintext database ADMIN password. That provider path is
 separate from the controller's runtime instance-principal retrieval. A green
-pull-request plan verifies the metadata lookup and planned in-place resource
+pull-request plan verifies the resource linkage and planned in-place resource
 change, but only a later controlled apply and fresh database connection prove
 that OCI can consume the Vault value for the ADB update.
 
-Before merging the runtime change that introduces `secret_id`, apply the tenancy
-root from the same revision. Its dedicated deploy policy grants the GitHub deploy
-group `read secret-bundles` for only the Oracle database password secret OCID;
-the deploy group retains metadata-only `inspect secrets` access for the wallet
-password and admin password hash. Confirm the tenancy plan contains only the
-intended IAM policy/output changes, apply it, and then allow the runtime workflow
-to update ADB. Applying these in the opposite order is expected to fail the ADB
-update authorization check before Ansible runs.
+The manually operated tenancy root grants the GitHub deploy group
+compartment-scoped `manage vaults`, `manage keys`, and `manage secret-family`.
+It does not grant tenancy-wide security-resource management. The regional
+Vault, key, and secrets are owned by runtime state; do not import them into the
+tenancy root or merge a plan that proposes replacing or destroying them. See
+[terraform-state.md](terraform-state.md) for the permanent ownership boundary.
 
 The controller resolves these OCIDs with runtime instance-principal
 authentication during startup. It retains the Oracle database password secret
@@ -160,14 +158,16 @@ database connection. Controller generations reset on restart, while Vault
 bundle versions remain durable and can be correlated with OCI rotation history.
 Wallet-password and admin-hash changes still require a restart. Keep automatic
 OCI rotation disabled until a controlled live rotation proves this recovery
-path. The deploy workflow reads the OCIDs directly from the runtime
+path. Terraform enforces that disabled setting and reports drift until the
+follow-up rotation change deliberately manages it. The deploy workflow reads the OCIDs directly from the runtime
 Terraform outputs; do not duplicate them in GitHub Variables. Do not put the
 secret contents themselves in Terraform inputs or repository variables. When
 one of these Vault ID coordinates is set, deploy
 renders the matching direct secret env value blank and the controller treats
-Vault as authoritative even if the old GitHub Secret remains populated. Rotate or replace the intentionally invalid Terraform bootstrap secret
-versions with the real runtime values before switching deploy to the Vault
-secret IDs.
+Vault as authoritative even if the old GitHub Secret remains populated. The
+runtime root withholds these OCIDs and stops deployment before Ansible until
+all intentionally invalid version-1 Terraform bootstrap values have been
+replaced by `CURRENT` versions 2 or later.
 
 Production admin authentication is hash-only. Do not deploy
 `AUTOGRAPHS_ADMIN_PASSWORD` and do not create a Vault secret for it. Keep the

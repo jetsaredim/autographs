@@ -24,7 +24,7 @@ In Porkbun DNS for `jetsaredim.net`, create or update this record:
 Type: A
 Host: autographs
 Answer: <runtime_public_ip>
-TTL: 300
+TTL: 600
 ```
 
 Use the current Terraform output for the address:
@@ -131,4 +131,4 @@ Expected response:
 ```
 
 DNS changes can take time to propagate through recursive resolver caches, but a
-low TTL such as 300 seconds should make routine updates settle quickly.
+The provider-enforced 600-second TTL should make routine updates settle quickly.

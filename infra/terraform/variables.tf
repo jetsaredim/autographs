@@ -293,7 +293,12 @@ variable "autographs_dns_subdomain" {
 variable "autographs_dns_ttl" {
   description = "TTL for the autographs DNS record."
   type        = number
-  default     = 300
+  default     = 600
+
+  validation {
+    condition     = var.autographs_dns_ttl >= 600
+    error_message = "autographs_dns_ttl must be at least 600 seconds for the Porkbun provider."
+  }
 }
 
 variable "autographs_dns_record_id" {

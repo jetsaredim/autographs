@@ -45,8 +45,8 @@ runtime_deploy_user = "opc"
 runtime_deploy_path = "/opt/autographs"
 assign_public_ip = true
 
-# Phase 2 data services. The runtime root discovers the existing Oracle database
-# password Vault secret OCID by its unique ACTIVE secret name.
+# Phase 2 data services. The runtime root owns the regional Vault resources and
+# passes its Oracle database password secret OCID directly to ADB.
 create_autonomous_database                   = false
 autonomous_database_name                     = "autographsdb"
 autonomous_database_display_name             = "autographs-prod-adb"

@@ -23,36 +23,6 @@ output "runtime_secret_bundle_access_policy_name" {
   value       = oci_identity_policy.runtime_secret_bundle_access.name
 }
 
-output "deploy_database_password_secret_bundle_access_policy_name" {
-  description = "OCI policy name allowing deployment automation to supply the database password Vault secret to Autonomous Database."
-  value       = oci_identity_policy.deploy_database_password_secret_bundle_access.name
-}
-
-output "runtime_secrets_vault_id" {
-  description = "OCI Vault OCID for Autographs runtime secret bundles."
-  value       = oci_kms_vault.runtime_secrets.id
-}
-
-output "runtime_secrets_key_id" {
-  description = "OCI KMS key OCID used by Autographs runtime Vault secrets."
-  value       = oci_kms_key.runtime_secrets.id
-}
-
-output "runtime_secret_ids" {
-  description = "Terraform-managed Autographs runtime Vault secret OCIDs keyed by runtime secret name."
-  value = {
-    for name, secret in oci_vault_secret.runtime : name => secret.id
-  }
-}
-
-output "runtime_secret_id_env_vars" {
-  description = "Controller environment variable names and Terraform-managed OCI Vault secret OCIDs for operator inspection."
-  value = {
-    for name, definition in local.runtime_controller_secret_definitions :
-    definition.secret_id_env => oci_vault_secret.runtime[name].id
-  }
-}
-
 output "deploy_group_id" {
   description = "OCI group OCID for GitHub deployment automation when created by this root."
   value       = module.iam.deploy_group_id

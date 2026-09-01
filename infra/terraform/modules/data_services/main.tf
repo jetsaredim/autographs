@@ -12,6 +12,13 @@ resource "oci_database_autonomous_database" "catalog" {
   data_storage_size_in_tbs    = var.autonomous_database_data_storage_size_in_tbs
   freeform_tags               = var.tags
 
+  lifecycle {
+    precondition {
+      condition     = !var.create_autonomous_database || var.runtime_secret_values_ready
+      error_message = "All managed runtime secrets must have a non-bootstrap CURRENT version before create_autonomous_database can create or update ADB."
+    }
+  }
+
 }
 
 resource "oci_objectstorage_bucket" "media" {

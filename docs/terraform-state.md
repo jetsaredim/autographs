@@ -56,6 +56,15 @@ terraform -chdir=infra/terraform init \
 Use `-reconfigure` later if you change backend coordinates and do not intend to
 migrate state again.
 
+## Regional Vault State Ownership
+
+The regional deployment root owns the runtime Vault, software key, and three
+runtime secrets. The tenancy root owns the IAM policies that let the deploy
+identity manage those regional resources and let the runtime dynamic group read
+the three secret bundles by stable secret name. Keep those responsibilities in
+their current state backends; do not import the regional resources into the
+tenancy root.
+
 ## Bucket Versioning
 
 The state bucket module enables Object Storage versioning by default. Keep that

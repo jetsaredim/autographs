@@ -1,8 +1,9 @@
 # OCI Bootstrap Runbook
 
 This phase keeps OCI setup manual only where Terraform cannot bootstrap itself.
-The long-term tenancy owner is the Terraform root in `infra/terraform/tenancy/`;
-the runtime application root remains `infra/terraform/`.
+The root in `infra/terraform/tenancy/` owns tenancy/home-region IAM and the state
+bucket; the regional deployment root in `infra/terraform/` owns the runtime
+Vault, key, secrets, network, compute, database, and media resources.
 
 ## Manual-Once Boundary
 
@@ -30,7 +31,8 @@ manual bootstrap resources imported immediately afterward.
 
 - `home_region`: the OCI home region for IAM resources such as compartments and
   policies.
-- `region`: the region for the Terraform state bucket and runtime resources.
+- `region`: the region for the Terraform state bucket and regional deployment
+  resources, including Vault, keys, and secrets.
 
 Do not guess these values. Set them explicitly in `terraform.tfvars`.
 
@@ -86,7 +88,7 @@ cp infra/terraform/tenancy/environments/prod/terraform.tfvars.example \
   -var-file=environments/prod/terraform.tfvars
 ```
 
-8. After the tenancy root is applied, configure and run the runtime application
+8. After the tenancy root is applied, configure and run the regional deployment
    root in `infra/terraform/`. Its remote backend should continue to use the
    runtime state key, `envs/prod/terraform.tfstate`.
 
@@ -99,7 +101,26 @@ cp infra/terraform/environments/prod/terraform.tfvars.example \
   -backend-config=key=envs/prod/terraform.tfstate
 .tools/terraform/terraform -chdir=infra/terraform plan \
   -var-file=environments/prod/terraform.tfvars
+.tools/terraform/terraform -chdir=infra/terraform apply \
+  -var-file=environments/prod/terraform.tfvars
 ```
+
+9. For a fresh environment, leave `create_autonomous_database` set to `false`
+   for the first runtime-root apply. That apply creates the Vault, key, and
+   three deliberately unusable version-1 secret shells without allowing ADB or
+   deploy automation to consume them.
+   Replace all three `CURRENT` secret versions out of band with the real Oracle
+   database password, Oracle wallet password, and Argon2 admin password hash.
+   Secret contents must not be passed through Terraform, committed files, or
+   GitHub Variables.
+
+10. After verifying that all three secrets have a real `CURRENT` version 2 or
+    later in OCI Vault, enable `create_autonomous_database` /
+    `OCI_CREATE_AUTONOMOUS_DATABASE` and run the normal deployment. Terraform
+    derives readiness from the managed secrets' current version numbers. It
+    fails closed if ADB is requested before readiness, and the deploy workflow
+    withholds the secret OCID outputs and stops before Ansible while any secret
+    remains at its version-1 bootstrap placeholder.
 
 ## IAM Boundary
 
@@ -108,9 +129,10 @@ The baseline is intentionally compartment-scoped:
 - Deploy automation gets a dedicated policy seam for routine changes inside the
   project compartment, including state-bucket object access but not direct media
   object access.
-- Deploy automation can read only the Oracle database password secret bundle so
-  the Autonomous Database API can consume its `secret_id`; the wallet-password
-  and admin-password-hash bundles remain outside the deploy identity boundary.
+- Deploy automation can manage vaults, keys, and the secret family only inside
+  the dedicated Autographs project compartment. This permits the runtime root to
+  own those regional resources and later coordinate native ADB secret rotation
+  without granting tenancy-wide security-resource management.
 - The human operator gets a separate policy seam for day-two management.
 - Runtime instances get a dynamic-group policy for private media bucket object
   access through OCI instance principals.
