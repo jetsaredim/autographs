@@ -80,4 +80,8 @@ locals {
     for name, definition in local.runtime_controller_secret_definitions :
     definition.secret_id_env => try(oci_vault_secret.runtime[name].id, null)
   }
+  runtime_secret_values_ready = alltrue([
+    for secret in values(oci_vault_secret.runtime) :
+    try(tonumber(secret.current_version_number), 0) > 1
+  ])
 }

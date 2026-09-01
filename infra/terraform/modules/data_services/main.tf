@@ -14,8 +14,8 @@ resource "oci_database_autonomous_database" "catalog" {
 
   lifecycle {
     precondition {
-      condition     = !var.create_autonomous_database || var.runtime_secrets_ready
-      error_message = "runtime_secrets_ready must be true before create_autonomous_database can create or update ADB from the managed password secret."
+      condition     = !var.create_autonomous_database || var.runtime_secret_values_ready
+      error_message = "All managed runtime secrets must have a non-bootstrap CURRENT version before create_autonomous_database can create or update ADB."
     }
   }
 

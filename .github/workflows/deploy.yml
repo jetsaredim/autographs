@@ -435,7 +435,6 @@ jobs:
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
           TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
           TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
-          TF_VAR_runtime_secrets_ready: ${{ vars.OCI_RUNTIME_SECRETS_READY || 'false' }}
           TF_VAR_create_autonomous_database: ${{ vars.OCI_CREATE_AUTONOMOUS_DATABASE || 'false' }}
           TF_VAR_autonomous_database_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_NAME || 'autographsdb' }}
           TF_VAR_autonomous_database_display_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME || 'autographs-prod-adb' }}
@@ -465,11 +464,15 @@ jobs:
             fi
           fi
           terraform apply -auto-approve
-          if [ "$TF_VAR_runtime_secrets_ready" != "true" ]; then
-            echo "::error::OCI_RUNTIME_SECRETS_READY must be true before deploy can consume Terraform-managed Vault secret OCIDs. Populate all three secret shells out of band, then set the repository variable to true."
+          runtime_secret_ids="$(terraform output -json runtime_secret_id_env_vars)"
+          if ! jq -e '
+            type == "object" and
+            length == 3 and
+            all(.[]; type == "string" and length > 0)
+          ' <<< "$runtime_secret_ids" >/dev/null; then
+            echo "::error::Terraform withheld the runtime Vault secret OCIDs because at least one secret still has only its version-1 bootstrap placeholder. Populate all three CURRENT values out of band to create version 2 or later, then rerun deploy."
             exit 1
           fi
-          runtime_secret_ids="$(terraform output -json runtime_secret_id_env_vars)"
           admin_password_hash_vault_secret_id="$(jq -er '.AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
           oracle_db_password_vault_secret_id="$(jq -er '.ORACLE_DB_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
           oracle_db_wallet_password_vault_secret_id="$(jq -er '.ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"

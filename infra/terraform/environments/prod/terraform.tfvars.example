@@ -47,7 +47,6 @@ assign_public_ip = true
 
 # Phase 2 data services. The runtime root owns the regional Vault resources and
 # passes its Oracle database password secret OCID directly to ADB.
-runtime_secrets_ready                         = false
 create_autonomous_database                   = false
 autonomous_database_name                     = "autographsdb"
 autonomous_database_display_name             = "autographs-prod-adb"

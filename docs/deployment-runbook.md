@@ -51,7 +51,6 @@ Important operator inputs:
 - `OCI_RUNTIME_IMAGE_OCID`
 - `OCI_RUNTIME_SSH_PUBLIC_KEYS`
 - `OCI_OBJECT_STORAGE_NAMESPACE`
-- `OCI_RUNTIME_SECRETS_READY`
 - `OCI_CREATE_AUTONOMOUS_DATABASE`
 - `OCI_AUTONOMOUS_DATABASE_NAME`
 - `OCI_CREATE_MEDIA_BUCKET`
@@ -84,7 +83,6 @@ Populate repo-level GitHub Variables:
 - `OCI_RUNTIME_MEMORY_GBS`
 - `OCI_RUNTIME_SSH_PUBLIC_KEYS`
 - `OCI_OBJECT_STORAGE_NAMESPACE`
-- `OCI_RUNTIME_SECRETS_READY`
 - `OCI_CREATE_AUTONOMOUS_DATABASE`
 - `OCI_AUTONOMOUS_DATABASE_NAME`
 - `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`
@@ -113,7 +111,7 @@ Populate repo-level GitHub Variables:
 
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
-Leave `OCI_RUNTIME_SECRETS_READY`, `OCI_CREATE_AUTONOMOUS_DATABASE`, and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, all three named Vault secret shells, and runtime connection values are ready. Apply the runtime root once with both secret readiness and ADB creation disabled, populate and verify the three `CURRENT` secret versions outside Terraform, then set `OCI_RUNTIME_SECRETS_READY=true`. Only after that readiness acknowledgment may ADB creation or the normal deployment consume the secret OCIDs. When enabling data services, Terraform provisions the ADB and bucket, while the deploy step passes runtime coordinates through VM-local quadlet environment files.
+Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, all three named Vault secret shells, and runtime connection values are ready. Apply the runtime root once with ADB creation disabled, populate the three `CURRENT` secret versions outside Terraform, and verify that each advances beyond its version-1 bootstrap placeholder. Terraform derives readiness from those current version numbers; only then may ADB creation or the normal deployment consume the secret OCIDs. When enabling data services, Terraform provisions the ADB and bucket, while the deploy step passes runtime coordinates through VM-local quadlet environment files.
 
 For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Store the wallet download password in `ORACLE_DB_WALLET_PASSWORD`; the pure-Rust `oracledb` driver uses it to decrypt `ewallet.pem` even though the wallet has already been unpacked. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the Rust controller container.
 
@@ -167,9 +165,9 @@ secret contents themselves in Terraform inputs or repository variables. When
 one of these Vault ID coordinates is set, deploy
 renders the matching direct secret env value blank and the controller treats
 Vault as authoritative even if the old GitHub Secret remains populated. The
-`OCI_RUNTIME_SECRETS_READY` gate withholds these OCIDs and stops deployment
-before Ansible until all intentionally invalid Terraform bootstrap versions
-have been replaced and verified.
+runtime root withholds these OCIDs and stops deployment before Ansible until
+all intentionally invalid version-1 Terraform bootstrap values have been
+replaced by `CURRENT` versions 2 or later.
 
 Production admin authentication is hash-only. Do not deploy
 `AUTOGRAPHS_ADMIN_PASSWORD` and do not create a Vault secret for it. Keep the

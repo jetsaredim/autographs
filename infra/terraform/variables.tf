@@ -188,12 +188,6 @@ variable "create_autonomous_database" {
   default     = false
 }
 
-variable "runtime_secrets_ready" {
-  description = "Whether all three Terraform-managed runtime secret shells contain real out-of-band values and may be consumed by ADB and deploy automation."
-  type        = bool
-  default     = false
-}
-
 variable "autonomous_database_name" {
   description = "Oracle Autonomous Database DB name. Keep this short and alphanumeric for Oracle service constraints."
   type        = string

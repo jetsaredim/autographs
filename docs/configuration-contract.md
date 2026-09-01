@@ -47,7 +47,6 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_RUNTIME_MEMORY_GBS` | Optional flex-shape memory in GB; ignored by fixed shapes |
 | `OCI_RUNTIME_SSH_PUBLIC_KEYS` | JSON list of SSH public keys injected into the VM |
 | `OCI_OBJECT_STORAGE_NAMESPACE` | OCI Object Storage namespace for Terraform remote state |
-| `OCI_RUNTIME_SECRETS_READY` | Required readiness gate; keep `false` until all three runtime secret shells contain verified real values, then set `true` before ADB creation or deployment |
 | `OCI_CREATE_AUTONOMOUS_DATABASE` | Optional toggle for creating the Oracle Autonomous Database; defaults to `false` until credentials are ready |
 | `OCI_AUTONOMOUS_DATABASE_NAME` | Short Oracle DB name used by wallet aliases and connection strings; defaults to `autographsdb` |
 | `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME` | Display name for the Oracle Autonomous Database; defaults to `autographs-prod-adb` |
@@ -92,14 +91,13 @@ Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, me
 Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, named Vault secrets, and runtime connection values.
 
 Fresh environments must first apply the runtime root with
-`runtime_secrets_ready=false` and `create_autonomous_database=false`. This
-creates intentionally unusable secret shells only. Populate all three `CURRENT`
-versions outside Terraform, verify them, and then set
-`OCI_RUNTIME_SECRETS_READY=true` before enabling ADB or running the normal
-deployment. While the readiness gate is false Terraform withholds runtime
-secret-ID outputs, deploy stops before Ansible, and an ADB request fails its
-Terraform precondition. This acknowledgment is non-sensitive; secret contents
-remain exclusively in OCI Vault.
+`create_autonomous_database=false`. This creates intentionally unusable
+version-1 secret shells only. Populate all three `CURRENT` versions outside
+Terraform and verify that each secret advances to version 2 or later before
+enabling ADB or running the normal deployment. Terraform derives readiness from
+that managed OCI metadata: while any secret remains at version 1 it withholds
+runtime secret-ID outputs, deploy stops before Ansible, and an ADB request fails
+its Terraform precondition. Secret contents remain exclusively in OCI Vault.
 
 The runtime Terraform root owns the regional Vault, software key, and controller
 secrets and passes the managed Oracle database password secret OCID to the

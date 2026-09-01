@@ -32,16 +32,14 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
         "autonomous_database_admin_password_secret_id    = local.runtime_secret_id_env_vars[\"ORACLE_DB_PASSWORD_VAULT_SECRET_ID\"]"
     ));
     assert!(module_variables.contains("variable \"autonomous_database_admin_password_secret_id\""));
-    assert!(module_variables.contains("variable \"runtime_secrets_ready\""));
+    assert!(module_variables.contains("variable \"runtime_secret_values_ready\""));
     assert!(module_main.contains(
         "secret_id                   = var.autonomous_database_admin_password_secret_id"
     ));
-    assert!(
-        module_main.contains(
-            "condition     = !var.create_autonomous_database || var.runtime_secrets_ready"
-        )
-    );
-    assert!(runtime_outputs.contains("if var.runtime_secrets_ready"));
+    assert!(module_main.contains(
+        "condition     = !var.create_autonomous_database || var.runtime_secret_values_ready"
+    ));
+    assert!(runtime_outputs.contains("if local.runtime_secret_values_ready"));
 
     for source in [&runtime_secrets, &root_main, &root_variables, &module_main] {
         assert!(!source.contains("oci_vault_secret_bundle"));
@@ -56,21 +54,21 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
 
 #[test]
 fn fresh_runtime_bootstrap_fails_closed_until_secret_values_are_ready() {
+    let runtime_secrets = read_repo("infra/terraform/runtime_secrets.tf");
     let variables = read_repo("infra/terraform/variables.tf");
     let example = read_repo("infra/terraform/environments/prod/terraform.tfvars.example");
     let ci = read_repo(".github/workflows/ci.yml");
     let deploy = read_repo(".github/workflows/deploy.yml");
     let bootstrap = read_repo("docs/oci-bootstrap.md");
 
-    assert!(variables.contains("variable \"runtime_secrets_ready\""));
-    assert!(example.contains("runtime_secrets_ready                         = false"));
-    for workflow in [ci, deploy.clone()] {
-        assert!(workflow.contains(
-            "TF_VAR_runtime_secrets_ready: ${{ vars.OCI_RUNTIME_SECRETS_READY || 'false' }}"
-        ));
+    assert!(runtime_secrets.contains("runtime_secret_values_ready = alltrue(["));
+    assert!(runtime_secrets.contains("try(tonumber(secret.current_version_number), 0) > 1"));
+    for source in [variables, example, ci, deploy.clone()] {
+        assert!(!source.contains("runtime_secrets_ready"));
+        assert!(!source.contains("OCI_RUNTIME_SECRETS_READY"));
     }
-    assert!(deploy.contains("OCI_RUNTIME_SECRETS_READY must be true before deploy"));
-    assert!(bootstrap.contains("`runtime_secrets_ready` and"));
+    assert!(deploy.contains("only its version-1 bootstrap placeholder"));
+    assert!(bootstrap.contains("derives readiness"));
     assert!(bootstrap.contains("stops before Ansible"));
 }
 
