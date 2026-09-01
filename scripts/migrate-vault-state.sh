@@ -75,6 +75,7 @@ import_if_missing() {
     -input=false \
     -var-file="${RUNTIME_TFVARS}" \
     -var="autographs_dns_record_id=${dns_record_id}" \
+    -var="autographs_dns_ttl=${deployed_dns_ttl}" \
     "${address}" \
     "${import_id}"
 
@@ -150,6 +151,42 @@ readonly dns_record_id="$(
     | .instances[0].attributes.id
   ' "${RUNTIME_BACKUP}"
 )"
+readonly deployed_dns_ttl="$(
+  jq -er '
+    .resources[]
+    | select(.type == "porkbun_dns_record" and .name == "autographs")
+    | .instances[0].attributes.ttl
+  ' "${RUNTIME_BACKUP}"
+)"
+deployed_owner_email="$(
+  jq -r '
+    first(
+      .resources[]
+      | select(.type == "oci_core_vcn" and .name == "main")
+      | .instances[0].attributes.freeform_tags.owner
+    ) // ""
+  ' "${RUNTIME_BACKUP}"
+)"
+if [[ "${deployed_owner_email}" == "unset" ]]; then
+  deployed_owner_email=""
+fi
+readonly deployed_owner_email
+
+create_autonomous_database=false
+if state_has_address \
+  "${RUNTIME_ROOT}" \
+  'module.data_services.oci_database_autonomous_database.catalog[0]'; then
+  create_autonomous_database=true
+fi
+readonly create_autonomous_database
+
+create_media_bucket=false
+if state_has_address \
+  "${RUNTIME_ROOT}" \
+  'module.data_services.oci_objectstorage_bucket.media[0]'; then
+  create_media_bucket=true
+fi
+readonly create_media_bucket
 readonly db_password_id="$(jq -er '.oracle_db_password' <<<"${secret_ids}")"
 readonly wallet_password_id="$(jq -er '.oracle_db_wallet_password' <<<"${secret_ids}")"
 readonly admin_hash_id="$(jq -er '.admin_password_hash' <<<"${secret_ids}")"
@@ -167,6 +204,10 @@ import_if_missing "${admin_hash_address}" "${admin_hash_id}" "${admin_hash_id}"
   -input=false \
   -var-file="${RUNTIME_TFVARS}" \
   -var="autographs_dns_record_id=${dns_record_id}" \
+  -var="autographs_dns_ttl=${deployed_dns_ttl}" \
+  -var="create_autonomous_database=${create_autonomous_database}" \
+  -var="create_media_bucket=${create_media_bucket}" \
+  -var="owner_email=${deployed_owner_email}" \
   -out="${RUNTIME_PLAN}"
 
 vault_changes="$(

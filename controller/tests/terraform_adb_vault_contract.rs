@@ -114,6 +114,9 @@ fn vault_state_migration_script_stops_before_source_state_removal() {
             .contains("try(oci_vault_secret.runtime[name].id, null)")
     );
     assert!(migration_script.contains("runtime-after-import.tfplan"));
+    assert!(migration_script.contains("create_autonomous_database=${create_autonomous_database}"));
+    assert!(migration_script.contains("create_media_bucket=${create_media_bucket}"));
+    assert!(migration_script.contains("autographs_dns_ttl=${deployed_dns_ttl}"));
     assert!(migration_script.contains("Unexpected Vault resource changes"));
     assert!(migration_script.contains("Do not run state rm until this plan is reviewed"));
     assert!(!migration_script.contains("-chdir=\"${TENANCY_ROOT}\" state rm"));
