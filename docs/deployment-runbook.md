@@ -137,10 +137,10 @@ that OCI can consume the Vault value for the ADB update.
 
 The manually operated tenancy root grants the GitHub deploy group
 compartment-scoped `manage vaults`, `manage keys`, and `manage secret-family`.
-It does not grant tenancy-wide security-resource management. Apply those IAM
-permissions before importing the regional Vault resources into runtime state;
-follow the guarded procedure in [terraform-state.md](terraform-state.md) and do
-not merge a plan that proposes creating, replacing, or destroying them.
+It does not grant tenancy-wide security-resource management. The regional
+Vault, key, and secrets are owned by runtime state; do not import them into the
+tenancy root or merge a plan that proposes replacing or destroying them. See
+[terraform-state.md](terraform-state.md) for the permanent ownership boundary.
 
 The controller resolves these OCIDs with runtime instance-principal
 authentication during startup. It retains the Oracle database password secret

@@ -56,78 +56,14 @@ terraform -chdir=infra/terraform init \
 Use `-reconfigure` later if you change backend coordinates and do not intend to
 migrate state again.
 
-## Regional Vault Ownership Migration
+## Regional Vault State Ownership
 
-The Vault, software key, and three runtime secrets were originally created by
-the tenancy root. Their OCI identities and secret versions must be preserved
-when the regional deployment root assumes ownership. Terraform `moved` blocks
-cannot transfer resources between separate backends, so this is a controlled
-import-and-remove operation.
-
-Do not run either root's normal apply concurrently with this procedure. Finish
-the prerequisite tenancy IAM apply first, then run the guarded import script
-from the repository root:
-
-```bash
-bash scripts/migrate-vault-state.sh
-```
-
-The script prompts silently for the existing Porkbun provider credentials
-because that provider already has resources in the shared deployment state and
-Terraform initializes every provider referenced by that state. The credentials
-remain in the script process environment only. The script does not mutate DNS.
-
-The script initializes both remote backends, writes permission-restricted state
-snapshots under `/tmp`, imports or safely resumes all five resources, verifies
-their OCIDs, and saves a deployment plan. It fails closed if that plan proposes
-any Vault, key, or secret change. It deliberately leaves all source addresses
-in tenancy state for review. If a non-default Terraform executable is needed,
-set `TERRAFORM_BIN` for this command only.
-
-Copy the migration artifact directory printed by the script before running the
-remaining commands:
-
-```bash
-migration_dir=/tmp/autographs-vault-state-migration.replace_me
-```
-
-Only after all five imports and that plan succeed, remove the old addresses
-from tenancy state. This changes Terraform ownership only; it does not delete
-the OCI resources:
-
-```bash
-terraform -chdir=infra/terraform/tenancy state rm \
-  'oci_vault_secret.runtime["admin_password_hash"]' \
-  'oci_vault_secret.runtime["oracle_db_password"]' \
-  'oci_vault_secret.runtime["oracle_db_wallet_password"]' \
-  oci_kms_key.runtime_secrets \
-  oci_kms_vault.runtime_secrets
-```
-
-Plan and apply the tenancy root once more. The plan may update the runtime
-bundle policy from OCID conditions to stable secret-name conditions and remove
-obsolete outputs, but it must not contain Vault, key, or secret destruction:
-
-```bash
-terraform -chdir=infra/terraform/tenancy plan \
-  -var-file=environments/prod/terraform.tfvars \
-  -out="${migration_dir}/tenancy-after-transfer.tfplan"
-
-terraform -chdir=infra/terraform/tenancy show \
-  "${migration_dir}/tenancy-after-transfer.tfplan"
-
-terraform -chdir=infra/terraform/tenancy apply \
-  "${migration_dir}/tenancy-after-transfer.tfplan"
-```
-
-Finish with another deployment-root plan. It must retain all five imported
-OCIDs and show no Vault-resource drift. Preserve the snapshot directory until
-the PR is merged and the merge-triggered deployment succeeds.
-
-```bash
-terraform -chdir=infra/terraform plan \
-  -var-file=environments/prod/terraform.tfvars
-```
+The regional deployment root owns the runtime Vault, software key, and three
+runtime secrets. The tenancy root owns the IAM policies that let the deploy
+identity manage those regional resources and let the runtime dynamic group read
+the three secret bundles by stable secret name. Keep those responsibilities in
+their current state backends; do not import the regional resources into the
+tenancy root.
 
 ## Bucket Versioning
 
