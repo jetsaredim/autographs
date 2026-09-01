@@ -15,7 +15,8 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     assert!(runtime_secrets.contains("resource \"oci_kms_key\" \"runtime_secrets\""));
     assert!(runtime_secrets.contains("resource \"oci_vault_secret\" \"runtime\""));
     assert!(
-        runtime_secrets.contains("definition.secret_id_env => oci_vault_secret.runtime[name].id")
+        runtime_secrets
+            .contains("definition.secret_id_env => try(oci_vault_secret.runtime[name].id, null)")
     );
     assert!(runtime_secrets.contains("prevent_destroy = true"));
     assert!(runtime_secrets.contains("enable_auto_generation = false"));
@@ -108,6 +109,10 @@ fn vault_state_migration_script_stops_before_source_state_removal() {
     assert!(migration_script.contains("read -r -s"));
     assert!(migration_script.contains("state pull"));
     assert!(migration_script.contains("import_if_missing"));
+    assert!(
+        read_repo("infra/terraform/runtime_secrets.tf")
+            .contains("try(oci_vault_secret.runtime[name].id, null)")
+    );
     assert!(migration_script.contains("runtime-after-import.tfplan"));
     assert!(migration_script.contains("Unexpected Vault resource changes"));
     assert!(migration_script.contains("Do not run state rm until this plan is reviewed"));

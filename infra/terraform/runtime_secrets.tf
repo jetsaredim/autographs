@@ -79,6 +79,6 @@ resource "oci_vault_secret" "runtime" {
 locals {
   runtime_secret_id_env_vars = {
     for name, definition in local.runtime_controller_secret_definitions :
-    definition.secret_id_env => oci_vault_secret.runtime[name].id
+    definition.secret_id_env => try(oci_vault_secret.runtime[name].id, null)
   }
 }
