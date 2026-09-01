@@ -162,31 +162,15 @@ deployed_owner_email="$(
   jq -r '
     first(
       .resources[]
-      | select(.type == "oci_core_vcn" and .name == "main")
+      | select(.type == "oci_kms_vault" and .name == "runtime_secrets")
       | .instances[0].attributes.freeform_tags.owner
     ) // ""
-  ' "${RUNTIME_BACKUP}"
+  ' "${TENANCY_BACKUP}"
 )"
 if [[ "${deployed_owner_email}" == "unset" ]]; then
   deployed_owner_email=""
 fi
 readonly deployed_owner_email
-
-create_autonomous_database=false
-if state_has_address \
-  "${RUNTIME_ROOT}" \
-  'module.data_services.oci_database_autonomous_database.catalog[0]'; then
-  create_autonomous_database=true
-fi
-readonly create_autonomous_database
-
-create_media_bucket=false
-if state_has_address \
-  "${RUNTIME_ROOT}" \
-  'module.data_services.oci_objectstorage_bucket.media[0]'; then
-  create_media_bucket=true
-fi
-readonly create_media_bucket
 readonly db_password_id="$(jq -er '.oracle_db_password' <<<"${secret_ids}")"
 readonly wallet_password_id="$(jq -er '.oracle_db_wallet_password' <<<"${secret_ids}")"
 readonly admin_hash_id="$(jq -er '.admin_password_hash' <<<"${secret_ids}")"
@@ -205,9 +189,12 @@ import_if_missing "${admin_hash_address}" "${admin_hash_id}" "${admin_hash_id}"
   -var-file="${RUNTIME_TFVARS}" \
   -var="autographs_dns_record_id=${dns_record_id}" \
   -var="autographs_dns_ttl=${deployed_dns_ttl}" \
-  -var="create_autonomous_database=${create_autonomous_database}" \
-  -var="create_media_bucket=${create_media_bucket}" \
   -var="owner_email=${deployed_owner_email}" \
+  -target="${vault_address}" \
+  -target="${key_address}" \
+  -target="${admin_hash_address}" \
+  -target="${db_password_address}" \
+  -target="${wallet_password_address}" \
   -out="${RUNTIME_PLAN}"
 
 vault_changes="$(

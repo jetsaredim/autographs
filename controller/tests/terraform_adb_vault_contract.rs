@@ -20,6 +20,7 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     );
     assert!(runtime_secrets.contains("prevent_destroy = true"));
     assert!(runtime_secrets.contains("enable_auto_generation = false"));
+    assert!(runtime_secrets.contains("enable_auto_generation,"));
     assert!(!runtime_secrets.contains("data \"oci_vault_secrets\""));
     assert!(!tenancy_main.contains("resource \"oci_kms_vault\""));
     assert!(!tenancy_main.contains("resource \"oci_kms_key\""));
@@ -114,9 +115,9 @@ fn vault_state_migration_script_stops_before_source_state_removal() {
             .contains("try(oci_vault_secret.runtime[name].id, null)")
     );
     assert!(migration_script.contains("runtime-after-import.tfplan"));
-    assert!(migration_script.contains("create_autonomous_database=${create_autonomous_database}"));
-    assert!(migration_script.contains("create_media_bucket=${create_media_bucket}"));
     assert!(migration_script.contains("autographs_dns_ttl=${deployed_dns_ttl}"));
+    assert!(migration_script.contains("-target=\"${vault_address}\""));
+    assert!(migration_script.contains("-target=\"${wallet_password_address}\""));
     assert!(migration_script.contains("Unexpected Vault resource changes"));
     assert!(migration_script.contains("Do not run state rm until this plan is reviewed"));
     assert!(!migration_script.contains("-chdir=\"${TENANCY_ROOT}\" state rm"));

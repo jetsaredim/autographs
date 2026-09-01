@@ -68,6 +68,7 @@ resource "oci_vault_secret" "runtime" {
   lifecycle {
     prevent_destroy = true
     ignore_changes = [
+      enable_auto_generation,
       secret_content,
       secret_generation_context,
     ]
