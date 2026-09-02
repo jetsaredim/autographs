@@ -30,9 +30,11 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     assert!(runtime_secrets.contains(
         "for_each = var.create_autonomous_database ? local.runtime_controller_secret_definitions : {}"
     ));
-    assert!(runtime_secrets.contains(
-        "secret_id = local.runtime_secret_metadata_by_name[each.value.secret_name].id"
-    ));
+    assert!(
+        runtime_secrets.contains(
+            "secret_id = local.runtime_secret_metadata_by_name[each.value.secret_name].id"
+        )
+    );
     assert!(runtime_secrets.contains("vault_id       = oci_kms_vault.runtime_secrets.id"));
     assert!(runtime_secrets.contains(
         "name           = local.runtime_controller_secret_definitions.oracle_db_password.secret_name"
