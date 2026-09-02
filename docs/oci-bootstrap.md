@@ -107,20 +107,25 @@ cp infra/terraform/environments/prod/terraform.tfvars.example \
 
 9. For a fresh environment, leave `create_autonomous_database` set to `false`
    for the first runtime-root apply. That apply creates the Vault, key, and
-   three deliberately unusable version-1 secret shells without allowing ADB or
-   deploy automation to consume them.
-   Replace all three `CURRENT` secret versions out of band with the real Oracle
-   database password, Oracle wallet password, and Argon2 admin password hash.
-   Secret contents must not be passed through Terraform, committed files, or
-   GitHub Variables.
+   three runtime secrets without allowing ADB or deploy automation to consume
+   them. OCI generates a usable Oracle database password as version 1. The
+   Oracle wallet password and Argon2 admin password hash alone start with
+   intentionally invalid version-1 bootstrap content. Replace only those two
+   manual secrets' `CURRENT` versions out of band. Never populate or overwrite
+   the OCI-generated database password, and never pass any secret content
+   through Terraform, committed files, or GitHub Variables.
 
-10. After verifying that all three secrets have a real `CURRENT` version 2 or
-    later in OCI Vault, enable `create_autonomous_database` /
+10. After verifying that the generated database password has a usable version
+    1 and the wallet password and admin hash each have a real `CURRENT` version
+    2 or later, enable `create_autonomous_database` /
     `OCI_CREATE_AUTONOMOUS_DATABASE` and run the normal deployment. Terraform
-    derives readiness from the managed secrets' current version numbers. It
-    fails closed if ADB is requested before readiness, and the deploy workflow
-    withholds the secret OCID outputs and stops before Ansible while any secret
-    remains at its version-1 bootstrap placeholder.
+    resolves the already-created database-password secret by its exact
+    deterministic name, creates ADB from that stable secret OCID, and configures
+    the managed ADB as the secret's rotation target in the same deployment
+    state. Readiness derives from Vault version metadata: the deploy workflow
+    withholds all three OCID outputs and stops before Ansible if the generated
+    password is unavailable or either manual secret still has its version-1
+    bootstrap placeholder.
 
 ## IAM Boundary
 

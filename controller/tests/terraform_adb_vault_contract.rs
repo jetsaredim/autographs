@@ -95,6 +95,7 @@ fn fresh_runtime_bootstrap_fails_closed_until_secret_values_are_ready() {
     let ci = read_repo(".github/workflows/ci.yml");
     let deploy = read_repo(".github/workflows/deploy.yml");
     let bootstrap = read_repo("docs/oci-bootstrap.md");
+    let bootstrap_words = normalize_whitespace(&bootstrap);
 
     assert!(runtime_secrets.contains("runtime_secret_values_ready = alltrue(["));
     assert!(
@@ -112,9 +113,61 @@ fn fresh_runtime_bootstrap_fails_closed_until_secret_values_are_ready() {
         assert!(!source.contains("runtime_secrets_ready"));
         assert!(!source.contains("OCI_RUNTIME_SECRETS_READY"));
     }
-    assert!(deploy.contains("only its version-1 bootstrap placeholder"));
-    assert!(bootstrap.contains("derives readiness"));
-    assert!(bootstrap.contains("stops before Ansible"));
+    assert!(deploy.contains("Oracle database password is OCI-generated"));
+    assert!(deploy.contains("Populate only the Oracle wallet password and admin password hash"));
+    assert!(!deploy.contains("Populate all three CURRENT values"));
+    assert!(bootstrap_words.contains("Readiness derives from Vault version metadata"));
+    assert!(bootstrap_words.contains("stops before Ansible"));
+    assert!(
+        bootstrap_words.contains("OCI generates a usable Oracle database password as version 1")
+    );
+    assert!(bootstrap_words.contains("Replace only those two manual secrets"));
+    assert!(!bootstrap.contains("Replace all three `CURRENT` secret versions"));
+}
+
+#[test]
+fn generated_database_password_rollout_is_content_free_and_fail_closed() {
+    let contract = read_repo("docs/configuration-contract.md");
+    let runbook = read_repo("docs/deployment-runbook.md");
+    let contract_words = normalize_whitespace(&contract);
+    let runbook_words = normalize_whitespace(&runbook);
+
+    for required in [
+        "`oracle_db_password` is generated and rotation-managed by OCI",
+        "generated version 1 is usable",
+        "must never be populated or overwritten out of band",
+        "`oracle_db_wallet_password` and `admin_password_hash`",
+        "`CURRENT` versions 2 or later",
+        "scheduled `P90D` rotation",
+    ] {
+        assert!(
+            contract_words.contains(required),
+            "configuration contract must contain {required:?}"
+        );
+    }
+    assert!(!contract_words.contains("Automatic OCI rotation remains disabled"));
+    assert!(!contract_words.contains("Populate all three"));
+
+    for required in [
+        "stop if it proposes any replacement or destroy",
+        "Terraform `apply` updates that configuration but does not",
+        "invoke `RotateSecret`",
+        "Never issue an on-demand rotation while rotation is pending or failed",
+        "oci vault secret rotate",
+        "--wait-for-state SUCCEEDED",
+        "--max-wait-seconds 1200",
+        "test \"$after_version\" -gt \"$before_version\"",
+        "ActiveEnterTimestamp",
+        "refreshed Oracle database credential",
+        "Do not restart or bounce the controller",
+    ] {
+        assert!(
+            runbook_words.contains(required),
+            "deployment runbook must contain {required:?}"
+        );
+    }
+    assert!(!runbook.contains("\noci secrets secret-bundle get"));
+    assert!(!runbook.contains("populate the three `CURRENT` secret versions"));
 }
 
 #[test]
@@ -182,4 +235,8 @@ fn read_repo(relative: &str) -> String {
         .expect("controller parent")
         .to_path_buf();
     fs::read_to_string(repo.join(relative)).expect("read repository artifact")
+}
+
+fn normalize_whitespace(source: &str) -> String {
+    source.split_whitespace().collect::<Vec<_>>().join(" ")
 }
