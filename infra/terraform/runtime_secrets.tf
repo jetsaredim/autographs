@@ -72,6 +72,12 @@ locals {
   }
 }
 
+data "oci_vault_secret" "runtime_readiness" {
+  for_each = var.create_autonomous_database ? local.runtime_controller_secret_definitions : {}
+
+  secret_id = local.runtime_secret_metadata_by_name[each.value.secret_name].id
+}
+
 resource "oci_vault_secret" "runtime" {
   for_each = local.runtime_controller_secret_definitions
 
@@ -132,7 +138,7 @@ locals {
   runtime_secret_values_ready = alltrue([
     for name, definition in local.runtime_controller_secret_definitions :
     name == "oracle_db_password" ?
-    try(tonumber(local.runtime_secret_metadata_by_name[definition.secret_name].current_version_number), 0) >= 1 :
-    try(tonumber(local.runtime_secret_metadata_by_name[definition.secret_name].current_version_number), 0) > 1
+    try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) >= 1 :
+    try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) > 1
   ])
 }
