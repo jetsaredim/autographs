@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-08-31T02:49:13Z"
-last_activity: 2026-08-31 -- Added an immutable shared database credential-provider seam without changing Vault, retry, or rotation behavior.
+last_updated: "2026-09-01T21:00:00-04:00"
+last_activity: 2026-09-01 -- Configured OCI-generated ADB password rotation; live post-deploy rotation acceptance remains operator-owned.
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-08-31 -- Added an immutable shared database credential-provider seam without changing Vault, retry, or rotation behavior.
+Last activity: 2026-09-01 -- Configured OCI-generated ADB password rotation; live post-deploy rotation acceptance remains operator-owned.
 
 Progress: [█████████░] 89% of milestone plans complete; Phase 8 Plan 4 is next
 
@@ -186,6 +186,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-09-01 | enable-oci-native-generated-oracle-db-pa | Needs Review: configured DB-only OCI-generated P90D ADB-coordinated rotation with cycle-free metadata lookups and guarded rollout documentation. Implementation commits `a394a58`, `a013740`; live post-deploy rotation proof remains required. |
 | 2026-08-31 | introduce-a-static-database-credential-p | Moved the Oracle password behind an immutable shared snapshot provider, injected it at production composition, and preserved all existing startup and connection behavior. Implementation commit `5372520`. |
 | 2026-08-31 | share-complete-oracle-connection-setting | Shared the complete Oracle settings allocation across schema bootstrap, repository operations, and heartbeat; removed per-operation secret/config copies and drained Oracle values from long-lived router state without adding refresh behavior. Implementation commit `43bab87`. |
 | 2026-08-30 | grant-deploy-identity-least-privilege-re | Resolved PR #224 CR-01 with a dedicated tenancy policy scoped by `target.secret.id` to only the Oracle database password bundle, plus tests and deployment-order documentation. Implementation commit `c3c77bd`; authenticated tenancy plan/apply remains operator-owned. |
