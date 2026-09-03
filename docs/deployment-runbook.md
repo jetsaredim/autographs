@@ -67,7 +67,8 @@ Populate repo-level GitHub Secrets:
 - `OCI_FINGERPRINT`
 - `OCI_PRIVATE_KEY_PEM`
 - `DEPLOY_SSH_PRIVATE_KEY`
-- `ORACLE_DB_PASSWORD`
+- `ORACLE_DB_PASSWORD` only for the legacy direct-value fallback; leave it unset
+  for the OCI-generated production path
 - `ORACLE_DB_WALLET_ZIP_BASE64` when using an mTLS wallet
 - `ORACLE_DB_WALLET_PASSWORD` when using the mTLS wallet path
 - `AUTOGRAPHS_OPERATOR_API_TOKEN`
@@ -111,13 +112,13 @@ Populate repo-level GitHub Variables:
 
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
-Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, all three named Vault secret shells, and runtime connection values are ready. Apply the runtime root once with ADB creation disabled, populate the three `CURRENT` secret versions outside Terraform, and verify that each advances beyond its version-1 bootstrap placeholder. Terraform derives readiness from those current version numbers; only then may ADB creation or the normal deployment consume the secret OCIDs. When enabling data services, Terraform provisions the ADB and bucket, while the deploy step passes runtime coordinates through VM-local quadlet environment files.
+Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, the three named Vault secrets, and runtime connection values are ready. Apply the runtime root once with ADB creation disabled. OCI generates a usable database password as version 1; do not populate or overwrite it. Populate only the Oracle wallet password and admin password hash `CURRENT` versions outside Terraform and verify that each advances beyond its intentionally invalid version-1 bootstrap placeholder. Terraform derives readiness from those version numbers; only then may ADB creation or the normal deployment consume the secret OCIDs. The ADB-enabled apply resolves the existing database password by exact deterministic name, provisions ADB from its stable OCID, and configures the ADB rotation target in the same deployment state. The deploy step passes runtime coordinates through VM-local quadlet environment files.
 
 For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Store the wallet download password in `ORACLE_DB_WALLET_PASSWORD`; the pure-Rust `oracledb` driver uses it to decrypt `ewallet.pem` even though the wallet has already been unpacked. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the Rust controller container.
 
-Runtime secret values can be moved to OCI Vault after the corresponding secret
-contents are populated outside Terraform. The regional runtime root owns the
-Vault, software key, and runtime secret shells. The tenancy root retains IAM
+The regional runtime root owns the Vault, software key, and runtime secrets.
+OCI owns generation and coordinated ADB rotation for the database password;
+operators own the wallet password and admin hash values. The tenancy root retains IAM
 ownership and scopes runtime dynamic-group bundle reads to the three stable
 secret names, avoiding secret-OCID coupling between Terraform states. The
 runtime root exports its managed secret OCIDs as the matching controller
@@ -127,9 +128,9 @@ environment coordinates:
 - `ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID`
 - `AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID`
 
-The same Oracle database password secret OCID is also passed to the Terraform
-Autonomous Database resource as its control-plane `secret_id`; the workflows do
-not receive the plaintext database ADMIN password. That provider path is
+The same Oracle database password secret OCID is passed to the Terraform
+Autonomous Database resource as its control-plane `secret_id` through an exact
+in-root name lookup; the workflows do not receive the plaintext database ADMIN password. That provider path is
 separate from the controller's runtime instance-principal retrieval. A green
 pull-request plan verifies the resource linkage and planned in-place resource
 change, but only a later controlled apply and fresh database connection prove
@@ -156,18 +157,115 @@ secret OCIDs, user-defined version names, or customer metadata; these messages
 are emitted only when a secret is loaded or refreshed, not for every use or
 database connection. Controller generations reset on restart, while Vault
 bundle versions remain durable and can be correlated with OCI rotation history.
-Wallet-password and admin-hash changes still require a restart. Keep automatic
-OCI rotation disabled until a controlled live rotation proves this recovery
-path. Terraform enforces that disabled setting and reports drift until the
-follow-up rotation change deliberately manages it. The deploy workflow reads the OCIDs directly from the runtime
+Wallet-password and admin-hash changes still require a restart. OCI automatic
+generation and scheduled `P90D` rotation apply only to the database password,
+with the managed ADB as its target. The deploy workflow reads the OCIDs directly from the runtime
 Terraform outputs; do not duplicate them in GitHub Variables. Do not put the
 secret contents themselves in Terraform inputs or repository variables. When
 one of these Vault ID coordinates is set, deploy
 renders the matching direct secret env value blank and the controller treats
 Vault as authoritative even if the old GitHub Secret remains populated. The
 runtime root withholds these OCIDs and stops deployment before Ansible until
-all intentionally invalid version-1 Terraform bootstrap values have been
-replaced by `CURRENT` versions 2 or later.
+the generated database password exists and the wallet/admin intentionally
+invalid version-1 bootstrap values have been replaced by `CURRENT` versions 2
+or later.
+
+## OCI-Managed Database Password Rotation Rollout
+
+Treat the first deployment that enables OCI generation and ADB-coordinated
+rotation as a guarded production change. Review the authenticated pull-request
+Terraform plan before merge and stop if it proposes any replacement or destroy,
+a database-password secret OCID change, an unexpected ADB update, or an
+unrelated database diff. The existing Vault secret and ADB must remain at their
+current deployment-state addresses.
+
+Immediately before merge, obtain only the stable secret OCID from Terraform and
+record its non-secret version and rotation metadata. Do not call
+`oci secrets secret-bundle get`, request bundle content, or print secret values.
+
+```bash
+secret_id="$(terraform -chdir=infra/terraform output -json runtime_secret_ids |
+  jq -er '.oracle_db_password')"
+
+before_apply_version="$(oci vault secret get \
+  --secret-id "$secret_id" \
+  --query 'data."current-version-number"' \
+  --raw-output)"
+
+oci vault secret get \
+  --secret-id "$secret_id" \
+  --query 'data.{autoGeneration:"is-auto-generation-enabled",targetType:"rotation-config"."target-system-details"."target-system-type",targetAdb:"rotation-config"."target-system-details"."adb-id",currentVersion:"current-version-number",rotationStatus:"rotation-status",lastRotation:"last-rotation-time",nextRotation:"next-rotation-time"}'
+```
+
+Merge and let the normal deployment apply configure generation, the ADB target,
+and the `P90D` schedule. Terraform `apply` updates that configuration but does
+not invoke `RotateSecret`. The stable secret OCID and the VM's
+`ORACLE_DB_PASSWORD_VAULT_SECRET_ID` coordinate do not change. After deployment,
+repeat the metadata query, confirm auto-generation is enabled and the target ADB
+is the expected existing database, and compare the current version with
+`before_apply_version`.
+
+Oracle does not document exactly when the first scheduled run occurs after an
+existing secret gains a schedule. If the version already advanced, treat that
+scheduled event as the acceptance candidate: inspect rotation status, ADB
+health, and controller refresh evidence completely before considering another
+rotation. Never issue an on-demand rotation while rotation is pending or failed.
+Stop instead and preserve the OCI status, timing, and controller logs.
+
+Before any on-demand rotation, confirm the ordinary DB-backed admin status and
+an incremental publish both succeed. On the VM, record the controller start
+timestamp without restarting it:
+
+```bash
+controller_started_before="$(sudo systemctl show autographs-controller.service \
+  --property=ActiveEnterTimestamp --value)"
+printf 'Controller started: %s\n' "$controller_started_before"
+```
+
+When metadata is idle/healthy and no scheduled event needs validation, invoke
+exactly one coordinated rotation and wait for OCI's work request to succeed:
+
+```bash
+before_version="$(oci vault secret get \
+  --secret-id "$secret_id" \
+  --query 'data."current-version-number"' \
+  --raw-output)"
+
+oci vault secret rotate \
+  --secret-id "$secret_id" \
+  --wait-for-state SUCCEEDED \
+  --max-wait-seconds 1200
+
+after_version="$(oci vault secret get \
+  --secret-id "$secret_id" \
+  --query 'data."current-version-number"' \
+  --raw-output)"
+
+test "$after_version" -gt "$before_version"
+
+oci vault secret get \
+  --secret-id "$secret_id" \
+  --query 'data.{currentVersion:"current-version-number",rotationStatus:"rotation-status",lastRotation:"last-rotation-time",nextRotation:"next-rotation-time"}'
+```
+
+Exercise a fresh DB-backed admin operation after rotation; an already-open
+Oracle session is not sufficient evidence. Require the privacy-safe credential
+refresh log to name `after_version`, then complete another incremental publish:
+
+```bash
+sudo journalctl -u autographs-controller.service --since '15 minutes ago' \
+  --grep='ORA-01017\|refreshed Oracle database credential\|reusing concurrently refreshed'
+
+controller_started_after="$(sudo systemctl show autographs-controller.service \
+  --property=ActiveEnterTimestamp --value)"
+test "$controller_started_after" = "$controller_started_before"
+```
+
+Success requires the DB-backed request and incremental publish to succeed, the
+refresh or concurrent-refresh log to report the new numeric Vault version, and
+the controller start timestamp to remain unchanged. Do not restart or bounce the
+controller to make this test pass. If rotation, ADB access, credential refresh,
+or publish fails, stop and preserve the work-request metadata and logs.
 
 Production admin authentication is hash-only. Do not deploy
 `AUTOGRAPHS_ADMIN_PASSWORD` and do not create a Vault secret for it. Keep the

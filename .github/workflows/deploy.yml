@@ -470,7 +470,7 @@ jobs:
             length == 3 and
             all(.[]; type == "string" and length > 0)
           ' <<< "$runtime_secret_ids" >/dev/null; then
-            echo "::error::Terraform withheld the runtime Vault secret OCIDs because at least one secret still has only its version-1 bootstrap placeholder. Populate all three CURRENT values out of band to create version 2 or later, then rerun deploy."
+            echo "::error::Terraform withheld the runtime Vault secret OCIDs. The Oracle database password is OCI-generated and must not be populated or overwritten out of band. Populate only the Oracle wallet password and admin password hash CURRENT values to create version 2 or later, then rerun deploy."
             exit 1
           fi
           admin_password_hash_vault_secret_id="$(jq -er '.AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
