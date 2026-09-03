@@ -138,7 +138,13 @@ locals {
   runtime_secret_values_ready = alltrue([
     for name, definition in local.runtime_controller_secret_definitions :
     name == "oracle_db_password" ?
-    try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) >= 1 :
+    (
+      try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) > 1 ||
+      (
+        try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) >= 1 &&
+        try(data.oci_vault_secret.runtime_readiness[name].is_auto_generation_enabled, false)
+      )
+    ) :
     try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) > 1
   ])
 }

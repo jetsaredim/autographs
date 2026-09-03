@@ -104,6 +104,7 @@ fn fresh_runtime_bootstrap_fails_closed_until_secret_values_are_ready() {
     let ci = read_repo(".github/workflows/ci.yml");
     let deploy = read_repo(".github/workflows/deploy.yml");
     let bootstrap = read_repo("docs/oci-bootstrap.md");
+    let runtime_secret_words = normalize_whitespace(&runtime_secrets);
     let bootstrap_words = normalize_whitespace(&bootstrap);
 
     assert!(runtime_secrets.contains("runtime_secret_values_ready = alltrue(["));
@@ -112,11 +113,11 @@ fn fresh_runtime_bootstrap_fails_closed_until_secret_values_are_ready() {
             .contains("for name, definition in local.runtime_controller_secret_definitions")
     );
     assert!(runtime_secrets.contains("name == \"oracle_db_password\""));
-    assert!(runtime_secrets.contains(
-        "try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) >= 1"
+    assert!(runtime_secret_words.contains(
+        "name == \"oracle_db_password\" ? ( try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) > 1 || ( try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) >= 1 && try(data.oci_vault_secret.runtime_readiness[name].is_auto_generation_enabled, false) ) )"
     ));
-    assert!(runtime_secrets.contains(
-        "try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) > 1"
+    assert!(runtime_secret_words.contains(
+        ") : try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) > 1"
     ));
     assert!(!runtime_secrets.contains(
         "local.runtime_secret_metadata_by_name[definition.secret_name].current_version_number"
