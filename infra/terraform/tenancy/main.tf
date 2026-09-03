@@ -47,3 +47,15 @@ resource "oci_identity_policy" "runtime_secret_bundle_access" {
 
   freeform_tags = local.tags
 }
+
+resource "oci_identity_policy" "database_secret_access" {
+  provider       = oci.home
+  compartment_id = var.parent_compartment_ocid
+  name           = "${var.name_prefix}-database-secret-access-policy"
+  description    = "Allows the OCI Database service to read the generated Autonomous Database password secret during coordinated rotation."
+  statements = [
+    "Allow service database to read secret-family in compartment id ${module.iam.compartment_ocid} where target.secret.name = '${local.runtime_controller_secret_names.oracle_db_password}'"
+  ]
+
+  freeform_tags = local.tags
+}

@@ -242,6 +242,23 @@ fn runtime_bundle_policy_uses_stable_secret_names_instead_of_cross_state_ocids()
     }
 }
 
+#[test]
+fn database_service_can_read_only_the_generated_adb_password_secret_for_rotation() {
+    let tenancy_main = read_repo("infra/terraform/tenancy/main.tf");
+
+    assert!(tenancy_main.contains("resource \"oci_identity_policy\" \"database_secret_access\""));
+    assert!(tenancy_main.contains(
+        "Allow service database to read secret-family in compartment id ${module.iam.compartment_ocid} where target.secret.name = '${local.runtime_controller_secret_names.oracle_db_password}'"
+    ));
+    assert_eq!(
+        tenancy_main
+            .matches("Allow service database to read secret-family")
+            .count(),
+        1,
+        "the Database service grant must remain a single name-scoped policy statement"
+    );
+}
+
 fn read_repo(relative: &str) -> String {
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
