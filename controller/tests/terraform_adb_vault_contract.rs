@@ -242,6 +242,35 @@ fn runtime_bundle_policy_uses_stable_secret_names_instead_of_cross_state_ocids()
     }
 }
 
+#[test]
+fn project_vault_secret_principals_have_scoped_rotation_permissions() {
+    let tenancy_main = read_repo("infra/terraform/tenancy/main.tf");
+
+    assert!(tenancy_main.contains("resource \"oci_identity_policy\" \"database_secret_access\""));
+    assert!(tenancy_main.contains(
+        "Allow any-user to use secret-family in compartment id ${module.iam.compartment_ocid} where all {request.principal.type = 'vaultsecret', request.principal.compartment.id = '${module.iam.compartment_ocid}', target.secret.name = '${local.runtime_controller_secret_names.oracle_db_password}'}"
+    ));
+    assert!(tenancy_main.contains(
+        "Allow any-user to use autonomous-databases in compartment id ${module.iam.compartment_ocid} where all {request.principal.type = 'vaultsecret', request.principal.compartment.id = '${module.iam.compartment_ocid}', request.operation.actiontype = 'adminPassword'}"
+    ));
+    assert_eq!(
+        tenancy_main
+            .matches("request.principal.type = 'vaultsecret'")
+            .count(),
+        2,
+        "both rotation grants must remain restricted to project Vault resource principals"
+    );
+    assert_eq!(
+        tenancy_main
+            .matches("request.operation.actiontype = 'adminPassword'")
+            .count(),
+        1,
+        "the database grant must cover only the ADMIN password update action"
+    );
+    assert!(!tenancy_main.contains("Allow service database to read secret-family"));
+    assert!(!tenancy_main.contains("Allow any-user to manage autonomous-databases"));
+}
+
 fn read_repo(relative: &str) -> String {
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
