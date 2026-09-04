@@ -67,6 +67,12 @@
             | list
           }}
 
+    - name: Purge DNF cache
+      ansible.builtin.command: dnf clean all
+      when: security_patching_remaining_approved_advisory_ids | length > 0
+      changed_when: false
+      # noqa: command-instead-of-module
+
     - name: Apply remaining approved security advisories with DNF # noqa: command-instead-of-module
       ansible.builtin.command:
         argv:
