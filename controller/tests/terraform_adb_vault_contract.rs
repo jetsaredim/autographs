@@ -243,12 +243,12 @@ fn runtime_bundle_policy_uses_stable_secret_names_instead_of_cross_state_ocids()
 }
 
 #[test]
-fn project_vault_secret_principals_can_read_only_the_generated_adb_password_secret() {
+fn project_vault_secret_principals_can_use_only_the_generated_adb_password_secret() {
     let tenancy_main = read_repo("infra/terraform/tenancy/main.tf");
 
     assert!(tenancy_main.contains("resource \"oci_identity_policy\" \"database_secret_access\""));
     assert!(tenancy_main.contains(
-        "Allow any-user to read secret-family in compartment id ${module.iam.compartment_ocid} where all {request.principal.type = 'vaultsecret', request.principal.compartment.id = '${module.iam.compartment_ocid}', target.secret.name = '${local.runtime_controller_secret_names.oracle_db_password}'}"
+        "Allow any-user to use secret-family in compartment id ${module.iam.compartment_ocid} where all {request.principal.type = 'vaultsecret', request.principal.compartment.id = '${module.iam.compartment_ocid}', target.secret.name = '${local.runtime_controller_secret_names.oracle_db_password}'}"
     ));
     assert_eq!(
         tenancy_main
