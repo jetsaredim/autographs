@@ -1,14 +1,16 @@
 ---
 quick_id: 260903-on3
 status: complete
-implementation_commit: 4020df9
+implementation_commit: cbeed94
 ---
 
 # Summary
 
-Added a dedicated tenancy IAM policy that lets the OCI Database service read only the generated Autonomous Database password secret by stable secret name. This supplies the `GetSecret` permission needed by coordinated Vault-to-ADB rotation without expanding deploy-user or runtime-instance access.
+Added a dedicated tenancy IAM policy for the Vault secret resource principal that OCI Audit identified as the caller of the failed rotation `GetSecret` request. The policy restricts callers to Vault secret resource principals in the project compartment and restricts the target to the generated Autonomous Database password secret by stable name, without requiring the deployment-managed secret OCID in tenancy state.
 
-Added a regression test that requires the exact name-scoped policy statement and prevents duplicate Database service secret grants.
+Replaced the ineffective OCI Database service-principal grant and added a regression test that requires the compartment- and name-scoped resource-principal statement.
+
+The corrected implementation is commit `cbeed94`, which supersedes the original service-principal implementation in `4020df9`.
 
 ## Verification
 
@@ -19,4 +21,3 @@ Added a regression test that requires the exact name-scoped policy statement and
 - `cargo test --test terraform_adb_vault_contract` — 7 passed
 
 The tenancy plan/apply and live rotation retry remain operator-owned.
-
