@@ -9,6 +9,7 @@ from pathlib import Path
 
 
 SCRIPT_PATH = Path(__file__).with_name("release.py")
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("release", SCRIPT_PATH)
 release = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
@@ -94,6 +95,12 @@ def manifest(
 
 
 class ReleaseRangeTests(unittest.TestCase):
+    def test_release_please_manifest_has_only_the_root_package(self):
+        manifest_config = json.loads(
+            (REPOSITORY_ROOT / ".release-please-manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest_config, {".": "0.1.3"})
+
     def test_classifies_complete_range_when_controller_change_precedes_infra(self):
         repo = make_repo()
         commit_file(
@@ -230,6 +237,19 @@ class DraftAndManifestTests(unittest.TestCase):
 
 
 class StatusTransitionTests(unittest.TestCase):
+    def test_status_rejects_manifest_that_disguises_controller_change_as_repo_only(self):
+        status = base_status()
+        disguised = manifest(
+            impact="repo-only",
+            controller_tag="v1.2.3",
+            controller_digest="sha256:" + "2" * 64,
+            reused=True,
+        )
+        with self.assertRaisesRegex(release.ReleaseError, "repo-only"):
+            release.apply_deployment_status(
+                status, disguised, "automatic", "2026-02-01T00:00:00Z"
+            )
+
     def test_automatic_transition_records_repository_and_controller_history(self):
         status = base_status()
         updated = release.apply_deployment_status(

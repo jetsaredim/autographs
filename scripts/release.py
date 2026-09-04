@@ -294,6 +294,27 @@ def _validate_manifest(manifest: dict[str, object]) -> None:
         raise ReleaseError("release manifest controller must be an object")
     _semver_key(str(controller.get("tag") or ""))
     validate_digest(str(controller.get("digest") or ""))
+    controller_changed = manifest.get("controllerChanged") is True
+    controller_reused = controller.get("reused") is True
+    if impact == "controller-image":
+        if not controller_changed or controller_reused:
+            raise ReleaseError(
+                "controller-image manifest must mark the controller changed and not reused"
+            )
+        if controller.get("tag") != manifest.get("repositoryVersion"):
+            raise ReleaseError("controller-image manifest must use the repository release tag")
+    elif controller_changed or not controller_reused:
+        raise ReleaseError(f"{impact} manifest must reuse the active controller")
+    if impact == "runtime-config" and not (
+        manifest.get("terraformChanged") is True
+        or manifest.get("ansibleOrDeployChanged") is True
+    ):
+        raise ReleaseError("runtime-config manifest must identify its runtime change")
+    if impact == "repo-only" and (
+        manifest.get("terraformChanged") is True
+        or manifest.get("ansibleOrDeployChanged") is True
+    ):
+        raise ReleaseError("repo-only manifest cannot contain runtime changes")
     source = str(manifest.get("sourceRevision") or "")
     if not re.fullmatch(r"[0-9a-f]{40}", source):
         raise ReleaseError("release manifest sourceRevision must be a full lowercase Git SHA")
@@ -326,6 +347,12 @@ def apply_deployment_status(
 
     active_tag = str(result.get("deployedControllerVersion") or "")
     active_digest = str(result.get("deployedControllerDigest") or "")
+    if impact != "controller-image" and active_tag and active_tag != controller_tag:
+        raise ReleaseError(
+            f"{impact} manifest controller {controller_tag} does not match active controller {active_tag}"
+        )
+    if impact != "controller-image" and active_digest:
+        assert_digest_matches(active_digest, controller_digest)
     if active_tag != controller_tag:
         result["previousControllerVersion"] = active_tag
         result["previousControllerDigest"] = active_digest
