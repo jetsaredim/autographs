@@ -71,6 +71,7 @@
       ansible.builtin.command: dnf clean all
       args:
         warn: false
+      when: security_patching_remaining_approved_advisory_ids | length > 0
 
     - name: Apply remaining approved security advisories with DNF # noqa: command-instead-of-module
       ansible.builtin.command:
