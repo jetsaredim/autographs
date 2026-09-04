@@ -52,9 +52,10 @@ resource "oci_identity_policy" "database_secret_access" {
   provider       = oci.home
   compartment_id = var.parent_compartment_ocid
   name           = "${var.name_prefix}-database-secret-access-policy"
-  description    = "Allows project Vault secret resource principals to read and update the generated Autonomous Database password secret during coordinated rotation."
+  description    = "Allows project Vault secret resource principals to rotate the generated Autonomous Database password and apply it to the target database."
   statements = [
-    "Allow any-user to use secret-family in compartment id ${module.iam.compartment_ocid} where all {request.principal.type = 'vaultsecret', request.principal.compartment.id = '${module.iam.compartment_ocid}', target.secret.name = '${local.runtime_controller_secret_names.oracle_db_password}'}"
+    "Allow any-user to use secret-family in compartment id ${module.iam.compartment_ocid} where all {request.principal.type = 'vaultsecret', request.principal.compartment.id = '${module.iam.compartment_ocid}', target.secret.name = '${local.runtime_controller_secret_names.oracle_db_password}'}",
+    "Allow any-user to use autonomous-databases in compartment id ${module.iam.compartment_ocid} where all {request.principal.type = 'vaultsecret', request.principal.compartment.id = '${module.iam.compartment_ocid}', request.operation.actiontype = 'adminPassword'}"
   ]
 
   freeform_tags = local.tags
