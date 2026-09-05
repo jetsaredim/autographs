@@ -296,8 +296,13 @@ jobs:
           fi
           image="${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${controller_tag}"
           image_exists=false
-          if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
+          inspect_error="$RUNNER_TEMP/controller-image-inspect-error.txt"
+          if docker buildx imagetools inspect "$image" >/dev/null 2>"$inspect_error"; then
             image_exists=true
+          elif ! grep -Eiq '(manifest unknown|not found|404)' "$inspect_error"; then
+            echo "Unable to determine whether controller image ${image} exists:" >&2
+            sed 's/^/  /' "$inspect_error" >&2
+            exit 1
           fi
           build_required=false
           if [ "$controller_changed" = "true" ]; then
@@ -519,14 +524,17 @@ jobs:
             length == 3 and
             all(.[]; type == "string" and length > 0)
           ' <<< "$runtime_secret_ids" >/dev/null; then
-            echo "::error::Terraform withheld the runtime Vault secret OCIDs. Populate the Oracle wallet password and admin password hash CURRENT values, then retry."
+            echo "::error::Terraform withheld the runtime Vault secret OCIDs. The Oracle database password is OCI-generated and must not be populated or overwritten out of band. Populate only the Oracle wallet password and admin password hash CURRENT values, then retry."
             exit 1
           fi
+          admin_password_hash_vault_secret_id="$(jq -er '.AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
+          oracle_db_password_vault_secret_id="$(jq -er '.ORACLE_DB_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
+          oracle_db_wallet_password_vault_secret_id="$(jq -er '.ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
           {
             echo "runtime_public_ip=$(terraform output -raw runtime_public_ip)"
-            echo "admin_password_hash_vault_secret_id=$(jq -er '.AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
-            echo "oracle_db_password_vault_secret_id=$(jq -er '.ORACLE_DB_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
-            echo "oracle_db_wallet_password_vault_secret_id=$(jq -er '.ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
+            echo "admin_password_hash_vault_secret_id=${admin_password_hash_vault_secret_id}"
+            echo "oracle_db_password_vault_secret_id=${oracle_db_password_vault_secret_id}"
+            echo "oracle_db_wallet_password_vault_secret_id=${oracle_db_wallet_password_vault_secret_id}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Run full deployment

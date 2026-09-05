@@ -12,6 +12,10 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github/workflows/deploy.yml"
 FIXTURE_PATH = ROOT / "scripts/test-fixtures/release-workflow/cases.json"
+ROLE_TASKS_PATH = ROOT / "deploy/ansible/roles/autographs_deploy/tasks/main.yml"
+APP_ENV_PATH = ROOT / "deploy/ansible/roles/autographs_deploy/templates/app.env.j2"
+ROLLBACK_PATH = ROOT / "deploy/ansible/playbooks/controller-rollback.yml"
+DOCKER_BAKE_PATH = ROOT / ".github/docker-bake.hcl"
 
 
 def load_workflow() -> dict:
@@ -119,6 +123,45 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
                 "scripts/release.py assert-digest",
                 self.production_steps[digest_step]["run"],
             )
+
+    def test_full_deploy_preserves_controller_rollback_metadata(self):
+        env_template = APP_ENV_PATH.read_text(encoding="utf-8")
+        for field in (
+            "AUTOGRAPHS_CONTROLLER_DIGEST",
+            "AUTOGRAPHS_PREVIOUS_CONTROLLER_IMAGE",
+            "AUTOGRAPHS_PREVIOUS_CONTROLLER_VERSION",
+            "AUTOGRAPHS_PREVIOUS_CONTROLLER_DIGEST",
+        ):
+            self.assertIn(field, env_template)
+        tasks = ROLE_TASKS_PATH.read_text(encoding="utf-8")
+        self.assertLess(
+            tasks.index("Resolve existing controller release metadata"),
+            tasks.index("Write app environment file"),
+        )
+        self.assertIn("autographs_deploy_controller_digest", tasks)
+        self.assertIn("@{{ autographs_deploy_controller_digest }}", tasks)
+
+    def test_image_probe_fails_closed_and_bake_uses_only_semantic_tag(self):
+        image_plan = self.production_steps["Resolve controller image plan"]["run"]
+        self.assertIn("manifest unknown|not found|404", image_plan)
+        self.assertIn("Unable to determine whether controller image", image_plan)
+        bake = DOCKER_BAKE_PATH.read_text(encoding="utf-8")
+        self.assertEqual(bake.count("${GHCR_CONTROLLER_IMAGE_REPOSITORY}:"), 1)
+        self.assertNotIn(":latest", bake)
+        self.assertNotIn(":production", bake)
+
+    def test_rollback_playbook_mutates_controller_only_and_verifies_pull(self):
+        rollback = ROLLBACK_PATH.read_text(encoding="utf-8")
+        self.assertIn("app.env.rollback", rollback)
+        self.assertIn("autographs-controller.container.rollback", rollback)
+        self.assertIn("@{{ autographs_rollback_controller_digest }}", rollback)
+        self.assertIn("AUTOGRAPHS_PREVIOUS_CONTROLLER_DIGEST", rollback)
+        self.assertIn("Restart controller after verified rollback", rollback)
+        self.assertIn("Verify controller health after rollback", rollback)
+        self.assertIn("Verify Caddy health after rollback", rollback)
+        self.assertNotIn("terraform apply", rollback)
+        self.assertNotIn("AUTOGRAPHS_REPO_VERSION", rollback)
+        self.assertNotIn("AUTOGRAPHS_SOURCE_REVISION", rollback)
 
 
 if __name__ == "__main__":
