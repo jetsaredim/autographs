@@ -31,7 +31,9 @@ jobs:
       - name: Run repository automation tests
         run: |
           python3 -m unittest \
-            scripts/test_release_version.py \
+            scripts/test_release.py \
+            scripts/test_release_workflow.py \
+            scripts/test_select_removable_images.py \
             scripts/test_cleanup_ghcr_images.py \
             scripts/test_validate_repo_hygiene.py \
             scripts/test_oracle_linux_advisory_enrichment.py \

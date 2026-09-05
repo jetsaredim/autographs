@@ -19,9 +19,7 @@ target "controller" {
   ]
 
   tags = [
-    "${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${RELEASE_VERSION}",
-    "${GHCR_CONTROLLER_IMAGE_REPOSITORY}:production",
-    "${GHCR_CONTROLLER_IMAGE_REPOSITORY}:latest"
+    "${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${RELEASE_VERSION}"
   ]
 
   labels = {

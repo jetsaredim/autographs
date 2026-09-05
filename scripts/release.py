@@ -320,6 +320,22 @@ def _validate_manifest(manifest: dict[str, object]) -> None:
         raise ReleaseError("release manifest sourceRevision must be a full lowercase Git SHA")
 
 
+def validate_manifest_for_release(
+    manifest: dict[str, object], target_tag: str, source_revision: str
+) -> None:
+    """Require a remote manifest to describe the selected immutable release."""
+    _validate_manifest(manifest)
+    _semver_key(target_tag)
+    if manifest.get("repositoryVersion") != target_tag:
+        raise ReleaseError(
+            "release manifest repositoryVersion does not match selected release tag"
+        )
+    if manifest.get("sourceRevision") != source_revision:
+        raise ReleaseError(
+            "release manifest sourceRevision does not match selected release tag"
+        )
+
+
 def apply_deployment_status(
     status: dict[str, object],
     release_manifest: dict[str, object],
@@ -467,6 +483,11 @@ def main() -> int:
     reconcile.add_argument("--generated", type=Path, required=True)
     reconcile.add_argument("--existing", type=Path)
 
+    validate_manifest = subcommands.add_parser("validate-manifest")
+    validate_manifest.add_argument("--manifest", type=Path, required=True)
+    validate_manifest.add_argument("--tag", required=True)
+    validate_manifest.add_argument("--source-revision", required=True)
+
     digest = subcommands.add_parser("assert-digest")
     digest.add_argument("--expected", required=True)
     digest.add_argument("--actual", required=True)
@@ -517,6 +538,10 @@ def main() -> int:
     elif args.command == "reconcile-asset":
         existing = args.existing.read_bytes() if args.existing and args.existing.exists() else None
         print(reconcile_manifest_asset(existing, args.generated.read_bytes()))
+    elif args.command == "validate-manifest":
+        validate_manifest_for_release(
+            _json_object(args.manifest), args.tag, args.source_revision
+        )
     elif args.command == "assert-digest":
         assert_digest_matches(args.expected, args.actual)
     elif args.command == "update-status":

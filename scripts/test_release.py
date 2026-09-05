@@ -227,6 +227,14 @@ class DraftAndManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(release.ReleaseError, "conflict"):
             release.reconcile_manifest_asset(b'{"schemaVersion":2}\n', generated)
 
+    def test_remote_manifest_must_match_selected_release_identity(self):
+        value = manifest()
+        release.validate_manifest_for_release(value, "v1.2.3", "b" * 40)
+        with self.assertRaisesRegex(release.ReleaseError, "repositoryVersion"):
+            release.validate_manifest_for_release(value, "v1.2.4", "b" * 40)
+        with self.assertRaisesRegex(release.ReleaseError, "sourceRevision"):
+            release.validate_manifest_for_release(value, "v1.2.3", "c" * 40)
+
     def test_digest_validation_and_equality_fail_closed(self):
         digest = "sha256:" + "a" * 64
         release.assert_digest_matches(digest, digest)

@@ -49,7 +49,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         condition = self.production_job.get("if", "")
         for term in case["production_condition_terms"]:
             self.assertIn(term, condition)
-        self.assertNotIn("release:", WORKFLOW_PATH.read_text(encoding="utf-8"))
+        self.assertNotIn("release", self.workflow["on"])
 
     def test_automatic_release(self):
         self.assert_ordered(self.cases["automatic_release"]["ordered_steps"])
