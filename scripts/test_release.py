@@ -245,6 +245,34 @@ class DraftAndManifestTests(unittest.TestCase):
 
 
 class StatusTransitionTests(unittest.TestCase):
+    def test_stale_reused_controller_retry_is_rejected_after_rollback(self):
+        status = base_status()
+        reused_manifest = manifest(
+            impact="runtime-config",
+            controller_tag=status["deployedControllerVersion"],
+            controller_digest=status["deployedControllerDigest"],
+            reused=True,
+        )
+        release.validate_reused_controller_is_current(reused_manifest, status)
+
+        rolled_back = release.apply_controller_rollback(
+            status,
+            "v1.2.1",
+            "sha256:" + "0" * 64,
+            "2026-02-01T00:00:00Z",
+        )
+        with self.assertRaisesRegex(release.ReleaseError, "active controller"):
+            release.validate_reused_controller_is_current(
+                reused_manifest, rolled_back
+            )
+
+        changed_digest = dict(status)
+        changed_digest["deployedControllerDigest"] = "sha256:" + "3" * 64
+        with self.assertRaisesRegex(release.ReleaseError, "does not match"):
+            release.validate_reused_controller_is_current(
+                reused_manifest, changed_digest
+            )
+
     def test_status_rejects_manifest_that_disguises_controller_change_as_repo_only(self):
         status = base_status()
         disguised = manifest(

@@ -290,6 +290,11 @@ jobs:
             controller_tag="$(jq -er '.controller.tag' "$manifest")"
             controller_digest="$(jq -er '.controller.digest' "$manifest")"
             controller_changed="$(jq -r '.controllerChanged' "$manifest")"
+            if [ "$controller_changed" = "false" ]; then
+              python3 scripts/release.py validate-reused-controller \
+                --manifest "$manifest" \
+                --status-file "$RUNNER_TEMP/current-release-status.json"
+            fi
             image="${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${controller_tag}"
             if probe_controller_image "$image"; then
               :

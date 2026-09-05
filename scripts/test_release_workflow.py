@@ -189,6 +189,11 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         )
         self.assertEqual(metadata_paths, [".Image.Config.Labels"] * 2)
         self.assertNotIn(".Image.config.Labels", image_plan)
+        self.assertIn("scripts/release.py validate-reused-controller", image_plan)
+        self.assertLess(
+            image_plan.index("scripts/release.py validate-reused-controller"),
+            image_plan.index('probe_controller_image "$image"'),
+        )
         representative_inspection = {
             "Image": {
                 "Config": {

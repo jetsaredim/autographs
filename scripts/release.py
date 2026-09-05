@@ -336,6 +336,28 @@ def validate_manifest_for_release(
         )
 
 
+def validate_reused_controller_is_current(
+    manifest: dict[str, object], status: dict[str, object]
+) -> None:
+    """Reject a reused-controller retry when production has since rolled back."""
+    _validate_manifest(manifest)
+    if manifest.get("controllerChanged") is True:
+        return
+    controller = manifest["controller"]
+    assert isinstance(controller, dict)
+    manifest_tag = str(controller["tag"])
+    manifest_digest = str(controller["digest"])
+    active_tag = str(status.get("deployedControllerVersion") or "")
+    active_digest = str(status.get("deployedControllerDigest") or "")
+    if active_tag != manifest_tag:
+        raise ReleaseError(
+            f"reused controller {manifest_tag} does not match active controller {active_tag or '<unset>'}"
+        )
+    if not active_digest:
+        raise ReleaseError("active controller status is missing deployedControllerDigest")
+    assert_digest_matches(active_digest, manifest_digest)
+
+
 def apply_deployment_status(
     status: dict[str, object],
     release_manifest: dict[str, object],
@@ -488,6 +510,12 @@ def main() -> int:
     validate_manifest.add_argument("--tag", required=True)
     validate_manifest.add_argument("--source-revision", required=True)
 
+    validate_reused = subcommands.add_parser("validate-reused-controller")
+    validate_reused.add_argument("--manifest", type=Path, required=True)
+    validate_reused.add_argument(
+        "--status-file", type=Path, default=Path(".release-status.json")
+    )
+
     digest = subcommands.add_parser("assert-digest")
     digest.add_argument("--expected", required=True)
     digest.add_argument("--actual", required=True)
@@ -541,6 +569,10 @@ def main() -> int:
     elif args.command == "validate-manifest":
         validate_manifest_for_release(
             _json_object(args.manifest), args.tag, args.source_revision
+        )
+    elif args.command == "validate-reused-controller":
+        validate_reused_controller_is_current(
+            _json_object(args.manifest), _json_object(args.status_file)
         )
     elif args.command == "assert-digest":
         assert_digest_matches(args.expected, args.actual)
