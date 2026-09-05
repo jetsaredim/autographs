@@ -128,7 +128,7 @@ When production persistence uses Oracle, the controller starts a read-only heart
 
 ## Runtime Image Contract
 
-Deployments publish the prebuilt Rust controller image to `ghcr.io` with the repo semver tag tracked in `VERSION` and mirrored into `.release-status.json`, for example `v0.8.4`. The VM does not build application code. Ansible pulls the semver-tagged controller image published by GitHub Actions, records the repo and deployed controller versions in the VM-local environment, installs systemd quadlets for the private controller, shared static volume, and Caddy containers on a dedicated Podman network, retires the old Node service if present, restarts affected services, and checks the Caddy-fronted static release plus `/admin/api/health` before the workflow succeeds.
+Release-please manages repository versions in `version.txt` and its manifest. Merging its Release PR deploys production changes; ordinary merges only accumulate changes. Controller-changing releases publish their semantic image tag to GHCR. Infrastructure-only releases reuse the active controller tag. Each Release records the controller digest, which is checked before deploying by tag. Ansible records repository/controller versions in the VM environment and checks runtime health. See [release management](release-management.md) for `RELEASE_PLEASE_TOKEN` setup, recovery, and retention.
 
 Scheduled/manual image cleanup handles old GHCR versions and unused VM-local Podman images while preserving the deployed controller semver tag, `latest`, protected tags, and the configured newest image counts. Git repo `v*` tags may exist without a matching GHCR image when a merge did not change controller image inputs.
 
@@ -161,10 +161,14 @@ Runtime controller settings:
 | Variable | Classification | Purpose |
 |----------|----------------|---------|
 | `AUTOGRAPHS_CONTROLLER_BIND_ADDR` | runtime coordinate | Controller listener; defaults to `0.0.0.0:8080` |
-| `AUTOGRAPHS_REPO_VERSION` | release metadata | Latest repo semver version from `VERSION` |
+| `AUTOGRAPHS_REPO_VERSION` | release metadata | Repository release deployed to this VM |
 | `AUTOGRAPHS_CONTROLLER_VERSION` | release metadata | Deployed controller image semver version |
 | `AUTOGRAPHS_CONTROLLER_IMAGE` | release metadata | Deployed semver-tagged controller image reference |
-| `AUTOGRAPHS_SOURCE_REVISION` | release metadata | Source revision that triggered the version workflow |
+| `AUTOGRAPHS_CONTROLLER_DIGEST` | release metadata | Verified active controller registry digest |
+| `AUTOGRAPHS_PREVIOUS_CONTROLLER_IMAGE` | release metadata | Previous known-good controller image reference retained for rollback |
+| `AUTOGRAPHS_PREVIOUS_CONTROLLER_VERSION` | release metadata | Previous controller semantic version |
+| `AUTOGRAPHS_PREVIOUS_CONTROLLER_DIGEST` | release metadata | Previous controller registry digest |
+| `AUTOGRAPHS_SOURCE_REVISION` | release metadata | Source revision of the deployed repository release |
 | `AUTOGRAPHS_CONTROLLER_DB_PROVIDER` | runtime coordinate | Deploy-time value must be `oracle`; `local` is only for direct local controller runs |
 | `AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS` | runtime coordinate | Seconds between lightweight Oracle heartbeat SQL commands in production persistence mode; defaults to `86400`; set `0` to disable |
 | `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER` | runtime coordinate | Deploy-time value must be `oci-instance-principal`; `local` is only for direct local controller runs |

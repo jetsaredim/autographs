@@ -31,7 +31,7 @@ Use this checklist before making the repository public, before merging a hardeni
 
 ## Manual Checks
 
-- Verify the public deployment route after merge if the Deploy workflow ran.
+- Verify the public deployment route after the Release PR merge deploys production. Ordinary merges accumulate in the Release PR; require its cumulative CI before cutting the release.
 - Run the live static publish smoke when real Oracle/Object Storage confidence is needed.
 - Inspect the PR checks page rather than relying on local-only validation.
 - Review the public README and architecture diagram from the perspective of a hiring manager or technical lead: the project should read as production-lean, lifecycle-aware, and honest about what is shipped versus planned.
