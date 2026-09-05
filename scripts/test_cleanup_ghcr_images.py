@@ -16,6 +16,16 @@ spec.loader.exec_module(cleanup_ghcr_images)
 
 
 class CleanupGhcrImagesTests(unittest.TestCase):
+    def test_active_previous_and_digest_are_protected(self):
+        versions = [{"id": n, "name": digest, "created_at": "2020-01-01T00:00:00Z",
+                     "metadata": {"container": {"tags": tags}}}
+                    for n, digest, tags in [(1, "a", ["v1.2.0"]), (2, "b", ["v1.1.0"]),
+                                            (3, "c", ["other"]), (4, "d", ["v1.0.0"])]]
+        status = {"deployedControllerVersion": "v1.2.0", "previousControllerVersion": "v1.1.0",
+                  "previousControllerDigest": "c"}
+        result = cleanup_ghcr_images.select_versions(versions, status, 0, 0, float("inf"), set())
+        self.assertEqual([v["id"] for v, reasons in result if not reasons], [4])
+
     def test_semver_tags_only_match_release_versions(self):
         self.assertEqual(
             cleanup_ghcr_images.semver_tags(["v0.7.1", "latest", "v1.2", "v1.2.3-extra"]),

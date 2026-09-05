@@ -8,11 +8,23 @@ on:
       dry_run:
         description: "Show what would be deleted without deleting images"
         required: false
-        default: "false"
+        default: "true"
         type: choice
         options:
           - "false"
           - "true"
+      remote_operation:
+        description: "GHCR inventory or explicit deletion after reviewing inventory"
+        required: true
+        default: inventory
+        type: choice
+        options:
+          - inventory
+          - delete
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -23,8 +35,9 @@ env:
   GHCR_CLEANUP_RETAIN_TAGGED: ${{ vars.GHCR_CLEANUP_RETAIN_TAGGED || '10' }}
   GHCR_CLEANUP_RETAIN_SEMVER_TAGGED: ${{ vars.GHCR_CLEANUP_RETAIN_SEMVER_TAGGED || vars.GHCR_CLEANUP_RETAIN_TAGGED || '10' }}
   GHCR_CLEANUP_MIN_AGE_DAYS: ${{ vars.GHCR_CLEANUP_MIN_AGE_DAYS || '7' }}
-  GHCR_CLEANUP_PROTECTED_TAGS: ${{ vars.GHCR_CLEANUP_PROTECTED_TAGS || 'production,latest' }}
-  GHCR_CLEANUP_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+  GHCR_CLEANUP_PROTECTED_TAGS: ${{ vars.GHCR_CLEANUP_PROTECTED_TAGS || '' }}
+  GHCR_CLEANUP_DRY_RUN: ${{ github.event_name != 'workflow_dispatch' || inputs.remote_operation != 'delete' }}
+  LOCAL_CLEANUP_DRY_RUN: ${{ inputs.dry_run || 'false' }}
   AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT: ${{ vars.AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT || '3' }}
 
 jobs:
@@ -57,7 +70,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Clean up local Podman images
-        uses: dawidd6/action-ansible-playbook@v9
+        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
         with:
@@ -71,8 +84,8 @@ jobs:
           options: |
             --extra-vars autographs_system_cleanup_controller_image_repository=${{ env.GHCR_CONTROLLER_IMAGE_REPOSITORY }}
             --extra-vars autographs_system_cleanup_retain_count=${{ env.AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT }}
-            --extra-vars autographs_system_cleanup_protected_tags=${{ env.GHCR_CLEANUP_PROTECTED_TAGS }}
-            --extra-vars autographs_system_cleanup_dry_run=${{ env.GHCR_CLEANUP_DRY_RUN }}
+            --extra-vars 'autographs_system_cleanup_protected_tags=${{ env.GHCR_CLEANUP_PROTECTED_TAGS }}'
+            --extra-vars autographs_system_cleanup_dry_run=${{ env.LOCAL_CLEANUP_DRY_RUN }}
             --extra-vars autographs_system_cleanup_deploy_path=${{ vars.DEPLOY_PATH || '/opt/autographs' }}
 
   ghcr-cleanup:

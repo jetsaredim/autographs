@@ -25,13 +25,44 @@ def main() -> int:
     )
     min_age_days = parse_positive_int(os.getenv("GHCR_CLEANUP_MIN_AGE_DAYS"), 7)
     protected_tags = parse_csv_set(os.getenv("GHCR_CLEANUP_PROTECTED_TAGS"))
-    deployed_controller_version = deployed_controller_version_from_status()
-    dry_run = os.getenv("GHCR_CLEANUP_DRY_RUN", "false").lower() == "true"
+    status = read_release_status()
+    dry_run = os.getenv("GHCR_CLEANUP_DRY_RUN", "true").lower() != "false"
+    for field in ("latestRepositoryVersion", "deployedRepositoryVersion", "deployedControllerVersion", "deployedControllerDigest", "previousControllerVersion", "previousControllerDigest"):
+        print(f"{field}: {status.get(field, '')}")
 
     package_info = parse_ghcr_image_repository(image_repository)
     versions = list_package_versions(token, package_info)
     cutoff_time = time.time() - min_age_days * 24 * 60 * 60
 
+    selections = select_versions(versions, status, retain_count, retain_semver_count, cutoff_time, protected_tags)
+    deleted_count = 0
+    # Print the complete inventory before the first deletion.
+    for version, reasons in selections:
+        tags = version.get("metadata", {}).get("container", {}).get("tags", [])
+        print(f"GHCR version {version['id']}: {format_tags(tags)} ({', '.join(reasons) if reasons else 'deletion candidate'})")
+    for version, reasons in selections:
+        if reasons:
+            continue
+        if dry_run:
+            print(f"Would delete GHCR version {version['id']}")
+        else:
+            delete_package_version(token, package_info, str(version["id"]))
+            print(f"Deleted GHCR version {version['id']}")
+        deleted_count += 1
+    print(f"GHCR cleanup complete for {image_repository}: {deleted_count} {'would delete' if dry_run else 'deleted'}, {len(versions) - deleted_count} kept")
+    return 0
+
+
+def read_release_status() -> dict:
+    status_path = Path(os.getenv("GHCR_CLEANUP_RELEASE_STATUS_PATH", ".release-status.json"))
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    import re
+    if not isinstance(status, dict) or not re.fullmatch(SEMVER_TAG_RE, status.get("deployedControllerVersion", "")):
+        raise RuntimeError("Valid deployed controller status is required before cleanup")
+    return status
+
+
+def select_versions(versions, status, retain_count, retain_semver_count, cutoff_time, protected_tags):
     newest_first = sorted(versions, key=lambda version: parse_created_at(version["created_at"]), reverse=True)
     newest_semver_ids = {
         str(version["id"])
@@ -41,8 +72,7 @@ def main() -> int:
             if semver_tags(version.get("metadata", {}).get("container", {}).get("tags", []))
         ][:retain_semver_count]
     }
-    deleted_count = 0
-
+    selections = []
     for index, version in enumerate(newest_first):
         tags = version.get("metadata", {}).get("container", {}).get("tags", [])
         created_at = parse_created_at(version["created_at"])
@@ -51,11 +81,13 @@ def main() -> int:
         if index < retain_count:
             keep_reasons.append(f"among {retain_count} newest versions")
 
-        if "latest" in tags:
-            keep_reasons.append("latest tag")
-
-        if deployed_controller_version and deployed_controller_version in tags:
-            keep_reasons.append(f"deployed controller tag {deployed_controller_version}")
+        for prefix in ("deployed", "previous"):
+            tag = status.get(f"{prefix}ControllerVersion", "")
+            digest = status.get(f"{prefix}ControllerDigest", "")
+            if tag and tag in tags:
+                keep_reasons.append(f"{prefix} controller tag {tag}")
+            if digest and version.get("name") == digest:
+                keep_reasons.append(f"{prefix} controller digest {digest}")
 
         if str(version["id"]) in newest_semver_ids:
             keep_reasons.append(f"among {retain_semver_count} newest semver-tagged versions")
@@ -65,23 +97,12 @@ def main() -> int:
             keep_reasons.append(f"protected tag {', '.join(matching_protected_tags)}")
 
         if created_at > cutoff_time:
-            keep_reasons.append(f"newer than {min_age_days} days")
-
-        if keep_reasons:
-            print(f"Keeping GHCR version {version['id']}: {format_tags(tags)} ({', '.join(keep_reasons)})")
-            continue
-
-        if dry_run:
-            print(f"Would delete GHCR version {version['id']}: {format_tags(tags)}")
-        else:
-            delete_package_version(token, package_info, str(version["id"]))
-            print(f"Deleted GHCR version {version['id']}: {format_tags(tags)}")
-        deleted_count += 1
-
-    action = "would delete" if dry_run else "deleted"
-    kept_count = len(versions) - deleted_count
-    print(f"GHCR cleanup complete for {image_repository}: {deleted_count} {action}, {kept_count} kept")
-    return 0
+            keep_reasons.append("newer than minimum age")
+        # Untagged platform manifests may be referenced by a retained multi-platform index.
+        if not tags:
+            keep_reasons.append("untagged manifest: dependency reachability not proven")
+        selections.append((version, keep_reasons))
+    return selections
 
 
 def require_env(name: str) -> str:

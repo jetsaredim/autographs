@@ -13,6 +13,9 @@ def main() -> int:
         for image in os.environ.get("CURRENT_IMAGES", "").splitlines()
         if image.strip()
     }
+    current_images.update(image.strip() for image in os.environ.get("PREVIOUS_IMAGES", "").splitlines() if image.strip())
+    containers = json.loads(os.environ.get("CONTAINERS_JSON", "[]"))
+    used_ids = {str(container.get("ImageID", container.get("ImageId", ""))).removeprefix("sha256:") for container in containers}
     protected_tags = {
         tag.strip()
         for tag in os.environ.get("PROTECTED_TAGS", "").split(",")
@@ -44,7 +47,8 @@ def main() -> int:
         if (
             current_images & set(refs)
             or current_images & digest_refs
-            or any(tag in protected_tags or tag == "latest" for tag in tags(refs))
+            or any(tag in protected_tags for tag in tags(refs))
+            or image_id.removeprefix("sha256:") in used_ids
         ):
             keep_ids.add(image_id)
 
