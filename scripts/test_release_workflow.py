@@ -84,7 +84,8 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
 
     def test_manual_production_operations_require_main(self):
         condition = self.production_job["if"]
-        self.assertIn("github.ref == 'refs/heads/main'", condition)
+        self.assertIn("github.event_name == 'workflow_dispatch'", condition)
+        self.assertNotIn("github.ref", condition)
         run = self.production_steps["Resolve release request"]["run"]
         guard = '$GITHUB_REF" != "refs/heads/main'
         self.assertIn(guard, run)
