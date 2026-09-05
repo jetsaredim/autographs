@@ -65,6 +65,14 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertEqual(action["with"]["token"], "${{ secrets.RELEASE_PLEASE_TOKEN }}")
         self.assertNotIn("continue-on-error", action)
 
+    def test_release_please_main_mutations_are_serialized(self):
+        concurrency = self.release_job["concurrency"]
+        self.assertEqual(concurrency["group"], "release-please-main")
+        self.assertEqual(concurrency["cancel-in-progress"], "false")
+        self.assertNotEqual(
+            concurrency["group"], self.production_job["concurrency"]["group"]
+        )
+
     def test_exact_automatic_retry_tag_checkout(self):
         case = self.cases["exact_automatic_retry_tag_checkout"]
         step = self.production_steps[case["step"]]
@@ -89,6 +97,23 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         load = self.production_steps["Load published rollback manifest"]
         self.assertIn("steps.request.outputs.operation == 'rollback'", load["if"])
         self.assertIn("gh release download", load["run"])
+
+    def test_rollback_authenticates_before_private_image_inspection(self):
+        release_login = self.production_steps["Log in to ghcr.io"]
+        self.assertIn(
+            "steps.request.outputs.operation != 'rollback'", release_login["if"]
+        )
+        self.assertEqual(release_login["with"]["password"], "${{ secrets.GITHUB_TOKEN }}")
+        login_name = "Log in to ghcr.io for rollback inspection"
+        login = self.production_steps[login_name]
+        self.assertIn("steps.request.outputs.operation == 'rollback'", login["if"])
+        self.assertEqual(login["uses"], "docker/login-action@v4")
+        self.assertEqual(login["with"]["registry"], "ghcr.io")
+        self.assertEqual(login["with"]["password"], "${{ secrets.GHCR_TOKEN }}")
+        self.assertLess(
+            self.production_step_names.index(login_name),
+            self.production_step_names.index("Recheck controller digest before rollback"),
+        )
 
     def test_identical_versus_conflicting_manifest_assets(self):
         case = self.cases["identical_versus_conflicting_manifest_assets"]

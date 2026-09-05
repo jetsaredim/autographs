@@ -44,6 +44,9 @@ jobs:
     name: Update Release PR or create draft Release
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-please-main
+      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
@@ -243,6 +246,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to ghcr.io for rollback inspection
+        if: steps.request.outputs.operation == 'rollback'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Resolve controller image plan
         if: steps.request.outputs.operation != 'rollback'

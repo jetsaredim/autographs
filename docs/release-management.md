@@ -6,7 +6,7 @@ Ordinary PR merges accumulate in a ready release-please Release PR. Merge that P
 
 Create a fine-grained GitHub personal access token restricted to this repository, with Contents and Pull requests read/write permissions. Save it as the Actions secret `RELEASE_PLEASE_TOKEN` using `gh secret set RELEASE_PLEASE_TOKEN` and its interactive prompt. Do not paste the token into a command argument. Renew it before expiration. It needs no OCI permissions. Release-please uses this token so its PR updates trigger ordinary PR CI; the built-in `GITHUB_TOKEN` suppresses those events.
 
-Release-please v5.0.0 is pinned to a reviewed commit. Its configuration uses a single root package, `version.txt`, `.release-please-manifest.json`, and `CHANGELOG.md`. The bootstrap follows repository v0.1.5, with controller v0.1.4 recorded as deployed. Configure the token before merging the implementation PR.
+Release-please v5.0.0 is pinned to a reviewed commit. Its configuration uses a single root package, `version.txt`, `.release-please-manifest.json`, and `CHANGELOG.md`. The bootstrap follows repository v0.1.8, with controller v0.1.4 recorded as deployed. Configure the token before merging the implementation PR.
 
 ## Cut a release
 
