@@ -99,7 +99,7 @@ class ReleaseRangeTests(unittest.TestCase):
         manifest_config = json.loads(
             (REPOSITORY_ROOT / ".release-please-manifest.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(manifest_config, {".": "0.1.3"})
+        self.assertEqual(manifest_config, {".": (REPOSITORY_ROOT / "version.txt").read_text(encoding="utf-8").strip()})
 
     def test_classifies_complete_range_when_controller_change_precedes_infra(self):
         repo = make_repo()
