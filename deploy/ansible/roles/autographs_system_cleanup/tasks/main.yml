@@ -3,7 +3,10 @@
     argv:
       - awk
       - -F=
-      - /^AUTOGRAPHS_CONTROLLER_IMAGE=/{print $2}
+      - >-
+        /^AUTOGRAPHS_CONTROLLER_IMAGE=/{image=$2}
+        /^AUTOGRAPHS_CONTROLLER_DIGEST=/{digest=$2}
+        END {if (image != "") {print image; if (digest != "") {sub(/:[^:]*$/, "", image); print image "@" digest}}}
       - "{{ autographs_system_cleanup_env_path }}/app.env"
   register: autographs_system_cleanup_current_image
   changed_when: false
@@ -19,7 +22,10 @@
     argv:
       - awk
       - -F=
-      - /^AUTOGRAPHS_PREVIOUS_CONTROLLER_IMAGE=/{print $2}
+      - >-
+        /^AUTOGRAPHS_PREVIOUS_CONTROLLER_IMAGE=/{image=$2}
+        /^AUTOGRAPHS_PREVIOUS_CONTROLLER_DIGEST=/{digest=$2}
+        END {if (image != "") {print image; if (digest != "") {sub(/:[^:]*$/, "", image); print image "@" digest}}}
       - "{{ autographs_system_cleanup_env_path }}/app.env"
   register: autographs_system_cleanup_previous_image
   changed_when: false
