@@ -143,8 +143,11 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
 
     def test_image_probe_fails_closed_and_bake_uses_only_semantic_tag(self):
         image_plan = self.production_steps["Resolve controller image plan"]["run"]
+        self.assertIn("probe_controller_image()", image_plan)
+        self.assertGreaterEqual(image_plan.count('probe_controller_image "$image"'), 2)
         self.assertIn("manifest unknown|not found|404", image_plan)
         self.assertIn("Unable to determine whether controller image", image_plan)
+        self.assertNotIn("imagetools inspect \"$image\" >/dev/null 2>&1", image_plan)
         bake = DOCKER_BAKE_PATH.read_text(encoding="utf-8")
         self.assertEqual(bake.count("${GHCR_CONTROLLER_IMAGE_REPOSITORY}:"), 1)
         self.assertNotIn(":latest", bake)

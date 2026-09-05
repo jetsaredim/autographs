@@ -254,15 +254,34 @@ jobs:
           RETRY_MANIFEST_FOUND: ${{ steps.retry_manifest.outputs.found || 'false' }}
         run: |
           set -euo pipefail
+          probe_controller_image() {
+            local image="$1"
+            local inspect_error="$RUNNER_TEMP/controller-image-inspect-error.txt"
+            if docker buildx imagetools inspect "$image" >/dev/null 2>"$inspect_error"; then
+              return 0
+            fi
+            if grep -Eiq '(manifest unknown|not found|404)' "$inspect_error"; then
+              return 1
+            fi
+            echo "Unable to determine whether controller image ${image} exists:" >&2
+            sed 's/^/  /' "$inspect_error" >&2
+            return 2
+          }
+
           manifest="$RUNNER_TEMP/release-assets/release-manifest.json"
           if [ "$RETRY_MANIFEST_FOUND" = "true" ]; then
             controller_tag="$(jq -er '.controller.tag' "$manifest")"
             controller_digest="$(jq -er '.controller.digest' "$manifest")"
             controller_changed="$(jq -r '.controllerChanged' "$manifest")"
             image="${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${controller_tag}"
-            if ! docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
-              echo "Manifest-recorded controller image does not exist: ${image}" >&2
-              exit 1
+            if probe_controller_image "$image"; then
+              :
+            else
+              probe_status=$?
+              if [ "$probe_status" -eq 1 ]; then
+                echo "Manifest-recorded controller image does not exist: ${image}" >&2
+              fi
+              exit "$probe_status"
             fi
             if [ "$controller_changed" = "true" ]; then
               image_revision="$(docker buildx imagetools inspect "$image" \
@@ -296,13 +315,13 @@ jobs:
           fi
           image="${GHCR_CONTROLLER_IMAGE_REPOSITORY}:${controller_tag}"
           image_exists=false
-          inspect_error="$RUNNER_TEMP/controller-image-inspect-error.txt"
-          if docker buildx imagetools inspect "$image" >/dev/null 2>"$inspect_error"; then
+          if probe_controller_image "$image"; then
             image_exists=true
-          elif ! grep -Eiq '(manifest unknown|not found|404)' "$inspect_error"; then
-            echo "Unable to determine whether controller image ${image} exists:" >&2
-            sed 's/^/  /' "$inspect_error" >&2
-            exit 1
+          else
+            probe_status=$?
+            if [ "$probe_status" -ne 1 ]; then
+              exit "$probe_status"
+            fi
           fi
           build_required=false
           if [ "$controller_changed" = "true" ]; then

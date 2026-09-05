@@ -46,7 +46,7 @@ Local cleanup protects active/previous image tags and digests, container-used im
 
 - Executed independent retention code and docs alongside Plan 02 after the shared status interface was established; no overlapping ownership.
 - Added protection for container-used images and retained untagged GHCR manifests because force deletion or removal of a multi-platform child could damage running/retained artifacts.
-- Updated bootstrap from 0.1.3 to 0.1.5 after main advanced during pause. Current deployed controller is v0.1.4.
+- Updated bootstrap from 0.1.3 through 0.1.8 as main advanced during pauses. Current deployed controller is v0.1.4.
 
 ## User setup and remaining validation
 

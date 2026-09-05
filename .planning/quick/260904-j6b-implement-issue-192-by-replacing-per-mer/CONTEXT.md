@@ -36,7 +36,7 @@ Implement issue #192 by replacing the current tag-and-deploy-on-every-merge beha
 
 ## Delivery Expectations
 
-Resume baseline: main advanced during the pause. Merge commit `59bf98c` incorporates repository v0.1.5, deployed repository/controller v0.1.4, and previous controller v0.1.3. Bootstrap version files now use 0.1.5; earlier plan references to the initial 0.1.3 baseline are historical.
+Resume baseline: main advanced during the pause. Merge commit `e0a4c15` incorporates repository/deployment v0.1.8, active controller v0.1.4, and previous controller v0.1.3. Bootstrap version files now use 0.1.8; earlier plan references to the initial 0.1.3 and interim 0.1.5 baselines are historical.
 
 - Remove the custom per-merge release version/tag publishing loop and its bot-authored status churn.
 - Configure release-please in manifest mode and pin third-party actions consistently with repository conventions.
