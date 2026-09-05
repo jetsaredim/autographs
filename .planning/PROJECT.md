@@ -45,7 +45,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 
 - The repository now contains a runnable OCI-hosted implementation with completed delivery-spine, data/media-core, public-gallery, public-hardening, and static-runtime migration phases; Phase 5 has delivered plans 05-01 through 05-07, live static publish proof, UAT, security review, and verification closeout.
 - The deployed platform uses Oracle Cloud Infrastructure with an Always Free bias, including OCI Object Storage for private images and Oracle Autonomous Database Free for metadata.
-- GitHub remains the source of truth for delivery, with pull-request validation, GHCR image publishing, and automated deployment on merge to `main`.
+- GitHub remains the source of truth for delivery, with pull-request validation, release-please Release PRs, GHCR image publishing, and deployment gated by Release PR merge.
 - Runtime deployment uses Podman quadlets managed through Ansible rather than compose-style orchestration.
 - Public image access now uses generated public-safe derivatives in the static release instead of direct Object Storage URLs or retired app-mediated image streaming routes.
 - Retired operator-only mutation routes remain blocked at the public Caddy edge; normal admin and publish operations use the Rust private controller under `/admin` and `/admin/api/*`.
@@ -58,7 +58,7 @@ A collector can reliably browse and manage a high-quality autograph catalog wher
 - **Cloud**: Prefer OCI Always Free services wherever feasible — the product should be realistic for a fresh low-cost tenancy.
 - **Database**: Prefer Oracle Autonomous Database Free — the prompt explicitly selects it unless implementation friction forces a justified fallback.
 - **Storage**: Keep autograph originals private in OCI Object Storage — public access should use generated safe derivatives in static releases, with private originals mediated by the Rust controller/publisher boundary rather than direct public buckets.
-- **Delivery**: Auto-deploy from GitHub Actions on merge to `main` — CI/CD is part of project bootstrap, not optional polish.
+- **Delivery**: Ordinary merges accumulate in a release-please Release PR; merging that Release PR gates GitHub Actions production deployment. CI remains mandatory on ordinary and Release PRs.
 - **Operations**: One developer should be able to understand and run the system — avoid enterprise sprawl and multi-service complexity.
 - **Scope**: v1 must stay narrow — no staging environment, no bulk import, no public accounts, and no advanced search platform, but multi-image items and edit history are in scope because they matter directly for managing a personal collection well.
 - **Security**: Use least-privilege OCI access and explicit secret handling — routine deploy workflows should not rely on tenancy-wide admin power.
