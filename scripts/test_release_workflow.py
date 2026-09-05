@@ -3,6 +3,7 @@
 """Structural regression tests for the privileged production release graph."""
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -65,10 +66,11 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertEqual(action["with"]["token"], "${{ secrets.RELEASE_PLEASE_TOKEN }}")
         self.assertNotIn("continue-on-error", action)
 
-    def test_release_please_main_mutations_are_serialized(self):
-        concurrency = self.release_job["concurrency"]
-        self.assertEqual(concurrency["group"], "release-please-main")
+    def test_release_and_production_state_machine_is_serialized(self):
+        concurrency = self.workflow["concurrency"]
+        self.assertEqual(concurrency["group"], "release-production")
         self.assertEqual(concurrency["cancel-in-progress"], "false")
+        self.assertNotIn("concurrency", self.release_job)
         self.assertNotEqual(
             concurrency["group"], self.production_job["concurrency"]["group"]
         )
@@ -79,6 +81,14 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         for key, value in case["required_with"].items():
             self.assertEqual(step["with"][key], value)
         self.assertIn("steps.request.outputs.operation != 'rollback'", step["if"])
+
+    def test_manual_production_operations_require_main(self):
+        condition = self.production_job["if"]
+        self.assertIn("github.ref == 'refs/heads/main'", condition)
+        run = self.production_steps["Resolve release request"]["run"]
+        guard = '$GITHUB_REF" != "refs/heads/main'
+        self.assertIn(guard, run)
+        self.assertLess(run.index(guard), run.index('gh release view "$release_tag"'))
 
     def test_unresolved_draft_block(self):
         case = self.cases["unresolved_draft_block"]
@@ -173,6 +183,25 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("manifest unknown|not found|404", image_plan)
         self.assertIn("Unable to determine whether controller image", image_plan)
         self.assertNotIn("imagetools inspect \"$image\" >/dev/null 2>&1", image_plan)
+        metadata_paths = re.findall(
+            r"--format '\{\{json (\.[A-Za-z.]+)\}\}'", image_plan
+        )
+        self.assertEqual(metadata_paths, [".Image.Config.Labels"] * 2)
+        self.assertNotIn(".Image.config.Labels", image_plan)
+        representative_inspection = {
+            "Image": {
+                "Config": {
+                    "Labels": {"org.opencontainers.image.revision": "source-sha"}
+                }
+            }
+        }
+        for metadata_path in metadata_paths:
+            value = representative_inspection
+            for component in metadata_path.removeprefix(".").split("."):
+                value = value[component]
+            self.assertEqual(
+                value["org.opencontainers.image.revision"], "source-sha"
+            )
         bake = DOCKER_BAKE_PATH.read_text(encoding="utf-8")
         self.assertEqual(bake.count("${GHCR_CONTROLLER_IMAGE_REPOSITORY}:"), 1)
         self.assertNotIn(":latest", bake)

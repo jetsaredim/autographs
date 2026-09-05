@@ -29,6 +29,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-production
+  cancel-in-progress: false
+
 env:
   GH_REPO: ${{ github.repository }}
   GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ vars.GHCR_CONTROLLER_IMAGE_REPOSITORY || format('ghcr.io/{0}/controller', github.repository) }}
@@ -44,9 +48,6 @@ jobs:
     name: Update Release PR or create draft Release
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    concurrency:
-      group: release-please-main
-      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
@@ -103,7 +104,10 @@ jobs:
             needs.release.outputs.release_created == 'true' &&
             needs.release.outputs.tag_name != ''
           ) ||
-          github.event_name == 'workflow_dispatch'
+          (
+            github.event_name == 'workflow_dispatch' &&
+            github.ref == 'refs/heads/main'
+          )
         )
       }}
     runs-on: ubuntu-latest
@@ -126,6 +130,11 @@ jobs:
           RECREATE_RUNTIME_INSTANCE: ${{ inputs.recreate_runtime_instance }}
         run: |
           set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] \
+            && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Production workflow_dispatch must run from refs/heads/main, got ${GITHUB_REF}." >&2
+            exit 1
+          fi
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             operation=automatic
             release_tag="$AUTOMATIC_TAG"
@@ -296,7 +305,7 @@ jobs:
             fi
             if [ "$controller_changed" = "true" ]; then
               image_revision="$(docker buildx imagetools inspect "$image" \
-                --format '{{json .Image.config.Labels}}' \
+                --format '{{json .Image.Config.Labels}}' \
                 | jq -er '.["org.opencontainers.image.revision"]')"
               if [ "$image_revision" != "$SOURCE_REVISION" ]; then
                 echo "Existing release image revision ${image_revision} does not match ${SOURCE_REVISION}." >&2
@@ -342,7 +351,7 @@ jobs:
                 exit 1
               fi
               image_revision="$(docker buildx imagetools inspect "$image" \
-                --format '{{json .Image.config.Labels}}' \
+                --format '{{json .Image.Config.Labels}}' \
                 | jq -er '.["org.opencontainers.image.revision"]')"
               if [ "$image_revision" != "$SOURCE_REVISION" ]; then
                 echo "Existing release image revision ${image_revision} does not match ${SOURCE_REVISION}." >&2
