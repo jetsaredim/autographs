@@ -134,6 +134,15 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         for term in case["required_run_terms"]:
             self.assertIn(term, run)
 
+    def test_draft_manifest_asset_lookup(self):
+        case = self.cases["draft_manifest_asset_lookup"]
+        for step_name in case["steps"]:
+            run = self.production_steps[step_name]["run"]
+            for term in case["required_run_terms"]:
+                self.assertIn(term, run)
+            for term in case["forbidden_run_terms"]:
+                self.assertNotIn(term, run)
+
     def test_published_manifest_rollback(self):
         self.assert_ordered(self.cases["published_manifest_rollback"]["ordered_steps"])
         load = self.production_steps["Load published rollback manifest"]

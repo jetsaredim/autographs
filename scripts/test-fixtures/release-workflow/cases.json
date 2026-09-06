@@ -44,6 +44,19 @@
       "Retry requires an unresolved draft release"
     ]
   },
+  "draft_manifest_asset_lookup": {
+    "steps": [
+      "Load retry manifest when present",
+      "Reconcile release manifest"
+    ],
+    "required_run_terms": [
+      "gh release view \"$RELEASE_TAG\" --json assets",
+      "release-manifest.json"
+    ],
+    "forbidden_run_terms": [
+      "/releases/tags/${RELEASE_TAG}"
+    ]
+  },
   "published_manifest_rollback": {
     "ordered_steps": [
       "Checkout current main for controller rollback",
