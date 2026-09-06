@@ -26,7 +26,7 @@ Implement issue #192 by replacing the current tag-and-deploy-on-every-merge beha
 
 ## Checker-Resolved Decisions
 
-- **D-18:** Use a dedicated repository-scoped fine-grained PAT named `RELEASE_PLEASE_TOKEN`, limited to Contents read/write and Pull requests read/write, so release-please-created or updated Release PRs trigger the normal pull-request CI workflow.
+- **D-18:** Use a repository-installed GitHub App with Contents and Pull requests read/write. Store its Client ID in `RELEASE_PLEASE_APP_CLIENT_ID` and private key in `RELEASE_PLEASE_APP_PRIVATE_KEY`; mint a current-repository installation token in each run so release-please-created or updated Release PRs trigger normal pull-request CI without a personal token.
 - **D-19:** Pin `googleapis/release-please-action` v5.0.0 to commit `45996ed1f6d02564a971a2fa1b5860e934307cf7`.
 - **D-20:** Any release-please action failure stops the workflow. Do not tolerate failures based on partially emitted action outputs.
 - **D-21:** Before release-please runs on an ordinary push, fail closed when an unresolved draft release exists. An operator must use the manual retry path to reconcile that draft before a later Release PR or release can advance.

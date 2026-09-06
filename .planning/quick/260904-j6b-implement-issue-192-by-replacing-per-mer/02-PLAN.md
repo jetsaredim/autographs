@@ -23,12 +23,14 @@ user_setup:
   - service: GitHub
     why: "Release-please-authored Release PR updates must emit ordinary pull_request events so cumulative CI is required before merge."
     env_vars:
-      - name: RELEASE_PLEASE_TOKEN
-        source: "Repository Actions secret containing a fine-grained PAT restricted to this repository with Contents read/write and Pull requests read/write."
+      - name: RELEASE_PLEASE_APP_CLIENT_ID
+        source: "Repository Actions variable containing the Client ID of the release GitHub App installed only on this repository."
+      - name: RELEASE_PLEASE_APP_PRIVATE_KEY
+        source: "Repository Actions secret containing the release GitHub App's complete PEM private key."
 must_haves:
   truths:
     - "Normal pushes fail preflight on unresolved drafts or run only release-please; they cannot reach build/deploy jobs unless that same action invocation emits release_created=true (D-01-D-03, D-20-D-21)."
-    - "Release-please uses RELEASE_PLEASE_TOKEN and the exact v5.0.0 SHA, and any action failure stops the workflow (D-18-D-20)."
+    - "Release-please uses a per-run GitHub App installation token and the exact v5.0.0 SHA, the token action uses its exact v3 SHA, and any action failure stops the workflow (D-18-D-20)."
     - "Automatic release and retry use the exact target tag as deployment source; controller-only rollback uses current main automation, skips Terraform apply, and takes only the controller mapping from a published manifest (D-09, D-23)."
     - "Controller tags are never overwritten or falsely created for infrastructure-only releases, and the live tag digest is checked immediately before any Terraform/Ansible production mutation (D-04-D-07, D-17, D-24)."
     - "Finalization is deployment/health or repo-only validation, then idempotent status commit, then Release publication last; retry reconciles every partial prefix and manifest conflicts fail closed (D-22)."
@@ -42,8 +44,8 @@ must_haves:
   key_links:
     - from: ".github/workflows/deploy.yml"
       to: "release-please-config.json"
-      via: "RELEASE_PLEASE_TOKEN-authenticated manifest action"
-      pattern: "RELEASE_PLEASE_TOKEN|release_created|tag_name"
+      via: "Short-lived GitHub App installation token authenticated manifest action"
+      pattern: "release_app_token|release_created|tag_name"
     - from: ".github/workflows/deploy.yml"
       to: "scripts/release.py"
       via: "draft preflight, full-range plan, manifest comparison, digest validation, and status transition"
@@ -97,7 +99,7 @@ Output: Rewritten deployment/CI workflow, semantic-only image publication, focus
   <action>
     Write the fixture cases and `test_release_workflow.py` first. The test must inspect the actual workflow plus fixture-mode expected transitions, and must fail against the old workflow. Cover all nine D-24 cases by name: normal push gating, automatic release, exact automatic/retry tag checkout, unresolved draft block, retry draft lookup, published-manifest rollback, identical-versus-conflicting manifest assets, current-main/no-Terraform controller rollback, and immediate pre-mutation tag/digest verification. Validate both job conditions and step order; do not settle for substring presence alone.
 
-    Rewrite `deploy.yml` with push-to-main and manual-dispatch entry points. Before invoking release-please on a push, list Releases and call the Plan 01 draft preflight; when a semantic draft exists, fail with the exact `workflow_dispatch` retry command/tag and do not update a later Release PR (D-21). Invoke `googleapis/release-please-action` at `45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0`, using `secrets.RELEASE_PLEASE_TOKEN`, manifest config, and no `continue-on-error`; any action failure stops regardless of outputs (D-18-D-20). Gate automatic downstream jobs only on the same step's root `release_created == 'true'` and `tag_name`, not a `release` event (D-01-D-03). Keep workflow/job permissions least-privilege: the release job needs contents/pull-requests write; image publication needs packages write; production status/finalization needs contents write.
+    Rewrite `deploy.yml` with push-to-main and manual-dispatch entry points. Before invoking release-please on a push, mint a current-repository installation token with `actions/create-github-app-token` pinned at `bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3`, explicitly limited to Contents and Pull requests write, then list Releases and call the Plan 01 draft preflight; when a semantic draft exists, fail with the exact `workflow_dispatch` retry command/tag and do not update a later Release PR (D-21). Invoke `googleapis/release-please-action` at `45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0`, using that short-lived token, manifest config, and no `continue-on-error`; any action failure stops regardless of outputs (D-18-D-20). Gate automatic downstream jobs only on the same step's root `release_created == 'true'` and `tag_name`, not a `release` event (D-01-D-03). Keep the workflow `GITHUB_TOKEN` read-only; the App token alone receives release mutation permissions, image publication needs packages write, and production status/finalization needs contents write.
 
     Replace manual force-build behavior with required `release_tag` and `operation` (`retry` or `rollback`) inputs plus optional runtime recreation for retry only. Automatic/retry must validate and check out the exact semantic tag at full depth, resolve the previous reachable tag, classify that full range, and create the deterministic manifest. Retry must look up the selected draft (or recognize an already-published final state), safely reuse a controller image only if its OCI revision label matches the tag SHA, and reconcile absent/same manifest state; upload without `--clobber` and fail on conflict. Rollback must require a published Release and existing manifest, use its controller tag/digest only, and explicitly select current `main` for workflow scripts and Ansible (D-09, D-22-D-24).
 
@@ -143,7 +145,7 @@ Output: Rewritten deployment/CI workflow, semantic-only image publication, focus
 
 | Threat ID | Category | Component | Disposition | Mitigation Plan |
 |-----------|----------|-----------|-------------|-----------------|
-| T-J6B-06 | Elevation of privilege | RELEASE_PLEASE_TOKEN | mitigate | Repository-scoped fine-grained PAT with only Contents and Pull requests read/write; no OCI/package scope; pin the consuming action to the reviewed v5 SHA. |
+| T-J6B-06 | Elevation of privilege | GitHub App release token | mitigate | Install the App only on this repository with Contents and Pull requests read/write; mint an hour-lived current-repository token; grant no OCI/package scope; pin both token and release actions to reviewed SHAs. |
 | T-J6B-07 | Tampering / Repudiation | Release asset reconciliation | mitigate | Deterministic manifest, identical-byte idempotency, conflict refusal, no clobber, and publish-last ordering. |
 | T-J6B-08 | Spoofing / Tampering | manual release_tag | mitigate | Require exact semantic tag/Release state/source match; retry requires draft reconciliation and rollback requires a published manifest. |
 | T-J6B-09 | Tampering | GHCR tag | mitigate | Refuse overwrite, validate OCI revision on retry, and re-resolve/compare digest immediately before mutation. |

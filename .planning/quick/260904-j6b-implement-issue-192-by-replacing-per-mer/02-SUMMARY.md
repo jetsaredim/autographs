@@ -54,4 +54,4 @@ The production workflow now accumulates ordinary merges in a release-please Rele
 
 ## User setup and live validation
 
-Before merge, configure the repository-scoped `RELEASE_PLEASE_TOKEN` with Contents and Pull requests read/write. The first Release PR after this implementation includes a controller build because the Docker build definition changed. After its Release deploys, verify controller health and complete an incremental publish. Retry and rollback remain deliberate operator actions documented in `docs/release-management.md`.
+Before merge, install the release GitHub App only on this repository with Contents and Pull requests read/write, configure `RELEASE_PLEASE_APP_CLIENT_ID` and `RELEASE_PLEASE_APP_PRIVATE_KEY`, and let the workflow mint its short-lived token. The first Release PR after this implementation includes a controller build because the Docker build definition changed. After its Release deploys, verify controller health and complete an incremental publish. Retry and rollback remain deliberate operator actions documented in `docs/release-management.md`.

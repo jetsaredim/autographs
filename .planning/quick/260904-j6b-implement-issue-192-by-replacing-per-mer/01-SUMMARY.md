@@ -112,7 +112,7 @@ completed: 2026-09-04
 
 ## User Setup Required
 
-- Before Plan 02 can run the release workflow, create a repository-scoped fine-grained PAT with Contents read/write and Pull requests read/write and store it as the Actions secret `RELEASE_PLEASE_TOKEN`.
+- Before Plan 02 can run the release workflow, install a GitHub App only on this repository with Contents and Pull requests read/write, store its Client ID as `RELEASE_PLEASE_APP_CLIENT_ID`, and store its PEM private key as `RELEASE_PLEASE_APP_PRIVATE_KEY`.
 
 ## Next Phase Readiness
 

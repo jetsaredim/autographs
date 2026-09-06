@@ -4,9 +4,18 @@ Ordinary PR merges accumulate in a ready release-please Release PR. Merge that P
 
 ## Initial setup
 
-Create a fine-grained GitHub personal access token restricted to this repository, with Contents and Pull requests read/write permissions. Save it as the Actions secret `RELEASE_PLEASE_TOKEN` using `gh secret set RELEASE_PLEASE_TOKEN` and its interactive prompt. Do not paste the token into a command argument. Renew it before expiration. It needs no OCI permissions. Release-please uses this token so its PR updates trigger ordinary PR CI; the built-in `GITHUB_TOKEN` suppresses those events.
+Register a private GitHub App for release automation with repository **Contents: read and write** and **Pull requests: read and write** permissions and no webhook. Install it only on this repository. Store its Client ID as the repository variable `RELEASE_PLEASE_APP_CLIENT_ID` and its complete PEM private key as the repository secret `RELEASE_PLEASE_APP_PRIVATE_KEY`. The GitHub-owned token action uses those credentials to mint a current-repository installation token that expires after one hour and is revoked when the job ends. Release-please uses that short-lived token so its PR updates trigger ordinary PR CI automatically; the built-in `GITHUB_TOKEN` does not provide the same unattended event behavior.
 
-Release-please v5.0.0 is pinned to a reviewed commit. Its configuration uses a single root package, `version.txt`, `.release-please-manifest.json`, and `CHANGELOG.md`. The bootstrap follows repository v0.1.8, with controller v0.1.4 recorded as deployed. Configure the token before merging the implementation PR.
+Set the values without putting the private key contents in a command argument:
+
+```bash
+gh variable set RELEASE_PLEASE_APP_CLIENT_ID --repo jetsaredim/autographs
+gh secret set RELEASE_PLEASE_APP_PRIVATE_KEY --repo jetsaredim/autographs
+```
+
+Enter the Client ID for the first prompt. For the second, paste the entire PEM including its `BEGIN` and `END` lines, then send end-of-file. The App needs no OCI, Actions, Packages, organization, or other repository permissions. Rotate the private key by generating a replacement, updating the secret, verifying a release workflow run, and then deleting the old key from the App.
+
+Release-please v5.0.0 and the GitHub App token action v3 are pinned to reviewed commits. The release configuration uses a single root package, `version.txt`, `.release-please-manifest.json`, and `CHANGELOG.md`. The bootstrap follows repository v0.1.8, with controller v0.1.4 recorded as deployed. Configure and install the App before merging the implementation PR.
 
 ## Cut a release
 

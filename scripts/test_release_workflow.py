@@ -58,12 +58,43 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
 
     def test_automatic_release(self):
         self.assert_ordered(self.cases["automatic_release"]["ordered_steps"])
+        release_names = [step["name"] for step in named_steps(self.release_job)]
+        token_name = "Generate short-lived release token"
+        token = self.release_steps[token_name]
+        self.assertEqual(
+            token["uses"],
+            "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
+        )
+        self.assertEqual(
+            token["with"]["client-id"],
+            "${{ vars.RELEASE_PLEASE_APP_CLIENT_ID }}",
+        )
+        self.assertEqual(
+            token["with"]["private-key"],
+            "${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}",
+        )
+        self.assertEqual(token["with"]["permission-contents"], "write")
+        self.assertEqual(token["with"]["permission-pull-requests"], "write")
+        self.assertNotIn("owner", token["with"])
+        self.assertNotIn("repositories", token["with"])
+        self.assertEqual(self.release_job["permissions"], {"contents": "read"})
+        self.assertLess(
+            release_names.index(token_name),
+            release_names.index("Check unresolved draft releases"),
+        )
         action = self.release_steps["Run release-please"]
         self.assertEqual(
             action["uses"],
             "googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7",
         )
-        self.assertEqual(action["with"]["token"], "${{ secrets.RELEASE_PLEASE_TOKEN }}")
+        app_token = "${{ steps.release_app_token.outputs.token }}"
+        self.assertEqual(action["with"]["token"], app_token)
+        self.assertEqual(
+            self.release_steps["Check unresolved draft releases"]["env"]["GH_TOKEN"],
+            app_token,
+        )
+        retired_token = "RELEASE_PLEASE_" + "TOKEN"
+        self.assertNotIn(retired_token, WORKFLOW_PATH.read_text(encoding="utf-8"))
         self.assertNotIn("continue-on-error", action)
 
     def test_release_and_production_state_machine_is_serialized(self):

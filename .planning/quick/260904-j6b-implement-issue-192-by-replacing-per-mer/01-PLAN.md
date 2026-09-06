@@ -22,8 +22,10 @@ user_setup:
   - service: GitHub
     why: "Release PR changes must trigger ordinary pull-request CI rather than being suppressed as GITHUB_TOKEN-generated events."
     env_vars:
-      - name: RELEASE_PLEASE_TOKEN
-        source: "Create a fine-grained PAT restricted to the Autographs repository with Contents read/write and Pull requests read/write, then save it as a repository Actions secret."
+      - name: RELEASE_PLEASE_APP_CLIENT_ID
+        source: "Client ID of a GitHub App installed only on the Autographs repository with Contents and Pull requests read/write; save it as a repository Actions variable."
+      - name: RELEASE_PLEASE_APP_PRIVATE_KEY
+        source: "Complete PEM private key for that GitHub App; save it as a repository Actions secret."
 must_haves:
   truths:
     - "Release-please is the only semantic version and Git-tag authority; custom merged-PR bump and tag-target logic no longer exists (D-01, D-02, D-15)."
@@ -82,7 +84,7 @@ Output: Release-please manifest/config/version files, a replacement release help
   <action>
     Add a single root package to manifest-mode release-please, seeded at `0.1.3`. Use the `simple` release strategy so `version.txt` and `CHANGELOG.md` are maintained by the Release PR; delete the custom `VERSION` file instead of retaining two authorities. Configure `include-v-in-tag: true`, no component prefix, a ready rather than draft Release PR, `draft: true` for the GitHub Release, `force-tag-creation: true`, and `always-update: true` (D-01, D-02, D-16). Configure conventional-commit changelog sections and default versioning so scoped `fix`/`feat` and breaking changes drive releases while documentation/chore-only changes do not independently cut a release (D-15). Do not rewrite or recreate existing v0.0.x/v0.1.x tags.
 
-    Keep token selection out of these config files: Plan 02 supplies the required repository-scoped `RELEASE_PLEASE_TOKEN`. Add schema URLs where supported so the JSON files remain editor- and CI-valid.
+    Keep token selection out of these config files: Plan 02 mints the required repository-scoped GitHub App installation token. Add schema URLs where supported so the JSON files remain editor- and CI-valid.
   </action>
   <verify>
     <automated>python3 -m json.tool release-please-config.json &gt;/dev/null &amp;&amp; python3 -m json.tool .release-please-manifest.json &gt;/dev/null &amp;&amp; test "$(tr -d '\n' &lt; version.txt)" = "0.1.3" &amp;&amp; test ! -e VERSION</automated>

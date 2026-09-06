@@ -17,7 +17,7 @@ Ordinary merges accumulate in a release-please Release PR without tagging or dep
 ## Goal-Backward Must-Haves
 
 - A normal merge can only run release preflight and create/update the ready Release PR; it cannot tag or enter production.
-- The Release PR is created with `RELEASE_PLEASE_TOKEN`, so it receives normal PR CI, and the v5.0.0 action is pinned to `45996ed1f6d02564a971a2fa1b5860e934307cf7`.
+- The Release PR is created with a short-lived current-repository GitHub App installation token, so it receives normal PR CI. The v5.0.0 release action and v3 token action are pinned to reviewed commit SHAs.
 - Any release-please failure stops; an unresolved draft stops later releases until manual retry reconciles it.
 - Automatic releases classify the complete previous-tag-to-target-tag range, build a controller tag only for controller impact, and deploy by semantic tag after verifying its digest.
 - Infrastructure-only releases reuse the active controller tag/digest without applying the new repository tag to old image bytes.

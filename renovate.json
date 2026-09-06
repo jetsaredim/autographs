@@ -49,6 +49,7 @@
       ],
       "matchPackageNames": [
         "dawidd6/action-ansible-playbook",
+        "actions/create-github-app-token",
         "googleapis/release-please-action"
       ],
       "dependencyDashboardApproval": true,

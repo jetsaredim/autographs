@@ -50,4 +50,4 @@ Local cleanup protects active/previous image tags and digests, container-used im
 
 ## User setup and remaining validation
 
-Configure `RELEASE_PLEASE_TOKEN` before merging. Live release creation, deploy/retry/rollback, and incremental publish require post-merge operator validation. No production resources or remote artifacts were changed during implementation.
+Install the release GitHub App and configure `RELEASE_PLEASE_APP_CLIENT_ID` plus `RELEASE_PLEASE_APP_PRIVATE_KEY` before merging. Live release creation, deploy/retry/rollback, and incremental publish require post-merge operator validation. No production resources or remote artifacts were changed during implementation.
