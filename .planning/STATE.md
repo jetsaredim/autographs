@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: Completed 08-04-PLAN.md
 last_updated: "2026-09-01T21:00:00-04:00"
-last_activity: 2026-09-04 -- Proved OCI-native ADB password rotation end to end at the control plane; controller credential-refresh recovery remains the final runtime observation.
+last_activity: 2026-09-06 -- Added PR title and commit-subject validation aligned with release-please changelog types.
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-09-04 -- Proved OCI-native ADB password rotation end to end at the control plane; controller credential-refresh recovery remains the final runtime observation.
+Last activity: 2026-09-06 -- Added PR title and commit-subject validation aligned with release-please changelog types.
 
 Progress: [█████████░] 89% of milestone plans complete; Phase 8 Plan 4 is next
 
@@ -186,6 +186,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-09-06 | create-a-pr-workflow-validating-pull-req | Added a read-only PR workflow that validates PR titles and all non-merge commit subjects against the Conventional Commit types configured for release-please. Implementation commit `58a26f7`. |
 | 2026-09-04 | grant-oci-database-service-read-access-t | Granted project-compartment Vault secret resource principals scoped secret rotation access plus ADB `adminPassword` updates. Live rotation succeeded and promoted version 6. Final implementation commit `01503a2`; controller credential-refresh recovery remains the final runtime observation. |
 | 2026-09-01 | enable-oci-native-generated-oracle-db-pa | Needs Review: configured DB-only OCI-generated P90D ADB-coordinated rotation with cycle-free metadata lookups and guarded rollout documentation. Implementation commits `a394a58`, `a013740`; live post-deploy rotation proof remains required. |
 | 2026-08-31 | introduce-a-static-database-credential-p | Moved the Oracle password behind an immutable shared snapshot provider, injected it at production composition, and preserved all existing startup and connection behavior. Implementation commit `5372520`. |
