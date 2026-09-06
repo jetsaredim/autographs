@@ -11,7 +11,7 @@ Added a dedicated pull request workflow that validates the PR title and every no
 
 ## Delivered
 
-- Added `.github/workflows/validate-release-please-inputs.yml` with read-only permissions and PR title/update triggers.
+- Added `.github/workflows/conventional-commits.yml` with read-only permissions and PR title/update triggers.
 - Added `scripts/validate_release_please_inputs.py`, which reads allowed types from `release-please-config.json`, validates the event title, walks the PR's base/head commit range, and emits GitHub error annotations.
 - Added focused validator tests and included them in the existing CI automation suite.
 - Skipped true merge commits while validating every non-merge commit, because integration merges are not release changelog inputs.
@@ -29,4 +29,4 @@ Implementation commit: `58a26f7`
 
 ## Follow-up
 
-- Renamed the standalone workflow and job so the PR checks list displays the concise, repository-consistent label `CI / Conventional commits` without rerunning the full CI suite on title edits. Follow-up commit: `bb967df`.
+- Renamed the standalone workflow and job so the PR checks list displays the concise, repository-consistent label `CI / Conventional commits` without rerunning the full CI suite on title edits. Renamed the workflow file so GitHub registers the new identity on the open PR. Follow-up commits: `bb967df`, `02fadc2`.
