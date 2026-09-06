@@ -33,6 +33,7 @@ jobs:
           python3 -m unittest \
             scripts/test_release.py \
             scripts/test_release_workflow.py \
+            scripts/test_validate_release_please_inputs.py \
             scripts/test_select_removable_images.py \
             scripts/test_cleanup_ghcr_images.py \
             scripts/test_validate_repo_hygiene.py \
