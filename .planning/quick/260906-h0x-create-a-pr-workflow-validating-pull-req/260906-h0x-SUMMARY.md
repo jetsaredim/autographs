@@ -26,3 +26,7 @@ Added a dedicated pull request workflow that validates the PR title and every no
 - Deliberately malformed PR title — rejected with exit code 1 and a GitHub error annotation.
 
 Implementation commit: `58a26f7`
+
+## Follow-up
+
+- Renamed the standalone workflow and job so the PR checks list displays the concise, repository-consistent label `CI / Conventional commits` without rerunning the full CI suite on title edits. Follow-up commit: `bb967df`.
