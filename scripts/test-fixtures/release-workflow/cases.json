@@ -51,7 +51,7 @@
     ],
     "required_run_terms": [
       "gh release view \"$RELEASE_TAG\" --json assets",
-      "release-manifest.json"
+      "--jq '[.assets[] | select(.name == \"release-manifest.json\")] | length'"
     ],
     "forbidden_run_terms": [
       "/releases/tags/${RELEASE_TAG}"
