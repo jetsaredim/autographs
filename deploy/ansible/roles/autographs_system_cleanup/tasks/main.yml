@@ -3,11 +3,38 @@
     argv:
       - awk
       - -F=
-      - /^AUTOGRAPHS_CONTROLLER_IMAGE=/{print $2}
+      - >-
+        /^AUTOGRAPHS_CONTROLLER_IMAGE=/{image=$2}
+        /^AUTOGRAPHS_CONTROLLER_DIGEST=/{digest=$2}
+        END {if (image != "") {print image; if (digest != "") {sub(/:[^:]*$/, "", image); print image "@" digest}}}
       - "{{ autographs_system_cleanup_env_path }}/app.env"
   register: autographs_system_cleanup_current_image
   changed_when: false
-  failed_when: false
+
+- name: Require active image metadata before cleanup
+  ansible.builtin.assert:
+    that:
+      - autographs_system_cleanup_current_image.stdout | trim | length > 0
+    fail_msg: "Active controller image is missing; refuse local image cleanup."
+
+- name: Read previous controller image
+  ansible.builtin.command:
+    argv:
+      - awk
+      - -F=
+      - >-
+        /^AUTOGRAPHS_PREVIOUS_CONTROLLER_IMAGE=/{image=$2}
+        /^AUTOGRAPHS_PREVIOUS_CONTROLLER_DIGEST=/{digest=$2}
+        END {if (image != "") {print image; if (digest != "") {sub(/:[^:]*$/, "", image); print image "@" digest}}}
+      - "{{ autographs_system_cleanup_env_path }}/app.env"
+  register: autographs_system_cleanup_previous_image
+  changed_when: false
+
+- name: Collect container image references
+  ansible.builtin.command:
+    argv: [podman, ps, --all, --no-trunc, --format, json]
+  register: autographs_system_cleanup_containers
+  changed_when: false
 
 - name: Report deployed controller image
   ansible.builtin.debug:
@@ -77,6 +104,8 @@
     RETAIN_COUNT: "{{ autographs_system_cleanup_retain_count }}"
     CONTROLLER_IMAGE_REPOSITORY: "{{ autographs_system_cleanup_controller_image_repository }}"
     CURRENT_IMAGES: "{{ autographs_system_cleanup_current_image.stdout }}"
+    PREVIOUS_IMAGES: "{{ autographs_system_cleanup_previous_image.stdout }}"
+    CONTAINERS_JSON: "{{ autographs_system_cleanup_containers.stdout }}"
     PROTECTED_TAGS: "{{ autographs_system_cleanup_protected_tags }}"
     IMAGES_JSON: "{{ autographs_system_cleanup_images.stdout }}"
   register: autographs_system_cleanup_removable_images

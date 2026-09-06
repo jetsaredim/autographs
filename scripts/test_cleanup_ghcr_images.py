@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -16,6 +17,34 @@ spec.loader.exec_module(cleanup_ghcr_images)
 
 
 class CleanupGhcrImagesTests(unittest.TestCase):
+    def test_missing_status_stops_cleanup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict(os.environ, {"GHCR_CLEANUP_RELEASE_STATUS_PATH": str(Path(tmp) / "missing")}):
+                with self.assertRaises(FileNotFoundError):
+                    cleanup_ghcr_images.read_release_status()
+
+    def test_untagged_platform_manifest_is_retained(self):
+        versions = [{"id": 1, "created_at": "2020-01-01T00:00:00Z", "metadata": {"container": {"tags": []}}}]
+        result = cleanup_ghcr_images.select_versions(versions, {}, 0, 0, float("inf"), set())
+        self.assertTrue(result[0][1])
+
+    def test_remote_cleanup_defaults_to_inventory(self):
+        version = {"id": 1, "created_at": "2020-01-01T00:00:00Z", "metadata": {"container": {"tags": ["v1.0.0"]}}}
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "test", "GHCR_IMAGE_REPOSITORY": "ghcr.io/example/controller"}, clear=True):
+            with patch.object(cleanup_ghcr_images, "read_release_status", return_value={"deployedControllerVersion": "v2.0.0"}), patch.object(cleanup_ghcr_images, "list_package_versions", return_value=[version]), patch.object(cleanup_ghcr_images, "select_versions", return_value=[(version, [])]), patch.object(cleanup_ghcr_images, "delete_package_version") as delete:
+                cleanup_ghcr_images.main()
+                delete.assert_not_called()
+
+    def test_active_previous_and_digest_are_protected(self):
+        versions = [{"id": n, "name": digest, "created_at": "2020-01-01T00:00:00Z",
+                     "metadata": {"container": {"tags": tags}}}
+                    for n, digest, tags in [(1, "a", ["v1.2.0"]), (2, "b", ["v1.1.0"]),
+                                            (3, "c", ["other"]), (4, "d", ["v1.0.0"])]]
+        status = {"deployedControllerVersion": "v1.2.0", "previousControllerVersion": "v1.1.0",
+                  "previousControllerDigest": "c"}
+        result = cleanup_ghcr_images.select_versions(versions, status, 0, 0, float("inf"), set())
+        self.assertEqual([v["id"] for v, reasons in result if not reasons], [4])
+
     def test_semver_tags_only_match_release_versions(self):
         self.assertEqual(
             cleanup_ghcr_images.semver_tags(["v0.7.1", "latest", "v1.2", "v1.2.3-extra"]),

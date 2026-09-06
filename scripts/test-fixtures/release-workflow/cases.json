@@ -1,0 +1,85 @@
+{
+  "normal_push_gating": {
+    "release_steps": [
+      "Check unresolved draft releases",
+      "Run release-please"
+    ],
+    "production_condition_terms": [
+      "needs.release.outputs.release_created == 'true'",
+      "needs.release.outputs.tag_name != ''"
+    ]
+  },
+  "automatic_release": {
+    "ordered_steps": [
+      "Resolve release request",
+      "Checkout selected release tag",
+      "Resolve controller image plan",
+      "Reconcile release manifest",
+      "Recheck controller digest before full deployment",
+      "Terraform apply",
+      "Run full deployment",
+      "Verify deployment health",
+      "Commit production release status",
+      "Publish GitHub Release"
+    ]
+  },
+  "exact_automatic_retry_tag_checkout": {
+    "step": "Checkout selected release tag",
+    "required_with": {
+      "fetch-depth": "0",
+      "ref": "${{ steps.request.outputs.release_tag }}"
+    }
+  },
+  "unresolved_draft_block": {
+    "step": "Check unresolved draft releases",
+    "required_run_terms": [
+      "scripts/release.py preflight-drafts",
+      "gh workflow run deploy.yml --ref main -f operation=retry -f release_tag="
+    ]
+  },
+  "retry_draft_lookup": {
+    "step": "Resolve release request",
+    "required_run_terms": [
+      "isDraft",
+      "Retry requires an unresolved draft release"
+    ]
+  },
+  "published_manifest_rollback": {
+    "ordered_steps": [
+      "Checkout current main for controller rollback",
+      "Load published rollback manifest",
+      "Recheck controller digest before rollback",
+      "Run controller-only rollback",
+      "Commit production release status"
+    ]
+  },
+  "identical_versus_conflicting_manifest_assets": {
+    "step": "Reconcile release manifest",
+    "required_run_terms": [
+      "scripts/release.py reconcile-asset",
+      "gh release upload",
+      "release-manifest.json"
+    ],
+    "forbidden_run_terms": [
+      "--clobber"
+    ]
+  },
+  "current_main_no_terraform_controller_rollback": {
+    "checkout_step": "Checkout current main for controller rollback",
+    "playbook_step": "Run controller-only rollback",
+    "playbook": "playbooks/controller-rollback.yml",
+    "forbidden_step": "Terraform apply"
+  },
+  "immediate_pre_mutation_digest_verification": {
+    "pairs": [
+      [
+        "Recheck controller digest before full deployment",
+        "Terraform apply"
+      ],
+      [
+        "Recheck controller digest before rollback",
+        "Run controller-only rollback"
+      ]
+    ]
+  }
+}

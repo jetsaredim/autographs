@@ -43,12 +43,14 @@
       "dependencyDashboardApproval": true
     },
     {
-      "description": "Require explicit review for production Ansible action SHA-pin updates",
+      "description": "Require explicit review for privileged production action SHA-pin updates",
       "matchManagers": [
         "github-actions"
       ],
       "matchPackageNames": [
-        "dawidd6/action-ansible-playbook"
+        "dawidd6/action-ansible-playbook",
+        "actions/create-github-app-token",
+        "googleapis/release-please-action"
       ],
       "dependencyDashboardApproval": true,
       "automerge": false

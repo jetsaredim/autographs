@@ -64,6 +64,14 @@ That format keeps the immutable commit pin visible while preserving the intended
 
 Routine dependency grouping must not bypass this manual review requirement.
 
+Release-please and its GitHub App token issuer are privileged actions. Release-please
+v5.0.0 is pinned to `45996ed1f6d02564a971a2fa1b5860e934307cf7`, and
+`actions/create-github-app-token` v3 is pinned to
+`bcd2ba49218906704ab6c1aa796996da409d3eb1`. Review their updates explicitly:
+the token action receives the App private key and mints the short-lived token used
+by release-please to create Release PRs, tags, and Releases. See
+[release management](release-management.md) for App permission scope and lifecycle.
+
 ## Cleanup Reliability
 
 The scheduled Image Cleanup workflow failed in GitHub run `26355096380` because Podman refused to delete a selected stale image ID that still had multiple old tags. The cleanup selector already preserves the active image, `latest`, protected tags, and the newest retained images. Runtime cleanup now removes selected stale IDs with `podman rmi --force` so multi-tag stale images do not fail the scheduled job.

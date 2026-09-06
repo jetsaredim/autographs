@@ -1,0 +1,309 @@
+- name: Roll back only the Autographs controller
+  hosts: runtime
+  become: true
+  vars:
+    autographs_rollback_env_path: /opt/autographs/env/app.env
+    autographs_rollback_env_stage_path: /opt/autographs/env/app.env.rollback
+    autographs_rollback_quadlet_path: /etc/containers/systemd/autographs-controller.container
+    autographs_rollback_quadlet_stage_path: /etc/containers/systemd/autographs-controller.container.rollback
+    autographs_rollback_controller_container_name: autographs-controller
+  pre_tasks:
+    - name: Wait for runtime SSH readiness
+      ansible.builtin.wait_for_connection:
+        timeout: 900
+        sleep: 10
+
+  tasks:
+    - name: Validate controller rollback inputs
+      ansible.builtin.assert:
+        that:
+          - autographs_rollback_controller_image is match('^.+:v[0-9]+\.[0-9]+\.[0-9]+$')
+          - autographs_rollback_controller_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+          - autographs_rollback_controller_digest is match('^sha256:[0-9a-f]{64}$')
+        fail_msg: Controller rollback requires a semantic image tag and verified sha256 digest.
+
+    - name: Inspect protected runtime files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ autographs_rollback_env_path }}"
+        - "{{ autographs_rollback_quadlet_path }}"
+      register: autographs_rollback_runtime_files
+      changed_when: false
+
+    - name: Require protected runtime files
+      ansible.builtin.assert:
+        that:
+          - autographs_rollback_runtime_files.results | length == 2
+          - autographs_rollback_runtime_files.results | map(attribute='stat.exists') | min
+          - autographs_rollback_runtime_files.results | map(attribute='stat.isreg') | min
+        fail_msg: Controller rollback requires the deployed app environment and controller quadlet.
+
+    - name: Read protected app environment
+      ansible.builtin.slurp:
+        src: "{{ autographs_rollback_env_path }}"
+      register: autographs_rollback_app_env_file
+      no_log: true
+
+    - name: Resolve existing controller metadata
+      ansible.builtin.set_fact:
+        autographs_rollback_current_controller_image: >-
+          {{
+            (
+              autographs_rollback_app_env_file.content
+              | b64decode
+              | regex_findall('(?m)^AUTOGRAPHS_CONTROLLER_IMAGE=(.*)$')
+              | first
+            )
+            | default('', true)
+          }}
+        autographs_rollback_current_controller_version: >-
+          {{
+            (
+              autographs_rollback_app_env_file.content
+              | b64decode
+              | regex_findall('(?m)^AUTOGRAPHS_CONTROLLER_VERSION=(.*)$')
+              | first
+            )
+            | default('', true)
+          }}
+        autographs_rollback_current_controller_digest: >-
+          {{
+            (
+              autographs_rollback_app_env_file.content
+              | b64decode
+              | regex_findall('(?m)^AUTOGRAPHS_CONTROLLER_DIGEST=(.*)$')
+              | first
+            )
+            | default('', true)
+          }}
+        autographs_rollback_existing_previous_controller_image: >-
+          {{
+            (
+              autographs_rollback_app_env_file.content
+              | b64decode
+              | regex_findall('(?m)^AUTOGRAPHS_PREVIOUS_CONTROLLER_IMAGE=(.*)$')
+              | first
+            )
+            | default('', true)
+          }}
+        autographs_rollback_existing_previous_controller_version: >-
+          {{
+            (
+              autographs_rollback_app_env_file.content
+              | b64decode
+              | regex_findall('(?m)^AUTOGRAPHS_PREVIOUS_CONTROLLER_VERSION=(.*)$')
+              | first
+            )
+            | default('', true)
+          }}
+        autographs_rollback_existing_previous_controller_digest: >-
+          {{
+            (
+              autographs_rollback_app_env_file.content
+              | b64decode
+              | regex_findall('(?m)^AUTOGRAPHS_PREVIOUS_CONTROLLER_DIGEST=(.*)$')
+              | first
+            )
+            | default('', true)
+          }}
+        autographs_rollback_domain: >-
+          {{
+            (
+              autographs_rollback_app_env_file.content
+              | b64decode
+              | regex_findall('(?m)^AUTOGRAPHS_DOMAIN=(.*)$')
+              | first
+            )
+            | default('', true)
+          }}
+        autographs_rollback_https_port: >-
+          {{
+            (
+              autographs_rollback_app_env_file.content
+              | b64decode
+              | regex_findall('(?m)^AUTOGRAPHS_HTTPS_PORT=(.*)$')
+              | first
+            )
+            | default('443', true)
+          }}
+      no_log: true
+
+    - name: Select rollback history mapping
+      ansible.builtin.set_fact:
+        autographs_rollback_previous_controller_image: >-
+          {{
+            autographs_rollback_current_controller_image
+            if autographs_rollback_current_controller_version != autographs_rollback_controller_version
+            else autographs_rollback_existing_previous_controller_image
+          }}
+        autographs_rollback_previous_controller_version: >-
+          {{
+            autographs_rollback_current_controller_version
+            if autographs_rollback_current_controller_version != autographs_rollback_controller_version
+            else autographs_rollback_existing_previous_controller_version
+          }}
+        autographs_rollback_previous_controller_digest: >-
+          {{
+            autographs_rollback_current_controller_digest
+            if autographs_rollback_current_controller_version != autographs_rollback_controller_version
+            else autographs_rollback_existing_previous_controller_digest
+          }}
+      no_log: true
+
+    - name: Require current controller and health metadata
+      ansible.builtin.assert:
+        that:
+          - autographs_rollback_current_controller_image | length > 0
+          - autographs_rollback_current_controller_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+          - autographs_rollback_domain | length > 0
+          - autographs_rollback_https_port is match('^[0-9]+$')
+        fail_msg: The deployed app environment lacks required controller or Caddy metadata.
+      no_log: true
+
+    - name: Authenticate to GHCR for rollback
+      containers.podman.podman_login:
+        username: "{{ lookup('env', 'GITHUB_ACTOR') | default('', true) }}"
+        password: "{{ lookup('env', 'GHCR_TOKEN') | default('', true) }}"
+        registry: ghcr.io
+      no_log: true
+
+    - name: Apply verified controller rollback
+      block:
+        - name: Pull controller by registry manifest digest
+          ansible.builtin.command:
+            argv:
+              - podman
+              - pull
+              - --quiet
+              - "{{ autographs_rollback_controller_image }}@{{ autographs_rollback_controller_digest }}"
+          register: autographs_rollback_controller_pull
+          changed_when: true
+
+        - name: Assign semantic rollback tag to verified image
+          ansible.builtin.command:
+            argv:
+              - podman
+              - tag
+              - "{{ autographs_rollback_controller_pull.stdout | trim }}"
+              - "{{ autographs_rollback_controller_image }}"
+          changed_when: true
+
+        - name: Stage protected app environment
+          ansible.builtin.copy:
+            src: "{{ autographs_rollback_env_path }}"
+            dest: "{{ autographs_rollback_env_stage_path }}"
+            remote_src: true
+            owner: "{{ autographs_rollback_runtime_files.results[0].stat.pw_name }}"
+            group: "{{ autographs_rollback_runtime_files.results[0].stat.gr_name }}"
+            mode: "0600"
+          no_log: true
+
+        - name: Update staged controller release metadata
+          ansible.builtin.lineinfile:
+            path: "{{ autographs_rollback_env_stage_path }}"
+            regexp: "^{{ item.key }}="
+            line: "{{ item.key }}={{ item.value }}"
+          loop:
+            - key: AUTOGRAPHS_CONTROLLER_IMAGE
+              value: "{{ autographs_rollback_controller_image }}"
+            - key: AUTOGRAPHS_CONTROLLER_VERSION
+              value: "{{ autographs_rollback_controller_version }}"
+            - key: AUTOGRAPHS_CONTROLLER_DIGEST
+              value: "{{ autographs_rollback_controller_digest }}"
+            - key: AUTOGRAPHS_PREVIOUS_CONTROLLER_IMAGE
+              value: "{{ autographs_rollback_previous_controller_image }}"
+            - key: AUTOGRAPHS_PREVIOUS_CONTROLLER_VERSION
+              value: "{{ autographs_rollback_previous_controller_version }}"
+            - key: AUTOGRAPHS_PREVIOUS_CONTROLLER_DIGEST
+              value: "{{ autographs_rollback_previous_controller_digest }}"
+          no_log: true
+
+        - name: Atomically install controller release metadata
+          ansible.builtin.command:
+            argv:
+              - mv
+              - "{{ autographs_rollback_env_stage_path }}"
+              - "{{ autographs_rollback_env_path }}"
+          changed_when: true
+          no_log: true
+
+        - name: Stage controller quadlet
+          ansible.builtin.copy:
+            src: "{{ autographs_rollback_quadlet_path }}"
+            dest: "{{ autographs_rollback_quadlet_stage_path }}"
+            remote_src: true
+            owner: root
+            group: root
+            mode: "0644"
+
+        - name: Select verified semantic image in staged quadlet
+          ansible.builtin.lineinfile:
+            path: "{{ autographs_rollback_quadlet_stage_path }}"
+            regexp: ^Image=
+            line: "Image={{ autographs_rollback_controller_image }}"
+
+        - name: Atomically install controller quadlet
+          ansible.builtin.command:
+            argv:
+              - mv
+              - "{{ autographs_rollback_quadlet_stage_path }}"
+              - "{{ autographs_rollback_quadlet_path }}"
+          changed_when: true
+
+        - name: Reload systemd for controller rollback
+          ansible.builtin.systemd:
+            daemon_reload: true
+
+        - name: Restart controller after verified rollback
+          ansible.builtin.systemd:
+            name: autographs-controller.service
+            state: restarted
+
+        - name: Verify controller health after rollback
+          ansible.builtin.uri:
+            url: http://127.0.0.1:8080/admin/api/health
+            method: GET
+            status_code: 200
+            return_content: false
+          register: autographs_rollback_controller_health
+          retries: 30
+          delay: 5
+          until: autographs_rollback_controller_health.status == 200
+
+        - name: Verify Caddy health after rollback
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --fail
+              - --silent
+              - --show-error
+              - --output
+              - /dev/null
+              - --connect-timeout
+              - "5"
+              - --max-time
+              - "15"
+              - --resolve
+              - "{{ autographs_rollback_domain }}:{{ autographs_rollback_https_port }}:127.0.0.1"
+              - "https://{{ autographs_rollback_domain }}:{{ autographs_rollback_https_port }}/manifest.json"
+          register: autographs_rollback_caddy_health
+          changed_when: false
+          retries: 12
+          delay: 5
+          until: autographs_rollback_caddy_health.rc == 0
+
+      always:
+        - name: Remove controller rollback staging files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ autographs_rollback_env_stage_path }}"
+            - "{{ autographs_rollback_quadlet_stage_path }}"
+          no_log: true
+
+        - name: Log out of GHCR after rollback
+          containers.podman.podman_logout:
+            registry: ghcr.io
+          failed_when: false

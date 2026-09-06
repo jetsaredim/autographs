@@ -5,16 +5,9 @@
 [![Image Cleanup](https://github.com/jetsaredim/autographs/actions/workflows/image-cleanup.yml/badge.svg)](https://github.com/jetsaredim/autographs/actions/workflows/image-cleanup.yml)
 ![Renovate configured](https://img.shields.io/badge/Renovate-configured-1f8b4c)
 
-<!-- autographs-release-status:start -->
 ## Release Status
 
-- Repo version: `v0.1.8`
-- Deployed controller image: `v0.1.4`
-- Latest deploy-impact version: `v0.1.8`
-- Version state: repo ahead of deployed controller
-- Last bump: `patch`
-- Last deploy impact: `runtime-config`
-<!-- autographs-release-status:end -->
+See [GitHub Releases](https://github.com/jetsaredim/autographs/releases) for release manifests and [.release-status.json](.release-status.json) for the deployed repository and controller versions. [Release management](docs/release-management.md) covers cutting releases, retries, rollback, and retention.
 
 Autographs is a production-lean personal autograph collection site. The current public runtime serves a generated static catalog through Caddy, with the Rust private controller publishing public-safe pages, JSON, and derived media from Oracle metadata and private OCI Object Storage.
 
@@ -95,14 +88,14 @@ Local development can use local/mock media and catalog paths where the controlle
 
 ## Deployment And Operations
 
-Merges to `main` run the deploy workflow. The workflow increments the repo semver in `VERSION`, mirrors it into release status, tags the status commit, builds and publishes the Rust controller image to GHCR only when controller image inputs changed, and deploys the semver-tagged controller image or runtime config when needed. Repo-only merges update release status without rebuilding or redeploying the controller.
+Ordinary merges update a release-please Release PR. Merging that Release PR creates a semantic tag and draft Release, deploys any production changes, records status, and publishes the Release. Controller images deploy by semantic tag with digest verification; infrastructure-only releases reuse the active controller image.
 
 Operational checks:
 
 - CI is automatic on pull requests.
-- Deploy runs on pushes to `main` and can be manually dispatched.
+- Production deployment follows Release PR merge; existing releases support manual retry and controller rollback.
 - Live static publish smoke in the static runtime runbook proves Oracle, private media, generated artifacts, and Caddy static serving against real credentials.
-- Image Cleanup is scheduled and manual; it prunes old GHCR and VM-local controller images while preserving protected/current images.
+- Image Cleanup prunes unused VM images on schedule. Remote GHCR cleanup defaults to inventory and requires explicit manual deletion, preserving active/previous controller artifacts.
 - Weekly Security Scan opens or updates managed production security update issues; applying `approved-production-update` triggers the guarded Ansible patch workflow for allowlisted operators.
 
 ## Security And Privacy

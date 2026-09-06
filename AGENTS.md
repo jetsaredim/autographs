@@ -13,7 +13,7 @@ Autographs is a production-lean personal autograph collection website where you 
 - **Cloud**: Prefer OCI Always Free services wherever feasible — the product should be realistic for a fresh low-cost tenancy.
 - **Database**: Prefer Oracle Autonomous Database Free — the prompt explicitly selects it unless implementation friction forces a justified fallback.
 - **Storage**: Keep autograph originals private in OCI Object Storage — public access should use generated public-safe derivatives rather than direct public buckets.
-- **Delivery**: Auto-deploy from GitHub Actions on merge to `main` — CI/CD is part of project bootstrap, not optional polish.
+- **Delivery**: Ordinary merges accumulate in a release-please Release PR; merging that Release PR gates GitHub Actions production deployment. CI remains mandatory on ordinary and Release PRs.
 - **Operations**: One developer should be able to understand and run the system — avoid enterprise sprawl and multi-service complexity.
 - **Scope**: v1 must stay narrow — no staging environment, no bulk import, no public accounts, and no advanced search platform, but multi-image items and edit history are in scope because they matter directly for managing a personal collection well.
 - **Security**: Use least-privilege OCI access and explicit secret handling — routine deploy workflows should not rely on tenancy-wide admin power.
