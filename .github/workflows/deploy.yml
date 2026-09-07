@@ -232,7 +232,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/release-assets"
-          asset_count="$(gh api "/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
+          # The REST release-by-tag endpoint returns 404 for draft releases.
+          asset_count="$(gh release view "$RELEASE_TAG" --json assets \
             --jq '[.assets[] | select(.name == "release-manifest.json")] | length')"
           if [ "$asset_count" -eq 1 ]; then
             gh release download "$RELEASE_TAG" \
@@ -425,7 +426,8 @@ jobs:
               --plan-json "$RUNNER_TEMP/release-plan.json" \
               --output "$generated"
             existing_args=()
-            asset_count="$(gh api "/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
+            # The REST release-by-tag endpoint returns 404 for draft releases.
+            asset_count="$(gh release view "$RELEASE_TAG" --json assets \
               --jq '[.assets[] | select(.name == "release-manifest.json")] | length')"
             if [ "$asset_count" -eq 1 ]; then
               gh release download "$RELEASE_TAG" \
