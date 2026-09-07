@@ -1,12 +1,12 @@
 {
   "deployedControllerDigest": "sha256:d9f35548cdf26773ddc3c370aa0413a8b162c82e877f82edadcaf220728e54ce",
   "deployedControllerVersion": "v0.2.0",
-  "deployedRepositoryVersion": "v0.2.0",
-  "lastDeployImpact": "controller-image",
-  "latestDeployImpactVersion": "v0.2.0",
-  "latestRepositoryVersion": "v0.2.0",
+  "deployedRepositoryVersion": "v0.2.1",
+  "lastDeployImpact": "runtime-config",
+  "latestDeployImpactVersion": "v0.2.1",
+  "latestRepositoryVersion": "v0.2.1",
   "previousControllerDigest": "",
   "previousControllerVersion": "v0.1.4",
-  "sourceRevision": "4a0e40c435a85ecbac6780eab686bdb74204e677",
-  "updatedAt": "2026-09-07T00:46:00Z"
+  "sourceRevision": "e30773d3c066b33d667b08b3b7d01e2e790c4ad1",
+  "updatedAt": "2026-09-07T16:14:48Z"
 }
