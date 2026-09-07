@@ -449,9 +449,20 @@ jobs:
             --manifest "$manifest" \
             --tag "$RELEASE_TAG" \
             --source-revision "$SOURCE_REVISION"
+          if ! production_mutation_required="$(jq -r '.impact != "repo-only"' "$manifest")"; then
+            echo "Unable to classify the release manifest deployment impact." >&2
+            exit 1
+          fi
+          case "$production_mutation_required" in
+            true|false) ;;
+            *)
+              echo "Release manifest deployment impact must resolve to true or false." >&2
+              exit 1
+              ;;
+          esac
           {
             echo "impact=$(jq -er '.impact' "$manifest")"
-            echo "production_mutation_required=$(jq -r '.impact != \"repo-only\"' "$manifest")"
+            echo "production_mutation_required=${production_mutation_required}"
             echo "controller_tag=$(jq -er '.controller.tag' "$manifest")"
             echo "controller_digest=$(jq -er '.controller.digest' "$manifest")"
           } >> "$GITHUB_OUTPUT"
@@ -630,9 +641,13 @@ jobs:
 
       - name: Verify deployment health
         if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
+        id: deployment_health
         env:
           EXPECTED_DB_PROVIDER: ${{ env.AUTOGRAPHS_CONTROLLER_DB_PROVIDER }}
           EXPECTED_MEDIA_PROVIDER: ${{ env.AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER }}
+          EXPECTED_REPO_VERSION: ${{ steps.request.outputs.release_tag }}
+          EXPECTED_CONTROLLER_VERSION: ${{ steps.manifest.outputs.controller_tag }}
+          EXPECTED_SOURCE_REVISION: ${{ steps.source.outputs.source_revision }}
         run: |
           set -euo pipefail
           check_https_health() {
@@ -653,8 +668,39 @@ jobs:
           jq -e \
             --arg db "$EXPECTED_DB_PROVIDER" \
             --arg media "$EXPECTED_MEDIA_PROVIDER" \
-            '.controllerDbProvider == $db and .controllerMediaStorageProvider == $media' \
+            --arg repo "$EXPECTED_REPO_VERSION" \
+            --arg controller "$EXPECTED_CONTROLLER_VERSION" \
+            --arg source "$EXPECTED_SOURCE_REVISION" \
+            '.controllerDbProvider == $db
+              and .controllerMediaStorageProvider == $media
+              and .release.repoVersion == $repo
+              and .release.controllerVersion == $controller
+              and .release.sourceRevision == $source' \
             <<< "$controller_health" >/dev/null
+          echo "verified=true" >> "$GITHUB_OUTPUT"
+
+      - name: Validate release completion gate
+        if: steps.request.outputs.operation != 'rollback'
+        id: release_gate
+        env:
+          PRODUCTION_MUTATION_REQUIRED: ${{ steps.manifest.outputs.production_mutation_required }}
+          DEPLOYMENT_VERIFIED: ${{ steps.deployment_health.outputs.verified }}
+        run: |
+          set -euo pipefail
+          case "$PRODUCTION_MUTATION_REQUIRED" in
+            true)
+              if [ "$DEPLOYMENT_VERIFIED" != "true" ]; then
+                echo "Release requires production mutation but deployment health was not verified." >&2
+                exit 1
+              fi
+              ;;
+            false) ;;
+            *)
+              echo "Release completion requires an explicit true or false mutation classification." >&2
+              exit 1
+              ;;
+          esac
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Recheck controller digest before rollback
         if: steps.request.outputs.operation == 'rollback'
@@ -691,6 +737,7 @@ jobs:
             --extra-vars autographs_rollback_controller_digest=${{ steps.rollback_manifest.outputs.controller_digest }}
 
       - name: Commit production release status
+        if: steps.request.outputs.operation == 'rollback' || steps.release_gate.outputs.ready == 'true'
         env:
           CONTROLLER_TAG: ${{ steps.manifest.outputs.controller_tag || steps.rollback_manifest.outputs.controller_tag }}
           CONTROLLER_DIGEST: ${{ steps.manifest.outputs.controller_digest || steps.rollback_manifest.outputs.controller_digest }}
@@ -730,7 +777,7 @@ jobs:
           done
 
       - name: Publish GitHub Release
-        if: steps.request.outputs.operation != 'rollback'
+        if: steps.request.outputs.operation != 'rollback' && steps.release_gate.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.request.outputs.release_tag }}

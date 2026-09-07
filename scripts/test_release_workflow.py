@@ -174,6 +174,83 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         for term in case["forbidden_run_terms"]:
             self.assertNotIn(term, run)
 
+    def test_release_completion_fails_closed_before_status_and_publication(self):
+        manifest_run = self.production_steps["Reconcile release manifest"]["run"]
+        mutation_assignment = (
+            'production_mutation_required="$(jq -r \'.impact != "repo-only"\' '
+            '"$manifest")"'
+        )
+        self.assertIn(mutation_assignment, manifest_run)
+        self.assertIn(f"if ! {mutation_assignment}; then", manifest_run)
+        self.assertNotIn('echo "production_mutation_required=$(jq', manifest_run)
+        self.assertIn('case "$production_mutation_required" in', manifest_run)
+        self.assertLess(
+            manifest_run.index(mutation_assignment),
+            manifest_run.index(
+                'echo "production_mutation_required=${production_mutation_required}"'
+            ),
+        )
+
+        health = self.production_steps["Verify deployment health"]
+        self.assertEqual(health["id"], "deployment_health")
+        self.assertEqual(
+            health["env"]["EXPECTED_REPO_VERSION"],
+            "${{ steps.request.outputs.release_tag }}",
+        )
+        self.assertEqual(
+            health["env"]["EXPECTED_CONTROLLER_VERSION"],
+            "${{ steps.manifest.outputs.controller_tag }}",
+        )
+        self.assertEqual(
+            health["env"]["EXPECTED_SOURCE_REVISION"],
+            "${{ steps.source.outputs.source_revision }}",
+        )
+        for release_field in (
+            ".release.repoVersion == $repo",
+            ".release.controllerVersion == $controller",
+            ".release.sourceRevision == $source",
+        ):
+            self.assertIn(release_field, health["run"])
+        self.assertIn('echo "verified=true" >> "$GITHUB_OUTPUT"', health["run"])
+
+        gate_name = "Validate release completion gate"
+        gate = self.production_steps[gate_name]
+        self.assertEqual(gate["id"], "release_gate")
+        self.assertEqual(
+            gate["if"], "steps.request.outputs.operation != 'rollback'"
+        )
+        self.assertEqual(
+            gate["env"]["PRODUCTION_MUTATION_REQUIRED"],
+            "${{ steps.manifest.outputs.production_mutation_required }}",
+        )
+        self.assertEqual(
+            gate["env"]["DEPLOYMENT_VERIFIED"],
+            "${{ steps.deployment_health.outputs.verified }}",
+        )
+        self.assertIn('case "$PRODUCTION_MUTATION_REQUIRED" in', gate["run"])
+        self.assertIn('[ "$DEPLOYMENT_VERIFIED" != "true" ]', gate["run"])
+        self.assertIn('echo "ready=true" >> "$GITHUB_OUTPUT"', gate["run"])
+
+        status = self.production_steps["Commit production release status"]
+        publish = self.production_steps["Publish GitHub Release"]
+        ready = "steps.release_gate.outputs.ready == 'true'"
+        self.assertEqual(
+            status["if"],
+            "steps.request.outputs.operation == 'rollback' || " + ready,
+        )
+        self.assertEqual(
+            publish["if"],
+            "steps.request.outputs.operation != 'rollback' && " + ready,
+        )
+        self.assertLess(
+            self.production_step_names.index(gate_name),
+            self.production_step_names.index("Commit production release status"),
+        )
+        self.assertLess(
+            self.production_step_names.index("Commit production release status"),
+            self.production_step_names.index("Publish GitHub Release"),
+        )
+
     def test_current_main_no_terraform_controller_rollback(self):
         case = self.cases["current_main_no_terraform_controller_rollback"]
         checkout = self.production_steps[case["checkout_step"]]
