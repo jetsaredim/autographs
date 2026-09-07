@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.1](https://github.com/jetsaredim/autographs/compare/v0.2.0...v0.2.1) (2026-09-07)
+
+
+### Bug Fixes
+
+* **release:** fail closed before publication ([1bd2df3](https://github.com/jetsaredim/autographs/commit/1bd2df30fa24d60ce680c92e224114a01c93c40a))
+* **release:** fail closed before publication ([c0c7bce](https://github.com/jetsaredim/autographs/commit/c0c7bce8bf33727e567d4ca784edc4e7c9030f59))
+* **release:** resolve draft manifest assets ([d7ccd31](https://github.com/jetsaredim/autographs/commit/d7ccd31cdc886ef489af23a5548bec16e768c1ce))
+* **release:** resolve draft manifest assets ([dd77090](https://github.com/jetsaredim/autographs/commit/dd77090fbf74c1e022df1b6cc2e6f18c63bddcbc))
+
 ## [0.2.0](https://github.com/jetsaredim/autographs/compare/v0.1.8...v0.2.0) (2026-09-06)
 
 
