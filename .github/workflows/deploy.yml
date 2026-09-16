@@ -482,7 +482,7 @@ jobs:
         if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
         uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "1.16.1"
+          terraform_version: "1.16.3"
           terraform_wrapper: false
 
       - name: Write OCI API private key
