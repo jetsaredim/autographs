@@ -150,9 +150,11 @@
           - security_patching_hosts_with_findings == ['production']
           - security_patching_refresh_metadata_blocks | length == 1
           - security_patching_refresh_metadata.instances.production.advisory_ids == [remaining_advisory_id]
+          - security_patching_refresh_metadata.approval_label == 'approved-production-update'
           - stale_advisory_id not in security_patching_refreshed_report_body
           - remaining_advisory_id in security_patching_refreshed_report_body
           - "'| `production` | 1 | 1 | 0 |' in security_patching_refreshed_report_body"
           - "'Package sample' in security_patching_refreshed_report_body"
           - "'`openssl`, `openssl-libs`' in security_patching_refreshed_report_body"
           - "'+1 more' in security_patching_refreshed_report_body"
+          - "'Apply the label `approved-production-update`' in security_patching_refreshed_report_body"

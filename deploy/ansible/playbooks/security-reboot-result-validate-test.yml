@@ -110,11 +110,13 @@
           - security_patching_hosts_with_findings == ['production']
           - security_reboot_refresh_metadata_blocks | length == 1
           - security_reboot_refresh_metadata.instances.production.advisory_ids == [remaining_advisory_id]
+          - security_reboot_refresh_metadata.approval_label == 'approved-production-reboot'
           - stale_advisory_id not in security_patching_refreshed_report_body
           - remaining_advisory_id in security_patching_refreshed_report_body
           - "'| `production` | 1 | 1 | 0 |' in security_patching_refreshed_report_body"
           - "'Package sample' in security_patching_refreshed_report_body"
           - "'`kernel-uek-core`, `kernel-uek-modules`' in security_patching_refreshed_report_body"
+          - "'Apply the label `approved-production-reboot`' in security_patching_refreshed_report_body"
           - security_patching_reboot_drift_hosts == ['production']
           - "'Approval drift reconciled' in security_patching_reboot_result_comment_body"
           - "'No reboot or installonly cleanup was attempted' in security_patching_reboot_result_comment_body"

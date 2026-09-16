@@ -89,6 +89,9 @@
           'reboot': security_patching_reboot_approval_label
         }.get(security_patching_next_action | trim, '')
       }}
+
+- name: Publish aggregate post-update approval label
+  ansible.builtin.set_fact:
     security_patching_report_approval_label: "{{ security_patching_next_action_label | trim }}"
     security_patching_reconciled_issue_labels: >-
       {{

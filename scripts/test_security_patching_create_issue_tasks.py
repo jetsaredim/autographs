@@ -78,7 +78,43 @@ def task_block(task_name: str) -> str:
     return match.group("body")
 
 
+def task_block_from(path: Path, task_name: str) -> str:
+    text = path.read_text(encoding="utf-8")
+    pattern = re.compile(rf"^- name: {re.escape(task_name)}\n(?P<body>.*?)(?=^- name: |\Z)", re.M | re.S)
+    match = pattern.search(text)
+    if not match:
+        raise AssertionError(f"Task not found in {path}: {task_name}")
+    return match.group("body")
+
+
 class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
+    def test_report_approval_labels_are_published_after_action_label_resolution(self):
+        task_pairs = (
+            (
+                TASKS_PATH,
+                "Resolve scanner issue approval label",
+                "Publish scanner issue approval label",
+            ),
+            (
+                POST_RESULT_TASKS_PATH,
+                "Resolve aggregate post-update approval label",
+                "Publish aggregate post-update approval label",
+            ),
+            (
+                POST_REBOOT_RESULT_TASKS_PATH,
+                "Resolve aggregate post-reboot approval label",
+                "Publish aggregate post-reboot approval label",
+            ),
+        )
+
+        for path, resolve_name, publish_name in task_pairs:
+            resolve_block = task_block_from(path, resolve_name)
+            publish_block = task_block_from(path, publish_name)
+            self.assertIn("security_patching_next_action_label:", resolve_block)
+            self.assertNotIn("security_patching_report_approval_label:", resolve_block)
+            self.assertIn("security_patching_report_approval_label:", publish_block)
+            self.assertIn("security_patching_next_action_label | trim", publish_block)
+
     def test_issue_url_fact_is_available_before_open_issue_url_uses_it(self):
         build_issue_url = task_block("Build GitHub issues URLs")
         build_open_issue_url = task_block("Build open GitHub issues URL")
