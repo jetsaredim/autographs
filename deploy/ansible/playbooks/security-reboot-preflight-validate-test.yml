@@ -8,6 +8,7 @@
       ansible.builtin.add_host:
         name: eligible-host
         groups: security_reboot_preflight_fixture_runtime
+        security_patching_scan_status: complete
         security_patching_reboot_drift_detected: false
         security_patching_reboot_preflight_ready: true
 
@@ -15,6 +16,7 @@
       ansible.builtin.add_host:
         name: late-drift-host
         groups: security_reboot_preflight_fixture_runtime
+        security_patching_scan_status: complete
         security_patching_reboot_drift_detected: true
         security_patching_reboot_preflight_ready: false
 

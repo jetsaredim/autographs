@@ -73,7 +73,7 @@ All three workflows use the `production-security-patching` concurrency group. Sc
 - Writes the deploy SSH key to `$RUNNER_TEMP` and passes it to `oscap-ssh` through `SSH_ADDITIONAL_OPTIONS`.
 - Resolves the runtime host through `.github/actions/resolve-runtime-ip`.
 - Runs `deploy/ansible/playbooks/security-reboot.yml` through the pinned Ansible action.
-- Uses `continue-on-error: true` on the main reboot step so the workflow can still run cleanup after validation, SSH, drift detection, reboot, health, installonly cleanup, or OpenSCAP failures.
+- Uses `continue-on-error: true` on the main reboot step so the workflow can still run cleanup after validation, SSH, reboot, health, installonly cleanup, or OpenSCAP failures. Advisory drift is an expected reconciliation outcome, not a failed workflow.
 - Passes these extra vars to the reboot playbook:
 
   ```text
@@ -84,7 +84,7 @@ All three workflows use the `production-security-patching` concurrency group. Sc
   security_patching_reboot_health_domain=<AUTOGRAPHS_DOMAIN>
   ```
 
-- Runs the same cleanup playbook as failed update requests, but removes `approved-production-reboot` instead of `approved-production-update`. Pre-reboot validation failures write a bounded failure-context file so the cleanup comment can include added/removed advisory drift, disallowed packages, or DNF no-op evidence when available. Advisory drift also writes a refresh payload so cleanup can update the scanner issue body from the current pre-reboot OpenSCAP findings, or close a stale issue when the current scan is clean, before posting the failure comment.
+- Runs the same cleanup playbook as failed update requests, but removes `approved-production-reboot` instead of `approved-production-update`. Operational preflight failures write a bounded failure-context file so the cleanup comment can include disallowed packages or DNF no-op evidence when available. Complete OpenSCAP advisory drift stays on the normal success path: no target reboots, the issue is refreshed or closed from the aggregate current scan, and the result comment lists added and removed advisories.
 - Fails the workflow after cleanup when the main reboot step did not succeed.
 
 `.github/production-patch-approvers.yml`
@@ -126,16 +126,17 @@ All three workflows use the `production-security-patching` concurrency group. Sc
 `deploy/ansible/playbooks/security-reboot.yml`
 
 - First play targets `localhost` and imports `tasks_from: validate_request`, using the reboot approval label.
-- Second play targets `security_patching_target_group`, runs with `become: true`, and uses `serial: 1`.
-- On each runtime host, it imports `tasks_from: scan`, imports `tasks_from: validate_reboot_state`, then imports `tasks_from: reboot_cleanup` only for hosts with approved findings.
-- `tasks/validate_reboot_state.yml` compares the current OpenSCAP advisory IDs to the approved issue metadata before downtime, rejects non-kernel-family findings, and requires DNF to prove there is no advisory-scoped package work left. Hosts with no approved findings record a skipped reboot state.
+- Second play scans and validates every host in `security_patching_target_group` before any target may be mutated.
+- Third play aggregates the preflight on `localhost`. The live inventory host set must exactly match the approved metadata, every non-drifted target must have a complete scan with reboot-eligible packages and a proven DNF no-op, and any advisory drift disables mutation for the whole group.
+- Fourth play runs `tasks_from: reboot_cleanup` serially only when the aggregate mutation gate passes. A complete drifted scan instead preserves every target's authoritative findings and records reboot/installonly cleanup as not attempted.
+- `tasks/validate_reboot_state.yml` compares current OpenSCAP advisory IDs to approved issue metadata, classifies kernel-family eligibility, and records the DNF no-op proof before downtime.
 - `tasks/reboot_cleanup.yml` records the running kernel, reboots, waits for SSH, records the new running kernel, waits for Autographs quadlet services, verifies local static Caddy health, verifies Caddy-fronted `/admin/api/health`, and runs:
 
   ```bash
   dnf -y remove --oldinstallonly --setopt=installonly_limit=2
   ```
 
-- Third play re-scans the runtime host with OpenSCAP and preserves post-reboot scan facts.
+- The next play re-scans hosts after an actual reboot. Reconciliation-only requests retain the already-complete preflight scan instead.
 - Final play returns to `localhost` and imports `tasks_from: post_reboot_result`.
 - If an earlier play fails, Ansible will not reach `post_reboot_result`; the GitHub Actions cleanup step covers that failure path.
 
@@ -214,7 +215,7 @@ The apply workflow validates that:
 
 If the advisory set has drifted, the workflow applies no packages. It treats the fresh OpenSCAP scan as authoritative, refreshes or closes the same issue, consumes the stale approval through the desired label set, posts the classified next action, and completes successfully when reconciliation succeeds.
 
-The reboot workflow uses the same approver allowlist and scanner metadata validation but a separate label so package remediation approval never implies downtime. It also performs a fresh pre-reboot OpenSCAP drift check, rejects non-kernel-family findings, and requires a DNF no-op check before taking downtime. The reboot path is intended for cases where DNF has already installed all applicable updates, but OpenSCAP still reports installed stale installonly kernel packages or the system must boot into a newly installed kernel before old kernel cleanup can finish.
+The reboot workflow uses the same approver allowlist and scanner metadata validation but a separate label so package remediation approval never implies downtime. It performs a fresh all-host pre-reboot OpenSCAP check, requires the live target set to match the approved instance set, rejects non-kernel-family findings, and requires a DNF no-op check before taking downtime. If the advisory set drifted, the workflow reboots no hosts; it refreshes or closes the issue from the aggregate current scan and completes successfully. The reboot path is intended for cases where DNF has already installed all applicable updates, but OpenSCAP still reports installed stale installonly kernel packages or the system must boot into a newly installed kernel before old kernel cleanup can finish.
 
 ## Scan flow
 
@@ -488,7 +489,7 @@ When the reboot playbook reaches `tasks/post_reboot_result.yml`, it follows the 
 
 ## Failure cleanup behavior
 
-If validation, SSH, OpenSCAP, DNF, reboot, health checks, installonly cleanup, or another operational step fails, Ansible may not reach `post_result` or `post_reboot_result`. The GitHub Actions workflows handle that with an `always()` cleanup step. Expected update advisory drift no longer uses this failure path. Reboot validation failures persist bounded operator-facing context; a reboot-drift refresh payload also carries the authoritative `next_action` and approval label, so cleanup does not reset reboot-only findings to the update path. Clean reboot drift closes the stale issue. Oversized issue refresh bodies or malformed refresh payloads are reported without stopping approval-label removal.
+If validation, SSH, OpenSCAP, DNF, reboot, health checks, installonly cleanup, or another operational step fails, Ansible may not reach `post_result` or `post_reboot_result`. The GitHub Actions workflows handle that with an `always()` cleanup step. Expected update or reboot advisory drift does not use this failure path. Reboot operational failures persist bounded operator-facing context. Legacy or malformed refresh payloads remain bounded and reported without stopping approval-label removal.
 
 `tasks/cleanup_failed_request.yml`:
 

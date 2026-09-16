@@ -21,8 +21,10 @@
       {{ security_patching_reboot_blocked_hosts + [item] }}
   loop: "{{ security_patching_target_hosts }}"
   when:
-    - not (hostvars[item].security_patching_reboot_drift_detected | default(false) | bool)
     - not (hostvars[item].security_patching_reboot_preflight_ready | default(false) | bool)
+    - >-
+      not (hostvars[item].security_patching_reboot_drift_detected | default(false) | bool)
+      or hostvars[item].security_patching_scan_status | default('missing') != 'complete'
 
 - name: Record aggregate reboot mutation decision
   ansible.builtin.set_fact:

@@ -31,69 +31,34 @@
         | list
       }}
 
-- name: Write reboot advisory drift failure context
-  ansible.builtin.copy:
-    dest: "{{ security_patching_failure_context_path }}"
-    mode: "0600"
-    content: |
-      Validation failed before reboot: current OpenSCAP advisories drifted from the approved issue metadata.
-
-      - Host: `{{ inventory_hostname }}`
-      - Approved advisories: {{ security_patching_reboot_approved_advisory_ids | length }}
-      - Current advisories: {{ security_patching_reboot_current_advisory_ids | length }}
-
-      Added advisories:
-      {% for advisory_id in security_patching_reboot_added_advisory_ids %}
-      - `{{ advisory_id }}`
-      {% else %}
-      - None
-      {% endfor %}
-
-      Removed advisories:
-      {% for advisory_id in security_patching_reboot_removed_advisory_ids %}
-      - `{{ advisory_id }}`
-      {% else %}
-      - None
-      {% endfor %}
-
-      Re-run the scanner to refresh the issue before approving reboot cleanup again.
-  delegate_to: localhost
-  become: false
-  when:
-    - security_patching_failure_context_path | trim | length > 0
-    - security_patching_reboot_current_advisory_ids != security_patching_reboot_approved_advisory_ids
-
-- name: Write reboot advisory drift issue refresh payload
-  ansible.builtin.copy:
-    dest: "{{ security_patching_failure_refresh_path }}"
-    mode: "0600"
-    content: >-
-      {{
-        {
-          'reason': 'reboot_advisory_drift',
-          'host': inventory_hostname,
-          'scan_status': security_patching_scan_status | default('complete'),
-          'advisory_ids': security_patching_reboot_current_advisory_ids,
-          'advisories': security_patching_update_advisories | default([]),
-          'entries': security_patching_update_entries | default([]),
-          'ksplice_aware_advisory_ids': security_patching_update_ksplice_aware_advisory_ids | default([]),
-          'next_action': security_patching_next_action | default('investigate') | trim,
-          'approval_label': security_patching_next_action_label | default('') | trim,
-          'added_advisory_ids': security_patching_reboot_added_advisory_ids,
-          'removed_advisory_ids': security_patching_reboot_removed_advisory_ids
-        } | to_nice_json
-      }}
-  delegate_to: localhost
-  become: false
-  when:
-    - security_patching_failure_refresh_path | trim | length > 0
-    - security_patching_reboot_current_advisory_ids != security_patching_reboot_approved_advisory_ids
+- name: Preserve authoritative preflight state before any reboot mutation
+  ansible.builtin.set_fact:
+    security_patching_reboot_completed: false
+    security_patching_pre_reboot_kernel_release: ""
+    security_patching_post_reboot_kernel_release: ""
+    security_patching_installonly_cleanup_changed: false
+    security_patching_installonly_cleanup_stdout: ""
+    security_patching_installonly_cleanup_stderr: ""
+    security_patching_post_reboot_entries: "{{ security_patching_update_entries | default([]) }}"
+    security_patching_post_reboot_advisories: "{{ security_patching_update_advisories | default([]) }}"
+    security_patching_post_reboot_advisory_ids: "{{ security_patching_reboot_current_advisory_ids }}"
+    security_patching_post_reboot_ksplice_aware_advisory_ids: >-
+      {{ security_patching_update_ksplice_aware_advisory_ids | default([]) }}
+    security_patching_post_reboot_scan_status: "{{ security_patching_scan_status | default('missing') }}"
+    security_patching_post_reboot_next_action: >-
+      {{ security_patching_next_action | default('investigate') | trim }}
+    security_patching_post_reboot_next_action_label: >-
+      {{ security_patching_next_action_label | default('') | trim }}
+    security_patching_post_reboot_next_action_reason: >-
+      {{ security_patching_next_action_reason | default('') | trim }}
 
 - name: Initialize reboot finding package eligibility state
   ansible.builtin.set_fact:
     security_patching_reboot_entries_without_packages: []
     security_patching_reboot_disallowed_packages: []
-  when: security_patching_reboot_approved_advisory_ids | length > 0
+  when:
+    - security_patching_reboot_approved_advisory_ids | length > 0
+    - not (security_patching_reboot_drift_detected | bool)
 
 - name: Collect reboot findings without package metadata
   ansible.builtin.set_fact:
@@ -109,6 +74,7 @@
   loop: "{{ security_patching_update_entries | default([]) }}"
   when: >-
     security_patching_reboot_approved_advisory_ids | length > 0
+    and not (security_patching_reboot_drift_detected | bool)
     and (item.packages is not defined or item.packages | length == 0)
 
 - name: Collect packages outside reboot-eligible kernel families
@@ -118,6 +84,7 @@
   loop: "{{ security_patching_update_entries | default([]) | subelements('packages', skip_missing=True) }}"
   when: >-
     security_patching_reboot_approved_advisory_ids | length > 0
+    and not (security_patching_reboot_drift_detected | bool)
     and item.1 is not match(security_patching_reboot_allowed_package_regex)
 
 - name: Write reboot package eligibility failure context
@@ -150,6 +117,7 @@
   when:
     - security_patching_failure_context_path | trim | length > 0
     - security_patching_reboot_approved_advisory_ids | length > 0
+    - not (security_patching_reboot_drift_detected | bool)
     - >-
       security_patching_reboot_entries_without_packages | length > 0
       or security_patching_reboot_disallowed_packages | length > 0
@@ -167,6 +135,7 @@
   failed_when: false
   when:
     - security_patching_reboot_approved_advisory_ids | length > 0
+    - not (security_patching_reboot_drift_detected | bool)
     - security_patching_reboot_validate_dnf_noop | bool
 
 - name: Build bounded reboot DNF no-op failure evidence
@@ -193,6 +162,7 @@
       {% endif %}
   when:
     - security_patching_reboot_dnf_noop_check is defined
+    - not (security_patching_reboot_drift_detected | bool)
     - security_patching_reboot_validate_dnf_noop | bool
 
 - name: Write reboot DNF no-op failure context
@@ -224,6 +194,7 @@
   when:
     - security_patching_failure_context_path | trim | length > 0
     - security_patching_reboot_approved_advisory_ids | length > 0
+    - not (security_patching_reboot_drift_detected | bool)
     - security_patching_reboot_validate_dnf_noop | bool
     - security_patching_reboot_dnf_noop_check is defined
     - >-
@@ -257,13 +228,3 @@
         and security_patching_reboot_disallowed_packages | default([]) | length == 0
         and security_patching_reboot_dnf_noop_proven | bool
       }}
-
-- name: Record skipped reboot state when host has no approved findings
-  ansible.builtin.set_fact:
-    security_patching_reboot_completed: false
-    security_patching_pre_reboot_kernel_release: ""
-    security_patching_post_reboot_kernel_release: ""
-    security_patching_installonly_cleanup_changed: false
-    security_patching_installonly_cleanup_stdout: ""
-    security_patching_installonly_cleanup_stderr: ""
-  when: security_patching_reboot_approved_advisory_ids | length == 0

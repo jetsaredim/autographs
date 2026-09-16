@@ -1,4 +1,4 @@
-- name: Validate security reboot result refreshes remaining findings
+- name: Validate reboot advisory drift successfully refreshes remaining findings
   hosts: localhost
   gather_facts: false
   vars:
@@ -22,14 +22,19 @@
     stale_advisory_id: ELSA-2026-11111
     remaining_advisory_id: ELSA-2026-22222
   tasks:
-    - name: Add reboot fixture host with remaining findings
+    - name: Add reboot drift fixture host with remaining findings
       ansible.builtin.add_host:
         name: production
         groups: security_reboot_result_fixture_runtime
-        security_patching_reboot_completed: true
-        security_patching_pre_reboot_kernel_release: 6.12.0-202.76.4.1.el10uek.x86_64
-        security_patching_post_reboot_kernel_release: 6.12.0-205.92.4.2.el10uek.x86_64
-        security_patching_installonly_cleanup_changed: true
+        security_patching_reboot_completed: false
+        security_patching_pre_reboot_kernel_release: ""
+        security_patching_post_reboot_kernel_release: ""
+        security_patching_installonly_cleanup_changed: false
+        security_patching_reboot_drift_detected: true
+        security_patching_reboot_approved_advisory_ids:
+          - ELSA-2026-11111
+        security_patching_reboot_current_advisory_ids:
+          - ELSA-2026-22222
         security_patching_post_reboot_scan_status: complete
         security_patching_post_reboot_advisory_ids:
           - ELSA-2026-22222
@@ -110,8 +115,13 @@
           - "'| `production` | 1 | 1 | 0 |' in security_patching_refreshed_report_body"
           - "'Package sample' in security_patching_refreshed_report_body"
           - "'`kernel-uek-core`, `kernel-uek-modules`' in security_patching_refreshed_report_body"
+          - security_patching_reboot_drift_hosts == ['production']
+          - "'Approval drift reconciled' in security_patching_reboot_result_comment_body"
+          - "'No reboot or installonly cleanup was attempted' in security_patching_reboot_result_comment_body"
+          - "'`ELSA-2026-22222`' in security_patching_reboot_result_comment_body"
+          - "'`ELSA-2026-11111`' in security_patching_reboot_result_comment_body"
 
-- name: Validate clean security reboot result comment contract
+- name: Validate clean reboot advisory drift closes without rebooting
   hosts: localhost
   gather_facts: false
   vars:
@@ -134,10 +144,14 @@
       ansible.builtin.add_host:
         name: clean-production
         groups: security_reboot_clean_fixture_runtime
-        security_patching_reboot_completed: true
-        security_patching_pre_reboot_kernel_release: 6.12.0-202.76.4.1.el10uek.x86_64
-        security_patching_post_reboot_kernel_release: 6.12.0-205.92.4.2.el10uek.x86_64
-        security_patching_installonly_cleanup_changed: true
+        security_patching_reboot_completed: false
+        security_patching_pre_reboot_kernel_release: ""
+        security_patching_post_reboot_kernel_release: ""
+        security_patching_installonly_cleanup_changed: false
+        security_patching_reboot_drift_detected: true
+        security_patching_reboot_approved_advisory_ids:
+          - ELSA-2026-33333
+        security_patching_reboot_current_advisory_ids: []
         security_patching_post_reboot_scan_status: complete
         security_patching_post_reboot_advisory_ids: []
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
@@ -162,6 +176,9 @@
         that:
           - security_reboot_clean_comment_path_reached
           - security_patching_remaining_hosts == []
-          - "'Post-reboot OpenSCAP scan is clean' in security_patching_reboot_result_comment_body"
+          - security_patching_reboot_drift_hosts == ['clean-production']
+          - "'Approval drift reconciled' in security_patching_reboot_result_comment_body"
+          - "'No reboot or installonly cleanup was attempted' in security_patching_reboot_result_comment_body"
+          - "'The current OpenSCAP scan is clean' in security_patching_reboot_result_comment_body"
           - "'This issue will be closed automatically' in security_patching_reboot_result_comment_body"
           - "'clean-production' in security_patching_reboot_result_comment_body"

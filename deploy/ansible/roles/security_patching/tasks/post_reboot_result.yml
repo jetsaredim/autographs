@@ -28,12 +28,19 @@
 - name: Initialize remaining post-reboot finding host list
   ansible.builtin.set_fact:
     security_patching_remaining_hosts: []
+    security_patching_reboot_drift_hosts: []
 
 - name: Collect hosts with remaining post-reboot security findings
   ansible.builtin.set_fact:
     security_patching_remaining_hosts: "{{ security_patching_remaining_hosts + [item] }}"
   loop: "{{ security_patching_target_hosts }}"
   when: (hostvars[item].security_patching_post_reboot_entries | default([]) | length) > 0
+
+- name: Collect hosts whose approved reboot advisory set drifted
+  ansible.builtin.set_fact:
+    security_patching_reboot_drift_hosts: "{{ security_patching_reboot_drift_hosts + [item] }}"
+  loop: "{{ security_patching_target_hosts }}"
+  when: hostvars[item].security_patching_reboot_drift_detected | default(false) | bool
 
 - name: Initialize remaining post-reboot action list
   ansible.builtin.set_fact:
@@ -120,7 +127,13 @@
     security_patching_hosts_with_findings: "{{ security_patching_remaining_hosts }}"
     security_patching_enrichment_status: complete
     security_patching_enrichment_message: >-
+      {% if security_patching_reboot_drift_hosts | length > 0 %}
+      Oracle Linux OpenSCAP OVAL evaluation completed during reboot approval reconciliation.
+      No reboot or installonly cleanup was attempted because the live advisory set differed
+      from the approved issue metadata.
+      {% else %}
       Oracle Linux OpenSCAP OVAL evaluation completed after approved reboot and installonly cleanup.
+      {% endif %}
     security_patching_enrichment_by_host: {}
 
 - name: Index remaining post-reboot OpenSCAP findings by host
