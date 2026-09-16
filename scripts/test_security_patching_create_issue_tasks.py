@@ -19,6 +19,7 @@ REPORT_TEMPLATE_PATH = TASKS_PATH.parents[1] / "templates" / "security-report.md
 VALIDATE_REQUEST_TASKS_PATH = TASKS_PATH.with_name("validate_request.yml")
 EXTRACT_METADATA_TASKS_PATH = TASKS_PATH.with_name("extract_issue_metadata.yml")
 PATCH_TASKS_PATH = TASKS_PATH.with_name("patch.yml")
+CLASSIFY_FINDINGS_TASKS_PATH = TASKS_PATH.with_name("classify_findings.yml")
 POST_RESULT_TASKS_PATH = TASKS_PATH.with_name("post_result.yml")
 REBOOT_CLEANUP_TASKS_PATH = TASKS_PATH.with_name("reboot_cleanup.yml")
 FAILED_CLEANUP_TASKS_PATH = TASKS_PATH.with_name("cleanup_failed_request.yml")
@@ -49,7 +50,17 @@ REBOOT_STATE_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
 REBOOT_RESULT_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
     "security-reboot-result-validate-test.yml"
 )
-REBOOT_WORKFLOW_PATH = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "reboot-security-runtime.yml"
+CLASSIFICATION_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
+    "security-finding-classification-validate-test.yml"
+)
+UPDATE_RECONCILIATION_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
+    "security-update-reconciliation-validate-test.yml"
+)
+WORKFLOWS_PATH = Path(__file__).resolve().parents[1] / ".github" / "workflows"
+SCAN_WORKFLOW_PATH = WORKFLOWS_PATH / "weekly-security-scan.yml"
+UPDATE_WORKFLOW_PATH = WORKFLOWS_PATH / "apply-security-updates.yml"
+REBOOT_WORKFLOW_PATH = WORKFLOWS_PATH / "reboot-security-runtime.yml"
+PATCH_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name("security-patch.yml")
 
 
 def task_block(task_name: str) -> str:
@@ -83,7 +94,8 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
             "report_approval_label = security_patching_report_approval_label | default(security_patching_approval_label)",
             template,
         )
-        self.assertIn('approval_label: "{{ report_approval_label }}"', template)
+        self.assertIn('approval_label: "{{ report_approval_label | trim }}"', template)
+        self.assertIn('next_action: "{{ report_next_action }}"', template)
         self.assertIn(
             "shown_cves = advisory_cves[:security_patching_report_max_cves_per_row | int]",
             template,
@@ -107,12 +119,16 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         read_report = task_block("Read rendered production security update issue body")
         update_issue = task_block("Update existing production security update issue")
         create_issue = task_block("Create production security update issue")
+        close_issue = task_block("Close stale production security update issue after clean scan")
 
         self.assertIn("security_patching_incomplete_scan_hosts | length == 0", scan_guard)
         self.assertIn("security_patching_report_max_body_bytes", body_check)
         self.assertIn("security_patching_report_body:", read_report)
         self.assertIn("body: \"{{ security_patching_report_body }}\"", update_issue)
         self.assertIn("body: \"{{ security_patching_report_body }}\"", create_issue)
+        self.assertIn("method: PATCH", close_issue)
+        self.assertIn("state: closed", close_issue)
+        self.assertIn("patch-scan-open", close_issue)
 
     def test_result_publication_requires_complete_post_update_scans(self):
         post_result = POST_RESULT_TASKS_PATH.read_text(encoding="utf-8")
@@ -121,6 +137,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security_patching_incomplete_post_update_hosts | length == 0", post_result)
         self.assertIn("security_patching_post_update_entries is not defined", post_result)
         self.assertIn("security_patching_post_update_advisory_ids is not defined", post_result)
+        self.assertIn("security_patching_post_update_next_action is not defined", post_result)
         self.assertIn("security_patching_post_update_scan_status | default('missing') != 'complete'", post_result)
 
     def test_partial_apply_refreshes_issue_with_remaining_findings(self):
@@ -135,12 +152,19 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("Render refreshed production security update issue body", post_result)
         self.assertIn("src: security-report.md.j2", post_result)
         self.assertIn("Require refreshed GitHub issue body within safety limit", post_result)
-        self.assertIn("Refresh production security update issue with remaining findings", post_result)
+        self.assertIn("Reconcile production security update issue with authoritative findings", post_result)
         self.assertIn("url: \"{{ security_patching_issue_url }}\"", post_result)
-        self.assertIn("body: \"{{ security_patching_refreshed_report_body }}\"", post_result)
-        self.assertIn("when: security_patching_remaining_hosts | length > 0", post_result)
+        self.assertIn("'body': security_patching_refreshed_report_body", post_result)
+        self.assertIn('body: "{{ security_patching_reconciled_issue_body }}"', post_result)
+        self.assertIn("security_patching_next_action_label", post_result)
+        self.assertIn("security_patching_reconciled_issue_body", post_result)
+        self.assertIn("else {'state_reason': 'completed'}", post_result)
         self.assertIn("This issue has been refreshed with the remaining findings", result_template)
-        self.assertIn("Re-apply the `{{ security_patching_approval_label }}` label", result_template)
+        self.assertIn("Approval drift reconciled", result_template)
+        self.assertIn("No package changes were attempted", result_template)
+        self.assertIn("Advisory-scoped DNF still reports package work", result_template)
+        self.assertIn("remaining packages are reboot/installonly candidates", result_template)
+        self.assertIn("Do not apply an approval label", result_template)
 
     def test_apply_request_metadata_extraction_uses_quoted_regex_result(self):
         validate_request = VALIDATE_REQUEST_TASKS_PATH.read_text(encoding="utf-8")
@@ -161,6 +185,8 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         post_result_refresh_test = POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         reboot_state_test = REBOOT_STATE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         reboot_result_test = REBOOT_RESULT_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        classification_test = CLASSIFICATION_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        update_reconciliation_test = UPDATE_RECONCILIATION_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         ci = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml").read_text(
             encoding="utf-8"
         )
@@ -186,12 +212,25 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("tasks_from: post_reboot_result", reboot_result_test)
         self.assertIn("security_patching_reboot_result_comment_body", reboot_result_test)
         self.assertIn("security-reboot-result-validate-test.yml", ci)
+        self.assertIn("tasks_from: classify_findings", classification_test)
+        self.assertIn("DNF-applicable", classification_test)
+        self.assertIn("reboot-only", classification_test)
+        self.assertIn("mixed unclassifiable", classification_test)
+        self.assertIn("security-finding-classification-validate-test.yml", ci)
+        self.assertIn("tasks_from: patch", update_reconciliation_test)
+        self.assertIn("security_patching_reconciliation_only", update_reconciliation_test)
+        self.assertIn("security-update-reconciliation-validate-test.yml", ci)
 
     def test_apply_path_reports_ksplice_and_uses_advisory_scoped_dnf(self):
         patch_tasks = PATCH_TASKS_PATH.read_text(encoding="utf-8")
+        classify_tasks = CLASSIFY_FINDINGS_TASKS_PATH.read_text(encoding="utf-8")
+        patch_playbook = PATCH_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        update_reconciliation_test = UPDATE_RECONCILIATION_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
 
         self.assertIn("security_patching_approved_advisory_ids", patch_tasks)
-        self.assertIn("security_patching_current_advisory_ids == security_patching_approved_advisory_ids", patch_tasks)
+        self.assertIn("security_patching_update_drift_detected", patch_tasks)
+        self.assertIn("security_patching_reconciliation_only", patch_tasks)
+        self.assertIn("Preserve authoritative scan state when no package mutation is allowed", patch_tasks)
         self.assertIn("ksplice", patch_tasks)
         self.assertIn("security_patching_ksplice_apply_mode: report_only", patch_tasks)
         self.assertIn("security_patching_ksplice_available", patch_tasks)
@@ -201,6 +240,17 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("--security", patch_tasks)
         self.assertIn("--advisories={{ security_patching_remaining_approved_advisory_ids | join(',') }}", patch_tasks)
         self.assertNotIn("security_patching_approved_package_specs", patch_tasks)
+        self.assertIn("--assumeno", classify_tasks)
+        self.assertIn("security_patching_classification_dnf_work", classify_tasks)
+        self.assertIn("security_patching_reboot_approval_label", classify_tasks)
+        self.assertIn("Preflight approved production security updates", patch_playbook)
+        self.assertIn("Require every target ready before package mutation", patch_playbook)
+        self.assertIn("tasks_from: classify_update_request", patch_playbook)
+        self.assertIn("one drifted host disables all package mutation", update_reconciliation_test.lower())
+        self.assertLess(
+            patch_playbook.index("Scan current host security update state"),
+            patch_playbook.index("Apply approved host security updates"),
+        )
 
     def test_reboot_workflow_uses_separate_label_and_installonly_cleanup(self):
         defaults = DEFAULTS_PATH.read_text(encoding="utf-8")
@@ -277,8 +327,9 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("--oldinstallonly", reboot_tasks)
         self.assertIn("--setopt=installonly_limit={{ security_patching_installonly_limit | int }}", reboot_tasks)
         self.assertIn("Verify Caddy-fronted admin health after reboot", reboot_tasks)
-        self.assertIn("Refresh production security update issue with remaining post-reboot findings", post_reboot_tasks)
-        self.assertIn("Close issue when no post-reboot security findings remain", post_reboot_tasks)
+        self.assertIn("Reconcile production security update issue with authoritative post-reboot findings", post_reboot_tasks)
+        self.assertIn("security_patching_reconciled_issue_body", post_reboot_tasks)
+        self.assertIn("else {'state_reason': 'completed'}", post_reboot_tasks)
         self.assertIn("security_patching_reboot_result_comment_body", post_reboot_tasks)
         self.assertIn("Kernel before", result_template)
         self.assertIn("Installonly cleanup", result_template)
@@ -292,6 +343,31 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security_patching_oscap_ssh_target", defaults)
         self.assertIn('"{{ security_patching_oscap_ssh_target }}"', scan_tasks)
         self.assertNotIn("default('opc') }}@", scan_tasks)
+
+    def test_all_security_issue_writers_share_one_concurrency_group(self):
+        workflows = [
+            SCAN_WORKFLOW_PATH.read_text(encoding="utf-8"),
+            UPDATE_WORKFLOW_PATH.read_text(encoding="utf-8"),
+            REBOOT_WORKFLOW_PATH.read_text(encoding="utf-8"),
+        ]
+
+        for workflow in workflows:
+            self.assertIn("group: production-security-patching", workflow)
+        self.assertNotIn("group: production-security-scan", workflows[0])
+        self.assertNotIn("group: production-security-updates", "\n".join(workflows))
+
+    def test_success_paths_reconcile_issue_state_with_idempotent_patch(self):
+        create_issue = TASKS_PATH.read_text(encoding="utf-8")
+        post_result = POST_RESULT_TASKS_PATH.read_text(encoding="utf-8")
+        post_reboot = POST_REBOOT_RESULT_TASKS_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("Close stale production security update issue after clean scan", create_issue)
+        self.assertIn("method: PATCH", task_block("Update existing production security update issue"))
+        self.assertIn("method: PATCH", task_block("Close stale production security update issue after clean scan"))
+        self.assertIn("method: PATCH", post_result)
+        self.assertIn("method: PATCH", post_reboot)
+        self.assertNotIn("method: DELETE", post_result)
+        self.assertNotIn("method: DELETE", post_reboot)
 
 
 if __name__ == "__main__":

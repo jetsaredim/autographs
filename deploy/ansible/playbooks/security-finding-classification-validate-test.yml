@@ -1,0 +1,110 @@
+- name: Validate authoritative security finding next actions
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Record DNF-applicable finding fixture
+      ansible.builtin.set_fact:
+        security_patching_scan_status: complete
+        security_patching_update_advisory_ids:
+          - ELSA-2026-11111
+        security_patching_update_entries:
+          - advisory_id: ELSA-2026-11111
+            packages:
+              - openssl
+        security_patching_classification_dnf_probe_override:
+          rc: 1
+          stdout: |-
+            Upgrading:
+              openssl x86_64 3.5.1-1
+            Transaction Summary
+          stderr: ""
+
+    - name: Classify DNF-applicable finding fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_findings
+
+    - name: Assert DNF-applicable findings request normal update approval
+      ansible.builtin.assert:
+        that:
+          - security_patching_next_action | trim == 'update'
+          - security_patching_next_action_label | trim == 'approved-production-update'
+          - security_patching_classification_dnf_work | bool
+          - not (security_patching_classification_dnf_noop | bool)
+
+    - name: Record reboot-only finding fixture
+      ansible.builtin.set_fact:
+        security_patching_scan_status: complete
+        security_patching_update_advisory_ids:
+          - ELSA-2026-22222
+        security_patching_update_entries:
+          - advisory_id: ELSA-2026-22222
+            packages:
+              - kernel-uek-core
+              - kernel-uek-modules
+              - perf
+        security_patching_classification_dnf_probe_override:
+          rc: 0
+          stdout: Nothing to do.
+          stderr: ""
+
+    - name: Classify reboot-only finding fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_findings
+
+    - name: Assert reboot-only findings request separate reboot approval
+      ansible.builtin.assert:
+        that:
+          - security_patching_next_action | trim == 'reboot'
+          - security_patching_next_action_label | trim == 'approved-production-reboot'
+          - security_patching_classification_dnf_noop | bool
+          - security_patching_classification_disallowed_packages == []
+
+    - name: Record mixed unclassifiable finding fixture
+      ansible.builtin.set_fact:
+        security_patching_scan_status: complete
+        security_patching_update_advisory_ids:
+          - ELSA-2026-33333
+        security_patching_update_entries:
+          - advisory_id: ELSA-2026-33333
+            packages:
+              - kernel-uek-core
+              - openssl
+        security_patching_classification_dnf_probe_override:
+          rc: 0
+          stdout: Nothing to do.
+          stderr: ""
+
+    - name: Classify mixed unclassifiable finding fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_findings
+
+    - name: Assert mixed no-op findings require investigation
+      ansible.builtin.assert:
+        that:
+          - security_patching_next_action | trim == 'investigate'
+          - security_patching_next_action_label | trim | length == 0
+          - security_patching_classification_disallowed_packages == ['openssl']
+
+    - name: Record clean finding fixture
+      ansible.builtin.set_fact:
+        security_patching_scan_status: complete
+        security_patching_update_advisory_ids: []
+        security_patching_update_entries: []
+        security_patching_classification_dnf_probe_override:
+          rc: 0
+          stdout: ""
+          stderr: ""
+
+    - name: Classify clean finding fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_findings
+
+    - name: Assert clean findings close the scanner issue
+      ansible.builtin.assert:
+        that:
+          - security_patching_next_action | trim == 'close'
+          - security_patching_next_action_label | trim | length == 0

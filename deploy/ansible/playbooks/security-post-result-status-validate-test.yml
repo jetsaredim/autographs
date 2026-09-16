@@ -13,6 +13,7 @@
         security_patching_post_update_scan_status: complete
         security_patching_post_update_advisory_ids: []
         security_patching_post_update_entries: []
+        security_patching_post_update_next_action: close
         security_patching_ksplice_available: false
         security_patching_ksplice_apply_mode: report_only
         security_patching_dnf_changed: false
@@ -25,6 +26,7 @@
         security_patching_post_update_scan_status: degraded
         security_patching_post_update_advisory_ids: []
         security_patching_post_update_entries: []
+        security_patching_post_update_next_action: investigate
         security_patching_ksplice_available: false
         security_patching_ksplice_apply_mode: report_only
         security_patching_dnf_changed: false

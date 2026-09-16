@@ -166,7 +166,12 @@
 
 - name: Prepare failed request issue refresh context
   ansible.builtin.set_fact:
-    security_patching_report_approval_label: "{{ security_patching_failure_refresh_approval_label }}"
+    security_patching_next_action: >-
+      {{ security_patching_failed_request_refresh_payload.next_action | default('investigate') | trim }}
+    security_patching_next_action_label: >-
+      {{ security_patching_failed_request_refresh_payload.approval_label | default('') | trim }}
+    security_patching_report_approval_label: >-
+      {{ security_patching_failed_request_refresh_payload.approval_label | default('') | trim }}
     security_patching_hosts_with_findings:
       - "{{ security_patching_failed_request_refresh_payload.host }}"
     security_patching_enrichment_status: complete
@@ -274,7 +279,8 @@
       scan_id: "{{ security_patching_scan_id }}"
       created_at: "{{ security_patching_scan_timestamp }}"
       target_group: "{{ security_patching_target_group }}"
-      approval_label: "{{ security_patching_failure_refresh_approval_label }}"
+      approval_label: ""
+      next_action: "close"
       instances: {}
       -->
       # Production security update report

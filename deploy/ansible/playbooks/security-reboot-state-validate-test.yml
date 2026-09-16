@@ -84,6 +84,8 @@
         security_patching_failure_context_path: "{{ security_reboot_state_drift_context_path }}"
         security_patching_failure_refresh_path: "{{ security_reboot_state_drift_refresh_path }}"
         security_patching_scan_status: complete
+        security_patching_next_action: reboot
+        security_patching_next_action_label: approved-production-reboot
         security_patching_update_advisories:
           - advisory_id: ELSA-2026-44444
             severity: IMPORTANT
@@ -136,6 +138,8 @@
           - security_reboot_state_drift_refresh_payload.advisory_ids == ['ELSA-2026-44444', 'ELSA-2026-55555']
           - security_reboot_state_drift_refresh_payload.added_advisory_ids == ['ELSA-2026-44444']
           - security_reboot_state_drift_refresh_payload.removed_advisory_ids == ['ELSA-2026-33333']
+          - security_reboot_state_drift_refresh_payload.next_action == 'reboot'
+          - security_reboot_state_drift_refresh_payload.approval_label == 'approved-production-reboot'
 
 - name: Validate failed reboot cleanup refreshes drifted scanner issue
   hosts: localhost
@@ -202,6 +206,8 @@
                 }
               ],
               'ksplice_aware_advisory_ids': [],
+              'next_action': 'reboot',
+              'approval_label': 'approved-production-reboot',
               'added_advisory_ids': ['ELSA-2026-77777'],
               'removed_advisory_ids': []
             } | to_nice_json
@@ -224,8 +230,8 @@
           - security_reboot_cleanup_refresh_failed_at_github
           - security_patching_refreshed_report_body is defined
           - "'ELSA-2026-77777' in security_patching_refreshed_report_body"
-          - "'approved-production-update' in security_patching_refreshed_report_body"
-          - "'approved-production-reboot' not in security_patching_refreshed_report_body"
+          - "'approved-production-reboot' in security_patching_refreshed_report_body"
+          - "'approved-production-update' not in security_patching_refreshed_report_body"
           - "'security-reboot-cleanup-refresh-test' in security_patching_refreshed_report_body"
 
 - name: Validate failed reboot cleanup reports oversized scanner issue refresh
@@ -291,6 +297,8 @@
                 }
               ],
               'ksplice_aware_advisory_ids': [],
+              'next_action': 'reboot',
+              'approval_label': 'approved-production-reboot',
               'added_advisory_ids': ['ELSA-2026-88888'],
               'removed_advisory_ids': []
             } | to_nice_json
@@ -365,6 +373,8 @@
               'advisories': [],
               'entries': [],
               'ksplice_aware_advisory_ids': [],
+              'next_action': 'close',
+              'approval_label': '',
               'added_advisory_ids': [],
               'removed_advisory_ids': ['ELSA-2026-99999']
             } | to_nice_json

@@ -297,6 +297,42 @@ class OracleLinuxOscapResultsTests(unittest.TestCase):
             ],
         )
 
+    def test_parse_preserves_release_suffixed_oracle_errata_reference(self):
+        oval_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<oval_definitions xmlns="http://oval.mitre.org/XMLSchema/oval-definitions-5">
+  <definitions>
+    <definition id="oval:com.oracle.elsa:def:2026123450" class="patch">
+      <metadata>
+        <title>ELSA-2026-12345-0: kernel security update</title>
+        <reference source="elsa" ref_id="ELSA-2026-12345-0" ref_url="https://linux.oracle.com/errata/ELSA-2026-12345-0.html"/>
+      </metadata>
+      <criteria><criterion comment="kernel-uek-core is earlier than 6.12.0"/></criteria>
+    </definition>
+  </definitions>
+</oval_definitions>
+"""
+        results_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<oval_results xmlns="http://oval.mitre.org/XMLSchema/oval-results-5">
+  <results><system><definitions>
+    <definition definition_id="oval:com.oracle.elsa:def:2026123450" result="true"/>
+  </definitions></system></results>
+</oval_results>
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            oval_path = root / "oval.xml"
+            results_path = root / "results.xml"
+            oval_path.write_text(oval_xml, encoding="utf-8")
+            results_path.write_text(results_xml, encoding="utf-8")
+
+            parsed = oracle_linux_oscap_results.parse_oscap_results(results_path, oval_path, "production")
+
+        self.assertEqual(parsed["advisory_ids"], ["ELSA-2026-12345"])
+        self.assertEqual(
+            parsed["advisories"][0]["errata_link"],
+            "https://linux.oracle.com/errata/ELSA-2026-12345-0.html",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

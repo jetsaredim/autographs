@@ -23,5 +23,11 @@ Post-reboot OpenSCAP scan still reports findings on:
 {% endfor %}
 
 This issue has been refreshed with the remaining findings and is intentionally left open for follow-up review.
-Re-apply the `{{ security_patching_approval_label }}` label after reviewing the refreshed advisory set.
+{% if security_patching_next_action | trim == 'update' -%}
+Advisory-scoped DNF reports package work. Apply `{{ security_patching_next_action_label | trim }}` after reviewing the refreshed advisory set.
+{% elif security_patching_next_action | trim == 'reboot' -%}
+Advisory-scoped DNF is still a no-op and the remaining packages are reboot/installonly candidates. Apply `{{ security_patching_next_action_label | trim }}` only after deciding that another reboot cleanup is appropriate.
+{% else -%}
+The remaining findings are mixed or could not be classified safely. Do not apply an approval label; inspect the workflow logs and re-run the scanner after resolving the ambiguity.
+{% endif %}
 {% endif %}

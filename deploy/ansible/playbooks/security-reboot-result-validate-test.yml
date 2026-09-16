@@ -30,6 +30,8 @@
         security_patching_post_reboot_advisory_ids:
           - ELSA-2026-22222
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_next_action: reboot
+        security_patching_post_reboot_next_action_label: approved-production-reboot
         security_patching_post_reboot_advisories:
           - advisory_id: ELSA-2026-22222
             severity: Important
@@ -131,6 +133,8 @@
         security_patching_post_reboot_scan_status: complete
         security_patching_post_reboot_advisory_ids: []
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_next_action: close
+        security_patching_post_reboot_next_action_label: ""
         security_patching_post_reboot_advisories: []
         security_patching_post_reboot_entries: []
 

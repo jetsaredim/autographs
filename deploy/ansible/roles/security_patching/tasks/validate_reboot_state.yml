@@ -75,6 +75,8 @@
           'advisories': security_patching_update_advisories | default([]),
           'entries': security_patching_update_entries | default([]),
           'ksplice_aware_advisory_ids': security_patching_update_ksplice_aware_advisory_ids | default([]),
+          'next_action': security_patching_next_action | default('investigate') | trim,
+          'approval_label': security_patching_next_action_label | default('') | trim,
           'added_advisory_ids': security_patching_reboot_added_advisory_ids,
           'removed_advisory_ids': security_patching_reboot_removed_advisory_ids
         } | to_nice_json

@@ -1,14 +1,20 @@
 {% set report_approval_label = security_patching_report_approval_label | default(security_patching_approval_label) %}
+{% set report_next_action = security_patching_next_action | default('investigate') | trim %}
 <!-- autographs-security-patch-metadata
 scan_id: "{{ security_patching_scan_id }}"
 created_at: "{{ security_patching_scan_timestamp }}"
 target_group: "{{ security_patching_target_group }}"
-approval_label: "{{ report_approval_label }}"
+approval_label: "{{ report_approval_label | trim }}"
+next_action: "{{ report_next_action }}"
+{% if security_patching_hosts_with_findings | length == 0 %}
+instances: {}
+{% else %}
 instances:
 {% for host in security_patching_hosts_with_findings %}
   {{ host }}:
     advisory_ids: {{ hostvars[host].security_patching_update_advisory_ids | default([]) | unique | sort | list | to_json }}
 {% endfor %}
+{% endif %}
 -->
 # Production security update report
 
@@ -58,11 +64,21 @@ _Advisory details were unavailable for this host; review the hidden metadata and
 
 - [ ] I reviewed the advisory summary, severities, CVE counts, affected package counts, and package samples.
 - [ ] I understand the complete approved advisory ID set is preserved in hidden scanner metadata for drift protection.
-- [ ] I understand the update workflow will re-scan first and refuse to continue if the OpenSCAP advisory set drifted.
+- [ ] I understand an approval workflow will re-scan first and reconcile this issue without package changes if the OpenSCAP advisory set drifted.
 - [ ] I understand the update workflow reports Ksplice availability but only applies approved advisories through DNF's advisory-scoped update path.
 
-## One-click approval
+## Next action
 
+{% if report_next_action == 'update' %}
 Apply the label `{{ report_approval_label }}` to this issue to run the production security update workflow.
 
 Only users listed in `.github/production-patch-approvers.yml` are allowed to approve production updates. The workflow removes the approval label after it starts and closes this issue only if the post-update scan is clean.
+{% elif report_next_action == 'reboot' %}
+Advisory-scoped DNF reports no package work, and all remaining findings are limited to approved reboot/installonly package families.
+
+Apply the label `{{ report_approval_label }}` to run the separately approved production reboot and installonly cleanup workflow.
+{% elif report_next_action == 'close' %}
+The authoritative OpenSCAP scan is clean. No approval action is required, and an existing scanner issue is closed automatically.
+{% else %}
+Do not apply an update or reboot approval label yet. The current findings could not be classified safely; inspect the workflow logs and package metadata, then re-run the scanner after resolving the ambiguity.
+{% endif %}

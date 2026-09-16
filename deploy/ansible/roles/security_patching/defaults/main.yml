@@ -34,8 +34,14 @@ security_patching_oscap_ssh_user: "{{ ansible_user | default('', true) }}"
 security_patching_oscap_ssh_target: >-
   {% if security_patching_oscap_ssh_user | trim | length > 0 %}{{ security_patching_oscap_ssh_user | trim }}@{% endif %}{{ security_patching_oscap_ssh_host }}
 security_patching_approval_label: approved-production-update
+security_patching_update_approval_label: approved-production-update
 security_patching_report_approval_label: "{{ security_patching_approval_label }}"
 security_patching_reboot_approval_label: approved-production-reboot
+security_patching_next_action: investigate
+security_patching_next_action_label: ""
+security_patching_classification_dnf_probe_override: null
+security_patching_dnf_noop_regex: '(?i)(nothing to do|no packages marked)'
+security_patching_dnf_work_regex: '(?im)(transaction summary|^(upgrading|installing|downgrading|reinstalling):|^upgrade\s+[0-9]+\s+package)'
 security_patching_target_group: runtime
 security_patching_request_accepted_message: Production security update request accepted.
 security_patching_failed_request_message: Production security update workflow did not complete successfully.
