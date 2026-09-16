@@ -14,6 +14,8 @@
 
 - name: Compute reboot advisory drift
   ansible.builtin.set_fact:
+    security_patching_reboot_drift_detected: >-
+      {{ security_patching_reboot_current_advisory_ids != security_patching_reboot_approved_advisory_ids }}
     security_patching_reboot_added_advisory_ids: >-
       {{
         security_patching_reboot_current_advisory_ids
@@ -87,15 +89,6 @@
     - security_patching_failure_refresh_path | trim | length > 0
     - security_patching_reboot_current_advisory_ids != security_patching_reboot_approved_advisory_ids
 
-- name: Refuse reboot if security finding set drifted
-  ansible.builtin.assert:
-    that:
-      - security_patching_reboot_current_advisory_ids == security_patching_reboot_approved_advisory_ids
-    fail_msg: >-
-      Current security finding set for {{ inventory_hostname }} does not match the approved scanner issue.
-      Current={{ security_patching_reboot_current_advisory_ids }}
-      Approved={{ security_patching_reboot_approved_advisory_ids }}
-
 - name: Initialize reboot finding package eligibility state
   ansible.builtin.set_fact:
     security_patching_reboot_entries_without_packages: []
@@ -160,19 +153,6 @@
     - >-
       security_patching_reboot_entries_without_packages | length > 0
       or security_patching_reboot_disallowed_packages | length > 0
-
-- name: Refuse reboot when findings are not kernel installonly candidates
-  ansible.builtin.assert:
-    that:
-      - security_patching_reboot_entries_without_packages | length == 0
-      - security_patching_reboot_disallowed_packages | length == 0
-    fail_msg: >-
-      Refusing reboot for {{ inventory_hostname }} because current findings are not limited to
-      reboot/installonly cleanup candidates. Findings without package metadata={{
-      security_patching_reboot_entries_without_packages }} disallowed packages={{
-      security_patching_reboot_disallowed_packages }} allowed regex={{
-      security_patching_reboot_allowed_package_regex }}
-  when: security_patching_reboot_approved_advisory_ids | length > 0
 
 - name: Check DNF has no package work for reboot-approved advisories # noqa: command-instead-of-module
   ansible.builtin.command:
@@ -252,22 +232,31 @@
         security_patching_reboot_dnf_noop_check.stdout ~ security_patching_reboot_dnf_noop_check.stderr
       ) is not search('(?i)(nothing to do|no packages marked)')
 
-- name: Refuse reboot if DNF still has advisory-scoped package work
-  ansible.builtin.assert:
-    that:
-      - security_patching_reboot_dnf_noop_check.rc == 0
-      - >-
-        (security_patching_reboot_dnf_noop_check.stdout ~ security_patching_reboot_dnf_noop_check.stderr)
-        is search('(?i)(nothing to do|no packages marked)')
-    fail_msg: >-
-      Refusing reboot for {{ inventory_hostname }} because DNF still has package work or could
-      not prove a no-op for approved advisories {{ security_patching_reboot_approved_advisory_ids }}.
-      rc={{ security_patching_reboot_dnf_noop_check.rc | default('missing') }}
-      stdout={{ security_patching_reboot_dnf_noop_stdout_excerpt | default('') }}
-      stderr={{ security_patching_reboot_dnf_noop_stderr_excerpt | default('') }}
-  when:
-    - security_patching_reboot_approved_advisory_ids | length > 0
-    - security_patching_reboot_validate_dnf_noop | bool
+- name: Record reboot DNF no-op proof
+  ansible.builtin.set_fact:
+    security_patching_reboot_dnf_noop_proven: >-
+      {{
+        security_patching_reboot_validate_dnf_noop | bool
+        and security_patching_reboot_dnf_noop_check is defined
+        and security_patching_reboot_dnf_noop_check.rc | default(1) == 0
+        and (
+          security_patching_reboot_dnf_noop_check.stdout | default('')
+          ~ security_patching_reboot_dnf_noop_check.stderr | default('')
+        ) is search('(?i)(nothing to do|no packages marked)')
+      }}
+
+- name: Record host reboot preflight decision
+  ansible.builtin.set_fact:
+    security_patching_reboot_preflight_ready: >-
+      {{
+        security_patching_scan_status | default('missing') == 'complete'
+        and not (security_patching_reboot_drift_detected | bool)
+        and security_patching_reboot_approved_advisory_ids | length > 0
+        and security_patching_next_action | default('investigate') | trim == 'reboot'
+        and security_patching_reboot_entries_without_packages | default([]) | length == 0
+        and security_patching_reboot_disallowed_packages | default([]) | length == 0
+        and security_patching_reboot_dnf_noop_proven | bool
+      }}
 
 - name: Record skipped reboot state when host has no approved findings
   ansible.builtin.set_fact:

@@ -53,11 +53,10 @@
           - security_patching_reboot_current_advisory_ids == []
           - not security_patching_reboot_completed
 
-- name: Validate drifted security reboot state rejection
+- name: Validate drifted security reboot state blocks mutation
   hosts: localhost
   gather_facts: false
   vars:
-    security_reboot_state_drift_rejected: false
     security_reboot_state_drift_context_path: /tmp/autographs-security-reboot-drift-context-test.md
     security_reboot_state_drift_refresh_path: /tmp/autographs-security-reboot-drift-refresh-test.json
   tasks:
@@ -97,16 +96,10 @@
             package_count: 1
             summary: ELSA-2026-44444 new kernel finding
 
-    - name: Run reboot state validation until expected drift failure
-      block:
-        - name: Attempt drifted reboot finding set validation
-          ansible.builtin.import_role:
-            name: security_patching
-            tasks_from: validate_reboot_state
-      rescue:
-        - name: Record expected reboot state drift rejection
-          ansible.builtin.set_fact:
-            security_reboot_state_drift_rejected: true
+    - name: Classify drifted reboot finding set
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: validate_reboot_state
 
     - name: Read drift failure context fixture
       ansible.builtin.slurp:
@@ -123,10 +116,11 @@
         security_reboot_state_drift_refresh_payload: >-
           {{ security_reboot_state_drift_refresh.content | b64decode | from_json }}
 
-    - name: Assert drifted reboot state was rejected
+    - name: Assert drifted reboot state blocks mutation
       ansible.builtin.assert:
         that:
-          - security_reboot_state_drift_rejected
+          - security_patching_reboot_drift_detected | bool
+          - not (security_patching_reboot_preflight_ready | bool)
           - security_patching_reboot_added_advisory_ids == ['ELSA-2026-44444']
           - security_patching_reboot_removed_advisory_ids == ['ELSA-2026-33333']
           - "'Validation failed before reboot' in (security_reboot_state_drift_context.content | b64decode)"
@@ -511,11 +505,9 @@
           - "'Failed to decode security patching issue refresh payload' in security_patching_failed_request_issue_refresh_failure"
           - security_patching_failed_request_label_removal_response is defined
 
-- name: Validate non-kernel security reboot state rejection
+- name: Validate non-kernel security reboot state blocks mutation
   hosts: localhost
   gather_facts: false
-  vars:
-    security_reboot_state_package_rejected: false
   tasks:
     - name: Record non-kernel approved reboot issue metadata
       ansible.builtin.set_fact:
@@ -531,19 +523,13 @@
               - openssl
         security_patching_reboot_validate_dnf_noop: false
 
-    - name: Run reboot state validation until expected package rejection
-      block:
-        - name: Attempt non-kernel reboot finding set validation
-          ansible.builtin.import_role:
-            name: security_patching
-            tasks_from: validate_reboot_state
-      rescue:
-        - name: Record expected reboot state package rejection
-          ansible.builtin.set_fact:
-            security_reboot_state_package_rejected: true
+    - name: Classify non-kernel reboot finding set
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: validate_reboot_state
 
-    - name: Assert non-kernel reboot state was rejected
+    - name: Assert non-kernel reboot state blocks mutation
       ansible.builtin.assert:
         that:
-          - security_reboot_state_package_rejected
+          - not (security_patching_reboot_preflight_ready | bool)
           - security_patching_reboot_disallowed_packages == ['openssl']
