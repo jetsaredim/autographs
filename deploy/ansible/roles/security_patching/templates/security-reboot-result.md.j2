@@ -31,14 +31,29 @@ No reboot or installonly cleanup was attempted because the live OpenSCAP advisor
 {% endfor -%}
 {% endif %}
 
+{% if security_patching_reboot_reclassified_hosts | default([]) | length > 0 -%}
+## Reboot approval reclassified
+
+No reboot or installonly cleanup was attempted because the complete current OpenSCAP scan no longer classifies at least one target for reboot cleanup. The issue now contains the authoritative current action and findings.
+
+{% for host in security_patching_reboot_reclassified_hosts -%}
+### `{{ host }}`
+
+- Approved advisories: {{ hostvars[host].security_patching_reboot_approved_advisory_ids | default([]) | unique | sort | list | length }}
+- Current advisories: {{ hostvars[host].security_patching_reboot_current_advisory_ids | default([]) | unique | sort | list | length }}
+- Current action: `{{ hostvars[host].security_patching_post_reboot_next_action | default('investigate') | trim }}`
+
+{% endfor -%}
+{% endif %}
+
 {% if security_patching_remaining_hosts | default([]) | length == 0 -%}
-{% if security_patching_reboot_drift_hosts | default([]) | length > 0 -%}
+{% if security_patching_reboot_drift_hosts | default([]) | length > 0 or security_patching_reboot_reclassified_hosts | default([]) | length > 0 -%}
 The current OpenSCAP scan is clean for the approved target group. This issue will be closed automatically without rebooting.
 {% else -%}
 Post-reboot OpenSCAP scan is clean for the approved target group. This issue will be closed automatically.
 {% endif %}
 {% else -%}
-{% if security_patching_reboot_drift_hosts | default([]) | length > 0 -%}
+{% if security_patching_reboot_drift_hosts | default([]) | length > 0 or security_patching_reboot_reclassified_hosts | default([]) | length > 0 -%}
 The current OpenSCAP scan reports findings on:
 {% else -%}
 Post-reboot OpenSCAP scan still reports findings on:

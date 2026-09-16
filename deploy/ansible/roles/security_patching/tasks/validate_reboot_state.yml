@@ -31,6 +31,15 @@
         | list
       }}
 
+- name: Detect authoritative reboot action reclassification
+  ansible.builtin.set_fact:
+    security_patching_reboot_reclassified: >-
+      {{
+        security_patching_scan_status | default('missing') == 'complete'
+        and not (security_patching_reboot_drift_detected | bool)
+        and security_patching_next_action | default('investigate') | trim != 'reboot'
+      }}
+
 - name: Preserve authoritative preflight state before any reboot mutation
   ansible.builtin.set_fact:
     security_patching_reboot_completed: false
@@ -59,6 +68,7 @@
   when:
     - security_patching_reboot_approved_advisory_ids | length > 0
     - not (security_patching_reboot_drift_detected | bool)
+    - security_patching_next_action | default('investigate') | trim == 'reboot'
 
 - name: Collect reboot findings without package metadata
   ansible.builtin.set_fact:
@@ -75,6 +85,7 @@
   when: >-
     security_patching_reboot_approved_advisory_ids | length > 0
     and not (security_patching_reboot_drift_detected | bool)
+    and security_patching_next_action | default('investigate') | trim == 'reboot'
     and (item.packages is not defined or item.packages | length == 0)
 
 - name: Collect packages outside reboot-eligible kernel families
@@ -85,6 +96,7 @@
   when: >-
     security_patching_reboot_approved_advisory_ids | length > 0
     and not (security_patching_reboot_drift_detected | bool)
+    and security_patching_next_action | default('investigate') | trim == 'reboot'
     and item.1 is not match(security_patching_reboot_allowed_package_regex)
 
 - name: Write reboot package eligibility failure context
@@ -118,6 +130,7 @@
     - security_patching_failure_context_path | trim | length > 0
     - security_patching_reboot_approved_advisory_ids | length > 0
     - not (security_patching_reboot_drift_detected | bool)
+    - security_patching_next_action | default('investigate') | trim == 'reboot'
     - >-
       security_patching_reboot_entries_without_packages | length > 0
       or security_patching_reboot_disallowed_packages | length > 0
@@ -136,6 +149,7 @@
   when:
     - security_patching_reboot_approved_advisory_ids | length > 0
     - not (security_patching_reboot_drift_detected | bool)
+    - security_patching_next_action | default('investigate') | trim == 'reboot'
     - security_patching_reboot_validate_dnf_noop | bool
 
 - name: Build bounded reboot DNF no-op failure evidence
@@ -163,6 +177,7 @@
   when:
     - security_patching_reboot_dnf_noop_check is defined
     - not (security_patching_reboot_drift_detected | bool)
+    - security_patching_next_action | default('investigate') | trim == 'reboot'
     - security_patching_reboot_validate_dnf_noop | bool
 
 - name: Write reboot DNF no-op failure context
@@ -195,6 +210,7 @@
     - security_patching_failure_context_path | trim | length > 0
     - security_patching_reboot_approved_advisory_ids | length > 0
     - not (security_patching_reboot_drift_detected | bool)
+    - security_patching_next_action | default('investigate') | trim == 'reboot'
     - security_patching_reboot_validate_dnf_noop | bool
     - security_patching_reboot_dnf_noop_check is defined
     - >-
@@ -207,7 +223,8 @@
   ansible.builtin.set_fact:
     security_patching_reboot_dnf_noop_proven: >-
       {{
-        security_patching_reboot_validate_dnf_noop | bool
+        security_patching_next_action | default('investigate') | trim == 'reboot'
+        and security_patching_reboot_validate_dnf_noop | bool
         and security_patching_reboot_dnf_noop_check is defined
         and security_patching_reboot_dnf_noop_check.rc | default(1) == 0
         and (

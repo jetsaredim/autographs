@@ -10,6 +10,9 @@
               - ELSA-2026-22222
         security_patching_update_advisory_ids:
           - ELSA-2026-22222
+        security_patching_scan_status: complete
+        security_patching_next_action: reboot
+        security_patching_next_action_label: approved-production-reboot
         security_patching_update_entries:
           - advisory_id: ELSA-2026-22222
             packages:
@@ -104,6 +107,76 @@
           - security_patching_post_reboot_advisory_ids == ['ELSA-2026-44444', 'ELSA-2026-55555']
           - security_patching_post_reboot_next_action == 'reboot'
           - security_patching_post_reboot_next_action_label == 'approved-production-reboot'
+
+- name: Create exact-ID reboot action reclassification fixtures
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Add update-reclassified host state
+      ansible.builtin.add_host:
+        name: exact-update-host
+        groups: security_reboot_action_reclassification_runtime
+        security_patching_scan_status: complete
+        security_patching_next_action: update
+        security_patching_next_action_label: approved-production-update
+        security_patching_update_advisory_ids:
+          - ELSA-2026-66666
+        security_patching_update_entries:
+          - advisory_id: ELSA-2026-66666
+            packages:
+              - openssl
+        security_patching_update_advisories: []
+        security_patching_update_ksplice_aware_advisory_ids: []
+        security_patching_reboot_validate_dnf_noop: true
+
+    - name: Add investigate-reclassified host state
+      ansible.builtin.add_host:
+        name: exact-investigate-host
+        groups: security_reboot_action_reclassification_runtime
+        security_patching_scan_status: complete
+        security_patching_next_action: investigate
+        security_patching_next_action_label: ""
+        security_patching_update_advisory_ids:
+          - ELSA-2026-77777
+        security_patching_update_entries:
+          - advisory_id: ELSA-2026-77777
+            packages: []
+        security_patching_update_advisories: []
+        security_patching_update_ksplice_aware_advisory_ids: []
+        security_patching_reboot_validate_dnf_noop: true
+
+    - name: Record exact-ID approved reboot metadata
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          exact-update-host:
+            advisory_ids:
+              - ELSA-2026-66666
+          exact-investigate-host:
+            advisory_ids:
+              - ELSA-2026-77777
+
+- name: Validate exact-ID reboot action changes preserve authoritative scan state
+  hosts: security_reboot_action_reclassification_runtime
+  gather_facts: false
+  tasks:
+    - name: Validate current reclassified reboot finding set
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: validate_reboot_state
+
+    - name: Assert action reclassification skips reboot safety proof and mutation
+      ansible.builtin.assert:
+        that:
+          - not (security_patching_reboot_drift_detected | bool)
+          - security_patching_reboot_reclassified | bool
+          - not (security_patching_reboot_preflight_ready | bool)
+          - not (security_patching_reboot_completed | bool)
+          - not (security_patching_installonly_cleanup_changed | bool)
+          - security_patching_reboot_entries_without_packages | default([]) == []
+          - security_patching_reboot_disallowed_packages | default([]) == []
+          - security_patching_post_reboot_scan_status == 'complete'
+          - security_patching_post_reboot_advisory_ids == security_patching_reboot_approved_advisory_ids
+          - security_patching_post_reboot_next_action == security_patching_next_action
 
 - name: Validate failed reboot cleanup refreshes drifted scanner issue
   hosts: localhost

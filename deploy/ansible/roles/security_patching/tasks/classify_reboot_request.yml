@@ -6,6 +6,7 @@
 - name: Initialize aggregate reboot preflight host lists
   ansible.builtin.set_fact:
     security_patching_reboot_drift_hosts: []
+    security_patching_reboot_reclassified_hosts: []
     security_patching_reboot_blocked_hosts: []
 
 - name: Collect reboot targets with advisory drift
@@ -15,24 +16,52 @@
   loop: "{{ security_patching_target_hosts }}"
   when: hostvars[item].security_patching_reboot_drift_detected | default(false) | bool
 
+- name: Collect reboot targets with authoritative action reclassification
+  ansible.builtin.set_fact:
+    security_patching_reboot_reclassified_hosts: >-
+      {{ security_patching_reboot_reclassified_hosts + [item] }}
+  loop: "{{ security_patching_target_hosts }}"
+  when:
+    - hostvars[item].security_patching_scan_status | default('missing') == 'complete'
+    - not (hostvars[item].security_patching_reboot_drift_detected | default(false) | bool)
+    - >-
+      hostvars[item].security_patching_post_reboot_next_action
+      | default(hostvars[item].security_patching_next_action | default('investigate'))
+      | trim != 'reboot'
+
 - name: Collect reboot targets that failed operational preflight
   ansible.builtin.set_fact:
     security_patching_reboot_blocked_hosts: >-
       {{ security_patching_reboot_blocked_hosts + [item] }}
   loop: "{{ security_patching_target_hosts }}"
-  when:
-    - not (hostvars[item].security_patching_reboot_preflight_ready | default(false) | bool)
-    - >-
+  when: >-
+    hostvars[item].security_patching_scan_status | default('missing') != 'complete'
+    or (
       not (hostvars[item].security_patching_reboot_drift_detected | default(false) | bool)
-      or hostvars[item].security_patching_scan_status | default('missing') != 'complete'
+      and (
+        hostvars[item].security_patching_post_reboot_next_action
+        | default(hostvars[item].security_patching_next_action | default('investigate'))
+        | trim == 'reboot'
+      )
+      and not (hostvars[item].security_patching_reboot_preflight_ready | default(false) | bool)
+    )
+
+- name: Record aggregate reboot reconciliation hosts
+  ansible.builtin.set_fact:
+    security_patching_reboot_reconciliation_hosts: >-
+      {{
+        (security_patching_reboot_drift_hosts + security_patching_reboot_reclassified_hosts)
+        | unique
+        | sort
+      }}
 
 - name: Record aggregate reboot mutation decision
   ansible.builtin.set_fact:
     security_patching_reboot_reconciliation_only: >-
-      {{ security_patching_reboot_drift_hosts | length > 0 }}
+      {{ security_patching_reboot_reconciliation_hosts | length > 0 }}
     security_patching_reboot_mutation_allowed: >-
       {{
-        security_patching_reboot_drift_hosts | length == 0
+        security_patching_reboot_reconciliation_hosts | length == 0
         and security_patching_reboot_blocked_hosts | length == 0
       }}
 

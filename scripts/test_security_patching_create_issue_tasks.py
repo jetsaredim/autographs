@@ -329,6 +329,11 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         validate_reboot_tasks = VALIDATE_REBOOT_STATE_TASKS_PATH.read_text(encoding="utf-8")
         post_reboot_tasks = POST_REBOOT_RESULT_TASKS_PATH.read_text(encoding="utf-8")
         reboot_state_test = REBOOT_STATE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        reboot_preflight_test = REBOOT_PREFLIGHT_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        reboot_result_test = REBOOT_RESULT_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        classify_reboot_tasks = TASKS_PATH.with_name("classify_reboot_request.yml").read_text(
+            encoding="utf-8"
+        )
         reboot_playbook = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name("security-reboot.yml").read_text(
             encoding="utf-8"
         )
@@ -365,6 +370,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("tasks_from: post_reboot_result", reboot_playbook)
         self.assertIn("security_patching_reboot_mutation_allowed", reboot_playbook)
         self.assertIn("security_patching_reboot_preflight_ready", validate_reboot_tasks)
+        self.assertIn("security_patching_reboot_reclassified", validate_reboot_tasks)
         self.assertIn("Preserve authoritative preflight state before any reboot mutation", validate_reboot_tasks)
         self.assertIn("security_patching_reboot_added_advisory_ids", validate_reboot_tasks)
         self.assertIn("security_patching_reboot_removed_advisory_ids", validate_reboot_tasks)
@@ -380,6 +386,14 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("--advisories={{ security_patching_reboot_approved_advisory_ids | join(',') }}", validate_reboot_tasks)
         self.assertIn("Record reboot DNF no-op proof", validate_reboot_tasks)
         self.assertIn("security_patching_reboot_completed: false", validate_reboot_tasks)
+        self.assertIn("security_patching_reboot_reclassified_hosts", classify_reboot_tasks)
+        self.assertIn("security_patching_reboot_reconciliation_hosts", classify_reboot_tasks)
+        self.assertIn("reclassified for update reconciles without mutation", reboot_preflight_test.lower())
+        self.assertIn("reclassified for investigation reconciles without mutation", reboot_preflight_test.lower())
+        self.assertIn("reclassified for update refreshes every target", reboot_result_test.lower())
+        self.assertIn("reclassified for investigation refreshes issue", reboot_result_test.lower())
+        self.assertIn("Reboot approval reclassified", result_template)
+        self.assertIn("No reboot or installonly cleanup was attempted", result_template)
         self.assertIn("Validate failed reboot cleanup refreshes drifted scanner issue", reboot_state_test)
         self.assertIn("Validate failed reboot cleanup reports oversized scanner issue refresh", reboot_state_test)
         self.assertIn("Validate failed reboot cleanup closes stale scanner issue when current scan is clean", reboot_state_test)
