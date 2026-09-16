@@ -3,6 +3,11 @@
   gather_facts: false
   vars:
     security_patching_target_group: security_post_result_refresh_fixture_runtime
+    security_patching_request_instances:
+      production:
+        advisory_ids:
+          - ELSA-2026-11111
+          - ELSA-2026-22222
     security_patching_scan_id: security-scan-post-result-refresh-test
     security_patching_request_scan_id: security-scan-approved-fixture
     security_patching_scan_timestamp: "2026-08-04T00:00:00Z"

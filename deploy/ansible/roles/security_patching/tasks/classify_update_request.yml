@@ -1,3 +1,8 @@
+- name: Validate approved update target scope
+  ansible.builtin.import_tasks: validate_target_scope.yml
+  vars:
+    security_patching_require_request_instance_match: true
+
 - name: Initialize update reconciliation host list
   ansible.builtin.set_fact:
     security_patching_request_reconciliation_hosts: []
@@ -6,7 +11,7 @@
   ansible.builtin.set_fact:
     security_patching_request_reconciliation_hosts: >-
       {{ security_patching_request_reconciliation_hosts + [item] }}
-  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  loop: "{{ security_patching_target_hosts }}"
   when: >-
     hostvars[item].security_patching_scan_status | default('missing') != 'complete'
     or (

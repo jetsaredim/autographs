@@ -1,0 +1,45 @@
+- name: Require configured security patching target group
+  ansible.builtin.assert:
+    that:
+      - security_patching_target_group in groups
+    fail_msg: >-
+      Refusing security patching issue reconciliation because target group
+      {{ security_patching_target_group }} is not present in the live inventory.
+
+- name: Resolve live security patching target hosts
+  ansible.builtin.set_fact:
+    security_patching_target_hosts: >-
+      {{ groups[security_patching_target_group] | unique | sort | list }}
+
+- name: Require at least one live security patching target
+  ansible.builtin.assert:
+    that:
+      - security_patching_target_hosts | length > 0
+    fail_msg: >-
+      Refusing security patching issue reconciliation because target group
+      {{ security_patching_target_group }} contains no live inventory hosts.
+
+- name: Resolve approved security patching instance hosts
+  ansible.builtin.set_fact:
+    security_patching_request_instance_hosts: >-
+      {{
+        security_patching_request_instances
+        | default({})
+        | dict2items
+        | map(attribute='key')
+        | unique
+        | sort
+        | list
+      }}
+  when: security_patching_require_request_instance_match | default(false) | bool
+
+- name: Require approved instances to match live target hosts
+  ansible.builtin.assert:
+    that:
+      - security_patching_request_instance_hosts | length > 0
+      - security_patching_request_instance_hosts == security_patching_target_hosts
+    fail_msg: >-
+      Refusing security patching approval because issue instances do not exactly match
+      the live inventory target set. Live={{ security_patching_target_hosts }}
+      approved={{ security_patching_request_instance_hosts }}.
+  when: security_patching_require_request_instance_match | default(false) | bool

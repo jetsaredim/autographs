@@ -3,6 +3,10 @@
   gather_facts: false
   vars:
     security_patching_target_group: security_reboot_result_fixture_runtime
+    security_patching_request_instances:
+      production:
+        advisory_ids:
+          - ELSA-2026-11111
     security_patching_scan_id: security-reboot-result-refresh-test
     security_patching_scan_timestamp: "2026-08-14T00:00:00Z"
     security_patching_issue_number: "123"
@@ -112,6 +116,10 @@
   gather_facts: false
   vars:
     security_patching_target_group: security_reboot_clean_fixture_runtime
+    security_patching_request_instances:
+      clean-production:
+        advisory_ids:
+          - ELSA-2026-33333
     security_patching_scan_id: security-reboot-result-clean-test
     security_patching_scan_timestamp: "2026-08-14T01:00:00Z"
     security_patching_issue_number: "124"

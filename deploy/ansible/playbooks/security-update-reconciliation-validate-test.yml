@@ -121,6 +121,10 @@
   gather_facts: false
   vars:
     security_patching_target_group: security_update_clean_reconciliation_runtime
+    security_patching_request_instances:
+      production:
+        advisory_ids:
+          - ELSA-2026-33333
     security_patching_scan_id: security-update-clean-reconciliation-test
     security_patching_scan_timestamp: "2026-09-15T00:00:00Z"
     security_patching_issue_number: "246"
@@ -148,6 +152,13 @@
         security_patching_ksplice_available: false
         security_patching_ksplice_apply_mode: report_only
         security_patching_dnf_changed: false
+
+    - name: Record clean reconciliation approved instance metadata
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          production:
+            advisory_ids:
+              - ELSA-2026-33333
 
     - name: Run clean issue reconciliation until fake GitHub endpoint
       block:

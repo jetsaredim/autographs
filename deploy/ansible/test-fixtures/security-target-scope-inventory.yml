@@ -1,0 +1,8 @@
+all:
+  children:
+    security_empty_fixture_runtime:
+      hosts: {}
+    security_live_fixture_runtime:
+      hosts:
+        live-host:
+          ansible_connection: local

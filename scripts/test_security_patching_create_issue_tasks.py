@@ -44,6 +44,9 @@ POST_RESULT_STATUS_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_na
 POST_RESULT_REFRESH_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
     "security-post-result-refresh-validate-test.yml"
 )
+TARGET_SCOPE_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
+    "security-target-scope-validate-test.yml"
+)
 REBOOT_STATE_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
     "security-reboot-state-validate-test.yml"
 )
@@ -187,6 +190,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         reboot_result_test = REBOOT_RESULT_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         classification_test = CLASSIFICATION_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         update_reconciliation_test = UPDATE_RECONCILIATION_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        target_scope_test = TARGET_SCOPE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         ci = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml").read_text(
             encoding="utf-8"
         )
@@ -220,6 +224,28 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("tasks_from: patch", update_reconciliation_test)
         self.assertIn("security_patching_reconciliation_only", update_reconciliation_test)
         self.assertIn("security-update-reconciliation-validate-test.yml", ci)
+        self.assertIn("tasks_from: validate_target_scope", target_scope_test)
+        self.assertIn("missing target group", target_scope_test.lower())
+        self.assertIn("empty target group", target_scope_test.lower())
+        self.assertIn("mismatched hosts", target_scope_test.lower())
+        self.assertIn("security-target-scope-validate-test.yml", ci)
+
+    def test_issue_writers_fail_closed_on_empty_or_mismatched_target_scope(self):
+        create_issue = TASKS_PATH.read_text(encoding="utf-8")
+        classify_update = TASKS_PATH.with_name("classify_update_request.yml").read_text(encoding="utf-8")
+        post_result = POST_RESULT_TASKS_PATH.read_text(encoding="utf-8")
+        post_reboot = POST_REBOOT_RESULT_TASKS_PATH.read_text(encoding="utf-8")
+        validate_request = VALIDATE_REQUEST_TASKS_PATH.read_text(encoding="utf-8")
+        target_scope = TASKS_PATH.with_name("validate_target_scope.yml").read_text(encoding="utf-8")
+
+        self.assertIn("security_patching_target_group in groups", target_scope)
+        self.assertIn("security_patching_target_hosts | length > 0", target_scope)
+        self.assertIn(
+            "security_patching_request_instance_hosts == security_patching_target_hosts",
+            target_scope,
+        )
+        for task_text in (create_issue, classify_update, post_result, post_reboot, validate_request):
+            self.assertIn("validate_target_scope.yml", task_text)
 
     def test_apply_path_reports_ksplice_and_uses_advisory_scoped_dnf(self):
         patch_tasks = PATCH_TASKS_PATH.read_text(encoding="utf-8")

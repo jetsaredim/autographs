@@ -1,3 +1,8 @@
+- name: Validate post-reboot target scope
+  ansible.builtin.import_tasks: validate_target_scope.yml
+  vars:
+    security_patching_require_request_instance_match: true
+
 - name: Initialize incomplete post-reboot host list
   ansible.builtin.set_fact:
     security_patching_incomplete_post_reboot_hosts: []
@@ -5,7 +10,7 @@
 - name: Collect hosts without complete post-reboot scan results
   ansible.builtin.set_fact:
     security_patching_incomplete_post_reboot_hosts: "{{ security_patching_incomplete_post_reboot_hosts + [item] }}"
-  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  loop: "{{ security_patching_target_hosts }}"
   when: >-
     hostvars[item].security_patching_post_reboot_entries is not defined
     or hostvars[item].security_patching_post_reboot_advisory_ids is not defined
@@ -27,7 +32,7 @@
 - name: Collect hosts with remaining post-reboot security findings
   ansible.builtin.set_fact:
     security_patching_remaining_hosts: "{{ security_patching_remaining_hosts + [item] }}"
-  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  loop: "{{ security_patching_target_hosts }}"
   when: (hostvars[item].security_patching_post_reboot_entries | default([]) | length) > 0
 
 - name: Initialize remaining post-reboot action list

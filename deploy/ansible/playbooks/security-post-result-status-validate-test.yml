@@ -3,6 +3,13 @@
   gather_facts: false
   vars:
     security_patching_target_group: security_post_result_fixture_runtime
+    security_patching_request_instances:
+      complete-host:
+        advisory_ids:
+          - ELSA-2026-11111
+      degraded-host:
+        advisory_ids:
+          - ELSA-2026-22222
     security_patching_result_guard_failed: false
     security_patching_result_guard_failure_message: ""
   tasks:
