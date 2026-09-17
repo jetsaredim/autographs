@@ -73,7 +73,7 @@ All three workflows use the `production-security-patching` concurrency group. Sc
 - Writes the deploy SSH key to `$RUNNER_TEMP` and passes it to `oscap-ssh` through `SSH_ADDITIONAL_OPTIONS`.
 - Resolves the runtime host through `.github/actions/resolve-runtime-ip`.
 - Runs `deploy/ansible/playbooks/security-reboot.yml` through the pinned Ansible action.
-- Uses `continue-on-error: true` on the main reboot step so the workflow can still run cleanup after validation, SSH, reboot, health, installonly cleanup, or OpenSCAP failures. Advisory drift is an expected reconciliation outcome, not a failed workflow.
+- Uses `continue-on-error: true` on the main reboot step so the workflow can still run cleanup after validation, SSH, reboot, health, installonly cleanup, or OpenSCAP failures. Advisory drift and complete action reclassification are expected reconciliation outcomes, not failed workflows.
 - Passes these extra vars to the reboot playbook:
 
   ```text
@@ -84,7 +84,7 @@ All three workflows use the `production-security-patching` concurrency group. Sc
   security_patching_reboot_health_domain=<AUTOGRAPHS_DOMAIN>
   ```
 
-- Runs the same cleanup playbook as failed update requests, but removes `approved-production-reboot` instead of `approved-production-update`. Operational preflight failures write a bounded failure-context file so the cleanup comment can include disallowed packages or DNF no-op evidence when available. Complete OpenSCAP advisory drift stays on the normal success path: no target reboots, the issue is refreshed or closed from the aggregate current scan, and the result comment lists added and removed advisories.
+- Runs the same cleanup playbook as failed update requests, but removes `approved-production-reboot` instead of `approved-production-update`. Operational preflight failures write a bounded failure-context file so the cleanup comment can include disallowed packages or DNF no-op evidence when available. A complete OpenSCAP scan stays on the normal success path when either the advisory IDs drift or an exact advisory set is reclassified from `reboot` to `update` or `investigate`: no target reboots, the issue is refreshed or closed from the aggregate current scan, and the result comment explains the reconciliation.
 - Fails the workflow after cleanup when the main reboot step did not succeed.
 
 `.github/production-patch-approvers.yml`
@@ -127,8 +127,8 @@ All three workflows use the `production-security-patching` concurrency group. Sc
 
 - First play targets `localhost` and imports `tasks_from: validate_request`, using the reboot approval label.
 - Second play scans and validates every host in `security_patching_target_group` before any target may be mutated.
-- Third play aggregates the preflight on `localhost`. The live inventory host set must exactly match the approved metadata, every non-drifted target must have a complete scan with reboot-eligible packages and a proven DNF no-op, and any advisory drift disables mutation for the whole group.
-- Fourth play runs `tasks_from: reboot_cleanup` serially only when the aggregate mutation gate passes. A complete drifted scan instead preserves every target's authoritative findings and records reboot/installonly cleanup as not attempted.
+- Third play aggregates the preflight on `localhost`. The live inventory host set must exactly match the approved metadata. Any advisory drift, or any complete exact-ID scan whose current action is now `update` or `investigate`, makes the whole request reconciliation-only. A target that is still classified `reboot` must have a complete scan, reboot-eligible packages, and a proven second DNF no-op before the aggregate mutation gate can pass.
+- Fourth play runs `tasks_from: reboot_cleanup` serially only when the aggregate mutation gate passes. A complete reconciliation state instead preserves every target's authoritative findings and records reboot/installonly cleanup as not attempted.
 - `tasks/validate_reboot_state.yml` compares current OpenSCAP advisory IDs to approved issue metadata, classifies kernel-family eligibility, and records the DNF no-op proof before downtime.
 - `tasks/reboot_cleanup.yml` records the running kernel, reboots, waits for SSH, records the new running kernel, waits for Autographs quadlet services, verifies local static Caddy health, verifies Caddy-fronted `/admin/api/health`, and runs:
 
@@ -138,7 +138,7 @@ All three workflows use the `production-security-patching` concurrency group. Sc
 
 - The next play re-scans hosts after an actual reboot. Reconciliation-only requests retain the already-complete preflight scan instead.
 - Final play returns to `localhost` and imports `tasks_from: post_reboot_result`.
-- If an earlier play fails, Ansible will not reach `post_reboot_result`; the GitHub Actions cleanup step covers that failure path.
+- Complete advisory drift and complete action reclassification reach `post_reboot_result` successfully. Incomplete scans, target-scope mismatches, or a failed package-family/DNF safety proof on a target that remains classified `reboot` are operational failures; Ansible will not reach `post_reboot_result`, and the GitHub Actions cleanup step covers that failure path.
 
 `deploy/ansible/playbooks/security-patch-cleanup.yml`
 
@@ -215,7 +215,7 @@ The apply workflow validates that:
 
 If the advisory set has drifted, the workflow applies no packages. It treats the fresh OpenSCAP scan as authoritative, refreshes or closes the same issue, consumes the stale approval through the desired label set, posts the classified next action, and completes successfully when reconciliation succeeds.
 
-The reboot workflow uses the same approver allowlist and scanner metadata validation but a separate label so package remediation approval never implies downtime. It performs a fresh all-host pre-reboot OpenSCAP check, requires the live target set to match the approved instance set, rejects non-kernel-family findings, and requires a DNF no-op check before taking downtime. If the advisory set drifted, the workflow reboots no hosts; it refreshes or closes the issue from the aggregate current scan and completes successfully. The reboot path is intended for cases where DNF has already installed all applicable updates, but OpenSCAP still reports installed stale installonly kernel packages or the system must boot into a newly installed kernel before old kernel cleanup can finish.
+The reboot workflow uses the same approver allowlist and scanner metadata validation but a separate label so package remediation approval never implies downtime. It performs a fresh all-host pre-reboot OpenSCAP check and requires the live target set to match the approved instance set. Advisory-set drift and a complete exact-ID scan reclassified to `update` or `investigate` are successful reconciliation outcomes: the workflow reboots no hosts, refreshes or closes the issue from the aggregate current scan, and publishes the current action and approval label. Only targets still classified `reboot` must pass the kernel-family package guard and a second DNF no-op proof before downtime. The reboot path is intended for cases where DNF has already installed all applicable updates, but OpenSCAP still reports installed stale installonly kernel packages or the system must boot into a newly installed kernel before old kernel cleanup can finish.
 
 ## Scan flow
 
@@ -406,13 +406,13 @@ The reboot path starts when an allowed operator applies `approved-production-reb
 
 `tasks/validate_request.yml` runs first on `localhost` with the reboot approval label and the same scanner metadata contract used by the update workflow. It confirms the actor is allowed, the issue is open, the issue is scanner-created, the reboot approval label is present, and metadata targets the requested group.
 
-The reboot playbook scans each runtime host again before downtime. `tasks/validate_reboot_state.yml` refuses to proceed unless the current OpenSCAP advisory ID set exactly matches the issue metadata for that host, the advisory package names match the configured kernel/UEK package-family regex, and this DNF check reports no remaining package work:
+The reboot playbook scans each runtime host again before downtime. `tasks/validate_reboot_state.yml` first preserves that authoritative scan. Advisory-ID drift, or an exact advisory set whose complete scan is now classified `update` or `investigate`, marks the request for successful no-mutation reconciliation. For an exact advisory set that is still classified `reboot`, the advisory package names must match the configured kernel/UEK package-family regex and this second DNF check must report no remaining package work:
 
 ```bash
 dnf --assumeno upgrade-minimal --security --advisories=<comma-separated ELSA IDs>
 ```
 
-If DNF would still apply package updates, the workflow fails before reboot and removes the reboot approval label through cleanup. If a host in the target group has no approved findings and remains clean, it records a skipped reboot state instead of rebooting.
+If the complete scan's DNF classification now reports package work, the current action becomes `update`; if its evidence is incomplete, mixed, or unrecognized, the action becomes `investigate`. Either complete action change disables reboot and installonly cleanup for the full target group and reaches `post_reboot_result`, which refreshes the issue with the current action and label. Incomplete scans, or a failed package-family or second DNF no-op safety proof after a target remains classified `reboot`, fail before downtime and use cleanup to remove the reboot approval label. If a host in the target group has no approved findings and remains clean, it records a skipped reboot state instead of rebooting.
 
 `tasks/reboot_cleanup.yml` then runs per runtime host that still has approved findings:
 
@@ -489,7 +489,7 @@ When the reboot playbook reaches `tasks/post_reboot_result.yml`, it follows the 
 
 ## Failure cleanup behavior
 
-If validation, SSH, OpenSCAP, DNF, reboot, health checks, installonly cleanup, or another operational step fails, Ansible may not reach `post_result` or `post_reboot_result`. The GitHub Actions workflows handle that with an `always()` cleanup step. Expected update or reboot advisory drift does not use this failure path. Reboot operational failures persist bounded operator-facing context. Legacy or malformed refresh payloads remain bounded and reported without stopping approval-label removal.
+If validation, SSH, an incomplete OpenSCAP scan, DNF mutation, reboot, health checks, installonly cleanup, or another operational step fails, Ansible may not reach `post_result` or `post_reboot_result`. The GitHub Actions workflows handle that with an `always()` cleanup step. Expected update reconciliation and reboot reconciliation do not use this failure path: complete advisory drift and complete exact-ID action reclassification preserve current facts, suppress mutation across the target group, and publish through the normal result task. A failed package-family or second DNF no-op safety proof on a target that is still classified `reboot` remains an operational failure. Reboot operational failures persist bounded operator-facing context. Legacy or malformed refresh payloads remain bounded and reported without stopping approval-label removal.
 
 `tasks/cleanup_failed_request.yml`:
 
