@@ -297,6 +297,9 @@ jobs:
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-reboot-state-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            --start-at-task "Record non-kernel approved reboot issue metadata" \
+            deploy/ansible/playbooks/security-reboot-state-validate-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-reboot-result-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg \
             AUTOGRAPHS_ADMIN_PASSWORD_HASH='' \

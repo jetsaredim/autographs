@@ -87,6 +87,18 @@ def task_block_from(path: Path, task_name: str) -> str:
     return match.group("body")
 
 
+def nested_task_block_from(path: Path, task_name: str) -> str:
+    text = path.read_text(encoding="utf-8")
+    pattern = re.compile(
+        rf"^    - name: {re.escape(task_name)}\n(?P<body>.*?)(?=^    - name: |\Z)",
+        re.M | re.S,
+    )
+    match = pattern.search(text)
+    if not match:
+        raise AssertionError(f"Nested task not found in {path}: {task_name}")
+    return match.group("body")
+
+
 class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
     def test_report_approval_labels_are_published_after_action_label_resolution(self):
         task_pairs = (
@@ -228,6 +240,10 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         reboot_state_test = REBOOT_STATE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         reboot_result_test = REBOOT_RESULT_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         reboot_preflight_test = REBOOT_PREFLIGHT_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        non_kernel_fixture = nested_task_block_from(
+            REBOOT_STATE_TEST_PLAYBOOK_PATH,
+            "Record non-kernel approved reboot issue metadata",
+        )
         classification_test = CLASSIFICATION_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         update_reconciliation_test = UPDATE_RECONCILIATION_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         target_scope_test = TARGET_SCOPE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
@@ -252,7 +268,17 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("drifted reboot state blocks mutation", reboot_state_test.lower())
         self.assertIn("non-kernel security reboot state blocks mutation", reboot_state_test.lower())
         self.assertIn("openssl", reboot_state_test)
+        self.assertIn("security_patching_scan_status: complete", non_kernel_fixture)
+        self.assertIn("security_patching_next_action: reboot", non_kernel_fixture)
+        self.assertIn(
+            "security_patching_next_action_label: approved-production-reboot",
+            non_kernel_fixture,
+        )
         self.assertIn("security-reboot-state-validate-test.yml", ci)
+        self.assertIn(
+            '--start-at-task "Record non-kernel approved reboot issue metadata"',
+            ci,
+        )
         self.assertIn("tasks_from: post_reboot_result", reboot_result_test)
         self.assertIn("security_patching_reboot_result_comment_body", reboot_result_test)
         self.assertIn("security-reboot-result-validate-test.yml", ci)

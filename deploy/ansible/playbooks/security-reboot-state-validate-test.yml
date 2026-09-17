@@ -560,6 +560,9 @@
               - ELSA-2026-55555
         security_patching_update_advisory_ids:
           - ELSA-2026-55555
+        security_patching_scan_status: complete
+        security_patching_next_action: reboot
+        security_patching_next_action_label: approved-production-reboot
         security_patching_update_entries:
           - advisory_id: ELSA-2026-55555
             packages:
