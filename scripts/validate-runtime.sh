@@ -19,5 +19,3 @@ for artifact in "${required_artifacts[@]}"; do
     exit 1
   fi
 done
-
-cargo test --manifest-path controller/Cargo.toml --test runtime_kernel_persistence

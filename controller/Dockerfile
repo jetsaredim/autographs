@@ -1,8 +1,23 @@
 # syntax=docker/dockerfile:1
 
-FROM rust:1.98-bookworm AS builder
+FROM rust:1.98-bookworm AS chef
 
 WORKDIR /workspace
+
+RUN cargo install cargo-chef --version 0.1.78 --locked
+
+FROM chef AS planner
+
+COPY controller .
+
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+
+COPY --from=planner /workspace/recipe.json ./recipe.json
+
+RUN cargo chef cook --release --features production-persistence --recipe-path recipe.json \
+    && rm -rf src
 
 COPY controller/Cargo.toml controller/Cargo.lock ./
 COPY controller/src ./src
@@ -18,10 +33,7 @@ COPY controller/static-public/data/not-found-quotes.json ./static-public/data/no
 COPY controller/static-public/templates ./static-public/templates
 COPY controller/static-admin ./static-admin
 
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,target=/workspace/target,sharing=locked \
-    cargo build --release --features production-persistence \
+RUN cargo build --release --features production-persistence \
     && install -Dm755 /workspace/target/release/autographs-controller /tmp/autographs-controller
 
 FROM oraclelinux:10-slim

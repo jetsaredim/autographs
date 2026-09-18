@@ -86,8 +86,22 @@ def _changed_paths(repo: Path, previous_tag: str | None, target_tag: str) -> lis
     return sorted({path for path in output.splitlines() if path})
 
 
+def _changed_paths_between(repo: Path, base: str, head: str) -> list[str]:
+    output = _git(
+        repo,
+        "diff",
+        "--name-only",
+        "--diff-filter=ACDMRTUXB",
+        f"{base}..{head}",
+    )
+    return sorted({path for path in output.splitlines() if path})
+
+
 def _is_controller_path(path: str) -> bool:
-    return path.startswith("controller/") or path == ".github/docker-bake.hcl"
+    return path.startswith("controller/") or path in {
+        ".dockerignore",
+        ".github/docker-bake.hcl",
+    }
 
 
 def _is_terraform_path(path: str) -> bool:
@@ -106,14 +120,7 @@ def _is_deploy_path(path: str) -> bool:
     )
 
 
-def classify_release_range(
-    repo: Path, previous_tag: str | None, target_tag: str
-) -> dict[str, object]:
-    """Classify every path in the full previous-to-target release range."""
-    _semver_key(target_tag)
-    if previous_tag:
-        _semver_key(previous_tag)
-    paths = _changed_paths(repo, previous_tag, target_tag)
+def _classify_paths(paths: list[str]) -> dict[str, object]:
     controller_changed = any(_is_controller_path(path) for path in paths)
     terraform_changed = any(_is_terraform_path(path) for path in paths)
     deploy_changed = any(_is_deploy_path(path) for path in paths)
@@ -137,6 +144,21 @@ def classify_release_range(
         "productionMutationRequired": impact != "repo-only",
         "changedPaths": paths,
     }
+
+
+def classify_release_range(
+    repo: Path, previous_tag: str | None, target_tag: str
+) -> dict[str, object]:
+    """Classify every path in the full previous-to-target release range."""
+    _semver_key(target_tag)
+    if previous_tag:
+        _semver_key(previous_tag)
+    return _classify_paths(_changed_paths(repo, previous_tag, target_tag))
+
+
+def classify_ref_range(repo: Path, base: str, head: str) -> dict[str, object]:
+    """Classify paths between arbitrary Git refs for CI impact decisions."""
+    return _classify_paths(_changed_paths_between(repo, base, head))
 
 
 def collect_release_trailers(
@@ -479,6 +501,11 @@ def main() -> int:
     classify.add_argument("--previous-tag")
     classify.add_argument("--tag", required=True)
 
+    classify_refs = subcommands.add_parser("classify-refs")
+    classify_refs.add_argument("--repo", type=Path, default=Path("."))
+    classify_refs.add_argument("--base", required=True)
+    classify_refs.add_argument("--head", required=True)
+
     trailers = subcommands.add_parser("trailers")
     trailers.add_argument("--repo", type=Path, default=Path("."))
     trailers.add_argument("--previous-tag")
@@ -539,6 +566,8 @@ def main() -> int:
         print(find_previous_release(args.repo, args.tag) or "")
     elif args.command == "classify-range":
         print(json.dumps(classify_release_range(args.repo, args.previous_tag, args.tag), sort_keys=True))
+    elif args.command == "classify-refs":
+        print(json.dumps(classify_ref_range(args.repo, args.base, args.head), sort_keys=True))
     elif args.command == "trailers":
         print(json.dumps(collect_release_trailers(args.repo, args.previous_tag, args.tag), sort_keys=True))
     elif args.command == "preflight-drafts":
