@@ -489,15 +489,14 @@ When the reboot playbook reaches `tasks/post_reboot_result.yml`, it follows the 
 
 ## Failure cleanup behavior
 
-If validation, SSH, an incomplete OpenSCAP scan, DNF mutation, reboot, health checks, installonly cleanup, or another operational step fails, Ansible may not reach `post_result` or `post_reboot_result`. The GitHub Actions workflows handle that with an `always()` cleanup step. Expected update reconciliation and reboot reconciliation do not use this failure path: complete advisory drift and complete exact-ID action reclassification preserve current facts, suppress mutation across the target group, and publish through the normal result task. A failed package-family or second DNF no-op safety proof on a target that is still classified `reboot` remains an operational failure. Reboot operational failures persist bounded operator-facing context. Legacy or malformed refresh payloads remain bounded and reported without stopping approval-label removal.
+If validation, SSH, an incomplete OpenSCAP scan, DNF mutation, reboot, health checks, installonly cleanup, or another operational step fails, Ansible may not reach `post_result` or `post_reboot_result`. The GitHub Actions workflows handle that with an `always()` cleanup step. Expected update reconciliation and reboot reconciliation do not use this failure path: complete advisory drift and complete exact-ID action reclassification preserve current facts, suppress mutation across the target group, and publish through the normal result task. A failed package-family or second DNF no-op safety proof on a target that is still classified `reboot` remains an operational failure. Reboot operational failures persist bounded operator-facing context without stopping approval-label removal.
 
 `tasks/cleanup_failed_request.yml`:
 
 1. Requires repository, token, and issue number.
 2. Builds the issue URL, workflow run URL, and approval label URL.
-3. Optionally refreshes the scanner issue with current drifted findings, or closes it when the current scan is clean.
-4. Removes or attempts to remove the approval label so the failed request cannot be retried accidentally by a stale label.
-5. Comments on the issue with bounded failure details and the refresh/label cleanup outcome.
+3. Removes or attempts to remove the approval label so the failed request cannot be retried accidentally by a stale label.
+4. Comments on the issue with bounded failure details and the label cleanup outcome.
 
 Failure cleanup comment format:
 
