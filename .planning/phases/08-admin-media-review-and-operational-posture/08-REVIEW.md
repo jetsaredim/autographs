@@ -1,6 +1,6 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-09-17T09:42:14Z
+reviewed: 2026-09-18T00:46:58Z
 depth: deep
 files_reviewed: 36
 files_reviewed_list:
@@ -42,15 +42,15 @@ files_reviewed_list:
   - scripts/test_security_patching_create_issue_tasks.py
 findings:
   critical: 0
-  warning: 2
+  warning: 1
   info: 0
-  total: 2
+  total: 1
 status: issues_found
 ---
 
 # Phase 08: Code Review Report
 
-**Reviewed:** 2026-09-17T09:42:14Z
+**Reviewed:** 2026-09-18T00:46:58Z
 **Depth:** deep
 **Files Reviewed:** 36
 **Status:** issues_found
@@ -59,28 +59,20 @@ status: issues_found
 
 ## Summary
 
-All five blocker findings from iterations 1 and 2 are resolved. Target scope fails closed, advisory drift and complete action reclassification reconcile successfully without mutation, reboot mutation has an all-host gate, and scanner/update/reboot report paths now publish the resolved approval label only after Ansible has assigned it. The full configured Python and Ansible validation suites pass. Two non-blocking but actionable quality defects remain: the runbook still describes the superseded reboot failure behavior, and one validation play depends on facts leaked by earlier plays rather than defining an isolated fixture.
+The two iteration-3 warnings and all five earlier blocker findings are resolved. The runbook now matches the successful no-mutation reconciliation behavior, the non-kernel fixture initializes its own action state, and the exact isolated command added to CI passes. Target scope still fails closed, mutation remains gated across the complete host set, unreachable/incomplete hosts cannot reach mutation or clean publication, and scanner/update/reboot issue bodies publish the resolved action label. The configured Python suite (21 tests), all security-patching Ansible validation playbooks, the new isolated fixture invocation, production playbook syntax checks, and `git diff --check` pass. One warning-level quality defect remains in legacy failure-cleanup plumbing.
 
 ## Warnings
 
-### WR-01: Reboot runbook still documents reclassification as a failed workflow
+### WR-01: Failed-drift refresh cleanup is unreachable after drift moved to the success path
 
-**File:** `docs/security-patching.md:126-141,218,403-415,490-500`
+**File:** `deploy/ansible/roles/security_patching/tasks/cleanup_failed_request.yml:93-340`
 
-**Issue:** The implementation now treats a complete exact-advisory scan whose action changes from `reboot` to `update` or `investigate` as successful no-mutation reconciliation. The runbook still says every non-drifted target must remain reboot-eligible, and explicitly says that if DNF would apply package updates the reboot workflow fails and enters cleanup. It only identifies advisory-ID drift as an expected success path. Operators following this text will expect a red run and manual rescan when the actual workflow refreshes the issue successfully with a new action and approval label.
+**Issue:** The reboot workflow still exports `SECURITY_PATCHING_FAILURE_REFRESH_PATH`, and cleanup contains the complete decode/render/refresh-or-close path for a `reboot_advisory_drift` JSON payload. However, the PR removed the only production writer of that file from `validate_reboot_state.yml` when advisory drift became a normal successful reconciliation. A repository-wide search now finds payload creation only in `security-reboot-state-validate-test.yml`; on the GitHub-hosted runner the cleanup path can therefore never receive this payload. The runbook nevertheless promises optional failed-run issue refresh, and the tests spend substantial coverage validating synthetic state that no production transition can create. This leaves obsolete workflow inputs and roughly 250 lines of unreachable operational logic that can drift independently from the authoritative success-path implementation.
 
-**Fix:** Document both reconciliation triggers: advisory-set drift and complete action reclassification. State that either disables reboot/installonly mutation for the full target group and reaches `post_reboot_result`; distinguish these from incomplete scans or a failed second safety proof after a target is still classified `reboot`, which remain operational failures. Update the playbook overview, approval model, reboot flow, and failure-cleanup sections consistently.
-
-### WR-02: Non-kernel reboot validation test passes through leaked cross-play facts
-
-**File:** `deploy/ansible/playbooks/security-reboot-state-validate-test.yml:551-578`
-
-**Issue:** The final non-kernel fixture does not set `security_patching_scan_status`, `security_patching_next_action`, or its action label. Since the new implementation gates package eligibility on `next_action == 'reboot'`, this play passes in the normal full-file run only because earlier localhost plays leave `security_patching_next_action: reboot` and related facts behind. Running the play in isolation with `--start-at-task 'Record non-kernel approved reboot issue metadata'` deterministically fails because `security_patching_reboot_disallowed_packages` is undefined. This hides fixture-order regressions and means the assertion is not independently testing the intended safety condition.
-
-**Fix:** Make the fixture self-contained by explicitly setting a complete scan and the `reboot` action/label when testing the defense-in-depth package guard, or change it into an explicit `investigate` reclassification fixture with matching assertions. Ensure each play initializes every role input it relies on, then add an isolated execution check or remove assertions that depend on prior-play state.
+**Fix:** Remove the failure-refresh environment/default variables, the unreachable payload branch, its synthetic fixtures/assertions, and the runbook claim; keep ordinary failure-context reporting and approval-label cleanup. If failed-run refresh is intentionally retained for a concrete state transition, add a production producer for an aggregate all-host payload and an end-to-end test that exercises that producer rather than manually writing the JSON fixture.
 
 ---
 
-_Reviewed: 2026-09-17T09:42:14Z_
+_Reviewed: 2026-09-18T00:46:58Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
