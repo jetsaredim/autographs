@@ -261,8 +261,12 @@ jobs:
             deploy/ansible/playbooks/security-report-render-test.yml \
             deploy/ansible/playbooks/security-request-metadata-validate-test.yml \
             deploy/ansible/playbooks/security-create-issue-status-validate-test.yml \
+            deploy/ansible/playbooks/security-finding-classification-validate-test.yml \
             deploy/ansible/playbooks/security-post-result-status-validate-test.yml \
             deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml \
+            deploy/ansible/playbooks/security-target-scope-validate-test.yml \
+            deploy/ansible/playbooks/security-update-reconciliation-validate-test.yml \
+            deploy/ansible/playbooks/security-reboot-preflight-validate-test.yml \
             deploy/ansible/playbooks/security-reboot-state-validate-test.yml \
             deploy/ansible/playbooks/security-reboot-result-validate-test.yml \
             deploy/ansible/playbooks/deploy-admin-credentials-validate-test.yml \
@@ -278,10 +282,22 @@ jobs:
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-create-issue-status-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            deploy/ansible/playbooks/security-finding-classification-validate-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-post-result-status-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            -i deploy/ansible/test-fixtures/security-target-scope-inventory.yml \
+            deploy/ansible/playbooks/security-target-scope-validate-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            deploy/ansible/playbooks/security-update-reconciliation-validate-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            deploy/ansible/playbooks/security-reboot-preflight-validate-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            deploy/ansible/playbooks/security-reboot-state-validate-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            --start-at-task "Record non-kernel approved reboot issue metadata" \
             deploy/ansible/playbooks/security-reboot-state-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-reboot-result-validate-test.yml

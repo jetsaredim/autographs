@@ -6,6 +6,7 @@
     security_patching_scan_timestamp: "2026-08-02T00:00:00Z"
     security_patching_target_group: runtime
     security_patching_approval_label: approved-production-update
+    security_patching_next_action: update
     security_patching_hosts_with_findings:
       - production
     security_patching_enrichment_status: complete
@@ -128,6 +129,7 @@
         that:
           - security_patching_render_test_metadata_blocks | length == 1
           - security_patching_render_test_metadata.instances.production.advisory_ids | length == 3
+          - security_patching_render_test_metadata.approval_label == 'approved-production-update'
           - security_patching_render_test_file.stat.size <= security_patching_report_max_body_bytes
           - "'## Advisory review summary' in security_patching_render_test_body"
           - "'## Advisory finding detail sample' not in security_patching_render_test_body"
@@ -136,3 +138,4 @@
           - "'`kernel`, `kernel-core`' in security_patching_render_test_body"
           - "'ELSA-2025-33333' in security_patching_render_test_body"
           - "'+1 more' in security_patching_render_test_body"
+          - "'Apply the label `approved-production-update`' in security_patching_render_test_body"

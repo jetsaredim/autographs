@@ -1,3 +1,8 @@
+- name: Validate post-update target scope
+  ansible.builtin.import_tasks: validate_target_scope.yml
+  vars:
+    security_patching_require_request_instance_match: true
+
 - name: Initialize incomplete post-update host list
   ansible.builtin.set_fact:
     security_patching_incomplete_post_update_hosts: []
@@ -5,10 +10,11 @@
 - name: Collect hosts without complete post-update scan results
   ansible.builtin.set_fact:
     security_patching_incomplete_post_update_hosts: "{{ security_patching_incomplete_post_update_hosts + [item] }}"
-  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  loop: "{{ security_patching_target_hosts }}"
   when: >-
     hostvars[item].security_patching_post_update_entries is not defined
     or hostvars[item].security_patching_post_update_advisory_ids is not defined
+    or hostvars[item].security_patching_post_update_next_action is not defined
     or hostvars[item].security_patching_post_update_scan_status | default('missing') != 'complete'
 
 - name: Require complete post-update scan results for all target hosts
@@ -26,8 +32,73 @@
 - name: Collect hosts with remaining security update findings
   ansible.builtin.set_fact:
     security_patching_remaining_hosts: "{{ security_patching_remaining_hosts + [item] }}"
-  loop: "{{ groups[security_patching_target_group] | default([]) }}"
+  loop: "{{ security_patching_target_hosts }}"
   when: (hostvars[item].security_patching_post_update_entries | default([]) | length) > 0
+
+- name: Initialize update request outcome host lists
+  ansible.builtin.set_fact:
+    security_patching_update_drift_hosts: []
+    security_patching_update_changed_hosts: []
+
+- name: Collect hosts whose approved advisory set drifted
+  ansible.builtin.set_fact:
+    security_patching_update_drift_hosts: "{{ security_patching_update_drift_hosts + [item] }}"
+  loop: "{{ security_patching_target_hosts }}"
+  when: hostvars[item].security_patching_update_drift_detected | default(false) | bool
+
+- name: Collect hosts changed by DNF
+  ansible.builtin.set_fact:
+    security_patching_update_changed_hosts: "{{ security_patching_update_changed_hosts + [item] }}"
+  loop: "{{ security_patching_target_hosts }}"
+  when: hostvars[item].security_patching_dnf_changed | default(false) | bool
+
+- name: Initialize remaining finding action list
+  ansible.builtin.set_fact:
+    security_patching_remaining_actions: []
+
+- name: Collect remaining finding actions
+  ansible.builtin.set_fact:
+    security_patching_remaining_actions: >-
+      {{
+        (
+          security_patching_remaining_actions
+          + [hostvars[item].security_patching_post_update_next_action | default('investigate') | trim]
+        )
+        | unique
+        | sort
+      }}
+  loop: "{{ security_patching_remaining_hosts }}"
+
+- name: Resolve aggregate post-update action
+  ansible.builtin.set_fact:
+    security_patching_next_action: >-
+      {% if security_patching_remaining_hosts | length == 0 %}
+      close
+      {% elif security_patching_remaining_actions | length == 1 %}
+      {{ security_patching_remaining_actions[0] }}
+      {% else %}
+      investigate
+      {% endif %}
+
+- name: Resolve aggregate post-update approval label
+  ansible.builtin.set_fact:
+    security_patching_next_action_label: >-
+      {{
+        {
+          'update': security_patching_update_approval_label,
+          'reboot': security_patching_reboot_approval_label
+        }.get(security_patching_next_action | trim, '')
+      }}
+
+- name: Publish aggregate post-update approval label
+  ansible.builtin.set_fact:
+    security_patching_report_approval_label: "{{ security_patching_next_action_label | trim }}"
+    security_patching_reconciled_issue_labels: >-
+      {{
+        security_patching_issue_labels
+        if security_patching_remaining_hosts | length > 0
+        else security_patching_issue_labels | reject('equalto', 'patch-scan-open') | list
+      }}
 
 - name: Build GitHub issue URLs
   ansible.builtin.set_fact:
@@ -42,20 +113,10 @@
         ] | join('/')
       }}
 
-- name: Build GitHub issue label URL
-  ansible.builtin.set_fact:
-    security_patching_issue_label_url: >-
-      {{
-        [
-          security_patching_issue_url,
-          'labels',
-          security_patching_approval_label
-        ] | join('/')
-      }}
-
 - name: Mirror remaining post-update findings into scanner report facts
   ansible.builtin.set_fact:
     security_patching_update_entries: "{{ hostvars[item].security_patching_post_update_entries | default([]) }}"
+    security_patching_update_advisories: "{{ hostvars[item].security_patching_post_update_advisories | default([]) }}"
     security_patching_update_advisory_ids: "{{ hostvars[item].security_patching_post_update_advisory_ids | default([]) }}"
     security_patching_update_ksplice_aware_advisory_ids: >-
       {{ hostvars[item].security_patching_post_update_ksplice_aware_advisory_ids | default([]) }}
@@ -69,9 +130,15 @@
     security_patching_hosts_with_findings: "{{ security_patching_remaining_hosts }}"
     security_patching_enrichment_status: complete
     security_patching_enrichment_message: >-
+      {% if security_patching_update_drift_hosts | length > 0 %}
+      Oracle Linux OpenSCAP OVAL evaluation completed during approval reconciliation.
+      No packages were changed because the live advisory set differed from the approved issue metadata.
+      {% elif security_patching_update_changed_hosts | length > 0 %}
       Oracle Linux OpenSCAP OVAL evaluation completed after security update application.
+      {% else %}
+      Oracle Linux OpenSCAP OVAL evaluation completed during approved request reconciliation.
+      {% endif %}
     security_patching_enrichment_by_host: {}
-  when: security_patching_remaining_hosts | length > 0
 
 - name: Index remaining post-update OpenSCAP findings by host
   ansible.builtin.set_fact:
@@ -81,11 +148,7 @@
         | combine(
             {
               item: {
-                'advisories': (
-                  hostvars[item].security_patching_update_advisories | default([])
-                  | selectattr('advisory_id', 'in', hostvars[item].security_patching_post_update_advisory_ids | default([]))
-                  | list
-                ),
+                'advisories': hostvars[item].security_patching_post_update_advisories | default([]),
                 'entries': hostvars[item].security_patching_post_update_entries | default([])
               }
             },
@@ -100,13 +163,11 @@
     src: security-report.md.j2
     dest: "{{ security_patching_report_path }}"
     mode: "0600"
-  when: security_patching_remaining_hosts | length > 0
 
 - name: Inspect refreshed production security update issue body
   ansible.builtin.stat:
     path: "{{ security_patching_report_path }}"
   register: security_patching_refreshed_report_file
-  when: security_patching_remaining_hosts | length > 0
 
 - name: Require refreshed GitHub issue body within safety limit
   ansible.builtin.assert:
@@ -116,32 +177,43 @@
       Refreshed security update issue body is {{ security_patching_refreshed_report_file.stat.size | int }} bytes,
       above the configured {{ security_patching_report_max_body_bytes | int }} byte safety limit.
       Re-run the scanner manually or reduce visible security report detail before retrying.
-  when: security_patching_remaining_hosts | length > 0
 
 - name: Read refreshed production security update issue body
   ansible.builtin.set_fact:
     security_patching_refreshed_report_body: "{{ lookup('ansible.builtin.file', security_patching_report_path) }}"
-  when: security_patching_remaining_hosts | length > 0
-
-- name: Refresh production security update issue with remaining findings
-  ansible.builtin.uri:
-    url: "{{ security_patching_issue_url }}"
-    method: PATCH
-    headers: "{{ security_patching_github_headers }}"
-    body_format: json
-    body:
-      title: "Production security update report - {{ security_patching_scan_timestamp }}"
-      body: "{{ security_patching_refreshed_report_body }}"
-      labels: "{{ security_patching_issue_labels }}"
-    status_code: 200
-  when: security_patching_remaining_hosts | length > 0
-  no_log: true
 
 - name: Render production security update result comment
   ansible.builtin.template:
     src: security-update-result.md.j2
     dest: "{{ security_patching_result_comment_path }}"
     mode: "0600"
+
+- name: Build authoritative security update issue request
+  ansible.builtin.set_fact:
+    security_patching_reconciled_issue_body: >-
+      {{
+        {
+          'title': 'Production security update report - ' ~ security_patching_scan_timestamp,
+          'body': security_patching_refreshed_report_body,
+          'labels': security_patching_reconciled_issue_labels,
+          'state': ('open' if security_patching_remaining_hosts | length > 0 else 'closed')
+        }
+        | combine(
+            {}
+            if security_patching_remaining_hosts | length > 0
+            else {'state_reason': 'completed'}
+          )
+      }}
+
+- name: Reconcile production security update issue with authoritative findings
+  ansible.builtin.uri:
+    url: "{{ security_patching_issue_url }}"
+    method: PATCH
+    headers: "{{ security_patching_github_headers }}"
+    body_format: json
+    body: "{{ security_patching_reconciled_issue_body }}"
+    status_code: 200
+  no_log: true
 
 - name: Comment production security update result
   ansible.builtin.uri:
@@ -152,27 +224,4 @@
     body:
       body: "{{ lookup('ansible.builtin.file', security_patching_result_comment_path) }}"
     status_code: 201
-  no_log: true
-
-- name: Remove approval label after workflow starts
-  ansible.builtin.uri:
-    url: "{{ security_patching_issue_label_url }}"
-    method: DELETE
-    headers: "{{ security_patching_github_headers }}"
-    status_code:
-      - 200
-      - 404
-  no_log: true
-
-- name: Close issue when no security update findings remain
-  ansible.builtin.uri:
-    url: "{{ security_patching_issue_url }}"
-    method: PATCH
-    headers: "{{ security_patching_github_headers }}"
-    body_format: json
-    body:
-      state: closed
-      state_reason: completed
-    status_code: 200
-  when: security_patching_remaining_hosts | length == 0
   no_log: true

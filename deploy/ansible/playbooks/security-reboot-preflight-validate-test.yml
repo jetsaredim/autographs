@@ -1,0 +1,135 @@
+- name: Validate aggregate reboot preflight prevents partial multi-host mutation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_preflight_fixture_runtime
+  tasks:
+    - name: Add eligible reboot preflight fixture host
+      ansible.builtin.add_host:
+        name: eligible-host
+        groups: security_reboot_preflight_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_preflight_ready: true
+        security_patching_next_action: reboot
+        security_patching_post_reboot_next_action: reboot
+
+    - name: Add late drift reboot preflight fixture host
+      ansible.builtin.add_host:
+        name: late-drift-host
+        groups: security_reboot_preflight_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_reboot_drift_detected: true
+        security_patching_reboot_preflight_ready: false
+        security_patching_next_action: reboot
+        security_patching_post_reboot_next_action: reboot
+
+    - name: Record approved reboot instances for every live target
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          eligible-host:
+            advisory_ids:
+              - ELSA-2026-11111
+          late-drift-host:
+            advisory_ids:
+              - ELSA-2026-22222
+
+    - name: Classify two-host reboot preflight fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_reboot_request
+
+    - name: Mark cleanup reached only when aggregate mutation is allowed
+      ansible.builtin.set_fact:
+        security_patching_reboot_cleanup_reached: true
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      loop: "{{ security_patching_target_hosts }}"
+      when: security_patching_reboot_mutation_allowed | bool
+
+    - name: Assert late drift prevents cleanup on every target
+      ansible.builtin.assert:
+        that:
+          - security_patching_reboot_reconciliation_only | bool
+          - not (security_patching_reboot_mutation_allowed | bool)
+          - security_patching_reboot_drift_hosts == ['late-drift-host']
+          - security_patching_reboot_reclassified_hosts == []
+          - security_patching_reboot_blocked_hosts == []
+          - not (hostvars['eligible-host'].security_patching_reboot_cleanup_reached | default(false) | bool)
+          - not (hostvars['late-drift-host'].security_patching_reboot_cleanup_reached | default(false) | bool)
+
+- name: Validate exact reboot advisory set reclassified for update reconciles without mutation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_update_reclassification_runtime
+  tasks:
+    - name: Add update-reclassified reboot fixture host
+      ansible.builtin.add_host:
+        name: update-reclassified-host
+        groups: security_reboot_update_reclassification_runtime
+        security_patching_scan_status: complete
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_preflight_ready: false
+        security_patching_next_action: update
+        security_patching_post_reboot_next_action: update
+
+    - name: Record update-reclassified approved reboot instance
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          update-reclassified-host:
+            advisory_ids:
+              - ELSA-2026-33333
+
+    - name: Classify update-reclassified reboot preflight fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_reboot_request
+
+    - name: Assert update reclassification reconciles without reboot mutation
+      ansible.builtin.assert:
+        that:
+          - security_patching_reboot_reconciliation_only | bool
+          - not (security_patching_reboot_mutation_allowed | bool)
+          - security_patching_reboot_drift_hosts == []
+          - security_patching_reboot_reclassified_hosts == ['update-reclassified-host']
+          - security_patching_reboot_reconciliation_hosts == ['update-reclassified-host']
+          - security_patching_reboot_blocked_hosts == []
+
+- name: Validate exact reboot advisory set reclassified for investigation reconciles without mutation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_investigate_reclassification_runtime
+  tasks:
+    - name: Add investigate-reclassified reboot fixture host
+      ansible.builtin.add_host:
+        name: investigate-reclassified-host
+        groups: security_reboot_investigate_reclassification_runtime
+        security_patching_scan_status: complete
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_preflight_ready: false
+        security_patching_next_action: investigate
+        security_patching_post_reboot_next_action: investigate
+
+    - name: Record investigate-reclassified approved reboot instance
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          investigate-reclassified-host:
+            advisory_ids:
+              - ELSA-2026-44444
+
+    - name: Classify investigate-reclassified reboot preflight fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_reboot_request
+
+    - name: Assert investigate reclassification reconciles without reboot mutation
+      ansible.builtin.assert:
+        that:
+          - security_patching_reboot_reconciliation_only | bool
+          - not (security_patching_reboot_mutation_allowed | bool)
+          - security_patching_reboot_drift_hosts == []
+          - security_patching_reboot_reclassified_hosts == ['investigate-reclassified-host']
+          - security_patching_reboot_reconciliation_hosts == ['investigate-reclassified-host']
+          - security_patching_reboot_blocked_hosts == []

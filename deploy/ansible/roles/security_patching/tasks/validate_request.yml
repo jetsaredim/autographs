@@ -64,6 +64,11 @@
         ) == (security_patching_request_instances | length)
     fail_msg: "Issue #{{ security_patching_issue_number }} metadata does not match this update workflow."
 
+- name: Validate approved request target scope
+  ansible.builtin.import_tasks: validate_target_scope.yml
+  vars:
+    security_patching_require_request_instance_match: true
+
 - name: Comment that update request was accepted
   ansible.builtin.uri:
     url: "{{ security_patching_github_api_url }}/repos/{{ security_patching_github_repository }}/issues/{{ security_patching_issue_number }}/comments"

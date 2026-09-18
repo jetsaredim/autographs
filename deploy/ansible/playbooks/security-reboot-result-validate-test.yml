@@ -1,8 +1,12 @@
-- name: Validate security reboot result refreshes remaining findings
+- name: Validate reboot advisory drift successfully refreshes remaining findings
   hosts: localhost
   gather_facts: false
   vars:
     security_patching_target_group: security_reboot_result_fixture_runtime
+    security_patching_request_instances:
+      production:
+        advisory_ids:
+          - ELSA-2026-11111
     security_patching_scan_id: security-reboot-result-refresh-test
     security_patching_scan_timestamp: "2026-08-14T00:00:00Z"
     security_patching_issue_number: "123"
@@ -18,18 +22,25 @@
     stale_advisory_id: ELSA-2026-11111
     remaining_advisory_id: ELSA-2026-22222
   tasks:
-    - name: Add reboot fixture host with remaining findings
+    - name: Add reboot drift fixture host with remaining findings
       ansible.builtin.add_host:
         name: production
         groups: security_reboot_result_fixture_runtime
-        security_patching_reboot_completed: true
-        security_patching_pre_reboot_kernel_release: 6.12.0-202.76.4.1.el10uek.x86_64
-        security_patching_post_reboot_kernel_release: 6.12.0-205.92.4.2.el10uek.x86_64
-        security_patching_installonly_cleanup_changed: true
+        security_patching_reboot_completed: false
+        security_patching_pre_reboot_kernel_release: ""
+        security_patching_post_reboot_kernel_release: ""
+        security_patching_installonly_cleanup_changed: false
+        security_patching_reboot_drift_detected: true
+        security_patching_reboot_approved_advisory_ids:
+          - ELSA-2026-11111
+        security_patching_reboot_current_advisory_ids:
+          - ELSA-2026-22222
         security_patching_post_reboot_scan_status: complete
         security_patching_post_reboot_advisory_ids:
           - ELSA-2026-22222
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_next_action: reboot
+        security_patching_post_reboot_next_action_label: approved-production-reboot
         security_patching_post_reboot_advisories:
           - advisory_id: ELSA-2026-22222
             severity: Important
@@ -99,17 +110,28 @@
           - security_patching_hosts_with_findings == ['production']
           - security_reboot_refresh_metadata_blocks | length == 1
           - security_reboot_refresh_metadata.instances.production.advisory_ids == [remaining_advisory_id]
+          - security_reboot_refresh_metadata.approval_label == 'approved-production-reboot'
           - stale_advisory_id not in security_patching_refreshed_report_body
           - remaining_advisory_id in security_patching_refreshed_report_body
           - "'| `production` | 1 | 1 | 0 |' in security_patching_refreshed_report_body"
           - "'Package sample' in security_patching_refreshed_report_body"
           - "'`kernel-uek-core`, `kernel-uek-modules`' in security_patching_refreshed_report_body"
+          - "'Apply the label `approved-production-reboot`' in security_patching_refreshed_report_body"
+          - security_patching_reboot_drift_hosts == ['production']
+          - "'Approval drift reconciled' in security_patching_reboot_result_comment_body"
+          - "'No reboot or installonly cleanup was attempted' in security_patching_reboot_result_comment_body"
+          - "'`ELSA-2026-22222`' in security_patching_reboot_result_comment_body"
+          - "'`ELSA-2026-11111`' in security_patching_reboot_result_comment_body"
 
-- name: Validate clean security reboot result comment contract
+- name: Validate clean reboot advisory drift closes without rebooting
   hosts: localhost
   gather_facts: false
   vars:
     security_patching_target_group: security_reboot_clean_fixture_runtime
+    security_patching_request_instances:
+      clean-production:
+        advisory_ids:
+          - ELSA-2026-33333
     security_patching_scan_id: security-reboot-result-clean-test
     security_patching_scan_timestamp: "2026-08-14T01:00:00Z"
     security_patching_issue_number: "124"
@@ -124,13 +146,19 @@
       ansible.builtin.add_host:
         name: clean-production
         groups: security_reboot_clean_fixture_runtime
-        security_patching_reboot_completed: true
-        security_patching_pre_reboot_kernel_release: 6.12.0-202.76.4.1.el10uek.x86_64
-        security_patching_post_reboot_kernel_release: 6.12.0-205.92.4.2.el10uek.x86_64
-        security_patching_installonly_cleanup_changed: true
+        security_patching_reboot_completed: false
+        security_patching_pre_reboot_kernel_release: ""
+        security_patching_post_reboot_kernel_release: ""
+        security_patching_installonly_cleanup_changed: false
+        security_patching_reboot_drift_detected: true
+        security_patching_reboot_approved_advisory_ids:
+          - ELSA-2026-33333
+        security_patching_reboot_current_advisory_ids: []
         security_patching_post_reboot_scan_status: complete
         security_patching_post_reboot_advisory_ids: []
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_next_action: close
+        security_patching_post_reboot_next_action_label: ""
         security_patching_post_reboot_advisories: []
         security_patching_post_reboot_entries: []
 
@@ -150,6 +178,236 @@
         that:
           - security_reboot_clean_comment_path_reached
           - security_patching_remaining_hosts == []
-          - "'Post-reboot OpenSCAP scan is clean' in security_patching_reboot_result_comment_body"
+          - security_patching_reboot_drift_hosts == ['clean-production']
+          - "'Approval drift reconciled' in security_patching_reboot_result_comment_body"
+          - "'No reboot or installonly cleanup was attempted' in security_patching_reboot_result_comment_body"
+          - "'The current OpenSCAP scan is clean' in security_patching_reboot_result_comment_body"
           - "'This issue will be closed automatically' in security_patching_reboot_result_comment_body"
           - "'clean-production' in security_patching_reboot_result_comment_body"
+
+- name: Validate exact-ID reboot request reclassified for update refreshes every target
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_update_result_fixture_runtime
+    security_patching_request_instances:
+      update-one:
+        advisory_ids:
+          - ELSA-2026-44441
+      update-two:
+        advisory_ids:
+          - ELSA-2026-44442
+    security_patching_scan_id: security-reboot-update-reclassification-test
+    security_patching_scan_timestamp: "2026-08-14T02:00:00Z"
+    security_patching_issue_number: "125"
+    security_patching_github_api_url: http://127.0.0.1:1
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_approval_label: approved-production-reboot
+    security_patching_report_path: /tmp/autographs-security-reboot-update-reclassification.md
+    security_patching_result_comment_path: /tmp/autographs-security-reboot-update-reclassification-comment.md
+    security_reboot_update_refresh_path_reached: false
+  tasks:
+    - name: Add exact-ID update-reclassified reboot result hosts
+      ansible.builtin.add_host:
+        name: "{{ item.name }}"
+        groups: security_reboot_update_result_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_next_action: update
+        security_patching_reboot_preflight_ready: false
+        security_patching_reboot_completed: false
+        security_patching_pre_reboot_kernel_release: ""
+        security_patching_post_reboot_kernel_release: ""
+        security_patching_installonly_cleanup_changed: false
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_reclassified: true
+        security_patching_reboot_approved_advisory_ids:
+          - "{{ item.advisory_id }}"
+        security_patching_reboot_current_advisory_ids:
+          - "{{ item.advisory_id }}"
+        security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_advisory_ids:
+          - "{{ item.advisory_id }}"
+        security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_next_action: update
+        security_patching_post_reboot_next_action_label: approved-production-update
+        security_patching_post_reboot_advisories:
+          - advisory_id: "{{ item.advisory_id }}"
+            severity: Important
+            cves: []
+            errata_link: "https://linux.oracle.com/errata/{{ item.advisory_id }}.html"
+            summary: "{{ item.advisory_id }} package update now available"
+            package_count: 1
+            packages:
+              - openssl
+            ksplice_aware: false
+        security_patching_post_reboot_entries:
+          - advisory_id: "{{ item.advisory_id }}"
+            severity: Important
+            cves: []
+            errata_link: "https://linux.oracle.com/errata/{{ item.advisory_id }}.html"
+            summary: "{{ item.advisory_id }} package update now available"
+            package_count: 1
+            packages:
+              - openssl
+            ksplice_aware: false
+      loop:
+        - name: update-one
+          advisory_id: ELSA-2026-44441
+        - name: update-two
+          advisory_id: ELSA-2026-44442
+
+    - name: Classify update-reclassified reboot result targets
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_reboot_request
+
+    - name: Run update-reclassified reboot result publication until fake GitHub refresh fails
+      block:
+        - name: Attempt to publish update-reclassified reboot result
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_reboot_result
+      rescue:
+        - name: Record expected update-reclassified fake GitHub failure
+          ansible.builtin.set_fact:
+            security_reboot_update_refresh_path_reached: true
+
+    - name: Extract update-reclassified reboot issue metadata
+      ansible.builtin.set_fact:
+        security_reboot_update_metadata_blocks: >-
+          {{ security_patching_refreshed_report_body | regex_findall(metadata_block_pattern) }}
+      vars:
+        metadata_block_pattern: '(?s)<!-- autographs-security-patch-metadata[\r\n]+(.*?)[\r\n]+-->'
+
+    - name: Parse update-reclassified reboot issue metadata
+      ansible.builtin.set_fact:
+        security_reboot_update_metadata: "{{ security_reboot_update_metadata_blocks[0] | from_yaml }}"
+
+    - name: Assert update reclassification refreshes every target without mutation
+      ansible.builtin.assert:
+        that:
+          - security_reboot_update_refresh_path_reached
+          - security_patching_reboot_reconciliation_only | bool
+          - not (security_patching_reboot_mutation_allowed | bool)
+          - security_patching_reboot_blocked_hosts == []
+          - security_patching_reboot_reclassified_hosts == ['update-one', 'update-two']
+          - security_patching_remaining_hosts == ['update-one', 'update-two']
+          - security_patching_hosts_with_findings == ['update-one', 'update-two']
+          - security_reboot_update_metadata.next_action == 'update'
+          - security_reboot_update_metadata.approval_label == 'approved-production-update'
+          - security_reboot_update_metadata.instances.keys() | list | sort == ['update-one', 'update-two']
+          - "'Apply the label `approved-production-update`' in security_patching_refreshed_report_body"
+          - "'Reboot approval reclassified' in security_patching_reboot_result_comment_body"
+          - "'No reboot or installonly cleanup was attempted' in security_patching_reboot_result_comment_body"
+          - "'Current action: `update`' in security_patching_reboot_result_comment_body"
+          - "'update-one' in security_patching_reboot_result_comment_body"
+          - "'update-two' in security_patching_reboot_result_comment_body"
+
+- name: Validate exact-ID reboot request reclassified for investigation refreshes issue
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_investigate_result_fixture_runtime
+    security_patching_request_instances:
+      investigate-one:
+        advisory_ids:
+          - ELSA-2026-55551
+    security_patching_scan_id: security-reboot-investigate-reclassification-test
+    security_patching_scan_timestamp: "2026-08-14T03:00:00Z"
+    security_patching_issue_number: "126"
+    security_patching_github_api_url: http://127.0.0.1:1
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_approval_label: approved-production-reboot
+    security_patching_report_path: /tmp/autographs-security-reboot-investigate-reclassification.md
+    security_patching_result_comment_path: /tmp/autographs-security-reboot-investigate-reclassification-comment.md
+    security_reboot_investigate_refresh_path_reached: false
+  tasks:
+    - name: Add exact-ID investigate-reclassified reboot result host
+      ansible.builtin.add_host:
+        name: investigate-one
+        groups: security_reboot_investigate_result_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_next_action: investigate
+        security_patching_reboot_preflight_ready: false
+        security_patching_reboot_completed: false
+        security_patching_pre_reboot_kernel_release: ""
+        security_patching_post_reboot_kernel_release: ""
+        security_patching_installonly_cleanup_changed: false
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_reclassified: true
+        security_patching_reboot_approved_advisory_ids:
+          - ELSA-2026-55551
+        security_patching_reboot_current_advisory_ids:
+          - ELSA-2026-55551
+        security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_advisory_ids:
+          - ELSA-2026-55551
+        security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_next_action: investigate
+        security_patching_post_reboot_next_action_label: ""
+        security_patching_post_reboot_advisories:
+          - advisory_id: ELSA-2026-55551
+            severity: Important
+            cves: []
+            errata_link: https://linux.oracle.com/errata/ELSA-2026-55551.html
+            summary: ELSA-2026-55551 incomplete package metadata
+            package_count: 0
+            packages: []
+            ksplice_aware: false
+        security_patching_post_reboot_entries:
+          - advisory_id: ELSA-2026-55551
+            severity: Important
+            cves: []
+            errata_link: https://linux.oracle.com/errata/ELSA-2026-55551.html
+            summary: ELSA-2026-55551 incomplete package metadata
+            package_count: 0
+            packages: []
+            ksplice_aware: false
+
+    - name: Classify investigate-reclassified reboot result target
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_reboot_request
+
+    - name: Run investigate-reclassified reboot result publication until fake GitHub refresh fails
+      block:
+        - name: Attempt to publish investigate-reclassified reboot result
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_reboot_result
+      rescue:
+        - name: Record expected investigate-reclassified fake GitHub failure
+          ansible.builtin.set_fact:
+            security_reboot_investigate_refresh_path_reached: true
+
+    - name: Extract investigate-reclassified reboot issue metadata
+      ansible.builtin.set_fact:
+        security_reboot_investigate_metadata_blocks: >-
+          {{ security_patching_refreshed_report_body | regex_findall(metadata_block_pattern) }}
+      vars:
+        metadata_block_pattern: '(?s)<!-- autographs-security-patch-metadata[\r\n]+(.*?)[\r\n]+-->'
+
+    - name: Parse investigate-reclassified reboot issue metadata
+      ansible.builtin.set_fact:
+        security_reboot_investigate_metadata: >-
+          {{ security_reboot_investigate_metadata_blocks[0] | from_yaml }}
+
+    - name: Assert investigate reclassification refreshes issue without mutation
+      ansible.builtin.assert:
+        that:
+          - security_reboot_investigate_refresh_path_reached
+          - security_patching_reboot_reconciliation_only | bool
+          - not (security_patching_reboot_mutation_allowed | bool)
+          - security_patching_reboot_blocked_hosts == []
+          - security_patching_reboot_reclassified_hosts == ['investigate-one']
+          - security_patching_remaining_hosts == ['investigate-one']
+          - security_patching_hosts_with_findings == ['investigate-one']
+          - security_reboot_investigate_metadata.next_action == 'investigate'
+          - security_reboot_investigate_metadata.approval_label == ''
+          - "'Do not apply an update or reboot approval label yet' in security_patching_refreshed_report_body"
+          - "'Reboot approval reclassified' in security_patching_reboot_result_comment_body"
+          - "'No reboot or installonly cleanup was attempted' in security_patching_reboot_result_comment_body"
+          - "'Current action: `investigate`' in security_patching_reboot_result_comment_body"
+          - "'investigate-one' in security_patching_reboot_result_comment_body"

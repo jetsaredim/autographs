@@ -1,7 +1,7 @@
 ## Production security update result
 
 - Approved by: `{{ security_patching_approver }}`
-- Scan ID: `{{ hostvars['localhost'].security_patching_request_scan_id }}`
+- Scan ID: `{{ hostvars['localhost'].security_patching_request_scan_id | default(security_patching_scan_id) }}`
 - Target group: `{{ security_patching_target_group }}`
 {% if lookup('env', 'GITHUB_SERVER_URL') | length > 0 and lookup('env', 'GITHUB_REPOSITORY') | length > 0 and lookup('env', 'GITHUB_RUN_ID') | length > 0 %}
 - Workflow run: {{ lookup('env', 'GITHUB_SERVER_URL') }}/{{ lookup('env', 'GITHUB_REPOSITORY') }}/actions/runs/{{ lookup('env', 'GITHUB_RUN_ID') }}
@@ -13,6 +13,24 @@
 | `{{ host }}` | {{ hostvars[host].security_patching_ksplice_available | default(false) }} | {{ hostvars[host].security_patching_ksplice_apply_mode | default('report_only') }} | {{ hostvars[host].security_patching_dnf_changed | default(false) }} | {{ hostvars[host].security_patching_approved_advisory_ids | default([]) | length }} | {{ hostvars[host].security_patching_post_update_entries | default([]) | length }} |
 {% endfor %}
 
+{% if security_patching_update_drift_hosts | default([]) | length > 0 %}
+## Approval drift reconciled
+
+No package changes were attempted for this request because the live OpenSCAP advisory set differed from the approved issue metadata on at least one target. The issue now contains the authoritative current findings.
+
+{% for host in security_patching_update_drift_hosts %}
+{% set approved_ids = hostvars[host].security_patching_approved_advisory_ids | default([]) | unique | sort | list %}
+{% set current_ids = hostvars[host].security_patching_current_advisory_ids | default([]) | unique | sort | list %}
+### `{{ host }}`
+
+- Approved advisories: {{ approved_ids | length }}
+- Current advisories: {{ current_ids | length }}
+- Added since approval: {% set added_ids = current_ids | difference(approved_ids) | sort | list %}{% if added_ids | length > 0 %}`{{ added_ids | join('`, `') }}`{% else %}none{% endif %}
+- No longer present: {% set removed_ids = approved_ids | difference(current_ids) | sort | list %}{% if removed_ids | length > 0 %}`{{ removed_ids | join('`, `') }}`{% else %}none{% endif %}
+
+{% endfor %}
+{% endif %}
+
 {% if security_patching_remaining_hosts | length == 0 %}
 Post-update scan is clean for the approved target group. This issue will be closed automatically.
 {% else %}
@@ -22,5 +40,11 @@ Post-update scan still reports findings on:
 {% endfor %}
 
 This issue has been refreshed with the remaining findings and is intentionally left open for follow-up review.
-Re-apply the `{{ security_patching_approval_label }}` label after reviewing the refreshed advisory set.
+{% if security_patching_next_action | trim == 'update' %}
+Advisory-scoped DNF still reports package work. Apply `{{ security_patching_next_action_label | trim }}` after reviewing the refreshed advisory set.
+{% elif security_patching_next_action | trim == 'reboot' %}
+Advisory-scoped DNF is now a no-op and the remaining packages are reboot/installonly candidates. Apply `{{ security_patching_next_action_label | trim }}` to authorize the separate reboot cleanup workflow.
+{% else %}
+The remaining findings are mixed or could not be classified safely. Do not apply an approval label; inspect the workflow logs and re-run the scanner after resolving the ambiguity.
+{% endif %}
 {% endif %}

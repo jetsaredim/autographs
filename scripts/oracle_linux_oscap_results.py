@@ -11,7 +11,7 @@ from typing import Any
 
 
 DEFAULT_ERRATA_BASE_URL = "https://linux.oracle.com/errata/"
-ADVISORY_RE = re.compile(r"\bELSA-\d{4}-\d+\b")
+ADVISORY_RE = re.compile(r"\b(?P<base>ELSA-\d{4}-\d+)(?:-\d+)?\b")
 PACKAGE_COMMENT_RE = re.compile(r"^(?P<name>[A-Za-z0-9_.+-]+) is earlier than ")
 FINDING_RESULTS = {"true"}
 CLEAN_RESULTS = {"false", "not applicable"}
@@ -33,18 +33,23 @@ def build_errata_link(advisory_id: str, errata_base_url: str = DEFAULT_ERRATA_BA
     return f"{errata_base_url.rstrip('/')}/{advisory_id}.html"
 
 
-def _definition_advisory_id(definition: ET.Element) -> str | None:
+def _definition_advisory_reference(definition: ET.Element) -> tuple[str | None, str, str]:
     for element in definition.iter():
         if _local_name(element.tag) not in {"ref", "reference"}:
             continue
         match = ADVISORY_RE.search(element.attrib.get("ref_id", ""))
         if match:
-            return match.group(0)
+            return match.group("base"), match.group(0), element.attrib.get("ref_url", "")
     for element in definition.iter():
         match = ADVISORY_RE.search(element.text or "")
         if match:
-            return match.group(0)
-    return None
+            return match.group("base"), match.group(0), ""
+    return None, "", ""
+
+
+def _definition_advisory_id(definition: ET.Element) -> str | None:
+    advisory_id, _, _ = _definition_advisory_reference(definition)
+    return advisory_id
 
 
 def _definition_packages(definition: ET.Element) -> list[str]:
@@ -65,7 +70,7 @@ def load_oval_definitions(oval_path: Path, errata_base_url: str = DEFAULT_ERRATA
         if _local_name(definition.tag) != "definition":
             continue
         definition_id = definition.attrib.get("id", "")
-        advisory_id = _definition_advisory_id(definition)
+        advisory_id, advisory_reference_id, advisory_reference_url = _definition_advisory_reference(definition)
         if not definition_id or not advisory_id:
             continue
         severity = "unknown"
@@ -96,7 +101,8 @@ def load_oval_definitions(oval_path: Path, errata_base_url: str = DEFAULT_ERRATA
             "severity": severity,
             "cves": sorted(cves),
             "summary": summary,
-            "errata_link": build_errata_link(advisory_id, errata_base_url),
+            "errata_link": advisory_reference_url
+            or build_errata_link(advisory_reference_id or advisory_id, errata_base_url),
             "packages": packages,
             "package_count": len(packages),
             "affected_cpes": sorted(affected_cpes),

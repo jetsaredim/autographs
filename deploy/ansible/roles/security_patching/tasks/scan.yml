@@ -93,3 +93,6 @@
     security_patching_scan_status: "{{ security_patching_oscap_result.status | default('complete') }}"
     security_patching_scan_message: >-
       {{ security_patching_oscap_result.message | default('Oracle Linux OpenSCAP OVAL evaluation completed.') }}
+
+- name: Classify current security finding action
+  ansible.builtin.import_tasks: classify_findings.yml

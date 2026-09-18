@@ -13,15 +13,62 @@
 | `{{ host }}` | {{ hostvars[host].security_patching_reboot_completed | default(false) }} | `{{ hostvars[host].security_patching_pre_reboot_kernel_release | default('unknown') }}` | `{{ hostvars[host].security_patching_post_reboot_kernel_release | default('unknown') }}` | {{ hostvars[host].security_patching_installonly_cleanup_changed | default(false) }} | {{ hostvars[host].security_patching_post_reboot_entries | default([]) | length }} |
 {% endfor %}
 
+{% if security_patching_reboot_drift_hosts | default([]) | length > 0 -%}
+## Approval drift reconciled
+
+No reboot or installonly cleanup was attempted because the live OpenSCAP advisory set differed from the approved issue metadata on at least one target. The issue now contains the authoritative current findings.
+
+{% for host in security_patching_reboot_drift_hosts -%}
+{% set approved_ids = hostvars[host].security_patching_reboot_approved_advisory_ids | default([]) | unique | sort | list -%}
+{% set current_ids = hostvars[host].security_patching_reboot_current_advisory_ids | default([]) | unique | sort | list -%}
+### `{{ host }}`
+
+- Approved advisories: {{ approved_ids | length }}
+- Current advisories: {{ current_ids | length }}
+- Added since approval: {% set added_ids = current_ids | difference(approved_ids) | sort | list %}{% if added_ids | length > 0 %}`{{ added_ids | join('`, `') }}`{% else %}none{% endif %}
+- No longer present: {% set removed_ids = approved_ids | difference(current_ids) | sort | list %}{% if removed_ids | length > 0 %}`{{ removed_ids | join('`, `') }}`{% else %}none{% endif %}
+
+{% endfor -%}
+{% endif %}
+
+{% if security_patching_reboot_reclassified_hosts | default([]) | length > 0 -%}
+## Reboot approval reclassified
+
+No reboot or installonly cleanup was attempted because the complete current OpenSCAP scan no longer classifies at least one target for reboot cleanup. The issue now contains the authoritative current action and findings.
+
+{% for host in security_patching_reboot_reclassified_hosts -%}
+### `{{ host }}`
+
+- Approved advisories: {{ hostvars[host].security_patching_reboot_approved_advisory_ids | default([]) | unique | sort | list | length }}
+- Current advisories: {{ hostvars[host].security_patching_reboot_current_advisory_ids | default([]) | unique | sort | list | length }}
+- Current action: `{{ hostvars[host].security_patching_post_reboot_next_action | default('investigate') | trim }}`
+
+{% endfor -%}
+{% endif %}
+
 {% if security_patching_remaining_hosts | default([]) | length == 0 -%}
+{% if security_patching_reboot_drift_hosts | default([]) | length > 0 or security_patching_reboot_reclassified_hosts | default([]) | length > 0 -%}
+The current OpenSCAP scan is clean for the approved target group. This issue will be closed automatically without rebooting.
+{% else -%}
 Post-reboot OpenSCAP scan is clean for the approved target group. This issue will be closed automatically.
+{% endif %}
+{% else -%}
+{% if security_patching_reboot_drift_hosts | default([]) | length > 0 or security_patching_reboot_reclassified_hosts | default([]) | length > 0 -%}
+The current OpenSCAP scan reports findings on:
 {% else -%}
 Post-reboot OpenSCAP scan still reports findings on:
+{% endif %}
 
 {% for host in security_patching_remaining_hosts -%}
 - `{{ host }}`: {{ hostvars[host].security_patching_post_reboot_entries | default([]) | length }} remaining security update(s)
 {% endfor %}
 
 This issue has been refreshed with the remaining findings and is intentionally left open for follow-up review.
-Re-apply the `{{ security_patching_approval_label }}` label after reviewing the refreshed advisory set.
+{% if security_patching_next_action | trim == 'update' -%}
+Advisory-scoped DNF reports package work. Apply `{{ security_patching_next_action_label | trim }}` after reviewing the refreshed advisory set.
+{% elif security_patching_next_action | trim == 'reboot' -%}
+Advisory-scoped DNF is still a no-op and the remaining packages are reboot/installonly candidates. Apply `{{ security_patching_next_action_label | trim }}` only after deciding that another reboot cleanup is appropriate.
+{% else -%}
+The remaining findings are mixed or could not be classified safely. Do not apply an approval label; inspect the workflow logs and re-run the scanner after resolving the ambiguity.
+{% endif %}
 {% endif %}

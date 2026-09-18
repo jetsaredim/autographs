@@ -10,7 +10,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: production-security-updates
+  group: production-security-patching
   cancel-in-progress: false
 
 jobs:

@@ -3,7 +3,13 @@
   gather_facts: false
   vars:
     security_patching_target_group: security_post_result_refresh_fixture_runtime
+    security_patching_request_instances:
+      production:
+        advisory_ids:
+          - ELSA-2026-11111
+          - ELSA-2026-22222
     security_patching_scan_id: security-scan-post-result-refresh-test
+    security_patching_request_scan_id: security-scan-approved-fixture
     security_patching_scan_timestamp: "2026-08-04T00:00:00Z"
     security_patching_issue_number: "123"
     security_patching_github_api_url: http://127.0.0.1:1
@@ -33,6 +39,22 @@
           - ELSA-2026-22222
         security_patching_update_ksplice_aware_advisory_ids: []
         security_patching_post_update_ksplice_aware_advisory_ids: []
+        security_patching_post_update_next_action: update
+        security_patching_post_update_next_action_label: approved-production-update
+        security_patching_post_update_advisories:
+          - advisory_id: ELSA-2026-22222
+            severity: Important
+            cves:
+              - CVE-2026-0001
+              - CVE-2026-0002
+              - CVE-2026-0003
+            errata_link: https://linux.oracle.com/errata/ELSA-2026-22222.html
+            summary: ELSA-2026-22222 remaining security update
+            package_count: 2
+            packages:
+              - openssl
+              - openssl-libs
+            ksplice_aware: false
         security_patching_update_advisories:
           - advisory_id: ELSA-2026-11111
             severity: Critical
@@ -128,9 +150,11 @@
           - security_patching_hosts_with_findings == ['production']
           - security_patching_refresh_metadata_blocks | length == 1
           - security_patching_refresh_metadata.instances.production.advisory_ids == [remaining_advisory_id]
+          - security_patching_refresh_metadata.approval_label == 'approved-production-update'
           - stale_advisory_id not in security_patching_refreshed_report_body
           - remaining_advisory_id in security_patching_refreshed_report_body
           - "'| `production` | 1 | 1 | 0 |' in security_patching_refreshed_report_body"
           - "'Package sample' in security_patching_refreshed_report_body"
           - "'`openssl`, `openssl-libs`' in security_patching_refreshed_report_body"
           - "'+1 more' in security_patching_refreshed_report_body"
+          - "'Apply the label `approved-production-update`' in security_patching_refreshed_report_body"

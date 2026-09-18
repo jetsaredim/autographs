@@ -1,0 +1,128 @@
+- name: Initialize current security finding classification
+  ansible.builtin.set_fact:
+    security_patching_classification_entries_without_packages: []
+    security_patching_classification_disallowed_packages: []
+    security_patching_classification_dnf_rc: 99
+    security_patching_classification_dnf_stdout: ""
+    security_patching_classification_dnf_stderr: ""
+
+- name: Collect current findings without package metadata
+  ansible.builtin.set_fact:
+    security_patching_classification_entries_without_packages: >-
+      {{
+        (
+          security_patching_classification_entries_without_packages
+          + [item.advisory_id | default(item.definition_id | default('unknown'))]
+        )
+        | unique
+        | sort
+      }}
+  loop: "{{ security_patching_update_entries | default([]) }}"
+  when: item.packages is not defined or item.packages | length == 0
+
+- name: Collect current packages outside reboot-eligible families
+  ansible.builtin.set_fact:
+    security_patching_classification_disallowed_packages: >-
+      {{ (security_patching_classification_disallowed_packages + [item.1]) | unique | sort }}
+  loop: "{{ security_patching_update_entries | default([]) | subelements('packages', skip_missing=True) }}"
+  when: item.1 is not match(security_patching_reboot_allowed_package_regex)
+
+- name: Probe advisory-scoped DNF work for current findings # noqa: command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - --assumeno
+      - upgrade-minimal
+      - --security
+      - "--advisories={{ security_patching_update_advisory_ids | default([]) | unique | sort | join(',') }}"
+  register: security_patching_classification_dnf_probe
+  changed_when: false
+  failed_when: false
+  when:
+    - security_patching_update_advisory_ids | default([]) | length > 0
+    - security_patching_classification_dnf_probe_override is not mapping
+
+- name: Record live DNF classification probe
+  ansible.builtin.set_fact:
+    security_patching_classification_dnf_rc: "{{ security_patching_classification_dnf_probe.rc | int }}"
+    security_patching_classification_dnf_stdout: "{{ security_patching_classification_dnf_probe.stdout | default('') }}"
+    security_patching_classification_dnf_stderr: "{{ security_patching_classification_dnf_probe.stderr | default('') }}"
+  when:
+    - security_patching_classification_dnf_probe is defined
+    - security_patching_classification_dnf_probe.rc is defined
+
+- name: Record fixture DNF classification probe
+  ansible.builtin.set_fact:
+    security_patching_classification_dnf_rc: >-
+      {{ security_patching_classification_dnf_probe_override.rc | default(99) | int }}
+    security_patching_classification_dnf_stdout: >-
+      {{ security_patching_classification_dnf_probe_override.stdout | default('') }}
+    security_patching_classification_dnf_stderr: >-
+      {{ security_patching_classification_dnf_probe_override.stderr | default('') }}
+  when: security_patching_classification_dnf_probe_override is mapping
+
+- name: Classify DNF probe outcome
+  ansible.builtin.set_fact:
+    security_patching_classification_dnf_noop: >-
+      {{
+        (security_patching_classification_dnf_rc | int) == 0
+        and (
+          security_patching_classification_dnf_stdout
+          ~ security_patching_classification_dnf_stderr
+        ) is search(security_patching_dnf_noop_regex)
+      }}
+    security_patching_classification_dnf_work: >-
+      {{
+        (security_patching_classification_dnf_rc | int) in [0, 1]
+        and (
+          security_patching_classification_dnf_stdout
+          ~ security_patching_classification_dnf_stderr
+        ) is search(security_patching_dnf_work_regex)
+      }}
+
+- name: Resolve authoritative current finding action
+  ansible.builtin.set_fact:
+    security_patching_next_action: >-
+      {% if security_patching_scan_status | default('missing') != 'complete' %}
+      investigate
+      {% elif security_patching_update_entries | default([]) | length == 0 %}
+      close
+      {% elif security_patching_update_advisory_ids | default([]) | length == 0 %}
+      investigate
+      {% elif security_patching_classification_entries_without_packages | length > 0 %}
+      investigate
+      {% elif security_patching_classification_dnf_work | bool %}
+      update
+      {% elif security_patching_classification_dnf_noop | bool and security_patching_classification_disallowed_packages | length == 0 %}
+      reboot
+      {% else %}
+      investigate
+      {% endif %}
+    security_patching_next_action_reason: >-
+      {% if security_patching_scan_status | default('missing') != 'complete' %}
+      The OpenSCAP scan was not complete.
+      {% elif security_patching_update_entries | default([]) | length == 0 %}
+      The complete OpenSCAP scan is clean.
+      {% elif security_patching_update_advisory_ids | default([]) | length == 0 %}
+      Findings were present without advisory identifiers.
+      {% elif security_patching_classification_entries_without_packages | length > 0 %}
+      One or more findings lacked package metadata.
+      {% elif security_patching_classification_dnf_work | bool %}
+      Advisory-scoped DNF reported package work.
+      {% elif security_patching_classification_dnf_noop | bool and security_patching_classification_disallowed_packages | length == 0 %}
+      Advisory-scoped DNF is a no-op and all remaining packages are reboot/installonly candidates.
+      {% elif security_patching_classification_dnf_noop | bool %}
+      Advisory-scoped DNF is a no-op but the findings include packages outside reboot/installonly families.
+      {% else %}
+      DNF output did not prove either applicable package work or a safe reboot-only state.
+      {% endif %}
+
+- name: Resolve authoritative current finding approval label
+  ansible.builtin.set_fact:
+    security_patching_next_action_label: >-
+      {{
+        {
+          'update': security_patching_update_approval_label,
+          'reboot': security_patching_reboot_approval_label
+        }.get(security_patching_next_action | trim, '')
+      }}

@@ -7,17 +7,31 @@
         name: security_patching
         tasks_from: validate_request
 
-- name: Apply approved production security updates
+- name: Preflight approved production security updates
   hosts: "{{ security_patching_target_group | default('runtime') }}"
   become: true
   gather_facts: true
-  serial: 1
   tasks:
     - name: Scan current host security update state
       ansible.builtin.import_role:
         name: security_patching
         tasks_from: scan
 
+- name: Require every target ready before package mutation
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Classify aggregate update request
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_update_request
+
+- name: Apply approved production security updates
+  hosts: "{{ security_patching_target_group | default('runtime') }}"
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
     - name: Apply approved host security updates
       ansible.builtin.import_role:
         name: security_patching

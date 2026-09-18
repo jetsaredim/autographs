@@ -1,0 +1,86 @@
+- name: Validate missing scanner target group fails closed
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_missing_fixture_runtime
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_target_scope_missing_failed: false
+  tasks:
+    - name: Run scanner publication with missing target group
+      block:
+        - name: Attempt scanner publication with missing target group
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: create_issue
+      rescue:
+        - name: Record missing target group failure
+          ansible.builtin.set_fact:
+            security_target_scope_missing_failed: true
+            security_target_scope_missing_failed_task: "{{ ansible_failed_task.name | default('') }}"
+
+    - name: Assert missing target group failed before issue publication
+      ansible.builtin.assert:
+        that:
+          - security_target_scope_missing_failed
+          - security_target_scope_missing_failed_task == 'Require configured security patching target group'
+
+- name: Validate empty scanner target group fails closed
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_empty_fixture_runtime
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_target_scope_empty_failed: false
+  tasks:
+    - name: Run scanner publication with empty target group
+      block:
+        - name: Attempt scanner publication with empty target group
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: create_issue
+      rescue:
+        - name: Record empty target group failure
+          ansible.builtin.set_fact:
+            security_target_scope_empty_failed: true
+            security_target_scope_empty_failed_task: "{{ ansible_failed_task.name | default('') }}"
+
+    - name: Assert empty target group failed before issue publication
+      ansible.builtin.assert:
+        that:
+          - security_target_scope_empty_failed
+          - security_target_scope_empty_failed_task == 'Require at least one live security patching target'
+
+- name: Validate approved host metadata must match live target group
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_live_fixture_runtime
+    security_patching_request_instances:
+      stale-host:
+        advisory_ids:
+          - ELSA-2026-11111
+    security_target_scope_mismatch_failed: false
+  tasks:
+    - name: Run approval scope validation with mismatched hosts
+      block:
+        - name: Attempt approval scope validation with mismatched hosts
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: validate_target_scope
+          vars:
+            security_patching_require_request_instance_match: true
+      rescue:
+        - name: Record approved host mismatch failure
+          ansible.builtin.set_fact:
+            security_target_scope_mismatch_failed: true
+            security_target_scope_mismatch_failed_task: "{{ ansible_failed_task.name | default('') }}"
+
+    - name: Assert approved host mismatch failed before issue publication
+      ansible.builtin.assert:
+        that:
+          - security_target_scope_mismatch_failed
+          - security_target_scope_mismatch_failed_task == 'Require approved instances to match live target hosts'
+          - security_patching_target_hosts == ['live-host']
+          - security_patching_request_instance_hosts == ['stale-host']
