@@ -2309,12 +2309,12 @@ fn parse_uuid(value: &str) -> Result<Uuid, String> {
     Uuid::parse_str(value).map_err(|error| format!("parse Oracle UUID: {error}"))
 }
 
-fn row_value<T: FromDbValue>(row: &Row, index: usize, name: &str) -> Result<T, String> {
+fn row_value<T: for<'a> FromDbValue<'a>>(row: &Row, index: usize, name: &str) -> Result<T, String> {
     row.get(index)
         .map_err(|error| format!("read Oracle catalog {name}: {error}"))
 }
 
-fn query_row_value<T: FromDbValue>(
+fn query_row_value<T: for<'a> FromDbValue<'a>>(
     connection: &Connection,
     sql: &str,
     params: &[&dyn ToDbValue],
