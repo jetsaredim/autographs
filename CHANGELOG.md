@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2](https://github.com/jetsaredim/autographs/compare/v0.2.1...v0.2.2) (2026-09-18)
+
+
+### Bug Fixes
+
+* **deps:** update routine dependency updates ([#245](https://github.com/jetsaredim/autographs/issues/245)) ([517d1d5](https://github.com/jetsaredim/autographs/commit/517d1d5af6542953ae050019d1092b22c9d4cafa))
+* reconcile security patch issue state ([#247](https://github.com/jetsaredim/autographs/issues/247)) ([82cf104](https://github.com/jetsaredim/autographs/commit/82cf104a2e23bd99defe9ad4cf789e5c05180ce6))
+
 ## [0.2.1](https://github.com/jetsaredim/autographs/compare/v0.2.0...v0.2.1) (2026-09-07)
 
 
