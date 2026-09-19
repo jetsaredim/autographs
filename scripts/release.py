@@ -90,6 +90,7 @@ def _changed_paths_between(repo: Path, base: str, head: str) -> list[str]:
     output = _git(
         repo,
         "diff",
+        "--no-renames",
         "--name-only",
         "--diff-filter=ACDMRTUXB",
         f"{base}..{head}",

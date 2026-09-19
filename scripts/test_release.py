@@ -124,6 +124,27 @@ class ReleaseRangeTests(unittest.TestCase):
 
         self.assertTrue(impact["controllerChanged"])
 
+    def test_rename_out_of_controller_requires_controller_image(self):
+        repo = make_repo()
+        base_sha = commit_file(
+            repo,
+            "controller/src/main.rs",
+            "fn main() {}\n",
+            "feat(controller): add entry point",
+        )
+        (repo / "docs").mkdir()
+        git(repo, "mv", "controller/src/main.rs", "docs/example.rs")
+        git(repo, "commit", "-m", "docs: move controller example")
+        head_sha = git(repo, "rev-parse", "HEAD")
+
+        impact = release.classify_ref_range(repo, base_sha, head_sha)
+
+        self.assertTrue(impact["controllerChanged"])
+        self.assertEqual(
+            impact["changedPaths"],
+            ["controller/src/main.rs", "docs/example.rs"],
+        )
+
     def test_infrastructure_ref_range_does_not_require_controller_image(self):
         repo = make_repo()
         base_sha = git(repo, "rev-parse", "HEAD")
