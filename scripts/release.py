@@ -74,15 +74,8 @@ def find_previous_release(repo: Path, target_tag: str) -> str | None:
 
 def _changed_paths(repo: Path, previous_tag: str | None, target_tag: str) -> list[str]:
     if previous_tag:
-        output = _git(
-            repo,
-            "diff",
-            "--name-only",
-            "--diff-filter=ACDMRTUXB",
-            f"{previous_tag}..{target_tag}",
-        )
-    else:
-        output = _git(repo, "ls-tree", "-r", "--name-only", target_tag)
+        return _changed_paths_between(repo, previous_tag, target_tag)
+    output = _git(repo, "ls-tree", "-r", "--name-only", target_tag)
     return sorted({path for path in output.splitlines() if path})
 
 
