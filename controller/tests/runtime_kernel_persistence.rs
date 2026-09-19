@@ -85,9 +85,10 @@ fn ci_runs_the_runtime_kernel_persistence_contract() {
     assert!(ci.contains(
         "ansible-playbook deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml"
     ));
-    assert!(validation.contains(
-        "cargo test --manifest-path controller/Cargo.toml --test runtime_kernel_persistence"
-    ));
+    assert!(
+        !validation.contains("cargo test"),
+        "the full controller coverage suite already executes this integration test"
+    );
     for required_path in [
         "deploy/ansible/roles/autographs_deploy/tasks/kernel_persistence.yml",
         "deploy/ansible/roles/autographs_deploy/templates/autographs-coredump.conf.j2",

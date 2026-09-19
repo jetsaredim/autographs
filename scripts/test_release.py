@@ -95,6 +95,92 @@ def manifest(
 
 
 class ReleaseRangeTests(unittest.TestCase):
+    def test_classifies_arbitrary_ref_range_for_ci(self):
+        repo = make_repo()
+        base_sha = git(repo, "rev-parse", "HEAD")
+        head_sha = commit_file(
+            repo,
+            "controller/src/main.rs",
+            "fn main() {}\n",
+            "feat(controller): add endpoint",
+        )
+
+        impact = release.classify_ref_range(repo, base_sha, head_sha)
+
+        self.assertTrue(impact["controllerChanged"])
+        self.assertEqual(impact["changedPaths"], ["controller/src/main.rs"])
+
+    def test_dockerignore_change_requires_controller_image(self):
+        repo = make_repo()
+        base_sha = git(repo, "rev-parse", "HEAD")
+        head_sha = commit_file(
+            repo,
+            ".dockerignore",
+            "controller/target\n",
+            "build: update Docker context",
+        )
+
+        impact = release.classify_ref_range(repo, base_sha, head_sha)
+
+        self.assertTrue(impact["controllerChanged"])
+
+    def test_rename_out_of_controller_requires_controller_image(self):
+        repo = make_repo()
+        base_sha = commit_file(
+            repo,
+            "controller/src/main.rs",
+            "fn main() {}\n",
+            "feat(controller): add entry point",
+        )
+        (repo / "docs").mkdir()
+        git(repo, "mv", "controller/src/main.rs", "docs/example.rs")
+        git(repo, "commit", "-m", "docs: move controller example")
+        head_sha = git(repo, "rev-parse", "HEAD")
+
+        impact = release.classify_ref_range(repo, base_sha, head_sha)
+
+        self.assertTrue(impact["controllerChanged"])
+        self.assertEqual(
+            impact["changedPaths"],
+            ["controller/src/main.rs", "docs/example.rs"],
+        )
+
+    def test_release_range_rename_out_of_controller_requires_controller_image(self):
+        repo = make_repo()
+        commit_file(
+            repo,
+            "controller/src/main.rs",
+            "fn main() {}\n",
+            "feat(controller): add entry point",
+        )
+        git(repo, "tag", "v1.2.3")
+        (repo / "docs").mkdir()
+        git(repo, "mv", "controller/src/main.rs", "docs/example.rs")
+        git(repo, "commit", "-m", "docs: move controller example")
+        git(repo, "tag", "v1.3.0")
+
+        impact = release.classify_release_range(repo, "v1.2.3", "v1.3.0")
+
+        self.assertTrue(impact["controllerChanged"])
+        self.assertEqual(
+            impact["changedPaths"],
+            ["controller/src/main.rs", "docs/example.rs"],
+        )
+
+    def test_infrastructure_ref_range_does_not_require_controller_image(self):
+        repo = make_repo()
+        base_sha = git(repo, "rev-parse", "HEAD")
+        head_sha = commit_file(
+            repo,
+            "infra/terraform/main.tf",
+            "terraform {}\n",
+            "fix(terraform): update runtime",
+        )
+
+        impact = release.classify_ref_range(repo, base_sha, head_sha)
+
+        self.assertFalse(impact["controllerChanged"])
+
     def test_release_please_manifest_has_only_the_root_package(self):
         manifest_config = json.loads(
             (REPOSITORY_ROOT / ".release-please-manifest.json").read_text(encoding="utf-8")

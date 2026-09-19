@@ -186,6 +186,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-09-18 | streamline-controller-ci-compilation-and | Removed duplicate test compilation, added an exportable cargo-chef dependency layer, and skipped runtime-image builds for unrelated PRs. Implementation commit `fff42a1`. |
 | 2026-09-18 | update-oracle-fromdbvalue-lifetime-bound | Added higher-ranked lifetime bounds to the Oracle row-value helpers for `oracledb 26.0.0-beta.3`; production-feature tests and the release controller build pass. Implementation commit `9301c6a`. |
 | 2026-09-06 | create-a-pr-workflow-validating-pull-req | Added a read-only PR workflow that validates PR titles and all non-merge commit subjects against the Conventional Commit types configured for release-please. Implementation commit `58a26f7`. |
 | 2026-09-04 | grant-oci-database-service-read-access-t | Granted project-compartment Vault secret resource principals scoped secret rotation access plus ADB `adminPassword` updates. Live rotation succeeded and promoted version 6. Final implementation commit `01503a2`; controller credential-refresh recovery remains the final runtime observation. |
