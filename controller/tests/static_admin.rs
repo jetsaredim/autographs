@@ -96,6 +96,7 @@ fn static_admin_source_references_collection_workflow_contract() {
         "button.addEventListener(\"click\", onClick)",
         "const taxonomyCell = (item) =>",
         "cell.className = \"taxonomy-cell\"",
+        "content.className = \"taxonomy-cell-content\"",
         "const signerCell = (item) =>",
         "cell.className = \"signer-cell\"",
         "content.className = \"signer-cell-content\"",
@@ -603,6 +604,23 @@ fn static_admin_css_keeps_hidden_sections_hidden() {
 #[test]
 fn static_admin_taxonomy_styles_and_accessibility_states_are_present() {
     let source = static_admin_source();
+    assert!(
+        source.contains(".taxonomy-cell-content {\n  display: grid;"),
+        "taxonomy labels should remain stacked inside the table cell"
+    );
+    assert!(
+        !source.contains(".taxonomy-cell {\n  display: grid;"),
+        "taxonomy table cells must retain native table-cell sizing so row borders align"
+    );
+    assert!(
+        source.contains(".signer-cell .inline-link {\n  max-width: none;\n  white-space: nowrap;"),
+        "signer link pills should keep names on one line and let the table scroll when necessary"
+    );
+    assert!(
+        source.contains(".item-table th:nth-child(2) {\n  width: 24%;")
+            && source.contains(".item-table th:nth-child(3) {\n  width: 20%;"),
+        "the item list should favor signer names over the compact taxonomy summary"
+    );
     for selector in [
         ".signer-row",
         ".signer-row-grid",
@@ -610,6 +628,7 @@ fn static_admin_taxonomy_styles_and_accessibility_states_are_present() {
         ".merge-panel",
         ".signer-cell",
         ".signer-cell-content",
+        ".taxonomy-cell-content",
         ".signer-linked-items",
         ".linked-item-row",
         ".linked-item-summary",

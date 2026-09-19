@@ -238,13 +238,16 @@ const stateCell = (item) => {
 const taxonomyCell = (item) => {
   const cell = document.createElement("td");
   cell.className = "taxonomy-cell";
+  const content = document.createElement("div");
+  content.className = "taxonomy-cell-content";
   const franchises = item.franchises?.join(", ") || "";
   const productLine = item.productLine || "";
   cell.title = [franchises, productLine].filter(Boolean).join(" / ") || "Empty";
-  cell.append(
+  content.append(
     textNode("span", franchises || "Empty", "taxonomy-primary"),
     textNode("span", productLine || "No product line", "taxonomy-secondary")
   );
+  cell.append(content);
   return cell;
 };
 
