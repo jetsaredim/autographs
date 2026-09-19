@@ -604,21 +604,53 @@ fn static_admin_css_keeps_hidden_sections_hidden() {
 #[test]
 fn static_admin_taxonomy_styles_and_accessibility_states_are_present() {
     let source = static_admin_source();
+    let css = static_admin_file("admin.css");
+    let javascript = static_admin_file("admin.js");
+    let taxonomy_builder = source_section(
+        &javascript,
+        "const taxonomyCell = (item) =>",
+        "const formatEpoch = (seconds) =>",
+    );
+
+    let taxonomy_cell_display = css_property_values(&css, ".taxonomy-cell", "display");
     assert!(
-        source.contains(".taxonomy-cell-content {\n  display: grid;"),
+        taxonomy_cell_display
+            .iter()
+            .all(|value| value == "table-cell"),
+        "taxonomy table cells must retain native table-cell sizing, found display values: {taxonomy_cell_display:?}"
+    );
+    assert_eq!(
+        css_property_values(&css, ".taxonomy-cell-content", "display"),
+        ["grid"],
         "taxonomy labels should remain stacked inside the table cell"
     );
-    assert!(
-        !source.contains(".taxonomy-cell {\n  display: grid;"),
-        "taxonomy table cells must retain native table-cell sizing so row borders align"
+    assert_source_fragments_in_order(
+        taxonomy_builder,
+        &[
+            "content.className = \"taxonomy-cell-content\";",
+            "content.append(",
+            "cell.append(content);",
+        ],
+        "taxonomy cell builder",
     );
-    assert!(
-        source.contains(".signer-cell .inline-link {\n  max-width: none;\n  white-space: nowrap;"),
+    assert_eq!(
+        css_property_values(&css, ".signer-cell .inline-link", "max-width"),
+        ["none"],
+        "signer link pills should be allowed to widen the table"
+    );
+    assert_eq!(
+        css_property_values(&css, ".signer-cell .inline-link", "white-space"),
+        ["nowrap"],
         "signer link pills should keep names on one line and let the table scroll when necessary"
     );
-    assert!(
-        source.contains(".item-table th:nth-child(2) {\n  width: 24%;")
-            && source.contains(".item-table th:nth-child(3) {\n  width: 20%;"),
+    assert_eq!(
+        css_property_values(&css, ".item-table th:nth-child(2)", "width"),
+        ["24%"],
+        "the item list should give signer names the wider flexible column"
+    );
+    assert_eq!(
+        css_property_values(&css, ".item-table th:nth-child(3)", "width"),
+        ["20%"],
         "the item list should favor signer names over the compact taxonomy summary"
     );
     for selector in [
@@ -703,10 +735,54 @@ fn static_admin_login_keeps_expired_sessions_in_place_when_root_redirects_back_h
 }
 
 fn static_admin_source() -> String {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static-admin");
     ["index.html", "admin.js", "admin.css"]
         .into_iter()
-        .map(|name| fs::read_to_string(root.join(name)).expect("read static admin source"))
+        .map(static_admin_file)
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn static_admin_file(name: &str) -> String {
+    fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("static-admin")
+            .join(name),
+    )
+    .unwrap_or_else(|error| panic!("read static admin file {name}: {error}"))
+}
+
+fn source_section<'a>(source: &'a str, start: &str, end: &str) -> &'a str {
+    let start = source
+        .find(start)
+        .unwrap_or_else(|| panic!("source section is missing start marker {start}"));
+    let end = source[start..]
+        .find(end)
+        .map(|offset| start + offset)
+        .unwrap_or_else(|| panic!("source section is missing end marker {end}"));
+    &source[start..end]
+}
+
+fn assert_source_fragments_in_order(source: &str, fragments: &[&str], label: &str) {
+    let mut previous_position = 0;
+    for fragment in fragments {
+        let relative_position = source[previous_position..]
+            .find(fragment)
+            .unwrap_or_else(|| panic!("{label} is missing ordered fragment {fragment}"));
+        previous_position += relative_position + fragment.len();
+    }
+}
+
+fn css_property_values(css: &str, target_selector: &str, target_property: &str) -> Vec<String> {
+    css.split('}')
+        .filter_map(|block| block.split_once('{'))
+        .filter(|(selectors, _)| {
+            selectors
+                .split(',')
+                .any(|selector| selector.trim() == target_selector)
+        })
+        .flat_map(|(_, declarations)| declarations.split(';'))
+        .filter_map(|declaration| declaration.split_once(':'))
+        .filter(|(property, _)| property.trim() == target_property)
+        .map(|(_, value)| value.trim().to_owned())
+        .collect()
 }
