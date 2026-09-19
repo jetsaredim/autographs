@@ -12,6 +12,37 @@ env:
   GHCR_CONTROLLER_IMAGE_REPOSITORY: ${{ vars.GHCR_CONTROLLER_IMAGE_REPOSITORY || format('ghcr.io/{0}/controller', github.repository) }}
 
 jobs:
+  impact:
+    name: Classify CI impact
+    runs-on: ubuntu-latest
+    outputs:
+      controller-image: ${{ steps.classify.outputs.controller-image }}
+    steps:
+      - name: Checkout history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: classify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            controller_image=true
+          else
+            classification="$(python3 scripts/release.py classify-refs \
+              --base "$BASE_SHA" \
+              --head "$HEAD_SHA")"
+            controller_image="$(jq -r \
+              '.controllerChanged or (.changedPaths | index(".github/workflows/ci.yml") != null)' \
+              <<<"$classification")"
+          fi
+          echo "controller-image=$controller_image" >> "$GITHUB_OUTPUT"
+
   workflow-checks:
     name: Workflow checks
     runs-on: ubuntu-latest
@@ -111,7 +142,7 @@ jobs:
       - name: Check formatting
         run: cargo fmt --manifest-path controller/Cargo.toml --check
 
-      - name: Validate runtime persistence contracts
+      - name: Validate runtime persistence artifacts
         run: bash scripts/validate-runtime.sh
 
       - name: Run production-feature tests with coverage
@@ -132,6 +163,8 @@ jobs:
 
   image-build:
     name: Build runtime images
+    needs: impact
+    if: needs.impact.outputs.controller-image == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

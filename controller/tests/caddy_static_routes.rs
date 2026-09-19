@@ -141,6 +141,11 @@ fn controller_dockerfile_copies_compile_time_static_assets() {
     let smoke_dockerfile = read_repo("controller/Dockerfile.smoke");
     let static_smoke_dockerfile = read_repo("controller/Dockerfile.static-smoke");
 
+    assert!(dockerfile.contains("cargo install cargo-chef --version 0.1.78 --locked"));
+    assert!(dockerfile.contains("cargo chef prepare --recipe-path recipe.json"));
+    assert!(dockerfile.contains(
+        "cargo chef cook --release --features production-persistence --recipe-path recipe.json"
+    ));
     assert!(dockerfile.contains("COPY controller/src ./src"));
     assert!(dockerfile.contains("COPY controller/db ./db"));
     assert!(dockerfile.contains("COPY controller/static-public/assets ./static-public/assets"));
