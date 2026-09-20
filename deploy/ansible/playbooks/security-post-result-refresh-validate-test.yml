@@ -314,4 +314,6 @@
           - "'approved-production-reboot' not in security_patching_reconciled_issue_body.labels"
           - "'Run the normal production deployment convergence' not in security_patching_refreshed_report_body"
           - "'do not run deployment convergence for this target group' in security_patching_refreshed_report_body"
-          - "'Do not apply an approval label or run deployment convergence on an unsafe host' in lookup('ansible.builtin.file', security_patching_result_comment_path)"
+          - >-
+            'Do not apply an approval label or run deployment convergence on an unsafe host'
+            in lookup('ansible.builtin.file', security_patching_result_comment_path)
