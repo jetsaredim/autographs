@@ -67,15 +67,19 @@ autographs_deploy_rhck_packages:
   - kernel-debug
   - kernel-debug-core
   - kernel-debug-devel
+  - kernel-debug-devel-matched
   - kernel-debug-modules
   - kernel-debug-modules-core
   - kernel-debug-modules-extra
+  - kernel-debug-uki-virt
   - kernel-devel
   - kernel-devel-matched
   - kernel-modules
   - kernel-modules-core
   - kernel-modules-extra
   - kernel-modules-extra-matched
+  - kernel-uki-virt
+  - kernel-uki-virt-addons
 
 autographs_deploy_swap_file: /.swapfile
 autographs_deploy_swap_size_mib: 2048

@@ -217,6 +217,10 @@
           - "'kernel-headers' not in runtime_defaults.autographs_deploy_rhck_packages"
           - "'kernel-tools' not in runtime_defaults.autographs_deploy_rhck_packages"
           - "'kernel-tools-libs' not in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-uki-virt' in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-uki-virt-addons' in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-debug-uki-virt' in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-debug-devel-matched' in runtime_defaults.autographs_deploy_rhck_packages"
           - runtime_stale_entry_task['ansible.builtin.shell'].executable == '/bin/bash'
           - runtime_stale_entry_task['ansible.builtin.shell'].cmd is search('/boot/vmlinuz-0-rescue-')
           - runtime_stale_entry_task['ansible.builtin.shell'].cmd is search('grubby --remove-kernel=')

@@ -254,6 +254,10 @@
           - "'kernel-headers' not in security_defaults.security_patching_rhck_packages"
           - "'kernel-tools' not in security_defaults.security_patching_rhck_packages"
           - "'kernel-tools-libs' not in security_defaults.security_patching_rhck_packages"
+          - "'kernel-uki-virt' in security_defaults.security_patching_rhck_packages"
+          - "'kernel-uki-virt-addons' in security_defaults.security_patching_rhck_packages"
+          - "'kernel-debug-uki-virt' in security_defaults.security_patching_rhck_packages"
+          - "'kernel-debug-devel-matched' in security_defaults.security_patching_rhck_packages"
           - "'kernel-uek-core' is match(security_defaults.security_patching_reboot_allowed_package_regex)"
           - "'kernel-core' is not match(security_defaults.security_patching_reboot_allowed_package_regex)"
           - security_inventory_package_matches[0]['ansible.builtin.command'].argv == ['rpm', '-qa', '--qf', '%{NAME}\n']

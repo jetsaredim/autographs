@@ -52,15 +52,19 @@ security_patching_rhck_packages:
   - kernel-debug
   - kernel-debug-core
   - kernel-debug-devel
+  - kernel-debug-devel-matched
   - kernel-debug-modules
   - kernel-debug-modules-core
   - kernel-debug-modules-extra
+  - kernel-debug-uki-virt
   - kernel-devel
   - kernel-devel-matched
   - kernel-modules
   - kernel-modules-core
   - kernel-modules-extra
   - kernel-modules-extra-matched
+  - kernel-uki-virt
+  - kernel-uki-virt-addons
 security_patching_reboot_timeout_seconds: 900
 security_patching_reboot_connect_timeout_seconds: 20
 security_patching_reboot_post_delay_seconds: 15
