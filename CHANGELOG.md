@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/jetsaredim/autographs/compare/v0.2.2...v0.2.3) (2026-09-20)
+
+
+### Bug Fixes
+
+* **admin:** align taxonomy and signer cells ([#250](https://github.com/jetsaredim/autographs/issues/250)) ([ae55973](https://github.com/jetsaredim/autographs/commit/ae559732d13ef4af65a8040b2fa56be254743642))
+
 ## [0.2.2](https://github.com/jetsaredim/autographs/compare/v0.2.1...v0.2.2) (2026-09-19)
 
 
