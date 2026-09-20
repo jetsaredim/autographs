@@ -20,8 +20,31 @@ fn deploy_role_disables_core_and_kernel_dump_persistence() {
     assert!(kernel_tasks.contains("state: stopped"));
     assert!(kernel_tasks.contains("enabled: false"));
     assert!(kernel_tasks.contains("masked: true"));
-    assert!(!kernel_tasks.contains("failed_when: false"));
     assert!(!kernel_tasks.contains("ignore_errors:"));
+
+    let kernel_ownership_checks = kernel_tasks
+        .split("- name: Inspect running UEK kernel image RPM owner")
+        .nth(1)
+        .expect("running UEK ownership probe")
+        .split("- name: Remove managed RHCK kernel packages from UEK runtime")
+        .next()
+        .expect("bounded UEK ownership checks");
+    assert_eq!(
+        kernel_ownership_checks
+            .matches("failed_when: false")
+            .count(),
+        2
+    );
+    assert!(
+        kernel_ownership_checks
+            .contains("ansible.builtin.import_tasks: assert_kernel_ownership.yml")
+    );
+
+    let dump_persistence_tasks = kernel_tasks
+        .split("- name: Ensure systemd-coredump configuration directory exists")
+        .nth(1)
+        .expect("core and kernel dump persistence tasks");
+    assert!(!dump_persistence_tasks.contains("failed_when: false"));
 
     assert!(kernel_tasks.contains("- --info=ALL"));
     assert!(kernel_tasks.contains("- --update-kernel=ALL"));
