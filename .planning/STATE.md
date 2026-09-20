@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: Completed 08-04-PLAN.md
 last_updated: "2026-09-01T21:00:00-04:00"
-last_activity: 2026-09-18 -- Updated Oracle row-value lifetime bounds for oracledb 26.0.0-beta.3.
+last_activity: 2026-09-20 -- Completed UEK-only production kernel posture quick task.
 progress:
   total_phases: 10
   completed_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
 Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-09-18 -- Updated Oracle row-value lifetime bounds for oracledb 26.0.0-beta.3.
+Last activity: 2026-09-20 -- Completed UEK-only production kernel posture quick task.
 
 Progress: [█████████░] 89% of milestone plans complete; Phase 8 Plan 4 is next
 
@@ -186,6 +186,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-09-20 | enforce-a-uek-only-production-kernel-pos | Enforced fail-closed UEK running/default checks, safe RHCK cleanup and exclusions, stale non-rescue boot-entry cleanup, and an actionable no-approval `configure` scanner state that prevents patch/reboot loops. Implementation commit `1bd3796`. |
 | 2026-09-18 | streamline-controller-ci-compilation-and | Removed duplicate test compilation, added an exportable cargo-chef dependency layer, and skipped runtime-image builds for unrelated PRs. Implementation commit `fff42a1`. |
 | 2026-09-18 | update-oracle-fromdbvalue-lifetime-bound | Added higher-ranked lifetime bounds to the Oracle row-value helpers for `oracledb 26.0.0-beta.3`; production-feature tests and the release controller build pass. Implementation commit `9301c6a`. |
 | 2026-09-06 | create-a-pr-workflow-validating-pull-req | Added a read-only PR workflow that validates PR titles and all non-merge commit subjects against the Conventional Commit types configured for release-please. Implementation commit `58a26f7`. |
