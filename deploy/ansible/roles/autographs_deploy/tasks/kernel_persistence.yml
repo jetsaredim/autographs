@@ -89,22 +89,7 @@
   changed_when: false
 
 - name: Preserve existing DNF exclusions with managed RHCK exclusions
-  ansible.builtin.set_fact:
-    autographs_deploy_effective_dnf_excludes: >-
-      {{
-        (
-          autographs_deploy_dnf_config.content
-          | b64decode
-          | regex_findall('(?m)^\s*exclude\s*=\s*([^#\r\n]*)')
-          | first
-          | default('')
-          | split
-        )
-        | union(autographs_deploy_rhck_packages | default([]))
-        | unique
-        | sort
-        | list
-      }}
+  ansible.builtin.import_tasks: derive_dnf_exclusions.yml
 
 - name: Prevent managed RHCK kernel packages from being installed
   community.general.ini_file:

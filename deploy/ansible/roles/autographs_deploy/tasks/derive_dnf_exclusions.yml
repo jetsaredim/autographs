@@ -1,0 +1,25 @@
+- name: Extract active DNF main section
+  ansible.builtin.set_fact:
+    autographs_deploy_dnf_main_section: >-
+      {{
+        autographs_deploy_dnf_config.content
+        | b64decode
+        | regex_search('(?ms)^[ \t]*\[main\][ \t]*(?:\r?\n|$).*?(?=^[ \t]*\[|\Z)')
+        | default('', true)
+      }}
+
+- name: Merge existing main exclusions with managed RHCK exclusions
+  ansible.builtin.set_fact:
+    autographs_deploy_effective_dnf_excludes: >-
+      {{
+        (
+          autographs_deploy_dnf_main_section
+          | regex_findall('(?m)^[ \t]*exclude[ \t]*=[ \t]*([^#;\r\n]*)')
+          | join(' ')
+          | split
+        )
+        | union(autographs_deploy_rhck_packages | default([]))
+        | unique
+        | sort
+        | list
+      }}
