@@ -83,6 +83,8 @@
     security_patching_next_action: >-
       {% if security_patching_remaining_hosts | length == 0 %}
       close
+      {% elif 'investigate' in security_patching_remaining_actions %}
+      investigate
       {% elif 'configure' in security_patching_remaining_actions %}
       configure
       {% elif security_patching_remaining_actions | length == 1 %}

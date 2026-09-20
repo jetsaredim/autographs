@@ -231,3 +231,87 @@
           - "'Running kernel: `6.12.0-fixture.el10_2.x86_64`' in security_patching_refreshed_report_body"
           - "'running UEK verified=False, default UEK verified=True' in lookup('ansible.builtin.file', security_patching_result_comment_path)"
           - "'scheduling a reboot when the running kernel is not UEK' in lookup('ansible.builtin.file', security_patching_result_comment_path)"
+
+- name: Validate investigate outranks configure after update reconciliation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_post_result_mixed_kernel_fixture_runtime
+    security_patching_request_instances:
+      configure-host:
+        advisory_ids: []
+      investigate-host:
+        advisory_ids: []
+    security_patching_scan_id: security-scan-post-result-mixed-kernel-test
+    security_patching_request_scan_id: security-scan-approved-mixed-kernel-fixture
+    security_patching_scan_timestamp: "2026-09-20T02:00:00Z"
+    security_patching_issue_number: "129"
+    security_patching_github_api_url: http://127.0.0.1:1
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_report_path: /tmp/autographs-security-post-result-mixed-kernel.md
+    security_patching_result_comment_path: /tmp/autographs-security-post-result-mixed-kernel-comment.md
+    security_post_result_mixed_kernel_path_reached: false
+  tasks:
+    - name: Add mixed configure and investigate update fixture hosts
+      ansible.builtin.add_host:
+        name: "{{ item.name }}"
+        groups: security_post_result_mixed_kernel_fixture_runtime
+        security_patching_post_update_scan_status: complete
+        security_patching_post_update_entries: []
+        security_patching_post_update_advisories: []
+        security_patching_post_update_advisory_ids: []
+        security_patching_post_update_ksplice_aware_advisory_ids: []
+        security_patching_post_update_installed_rhck_packages: "{{ item.rhck_packages }}"
+        security_patching_post_update_running_kernel_release: "{{ item.running_release }}"
+        security_patching_post_update_running_kernel_image: "/boot/vmlinuz-{{ item.running_release }}"
+        security_patching_post_update_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_running_kernel_is_valid_uek: "{{ item.running_uek }}"
+        security_patching_post_update_default_kernel_is_valid_uek: true
+        security_patching_post_update_next_action: "{{ item.action }}"
+        security_patching_post_update_next_action_label: ""
+        security_patching_post_update_next_action_reason: "{{ item.reason }}"
+        security_patching_ksplice_available: false
+        security_patching_ksplice_apply_mode: report_only
+        security_patching_dnf_changed: false
+        security_patching_approved_advisory_ids: []
+      loop:
+        - name: configure-host
+          action: configure
+          rhck_packages:
+            - kernel-core
+          running_release: 6.12.0-fixture.el10uek.x86_64
+          running_uek: true
+          reason: RHCK packages violate the production UEK-only kernel posture.
+        - name: investigate-host
+          action: investigate
+          rhck_packages: []
+          running_release: 6.12.0-fixture.el10_2.x86_64
+          running_uek: false
+          reason: Kernel recovery is required.
+
+    - name: Run mixed update reconciliation until fake GitHub refresh fails
+      block:
+        - name: Attempt to publish mixed update result
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_result
+      rescue:
+        - name: Record expected mixed update fake GitHub failure
+          ansible.builtin.set_fact:
+            security_post_result_mixed_kernel_path_reached: true
+
+    - name: Assert update investigation precedence blocks convergence and approval
+      ansible.builtin.assert:
+        that:
+          - security_post_result_mixed_kernel_path_reached
+          - security_patching_remaining_hosts | sort == ['configure-host', 'investigate-host']
+          - security_patching_remaining_actions | sort == ['configure', 'investigate']
+          - security_patching_next_action | trim == 'investigate'
+          - security_patching_next_action_label | trim | length == 0
+          - security_patching_report_approval_label | trim | length == 0
+          - "'approved-production-update' not in security_patching_reconciled_issue_body.labels"
+          - "'approved-production-reboot' not in security_patching_reconciled_issue_body.labels"
+          - "'Run the normal production deployment convergence' not in security_patching_refreshed_report_body"
+          - "'do not run deployment convergence for this target group' in security_patching_refreshed_report_body"
+          - "'Do not apply an approval label or run deployment convergence on an unsafe host' in lookup('ansible.builtin.file', security_patching_result_comment_path)"

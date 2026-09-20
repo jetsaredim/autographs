@@ -62,7 +62,11 @@ Do not approve package updates or a reboot from this issue, and do not run deplo
 
 Installed RHCK packages: {% for package in rhck_packages %}`{{ package }}`{% if not loop.last %}, {% endif %}{% endfor %}.
 
+{% if report_next_action == 'configure' %}
 Do not approve package updates or a reboot from this issue. Run the normal production deployment convergence; it first verifies that the running and default kernels are UEK, removes only the managed RHCK package family without rebooting, preserves rescue images, cleans stale missing non-rescue boot entries, and persists the RHCK DNF exclusions. Then re-run the security scanner so this issue is replaced with the authoritative UEK-only result.
+{% else %}
+Do not approve package updates or a reboot from this issue. Another target requires investigation or kernel recovery, so do not run deployment convergence for this target group until every host has a verified running and default UEK kernel.
+{% endif %}
 
 {% endif %}
 {% endfor %}
