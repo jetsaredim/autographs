@@ -65,6 +65,11 @@
           - advisory_id: ELSA-2026-22222
             packages:
               - openssl
+        security_patching_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_running_kernel_is_valid_uek: true
+        security_patching_default_kernel_is_valid_uek: true
         security_patching_next_action: update
         security_patching_next_action_label: approved-production-update
         security_patching_next_action_reason: Advisory-scoped DNF reported package work.
@@ -84,6 +89,8 @@
           - security_patching_post_update_advisory_ids == ['ELSA-2026-22222']
           - security_patching_post_update_next_action == 'update'
           - security_patching_post_update_next_action_label == 'approved-production-update'
+          - security_patching_post_update_running_kernel_is_valid_uek | bool
+          - security_patching_post_update_default_kernel_is_valid_uek | bool
 
     - name: Record clean current scan against stale approval fixture
       ansible.builtin.set_fact:
@@ -140,6 +147,11 @@
         name: production
         groups: security_update_clean_reconciliation_runtime
         security_patching_post_update_scan_status: complete
+        security_patching_post_update_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_running_kernel_is_valid_uek: true
+        security_patching_post_update_default_kernel_is_valid_uek: true
         security_patching_post_update_advisory_ids: []
         security_patching_post_update_advisories: []
         security_patching_post_update_entries: []
