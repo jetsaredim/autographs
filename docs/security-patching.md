@@ -252,10 +252,10 @@ The scan path starts in `.github/workflows/weekly-security-scan.yml`, then runs 
    | Classification | Evidence | Issue action |
    |---|---|---|
    | `close` | Complete OpenSCAP scan has no findings | Close an existing scanner issue |
-   | `configure` | One or more managed RHCK packages are installed on the UEK-only runtime | Offer no approval label; run deployment convergence, then re-scan |
+   | `configure` | One or more managed RHCK packages are installed while both running and default kernel images are verified UEK | Offer no approval label; run deployment convergence, then re-scan |
    | `update` | DNF reports an advisory-scoped package transaction | Offer `approved-production-update` |
    | `reboot` | DNF proves a no-op and every package is in the UEK reboot/installonly family allowlist | Offer `approved-production-reboot` |
-   | `investigate` | Missing package metadata, mixed no-op findings, failed/unrecognized DNF evidence, or conflicting host classifications | Offer no approval label |
+   | `investigate` | Running/default kernel is not verified UEK, package metadata is missing, no-op findings are mixed, DNF evidence is failed/unrecognized, or host classifications conflict | Offer no approval label; kernel-state reports include UEK selection/reboot recovery steps |
 
 The runtime host must have `openscap-scanner` installed so `oscap-ssh` can execute `oscap` remotely. The base deployment role installs that package during instance setup. The workflow inventory supplies `ansible_user`, and the workflow passes a temp deploy key through `SSH_ADDITIONAL_OPTIONS`; local runs can omit `ansible_user` and let SSH config provide `User` and `IdentityFile` for the production IP.
 
@@ -399,7 +399,7 @@ The apply playbook treats OpenSCAP as the authority for detection and closure. D
 
 The workflow runs hosts serially and re-scans after applying updates. It reconciles the full issue body, labels, and open/closed state with one idempotent GitHub `PATCH`, so the triggering approval label is consumed by the desired label set. It then comments the result. If findings remain, the same issue contains only the authoritative remaining advisory set and its classified next action.
 
-When the remaining findings are UEK installonly findings and DNF proves there is no package work, the refreshed issue offers only the separate `approved-production-reboot` label. Installed RHCK packages take precedence over DNF work and produce the `configure` action with no approval label; deployment removes that drift without rebooting, after which a fresh scan can classify the remaining UEK state normally. Mixed, incomplete, or unrecognized states offer no approval label and require investigation. The reboot workflow independently rechecks that DNF is a no-op for the approved advisories, boots the instance into the newest installed UEK, waits for Autographs health, removes old installonly kernels, re-runs OpenSCAP, and refreshes or closes the same issue.
+When the remaining findings are UEK installonly findings and DNF proves there is no package work, the refreshed issue offers only the separate `approved-production-reboot` label. Installed RHCK packages take precedence over DNF work and produce the `configure` action only when both running and default images are verified bootable UEK; deployment can then remove that drift without rebooting. An RHCK running/default kernel, missing image, or non-UEK RPM owner instead produces `investigate` with no approval label and explicit guidance to install/select UEK and reboot when necessary before deployment convergence. Mixed, incomplete, or unrecognized states also offer no approval label and require investigation. The reboot workflow independently rechecks that DNF is a no-op for the approved advisories, boots the instance into the newest installed UEK, waits for Autographs health, removes old installonly kernels, re-runs OpenSCAP, and refreshes or closes the same issue.
 
 ## Reboot flow
 

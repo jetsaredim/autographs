@@ -37,6 +37,8 @@
   when: >-
     (hostvars[item].security_patching_update_entries | default([]) | length) > 0
     or (hostvars[item].security_patching_installed_rhck_packages | default([]) | length) > 0
+    or not (hostvars[item].security_patching_running_kernel_is_valid_uek | default(false) | bool)
+    or not (hostvars[item].security_patching_default_kernel_is_valid_uek | default(false) | bool)
 
 - name: Report clean security update scan
   ansible.builtin.debug:
@@ -65,6 +67,8 @@
     security_patching_next_action: >-
       {% if security_patching_hosts_with_findings | length == 0 %}
       close
+      {% elif 'investigate' in security_patching_scanner_issue_actions %}
+      investigate
       {% elif 'configure' in security_patching_scanner_issue_actions %}
       configure
       {% elif security_patching_scanner_issue_actions | length == 1 %}

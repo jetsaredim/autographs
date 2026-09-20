@@ -93,6 +93,10 @@
         security_patching_update_ksplice_aware_advisory_ids:
           - ELSA-2025-11111
         security_patching_update_entries: "{{ security_patching_enrichment_by_host.production.entries }}"
+        security_patching_running_kernel_release: 6.12.0-206.104.4.4.el10uek.x86_64
+        security_patching_default_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.4.el10uek.x86_64
+        security_patching_running_kernel_is_valid_uek: true
+        security_patching_default_kernel_is_valid_uek: true
 
     - name: Render security update report fixture
       ansible.builtin.template:
@@ -170,6 +174,10 @@
         security_patching_installed_rhck_packages:
           - kernel
           - kernel-core
+        security_patching_running_kernel_release: 6.12.0-206.104.4.4.el10uek.x86_64
+        security_patching_default_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.4.el10uek.x86_64
+        security_patching_running_kernel_is_valid_uek: true
+        security_patching_default_kernel_is_valid_uek: true
 
     - name: Render UEK-only drift report fixture
       ansible.builtin.template:
@@ -195,3 +203,80 @@
           - "'`kernel`, `kernel-core`' in security_patching_kernel_drift_body"
           - "'Do not approve package updates or a reboot' in security_patching_kernel_drift_body"
           - "'Run production deployment convergence' in security_patching_kernel_drift_body"
+
+- name: Test unsafe kernel recovery report rendering
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_scan_id: security-scan-kernel-recovery-render-test
+    security_patching_scan_timestamp: "2026-09-20T00:00:00Z"
+    security_patching_target_group: runtime
+    security_patching_approval_label: ""
+    security_patching_report_approval_label: ""
+    security_patching_next_action: investigate
+    security_patching_hosts_with_findings:
+      - running-rhck
+      - default-rhck
+    security_patching_enrichment_status: complete
+    security_patching_enrichment_message: Oracle Linux OpenSCAP OVAL evaluation completed.
+    security_patching_report_max_cves_per_row: 2
+    security_patching_report_path: /tmp/autographs-security-kernel-recovery-render-test.md
+    security_patching_enrichment_by_host:
+      running-rhck:
+        advisories: []
+        entries: []
+      default-rhck:
+        advisories: []
+        entries: []
+  tasks:
+    - name: Add running RHCK recovery fixture host
+      ansible.builtin.add_host:
+        name: running-rhck
+        security_patching_update_advisory_ids: []
+        security_patching_update_ksplice_aware_advisory_ids: []
+        security_patching_update_entries: []
+        security_patching_installed_rhck_packages:
+          - kernel-core
+        security_patching_running_kernel_release: 6.12.0-211.56.1.el10_2.x86_64
+        security_patching_default_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.4.el10uek.x86_64
+        security_patching_running_kernel_is_valid_uek: false
+        security_patching_default_kernel_is_valid_uek: true
+
+    - name: Add default RHCK recovery fixture host
+      ansible.builtin.add_host:
+        name: default-rhck
+        security_patching_update_advisory_ids: []
+        security_patching_update_ksplice_aware_advisory_ids: []
+        security_patching_update_entries: []
+        security_patching_installed_rhck_packages:
+          - kernel-core
+        security_patching_running_kernel_release: 6.12.0-206.104.4.4.el10uek.x86_64
+        security_patching_default_kernel_image: /boot/vmlinuz-6.12.0-211.56.1.el10_2.x86_64
+        security_patching_running_kernel_is_valid_uek: true
+        security_patching_default_kernel_is_valid_uek: false
+
+    - name: Render unsafe kernel recovery report fixture
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/security_patching/templates/security-report.md.j2"
+        dest: "{{ security_patching_report_path }}"
+        mode: "0600"
+
+    - name: Read unsafe kernel recovery report fixture
+      ansible.builtin.slurp:
+        src: "{{ security_patching_report_path }}"
+      register: security_patching_kernel_recovery_report
+
+    - name: Decode unsafe kernel recovery report fixture
+      ansible.builtin.set_fact:
+        security_patching_kernel_recovery_body: "{{ security_patching_kernel_recovery_report.content | b64decode }}"
+
+    - name: Assert unsafe kernel recovery report is actionable and unapproved
+      ansible.builtin.assert:
+        that:
+          - "'next_action: \"investigate\"' in security_patching_kernel_recovery_body"
+          - "'approval_label: \"\"' in security_patching_kernel_recovery_body"
+          - "security_patching_kernel_recovery_body | regex_findall('### Kernel recovery required on') | length == 2"
+          - "'sudo grubby --set-default /boot/vmlinuz-<UEK release>' in security_patching_kernel_recovery_body"
+          - "'schedule and perform a reboot' in security_patching_kernel_recovery_body"
+          - "'selecting that running UEK image does not itself require a reboot' in security_patching_kernel_recovery_body"
+          - "'Do not approve package updates or a reboot' in security_patching_kernel_recovery_body"

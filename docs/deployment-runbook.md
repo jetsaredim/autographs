@@ -475,7 +475,10 @@ The role also installs `python3-oci-cli` from the Oracle Linux 10 Development Pa
 
 Production runs Oracle's Unbreakable Enterprise Kernel (UEK). Before ordinary
 package installation, the deploy role requires both `uname -r` and
-`grubby --default-kernel` to identify an `el10uek` kernel. It then removes the
+`grubby --default-kernel` to identify an `el10uek` kernel. It also requires the
+corresponding running and default `/boot/vmlinuz-*` paths to be regular files
+owned by installed `kernel-uek*` RPM packages. Only after those bootability
+checks pass does it remove the
 explicitly managed RHCK boot/development packages, writes the same exact names
 to the `[main]` `exclude` setting in `/etc/dnf/dnf.conf`, and removes only GRUB
 entries whose `/boot/vmlinuz-*` image is missing. Rescue entries beginning with
@@ -483,8 +486,9 @@ entries whose `/boot/vmlinuz-*` image is missing. Rescue entries beginning with
 as `kernel-headers`, `kernel-tools`, and `kernel-tools-libs` are neither removed
 nor excluded.
 
-The ordering is deliberate: a host using RHCK, or merely configured to boot
-RHCK by default, fails before package mutation. A correctly running/defaulted
+The ordering is deliberate: a host using RHCK, configured to boot RHCK by
+default, pointing at a stale UEK boot entry, or missing installed UEK ownership
+for either image fails before package mutation. A verified running/defaulted
 UEK host can converge RHCK drift without rebooting. Verify the result with:
 
 ```bash
@@ -492,6 +496,11 @@ set -euo pipefail
 
 uname -r | grep -q 'el10uek'
 sudo grubby --default-kernel | grep -q 'el10uek'
+test -f "/boot/vmlinuz-$(uname -r)"
+rpm -qf "/boot/vmlinuz-$(uname -r)" | grep -q '^kernel-uek'
+default_kernel="$(sudo grubby --default-kernel)"
+test -f "${default_kernel}"
+rpm -qf "${default_kernel}" | grep -q '^kernel-uek'
 
 unexpected_rhck="$(
   rpm -qa --qf '%{NAME}\n' \
@@ -504,11 +513,15 @@ grep -E '^exclude=.*kernel-core' /etc/dnf/dnf.conf
 sudo grubby --info=ALL
 ```
 
-The security scanner independently inventories those exact RHCK package names.
-If any return, it opens or refreshes the patching issue with action `configure`,
-offers no update or reboot approval label, and directs the operator to run
-deployment convergence and then re-run the scanner. This prevents DNF from
-patching RHCK only for the reboot workflow to reject the same host later.
+The security scanner independently inventories those exact RHCK package names
+and verifies the running/default UEK image and RPM ownership state. RHCK
+packages on a verified UEK host produce action `configure`, with no approval
+label, so deployment convergence can remove the drift without rebooting. An
+RHCK running/default kernel, missing image, or invalid RPM owner instead
+produces action `investigate` with explicit recovery steps: install/select a
+bootable UEK image, reboot when the running kernel must change, verify both UEK
+states, then run deployment convergence and re-scan. This avoids a repeated
+configure failure and prevents unsafe update or reboot approval loops.
 
 Oracle documents `/etc/dnf/dnf.conf` package exclusions and confirms that an
 unused RHCK can be removed from a UEK system:
