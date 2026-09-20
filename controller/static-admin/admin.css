@@ -591,6 +591,11 @@ h4 {
   gap: 4px;
 }
 
+.signer-cell .inline-link {
+  max-width: none;
+  white-space: nowrap;
+}
+
 .icon-action {
   width: 36px;
   height: 36px;
@@ -718,14 +723,14 @@ h4 {
 }
 
 .item-table th:nth-child(2) {
-  width: 20%;
-}
-
-.item-table th:nth-child(3) {
   width: 24%;
 }
 
-.taxonomy-cell {
+.item-table th:nth-child(3) {
+  width: 20%;
+}
+
+.taxonomy-cell-content {
   display: grid;
   gap: 2px;
 }
