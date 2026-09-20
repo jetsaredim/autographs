@@ -94,5 +94,26 @@
     security_patching_scan_message: >-
       {{ security_patching_oscap_result.message | default('Oracle Linux OpenSCAP OVAL evaluation completed.') }}
 
+- name: Inventory installed package names for kernel posture
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qa
+      - --qf
+      - "%{NAME}\n"
+  register: security_patching_installed_package_names
+  changed_when: false
+
+- name: Record installed RHCK configuration drift
+  ansible.builtin.set_fact:
+    security_patching_installed_rhck_packages: >-
+      {{
+        security_patching_installed_package_names.stdout_lines
+        | intersect(security_patching_rhck_packages)
+        | unique
+        | sort
+        | list
+      }}
+
 - name: Classify current security finding action
   ansible.builtin.import_tasks: classify_findings.yml

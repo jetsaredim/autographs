@@ -30,10 +30,22 @@ OpenSCAP evaluation: `{{ security_patching_enrichment_status | default('unknown'
 
 ## Summary
 
-| Instance | OpenSCAP findings | Advisories | Ksplice-specific OVAL findings |
-|---|---:|---:|---:|
+| Instance | OpenSCAP findings | Advisories | Ksplice-specific OVAL findings | RHCK drift packages |
+|---|---:|---:|---:|---:|
 {% for host in security_patching_hosts_with_findings %}
-| `{{ host }}` | {{ hostvars[host].security_patching_update_entries | default([]) | length }} | {{ hostvars[host].security_patching_update_advisory_ids | default([]) | length }} | {{ hostvars[host].security_patching_update_ksplice_aware_advisory_ids | default([]) | length }} |
+| `{{ host }}` | {{ hostvars[host].security_patching_update_entries | default([]) | length }} | {{ hostvars[host].security_patching_update_advisory_ids | default([]) | length }} | {{ hostvars[host].security_patching_update_ksplice_aware_advisory_ids | default([]) | length }} | {{ hostvars[host].security_patching_installed_rhck_packages | default([]) | length }} |
+{% endfor %}
+
+{% for host in security_patching_hosts_with_findings %}
+{% set rhck_packages = hostvars[host].security_patching_installed_rhck_packages | default([]) %}
+{% if rhck_packages | length > 0 %}
+### UEK-only configuration drift on `{{ host }}`
+
+Installed RHCK packages: {% for package in rhck_packages %}`{{ package }}`{% if not loop.last %}, {% endif %}{% endfor %}.
+
+Do not approve package updates or a reboot from this issue. Run the normal production deployment convergence; it first verifies that the running and default kernels are UEK, removes only the managed RHCK package family without rebooting, preserves rescue images, cleans stale missing non-rescue boot entries, and persists the RHCK DNF exclusions. Then re-run the security scanner so this issue is replaced with the authoritative UEK-only result.
+
+{% endif %}
 {% endfor %}
 
 ## Advisory review summary
@@ -79,6 +91,8 @@ Advisory-scoped DNF reports no package work, and all remaining findings are limi
 Apply the label `{{ report_approval_label }}` to run the separately approved production reboot and installonly cleanup workflow.
 {% elif report_next_action == 'close' %}
 The authoritative OpenSCAP scan is clean. No approval action is required, and an existing scanner issue is closed automatically.
+{% elif report_next_action == 'configure' %}
+The runtime has RHCK packages installed even though production is UEK-only. No update or reboot approval label is offered. Run production deployment convergence to remove the RHCK packages safely, then re-run the security scanner.
 {% else %}
 Do not apply an update or reboot approval label yet. The current findings could not be classified safely; inspect the workflow logs and package metadata, then re-run the scanner after resolving the ambiguity.
 {% endif %}

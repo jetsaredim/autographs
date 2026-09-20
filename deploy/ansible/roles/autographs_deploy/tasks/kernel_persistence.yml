@@ -1,3 +1,92 @@
+- name: Inspect running kernel release
+  ansible.builtin.command:
+    argv:
+      - uname
+      - -r
+  register: autographs_deploy_running_kernel_release
+  changed_when: false
+
+- name: Inspect default boot kernel
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - --default-kernel
+  register: autographs_deploy_default_kernel
+  changed_when: false
+
+- name: Require running and default UEK kernels before package convergence
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_running_kernel_release.stdout | trim is search('el10uek')
+      - autographs_deploy_default_kernel.stdout | trim is search('el10uek')
+    fail_msg: >-
+      Refusing kernel package convergence because both the running kernel and
+      default boot kernel must be Oracle UEK. Running={{ autographs_deploy_running_kernel_release.stdout | trim }},
+      default={{ autographs_deploy_default_kernel.stdout | trim }}.
+
+- name: Remove managed RHCK kernel packages from UEK runtime
+  ansible.builtin.dnf:
+    name: "{{ autographs_deploy_rhck_packages }}"
+    state: absent
+    autoremove: false
+    disable_excludes: main
+
+- name: Read current DNF configuration
+  ansible.builtin.slurp:
+    src: "{{ autographs_deploy_dnf_config_path }}"
+  register: autographs_deploy_dnf_config
+  changed_when: false
+
+- name: Preserve existing DNF exclusions with managed RHCK exclusions
+  ansible.builtin.set_fact:
+    autographs_deploy_effective_dnf_excludes: >-
+      {{
+        (
+          autographs_deploy_dnf_config.content
+          | b64decode
+          | regex_findall('(?m)^\s*exclude\s*=\s*([^#\r\n]*)')
+          | first
+          | default('')
+          | split
+        )
+        | union(autographs_deploy_rhck_packages | default([]))
+        | unique
+        | sort
+        | list
+      }}
+
+- name: Prevent managed RHCK kernel packages from being installed
+  community.general.ini_file:
+    path: "{{ autographs_deploy_dnf_config_path }}"
+    section: main
+    option: exclude
+    value: "{{ autographs_deploy_effective_dnf_excludes | join(' ') }}"
+    mode: "0644"
+    no_extra_spaces: true
+
+- name: Remove stale missing non-rescue kernel boot entries
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      grubby --info=ALL \
+        | sed -n 's/^kernel="\([^"]*\)".*/\1/p' \
+        | while IFS= read -r kernel_path; do
+            case "${kernel_path}" in
+              /boot/vmlinuz-0-rescue-*)
+                continue
+                ;;
+              /boot/vmlinuz-*)
+                if [ ! -e "${kernel_path}" ]; then
+                  grubby --remove-kernel="${kernel_path}"
+                  printf 'removed stale boot entry: %s\n' "${kernel_path}"
+                fi
+                ;;
+            esac
+          done
+    executable: /bin/bash
+  register: autographs_deploy_stale_kernel_entries
+  changed_when: "'removed stale boot entry:' in autographs_deploy_stale_kernel_entries.stdout"
+
 - name: Ensure systemd-coredump configuration directory exists
   ansible.builtin.file:
     path: "{{ autographs_deploy_coredump_config_path | dirname }}"

@@ -4,6 +4,8 @@
   gather_facts: false
   vars:
     runtime_role_dir: "{{ playbook_dir }}/../roles/autographs_deploy"
+    runtime_defaults: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/defaults/main.yml') | from_yaml }}
     runtime_main_tasks: >-
       {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/main.yml') | from_yaml }}
     runtime_kernel_tasks: >-
@@ -39,6 +41,22 @@
       ansible.builtin.set_fact:
         runtime_include_matches: >-
           {{ runtime_main_tasks | selectattr('name', 'equalto', 'Apply kernel persistence controls') | list }}
+        runtime_package_install_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Ensure runtime packages are installed') | list }}
+        runtime_running_kernel_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect running kernel release') | list }}
+        runtime_default_kernel_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect default boot kernel') | list }}
+        runtime_uek_assert_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Require running and default UEK kernels before package convergence') | list }}
+        runtime_rhck_remove_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Remove managed RHCK kernel packages from UEK runtime') | list }}
+        runtime_rhck_exclude_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Prevent managed RHCK kernel packages from being installed') | list }}
+        runtime_dnf_preserve_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Preserve existing DNF exclusions with managed RHCK exclusions') | list }}
+        runtime_stale_entry_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Remove stale missing non-rescue kernel boot entries') | list }}
         runtime_kdump_matches: >-
           {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Stop and mask Kdump') | list }}
         runtime_grubby_info_matches: >-
@@ -68,6 +86,14 @@
       ansible.builtin.assert:
         that:
           - runtime_include_matches | length == 1
+          - runtime_package_install_matches | length == 1
+          - runtime_running_kernel_matches | length == 1
+          - runtime_default_kernel_matches | length == 1
+          - runtime_uek_assert_matches | length == 1
+          - runtime_rhck_remove_matches | length == 1
+          - runtime_rhck_exclude_matches | length == 1
+          - runtime_dnf_preserve_matches | length == 1
+          - runtime_stale_entry_matches | length == 1
           - runtime_kdump_matches | length == 1
           - runtime_grubby_info_matches | length == 1
           - runtime_grubby_remove_matches | length == 1
@@ -84,6 +110,14 @@
     - name: Capture structured persistence tasks
       ansible.builtin.set_fact:
         runtime_include_task: "{{ runtime_include_matches | first }}"
+        runtime_package_install_task: "{{ runtime_package_install_matches | first }}"
+        runtime_running_kernel_task: "{{ runtime_running_kernel_matches | first }}"
+        runtime_default_kernel_task: "{{ runtime_default_kernel_matches | first }}"
+        runtime_uek_assert_task: "{{ runtime_uek_assert_matches | first }}"
+        runtime_rhck_remove_task: "{{ runtime_rhck_remove_matches | first }}"
+        runtime_rhck_exclude_task: "{{ runtime_rhck_exclude_matches | first }}"
+        runtime_dnf_preserve_task: "{{ runtime_dnf_preserve_matches | first }}"
+        runtime_stale_entry_task: "{{ runtime_stale_entry_matches | first }}"
         runtime_kdump_task: "{{ runtime_kdump_matches | first }}"
         runtime_grubby_info_task: "{{ runtime_grubby_info_matches | first }}"
         runtime_grubby_remove_task: "{{ runtime_grubby_remove_matches | first }}"
@@ -101,6 +135,7 @@
       ansible.builtin.assert:
         that:
           - runtime_include_task['ansible.builtin.include_tasks'] == 'kernel_persistence.yml'
+          - runtime_main_tasks.index(runtime_include_task) < runtime_main_tasks.index(runtime_package_install_task)
           - "'when' not in runtime_include_task"
           - "'failed_when' not in runtime_include_task"
           - "'ignore_errors' not in runtime_include_task"
@@ -110,6 +145,27 @@
           - runtime_kdump_task['ansible.builtin.systemd'].masked == true
           - "'failed_when' not in runtime_kdump_task"
           - "'ignore_errors' not in runtime_kdump_task"
+          - runtime_running_kernel_task['ansible.builtin.command'].argv == ['uname', '-r']
+          - runtime_default_kernel_task['ansible.builtin.command'].argv == ['grubby', '--default-kernel']
+          - runtime_uek_assert_task['ansible.builtin.assert'].that | length == 2
+          - runtime_uek_assert_task['ansible.builtin.assert'].that[0] is search('el10uek')
+          - runtime_uek_assert_task['ansible.builtin.assert'].that[1] is search('el10uek')
+          - runtime_rhck_remove_task['ansible.builtin.dnf'].name == runtime_expected_rhck_packages_variable
+          - runtime_rhck_remove_task['ansible.builtin.dnf'].state == 'absent'
+          - runtime_rhck_remove_task['ansible.builtin.dnf'].autoremove == false
+          - runtime_rhck_remove_task['ansible.builtin.dnf'].disable_excludes == 'main'
+          - runtime_rhck_exclude_task['community.general.ini_file'].section == 'main'
+          - runtime_rhck_exclude_task['community.general.ini_file'].option == 'exclude'
+          - runtime_rhck_exclude_task['community.general.ini_file'].value == runtime_expected_rhck_exclude_value
+          - runtime_dnf_preserve_task['ansible.builtin.set_fact'].autographs_deploy_effective_dnf_excludes is search('autographs_deploy_rhck_packages')
+          - runtime_dnf_preserve_task['ansible.builtin.set_fact'].autographs_deploy_effective_dnf_excludes is search('regex_findall')
+          - "'kernel-headers' not in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-tools' not in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-tools-libs' not in runtime_defaults.autographs_deploy_rhck_packages"
+          - runtime_stale_entry_task['ansible.builtin.shell'].executable == '/bin/bash'
+          - runtime_stale_entry_task['ansible.builtin.shell'].cmd is search('/boot/vmlinuz-0-rescue-')
+          - runtime_stale_entry_task['ansible.builtin.shell'].cmd is search('grubby --remove-kernel=')
+          - runtime_stale_entry_task.changed_when is search('removed stale boot entry:')
           - runtime_grubby_info_task['ansible.builtin.command'].argv == ['grubby', '--info=ALL']
           - runtime_grubby_remove_task['ansible.builtin.command'].argv == ['grubby', '--update-kernel=ALL', '--remove-args=crashkernel']
           - runtime_grubby_remove_task.when is defined
@@ -151,6 +207,9 @@
           - runtime_controller_restart_task['ansible.builtin.systemd'].state == 'restarted'
           - "'failed_when' not in runtime_controller_restart_task"
           - "'ignore_errors' not in runtime_controller_restart_task"
+      vars:
+        runtime_expected_rhck_packages_variable: !unsafe "{{ autographs_deploy_rhck_packages }}"
+        runtime_expected_rhck_exclude_value: !unsafe "{{ autographs_deploy_effective_dnf_excludes | join(' ') }}"
 
     - name: Require rendered persistence configuration semantics
       ansible.builtin.assert:

@@ -108,3 +108,71 @@
         that:
           - security_patching_next_action | trim == 'close'
           - security_patching_next_action_label | trim | length == 0
+
+    - name: Record RHCK configuration drift fixture
+      ansible.builtin.set_fact:
+        security_patching_scan_status: complete
+        security_patching_installed_rhck_packages:
+          - kernel
+          - kernel-core
+        security_patching_update_advisory_ids:
+          - ELSA-2026-44444
+        security_patching_update_entries:
+          - advisory_id: ELSA-2026-44444
+            packages:
+              - kernel-core
+        security_patching_classification_dnf_probe_override:
+          rc: 1
+          stdout: |-
+            Upgrading:
+              kernel-core x86_64 6.12.0-999
+            Transaction Summary
+          stderr: ""
+
+    - name: Classify RHCK configuration drift before package work
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_findings
+
+    - name: Assert RHCK drift requests deployment convergence without approval
+      ansible.builtin.assert:
+        that:
+          - security_patching_next_action | trim == 'configure'
+          - security_patching_next_action_label | trim | length == 0
+          - security_patching_classification_rhck_packages == ['kernel', 'kernel-core']
+          - security_patching_classification_dnf_work | bool
+          - security_patching_next_action_reason is search('without rebooting')
+
+- name: Validate UEK-only scanner inventory contract
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_role_dir: "{{ playbook_dir }}/../roles/security_patching"
+    deploy_role_dir: "{{ playbook_dir }}/../roles/autographs_deploy"
+    security_defaults: >-
+      {{ lookup('ansible.builtin.file', security_role_dir ~ '/defaults/main.yml') | from_yaml }}
+    deploy_defaults: >-
+      {{ lookup('ansible.builtin.file', deploy_role_dir ~ '/defaults/main.yml') | from_yaml }}
+    security_scan_tasks: >-
+      {{ lookup('ansible.builtin.file', security_role_dir ~ '/tasks/scan.yml') | from_yaml }}
+  tasks:
+    - name: Select kernel posture inventory tasks
+      ansible.builtin.set_fact:
+        security_inventory_package_matches: >-
+          {{ security_scan_tasks | selectattr('name', 'equalto', 'Inventory installed package names for kernel posture') | list }}
+        security_record_rhck_matches: >-
+          {{ security_scan_tasks | selectattr('name', 'equalto', 'Record installed RHCK configuration drift') | list }}
+
+    - name: Require exact UEK-only scanner inventory semantics
+      ansible.builtin.assert:
+        that:
+          - security_inventory_package_matches | length == 1
+          - security_record_rhck_matches | length == 1
+          - security_defaults.security_patching_rhck_packages == deploy_defaults.autographs_deploy_rhck_packages
+          - "'kernel-headers' not in security_defaults.security_patching_rhck_packages"
+          - "'kernel-tools' not in security_defaults.security_patching_rhck_packages"
+          - "'kernel-tools-libs' not in security_defaults.security_patching_rhck_packages"
+          - "'kernel-uek-core' is match(security_defaults.security_patching_reboot_allowed_package_regex)"
+          - "'kernel-core' is not match(security_defaults.security_patching_reboot_allowed_package_regex)"
+          - security_inventory_package_matches[0]['ansible.builtin.command'].argv == ['rpm', '-qa', '--qf', '%{NAME}\n']
+          - security_record_rhck_matches[0]['ansible.builtin.set_fact'].security_patching_installed_rhck_packages is search('intersect')

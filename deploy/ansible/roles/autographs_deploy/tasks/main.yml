@@ -1,3 +1,6 @@
+- name: Apply kernel persistence controls
+  ansible.builtin.include_tasks: kernel_persistence.yml
+
 - name: Ensure runtime packages are installed
   ansible.builtin.package:
     name: "{{ autographs_deploy_packages }}"
@@ -25,9 +28,6 @@
     masked: true
   loop: "{{ autographs_deploy_masked_services }}"
   failed_when: false
-
-- name: Apply kernel persistence controls
-  ansible.builtin.include_tasks: kernel_persistence.yml
 
 - name: Check swap file size
   ansible.builtin.shell:

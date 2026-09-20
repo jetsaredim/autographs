@@ -139,3 +139,59 @@
           - "'ELSA-2025-33333' in security_patching_render_test_body"
           - "'+1 more' in security_patching_render_test_body"
           - "'Apply the label `approved-production-update`' in security_patching_render_test_body"
+
+- name: Test UEK-only configuration drift report rendering
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_scan_id: security-scan-kernel-drift-render-test
+    security_patching_scan_timestamp: "2026-09-20T00:00:00Z"
+    security_patching_target_group: runtime
+    security_patching_approval_label: ""
+    security_patching_report_approval_label: ""
+    security_patching_next_action: configure
+    security_patching_hosts_with_findings:
+      - production
+    security_patching_enrichment_status: complete
+    security_patching_enrichment_message: Oracle Linux OpenSCAP OVAL evaluation completed.
+    security_patching_report_max_cves_per_row: 2
+    security_patching_report_path: /tmp/autographs-security-kernel-drift-render-test.md
+    security_patching_enrichment_by_host:
+      production:
+        advisories: []
+        entries: []
+  tasks:
+    - name: Add production RHCK drift fixture host
+      ansible.builtin.add_host:
+        name: production
+        security_patching_update_advisory_ids: []
+        security_patching_update_ksplice_aware_advisory_ids: []
+        security_patching_update_entries: []
+        security_patching_installed_rhck_packages:
+          - kernel
+          - kernel-core
+
+    - name: Render UEK-only drift report fixture
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/security_patching/templates/security-report.md.j2"
+        dest: "{{ security_patching_report_path }}"
+        mode: "0600"
+
+    - name: Read UEK-only drift report fixture
+      ansible.builtin.slurp:
+        src: "{{ security_patching_report_path }}"
+      register: security_patching_kernel_drift_report
+
+    - name: Decode UEK-only drift report fixture
+      ansible.builtin.set_fact:
+        security_patching_kernel_drift_body: "{{ security_patching_kernel_drift_report.content | b64decode }}"
+
+    - name: Assert UEK-only drift report is actionable
+      ansible.builtin.assert:
+        that:
+          - "'next_action: \"configure\"' in security_patching_kernel_drift_body"
+          - "'approval_label: \"\"' in security_patching_kernel_drift_body"
+          - "'### UEK-only configuration drift on `production`' in security_patching_kernel_drift_body"
+          - "'`kernel`, `kernel-core`' in security_patching_kernel_drift_body"
+          - "'Do not approve package updates or a reboot' in security_patching_kernel_drift_body"
+          - "'Run production deployment convergence' in security_patching_kernel_drift_body"

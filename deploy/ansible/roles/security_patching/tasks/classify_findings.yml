@@ -5,6 +5,8 @@
     security_patching_classification_dnf_rc: 99
     security_patching_classification_dnf_stdout: ""
     security_patching_classification_dnf_stderr: ""
+    security_patching_classification_rhck_packages: >-
+      {{ security_patching_installed_rhck_packages | default([]) | unique | sort | list }}
 
 - name: Collect current findings without package metadata
   ansible.builtin.set_fact:
@@ -85,6 +87,8 @@
     security_patching_next_action: >-
       {% if security_patching_scan_status | default('missing') != 'complete' %}
       investigate
+      {% elif security_patching_classification_rhck_packages | length > 0 %}
+      configure
       {% elif security_patching_update_entries | default([]) | length == 0 %}
       close
       {% elif security_patching_update_advisory_ids | default([]) | length == 0 %}
@@ -101,6 +105,10 @@
     security_patching_next_action_reason: >-
       {% if security_patching_scan_status | default('missing') != 'complete' %}
       The OpenSCAP scan was not complete.
+      {% elif security_patching_classification_rhck_packages | length > 0 %}
+      RHCK packages violate the production UEK-only kernel posture.
+      Run deployment convergence to remove them without rebooting, then re-run
+      the scanner before approving package updates or downtime.
       {% elif security_patching_update_entries | default([]) | length == 0 %}
       The complete OpenSCAP scan is clean.
       {% elif security_patching_update_advisory_ids | default([]) | length == 0 %}

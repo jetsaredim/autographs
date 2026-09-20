@@ -471,6 +471,50 @@ later C4 maintenance slice and is not changed by the core/Kdump deploy below.
 
 The role also installs `python3-oci-cli` from the Oracle Linux 10 Development Packages repo for operator diagnostics. The application does not depend on the OCI CLI, but keeping it on the VM lets an operator verify instance-principal Object Storage access independently from the Rust controller, including emergency listing or deletion of orphaned private media objects.
 
+### UEK-Only Kernel Posture
+
+Production runs Oracle's Unbreakable Enterprise Kernel (UEK). Before ordinary
+package installation, the deploy role requires both `uname -r` and
+`grubby --default-kernel` to identify an `el10uek` kernel. It then removes the
+explicitly managed RHCK boot/development packages, writes the same exact names
+to the `[main]` `exclude` setting in `/etc/dnf/dnf.conf`, and removes only GRUB
+entries whose `/boot/vmlinuz-*` image is missing. Rescue entries beginning with
+`/boot/vmlinuz-0-rescue-` are always preserved. Shared userspace packages such
+as `kernel-headers`, `kernel-tools`, and `kernel-tools-libs` are neither removed
+nor excluded.
+
+The ordering is deliberate: a host using RHCK, or merely configured to boot
+RHCK by default, fails before package mutation. A correctly running/defaulted
+UEK host can converge RHCK drift without rebooting. Verify the result with:
+
+```bash
+set -euo pipefail
+
+uname -r | grep -q 'el10uek'
+sudo grubby --default-kernel | grep -q 'el10uek'
+
+unexpected_rhck="$(
+  rpm -qa --qf '%{NAME}\n' \
+    | grep -E '^(kernel|kernel-core|kernel-devel|kernel-devel-matched|kernel-modules|kernel-modules-core|kernel-modules-extra|kernel-modules-extra-matched|kernel-debug|kernel-debug-core|kernel-debug-devel|kernel-debug-modules|kernel-debug-modules-core|kernel-debug-modules-extra)$' \
+    || true
+)"
+test -z "${unexpected_rhck}"
+
+grep -E '^exclude=.*kernel-core' /etc/dnf/dnf.conf
+sudo grubby --info=ALL
+```
+
+The security scanner independently inventories those exact RHCK package names.
+If any return, it opens or refreshes the patching issue with action `configure`,
+offers no update or reboot approval label, and directs the operator to run
+deployment convergence and then re-run the scanner. This prevents DNF from
+patching RHCK only for the reboot workflow to reject the same host later.
+
+Oracle documents `/etc/dnf/dnf.conf` package exclusions and confirms that an
+unused RHCK can be removed from a UEK system:
+[DNF package exclusions](https://docs.oracle.com/en/operating-systems/oracle-linux/software-management/sfw-mgmt-DisableUpdatesforParticularPackages.html) and
+[Oracle Linux kernel management](https://docs.oracle.com/en-us/iaas/oracle-linux/boot/boot-about-system-boot-kernels.htm).
+
 ### Core and Kdump Persistence Gate
 
 An ordinary deploy sets `LimitCORE=0` on the generated controller service,

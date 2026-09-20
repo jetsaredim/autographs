@@ -152,7 +152,7 @@ All three workflows use the `production-security-patching` concurrency group. Sc
 
 - Defines the GitHub API URL, repository, token, request headers, scan ID, timestamp, issue number, approver, temp file paths, Oracle OVAL URL, OpenSCAP result paths, default approval label, and default target group.
 - Defines the reboot follow-up guard defaults, including `security_patching_reboot_validate_dnf_noop` and `security_patching_reboot_allowed_package_regex`.
-- Defines the update and reboot approval labels plus the DNF output patterns used to classify each complete scan as `close`, `update`, `reboot`, or `investigate`.
+- Defines the update and reboot approval labels plus the DNF output patterns and UEK-only package inventory used to classify each complete scan as `close`, `configure`, `update`, `reboot`, or `investigate`.
 - Defines labels managed by the scanner:
 
   ```text
@@ -252,8 +252,9 @@ The scan path starts in `.github/workflows/weekly-security-scan.yml`, then runs 
    | Classification | Evidence | Issue action |
    |---|---|---|
    | `close` | Complete OpenSCAP scan has no findings | Close an existing scanner issue |
+   | `configure` | One or more managed RHCK packages are installed on the UEK-only runtime | Offer no approval label; run deployment convergence, then re-scan |
    | `update` | DNF reports an advisory-scoped package transaction | Offer `approved-production-update` |
-   | `reboot` | DNF proves a no-op and every package is in the reboot/installonly family allowlist | Offer `approved-production-reboot` |
+   | `reboot` | DNF proves a no-op and every package is in the UEK reboot/installonly family allowlist | Offer `approved-production-reboot` |
    | `investigate` | Missing package metadata, mixed no-op findings, failed/unrecognized DNF evidence, or conflicting host classifications | Offer no approval label |
 
 The runtime host must have `openscap-scanner` installed so `oscap-ssh` can execute `oscap` remotely. The base deployment role installs that package during instance setup. The workflow inventory supplies `ansible_user`, and the workflow passes a temp deploy key through `SSH_ADDITIONAL_OPTIONS`; local runs can omit `ansible_user` and let SSH config provide `User` and `IdentityFile` for the production IP.
@@ -398,7 +399,7 @@ The apply playbook treats OpenSCAP as the authority for detection and closure. D
 
 The workflow runs hosts serially and re-scans after applying updates. It reconciles the full issue body, labels, and open/closed state with one idempotent GitHub `PATCH`, so the triggering approval label is consumed by the desired label set. It then comments the result. If findings remain, the same issue contains only the authoritative remaining advisory set and its classified next action.
 
-When the remaining findings are kernel or UEK installonly findings and DNF proves there is no package work, the refreshed issue offers only the separate `approved-production-reboot` label. Mixed, incomplete, or unrecognized states offer no approval label and require investigation. The reboot workflow independently rechecks that DNF is a no-op for the approved advisories, boots the instance into the newest installed kernel, waits for Autographs health, removes old installonly kernels, re-runs OpenSCAP, and refreshes or closes the same issue.
+When the remaining findings are UEK installonly findings and DNF proves there is no package work, the refreshed issue offers only the separate `approved-production-reboot` label. Installed RHCK packages take precedence over DNF work and produce the `configure` action with no approval label; deployment removes that drift without rebooting, after which a fresh scan can classify the remaining UEK state normally. Mixed, incomplete, or unrecognized states offer no approval label and require investigation. The reboot workflow independently rechecks that DNF is a no-op for the approved advisories, boots the instance into the newest installed UEK, waits for Autographs health, removes old installonly kernels, re-runs OpenSCAP, and refreshes or closes the same issue.
 
 ## Reboot flow
 
@@ -406,7 +407,7 @@ The reboot path starts when an allowed operator applies `approved-production-reb
 
 `tasks/validate_request.yml` runs first on `localhost` with the reboot approval label and the same scanner metadata contract used by the update workflow. It confirms the actor is allowed, the issue is open, the issue is scanner-created, the reboot approval label is present, and metadata targets the requested group.
 
-The reboot playbook scans each runtime host again before downtime. `tasks/validate_reboot_state.yml` first preserves that authoritative scan. Advisory-ID drift, or an exact advisory set whose complete scan is now classified `update` or `investigate`, marks the request for successful no-mutation reconciliation. For an exact advisory set that is still classified `reboot`, the advisory package names must match the configured kernel/UEK package-family regex and this second DNF check must report no remaining package work:
+The reboot playbook scans each runtime host again before downtime. `tasks/validate_reboot_state.yml` first preserves that authoritative scan. Advisory-ID drift, or an exact advisory set whose complete scan is now classified `configure`, `update`, or `investigate`, marks the request for successful no-mutation reconciliation. For an exact advisory set that is still classified `reboot`, the advisory package names must match the configured UEK package-family regex and this second DNF check must report no remaining package work:
 
 ```bash
 dnf --assumeno upgrade-minimal --security --advisories=<comma-separated ELSA IDs>
@@ -428,7 +429,7 @@ If the complete scan's DNF classification now reports package work, the current 
    dnf -y remove --oldinstallonly --setopt=installonly_limit=2
    ```
 
-After cleanup, the playbook re-runs the OpenSCAP scan. `tasks/post_reboot_result.yml` refuses to publish a result unless all hosts have complete post-reboot scan facts. It applies the same four-way next-action classifier and desired-state issue `PATCH`; remaining findings stay open with the accurate update/reboot/investigate guidance, while a clean scan closes the issue.
+After cleanup, the playbook re-runs the OpenSCAP scan. `tasks/post_reboot_result.yml` refuses to publish a result unless all hosts have complete post-reboot scan facts. It applies the same five-way next-action classifier and desired-state issue `PATCH`; remaining findings or RHCK drift stay open with accurate configure/update/reboot/investigate guidance, while a clean UEK-only scan closes the issue.
 
 The reboot result comment includes the kernel before reboot, kernel after reboot, whether installonly cleanup changed anything, and remaining OpenSCAP finding counts.
 

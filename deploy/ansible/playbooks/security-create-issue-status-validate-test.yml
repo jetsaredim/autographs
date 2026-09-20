@@ -63,3 +63,67 @@
           - security_patching_create_issue_guard_failed
           - security_patching_incomplete_scan_hosts == ['degraded-host']
           - "'Refusing to create a security update issue' in security_patching_create_issue_guard_failure_message"
+
+- name: Validate RHCK drift takes precedence over patchable findings
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_kernel_drift_fixture_runtime
+    security_patching_github_api_url: http://127.0.0.1:9
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_scan_id: security-kernel-drift-fixture
+    security_patching_scan_timestamp: "2026-09-20T00:00:00Z"
+    security_patching_report_path: /tmp/autographs-security-kernel-drift-create-issue-test.md
+    security_patching_kernel_drift_reached_github: false
+  tasks:
+    - name: Add RHCK-only drift fixture host
+      ansible.builtin.add_host:
+        name: kernel-drift-host
+        groups: security_kernel_drift_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_next_action: configure
+        security_patching_next_action_label: ""
+        security_patching_update_advisory_ids: []
+        security_patching_update_advisories: []
+        security_patching_update_entries: []
+        security_patching_update_ksplice_aware_advisory_ids: []
+        security_patching_installed_rhck_packages:
+          - kernel-core
+
+    - name: Add independently patchable fixture host
+      ansible.builtin.add_host:
+        name: security-update-host
+        groups: security_kernel_drift_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_next_action: update
+        security_patching_next_action_label: approved-production-update
+        security_patching_update_advisory_ids:
+          - ELSA-2026-88888
+        security_patching_update_advisories: []
+        security_patching_update_entries:
+          - advisory_id: ELSA-2026-88888
+            packages:
+              - openssl
+        security_patching_update_ksplice_aware_advisory_ids: []
+        security_patching_installed_rhck_packages: []
+
+    - name: Run RHCK-only drift issue convergence until fake GitHub fails
+      block:
+        - name: Attempt RHCK-only drift issue convergence
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: create_issue
+      rescue:
+        - name: Record expected fake GitHub drift failure
+          ansible.builtin.set_fact:
+            security_patching_kernel_drift_reached_github: true
+
+    - name: Assert RHCK-only drift opens configure state without approval
+      ansible.builtin.assert:
+        that:
+          - security_patching_kernel_drift_reached_github
+          - security_patching_hosts_with_findings == ['kernel-drift-host', 'security-update-host']
+          - security_patching_scanner_issue_actions == ['configure', 'update']
+          - security_patching_next_action | trim == 'configure'
+          - security_patching_report_approval_label | trim | length == 0

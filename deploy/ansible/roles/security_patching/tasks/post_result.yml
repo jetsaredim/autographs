@@ -29,11 +29,13 @@
   ansible.builtin.set_fact:
     security_patching_remaining_hosts: []
 
-- name: Collect hosts with remaining security update findings
+- name: Collect hosts with remaining security findings or kernel posture drift
   ansible.builtin.set_fact:
     security_patching_remaining_hosts: "{{ security_patching_remaining_hosts + [item] }}"
   loop: "{{ security_patching_target_hosts }}"
-  when: (hostvars[item].security_patching_post_update_entries | default([]) | length) > 0
+  when: >-
+    (hostvars[item].security_patching_post_update_entries | default([]) | length) > 0
+    or (hostvars[item].security_patching_post_update_installed_rhck_packages | default([]) | length) > 0
 
 - name: Initialize update request outcome host lists
   ansible.builtin.set_fact:
@@ -74,6 +76,8 @@
     security_patching_next_action: >-
       {% if security_patching_remaining_hosts | length == 0 %}
       close
+      {% elif 'configure' in security_patching_remaining_actions %}
+      configure
       {% elif security_patching_remaining_actions | length == 1 %}
       {{ security_patching_remaining_actions[0] }}
       {% else %}
@@ -120,6 +124,8 @@
     security_patching_update_advisory_ids: "{{ hostvars[item].security_patching_post_update_advisory_ids | default([]) }}"
     security_patching_update_ksplice_aware_advisory_ids: >-
       {{ hostvars[item].security_patching_post_update_ksplice_aware_advisory_ids | default([]) }}
+    security_patching_installed_rhck_packages: >-
+      {{ hostvars[item].security_patching_post_update_installed_rhck_packages | default([]) }}
   loop: "{{ security_patching_remaining_hosts }}"
   delegate_to: "{{ item }}"
   delegate_facts: true
