@@ -644,6 +644,11 @@ fn static_admin_taxonomy_styles_and_accessibility_states_are_present() {
         "signer link pills should keep names on one line and let the table scroll when necessary"
     );
     assert_eq!(
+        css_property_values(&css, ".item-table", "overflow-x"),
+        ["auto"],
+        "the item table should scroll horizontally rather than wrap signer names"
+    );
+    assert_eq!(
         css_property_values(&css, ".item-table th:nth-child(2)", "width"),
         ["24%"],
         "the item list should give signer names the wider flexible column"
