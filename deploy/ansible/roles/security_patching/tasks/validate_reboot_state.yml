@@ -55,6 +55,16 @@
       {{ security_patching_update_ksplice_aware_advisory_ids | default([]) }}
     security_patching_post_reboot_installed_rhck_packages: >-
       {{ security_patching_installed_rhck_packages | default([]) }}
+    security_patching_post_reboot_running_kernel_release: >-
+      {{ security_patching_running_kernel_release | default('unknown') }}
+    security_patching_post_reboot_running_kernel_image: >-
+      {{ security_patching_running_kernel_image | default('unknown') }}
+    security_patching_post_reboot_default_kernel_image: >-
+      {{ security_patching_default_kernel_image | default('unknown') }}
+    security_patching_post_reboot_running_kernel_is_valid_uek: >-
+      {{ security_patching_running_kernel_is_valid_uek | default(false) | bool }}
+    security_patching_post_reboot_default_kernel_is_valid_uek: >-
+      {{ security_patching_default_kernel_is_valid_uek | default(false) | bool }}
     security_patching_post_reboot_scan_status: "{{ security_patching_scan_status | default('missing') }}"
     security_patching_post_reboot_next_action: >-
       {{ security_patching_next_action | default('investigate') | trim }}

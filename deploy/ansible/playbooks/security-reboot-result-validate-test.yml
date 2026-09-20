@@ -36,6 +36,11 @@
         security_patching_reboot_current_advisory_ids:
           - ELSA-2026-22222
         security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: true
         security_patching_post_reboot_advisory_ids:
           - ELSA-2026-22222
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
@@ -155,6 +160,11 @@
           - ELSA-2026-33333
         security_patching_reboot_current_advisory_ids: []
         security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: true
         security_patching_post_reboot_advisory_ids: []
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
         security_patching_post_reboot_next_action: close
@@ -226,6 +236,11 @@
         security_patching_reboot_current_advisory_ids:
           - "{{ item.advisory_id }}"
         security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: true
         security_patching_post_reboot_advisory_ids:
           - "{{ item.advisory_id }}"
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
@@ -342,6 +357,11 @@
         security_patching_reboot_current_advisory_ids:
           - ELSA-2026-55551
         security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: true
         security_patching_post_reboot_advisory_ids:
           - ELSA-2026-55551
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
@@ -411,3 +431,74 @@
           - "'No reboot or installonly cleanup was attempted' in security_patching_reboot_result_comment_body"
           - "'Current action: `investigate`' in security_patching_reboot_result_comment_body"
           - "'investigate-one' in security_patching_reboot_result_comment_body"
+
+- name: Validate kernel-only recovery remains open after reboot reconciliation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_kernel_recovery_fixture_runtime
+    security_patching_request_instances:
+      unsafe-default-kernel:
+        advisory_ids: []
+    security_patching_scan_id: security-reboot-kernel-recovery-test
+    security_patching_scan_timestamp: "2026-09-20T01:00:00Z"
+    security_patching_issue_number: "128"
+    security_patching_github_api_url: http://127.0.0.1:1
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_report_path: /tmp/autographs-security-reboot-kernel-recovery.md
+    security_patching_result_comment_path: /tmp/autographs-security-reboot-kernel-recovery-comment.md
+    security_reboot_kernel_recovery_path_reached: false
+  tasks:
+    - name: Add kernel-only reboot reconciliation fixture host
+      ansible.builtin.add_host:
+        name: unsafe-default-kernel
+        groups: security_reboot_kernel_recovery_fixture_runtime
+        security_patching_reboot_completed: false
+        security_patching_pre_reboot_kernel_release: ""
+        security_patching_post_reboot_kernel_release: ""
+        security_patching_installonly_cleanup_changed: false
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_reclassified: true
+        security_patching_reboot_approved_advisory_ids: []
+        security_patching_reboot_current_advisory_ids: []
+        security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_entries: []
+        security_patching_post_reboot_advisories: []
+        security_patching_post_reboot_advisory_ids: []
+        security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_installed_rhck_packages: []
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10_2.x86_64
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: false
+        security_patching_post_reboot_next_action: investigate
+        security_patching_post_reboot_next_action_label: ""
+        security_patching_post_reboot_next_action_reason: Kernel recovery is required.
+
+    - name: Run kernel-only reboot reconciliation until fake GitHub refresh fails
+      block:
+        - name: Attempt to publish kernel-only reboot result
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_reboot_result
+      rescue:
+        - name: Record expected kernel-only reboot fake GitHub failure
+          ansible.builtin.set_fact:
+            security_reboot_kernel_recovery_path_reached: true
+
+    - name: Assert kernel-only reboot reconciliation remains actionable
+      ansible.builtin.assert:
+        that:
+          - security_reboot_kernel_recovery_path_reached
+          - security_patching_remaining_hosts == ['unsafe-default-kernel']
+          - security_patching_hosts_with_findings == ['unsafe-default-kernel']
+          - security_patching_next_action | trim == 'investigate'
+          - security_patching_next_action_label | trim | length == 0
+          - security_patching_reconciled_issue_body.state == 'open'
+          - security_patching_reconciled_issue_body.state_reason is not defined
+          - "'Kernel recovery required on `unsafe-default-kernel`' in security_patching_refreshed_report_body"
+          - "'Default kernel image: `/boot/vmlinuz-6.12.0-fixture.el10_2.x86_64`' in security_patching_refreshed_report_body"
+          - "'running UEK verified=True, default UEK verified=False' in security_patching_reboot_result_comment_body"
+          - "'Recover a verified running and default UEK kernel first' in security_patching_reboot_result_comment_body"

@@ -7,10 +7,10 @@
 - Workflow run: {{ security_patching_workflow_run_url }}
 {% endif %}
 
-| Instance | Rebooted | Kernel before | Kernel after | Installonly cleanup | Remaining OpenSCAP findings | RHCK drift packages |
-|---|---:|---|---|---:|---:|---:|
+| Instance | Rebooted | Kernel before | Kernel after | Installonly cleanup | Remaining OpenSCAP findings | RHCK drift packages | Running UEK verified | Default UEK verified |
+|---|---:|---|---|---:|---:|---:|---:|---:|
 {% for host in groups[security_patching_target_group] | default([]) -%}
-| `{{ host }}` | {{ hostvars[host].security_patching_reboot_completed | default(false) }} | `{{ hostvars[host].security_patching_pre_reboot_kernel_release | default('unknown') }}` | `{{ hostvars[host].security_patching_post_reboot_kernel_release | default('unknown') }}` | {{ hostvars[host].security_patching_installonly_cleanup_changed | default(false) }} | {{ hostvars[host].security_patching_post_reboot_entries | default([]) | length }} | {{ hostvars[host].security_patching_post_reboot_installed_rhck_packages | default([]) | length }} |
+| `{{ host }}` | {{ hostvars[host].security_patching_reboot_completed | default(false) }} | `{{ hostvars[host].security_patching_pre_reboot_kernel_release | default('unknown') }}` | `{{ hostvars[host].security_patching_post_reboot_kernel_release | default('unknown') }}` | {{ hostvars[host].security_patching_installonly_cleanup_changed | default(false) }} | {{ hostvars[host].security_patching_post_reboot_entries | default([]) | length }} | {{ hostvars[host].security_patching_post_reboot_installed_rhck_packages | default([]) | length }} | {{ hostvars[host].security_patching_post_reboot_running_kernel_is_valid_uek | default(false) | bool }} | {{ hostvars[host].security_patching_post_reboot_default_kernel_is_valid_uek | default(false) | bool }} |
 {% endfor %}
 
 {% if security_patching_reboot_drift_hosts | default([]) | length > 0 -%}
@@ -60,7 +60,7 @@ Post-reboot OpenSCAP scan still reports findings on:
 {% endif %}
 
 {% for host in security_patching_remaining_hosts -%}
-- `{{ host }}`: {{ hostvars[host].security_patching_post_reboot_entries | default([]) | length }} remaining security update(s), {{ hostvars[host].security_patching_post_reboot_installed_rhck_packages | default([]) | length }} RHCK drift package(s)
+- `{{ host }}`: {{ hostvars[host].security_patching_post_reboot_entries | default([]) | length }} remaining security update(s), {{ hostvars[host].security_patching_post_reboot_installed_rhck_packages | default([]) | length }} RHCK drift package(s), running UEK verified={{ hostvars[host].security_patching_post_reboot_running_kernel_is_valid_uek | default(false) | bool }}, default UEK verified={{ hostvars[host].security_patching_post_reboot_default_kernel_is_valid_uek | default(false) | bool }}
 {% endfor %}
 
 This issue has been refreshed with the remaining findings and is intentionally left open for follow-up review.
@@ -71,6 +71,6 @@ Advisory-scoped DNF is still a no-op and the remaining packages are reboot/insta
 {% elif security_patching_next_action | trim == 'configure' -%}
 RHCK packages violate the UEK-only runtime posture. No update or reboot approval label is offered. Run production deployment convergence to remove them without rebooting, then re-run the scanner.
 {% else -%}
-The remaining findings are mixed or could not be classified safely. Do not apply an approval label; inspect the workflow logs and re-run the scanner after resolving the ambiguity.
+At least one host requires kernel recovery or has findings that could not be classified safely. Do not apply an approval label or run deployment convergence on an unsafe host. Recover a verified running and default UEK kernel first, scheduling a reboot when the running kernel is not UEK, then re-run the scanner.
 {% endif %}
 {% endif %}

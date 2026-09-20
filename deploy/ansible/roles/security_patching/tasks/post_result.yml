@@ -15,6 +15,11 @@
     hostvars[item].security_patching_post_update_entries is not defined
     or hostvars[item].security_patching_post_update_advisory_ids is not defined
     or hostvars[item].security_patching_post_update_next_action is not defined
+    or hostvars[item].security_patching_post_update_running_kernel_release is not defined
+    or hostvars[item].security_patching_post_update_running_kernel_image is not defined
+    or hostvars[item].security_patching_post_update_default_kernel_image is not defined
+    or hostvars[item].security_patching_post_update_running_kernel_is_valid_uek is not defined
+    or hostvars[item].security_patching_post_update_default_kernel_is_valid_uek is not defined
     or hostvars[item].security_patching_post_update_scan_status | default('missing') != 'complete'
 
 - name: Require complete post-update scan results for all target hosts
@@ -36,6 +41,8 @@
   when: >-
     (hostvars[item].security_patching_post_update_entries | default([]) | length) > 0
     or (hostvars[item].security_patching_post_update_installed_rhck_packages | default([]) | length) > 0
+    or not (hostvars[item].security_patching_post_update_running_kernel_is_valid_uek | bool)
+    or not (hostvars[item].security_patching_post_update_default_kernel_is_valid_uek | bool)
 
 - name: Initialize update request outcome host lists
   ansible.builtin.set_fact:
@@ -126,6 +133,16 @@
       {{ hostvars[item].security_patching_post_update_ksplice_aware_advisory_ids | default([]) }}
     security_patching_installed_rhck_packages: >-
       {{ hostvars[item].security_patching_post_update_installed_rhck_packages | default([]) }}
+    security_patching_running_kernel_release: >-
+      {{ hostvars[item].security_patching_post_update_running_kernel_release }}
+    security_patching_running_kernel_image: >-
+      {{ hostvars[item].security_patching_post_update_running_kernel_image }}
+    security_patching_default_kernel_image: >-
+      {{ hostvars[item].security_patching_post_update_default_kernel_image }}
+    security_patching_running_kernel_is_valid_uek: >-
+      {{ hostvars[item].security_patching_post_update_running_kernel_is_valid_uek | bool }}
+    security_patching_default_kernel_is_valid_uek: >-
+      {{ hostvars[item].security_patching_post_update_default_kernel_is_valid_uek | bool }}
   loop: "{{ security_patching_remaining_hosts }}"
   delegate_to: "{{ item }}"
   delegate_facts: true

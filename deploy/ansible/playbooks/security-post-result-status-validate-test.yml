@@ -18,6 +18,11 @@
         name: complete-host
         groups: security_post_result_fixture_runtime
         security_patching_post_update_scan_status: complete
+        security_patching_post_update_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_running_kernel_is_valid_uek: true
+        security_patching_post_update_default_kernel_is_valid_uek: true
         security_patching_post_update_advisory_ids: []
         security_patching_post_update_entries: []
         security_patching_post_update_next_action: close
@@ -31,6 +36,11 @@
         name: degraded-host
         groups: security_post_result_fixture_runtime
         security_patching_post_update_scan_status: degraded
+        security_patching_post_update_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_running_kernel_is_valid_uek: true
+        security_patching_post_update_default_kernel_is_valid_uek: true
         security_patching_post_update_advisory_ids: []
         security_patching_post_update_entries: []
         security_patching_post_update_next_action: investigate
