@@ -24,6 +24,57 @@
       default boot kernel must be Oracle UEK. Running={{ autographs_deploy_running_kernel_release.stdout | trim }},
       default={{ autographs_deploy_default_kernel.stdout | trim }}.
 
+- name: Derive running kernel image path
+  ansible.builtin.set_fact:
+    autographs_deploy_running_kernel_image: >-
+      /boot/vmlinuz-{{ autographs_deploy_running_kernel_release.stdout | trim }}
+    autographs_deploy_default_kernel_image: >-
+      {{ autographs_deploy_default_kernel.stdout | trim }}
+
+- name: Inspect running UEK kernel image
+  ansible.builtin.stat:
+    path: "{{ autographs_deploy_running_kernel_image }}"
+    follow: true
+    get_checksum: false
+  register: autographs_deploy_running_kernel_image_stat
+
+- name: Inspect default UEK kernel image
+  ansible.builtin.stat:
+    path: "{{ autographs_deploy_default_kernel_image }}"
+    follow: true
+    get_checksum: false
+  register: autographs_deploy_default_kernel_image_stat
+
+- name: Require bootable running and default UEK kernel images
+  ansible.builtin.import_tasks: assert_kernel_images.yml
+
+- name: Inspect running UEK kernel image RPM owner
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qf
+      - --qf
+      - "%{NAME}\n"
+      - "{{ autographs_deploy_running_kernel_image }}"
+  register: autographs_deploy_running_kernel_image_owner
+  changed_when: false
+  failed_when: false
+
+- name: Inspect default UEK kernel image RPM owner
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qf
+      - --qf
+      - "%{NAME}\n"
+      - "{{ autographs_deploy_default_kernel_image }}"
+  register: autographs_deploy_default_kernel_image_owner
+  changed_when: false
+  failed_when: false
+
+- name: Require installed UEK RPM ownership for bootable kernel images
+  ansible.builtin.import_tasks: assert_kernel_ownership.yml
+
 - name: Remove managed RHCK kernel packages from UEK runtime
   ansible.builtin.dnf:
     name: "{{ autographs_deploy_rhck_packages }}"

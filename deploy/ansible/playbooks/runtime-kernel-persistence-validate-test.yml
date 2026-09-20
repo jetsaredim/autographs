@@ -10,6 +10,10 @@
       {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/main.yml') | from_yaml }}
     runtime_kernel_tasks: >-
       {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/kernel_persistence.yml') | from_yaml }}
+    runtime_image_assertion_tasks: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/assert_kernel_images.yml') | from_yaml }}
+    runtime_owner_assertion_tasks: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/assert_kernel_ownership.yml') | from_yaml }}
     runtime_handlers: >-
       {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/handlers/main.yml') | from_yaml }}
     autographs_deploy_controller_container_name: contract-controller
@@ -49,6 +53,20 @@
           {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect default boot kernel') | list }}
         runtime_uek_assert_matches: >-
           {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Require running and default UEK kernels before package convergence') | list }}
+        runtime_kernel_path_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Derive running kernel image path') | list }}
+        runtime_running_image_stat_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect running UEK kernel image') | list }}
+        runtime_default_image_stat_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect default UEK kernel image') | list }}
+        runtime_image_assert_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Require bootable running and default UEK kernel images') | list }}
+        runtime_running_owner_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect running UEK kernel image RPM owner') | list }}
+        runtime_default_owner_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect default UEK kernel image RPM owner') | list }}
+        runtime_owner_assert_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Require installed UEK RPM ownership for bootable kernel images') | list }}
         runtime_rhck_remove_matches: >-
           {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Remove managed RHCK kernel packages from UEK runtime') | list }}
         runtime_rhck_exclude_matches: >-
@@ -90,6 +108,13 @@
           - runtime_running_kernel_matches | length == 1
           - runtime_default_kernel_matches | length == 1
           - runtime_uek_assert_matches | length == 1
+          - runtime_kernel_path_matches | length == 1
+          - runtime_running_image_stat_matches | length == 1
+          - runtime_default_image_stat_matches | length == 1
+          - runtime_image_assert_matches | length == 1
+          - runtime_running_owner_matches | length == 1
+          - runtime_default_owner_matches | length == 1
+          - runtime_owner_assert_matches | length == 1
           - runtime_rhck_remove_matches | length == 1
           - runtime_rhck_exclude_matches | length == 1
           - runtime_dnf_preserve_matches | length == 1
@@ -114,6 +139,15 @@
         runtime_running_kernel_task: "{{ runtime_running_kernel_matches | first }}"
         runtime_default_kernel_task: "{{ runtime_default_kernel_matches | first }}"
         runtime_uek_assert_task: "{{ runtime_uek_assert_matches | first }}"
+        runtime_kernel_path_task: "{{ runtime_kernel_path_matches | first }}"
+        runtime_running_image_stat_task: "{{ runtime_running_image_stat_matches | first }}"
+        runtime_default_image_stat_task: "{{ runtime_default_image_stat_matches | first }}"
+        runtime_image_assert_task: "{{ runtime_image_assert_matches | first }}"
+        runtime_running_owner_task: "{{ runtime_running_owner_matches | first }}"
+        runtime_default_owner_task: "{{ runtime_default_owner_matches | first }}"
+        runtime_owner_assert_task: "{{ runtime_owner_assert_matches | first }}"
+        runtime_image_guard_task: "{{ runtime_image_assertion_tasks | first }}"
+        runtime_owner_guard_task: "{{ runtime_owner_assertion_tasks | first }}"
         runtime_rhck_remove_task: "{{ runtime_rhck_remove_matches | first }}"
         runtime_rhck_exclude_task: "{{ runtime_rhck_exclude_matches | first }}"
         runtime_dnf_preserve_task: "{{ runtime_dnf_preserve_matches | first }}"
@@ -150,6 +184,19 @@
           - runtime_uek_assert_task['ansible.builtin.assert'].that | length == 2
           - runtime_uek_assert_task['ansible.builtin.assert'].that[0] is search('el10uek')
           - runtime_uek_assert_task['ansible.builtin.assert'].that[1] is search('el10uek')
+          - runtime_kernel_path_task['ansible.builtin.set_fact'].autographs_deploy_running_kernel_image is search('/boot/vmlinuz-')
+          - runtime_running_image_stat_task['ansible.builtin.stat'].follow == true
+          - runtime_default_image_stat_task['ansible.builtin.stat'].follow == true
+          - runtime_image_assert_task['ansible.builtin.import_tasks'] == 'assert_kernel_images.yml'
+          - runtime_image_guard_task['ansible.builtin.assert'].that | length == 4
+          - runtime_running_owner_task['ansible.builtin.command'].argv[0:4] == ['rpm', '-qf', '--qf', '%{NAME}\n']
+          - runtime_default_owner_task['ansible.builtin.command'].argv[0:4] == ['rpm', '-qf', '--qf', '%{NAME}\n']
+          - runtime_owner_assert_task['ansible.builtin.import_tasks'] == 'assert_kernel_ownership.yml'
+          - runtime_owner_guard_task['ansible.builtin.assert'].that | length == 4
+          - runtime_owner_guard_task['ansible.builtin.assert'].that[1] is search('kernel-uek')
+          - runtime_owner_guard_task['ansible.builtin.assert'].that[3] is search('kernel-uek')
+          - runtime_kernel_tasks.index(runtime_image_assert_task) < runtime_kernel_tasks.index(runtime_running_owner_task)
+          - runtime_kernel_tasks.index(runtime_owner_assert_task) < runtime_kernel_tasks.index(runtime_rhck_remove_task)
           - runtime_rhck_remove_task['ansible.builtin.dnf'].name == runtime_expected_rhck_packages_variable
           - runtime_rhck_remove_task['ansible.builtin.dnf'].state == 'absent'
           - runtime_rhck_remove_task['ansible.builtin.dnf'].autoremove == false
@@ -220,3 +267,131 @@
           - runtime_controller_service_ini.Service.LimitCORE == '0'
           - runtime_coredump_ini.Coredump.Storage == 'none'
           - runtime_coredump_ini.Coredump.ProcessSizeMax == '0'
+
+- name: Validate missing default UEK image fails before RHCK mutation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_kernel_tasks: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/autographs_deploy/tasks/kernel_persistence.yml') | from_yaml }}
+    runtime_image_assertion_path: >-
+      {{ playbook_dir }}/../roles/autographs_deploy/tasks/assert_kernel_images.yml
+  tasks:
+    - name: Record stale default UEK fixture
+      ansible.builtin.set_fact:
+        autographs_deploy_running_kernel_image_stat:
+          stat:
+            exists: true
+            isreg: true
+        autographs_deploy_default_kernel_image_stat:
+          stat:
+            exists: false
+            isreg: false
+        autographs_deploy_running_kernel_image: /boot/vmlinuz-fixture.el10uek.x86_64
+        autographs_deploy_default_kernel_image: /boot/vmlinuz-stale.el10uek.x86_64
+        runtime_kernel_guard_failed: false
+        runtime_kernel_mutation_reached: false
+
+    - name: Apply stale default UEK safety gate before simulated mutation
+      block:
+        - name: Evaluate production image safety assertions
+          ansible.builtin.include_tasks: "{{ runtime_image_assertion_path }}"
+
+        - name: Record forbidden simulated RHCK mutation
+          ansible.builtin.set_fact:
+            runtime_kernel_mutation_reached: true
+      rescue:
+        - name: Record expected stale default rejection
+          ansible.builtin.set_fact:
+            runtime_kernel_guard_failed: true
+
+    - name: Require stale default rejection before mutation
+      ansible.builtin.assert:
+        that:
+          - runtime_kernel_guard_failed
+          - not runtime_kernel_mutation_reached
+
+- name: Validate missing running UEK image fails before RHCK mutation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_kernel_tasks: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/autographs_deploy/tasks/kernel_persistence.yml') | from_yaml }}
+    runtime_image_assertion_path: >-
+      {{ playbook_dir }}/../roles/autographs_deploy/tasks/assert_kernel_images.yml
+  tasks:
+    - name: Record missing running UEK fixture
+      ansible.builtin.set_fact:
+        autographs_deploy_running_kernel_image_stat:
+          stat:
+            exists: false
+            isreg: false
+        autographs_deploy_default_kernel_image_stat:
+          stat:
+            exists: true
+            isreg: true
+        autographs_deploy_running_kernel_image: /boot/vmlinuz-missing.el10uek.x86_64
+        autographs_deploy_default_kernel_image: /boot/vmlinuz-fixture.el10uek.x86_64
+        runtime_kernel_guard_failed: false
+        runtime_kernel_mutation_reached: false
+
+    - name: Apply missing running UEK safety gate before simulated mutation
+      block:
+        - name: Evaluate production image safety assertions
+          ansible.builtin.include_tasks: "{{ runtime_image_assertion_path }}"
+
+        - name: Record forbidden simulated RHCK mutation
+          ansible.builtin.set_fact:
+            runtime_kernel_mutation_reached: true
+      rescue:
+        - name: Record expected missing running rejection
+          ansible.builtin.set_fact:
+            runtime_kernel_guard_failed: true
+
+    - name: Require missing running rejection before mutation
+      ansible.builtin.assert:
+        that:
+          - runtime_kernel_guard_failed
+          - not runtime_kernel_mutation_reached
+
+- name: Validate non-UEK image ownership fails before RHCK mutation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_kernel_tasks: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/autographs_deploy/tasks/kernel_persistence.yml') | from_yaml }}
+    runtime_owner_assertion_path: >-
+      {{ playbook_dir }}/../roles/autographs_deploy/tasks/assert_kernel_ownership.yml
+  tasks:
+    - name: Record invalid UEK ownership fixture
+      ansible.builtin.set_fact:
+        autographs_deploy_running_kernel_image_owner:
+          rc: 0
+          stdout: kernel-uek-core
+        autographs_deploy_default_kernel_image_owner:
+          rc: 0
+          stdout: kernel-core
+        runtime_kernel_guard_failed: false
+        runtime_kernel_mutation_reached: false
+
+    - name: Apply invalid UEK ownership gate before simulated mutation
+      block:
+        - name: Evaluate production ownership safety assertions
+          ansible.builtin.include_tasks: "{{ runtime_owner_assertion_path }}"
+
+        - name: Record forbidden simulated RHCK mutation
+          ansible.builtin.set_fact:
+            runtime_kernel_mutation_reached: true
+      rescue:
+        - name: Record expected ownership rejection
+          ansible.builtin.set_fact:
+            runtime_kernel_guard_failed: true
+
+    - name: Require invalid ownership rejection before mutation
+      ansible.builtin.assert:
+        that:
+          - runtime_kernel_guard_failed
+          - not runtime_kernel_mutation_reached
