@@ -53,6 +53,7 @@
     follow: true
     get_checksum: false
   register: security_patching_post_reboot_default_kernel_image_stat
+  when: security_patching_post_reboot_default_kernel_image | length > 0
 
 - name: Inspect running kernel image RPM owner after reboot
   ansible.builtin.command:
