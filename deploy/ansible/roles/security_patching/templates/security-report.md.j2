@@ -10,7 +10,7 @@ next_action: "{{ report_next_action }}"
 instances: {}
 {% else %}
 instances:
-{% for host in security_patching_hosts_with_findings %}
+{% for host in security_patching_target_hosts | default(security_patching_hosts_with_findings) %}
   {{ host }}:
     advisory_ids: {{ hostvars[host].security_patching_update_advisory_ids | default([]) | unique | sort | list | to_json }}
 {% endfor %}

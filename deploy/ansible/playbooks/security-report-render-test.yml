@@ -7,6 +7,9 @@
     security_patching_target_group: runtime
     security_patching_approval_label: approved-production-update
     security_patching_next_action: update
+    security_patching_target_hosts:
+      - clean-production
+      - production
     security_patching_hosts_with_findings:
       - production
     security_patching_enrichment_status: complete
@@ -83,6 +86,11 @@
             errata_link: https://linux.oracle.com/errata/ELSA-2025-33333.html
             summary: ELSA-2025-33333 acl and sudo security update
   tasks:
+    - name: Add clean production scan fact fixture host
+      ansible.builtin.add_host:
+        name: clean-production
+        security_patching_update_advisory_ids: []
+
     - name: Add production scan fact fixture host
       ansible.builtin.add_host:
         name: production
@@ -133,6 +141,8 @@
         that:
           - security_patching_render_test_metadata_blocks | length == 1
           - security_patching_render_test_metadata.instances.production.advisory_ids | length == 3
+          - security_patching_render_test_metadata.instances['clean-production'].advisory_ids == []
+          - security_patching_render_test_metadata.instances.keys() | sort == ['clean-production', 'production']
           - security_patching_render_test_metadata.approval_label == 'approved-production-update'
           - security_patching_render_test_file.stat.size <= security_patching_report_max_body_bytes
           - "'## Advisory review summary' in security_patching_render_test_body"

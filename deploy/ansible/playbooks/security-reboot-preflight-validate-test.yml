@@ -1,3 +1,67 @@
+- name: Validate clean and finding targets share an actionable reboot approval
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_mixed_clean_fixture_runtime
+  tasks:
+    - name: Add recovered clean reboot fixture host
+      ansible.builtin.add_host:
+        name: recovered-clean-host
+        groups: security_reboot_mixed_clean_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_clean_skip: true
+        security_patching_reboot_preflight_ready: false
+        security_patching_next_action: close
+        security_patching_post_reboot_next_action: close
+
+    - name: Add remaining reboot fixture host
+      ansible.builtin.add_host:
+        name: remaining-reboot-host
+        groups: security_reboot_mixed_clean_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_clean_skip: false
+        security_patching_reboot_preflight_ready: true
+        security_patching_next_action: reboot
+        security_patching_post_reboot_next_action: reboot
+
+    - name: Record mixed clean and reboot approval metadata
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          recovered-clean-host:
+            advisory_ids: []
+          remaining-reboot-host:
+            advisory_ids:
+              - ELSA-2026-22222
+
+    - name: Classify mixed clean and reboot approval fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_reboot_request
+
+    - name: Mark simulated cleanup only for ready reboot targets
+      ansible.builtin.set_fact:
+        security_patching_reboot_cleanup_reached: true
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      loop: "{{ security_patching_target_hosts }}"
+      when:
+        - security_patching_reboot_mutation_allowed | bool
+        - hostvars[item].security_patching_reboot_preflight_ready | default(false) | bool
+
+    - name: Assert only the finding host reaches reboot cleanup
+      ansible.builtin.assert:
+        that:
+          - security_patching_request_instance_hosts == ['recovered-clean-host', 'remaining-reboot-host']
+          - security_patching_reboot_clean_hosts == ['recovered-clean-host']
+          - security_patching_reboot_actionable_hosts == ['remaining-reboot-host']
+          - security_patching_reboot_reconciliation_hosts == []
+          - security_patching_reboot_blocked_hosts == []
+          - security_patching_reboot_mutation_allowed | bool
+          - not (hostvars['recovered-clean-host'].security_patching_reboot_cleanup_reached | default(false) | bool)
+          - hostvars['remaining-reboot-host'].security_patching_reboot_cleanup_reached | bool
+
 - name: Validate aggregate reboot preflight prevents partial multi-host mutation
   hosts: localhost
   gather_facts: false

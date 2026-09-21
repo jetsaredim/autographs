@@ -44,7 +44,9 @@
       ansible.builtin.import_role:
         name: security_patching
         tasks_from: reboot_cleanup
-      when: hostvars['localhost'].security_patching_reboot_mutation_allowed | default(false) | bool
+      when:
+        - hostvars['localhost'].security_patching_reboot_mutation_allowed | default(false) | bool
+        - security_patching_reboot_preflight_ready | default(false) | bool
 
 - name: Scan production security state after reboot cleanup
   hosts: "{{ security_patching_target_group | default('runtime') }}"

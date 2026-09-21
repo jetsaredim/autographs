@@ -12,6 +12,8 @@
           target_group: "runtime"
           approval_label: "approved-production-update"
           instances:
+            clean-production:
+              advisory_ids: []
             production:
               advisory_ids:
                 - ELSA-2026-11111
@@ -35,4 +37,5 @@
           - security_patching_metadata_marker_count == 1
           - security_patching_request_metadata.scan_id == 'security-scan-render-test'
           - security_patching_request_metadata.target_group == 'runtime'
+          - security_patching_request_metadata.instances['clean-production'].advisory_ids == []
           - security_patching_request_metadata.instances.production.advisory_ids | length == 3

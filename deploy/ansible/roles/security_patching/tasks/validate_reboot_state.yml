@@ -31,12 +31,23 @@
         | list
       }}
 
+- name: Detect clean target that requires no approved reboot
+  ansible.builtin.set_fact:
+    security_patching_reboot_clean_skip: >-
+      {{
+        security_patching_scan_status | default('missing') == 'complete'
+        and security_patching_reboot_current_advisory_ids | length == 0
+        and security_patching_reboot_approved_advisory_ids | length == 0
+        and security_patching_next_action | default('investigate') | trim == 'close'
+      }}
+
 - name: Detect authoritative reboot action reclassification
   ansible.builtin.set_fact:
     security_patching_reboot_reclassified: >-
       {{
         security_patching_scan_status | default('missing') == 'complete'
         and not (security_patching_reboot_drift_detected | bool)
+        and not (security_patching_reboot_clean_skip | bool)
         and security_patching_next_action | default('investigate') | trim != 'reboot'
       }}
 
