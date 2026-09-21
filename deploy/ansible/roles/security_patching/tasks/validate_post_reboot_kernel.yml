@@ -23,6 +23,9 @@
           == security_patching_post_reboot_default_kernel_image
         and security_patching_reboot_target_kernel_valid | default(false) | bool
         and security_patching_reboot_target_kernel_image | default('') | length > 0
+        and security_patching_reboot_target_initramfs_valid | default(false) | bool
+        and security_patching_reboot_target_initramfs_image | default('')
+          in security_patching_reboot_target_initramfs_images | default([])
         and security_patching_post_reboot_running_kernel_image
           == security_patching_reboot_target_kernel_image
         and security_patching_post_reboot_default_kernel_image
@@ -49,6 +52,8 @@
       - Default image RPM owner: `{{ security_patching_post_reboot_default_kernel_image_owner.stdout | default('') | trim }}`
       - Expected newest UEK EVR: `{{ security_patching_reboot_target_kernel_evr | default('unknown', true) }}`
       - Expected newest UEK image: `{{ security_patching_reboot_target_kernel_image | default('unknown', true) }}`
+      - Expected newest UEK initramfs: `{{ security_patching_reboot_target_initramfs_image | default('unknown', true) }}`
+      - Verified initramfs components: `{{ security_patching_reboot_target_initramfs_images | default([]) | join(', ') }}`
 
       No installonly package cleanup was attempted. Recover the verified newest UEK boot target before retrying.
   when: not (security_patching_post_reboot_kernel_safe | bool)

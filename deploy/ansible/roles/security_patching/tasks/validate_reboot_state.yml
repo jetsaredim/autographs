@@ -62,6 +62,9 @@
     security_patching_reboot_target_kernel_evr: ""
     security_patching_reboot_target_kernel_release: ""
     security_patching_reboot_target_kernel_image: ""
+    security_patching_reboot_target_initramfs_image: ""
+    security_patching_reboot_target_initramfs_images: []
+    security_patching_reboot_target_initramfs_valid: false
     security_patching_reboot_target_kernel_valid: false
     security_patching_reboot_target_requires_default_change: false
     security_patching_reboot_target_selection_changed: false
@@ -289,10 +292,22 @@
       - Image regular: `{{ security_patching_reboot_target_kernel_image_stat.stat.isreg | default(false) }}`
       - Image RPM owner: `{{ security_patching_reboot_target_kernel_owner_probe_effective.stdout | default('') | trim }}`
       - Boot entry probe rc: `{{ security_patching_reboot_target_kernel_boot_entry_probe_effective.rc | default('missing') }}`
+      - Boot entry kernel images: `{{ security_patching_reboot_target_entry_kernel_images | default([]) | join(', ') }}`
+      - Expected initramfs: `{{ security_patching_reboot_target_initramfs_image | default('unknown', true) }}`
+      - Concrete initramfs components: `{{ security_patching_reboot_target_initramfs_images | default([]) | join(', ') }}`
+      - Initramfs components valid: `{{ security_patching_reboot_target_initramfs_valid | default(false) | bool }}`
+
+      Initramfs component evidence:
+      {% for result in security_patching_reboot_target_initramfs_image_stats.results | default([]) %}
+      - `{{ result.item }}`: exists={{ result.stat.exists | default(false) }}, regular={{ result.stat.isreg | default(false) }}
+      {% else %}
+      - None
+      {% endfor %}
 
       No boot configuration or reboot mutation was attempted. Install a complete `kernel-uek-core` package,
-      verify its `/boot/vmlinuz-*el10uek*` image and `grubby --info` entry, select it as the default when
-      necessary, then re-run the scanner before approving reboot cleanup again.
+      verify its `/boot/vmlinuz-*el10uek*` image, concrete `/boot/initramfs-*el10uek*.img`, and exact
+      `grubby --info` entry, select it as the default when necessary, then re-run the scanner before
+      approving reboot cleanup again.
   delegate_to: localhost
   become: false
   when:

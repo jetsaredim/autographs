@@ -128,6 +128,99 @@
         | default({'rc': 1, 'stdout': ''})
       }}
 
+- name: Parse selected UEK boot entry fields
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_entry_kernel_lines: >-
+      {{
+        security_patching_reboot_target_kernel_boot_entry_probe_effective.stdout
+        | default('')
+        | regex_findall('(?m)^kernel=.*$')
+      }}
+    security_patching_reboot_target_entry_initrd_lines: >-
+      {{
+        security_patching_reboot_target_kernel_boot_entry_probe_effective.stdout
+        | default('')
+        | regex_findall('(?m)^initrd=.*$')
+      }}
+    security_patching_reboot_target_entry_kernel_images: []
+    security_patching_reboot_target_initramfs_images: []
+
+- name: Collect selected UEK boot entry kernel images
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_entry_kernel_images: >-
+      {{
+        security_patching_reboot_target_entry_kernel_images
+        + [item | regex_replace('^kernel=', '') | replace('"', '') | replace("'", '') | trim]
+      }}
+  loop: "{{ security_patching_reboot_target_entry_kernel_lines }}"
+
+- name: Collect concrete selected UEK initramfs components
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_initramfs_images: >-
+      {{
+        (
+          security_patching_reboot_target_initramfs_images
+          + (
+            item
+            | regex_replace('^initrd=', '')
+            | replace('"', '')
+            | replace("'", '')
+            | trim
+            | split
+            | select('match', '^/')
+            | list
+          )
+        )
+        | unique
+        | list
+      }}
+  loop: "{{ security_patching_reboot_target_entry_initrd_lines }}"
+
+- name: Record expected selected UEK initramfs image
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_initramfs_image: >-
+      {{
+        security_patching_reboot_kernel_boot_dir
+        ~ '/initramfs-'
+        ~ security_patching_reboot_target_kernel_release
+        ~ '.img'
+        if security_patching_reboot_target_kernel_release | length > 0
+        else ''
+      }}
+
+- name: Inspect concrete selected UEK initramfs components
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: true
+    get_checksum: false
+  loop: "{{ security_patching_reboot_target_initramfs_images }}"
+  register: security_patching_reboot_target_initramfs_image_stats
+
+- name: Evaluate selected UEK initramfs component proof
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_initramfs_valid: >-
+      {{
+        security_patching_reboot_target_initramfs_image | length > 0
+        and security_patching_reboot_target_initramfs_image
+          in security_patching_reboot_target_initramfs_images
+        and security_patching_reboot_target_initramfs_images | length > 0
+        and security_patching_reboot_target_initramfs_image_stats.results
+          | default([])
+          | length == security_patching_reboot_target_initramfs_images | length
+        and security_patching_reboot_target_initramfs_image_stats.results
+          | default([])
+          | map(attribute='stat.exists', default=false)
+          | select('equalto', true)
+          | list
+          | length == security_patching_reboot_target_initramfs_images | length
+        and security_patching_reboot_target_initramfs_image_stats.results
+          | default([])
+          | map(attribute='stat.isreg', default=false)
+          | select('equalto', true)
+          | list
+          | length == security_patching_reboot_target_initramfs_images | length
+      }}
+
 - name: Evaluate newest installed UEK reboot target proof
   ansible.builtin.set_fact:
     security_patching_reboot_target_kernel_valid: >-
@@ -143,8 +236,10 @@
           | trim
           == 'kernel-uek-core'
         and security_patching_reboot_target_kernel_boot_entry_probe_effective.rc | default(1) | int == 0
-        and security_patching_reboot_target_kernel_image
-          in security_patching_reboot_target_kernel_boot_entry_probe_effective.stdout | default('')
+        and security_patching_reboot_target_entry_kernel_images
+          == [security_patching_reboot_target_kernel_image]
+        and security_patching_reboot_target_entry_initrd_lines | length > 0
+        and security_patching_reboot_target_initramfs_valid | bool
       }}
     security_patching_reboot_target_requires_default_change: >-
       {{

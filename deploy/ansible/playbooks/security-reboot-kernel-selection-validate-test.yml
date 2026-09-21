@@ -2,7 +2,8 @@
   hosts: localhost
   gather_facts: false
   vars:
-    security_patching_reboot_kernel_boot_dir: /tmp/autographs-reboot-kernel-selection
+    reboot_fixture_boot_dir: /tmp/autographs-reboot-kernel-selection
+    security_patching_reboot_kernel_boot_dir: "{{ reboot_fixture_boot_dir }}"
     security_patching_default_kernel_image: /tmp/autographs-reboot-kernel-selection/vmlinuz-6.12.0-206.104.4.9.el10uek.x86_64
     security_patching_reboot_kernel_candidate_probe_override:
       rc: 0
@@ -12,7 +13,9 @@
       stdout: kernel-uek-core
     security_patching_reboot_kernel_boot_entry_probe_override:
       rc: 0
-      stdout: kernel="/tmp/autographs-reboot-kernel-selection/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64"
+      stdout: |
+        kernel="{{ reboot_fixture_boot_dir }}/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64"
+        initrd="{{ reboot_fixture_boot_dir }}/early-uek.cpio {{ reboot_fixture_boot_dir }}/initramfs-6.12.0-206.104.4.10.el10uek.x86_64.img $tuned_initrd"
   tasks:
     - name: Create RPM-ordering UEK fixture directory
       ansible.builtin.file:
@@ -20,11 +23,15 @@
         state: directory
         mode: "0700"
 
-    - name: Create RPM-newest UEK fixture image
+    - name: Create RPM-newest UEK image and initramfs fixtures
       ansible.builtin.copy:
-        dest: "{{ security_patching_reboot_kernel_boot_dir }}/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64"
+        dest: "{{ security_patching_reboot_kernel_boot_dir }}/{{ item }}"
         content: fixture
         mode: "0600"
+      loop:
+        - vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64
+        - early-uek.cpio
+        - initramfs-6.12.0-206.104.4.10.el10uek.x86_64.img
 
     - name: Resolve RPM-newest UEK fixture
       ansible.builtin.import_role:
@@ -38,9 +45,96 @@
           - security_patching_reboot_target_kernel_evr == '0:6.12.0-206.104.4.10.el10uek'
           - security_patching_reboot_target_kernel_release == '6.12.0-206.104.4.10.el10uek.x86_64'
           - security_patching_reboot_target_kernel_image == security_patching_reboot_kernel_boot_dir ~ '/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64'
+          - security_patching_reboot_target_initramfs_valid | bool
+          - security_patching_reboot_target_initramfs_image == security_patching_reboot_kernel_boot_dir ~ '/initramfs-6.12.0-206.104.4.10.el10uek.x86_64.img'
+          - >-
+            security_patching_reboot_target_initramfs_images
+            == [
+              security_patching_reboot_kernel_boot_dir ~ '/early-uek.cpio',
+              security_patching_reboot_target_initramfs_image
+            ]
           - security_patching_reboot_target_requires_default_change | bool
 
 - name: Validate already-correct default keeps RPM-newest installed UEK target
+  hosts: localhost
+  gather_facts: false
+  vars:
+    reboot_fixture_boot_dir: /tmp/autographs-reboot-kernel-selection
+    security_patching_reboot_kernel_boot_dir: "{{ reboot_fixture_boot_dir }}"
+    security_patching_default_kernel_image: /tmp/autographs-reboot-kernel-selection/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64
+    security_patching_reboot_kernel_candidate_probe_override:
+      rc: 0
+      stdout: kernel-uek-core|0|6.12.0|206.104.4.10.el10uek|x86_64
+    security_patching_reboot_kernel_owner_probe_override:
+      rc: 0
+      stdout: kernel-uek-core
+    security_patching_reboot_kernel_boot_entry_probe_override:
+      rc: 0
+      stdout: |
+        kernel="{{ reboot_fixture_boot_dir }}/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64"
+        initrd="{{ reboot_fixture_boot_dir }}/initramfs-6.12.0-206.104.4.10.el10uek.x86_64.img $tuned_initrd"
+  tasks:
+    - name: Resolve already-selected RPM-newest UEK fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: resolve_reboot_kernel
+
+    - name: Assert correct newest UEK default requires no selection change
+      ansible.builtin.assert:
+        that:
+          - security_patching_reboot_target_kernel_valid | bool
+          - security_patching_reboot_target_initramfs_valid | bool
+          - not (security_patching_reboot_target_requires_default_change | bool)
+
+- name: Validate missing selected UEK initramfs fails closed before mutation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_reboot_kernel_boot_dir: /tmp/autographs-reboot-kernel-selection
+    security_patching_default_kernel_image: /tmp/autographs-reboot-kernel-selection/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64
+    security_patching_reboot_kernel_candidate_probe_override:
+      rc: 0
+      stdout: kernel-uek-core|0|6.12.0|206.104.4.11.el10uek|x86_64
+    security_patching_reboot_kernel_owner_probe_override:
+      rc: 0
+      stdout: kernel-uek-core
+    security_patching_reboot_kernel_boot_entry_probe_override:
+      rc: 0
+      stdout: |
+        kernel="/tmp/autographs-reboot-kernel-selection/vmlinuz-6.12.0-206.104.4.11.el10uek.x86_64"
+        initrd="/tmp/autographs-reboot-kernel-selection/initramfs-6.12.0-206.104.4.11.el10uek.x86_64.img $tuned_initrd"
+  tasks:
+    - name: Create missing-initramfs UEK image fixture
+      ansible.builtin.copy:
+        dest: "{{ security_patching_reboot_kernel_boot_dir }}/vmlinuz-6.12.0-206.104.4.11.el10uek.x86_64"
+        content: fixture
+        mode: "0600"
+
+    - name: Ensure selected UEK initramfs fixture is missing
+      ansible.builtin.file:
+        path: "{{ security_patching_reboot_kernel_boot_dir }}/initramfs-6.12.0-206.104.4.11.el10uek.x86_64.img"
+        state: absent
+
+    - name: Resolve missing-initramfs UEK fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: resolve_reboot_kernel
+
+    - name: Simulate mutation gate for missing initramfs
+      ansible.builtin.set_fact:
+        security_reboot_kernel_mutation_reached: true
+      when: security_patching_reboot_target_kernel_valid | bool
+
+    - name: Assert missing initramfs blocks reboot and cleanup mutation
+      ansible.builtin.assert:
+        that:
+          - not (security_patching_reboot_target_initramfs_valid | bool)
+          - not (security_patching_reboot_target_kernel_valid | bool)
+          - security_patching_reboot_target_initramfs_image in security_patching_reboot_target_initramfs_images
+          - security_patching_reboot_target_initramfs_image_stats.results[0].stat.exists == false
+          - not (security_reboot_kernel_mutation_reached | default(false) | bool)
+
+- name: Validate mismatched selected UEK boot entry fails closed before mutation
   hosts: localhost
   gather_facts: false
   vars:
@@ -54,18 +148,27 @@
       stdout: kernel-uek-core
     security_patching_reboot_kernel_boot_entry_probe_override:
       rc: 0
-      stdout: kernel="/tmp/autographs-reboot-kernel-selection/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64"
+      stdout: |
+        kernel="/tmp/autographs-reboot-kernel-selection/vmlinuz-6.12.0-206.104.4.9.el10uek.x86_64"
+        initrd="/tmp/autographs-reboot-kernel-selection/initramfs-6.12.0-206.104.4.10.el10uek.x86_64.img $tuned_initrd"
   tasks:
-    - name: Resolve already-selected RPM-newest UEK fixture
+    - name: Resolve mismatched UEK boot entry fixture
       ansible.builtin.import_role:
         name: security_patching
         tasks_from: resolve_reboot_kernel
 
-    - name: Assert correct newest UEK default requires no selection change
+    - name: Simulate mutation gate for mismatched boot entry
+      ansible.builtin.set_fact:
+        security_reboot_kernel_mutation_reached: true
+      when: security_patching_reboot_target_kernel_valid | bool
+
+    - name: Assert mismatched entry blocks reboot and cleanup mutation
       ansible.builtin.assert:
         that:
-          - security_patching_reboot_target_kernel_valid | bool
-          - not (security_patching_reboot_target_requires_default_change | bool)
+          - security_patching_reboot_target_initramfs_valid | bool
+          - not (security_patching_reboot_target_kernel_valid | bool)
+          - security_patching_reboot_target_entry_kernel_images == [security_patching_reboot_kernel_boot_dir ~ '/vmlinuz-6.12.0-206.104.4.9.el10uek.x86_64']
+          - not (security_reboot_kernel_mutation_reached | default(false) | bool)
 
 - name: Validate missing installed UEK candidate fails closed
   hosts: localhost
@@ -119,6 +222,12 @@
             | selectattr('name', 'equalto', 'Select verified newest installed UEK as default')
             | first
           }}
+        security_reboot_kernel_initramfs_recheck_task: >-
+          {{
+            security_reboot_cleanup_tasks
+            | selectattr('name', 'equalto', 'Evaluate selected UEK initramfs proof immediately before boot mutation')
+            | first
+          }}
         security_reboot_kernel_verify_task: >-
           {{
             security_reboot_cleanup_tasks
@@ -140,6 +249,9 @@
           - "'--latest-limit=1' in security_reboot_kernel_query_task['ansible.builtin.command'].argv"
           - "'sort' not in security_reboot_kernel_query_task['ansible.builtin.command'].argv | join(' ')"
           - security_reboot_kernel_select_task['ansible.builtin.command'].argv[1] is match('^--set-default=')
+          - >-
+            security_reboot_cleanup_tasks.index(security_reboot_kernel_initramfs_recheck_task)
+            < security_reboot_cleanup_tasks.index(security_reboot_kernel_select_task)
           - security_reboot_cleanup_tasks.index(security_reboot_kernel_select_task) < security_reboot_cleanup_tasks.index(security_reboot_kernel_verify_task)
           - security_reboot_cleanup_tasks.index(security_reboot_kernel_verify_task) < security_reboot_cleanup_tasks.index(security_reboot_mutation_task)
 
@@ -155,6 +267,10 @@
         security_patching_reboot_target_kernel_valid: true
         security_patching_reboot_target_kernel_evr: 0:6.12.0-206.104.4.10.el10uek
         security_patching_reboot_target_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64
+        security_patching_reboot_target_initramfs_valid: true
+        security_patching_reboot_target_initramfs_image: /boot/initramfs-6.12.0-206.104.4.10.el10uek.x86_64.img
+        security_patching_reboot_target_initramfs_images:
+          - /boot/initramfs-6.12.0-206.104.4.10.el10uek.x86_64.img
         security_patching_post_reboot_running_kernel_release: 6.12.0-206.104.4.9.el10uek.x86_64
         security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.9.el10uek.x86_64
         security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.9.el10uek.x86_64
