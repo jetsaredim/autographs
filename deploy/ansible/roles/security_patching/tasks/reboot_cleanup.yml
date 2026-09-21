@@ -1,3 +1,77 @@
+- name: Require verified newest UEK target before reboot mutation
+  ansible.builtin.assert:
+    that:
+      - security_patching_reboot_target_kernel_valid | default(false) | bool
+      - security_patching_reboot_target_kernel_image | default('') | length > 0
+      - security_patching_reboot_target_kernel_release | default('') is search('el10uek')
+    fail_msg: >-
+      Refusing reboot mutation on {{ inventory_hostname }} because preflight did not establish the newest
+      installed bootable UEK target. No boot configuration or reboot mutation was attempted.
+
+- name: Select verified newest installed UEK as default
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - "--set-default={{ security_patching_reboot_target_kernel_image }}"
+  register: security_patching_reboot_target_selection
+  changed_when: >-
+    security_patching_reboot_target_selection.rc == 0
+    and security_patching_reboot_target_requires_default_change | default(false) | bool
+  failed_when: false
+
+- name: Verify selected UEK is now the default
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - --default-kernel
+  register: security_patching_reboot_selected_default_kernel
+  changed_when: false
+  failed_when: false
+
+- name: Record UEK default selection result
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_selection_changed: >-
+      {{ security_patching_reboot_target_selection.changed | default(false) | bool }}
+    security_patching_reboot_target_selection_converged: >-
+      {{
+        security_patching_reboot_target_selection.rc | default(1) | int == 0
+        and security_patching_reboot_selected_default_kernel.rc | default(1) | int == 0
+        and security_patching_reboot_selected_default_kernel.stdout | default('') | trim
+          == security_patching_reboot_target_kernel_image
+      }}
+
+- name: Write UEK default selection failure context
+  ansible.builtin.copy:
+    dest: "{{ security_patching_failure_context_path }}"
+    mode: "0600"
+    content: |
+      Validation failed before reboot: the verified newest installed UEK could not be selected as the default.
+
+      - Host: `{{ inventory_hostname }}`
+      - Selected EVR: `{{ security_patching_reboot_target_kernel_evr | default('unknown', true) }}`
+      - Expected image: `{{ security_patching_reboot_target_kernel_image | default('unknown', true) }}`
+      - Previous default image: `{{ security_patching_default_kernel_image | default('unknown', true) }}`
+      - Selection command rc: `{{ security_patching_reboot_target_selection.rc | default('missing') }}`
+      - Verified default probe rc: `{{ security_patching_reboot_selected_default_kernel.rc | default('missing') }}`
+      - Verified default image: `{{ security_patching_reboot_selected_default_kernel.stdout | default('') | trim }}`
+
+      No reboot or installonly cleanup was attempted. Inspect `grubby --info=ALL`, repair the UEK boot entry,
+      select `{{ security_patching_reboot_target_kernel_image | default('the expected UEK image', true) }}` as
+      the default, then re-run the scanner before approving reboot cleanup again.
+  delegate_to: localhost
+  become: false
+  when:
+    - not (security_patching_reboot_target_selection_converged | bool)
+    - security_patching_failure_context_path | trim | length > 0
+
+- name: Refuse reboot unless newest installed UEK is the verified default
+  ansible.builtin.assert:
+    that:
+      - security_patching_reboot_target_selection_converged | bool
+    fail_msg: >-
+      Refusing reboot on {{ inventory_hostname }} because grubby did not select the verified newest installed
+      UEK image {{ security_patching_reboot_target_kernel_image }}. No reboot or package cleanup was attempted.
+
 - name: Record running kernel before reboot
   ansible.builtin.command:
     argv:

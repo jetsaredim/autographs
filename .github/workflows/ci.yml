@@ -300,6 +300,7 @@ jobs:
             deploy/ansible/playbooks/security-target-scope-validate-test.yml \
             deploy/ansible/playbooks/security-update-reconciliation-validate-test.yml \
             deploy/ansible/playbooks/security-reboot-preflight-validate-test.yml \
+            deploy/ansible/playbooks/security-reboot-kernel-selection-validate-test.yml \
             deploy/ansible/playbooks/security-reboot-state-validate-test.yml \
             deploy/ansible/playbooks/security-reboot-result-validate-test.yml \
             deploy/ansible/playbooks/deploy-admin-credentials-validate-test.yml \
@@ -327,6 +328,8 @@ jobs:
             deploy/ansible/playbooks/security-update-reconciliation-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-reboot-preflight-validate-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            deploy/ansible/playbooks/security-reboot-kernel-selection-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-reboot-state-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \

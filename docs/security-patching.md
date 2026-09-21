@@ -129,8 +129,8 @@ All three workflows use the `production-security-patching` concurrency group. Sc
 - Second play scans and validates every host in `security_patching_target_group` before any target may be mutated.
 - Third play aggregates the preflight on `localhost`. The live inventory host set must exactly match the approved metadata. Any advisory drift, or any complete exact-ID scan whose current action is now `update` or `investigate`, makes the whole request reconciliation-only. A target that is still classified `reboot` must have a complete scan, reboot-eligible packages, and a proven second DNF no-op before the aggregate mutation gate can pass.
 - Fourth play runs `tasks_from: reboot_cleanup` serially only when the aggregate mutation gate passes. A complete reconciliation state instead preserves every target's authoritative findings and records reboot/installonly cleanup as not attempted.
-- `tasks/validate_reboot_state.yml` compares current OpenSCAP advisory IDs to approved issue metadata, classifies kernel-family eligibility, and records the DNF no-op proof before downtime.
-- `tasks/reboot_cleanup.yml` records the running kernel, reboots, waits for SSH, records the new running kernel, waits for Autographs quadlet services, verifies local static Caddy health, verifies Caddy-fronted `/admin/api/health`, and runs:
+- `tasks/validate_reboot_state.yml` compares current OpenSCAP advisory IDs to approved issue metadata, classifies kernel-family eligibility, records the DNF no-op proof, and resolves the newest installed bootable `kernel-uek-core` image with DNF/RPM ordering before downtime.
+- `tasks/reboot_cleanup.yml` selects that verified UEK image as the default, proves the selection converged, records the running kernel, reboots, waits for SSH, records the new running kernel, verifies it is the selected target, waits for Autographs quadlet services, verifies local static Caddy health, verifies Caddy-fronted `/admin/api/health`, and runs:
 
   ```bash
   dnf -y remove --oldinstallonly --setopt=installonly_limit=2
@@ -413,18 +413,20 @@ The reboot playbook scans each runtime host again before downtime. `tasks/valida
 dnf --assumeno upgrade-minimal --security --advisories=<comma-separated ELSA IDs>
 ```
 
-If the complete scan's DNF classification now reports package work, the current action becomes `update`; if its evidence is incomplete, mixed, or unrecognized, the action becomes `investigate`. Either complete action change disables reboot and installonly cleanup for the full target group and reaches `post_reboot_result`, which refreshes the issue with the current action and label. Incomplete scans, or a failed package-family or second DNF no-op safety proof after a target remains classified `reboot`, fail before downtime and use cleanup to remove the reboot approval label. If a host in the target group has no approved findings and remains clean, it records a skipped reboot state instead of rebooting.
+If the complete scan's DNF classification now reports package work, the current action becomes `update`; if its evidence is incomplete, mixed, or unrecognized, the action becomes `investigate`. Either complete action change disables reboot and installonly cleanup for the full target group and reaches `post_reboot_result`, which refreshes the issue with the current action and label. Incomplete scans, a failed package-family or second DNF no-op safety proof, or an inability to establish one newest installed bootable UEK after a target remains classified `reboot`, fail before downtime and use cleanup to remove the reboot approval label. The failure comment identifies the missing image, RPM ownership, or boot-entry proof and tells the operator to repair UEK installation/selection before rescanning. If a host in the target group has no approved findings and remains clean, it records a skipped reboot state instead of rebooting.
 
 `tasks/reboot_cleanup.yml` then runs per runtime host that still has approved findings:
 
-1. Records the running kernel before reboot.
-2. Reboots the host and waits for SSH to return.
-3. Records the running kernel after reboot.
-4. Requires the running and default `/boot/vmlinuz-*` files to exist, be owned by installed `kernel-uek*` RPMs, and identify the same booted UEK image. A fallback or rescue boot fails closed and records bounded failure context before package cleanup.
-5. Waits for `autographs-controller.service` and `autographs-caddy.service`.
-6. Verifies `http://127.0.0.1:8081/manifest.json`.
-7. Verifies Caddy-fronted `https://<AUTOGRAPHS_DOMAIN>/admin/api/health` by resolving the configured domain to `127.0.0.1` on the host.
-8. Removes old installonly kernel packages with:
+1. Uses `dnf repoquery --installed --latest-limit=1` for `kernel-uek-core`, so the selected target follows RPM epoch/version/release ordering instead of lexicographic filename ordering. The target must have a regular `/boot/vmlinuz-*el10uek*` image, an installed `kernel-uek-core` owner, and a `grubby` boot entry.
+2. Selects that exact image with `grubby --set-default`, reads the default back, and refuses downtime if it did not converge. A stale but valid UEK default is therefore advanced before reboot.
+3. Records the running kernel before reboot.
+4. Reboots the host and waits for SSH to return.
+5. Records the running kernel after reboot.
+6. Requires the running and default `/boot/vmlinuz-*` files to exist, be owned by installed `kernel-uek*` RPMs, identify the same booted UEK image, and equal the exact preflight target. A stale, fallback, or rescue boot fails closed and records bounded failure context before package cleanup.
+7. Waits for `autographs-controller.service` and `autographs-caddy.service`.
+8. Verifies `http://127.0.0.1:8081/manifest.json`.
+9. Verifies Caddy-fronted `https://<AUTOGRAPHS_DOMAIN>/admin/api/health` by resolving the configured domain to `127.0.0.1` on the host.
+10. Removes old installonly kernel packages with:
 
    ```bash
    dnf -y remove --oldinstallonly --setopt=installonly_limit=2

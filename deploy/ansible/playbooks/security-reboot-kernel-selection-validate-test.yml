@@ -1,0 +1,210 @@
+- name: Validate stale default selects RPM-newest installed UEK target
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_reboot_kernel_boot_dir: /tmp/autographs-reboot-kernel-selection
+    security_patching_default_kernel_image: /tmp/autographs-reboot-kernel-selection/vmlinuz-6.12.0-206.104.4.9.el10uek.x86_64
+    security_patching_reboot_kernel_candidate_probe_override:
+      rc: 0
+      stdout: kernel-uek-core|0|6.12.0|206.104.4.10.el10uek|x86_64
+    security_patching_reboot_kernel_owner_probe_override:
+      rc: 0
+      stdout: kernel-uek-core
+    security_patching_reboot_kernel_boot_entry_probe_override:
+      rc: 0
+      stdout: kernel="/tmp/autographs-reboot-kernel-selection/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64"
+  tasks:
+    - name: Create RPM-ordering UEK fixture directory
+      ansible.builtin.file:
+        path: "{{ security_patching_reboot_kernel_boot_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Create RPM-newest UEK fixture image
+      ansible.builtin.copy:
+        dest: "{{ security_patching_reboot_kernel_boot_dir }}/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64"
+        content: fixture
+        mode: "0600"
+
+    - name: Resolve RPM-newest UEK fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: resolve_reboot_kernel
+
+    - name: Assert stale valid default requires RPM-newest UEK selection
+      ansible.builtin.assert:
+        that:
+          - security_patching_reboot_target_kernel_valid | bool
+          - security_patching_reboot_target_kernel_evr == '0:6.12.0-206.104.4.10.el10uek'
+          - security_patching_reboot_target_kernel_release == '6.12.0-206.104.4.10.el10uek.x86_64'
+          - security_patching_reboot_target_kernel_image == security_patching_reboot_kernel_boot_dir ~ '/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64'
+          - security_patching_reboot_target_requires_default_change | bool
+
+- name: Validate already-correct default keeps RPM-newest installed UEK target
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_reboot_kernel_boot_dir: /tmp/autographs-reboot-kernel-selection
+    security_patching_default_kernel_image: /tmp/autographs-reboot-kernel-selection/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64
+    security_patching_reboot_kernel_candidate_probe_override:
+      rc: 0
+      stdout: kernel-uek-core|0|6.12.0|206.104.4.10.el10uek|x86_64
+    security_patching_reboot_kernel_owner_probe_override:
+      rc: 0
+      stdout: kernel-uek-core
+    security_patching_reboot_kernel_boot_entry_probe_override:
+      rc: 0
+      stdout: kernel="/tmp/autographs-reboot-kernel-selection/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64"
+  tasks:
+    - name: Resolve already-selected RPM-newest UEK fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: resolve_reboot_kernel
+
+    - name: Assert correct newest UEK default requires no selection change
+      ansible.builtin.assert:
+        that:
+          - security_patching_reboot_target_kernel_valid | bool
+          - not (security_patching_reboot_target_requires_default_change | bool)
+
+- name: Validate missing installed UEK candidate fails closed
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_reboot_kernel_boot_dir: /tmp/autographs-reboot-kernel-selection
+    security_patching_default_kernel_image: /tmp/autographs-reboot-kernel-selection/vmlinuz-rescue
+    security_patching_reboot_kernel_candidate_probe_override:
+      rc: 1
+      stdout: ""
+    security_patching_reboot_kernel_owner_probe_override:
+      rc: 1
+      stdout: ""
+    security_patching_reboot_kernel_boot_entry_probe_override:
+      rc: 1
+      stdout: ""
+  tasks:
+    - name: Resolve missing UEK fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: resolve_reboot_kernel
+
+    - name: Assert no UEK candidate cannot authorize reboot
+      ansible.builtin.assert:
+        that:
+          - not (security_patching_reboot_target_kernel_valid | bool)
+          - security_patching_reboot_kernel_candidate_records == []
+          - security_patching_reboot_target_kernel_image == ''
+          - not (security_patching_reboot_target_requires_default_change | bool)
+
+- name: Validate RPM ordering and mutation task contracts
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_reboot_kernel_resolver_tasks: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/security_patching/tasks/resolve_reboot_kernel.yml') | from_yaml }}
+    security_reboot_cleanup_tasks: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/security_patching/tasks/reboot_cleanup.yml') | from_yaml }}
+  tasks:
+    - name: Select kernel ordering and mutation contract tasks
+      ansible.builtin.set_fact:
+        security_reboot_kernel_query_task: >-
+          {{
+            security_reboot_kernel_resolver_tasks
+            | selectattr('name', 'equalto', 'Query newest installed UEK core package with RPM ordering')
+            | first
+          }}
+        security_reboot_kernel_select_task: >-
+          {{
+            security_reboot_cleanup_tasks
+            | selectattr('name', 'equalto', 'Select verified newest installed UEK as default')
+            | first
+          }}
+        security_reboot_kernel_verify_task: >-
+          {{
+            security_reboot_cleanup_tasks
+            | selectattr('name', 'equalto', 'Refuse reboot unless newest installed UEK is the verified default')
+            | first
+          }}
+        security_reboot_mutation_task: >-
+          {{
+            security_reboot_cleanup_tasks
+            | selectattr('name', 'equalto', 'Reboot approved production runtime')
+            | first
+          }}
+
+    - name: Assert DNF supplies RPM ordering before reboot mutation
+      ansible.builtin.assert:
+        that:
+          - "'repoquery' in security_reboot_kernel_query_task['ansible.builtin.command'].argv"
+          - "'--installed' in security_reboot_kernel_query_task['ansible.builtin.command'].argv"
+          - "'--latest-limit=1' in security_reboot_kernel_query_task['ansible.builtin.command'].argv"
+          - "'sort' not in security_reboot_kernel_query_task['ansible.builtin.command'].argv | join(' ')"
+          - security_reboot_kernel_select_task['ansible.builtin.command'].argv[1] is match('^--set-default=')
+          - security_reboot_cleanup_tasks.index(security_reboot_kernel_select_task) < security_reboot_cleanup_tasks.index(security_reboot_kernel_verify_task)
+          - security_reboot_cleanup_tasks.index(security_reboot_kernel_verify_task) < security_reboot_cleanup_tasks.index(security_reboot_mutation_task)
+
+- name: Validate post-reboot kernel must equal expected RPM-newest UEK
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_failure_context_path: ""
+    security_patching_failure_context_max_chars: 12000
+  tasks:
+    - name: Record stale but otherwise valid post-reboot UEK fixture
+      ansible.builtin.set_fact:
+        security_patching_reboot_target_kernel_valid: true
+        security_patching_reboot_target_kernel_evr: 0:6.12.0-206.104.4.10.el10uek
+        security_patching_reboot_target_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_release: 6.12.0-206.104.4.9.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.9.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.9.el10uek.x86_64
+        security_patching_post_reboot_default_kernel:
+          rc: 0
+        security_patching_post_reboot_running_kernel_image_stat:
+          stat:
+            exists: true
+            isreg: true
+        security_patching_post_reboot_default_kernel_image_stat:
+          stat:
+            exists: true
+            isreg: true
+        security_patching_post_reboot_running_kernel_image_owner:
+          rc: 0
+          stdout: kernel-uek-core
+        security_patching_post_reboot_default_kernel_image_owner:
+          rc: 0
+          stdout: kernel-uek-core
+        security_reboot_stale_target_guard_failed: false
+
+    - name: Reject stale but otherwise valid post-reboot UEK
+      block:
+        - name: Apply expected newest UEK post-reboot guard
+          ansible.builtin.include_role:
+            name: security_patching
+            tasks_from: validate_post_reboot_kernel
+      rescue:
+        - name: Record expected stale UEK rejection
+          ansible.builtin.set_fact:
+            security_reboot_stale_target_guard_failed: true
+
+    - name: Assert stale UEK cannot reach cleanup
+      ansible.builtin.assert:
+        that:
+          - security_reboot_stale_target_guard_failed
+          - not (security_patching_post_reboot_kernel_safe | bool)
+
+    - name: Record expected RPM-newest post-reboot UEK fixture
+      ansible.builtin.set_fact:
+        security_patching_post_reboot_running_kernel_release: 6.12.0-206.104.4.10.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64
+
+    - name: Accept expected RPM-newest post-reboot UEK
+      ansible.builtin.include_role:
+        name: security_patching
+        tasks_from: validate_post_reboot_kernel
+
+    - name: Assert expected RPM-newest UEK passes cleanup guard
+      ansible.builtin.assert:
+        that:
+          - security_patching_post_reboot_kernel_safe | bool

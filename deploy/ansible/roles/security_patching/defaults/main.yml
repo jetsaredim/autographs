@@ -46,6 +46,10 @@ security_patching_failed_request_message: Production security update workflow di
 security_patching_installonly_limit: 2
 security_patching_reboot_validate_dnf_noop: true
 security_patching_reboot_allowed_package_regex: '^(kernel-uek($|-.*)|bpftool$|libperf$|perf$|python3-perf$|rtla$|rv$)$'
+security_patching_reboot_kernel_boot_dir: /boot
+security_patching_reboot_kernel_candidate_probe_override: null
+security_patching_reboot_kernel_owner_probe_override: null
+security_patching_reboot_kernel_boot_entry_probe_override: null
 security_patching_rhck_packages:
   - kernel
   - kernel-abi-stablelists
