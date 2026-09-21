@@ -1,8 +1,8 @@
 ---
 phase: quick-260920-gz7-enforce-a-uek-only-production-kernel-pos
-reviewed: 2026-09-21T00:14:51Z
+reviewed: 2026-09-21T01:43:34Z
 depth: deep
-files_reviewed: 29
+files_reviewed: 36
 files_reviewed_list:
   - controller/tests/runtime_kernel_persistence.rs
   - deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml
@@ -10,9 +10,11 @@ files_reviewed_list:
   - deploy/ansible/playbooks/security-finding-classification-validate-test.yml
   - deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml
   - deploy/ansible/playbooks/security-post-result-status-validate-test.yml
+  - deploy/ansible/playbooks/security-reboot-preflight-validate-test.yml
   - deploy/ansible/playbooks/security-reboot-result-validate-test.yml
   - deploy/ansible/playbooks/security-reboot.yml
   - deploy/ansible/playbooks/security-report-render-test.yml
+  - deploy/ansible/playbooks/security-request-metadata-validate-test.yml
   - deploy/ansible/playbooks/security-update-reconciliation-validate-test.yml
   - deploy/ansible/roles/autographs_deploy/defaults/main.yml
   - deploy/ansible/roles/autographs_deploy/tasks/assert_kernel_images.yml
@@ -22,78 +24,57 @@ files_reviewed_list:
   - deploy/ansible/roles/autographs_deploy/tasks/main.yml
   - deploy/ansible/roles/security_patching/defaults/main.yml
   - deploy/ansible/roles/security_patching/tasks/classify_findings.yml
+  - deploy/ansible/roles/security_patching/tasks/classify_reboot_request.yml
+  - deploy/ansible/roles/security_patching/tasks/classify_update_request.yml
   - deploy/ansible/roles/security_patching/tasks/create_issue.yml
   - deploy/ansible/roles/security_patching/tasks/patch.yml
   - deploy/ansible/roles/security_patching/tasks/post_reboot_result.yml
   - deploy/ansible/roles/security_patching/tasks/post_result.yml
+  - deploy/ansible/roles/security_patching/tasks/reboot_cleanup.yml
   - deploy/ansible/roles/security_patching/tasks/scan.yml
+  - deploy/ansible/roles/security_patching/tasks/validate_post_reboot_kernel.yml
   - deploy/ansible/roles/security_patching/tasks/validate_reboot_state.yml
+  - deploy/ansible/roles/security_patching/tasks/validate_request.yml
   - deploy/ansible/roles/security_patching/templates/security-reboot-result.md.j2
   - deploy/ansible/roles/security_patching/templates/security-report.md.j2
   - deploy/ansible/roles/security_patching/templates/security-update-result.md.j2
   - docs/deployment-runbook.md
   - docs/security-patching.md
 findings:
-  critical: 3
-  warning: 1
+  critical: 1
+  warning: 0
   info: 0
-  total: 4
+  total: 1
 status: issues_found
 ---
 
 # Quick Task 260920-gz7: Code Review Report
 
-**Reviewed:** 2026-09-21T00:14:51Z
+**Reviewed:** 2026-09-21T01:43:34Z
 **Depth:** deep
-**Files Reviewed:** 29
+**Files Reviewed:** 36
 **Status:** issues_found
 
 ## Summary
 
-The first- and second-round direct fixes are present: deployment proves both UEK images and RPM ownership before RHCK removal; kernel-only recovery facts survive result reconciliation; `investigate` outranks `configure`; and the DNF exclusion merge preserves repeated active `[main]` declarations. The current controller, Ansible, image-build, and workflow checks pass.
+The prior review findings are materially resolved at PR head `9372ddd`: exact live-target metadata now supports mixed clean/finding groups; clean hosts skip update/reboot mutation while finding hosts remain actionable; aggregate drift still prevents partial mutation; running/default UEK files and installed RPM ownership are proved before deployment cleanup and again after reboot; RHCK policy covers the current enabled OL10 BaseOS/AppStream boot and development package families while preserving shared headers/tools; repeated DNF exclusions are retained; commit subjects pass the repository release policy; and all current GitHub checks pass.
 
-The PR is not clean. Multi-host approval metadata is incompatible with the exact target-scope guard, post-reboot installonly cleanup can run after booting an unverified fallback kernel, the current Oracle Linux 10 RHCK package set is still incomplete, and the conventional-commit merge gate is failing on two commits.
+The PR is not clean. The reboot path verifies that the booted image equals the configured default UEK image, but never proves that this image is the newest/remediating installed UEK. A valid but stale default can therefore produce a successful no-op reboot and repeat the same reboot classification indefinitely.
 
 ## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: Mixed clean/finding target groups cannot enter either approval workflow
+### CR-01: A stale but valid default UEK can cause an endless reboot-approval loop
 
-**Files:** `deploy/ansible/roles/security_patching/tasks/create_issue.yml:33-41`, `deploy/ansible/roles/security_patching/templates/security-report.md.j2:9-16`, `deploy/ansible/roles/security_patching/tasks/validate_target_scope.yml:36-44`
+**Files:** `deploy/ansible/roles/security_patching/tasks/validate_reboot_state.yml:259-270`, `deploy/ansible/roles/security_patching/tasks/reboot_cleanup.yml:9-41`, `deploy/ansible/roles/security_patching/tasks/validate_post_reboot_kernel.yml:1-24`, `docs/security-patching.md:402`
 
-**Issue:** The scanner puts only `security_patching_hosts_with_findings` into hidden issue metadata, while both approval paths require metadata instance keys to exactly equal every live host in the target group. A two-host group with one clean host and one host requiring update/reboot therefore produces metadata for only the finding host, and approval fails before reconciliation because the clean host is absent. This is especially likely after the new configure/recovery flow cleans one host while another still needs patching, so the advertised multi-host convergence can become non-actionable.
+**Issue:** Reboot preflight proves only that OpenSCAP still classifies the exact approved advisory set as reboot-only and that DNF has no package work. The mutation then reboots whatever `grubby --default-kernel` already selects. Post-reboot validation proves that the running/default files are installed UEK images and are equal, but it does not compare that image with the newest installed bootable UEK (or otherwise prove it is the image that resolves the advisory set). If a host is pinned to an older, still-installed UEK, every safety assertion passes, the host reboots back into that same vulnerable kernel, the post-reboot scan reports the same findings, and the issue offers `approved-production-reboot` again. This contradicts the runbook claim that the workflow boots the newest installed UEK and leaves the issue in a non-convergent loop with repeated downtime.
 
-**Fix:** Preserve every `security_patching_target_host` in hidden metadata, using an empty advisory list for clean hosts, then make update/reboot preflight explicitly treat an empty approved/current clean host as a safe skipped target. Add clean+update, clean+reboot, and recovered+remaining-finding multi-host fixtures that reach normal reconciliation/mutation instead of failing exact scope validation.
-
-### CR-02: Installonly cleanup runs before the rebooted kernel is proven safe
-
-**Files:** `deploy/ansible/roles/security_patching/tasks/reboot_cleanup.yml:17-23,72-84`, `deploy/ansible/playbooks/security-reboot.yml:43-59`
-
-**Issue:** Preflight proves the running/default images before reboot, but after reboot the workflow only records `uname -r`, checks application health, and immediately runs destructive `dnf remove --oldinstallonly`. A boot can land on a preserved RHCK rescue image or another fallback despite the pre-reboot default. In that state cleanup can discard older known-good UEK packages before the later OpenSCAP scan notices that the running kernel is not verified UEK. Application health does not prove the boot target or RPM ownership.
-
-**Fix:** Before installonly cleanup, stat `/boot/vmlinuz-$(uname -r)`, verify its installed RPM owner is `kernel-uek*`, and verify the running release/default state is the intended safe UEK posture. Fail closed without cleanup if any proof fails, persist bounded failure context, and add a fallback/rescue fixture proving `dnf remove --oldinstallonly` is never reached.
-
-### CR-03: The PR merge gate is currently failing
-
-**File:** Git commit history at `52fcb3f` and `13d8bfc`
-
-**Issue:** The required Conventional commits check rejects `test(08): cover reconciled kernel snapshots` and `style(08): wrap kernel reconciliation assertion`; this repository permits only `feat`, `fix`, `perf`, `revert`, `docs`, and `chore`. The current PR therefore cannot produce a clean review/merge state even though the implementation checks pass.
-
-**Fix:** Rewrite those two commit subjects to allowed types (for example `fix(08): cover reconciled kernel snapshots` and `chore(08): wrap kernel reconciliation assertion`) and force-push the reviewed branch, then rerun CI and review the rewritten head.
-
-## Warnings
-
-### WR-01: The exact RHCK policy still omits current OL10 RHCK artifacts
-
-**Files:** `deploy/ansible/roles/autographs_deploy/defaults/main.yml:64-82`, `deploy/ansible/roles/security_patching/defaults/main.yml:49-67`
-
-**Issue:** Oracle's current OL10 repositories also ship `kernel-abi-stablelists` and `kernel-doc`; the latter has a distinct UEK counterpart (`kernel-uek-doc`). Neither is in the synchronized removal/exclusion/detection lists. If installed, these version-coupled RHCK artifacts remain patchable while the scanner reports the host as UEK-only. This leaves the second-round “complete RHCK family” fix incomplete; the tests only assert the four names added in that round rather than the complete deliberate policy boundary.
-
-**Fix:** Add the RHCK-specific ABI/doc artifacts to both synchronized lists and contract tests, or explicitly define and test a narrower policy that explains why each current OL10 `kernel*` package is either rejected or deliberately preserved alongside `kernel-headers`, `kernel-tools`, and `kernel-tools-libs`.
+**Fix:** Before allowing reboot mutation, enumerate installed bootable `kernel-uek*` images using RPM version ordering, resolve the newest supported image, and require (or set) `grubby --default-kernel` to that exact image. Preserve the selected target as an explicit fact and, after reboot, require `/boot/vmlinuz-$(uname -r)` to equal that target in addition to the existing file/ownership checks. Add a fixture where running/default point to an older valid UEK while a newer installed UEK exists and prove the workflow either selects the newer target or reconciles without reboot; it must never reboot the older image and offer the same action again.
 
 ---
 
-_Reviewed: 2026-09-21T00:14:51Z_
+_Reviewed: 2026-09-21T01:43:34Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
