@@ -1,15 +1,19 @@
 ---
 phase: quick-260920-gz7-enforce-a-uek-only-production-kernel-pos
-reviewed: 2026-09-20T20:20:33Z
+reviewed: 2026-09-21T00:14:51Z
 depth: deep
-files_reviewed: 25
+files_reviewed: 29
 files_reviewed_list:
   - controller/tests/runtime_kernel_persistence.rs
   - deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml
   - deploy/ansible/playbooks/security-create-issue-status-validate-test.yml
   - deploy/ansible/playbooks/security-finding-classification-validate-test.yml
+  - deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml
+  - deploy/ansible/playbooks/security-post-result-status-validate-test.yml
+  - deploy/ansible/playbooks/security-reboot-result-validate-test.yml
   - deploy/ansible/playbooks/security-reboot.yml
   - deploy/ansible/playbooks/security-report-render-test.yml
+  - deploy/ansible/playbooks/security-update-reconciliation-validate-test.yml
   - deploy/ansible/roles/autographs_deploy/defaults/main.yml
   - deploy/ansible/roles/autographs_deploy/tasks/assert_kernel_images.yml
   - deploy/ansible/roles/autographs_deploy/tasks/assert_kernel_ownership.yml
@@ -30,56 +34,66 @@ files_reviewed_list:
   - docs/deployment-runbook.md
   - docs/security-patching.md
 findings:
-  critical: 0
-  warning: 3
+  critical: 3
+  warning: 1
   info: 0
-  total: 3
+  total: 4
 status: issues_found
 ---
 
 # Quick Task 260920-gz7: Code Review Report
 
-**Reviewed:** 2026-09-20T20:20:33Z
+**Reviewed:** 2026-09-21T00:14:51Z
 **Depth:** deep
-**Files Reviewed:** 25
+**Files Reviewed:** 29
 **Status:** issues_found
 
 ## Summary
 
-The three original findings are fixed at their direct sites: destructive RHCK removal now proves both UEK image existence and installed UEK RPM ownership first; unsafe running/default kernels classify as recovery rather than convergence during a scanner run; and DNF exclusions are merged from every active `[main]` declaration without leaking repository-section values. The narrowed Rust contract test correctly permits only the two deliberate non-fatal RPM ownership probes, the four changed Ansible behavior tests pass locally, the Rust contract test passes, and GitHub CI is green.
+The first- and second-round direct fixes are present: deployment proves both UEK images and RPM ownership before RHCK removal; kernel-only recovery facts survive result reconciliation; `investigate` outranks `configure`; and the DNF exclusion merge preserves repeated active `[main]` declarations. The current controller, Ansible, image-build, and workflow checks pass.
 
-The full workflow trace still found three actionable gaps. Update/reboot result reconciliation can discard an unsafe kernel-only state, multi-host result aggregation can reintroduce the configure loop that the scanner path fixed, and the explicit RHCK family omits Oracle Linux 10 RHCK packages that are currently shipped.
+The PR is not clean. Multi-host approval metadata is incompatible with the exact target-scope guard, post-reboot installonly cleanup can run after booting an unverified fallback kernel, the current Oracle Linux 10 RHCK package set is still incomplete, and the conventional-commit merge gate is failing on two commits.
 
 ## Narrative Findings (AI reviewer)
 
+## Critical Issues
+
+### CR-01: Mixed clean/finding target groups cannot enter either approval workflow
+
+**Files:** `deploy/ansible/roles/security_patching/tasks/create_issue.yml:33-41`, `deploy/ansible/roles/security_patching/templates/security-report.md.j2:9-16`, `deploy/ansible/roles/security_patching/tasks/validate_target_scope.yml:36-44`
+
+**Issue:** The scanner puts only `security_patching_hosts_with_findings` into hidden issue metadata, while both approval paths require metadata instance keys to exactly equal every live host in the target group. A two-host group with one clean host and one host requiring update/reboot therefore produces metadata for only the finding host, and approval fails before reconciliation because the clean host is absent. This is especially likely after the new configure/recovery flow cleans one host while another still needs patching, so the advertised multi-host convergence can become non-actionable.
+
+**Fix:** Preserve every `security_patching_target_host` in hidden metadata, using an empty advisory list for clean hosts, then make update/reboot preflight explicitly treat an empty approved/current clean host as a safe skipped target. Add clean+update, clean+reboot, and recovered+remaining-finding multi-host fixtures that reach normal reconciliation/mutation instead of failing exact scope validation.
+
+### CR-02: Installonly cleanup runs before the rebooted kernel is proven safe
+
+**Files:** `deploy/ansible/roles/security_patching/tasks/reboot_cleanup.yml:17-23,72-84`, `deploy/ansible/playbooks/security-reboot.yml:43-59`
+
+**Issue:** Preflight proves the running/default images before reboot, but after reboot the workflow only records `uname -r`, checks application health, and immediately runs destructive `dnf remove --oldinstallonly`. A boot can land on a preserved RHCK rescue image or another fallback despite the pre-reboot default. In that state cleanup can discard older known-good UEK packages before the later OpenSCAP scan notices that the running kernel is not verified UEK. Application health does not prove the boot target or RPM ownership.
+
+**Fix:** Before installonly cleanup, stat `/boot/vmlinuz-$(uname -r)`, verify its installed RPM owner is `kernel-uek*`, and verify the running release/default state is the intended safe UEK posture. Fail closed without cleanup if any proof fails, persist bounded failure context, and add a fallback/rescue fixture proving `dnf remove --oldinstallonly` is never reached.
+
+### CR-03: The PR merge gate is currently failing
+
+**File:** Git commit history at `52fcb3f` and `13d8bfc`
+
+**Issue:** The required Conventional commits check rejects `test(08): cover reconciled kernel snapshots` and `style(08): wrap kernel reconciliation assertion`; this repository permits only `feat`, `fix`, `perf`, `revert`, `docs`, and `chore`. The current PR therefore cannot produce a clean review/merge state even though the implementation checks pass.
+
+**Fix:** Rewrite those two commit subjects to allowed types (for example `fix(08): cover reconciled kernel snapshots` and `chore(08): wrap kernel reconciliation assertion`) and force-push the reviewed branch, then rerun CI and review the rewritten head.
+
 ## Warnings
 
-### WR-01: Result reconciliation can close an issue while kernel recovery is still required
+### WR-01: The exact RHCK policy still omits current OL10 RHCK artifacts
 
-**Files:** `deploy/ansible/roles/security_patching/tasks/post_result.yml:32-38`, `deploy/ansible/roles/security_patching/tasks/post_reboot_result.yml:34-40`
+**Files:** `deploy/ansible/roles/autographs_deploy/defaults/main.yml:64-82`, `deploy/ansible/roles/security_patching/defaults/main.yml:49-67`
 
-**Issue:** The initial scanner includes a host when either running/default UEK validation fails, but both result paths decide that a host remains actionable using only OpenSCAP entries and installed RHCK packages. A fresh approval-time scan can therefore classify a host as `investigate` solely because its running or default kernel image is unsafe, preserve an empty finding/RHCK set during no-mutation reconciliation, and then have `post_result` or `post_reboot_result` set `remaining_hosts` to empty and close the issue as clean. This drops the recovery instructions and contradicts the authoritative classification.
+**Issue:** Oracle's current OL10 repositories also ship `kernel-abi-stablelists` and `kernel-doc`; the latter has a distinct UEK counterpart (`kernel-uek-doc`). Neither is in the synchronized removal/exclusion/detection lists. If installed, these version-coupled RHCK artifacts remain patchable while the scanner reports the host as UEK-only. This leaves the second-round “complete RHCK family” fix incomplete; the tests only assert the four names added in that round rather than the complete deliberate policy boundary.
 
-**Fix:** Preserve post-update/post-reboot running/default UEK validity and kernel identity facts alongside the existing RHCK facts. Require those snapshot facts to be defined, include either invalid UEK state in `security_patching_remaining_hosts`, mirror them when rendering the refreshed report, and add update and reboot reconciliation fixtures where OpenSCAP/RHCK lists are empty but one kernel validity flag is false.
-
-### WR-02: Multi-host result aggregation lets `configure` override `investigate`
-
-**Files:** `deploy/ansible/roles/security_patching/tasks/post_result.yml:74-85`, `deploy/ansible/roles/security_patching/tasks/post_reboot_result.yml:72-83`
-
-**Issue:** `create_issue.yml` correctly makes `investigate` take precedence over `configure`, but both result aggregators check for `configure` first. With one verified UEK host carrying removable RHCK drift and another host requiring kernel recovery, the refreshed issue is classified `configure`. Its global next action tells the operator to run deployment convergence even though the unsafe host's per-host section says not to do that; deployment then fails its UEK guard and the workflow returns to the same state. This is the non-convergent loop that the WR-01 fix was intended to eliminate.
-
-**Fix:** Apply the same precedence used by `create_issue.yml`: after `close`, select `investigate` whenever any remaining host is `investigate`, then `configure`, then a single common action, otherwise `investigate`. Add mixed `configure` + `investigate` fixtures to both post-update and post-reboot result tests and assert that no approval label or convergence instruction is emitted.
-
-### WR-03: The managed RHCK family omits shipped RHCK kernel packages
-
-**Files:** `deploy/ansible/roles/autographs_deploy/defaults/main.yml:64-78`, `deploy/ansible/roles/security_patching/defaults/main.yml:49-63`
-
-**Issue:** Cleanup, DNF prevention, and scanner detection all depend on these exact lists, but Oracle Linux 10 currently ships additional RHCK packages including `kernel-uki-virt`, `kernel-uki-virt-addons`, `kernel-debug-uki-virt`, and `kernel-debug-devel-matched`. If any is installed, deployment neither removes nor excludes it and the scanner does not report it, so the advertised UEK-only posture can report clean while RHCK kernel artifacts remain and continue updating.
-
-**Fix:** Add every RHCK boot/debug/development package that the policy intends to reject to both synchronized defaults lists (while continuing to preserve shared `kernel-headers`, `kernel-tools`, and `kernel-tools-libs`). Add explicit contract assertions/fixtures for the omitted UKI and matched-debug package names so future Oracle package-family additions cannot silently bypass cleanup and scanning.
+**Fix:** Add the RHCK-specific ABI/doc artifacts to both synchronized lists and contract tests, or explicitly define and test a narrower policy that explains why each current OL10 `kernel*` package is either rejected or deliberately preserved alongside `kernel-headers`, `kernel-tools`, and `kernel-tools-libs`.
 
 ---
 
-_Reviewed: 2026-09-20T20:20:33Z_
+_Reviewed: 2026-09-21T00:14:51Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_

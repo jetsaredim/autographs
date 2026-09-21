@@ -1,59 +1,66 @@
 ---
 phase: quick-260920-gz7-enforce-a-uek-only-production-kernel-pos
-fixed_at: 2026-09-20T20:36:55Z
+fixed_at: 2026-09-21T00:42:37Z
 review_path: .planning/quick/260920-gz7-enforce-a-uek-only-production-kernel-pos/260920-gz7-REVIEW.md
-iteration: 2
-findings_in_scope: 3
-fixed: 3
+iteration: 3
+findings_in_scope: 4
+fixed: 4
 skipped: 0
 status: all_fixed
 ---
 
 # Quick Task 260920-gz7: Code Review Fix Report
 
-**Fixed at:** 2026-09-20T20:36:55Z
+**Fixed at:** 2026-09-21T00:42:37Z
 **Source review:** `.planning/quick/260920-gz7-enforce-a-uek-only-production-kernel-pos/260920-gz7-REVIEW.md`
-**Iteration:** 2
+**Iteration:** 3
 
 **Summary:**
 
-- Findings in scope: 3
-- Fixed: 3
+- Findings in scope: 4
+- Fixed: 4
 - Skipped: 0
 
 ## Fixed Issues
 
-### WR-01: Result reconciliation can close an issue while kernel recovery is still required
+### CR-01: Mixed clean/finding target groups cannot enter either approval workflow
 
-**Files modified:** `deploy/ansible/roles/security_patching/tasks/patch.yml`, `deploy/ansible/roles/security_patching/tasks/validate_reboot_state.yml`, `deploy/ansible/playbooks/security-reboot.yml`, `deploy/ansible/roles/security_patching/tasks/post_result.yml`, `deploy/ansible/roles/security_patching/tasks/post_reboot_result.yml`, `deploy/ansible/roles/security_patching/templates/security-update-result.md.j2`, `deploy/ansible/roles/security_patching/templates/security-reboot-result.md.j2`, `deploy/ansible/playbooks/security-post-result-status-validate-test.yml`, `deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml`, `deploy/ansible/playbooks/security-update-reconciliation-validate-test.yml`, `deploy/ansible/playbooks/security-reboot-result-validate-test.yml`
-**Commits:** `620432a`, `52fcb3f`
+**Files modified:** `deploy/ansible/roles/security_patching/templates/security-report.md.j2`, `deploy/ansible/roles/security_patching/tasks/validate_request.yml`, `deploy/ansible/roles/security_patching/tasks/classify_update_request.yml`, `deploy/ansible/roles/security_patching/tasks/validate_reboot_state.yml`, `deploy/ansible/roles/security_patching/tasks/classify_reboot_request.yml`, `deploy/ansible/playbooks/security-reboot.yml`, `deploy/ansible/playbooks/security-report-render-test.yml`, `deploy/ansible/playbooks/security-request-metadata-validate-test.yml`, `deploy/ansible/playbooks/security-update-reconciliation-validate-test.yml`, `deploy/ansible/playbooks/security-reboot-preflight-validate-test.yml`
+**Commit:** `d75337c`
 **Status:** fixed; requires human verification
-**Applied fix:** Update and reboot paths now snapshot running/default kernel identities and verified UEK state, require those snapshots before reconciliation, retain kernel-only recovery hosts, mirror the authoritative facts into the refreshed report, and keep the issue open with explicit recovery/reboot guidance. Focused fixtures cover empty OpenSCAP and RHCK sets with one invalid UEK flag.
+**Applied fix:** Finding-bearing reports now retain every live target in hidden metadata and use an empty advisory list for clean hosts. Exact live-target scope validation remains mandatory. Aggregate update and reboot classifiers identify only complete, approved-empty/current-empty `close` hosts as safe skips, retain drift protection for every other state, and expose the remaining actionable host set. The reboot play only mutates hosts that passed per-host preflight. Mixed recovered-clean plus update/reboot fixtures prove exact scope passes while only the finding host reaches mutation.
 
-### WR-02: Multi-host result aggregation lets configure override investigate
+### CR-02: Installonly cleanup runs before the rebooted kernel is proven safe
 
-**Files modified:** `deploy/ansible/roles/security_patching/tasks/post_result.yml`, `deploy/ansible/roles/security_patching/tasks/post_reboot_result.yml`, `deploy/ansible/roles/security_patching/templates/security-report.md.j2`, `deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml`, `deploy/ansible/playbooks/security-reboot-result-validate-test.yml`
-**Commits:** `789ddca`, `13d8bfc`
+**Files modified:** `deploy/ansible/roles/security_patching/tasks/reboot_cleanup.yml`, `deploy/ansible/roles/security_patching/tasks/validate_post_reboot_kernel.yml`, `deploy/ansible/playbooks/security-reboot-preflight-validate-test.yml`, `docs/security-patching.md`
+**Commits:** `c859437`, `513cec2`
 **Status:** fixed; requires human verification
-**Applied fix:** Both result aggregators now select `investigate` before `configure` or approval actions. Mixed configure/investigate fixtures prove update and reboot reconciliation publish no approval label, preserve the open issue, and suppress positive deployment-convergence instructions while a target remains unsafe.
+**Applied fix:** Immediately after reboot, the workflow now resolves the running and default images, requires both regular files to have installed `kernel-uek*` RPM owners, requires the running release to be UEK, and requires the booted image to equal the configured default. An unsafe fallback or rescue boot writes bounded failure context and fails before service checks or `dnf remove --oldinstallonly`. The fixture verifies task ordering and proves an RHCK fallback never reaches simulated cleanup.
 
-### WR-03: The managed RHCK family omits shipped RHCK kernel packages
+### CR-03: The PR merge gate is currently failing
 
-**Files modified:** `deploy/ansible/roles/autographs_deploy/defaults/main.yml`, `deploy/ansible/roles/security_patching/defaults/main.yml`, `deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml`, `deploy/ansible/playbooks/security-finding-classification-validate-test.yml`, `controller/tests/runtime_kernel_persistence.rs`
-**Commit:** `dd6e58c`
-**Status:** fixed; requires human verification
-**Applied fix:** The synchronized exact RHCK policy lists now include `kernel-uki-virt`, `kernel-uki-virt-addons`, `kernel-debug-uki-virt`, and `kernel-debug-devel-matched`, while continuing to preserve shared headers/tools packages. Ansible and Rust contracts explicitly cover every newly rejected family.
+**History rewrite:** `52fcb3f` → `f735ec4` (`fix(08): cover reconciled kernel snapshots`); `13d8bfc` → `a33259f` (`chore(08): wrap kernel reconciliation assertion`); descendant documentation commit `23ede47` → `a10a6f6`.
+**Status:** fixed
+**Applied fix:** Rewrote only the two rejected subjects to configured release-please types while preserving commit content and order. Local release input validation accepts the PR title and all 17 non-merge commit subjects.
+
+### WR-01: The exact RHCK policy still omits current OL10 RHCK artifacts
+
+**Files modified:** `deploy/ansible/roles/autographs_deploy/defaults/main.yml`, `deploy/ansible/roles/security_patching/defaults/main.yml`, `deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml`, `deploy/ansible/playbooks/security-finding-classification-validate-test.yml`, `controller/tests/runtime_kernel_persistence.rs`, `docs/deployment-runbook.md`
+**Commit:** `27ce869`
+**Status:** fixed
+**Applied fix:** The synchronized deployment and scanner policies now remove, exclude, and detect `kernel-abi-stablelists` and `kernel-doc`. Contract tests cover both names while continuing to require preservation of the shared `kernel-headers`, `kernel-tools`, and `kernel-tools-libs` packages.
 
 ## Verification
 
-- Full Ansible syntax check: passed for all 20 CI playbooks.
-- Full Ansible validation suite: passed, including focused kernel-only and mixed-host update/reboot fixtures.
-- `ansible-lint deploy/ansible/`: production profile passed with zero findings.
-- `python3 -m unittest scripts.test_security_patching_create_issue_tasks`: 14 passed.
-- `cargo test --test runtime_kernel_persistence`: 3 passed.
+- Syntax checks passed for every playbook under `deploy/ansible/playbooks/` (20 playbooks).
+- The full CI Ansible validation fixture sequence passed, including mixed clean/finding update and reboot paths and fallback-kernel cleanup rejection.
+- `ansible-lint --profile production deploy/ansible/` passed with zero findings across 67 files.
+- Security patching Python tests passed: 27 tests across advisory enrichment, OpenSCAP parsing, and issue task contracts.
+- `bash scripts/validate-runtime.sh`, `cargo fmt --check`, and `cargo test --test runtime_kernel_persistence` passed; the Rust contract ran 3 tests.
+- `scripts/validate_release_please_inputs.py` accepted the PR title and all 17 non-merge commits using the configured release types.
 
 ---
 
-_Fixed: 2026-09-20T20:36:55Z_
+_Fixed: 2026-09-21T00:42:37Z_
 _Fixer: the agent (gsd-code-fixer)_
-_Iteration: 2_
+_Iteration: 3_
