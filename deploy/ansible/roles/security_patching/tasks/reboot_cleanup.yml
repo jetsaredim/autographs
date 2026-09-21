@@ -22,6 +22,71 @@
   register: security_patching_post_reboot_kernel
   changed_when: false
 
+- name: Inspect default boot kernel after reboot
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - --default-kernel
+  register: security_patching_post_reboot_default_kernel
+  changed_when: false
+  failed_when: false
+
+- name: Record post-reboot kernel image paths
+  ansible.builtin.set_fact:
+    security_patching_post_reboot_running_kernel_release: >-
+      {{ security_patching_post_reboot_kernel.stdout | default('') | trim }}
+    security_patching_post_reboot_running_kernel_image: >-
+      /boot/vmlinuz-{{ security_patching_post_reboot_kernel.stdout | default('') | trim }}
+    security_patching_post_reboot_default_kernel_image: >-
+      {{ security_patching_post_reboot_default_kernel.stdout | default('') | trim }}
+
+- name: Inspect running kernel image after reboot
+  ansible.builtin.stat:
+    path: "{{ security_patching_post_reboot_running_kernel_image }}"
+    follow: true
+    get_checksum: false
+  register: security_patching_post_reboot_running_kernel_image_stat
+
+- name: Inspect default kernel image after reboot
+  ansible.builtin.stat:
+    path: "{{ security_patching_post_reboot_default_kernel_image }}"
+    follow: true
+    get_checksum: false
+  register: security_patching_post_reboot_default_kernel_image_stat
+
+- name: Inspect running kernel image RPM owner after reboot
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qf
+      - --qf
+      - "%{NAME}\n"
+      - "{{ security_patching_post_reboot_running_kernel_image }}"
+  register: security_patching_post_reboot_running_kernel_image_owner
+  changed_when: false
+  failed_when: false
+  when:
+    - security_patching_post_reboot_running_kernel_image_stat.stat.exists | default(false)
+    - security_patching_post_reboot_running_kernel_image_stat.stat.isreg | default(false)
+
+- name: Inspect default kernel image RPM owner after reboot
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qf
+      - --qf
+      - "%{NAME}\n"
+      - "{{ security_patching_post_reboot_default_kernel_image }}"
+  register: security_patching_post_reboot_default_kernel_image_owner
+  changed_when: false
+  failed_when: false
+  when:
+    - security_patching_post_reboot_default_kernel_image_stat.stat.exists | default(false)
+    - security_patching_post_reboot_default_kernel_image_stat.stat.isreg | default(false)
+
+- name: Require safe post-reboot UEK before installonly cleanup
+  ansible.builtin.import_tasks: validate_post_reboot_kernel.yml
+
 - name: Wait for Autographs quadlet services after reboot
   ansible.builtin.command:
     argv:

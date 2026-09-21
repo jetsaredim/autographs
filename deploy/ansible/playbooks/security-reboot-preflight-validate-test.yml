@@ -62,6 +62,83 @@
           - not (hostvars['recovered-clean-host'].security_patching_reboot_cleanup_reached | default(false) | bool)
           - hostvars['remaining-reboot-host'].security_patching_reboot_cleanup_reached | bool
 
+- name: Validate post-reboot kernel proof precedes installonly cleanup
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_failure_context_path: ""
+    security_patching_failure_context_max_chars: 12000
+    security_post_reboot_validation_path: >-
+      {{ playbook_dir }}/../roles/security_patching/tasks/validate_post_reboot_kernel.yml
+    security_reboot_cleanup_tasks: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/security_patching/tasks/reboot_cleanup.yml') | from_yaml }}
+  tasks:
+    - name: Select post-reboot safety and cleanup tasks
+      ansible.builtin.set_fact:
+        security_post_reboot_guard_task: >-
+          {{
+            security_reboot_cleanup_tasks
+            | selectattr('name', 'equalto', 'Require safe post-reboot UEK before installonly cleanup')
+            | first
+          }}
+        security_installonly_cleanup_task: >-
+          {{
+            security_reboot_cleanup_tasks
+            | selectattr('name', 'equalto', 'Remove old installonly kernel packages after healthy reboot')
+            | first
+          }}
+
+    - name: Require production cleanup ordering contract
+      ansible.builtin.assert:
+        that:
+          - security_post_reboot_guard_task['ansible.builtin.import_tasks'] == 'validate_post_reboot_kernel.yml'
+          - security_reboot_cleanup_tasks.index(security_post_reboot_guard_task) < security_reboot_cleanup_tasks.index(security_installonly_cleanup_task)
+          - security_installonly_cleanup_task['ansible.builtin.command'].argv[3] == '--oldinstallonly'
+
+    - name: Record fallback RHCK boot fixture
+      ansible.builtin.set_fact:
+        security_patching_post_reboot_running_kernel_release: 6.12.0-211.56.1.el10_2.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-211.56.1.el10_2.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.4.el10uek.x86_64
+        security_patching_post_reboot_default_kernel:
+          rc: 0
+        security_patching_post_reboot_running_kernel_image_stat:
+          stat:
+            exists: true
+            isreg: true
+        security_patching_post_reboot_default_kernel_image_stat:
+          stat:
+            exists: true
+            isreg: true
+        security_patching_post_reboot_running_kernel_image_owner:
+          rc: 0
+          stdout: kernel-core
+        security_patching_post_reboot_default_kernel_image_owner:
+          rc: 0
+          stdout: kernel-uek-core
+        security_post_reboot_guard_failed: false
+        security_installonly_cleanup_reached: false
+
+    - name: Apply fallback boot guard before simulated installonly cleanup
+      block:
+        - name: Evaluate production post-reboot safety gate
+          ansible.builtin.include_tasks: "{{ security_post_reboot_validation_path }}"
+
+        - name: Record forbidden simulated installonly cleanup
+          ansible.builtin.set_fact:
+            security_installonly_cleanup_reached: true
+      rescue:
+        - name: Record expected fallback boot rejection
+          ansible.builtin.set_fact:
+            security_post_reboot_guard_failed: true
+
+    - name: Require fallback boot rejection before cleanup
+      ansible.builtin.assert:
+        that:
+          - security_post_reboot_guard_failed
+          - not security_installonly_cleanup_reached
+          - not (security_patching_post_reboot_kernel_safe | bool)
+
 - name: Validate aggregate reboot preflight prevents partial multi-host mutation
   hosts: localhost
   gather_facts: false

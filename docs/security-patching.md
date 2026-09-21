@@ -420,10 +420,11 @@ If the complete scan's DNF classification now reports package work, the current 
 1. Records the running kernel before reboot.
 2. Reboots the host and waits for SSH to return.
 3. Records the running kernel after reboot.
-4. Waits for `autographs-controller.service` and `autographs-caddy.service`.
-5. Verifies `http://127.0.0.1:8081/manifest.json`.
-6. Verifies Caddy-fronted `https://<AUTOGRAPHS_DOMAIN>/admin/api/health` by resolving the configured domain to `127.0.0.1` on the host.
-7. Removes old installonly kernel packages with:
+4. Requires the running and default `/boot/vmlinuz-*` files to exist, be owned by installed `kernel-uek*` RPMs, and identify the same booted UEK image. A fallback or rescue boot fails closed and records bounded failure context before package cleanup.
+5. Waits for `autographs-controller.service` and `autographs-caddy.service`.
+6. Verifies `http://127.0.0.1:8081/manifest.json`.
+7. Verifies Caddy-fronted `https://<AUTOGRAPHS_DOMAIN>/admin/api/health` by resolving the configured domain to `127.0.0.1` on the host.
+8. Removes old installonly kernel packages with:
 
    ```bash
    dnf -y remove --oldinstallonly --setopt=installonly_limit=2
