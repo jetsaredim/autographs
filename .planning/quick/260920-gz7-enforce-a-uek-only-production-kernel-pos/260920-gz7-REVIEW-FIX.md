@@ -1,8 +1,8 @@
 ---
 phase: quick-260920-gz7-enforce-a-uek-only-production-kernel-pos
-fixed_at: 2026-09-20T16:55:33Z
+fixed_at: 2026-09-20T20:36:55Z
 review_path: .planning/quick/260920-gz7-enforce-a-uek-only-production-kernel-pos/260920-gz7-REVIEW.md
-iteration: 1
+iteration: 2
 findings_in_scope: 3
 fixed: 3
 skipped: 0
@@ -11,9 +11,9 @@ status: all_fixed
 
 # Quick Task 260920-gz7: Code Review Fix Report
 
-**Fixed at:** 2026-09-20T16:55:33Z
+**Fixed at:** 2026-09-20T20:36:55Z
 **Source review:** `.planning/quick/260920-gz7-enforce-a-uek-only-production-kernel-pos/260920-gz7-REVIEW.md`
-**Iteration:** 1
+**Iteration:** 2
 
 **Summary:**
 
@@ -23,29 +23,37 @@ status: all_fixed
 
 ## Fixed Issues
 
-### CR-01: RHCK removal trusts a default UEK pathname without proving a bootable UEK image exists
+### WR-01: Result reconciliation can close an issue while kernel recovery is still required
 
-**Files modified:** `deploy/ansible/roles/autographs_deploy/tasks/kernel_persistence.yml`, `deploy/ansible/roles/autographs_deploy/tasks/assert_kernel_images.yml`, `deploy/ansible/roles/autographs_deploy/tasks/assert_kernel_ownership.yml`, `deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml`
-**Commit:** `0eefb9c`
+**Files modified:** `deploy/ansible/roles/security_patching/tasks/patch.yml`, `deploy/ansible/roles/security_patching/tasks/validate_reboot_state.yml`, `deploy/ansible/playbooks/security-reboot.yml`, `deploy/ansible/roles/security_patching/tasks/post_result.yml`, `deploy/ansible/roles/security_patching/tasks/post_reboot_result.yml`, `deploy/ansible/roles/security_patching/templates/security-update-result.md.j2`, `deploy/ansible/roles/security_patching/templates/security-reboot-result.md.j2`, `deploy/ansible/playbooks/security-post-result-status-validate-test.yml`, `deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml`, `deploy/ansible/playbooks/security-update-reconciliation-validate-test.yml`, `deploy/ansible/playbooks/security-reboot-result-validate-test.yml`
+**Commits:** `620432a`, `52fcb3f`
 **Status:** fixed; requires human verification
-**Applied fix:** The deployment now proves the running and default UEK paths are regular files and that each is owned by an installed `kernel-uek*` RPM before the RHCK removal task can run. Executable fail-closed fixtures cover missing running/default images and invalid RPM ownership without reaching simulated mutation.
+**Applied fix:** Update and reboot paths now snapshot running/default kernel identities and verified UEK state, require those snapshots before reconciliation, retain kernel-only recovery hosts, mirror the authoritative facts into the refreshed report, and keep the issue open with explicit recovery/reboot guidance. Focused fixtures cover empty OpenSCAP and RHCK sets with one invalid UEK flag.
 
-### WR-01: The scanner emits a non-convergent configure action when RHCK is active or selected for next boot
+### WR-02: Multi-host result aggregation lets configure override investigate
 
-**Files modified:** `deploy/ansible/roles/security_patching/tasks/scan.yml`, `deploy/ansible/roles/security_patching/tasks/classify_findings.yml`, `deploy/ansible/roles/security_patching/tasks/create_issue.yml`, `deploy/ansible/roles/security_patching/templates/security-report.md.j2`, `deploy/ansible/playbooks/security-finding-classification-validate-test.yml`, `deploy/ansible/playbooks/security-report-render-test.yml`, `deploy/ansible/playbooks/security-create-issue-status-validate-test.yml`, `docs/deployment-runbook.md`, `docs/security-patching.md`
-**Commit:** `2534d43`
+**Files modified:** `deploy/ansible/roles/security_patching/tasks/post_result.yml`, `deploy/ansible/roles/security_patching/tasks/post_reboot_result.yml`, `deploy/ansible/roles/security_patching/templates/security-report.md.j2`, `deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml`, `deploy/ansible/playbooks/security-reboot-result-validate-test.yml`
+**Commits:** `789ddca`, `13d8bfc`
 **Status:** fixed; requires human verification
-**Applied fix:** Scans now inventory and verify running/default UEK images and RPM ownership. Unsafe kernel state classifies as `investigate`, takes aggregate precedence, offers no approval label, remains reportable even without package findings, and renders install/select/reboot/converge/rescan guidance. Running-RHCK and default-RHCK fixtures prove neither state enters configure, update, or reboot approval loops.
+**Applied fix:** Both result aggregators now select `investigate` before `configure` or approval actions. Mixed configure/investigate fixtures prove update and reboot reconciliation publish no approval label, preserve the open issue, and suppress positive deployment-convergence instructions while a target remains unsafe.
 
-### WR-02: DNF exclusion persistence preserves only the first existing exclude declaration
+### WR-03: The managed RHCK family omits shipped RHCK kernel packages
 
-**Files modified:** `deploy/ansible/roles/autographs_deploy/tasks/kernel_persistence.yml`, `deploy/ansible/roles/autographs_deploy/tasks/derive_dnf_exclusions.yml`, `deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml`
-**Commit:** `553b456`
+**Files modified:** `deploy/ansible/roles/autographs_deploy/defaults/main.yml`, `deploy/ansible/roles/security_patching/defaults/main.yml`, `deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml`, `deploy/ansible/playbooks/security-finding-classification-validate-test.yml`, `controller/tests/runtime_kernel_persistence.rs`
+**Commit:** `dd6e58c`
 **Status:** fixed; requires human verification
-**Applied fix:** The deployment extracts only the active `[main]` section, merges tokens from every active `exclude=` declaration with the managed RHCK exclusions, and writes a sorted unique canonical value. The executable fixture proves multiple main exclusions survive, another section does not leak into policy, and repeated evaluation is idempotent.
+**Applied fix:** The synchronized exact RHCK policy lists now include `kernel-uki-virt`, `kernel-uki-virt-addons`, `kernel-debug-uki-virt`, and `kernel-debug-devel-matched`, while continuing to preserve shared headers/tools packages. Ansible and Rust contracts explicitly cover every newly rejected family.
+
+## Verification
+
+- Full Ansible syntax check: passed for all 20 CI playbooks.
+- Full Ansible validation suite: passed, including focused kernel-only and mixed-host update/reboot fixtures.
+- `ansible-lint deploy/ansible/`: production profile passed with zero findings.
+- `python3 -m unittest scripts.test_security_patching_create_issue_tasks`: 14 passed.
+- `cargo test --test runtime_kernel_persistence`: 3 passed.
 
 ---
 
-_Fixed: 2026-09-20T16:55:33Z_
+_Fixed: 2026-09-20T20:36:55Z_
 _Fixer: the agent (gsd-code-fixer)_
-_Iteration: 1_
+_Iteration: 2_
