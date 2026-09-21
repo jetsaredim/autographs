@@ -254,6 +254,8 @@
           - "'kernel-headers' not in security_defaults.security_patching_rhck_packages"
           - "'kernel-tools' not in security_defaults.security_patching_rhck_packages"
           - "'kernel-tools-libs' not in security_defaults.security_patching_rhck_packages"
+          - "'kernel-abi-stablelists' in security_defaults.security_patching_rhck_packages"
+          - "'kernel-doc' in security_defaults.security_patching_rhck_packages"
           - "'kernel-uki-virt' in security_defaults.security_patching_rhck_packages"
           - "'kernel-uki-virt-addons' in security_defaults.security_patching_rhck_packages"
           - "'kernel-debug-uki-virt' in security_defaults.security_patching_rhck_packages"

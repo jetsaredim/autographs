@@ -48,6 +48,7 @@ security_patching_reboot_validate_dnf_noop: true
 security_patching_reboot_allowed_package_regex: '^(kernel-uek($|-.*)|bpftool$|libperf$|perf$|python3-perf$|rtla$|rv$)$'
 security_patching_rhck_packages:
   - kernel
+  - kernel-abi-stablelists
   - kernel-core
   - kernel-debug
   - kernel-debug-core
@@ -59,6 +60,7 @@ security_patching_rhck_packages:
   - kernel-debug-uki-virt
   - kernel-devel
   - kernel-devel-matched
+  - kernel-doc
   - kernel-modules
   - kernel-modules-core
   - kernel-modules-extra

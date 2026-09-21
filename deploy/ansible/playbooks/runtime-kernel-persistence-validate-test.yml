@@ -217,6 +217,8 @@
           - "'kernel-headers' not in runtime_defaults.autographs_deploy_rhck_packages"
           - "'kernel-tools' not in runtime_defaults.autographs_deploy_rhck_packages"
           - "'kernel-tools-libs' not in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-abi-stablelists' in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-doc' in runtime_defaults.autographs_deploy_rhck_packages"
           - "'kernel-uki-virt' in runtime_defaults.autographs_deploy_rhck_packages"
           - "'kernel-uki-virt-addons' in runtime_defaults.autographs_deploy_rhck_packages"
           - "'kernel-debug-uki-virt' in runtime_defaults.autographs_deploy_rhck_packages"

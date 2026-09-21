@@ -28,6 +28,8 @@ fn deploy_role_disables_core_and_kernel_dump_persistence() {
         "kernel-uki-virt-addons",
         "kernel-debug-uki-virt",
         "kernel-debug-devel-matched",
+        "kernel-abi-stablelists",
+        "kernel-doc",
     ] {
         assert!(
             deploy_defaults.contains(&format!("  - {rejected_rhck_package}\n")),

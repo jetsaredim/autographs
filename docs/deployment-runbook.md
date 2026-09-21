@@ -479,7 +479,8 @@ package installation, the deploy role requires both `uname -r` and
 corresponding running and default `/boot/vmlinuz-*` paths to be regular files
 owned by installed `kernel-uek*` RPM packages. Only after those bootability
 checks pass does it remove the
-explicitly managed RHCK boot/development packages, writes the same exact names
+explicitly managed RHCK boot/development packages and version-coupled RHCK
+artifacts such as `kernel-abi-stablelists` and `kernel-doc`, writes those exact names
 to the `[main]` `exclude` setting in `/etc/dnf/dnf.conf`, and removes only GRUB
 entries whose `/boot/vmlinuz-*` image is missing. Rescue entries beginning with
 `/boot/vmlinuz-0-rescue-` are always preserved. Shared userspace packages such
@@ -504,7 +505,7 @@ rpm -qf "${default_kernel}" | grep -q '^kernel-uek'
 
 unexpected_rhck="$(
   rpm -qa --qf '%{NAME}\n' \
-    | grep -E '^(kernel|kernel-core|kernel-devel|kernel-devel-matched|kernel-modules|kernel-modules-core|kernel-modules-extra|kernel-modules-extra-matched|kernel-debug|kernel-debug-core|kernel-debug-devel|kernel-debug-modules|kernel-debug-modules-core|kernel-debug-modules-extra)$' \
+    | grep -E '^(kernel|kernel-abi-stablelists|kernel-core|kernel-debug|kernel-debug-core|kernel-debug-devel|kernel-debug-devel-matched|kernel-debug-modules|kernel-debug-modules-core|kernel-debug-modules-extra|kernel-debug-uki-virt|kernel-devel|kernel-devel-matched|kernel-doc|kernel-modules|kernel-modules-core|kernel-modules-extra|kernel-modules-extra-matched|kernel-uki-virt|kernel-uki-virt-addons)$' \
     || true
 )"
 test -z "${unexpected_rhck}"
