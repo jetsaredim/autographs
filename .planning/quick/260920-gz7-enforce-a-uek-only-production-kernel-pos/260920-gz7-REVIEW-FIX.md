@@ -1,46 +1,60 @@
 ---
 phase: quick-260920-gz7-enforce-a-uek-only-production-kernel-pos
-fixed_at: 2026-09-21T16:08:03Z
+fixed_at: 2026-09-22T02:06:58Z
 review_path: .planning/quick/260920-gz7-enforce-a-uek-only-production-kernel-pos/260920-gz7-REVIEW.md
-iteration: 5
-findings_in_scope: 1
-fixed: 1
+iteration: 6
+findings_in_scope: 3
+fixed: 3
 skipped: 0
 status: all_fixed
 ---
 
 # Quick Task 260920-gz7: Code Review Fix Report
 
-**Fixed at:** 2026-09-21T16:08:03Z
+**Fixed at:** 2026-09-22T02:06:58Z
 **Source review:** `.planning/quick/260920-gz7-enforce-a-uek-only-production-kernel-pos/260920-gz7-REVIEW.md`
-**Iteration:** 5
+**Iteration:** 6
 
 **Summary:**
 
-- Findings in scope: 1
-- Fixed: 1
+- Findings in scope: 3
+- Fixed: 3
 - Skipped: 0
 
 ## Fixed Issues
 
-### CR-01: Reboot preflight accepts a UEK boot entry whose initramfs is missing
+### CR-01: Deployment removes RHCK before proving a bootable UEK initramfs exists
 
-**Files modified:** `deploy/ansible/playbooks/security-reboot-kernel-selection-validate-test.yml`, `deploy/ansible/roles/security_patching/tasks/reboot_cleanup.yml`, `deploy/ansible/roles/security_patching/tasks/resolve_reboot_kernel.yml`, `deploy/ansible/roles/security_patching/tasks/validate_post_reboot_kernel.yml`, `deploy/ansible/roles/security_patching/tasks/validate_reboot_state.yml`, `deploy/ansible/roles/security_patching/templates/security-reboot-result.md.j2`, `docs/security-patching.md`, `scripts/test_security_patching_create_issue_tasks.py`
-**Commit:** `e6df9ea`
+**Files modified:** `deploy/ansible/roles/autographs_deploy/tasks/kernel_persistence.yml`, `deploy/ansible/roles/autographs_deploy/tasks/revalidate_uek_boot_state.yml`, `deploy/ansible/roles/autographs_deploy/tasks/validate_kernel_boot_entry.yml`, `deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml`
+**Commit:** `b5e4d3b`
 **Status:** fixed; requires human verification
-**Applied fix:** The reboot resolver now parses the exact `kernel=` and `initrd=` fields from the selected `grubby` entry, accepts quoted fields and multiple concrete initrd components, ignores variable-only components such as `$tuned_initrd`, and requires the release-matched initramfs plus every concrete component to exist as regular files. The initramfs evidence is preserved in operator status and revalidated immediately before changing the default kernel, so a file removed after preflight still blocks selection, reboot, and cleanup. Post-reboot cleanup also requires the preserved expected initramfs proof. Focused fixtures cover a valid quoted multi-component entry, a valid kernel with missing initramfs, a stale/mismatched entry, no valid UEK candidate, RPM-aware ordering, and mutation guards for invalid entries.
+**Applied fix:** Deployment now queries the exact running and default `grubby` entries, parses every concrete initrd component, requires the release-matched initramfs and every component to be regular files, and repeats the running/default selection, kernel image, RPM owner, exact entry, and initramfs proof immediately before RHCK removal. Missing and release-mismatched initramfs fixtures prove mutation remains unreachable.
+
+### CR-02: Pre-mutation revalidation does not prove the grubby entry still references the validated initramfs
+
+**Files modified:** `deploy/ansible/roles/security_patching/defaults/main.yml`, `deploy/ansible/roles/security_patching/tasks/reboot_cleanup.yml`, `deploy/ansible/roles/security_patching/tasks/revalidate_reboot_kernel.yml`, `deploy/ansible/playbooks/security-reboot-kernel-selection-validate-test.yml`
+**Commit:** `dc011fc`
+**Status:** fixed; requires human verification
+**Applied fix:** Immediately before default selection, reboot cleanup now requeries the RPM-ordered newest installed `kernel-uek-core`, restats the preserved kernel image, rechecks its exact RPM owner, rereads and reparses the exact `grubby` entry, and restats its current initramfs component set. Every current value must equal the preserved preflight proof. Drift writes actionable evidence and fails before default selection, reboot, or installonly cleanup. A regression fixture changes the effective entry while leaving the original files intact and proves mutation remains unreachable.
+
+### WR-01: The RHCK fallback fixture is now satisfied by an unrelated missing-initramfs predicate
+
+**Files modified:** `deploy/ansible/playbooks/security-reboot-preflight-validate-test.yml`
+**Commit:** `50724c8`
+**Status:** fixed; requires human verification
+**Applied fix:** The fallback fixture now supplies a fully valid expected UEK target and initramfs proof while varying only the post-reboot running/default image and ownership to RHCK. It verifies that the failure context identifies the unsafe RHCK release and owner before cleanup.
 
 ## Verification
 
 - Syntax checks passed for all 21 Ansible playbooks in the CI surface.
-- The complete CI Ansible validation sequence passed, including the new valid, missing-initramfs, mismatched-entry, no-candidate, RPM-ordering, and no-mutation fixtures.
-- `ansible-lint --profile production deploy/ansible/` passed with zero findings across 69 files.
-- Security patching Python tests passed: 27 tests across advisory enrichment, OpenSCAP parsing, issue/task contracts, and CI fixture coverage.
-- `bash scripts/validate-runtime.sh`, `cargo fmt --check`, and `cargo test --test runtime_kernel_persistence` passed; the Rust runtime contract ran 3 tests.
-- `scripts/validate_release_please_inputs.py` accepted the PR title and all 21 non-merge commit subjects through `e6df9ea`.
+- The complete CI Ansible validation sequence passed, including deployment missing/mismatched-initramfs fixtures, the pre-mutation boot-entry drift fixture, and the isolated RHCK fallback fixture.
+- `ansible-lint --profile production deploy/ansible/` passed with zero findings across 72 files.
+- The complete repository Python automation suite passed: 91 tests.
+- `bash scripts/validate-runtime.sh`, `cargo fmt --check`, `cargo test --features production-persistence`, `cargo check --features production-persistence`, and `cargo clippy --all-targets --features production-persistence -- -D warnings` passed.
+- `scripts/validate_release_please_inputs.py` accepted the PR title and all 25 non-merge commit subjects through `50724c8`.
 
 ---
 
-_Fixed: 2026-09-21T16:08:03Z_
+_Fixed: 2026-09-22T02:06:58Z_
 _Fixer: the agent (gsd-code-fixer)_
-_Iteration: 5_
+_Iteration: 6_
