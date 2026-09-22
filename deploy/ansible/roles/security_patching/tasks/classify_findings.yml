@@ -114,6 +114,8 @@
       (verified UEK={{ security_patching_running_kernel_is_valid_uek | default(false) | bool }}),
       default kernel={{ security_patching_default_kernel_image | default('unknown') }}
       (verified UEK={{ security_patching_default_kernel_is_valid_uek | default(false) | bool }}).
+      Diagnostic probes: uname rc={{ (security_patching_running_kernel_probe_facts | default({})).rc | default('unknown') }},
+      grubby --default-kernel rc={{ (security_patching_default_kernel_probe_facts | default({})).rc | default('unknown') }}.
       Install a supported UEK package set if necessary, select a verified UEK image with grubby,
       and schedule a reboot when the running kernel is not UEK. Verify both states before running
       deployment convergence and re-running the scanner.

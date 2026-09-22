@@ -226,21 +226,21 @@
       {{ lookup('ansible.builtin.file', security_role_dir ~ '/defaults/main.yml') | from_yaml }}
     deploy_defaults: >-
       {{ lookup('ansible.builtin.file', deploy_role_dir ~ '/defaults/main.yml') | from_yaml }}
-    security_scan_tasks: >-
-      {{ lookup('ansible.builtin.file', security_role_dir ~ '/tasks/scan.yml') | from_yaml }}
+    security_kernel_posture_tasks: >-
+      {{ lookup('ansible.builtin.file', security_role_dir ~ '/tasks/kernel_posture.yml') | from_yaml }}
   tasks:
     - name: Select kernel posture inventory tasks
       ansible.builtin.set_fact:
         security_inventory_package_matches: >-
-          {{ security_scan_tasks | selectattr('name', 'equalto', 'Inventory installed package names for kernel posture') | list }}
+          {{ security_kernel_posture_tasks | selectattr('name', 'equalto', 'Inventory installed package names for kernel posture') | list }}
         security_record_rhck_matches: >-
-          {{ security_scan_tasks | selectattr('name', 'equalto', 'Record installed RHCK configuration drift') | list }}
+          {{ security_kernel_posture_tasks | selectattr('name', 'equalto', 'Record installed RHCK configuration drift') | list }}
         security_running_kernel_matches: >-
-          {{ security_scan_tasks | selectattr('name', 'equalto', 'Inspect running kernel release for kernel posture') | list }}
+          {{ security_kernel_posture_tasks | selectattr('name', 'equalto', 'Inspect running kernel release for kernel posture') | list }}
         security_default_kernel_matches: >-
-          {{ security_scan_tasks | selectattr('name', 'equalto', 'Inspect default boot kernel for kernel posture') | list }}
+          {{ security_kernel_posture_tasks | selectattr('name', 'equalto', 'Inspect default boot kernel for kernel posture') | list }}
         security_record_uek_matches: >-
-          {{ security_scan_tasks | selectattr('name', 'equalto', 'Record verified UEK kernel posture') | list }}
+          {{ security_kernel_posture_tasks | selectattr('name', 'equalto', 'Record verified UEK kernel posture') | list }}
 
     - name: Require exact UEK-only scanner inventory semantics
       ansible.builtin.assert:
@@ -266,5 +266,6 @@
           - security_record_rhck_matches[0]['ansible.builtin.set_fact'].security_patching_installed_rhck_packages is search('intersect')
           - security_running_kernel_matches[0]['ansible.builtin.command'].argv == ['uname', '-r']
           - security_default_kernel_matches[0]['ansible.builtin.command'].argv == ['grubby', '--default-kernel']
+          - security_default_kernel_matches[0].failed_when == false
           - security_record_uek_matches[0]['ansible.builtin.set_fact'].security_patching_running_kernel_is_valid_uek is search('kernel-uek')
           - security_record_uek_matches[0]['ansible.builtin.set_fact'].security_patching_default_kernel_is_valid_uek is search('kernel-uek')

@@ -1,0 +1,191 @@
+- name: Inventory installed package names for kernel posture
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qa
+      - --qf
+      - "%{NAME}\n"
+  register: security_patching_installed_package_names_command
+  changed_when: false
+  failed_when: false
+  when: security_patching_installed_package_names_probe_override is not mapping
+
+- name: Resolve installed package inventory probe
+  ansible.builtin.set_fact:
+    security_patching_installed_package_names: >-
+      {{
+        security_patching_installed_package_names_probe_override
+        if security_patching_installed_package_names_probe_override is mapping
+        else security_patching_installed_package_names_command | default({'rc': 1, 'stdout': '', 'stderr': ''})
+      }}
+
+- name: Record installed RHCK configuration drift
+  ansible.builtin.set_fact:
+    security_patching_installed_rhck_packages: >-
+      {{
+        (
+          security_patching_installed_package_names.stdout_lines
+          | default(security_patching_installed_package_names.stdout | default('') | split('\n'), true)
+        )
+        | intersect(security_patching_rhck_packages)
+        | unique
+        | sort
+        | list
+      }}
+
+- name: Inspect running kernel release for kernel posture
+  ansible.builtin.command:
+    argv:
+      - uname
+      - -r
+  register: security_patching_running_kernel_command_result
+  changed_when: false
+  failed_when: false
+  when: security_patching_running_kernel_probe_override is not mapping
+
+- name: Inspect default boot kernel for kernel posture
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - --default-kernel
+  register: security_patching_default_kernel_command_result
+  changed_when: false
+  failed_when: false
+  when: security_patching_default_kernel_probe_override is not mapping
+
+- name: Resolve effective running and default kernel probes
+  ansible.builtin.set_fact:
+    security_patching_running_kernel_command: >-
+      {{
+        security_patching_running_kernel_probe_override
+        if security_patching_running_kernel_probe_override is mapping
+        else security_patching_running_kernel_command_result | default({'rc': 1, 'stdout': '', 'stderr': ''})
+      }}
+    security_patching_default_kernel_command: >-
+      {{
+        security_patching_default_kernel_probe_override
+        if security_patching_default_kernel_probe_override is mapping
+        else security_patching_default_kernel_command_result | default({'rc': 1, 'stdout': '', 'stderr': ''})
+      }}
+
+- name: Record bounded kernel probe diagnostics
+  ansible.builtin.set_fact:
+    security_patching_running_kernel_probe_facts:
+      rc: "{{ security_patching_running_kernel_command.rc | default(1) | int }}"
+      stdout: >-
+        {{ security_patching_running_kernel_command.stdout | default('') | truncate(security_patching_kernel_probe_output_max_chars, true, '...') }}
+      stderr: >-
+        {{ security_patching_running_kernel_command.stderr | default('') | truncate(security_patching_kernel_probe_output_max_chars, true, '...') }}
+    security_patching_default_kernel_probe_facts:
+      rc: "{{ security_patching_default_kernel_command.rc | default(1) | int }}"
+      stdout: >-
+        {{ security_patching_default_kernel_command.stdout | default('') | truncate(security_patching_kernel_probe_output_max_chars, true, '...') }}
+      stderr: >-
+        {{ security_patching_default_kernel_command.stderr | default('') | truncate(security_patching_kernel_probe_output_max_chars, true, '...') }}
+
+- name: Record running and default kernel paths
+  ansible.builtin.set_fact:
+    security_patching_running_kernel_release: >-
+      {% if security_patching_running_kernel_command.rc | default(1) | int == 0 %}
+      {{ security_patching_running_kernel_command.stdout | default('') | trim }}
+      {% else %}
+      {% endif %}
+    security_patching_running_kernel_image: >-
+      {% set release = security_patching_running_kernel_command.stdout | default('') | trim %}
+      {% if security_patching_running_kernel_command.rc | default(1) | int == 0 and release | length > 0 %}
+      {{ security_patching_kernel_boot_dir }}/vmlinuz-{{ release }}
+      {% else %}
+      {% endif %}
+    security_patching_default_kernel_image: >-
+      {% set image = security_patching_default_kernel_command.stdout | default('') | trim %}
+      {% if security_patching_default_kernel_command.rc | default(1) | int == 0
+         and image is match('^' ~ security_patching_kernel_boot_dir ~ '/vmlinuz-[^/]+$') %}
+      {{ image }}
+      {% else %}
+      {% endif %}
+
+- name: Inspect running kernel image for kernel posture
+  ansible.builtin.stat:
+    path: "{{ security_patching_running_kernel_image }}"
+    follow: true
+    get_checksum: false
+  register: security_patching_running_kernel_image_stat
+  failed_when: false
+  when: security_patching_running_kernel_image | trim | length > 0
+
+- name: Inspect default kernel image for kernel posture
+  ansible.builtin.stat:
+    path: "{{ security_patching_default_kernel_image }}"
+    follow: true
+    get_checksum: false
+  register: security_patching_default_kernel_image_stat
+  failed_when: false
+  when: security_patching_default_kernel_image | trim | length > 0
+
+- name: Inspect running kernel image RPM owner for kernel posture
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qf
+      - --qf
+      - "%{NAME}\n"
+      - "{{ security_patching_running_kernel_image }}"
+  register: security_patching_running_kernel_image_owner_result
+  changed_when: false
+  failed_when: false
+  when:
+    - security_patching_running_kernel_owner_probe_override is not mapping
+    - (security_patching_running_kernel_image_stat.stat | default({})).exists | default(false)
+    - (security_patching_running_kernel_image_stat.stat | default({})).isreg | default(false)
+
+- name: Inspect default kernel image RPM owner for kernel posture
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qf
+      - --qf
+      - "%{NAME}\n"
+      - "{{ security_patching_default_kernel_image }}"
+  register: security_patching_default_kernel_image_owner_result
+  changed_when: false
+  failed_when: false
+  when:
+    - security_patching_default_kernel_owner_probe_override is not mapping
+    - (security_patching_default_kernel_image_stat.stat | default({})).exists | default(false)
+    - (security_patching_default_kernel_image_stat.stat | default({})).isreg | default(false)
+
+- name: Resolve effective kernel image owner probes
+  ansible.builtin.set_fact:
+    security_patching_running_kernel_image_owner: >-
+      {{
+        security_patching_running_kernel_owner_probe_override
+        if security_patching_running_kernel_owner_probe_override is mapping
+        else security_patching_running_kernel_image_owner_result | default({'rc': 1, 'stdout': '', 'stderr': ''})
+      }}
+    security_patching_default_kernel_image_owner: >-
+      {{
+        security_patching_default_kernel_owner_probe_override
+        if security_patching_default_kernel_owner_probe_override is mapping
+        else security_patching_default_kernel_image_owner_result | default({'rc': 1, 'stdout': '', 'stderr': ''})
+      }}
+
+- name: Record verified UEK kernel posture
+  ansible.builtin.set_fact:
+    security_patching_running_kernel_is_valid_uek: >-
+      {{
+        security_patching_running_kernel_command.rc | default(1) | int == 0
+        and security_patching_running_kernel_release is search('el10uek')
+        and (security_patching_running_kernel_image_stat.stat | default({})).exists | default(false)
+        and (security_patching_running_kernel_image_stat.stat | default({})).isreg | default(false)
+        and security_patching_running_kernel_image_owner.rc | default(1) | int == 0
+        and security_patching_running_kernel_image_owner.stdout | default('') | trim is match('^kernel-uek($|-)')
+      }}
+    security_patching_default_kernel_is_valid_uek: >-
+      {{
+        security_patching_default_kernel_command.rc | default(1) | int == 0
+        and security_patching_default_kernel_image is search('el10uek')
+        and (security_patching_default_kernel_image_stat.stat | default({})).exists | default(false)
+        and (security_patching_default_kernel_image_stat.stat | default({})).isreg | default(false)
+        and security_patching_default_kernel_image_owner.rc | default(1) | int == 0
+        and security_patching_default_kernel_image_owner.stdout | default('') | trim is match('^kernel-uek($|-)')
+      }}

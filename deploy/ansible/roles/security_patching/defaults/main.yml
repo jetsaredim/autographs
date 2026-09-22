@@ -38,6 +38,13 @@ security_patching_reboot_approval_label: approved-production-reboot
 security_patching_next_action: investigate
 security_patching_next_action_label: ""
 security_patching_classification_dnf_probe_override: null
+security_patching_installed_package_names_probe_override: null
+security_patching_running_kernel_probe_override: null
+security_patching_default_kernel_probe_override: null
+security_patching_running_kernel_owner_probe_override: null
+security_patching_default_kernel_owner_probe_override: null
+security_patching_kernel_boot_dir: /boot
+security_patching_kernel_probe_output_max_chars: 2000
 security_patching_dnf_noop_regex: '(?i)(nothing to do|no packages marked)'
 security_patching_dnf_work_regex: '(?im)(transaction summary|^(upgrading|installing|downgrading|reinstalling):|^upgrade\s+[0-9]+\s+package)'
 security_patching_target_group: runtime

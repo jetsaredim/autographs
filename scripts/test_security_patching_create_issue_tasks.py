@@ -62,6 +62,9 @@ REBOOT_KERNEL_SELECTION_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.wi
 CLASSIFICATION_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
     "security-finding-classification-validate-test.yml"
 )
+KERNEL_POSTURE_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
+    "security-kernel-posture-validate-test.yml"
+)
 UPDATE_RECONCILIATION_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
     "security-update-reconciliation-validate-test.yml"
 )
@@ -251,6 +254,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
             "Record non-kernel approved reboot issue metadata",
         )
         classification_test = CLASSIFICATION_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        kernel_posture_test = KERNEL_POSTURE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         update_reconciliation_test = UPDATE_RECONCILIATION_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         target_scope_test = TARGET_SCOPE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         ci = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml").read_text(
@@ -301,6 +305,8 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("reboot-only", classification_test)
         self.assertIn("mixed unclassifiable", classification_test)
         self.assertIn("security-finding-classification-validate-test.yml", ci)
+        self.assertIn("failed default-kernel probe remains actionable", kernel_posture_test)
+        self.assertIn("security-kernel-posture-validate-test.yml", ci)
         self.assertIn("tasks_from: patch", update_reconciliation_test)
         self.assertIn("security_patching_reconciliation_only", update_reconciliation_test)
         self.assertIn("security-update-reconciliation-validate-test.yml", ci)

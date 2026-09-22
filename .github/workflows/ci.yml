@@ -295,6 +295,7 @@ jobs:
             deploy/ansible/playbooks/security-request-metadata-validate-test.yml \
             deploy/ansible/playbooks/security-create-issue-status-validate-test.yml \
             deploy/ansible/playbooks/security-finding-classification-validate-test.yml \
+            deploy/ansible/playbooks/security-kernel-posture-validate-test.yml \
             deploy/ansible/playbooks/security-post-result-status-validate-test.yml \
             deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml \
             deploy/ansible/playbooks/security-target-scope-validate-test.yml \
@@ -317,6 +318,8 @@ jobs:
             deploy/ansible/playbooks/security-create-issue-status-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-finding-classification-validate-test.yml
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            deploy/ansible/playbooks/security-kernel-posture-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/security-post-result-status-validate-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \

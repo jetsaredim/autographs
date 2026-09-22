@@ -1,0 +1,63 @@
+- name: Validate failed default-kernel probes remain reportable
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_kernel_boot_dir: /tmp/autographs-security-kernel-posture-failed-default
+    security_patching_installed_package_names_probe_override:
+      rc: 0
+      stdout: "kernel-core\n"
+      stderr: ""
+    security_patching_running_kernel_probe_override:
+      rc: 0
+      stdout: 6.12.0-206.104.4.4.el10uek.x86_64
+      stderr: ""
+    security_patching_default_kernel_probe_override:
+      rc: 2
+      stdout: ""
+      stderr: saved entry is missing
+    security_patching_running_kernel_owner_probe_override:
+      rc: 0
+      stdout: kernel-uek-core
+      stderr: ""
+    security_patching_default_kernel_owner_probe_override: null
+    security_patching_scan_status: complete
+    security_patching_update_entries: []
+    security_patching_update_advisory_ids: []
+    security_patching_classification_dnf_probe_override:
+      rc: 0
+      stdout: Nothing to do.
+      stderr: ""
+  tasks:
+    - name: Create failed-default scanner fixture boot directory
+      ansible.builtin.file:
+        path: "{{ security_patching_kernel_boot_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Create failed-default scanner fixture running image
+      ansible.builtin.copy:
+        content: fixture
+        dest: "{{ security_patching_kernel_boot_dir }}/vmlinuz-{{ security_patching_running_kernel_probe_override.stdout }}"
+        mode: "0600"
+
+    - name: Collect failed-default kernel posture fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: kernel_posture
+
+    - name: Classify failed-default kernel posture fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_findings
+
+    - name: Assert failed default-kernel probe remains actionable and unapproved
+      ansible.builtin.assert:
+        that:
+          - security_patching_default_kernel_probe_facts.rc | int == 2
+          - security_patching_default_kernel_probe_facts.stdout | length == 0
+          - security_patching_default_kernel_probe_facts.stderr == 'saved entry is missing'
+          - security_patching_default_kernel_image | trim | length == 0
+          - not (security_patching_default_kernel_is_valid_uek | bool)
+          - security_patching_next_action | trim == 'investigate'
+          - security_patching_next_action_label | trim | length == 0
+          - security_patching_next_action_reason is search('grubby --default-kernel rc=2')
