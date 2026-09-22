@@ -269,3 +269,5 @@
           - security_default_kernel_matches[0].failed_when == false
           - security_record_uek_matches[0]['ansible.builtin.set_fact'].security_patching_running_kernel_is_valid_uek is search('kernel-uek')
           - security_record_uek_matches[0]['ansible.builtin.set_fact'].security_patching_default_kernel_is_valid_uek is search('kernel-uek')
+          - security_record_uek_matches[0]['ansible.builtin.set_fact'].security_patching_running_kernel_is_valid_uek is search('boot_entry.valid')
+          - security_record_uek_matches[0]['ansible.builtin.set_fact'].security_patching_default_kernel_is_valid_uek is search('boot_entry.valid')

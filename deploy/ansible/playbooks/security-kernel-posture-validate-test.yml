@@ -6,6 +6,8 @@
     security_patching_installed_package_names_probe_override:
       rc: 0
       stdout: "kernel-core\n"
+      stdout_lines:
+        - kernel-core
       stderr: ""
     security_patching_running_kernel_probe_override:
       rc: 0
@@ -20,6 +22,13 @@
       stdout: kernel-uek-core
       stderr: ""
     security_patching_default_kernel_owner_probe_override: null
+    security_patching_kernel_boot_entry_probe_overrides:
+      running:
+        rc: 0
+        stdout: |-
+          kernel="{{ security_patching_kernel_boot_dir }}/vmlinuz-{{ security_patching_running_kernel_probe_override.stdout }}"
+          initrd="{{ security_patching_kernel_boot_dir }}/initramfs-{{ security_patching_running_kernel_probe_override.stdout }}.img"
+        stderr: ""
     security_patching_scan_status: complete
     security_patching_update_entries: []
     security_patching_update_advisory_ids: []
@@ -40,6 +49,12 @@
         dest: "{{ security_patching_kernel_boot_dir }}/vmlinuz-{{ security_patching_running_kernel_probe_override.stdout }}"
         mode: "0600"
 
+    - name: Create failed-default scanner fixture running initramfs
+      ansible.builtin.copy:
+        content: fixture
+        dest: "{{ security_patching_kernel_boot_dir }}/initramfs-{{ security_patching_running_kernel_probe_override.stdout }}.img"
+        mode: "0600"
+
     - name: Collect failed-default kernel posture fixture
       ansible.builtin.import_role:
         name: security_patching
@@ -57,7 +72,322 @@
           - security_patching_default_kernel_probe_facts.stdout | length == 0
           - security_patching_default_kernel_probe_facts.stderr == 'saved entry is missing'
           - security_patching_default_kernel_image | trim | length == 0
+          - security_patching_running_kernel_is_valid_uek | bool
           - not (security_patching_default_kernel_is_valid_uek | bool)
           - security_patching_next_action | trim == 'investigate'
           - security_patching_next_action_label | trim | length == 0
           - security_patching_next_action_reason is search('grubby --default-kernel rc=2')
+
+- name: Validate safe UEK boot entries permit RHCK convergence
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_kernel_boot_dir: /tmp/autographs-security-kernel-posture-valid
+    security_patching_fixture_release: 6.12.0-206.104.4.4.el10uek.x86_64
+    security_patching_fixture_image: "{{ security_patching_kernel_boot_dir }}/vmlinuz-{{ security_patching_fixture_release }}"
+    security_patching_fixture_initramfs: "{{ security_patching_kernel_boot_dir }}/initramfs-{{ security_patching_fixture_release }}.img"
+    security_patching_fixture_microcode: "{{ security_patching_kernel_boot_dir }}/intel-ucode.img"
+    security_patching_installed_package_names_probe_override:
+      rc: 0
+      stdout: "kernel-core\n"
+      stdout_lines:
+        - kernel-core
+      stderr: ""
+    security_patching_running_kernel_probe_override:
+      rc: 0
+      stdout: "{{ security_patching_fixture_release }}"
+      stderr: ""
+    security_patching_default_kernel_probe_override:
+      rc: 0
+      stdout: "{{ security_patching_fixture_image }}"
+      stderr: ""
+    security_patching_running_kernel_owner_probe_override: &uek_owner
+      rc: 0
+      stdout: kernel-uek-core
+      stderr: ""
+    security_patching_default_kernel_owner_probe_override: *uek_owner
+    security_patching_kernel_boot_entry_probe_overrides:
+      running: &valid_entry
+        rc: 0
+        stdout: |-
+          kernel="{{ security_patching_fixture_image }}"
+          initrd="{{ security_patching_fixture_microcode }} {{ security_patching_fixture_initramfs }} $tuned_initrd"
+        stderr: ""
+      default: *valid_entry
+    security_patching_scan_status: complete
+    security_patching_update_entries: []
+    security_patching_update_advisory_ids: []
+    security_patching_classification_dnf_probe_override:
+      rc: 0
+      stdout: Nothing to do.
+      stderr: ""
+  tasks:
+    - name: Create safe UEK scanner fixture boot directory
+      ansible.builtin.file:
+        path: "{{ security_patching_kernel_boot_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Create safe UEK scanner fixture files
+      ansible.builtin.copy:
+        content: fixture
+        dest: "{{ item }}"
+        mode: "0600"
+      loop:
+        - "{{ security_patching_fixture_image }}"
+        - "{{ security_patching_fixture_initramfs }}"
+        - "{{ security_patching_fixture_microcode }}"
+
+    - name: Collect safe UEK kernel posture fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: kernel_posture
+
+    - name: Classify safe UEK kernel posture fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_findings
+
+    - name: Assert configure requires the complete deployment bootability proof
+      ansible.builtin.assert:
+        that:
+          - security_patching_running_kernel_is_valid_uek | bool
+          - security_patching_default_kernel_is_valid_uek | bool
+          - security_patching_running_kernel_boot_entry.initramfs_images | length == 2
+          - security_patching_default_kernel_boot_entry.expected_initramfs == security_patching_fixture_initramfs
+          - security_patching_next_action | trim == 'configure'
+          - security_patching_next_action_label | trim | length == 0
+
+- name: Validate missing release-matched initramfs requires investigation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_kernel_boot_dir: /tmp/autographs-security-kernel-posture-missing-initramfs
+    security_patching_fixture_release: 6.12.0-206.104.4.4.el10uek.x86_64
+    security_patching_fixture_image: "{{ security_patching_kernel_boot_dir }}/vmlinuz-{{ security_patching_fixture_release }}"
+    security_patching_fixture_initramfs: "{{ security_patching_kernel_boot_dir }}/initramfs-{{ security_patching_fixture_release }}.img"
+    security_patching_installed_package_names_probe_override:
+      rc: 0
+      stdout: "kernel-core\n"
+      stdout_lines:
+        - kernel-core
+      stderr: ""
+    security_patching_running_kernel_probe_override:
+      rc: 0
+      stdout: "{{ security_patching_fixture_release }}"
+      stderr: ""
+    security_patching_default_kernel_probe_override:
+      rc: 0
+      stdout: "{{ security_patching_fixture_image }}"
+      stderr: ""
+    security_patching_running_kernel_owner_probe_override: &missing_uek_owner
+      rc: 0
+      stdout: kernel-uek-core
+      stderr: ""
+    security_patching_default_kernel_owner_probe_override: *missing_uek_owner
+    security_patching_kernel_boot_entry_probe_overrides:
+      running: &missing_entry
+        rc: 0
+        stdout: |-
+          kernel="{{ security_patching_fixture_image }}"
+          initrd="{{ security_patching_fixture_initramfs }}"
+        stderr: ""
+      default: *missing_entry
+    security_patching_scan_status: complete
+    security_patching_update_entries: []
+    security_patching_update_advisory_ids: []
+    security_patching_classification_dnf_probe_override:
+      rc: 0
+      stdout: Nothing to do.
+      stderr: ""
+  tasks:
+    - name: Create missing-initramfs scanner fixture boot directory
+      ansible.builtin.file:
+        path: "{{ security_patching_kernel_boot_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Create missing-initramfs scanner fixture kernel image
+      ansible.builtin.copy:
+        content: fixture
+        dest: "{{ security_patching_fixture_image }}"
+        mode: "0600"
+
+    - name: Ensure release-matched initramfs is absent
+      ansible.builtin.file:
+        path: "{{ security_patching_fixture_initramfs }}"
+        state: absent
+
+    - name: Collect missing-initramfs kernel posture fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: kernel_posture
+
+    - name: Classify missing-initramfs kernel posture fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_findings
+
+    - name: Assert missing release-matched initramfs cannot configure or approve
+      ansible.builtin.assert:
+        that:
+          - not (security_patching_running_kernel_is_valid_uek | bool)
+          - not (security_patching_default_kernel_is_valid_uek | bool)
+          - security_patching_next_action | trim == 'investigate'
+          - security_patching_next_action_label | trim | length == 0
+
+- name: Validate mismatched initramfs requires investigation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_kernel_boot_dir: /tmp/autographs-security-kernel-posture-mismatched-initramfs
+    security_patching_fixture_release: 6.12.0-206.104.4.4.el10uek.x86_64
+    security_patching_fixture_image: "{{ security_patching_kernel_boot_dir }}/vmlinuz-{{ security_patching_fixture_release }}"
+    security_patching_fixture_wrong_initramfs: "{{ security_patching_kernel_boot_dir }}/initramfs-6.12.0-999.el10uek.x86_64.img"
+    security_patching_installed_package_names_probe_override:
+      rc: 0
+      stdout: "kernel-core\n"
+      stdout_lines:
+        - kernel-core
+      stderr: ""
+    security_patching_running_kernel_probe_override:
+      rc: 0
+      stdout: "{{ security_patching_fixture_release }}"
+      stderr: ""
+    security_patching_default_kernel_probe_override:
+      rc: 0
+      stdout: "{{ security_patching_fixture_image }}"
+      stderr: ""
+    security_patching_running_kernel_owner_probe_override: &mismatch_uek_owner
+      rc: 0
+      stdout: kernel-uek-core
+      stderr: ""
+    security_patching_default_kernel_owner_probe_override: *mismatch_uek_owner
+    security_patching_kernel_boot_entry_probe_overrides:
+      running: &mismatch_entry
+        rc: 0
+        stdout: |-
+          kernel="{{ security_patching_fixture_image }}"
+          initrd="{{ security_patching_fixture_wrong_initramfs }}"
+        stderr: ""
+      default: *mismatch_entry
+    security_patching_scan_status: complete
+    security_patching_update_entries: []
+    security_patching_update_advisory_ids: []
+    security_patching_classification_dnf_probe_override:
+      rc: 0
+      stdout: Nothing to do.
+      stderr: ""
+  tasks:
+    - name: Create mismatched-initramfs scanner fixture boot directory
+      ansible.builtin.file:
+        path: "{{ security_patching_kernel_boot_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Create mismatched-initramfs scanner fixture files
+      ansible.builtin.copy:
+        content: fixture
+        dest: "{{ item }}"
+        mode: "0600"
+      loop:
+        - "{{ security_patching_fixture_image }}"
+        - "{{ security_patching_fixture_wrong_initramfs }}"
+
+    - name: Collect mismatched-initramfs kernel posture fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: kernel_posture
+
+    - name: Classify mismatched-initramfs kernel posture fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_findings
+
+    - name: Assert mismatched initramfs cannot configure or approve
+      ansible.builtin.assert:
+        that:
+          - not (security_patching_running_kernel_is_valid_uek | bool)
+          - not (security_patching_default_kernel_is_valid_uek | bool)
+          - security_patching_next_action | trim == 'investigate'
+          - security_patching_next_action_label | trim | length == 0
+
+- name: Validate missing exact grubby entry requires investigation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_kernel_boot_dir: /tmp/autographs-security-kernel-posture-missing-entry
+    security_patching_fixture_release: 6.12.0-206.104.4.4.el10uek.x86_64
+    security_patching_fixture_image: "{{ security_patching_kernel_boot_dir }}/vmlinuz-{{ security_patching_fixture_release }}"
+    security_patching_fixture_initramfs: "{{ security_patching_kernel_boot_dir }}/initramfs-{{ security_patching_fixture_release }}.img"
+    security_patching_installed_package_names_probe_override:
+      rc: 0
+      stdout: "kernel-core\n"
+      stdout_lines:
+        - kernel-core
+      stderr: ""
+    security_patching_running_kernel_probe_override:
+      rc: 0
+      stdout: "{{ security_patching_fixture_release }}"
+      stderr: ""
+    security_patching_default_kernel_probe_override:
+      rc: 0
+      stdout: "{{ security_patching_fixture_image }}"
+      stderr: ""
+    security_patching_running_kernel_owner_probe_override: &missing_entry_uek_owner
+      rc: 0
+      stdout: kernel-uek-core
+      stderr: ""
+    security_patching_default_kernel_owner_probe_override: *missing_entry_uek_owner
+    security_patching_kernel_boot_entry_probe_overrides:
+      running:
+        rc: 1
+        stdout: ""
+        stderr: exact entry is missing
+      default:
+        rc: 0
+        stdout: |-
+          kernel="{{ security_patching_fixture_image }}"
+          initrd="{{ security_patching_fixture_initramfs }}"
+        stderr: ""
+    security_patching_scan_status: complete
+    security_patching_update_entries: []
+    security_patching_update_advisory_ids: []
+    security_patching_classification_dnf_probe_override:
+      rc: 0
+      stdout: Nothing to do.
+      stderr: ""
+  tasks:
+    - name: Create missing-entry scanner fixture boot directory
+      ansible.builtin.file:
+        path: "{{ security_patching_kernel_boot_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Create missing-entry scanner fixture files
+      ansible.builtin.copy:
+        content: fixture
+        dest: "{{ item }}"
+        mode: "0600"
+      loop:
+        - "{{ security_patching_fixture_image }}"
+        - "{{ security_patching_fixture_initramfs }}"
+
+    - name: Collect missing-entry kernel posture fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: kernel_posture
+
+    - name: Classify missing-entry kernel posture fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_findings
+
+    - name: Assert missing exact grubby entry cannot configure or approve
+      ansible.builtin.assert:
+        that:
+          - security_patching_running_kernel_boot_entry.probe.rc | int == 1
+          - not (security_patching_running_kernel_is_valid_uek | bool)
+          - security_patching_default_kernel_is_valid_uek | bool
+          - security_patching_next_action | trim == 'investigate'
+          - security_patching_next_action_label | trim | length == 0

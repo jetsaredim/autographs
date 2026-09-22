@@ -49,6 +49,8 @@ Default kernel image: `{{ hostvars[host].security_patching_default_kernel_image 
 
 Kernel probe diagnostics (bounded): `uname -r` rc=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).rc | default('unknown') }}`, stdout=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).stdout | default('') | replace('\n', ' ') }}`, stderr=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).stderr | default('') | replace('\n', ' ') }}`; `grubby --default-kernel` rc=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).rc | default('unknown') }}`, stdout=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).stdout | default('') | replace('\n', ' ') }}`, stderr=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).stderr | default('') | replace('\n', ' ') }}`.
 
+Exact boot-entry diagnostics (bounded): running entry rc=`{{ ((hostvars[host].security_patching_running_kernel_boot_entry | default({})).probe | default({})).rc | default('unknown') }}`, default entry rc=`{{ ((hostvars[host].security_patching_default_kernel_boot_entry | default({})).probe | default({})).rc | default('unknown') }}`. Expected running initramfs: `{{ (hostvars[host].security_patching_running_kernel_boot_entry | default({})).expected_initramfs | default('unknown') }}`; expected default initramfs: `{{ (hostvars[host].security_patching_default_kernel_boot_entry | default({})).expected_initramfs | default('unknown') }}`.
+
 Installed RHCK packages: {% if rhck_packages | length > 0 %}{% for package in rhck_packages %}`{{ package }}`{% if not loop.last %}, {% endif %}{% endfor %}{% else %}none detected{% endif %}.
 
 Do not approve package updates or a reboot from this issue, and do not run deployment convergence yet. Recover the host first:
@@ -57,7 +59,8 @@ Do not approve package updates or a reboot from this issue, and do not run deplo
 2. Select a verified UEK image for the next boot with `sudo grubby --set-default /boot/vmlinuz-<UEK release>`.
 3. If the running kernel is not verified UEK, schedule and perform a reboot, then confirm `uname -r` reports `el10uek`. If the running kernel is already verified UEK and only the default is unsafe, selecting that running UEK image does not itself require a reboot.
 4. Confirm both `/boot/vmlinuz-$(uname -r)` and `sudo grubby --default-kernel` name regular files owned by installed `kernel-uek*` RPMs. If the default probe failed or returned an empty path, repair the saved/default grubby entry before continuing.
-5. Run production deployment convergence to remove managed RHCK packages, then re-run the security scanner.
+5. Query each exact image with `sudo grubby --info=/boot/vmlinuz-<UEK release>` and confirm it references `/boot/initramfs-<UEK release>.img`; every absolute initrd component must exist as a regular file.
+6. Run production deployment convergence to remove managed RHCK packages, then re-run the security scanner.
 
 {% elif rhck_packages | length > 0 %}
 ### UEK-only configuration drift on `{{ host }}`

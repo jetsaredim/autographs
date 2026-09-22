@@ -264,6 +264,22 @@
         security_patching_default_kernel_image: /boot/vmlinuz-6.12.0-211.56.1.el10_2.x86_64
         security_patching_running_kernel_is_valid_uek: true
         security_patching_default_kernel_is_valid_uek: false
+        security_patching_running_kernel_probe_facts:
+          rc: 0
+          stdout: 6.12.0-206.104.4.4.el10uek.x86_64
+          stderr: ""
+        security_patching_default_kernel_probe_facts:
+          rc: 2
+          stdout: ""
+          stderr: saved entry is missing
+        security_patching_running_kernel_boot_entry:
+          probe:
+            rc: 0
+          expected_initramfs: /boot/initramfs-6.12.0-206.104.4.4.el10uek.x86_64.img
+        security_patching_default_kernel_boot_entry:
+          probe:
+            rc: 1
+          expected_initramfs: /boot/initramfs-6.12.0-211.56.1.el10_2.x86_64.img
 
     - name: Render unsafe kernel recovery report fixture
       ansible.builtin.template:
@@ -290,3 +306,7 @@
           - "'schedule and perform a reboot' in security_patching_kernel_recovery_body"
           - "'selecting that running UEK image does not itself require a reboot' in security_patching_kernel_recovery_body"
           - "'Do not approve package updates or a reboot' in security_patching_kernel_recovery_body"
+          - "'`grubby --default-kernel` rc=`2`' in security_patching_kernel_recovery_body"
+          - "'saved entry is missing' in security_patching_kernel_recovery_body"
+          - "'repair the saved/default grubby entry' in security_patching_kernel_recovery_body"
+          - "'grubby --info=/boot/vmlinuz-<UEK release>' in security_patching_kernel_recovery_body"

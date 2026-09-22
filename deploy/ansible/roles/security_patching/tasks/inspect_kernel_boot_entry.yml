@@ -1,0 +1,130 @@
+- name: Inspect exact kernel boot entry | {{ security_patching_kernel_entry_label }}
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - "--info={{ security_patching_kernel_entry_image }}"
+  register: security_patching_kernel_entry_probe_result
+  changed_when: false
+  failed_when: false
+  when:
+    - security_patching_kernel_entry_image | length > 0
+    - security_patching_kernel_entry_probe_override is not mapping
+
+- name: Resolve effective kernel boot entry probe | {{ security_patching_kernel_entry_label }}
+  ansible.builtin.set_fact:
+    security_patching_kernel_entry_probe: >-
+      {{
+        security_patching_kernel_entry_probe_override
+        if security_patching_kernel_entry_probe_override is mapping
+        else security_patching_kernel_entry_probe_result | default({'rc': 1, 'stdout': '', 'stderr': ''})
+      }}
+
+- name: Parse exact kernel boot entry | {{ security_patching_kernel_entry_label }}
+  ansible.builtin.set_fact:
+    security_patching_kernel_entry_kernel_images: []
+    security_patching_kernel_entry_initramfs_images: []
+    security_patching_kernel_entry_kernel_lines: >-
+      {{
+        security_patching_kernel_entry_probe.stdout
+        | default('')
+        | regex_findall('(?m)^kernel=.*$')
+      }}
+    security_patching_kernel_entry_initrd_lines: >-
+      {{
+        security_patching_kernel_entry_probe.stdout
+        | default('')
+        | regex_findall('(?m)^initrd=.*$')
+      }}
+    security_patching_kernel_entry_expected_initramfs: >-
+      {{
+        security_patching_kernel_boot_dir
+        ~ '/initramfs-'
+        ~ security_patching_kernel_entry_release
+        ~ '.img'
+      }}
+
+- name: Collect exact kernel image | {{ security_patching_kernel_entry_label }}
+  ansible.builtin.set_fact:
+    security_patching_kernel_entry_kernel_images: >-
+      {{
+        security_patching_kernel_entry_kernel_images
+        + [item | regex_replace('^kernel=', '') | replace('"', '') | replace("'", '') | trim]
+      }}
+  loop: "{{ security_patching_kernel_entry_kernel_lines }}"
+
+- name: Collect concrete initramfs components | {{ security_patching_kernel_entry_label }}
+  ansible.builtin.set_fact:
+    security_patching_kernel_entry_initramfs_images: >-
+      {{
+        (
+          security_patching_kernel_entry_initramfs_images
+          + (
+            item
+            | regex_replace('^initrd=', '')
+            | replace('"', '')
+            | replace("'", '')
+            | trim
+            | split
+            | select('match', '^/')
+            | list
+          )
+        )
+        | unique
+        | list
+      }}
+  loop: "{{ security_patching_kernel_entry_initrd_lines }}"
+
+- name: Inspect concrete initramfs components | {{ security_patching_kernel_entry_label }}
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: true
+    get_checksum: false
+  loop: "{{ security_patching_kernel_entry_initramfs_images }}"
+  register: security_patching_kernel_entry_initramfs_stats
+  failed_when: false
+
+- name: Record exact kernel boot entry result | {{ security_patching_kernel_entry_label }}
+  ansible.builtin.set_fact:
+    security_patching_kernel_boot_entry_results: >-
+      {{
+        security_patching_kernel_boot_entry_results
+        | combine(
+            {
+              security_patching_kernel_entry_label: {
+                'valid': (
+                  security_patching_kernel_entry_probe.rc | default(1) | int == 0
+                  and security_patching_kernel_entry_kernel_images == [security_patching_kernel_entry_image]
+                  and security_patching_kernel_entry_initrd_lines | length > 0
+                  and security_patching_kernel_entry_expected_initramfs in security_patching_kernel_entry_initramfs_images
+                  and security_patching_kernel_entry_initramfs_images | length > 0
+                  and security_patching_kernel_entry_initramfs_stats.results | default([]) | length
+                    == security_patching_kernel_entry_initramfs_images | length
+                  and security_patching_kernel_entry_initramfs_stats.results
+                    | default([])
+                    | map(attribute='stat.exists', default=false)
+                    | select('equalto', true)
+                    | list
+                    | length == security_patching_kernel_entry_initramfs_images | length
+                  and security_patching_kernel_entry_initramfs_stats.results
+                    | default([])
+                    | map(attribute='stat.isreg', default=false)
+                    | select('equalto', true)
+                    | list
+                    | length == security_patching_kernel_entry_initramfs_images | length
+                ),
+                'expected_image': security_patching_kernel_entry_image,
+                'entry_kernel_images': security_patching_kernel_entry_kernel_images,
+                'expected_initramfs': security_patching_kernel_entry_expected_initramfs,
+                'initramfs_images': security_patching_kernel_entry_initramfs_images,
+                'probe': {
+                  'rc': security_patching_kernel_entry_probe.rc | default(1) | int,
+                  'stdout': security_patching_kernel_entry_probe.stdout | default('')
+                    | truncate(security_patching_kernel_probe_output_max_chars, true, '...'),
+                  'stderr': security_patching_kernel_entry_probe.stderr | default('')
+                    | truncate(security_patching_kernel_probe_output_max_chars, true, '...')
+                }
+              }
+            },
+            recursive=True
+          )
+      }}

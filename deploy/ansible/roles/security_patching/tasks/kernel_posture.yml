@@ -23,10 +23,7 @@
   ansible.builtin.set_fact:
     security_patching_installed_rhck_packages: >-
       {{
-        (
-          security_patching_installed_package_names.stdout_lines
-          | default(security_patching_installed_package_names.stdout | default('') | split('\n'), true)
-        )
+        (security_patching_installed_package_names.stdout_lines | default([]))
         | intersect(security_patching_rhck_packages)
         | unique
         | sort
@@ -86,23 +83,30 @@
 - name: Record running and default kernel paths
   ansible.builtin.set_fact:
     security_patching_running_kernel_release: >-
-      {% if security_patching_running_kernel_command.rc | default(1) | int == 0 %}
-      {{ security_patching_running_kernel_command.stdout | default('') | trim }}
-      {% else %}
-      {% endif %}
+      {{
+        (security_patching_running_kernel_command.stdout | default('') | trim)
+        if security_patching_running_kernel_command.rc | default(1) | int == 0
+        else ''
+      }}
     security_patching_running_kernel_image: >-
-      {% set release = security_patching_running_kernel_command.stdout | default('') | trim %}
-      {% if security_patching_running_kernel_command.rc | default(1) | int == 0 and release | length > 0 %}
-      {{ security_patching_kernel_boot_dir }}/vmlinuz-{{ release }}
-      {% else %}
-      {% endif %}
+      {{
+        security_patching_kernel_boot_dir
+        ~ '/vmlinuz-'
+        ~ (security_patching_running_kernel_command.stdout | default('') | trim)
+        if security_patching_running_kernel_command.rc | default(1) | int == 0
+        and security_patching_running_kernel_command.stdout | default('') | trim | length > 0
+        else ''
+      }}
     security_patching_default_kernel_image: >-
-      {% set image = security_patching_default_kernel_command.stdout | default('') | trim %}
-      {% if security_patching_default_kernel_command.rc | default(1) | int == 0
-         and image is match('^' ~ security_patching_kernel_boot_dir ~ '/vmlinuz-[^/]+$') %}
-      {{ image }}
-      {% else %}
-      {% endif %}
+      {{
+        (security_patching_default_kernel_command.stdout | default('') | trim)
+        if security_patching_default_kernel_command.rc | default(1) | int == 0
+        and security_patching_default_kernel_command.stdout
+          | default('')
+          | trim
+          is match('^' ~ security_patching_kernel_boot_dir ~ '/vmlinuz-[^/]+$')
+        else ''
+      }}
 
 - name: Inspect running kernel image for kernel posture
   ansible.builtin.stat:
@@ -169,6 +173,37 @@
         else security_patching_default_kernel_image_owner_result | default({'rc': 1, 'stdout': '', 'stderr': ''})
       }}
 
+- name: Initialize exact kernel boot entry results
+  ansible.builtin.set_fact:
+    security_patching_kernel_boot_entry_results: {}
+
+- name: Inspect exact running and default kernel boot entries
+  ansible.builtin.include_tasks: inspect_kernel_boot_entry.yml
+  loop:
+    - label: running
+      image: "{{ security_patching_running_kernel_image }}"
+      release: "{{ security_patching_running_kernel_release }}"
+    - label: default
+      image: "{{ security_patching_default_kernel_image }}"
+      release: >-
+        {{ security_patching_default_kernel_image | regex_replace('^.*/vmlinuz-', '') }}
+  loop_control:
+    loop_var: security_patching_kernel_entry
+    label: "{{ security_patching_kernel_entry.label }}"
+  vars:
+    security_patching_kernel_entry_label: "{{ security_patching_kernel_entry.label }}"
+    security_patching_kernel_entry_image: "{{ security_patching_kernel_entry.image | trim }}"
+    security_patching_kernel_entry_release: "{{ security_patching_kernel_entry.release | trim }}"
+    security_patching_kernel_entry_probe_override: >-
+      {{ security_patching_kernel_boot_entry_probe_overrides.get(security_patching_kernel_entry.label) }}
+
+- name: Publish exact running and default kernel boot entry facts
+  ansible.builtin.set_fact:
+    security_patching_running_kernel_boot_entry: >-
+      {{ security_patching_kernel_boot_entry_results.get('running', {'valid': false}) }}
+    security_patching_default_kernel_boot_entry: >-
+      {{ security_patching_kernel_boot_entry_results.get('default', {'valid': false}) }}
+
 - name: Record verified UEK kernel posture
   ansible.builtin.set_fact:
     security_patching_running_kernel_is_valid_uek: >-
@@ -179,6 +214,7 @@
         and (security_patching_running_kernel_image_stat.stat | default({})).isreg | default(false)
         and security_patching_running_kernel_image_owner.rc | default(1) | int == 0
         and security_patching_running_kernel_image_owner.stdout | default('') | trim is match('^kernel-uek($|-)')
+        and security_patching_running_kernel_boot_entry.valid | default(false) | bool
       }}
     security_patching_default_kernel_is_valid_uek: >-
       {{
@@ -188,4 +224,5 @@
         and (security_patching_default_kernel_image_stat.stat | default({})).isreg | default(false)
         and security_patching_default_kernel_image_owner.rc | default(1) | int == 0
         and security_patching_default_kernel_image_owner.stdout | default('') | trim is match('^kernel-uek($|-)')
+        and security_patching_default_kernel_boot_entry.valid | default(false) | bool
       }}

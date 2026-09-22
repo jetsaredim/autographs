@@ -43,6 +43,7 @@ security_patching_running_kernel_probe_override: null
 security_patching_default_kernel_probe_override: null
 security_patching_running_kernel_owner_probe_override: null
 security_patching_default_kernel_owner_probe_override: null
+security_patching_kernel_boot_entry_probe_overrides: {}
 security_patching_kernel_boot_dir: /boot
 security_patching_kernel_probe_output_max_chars: 2000
 security_patching_dnf_noop_regex: '(?i)(nothing to do|no packages marked)'
