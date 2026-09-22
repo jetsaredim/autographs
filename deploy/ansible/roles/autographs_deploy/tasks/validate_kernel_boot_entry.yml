@@ -1,0 +1,113 @@
+- name: Inspect exact UEK boot entry | {{ autographs_deploy_kernel_entry_label }}
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - "--info={{ autographs_deploy_kernel_entry_image }}"
+  register: autographs_deploy_kernel_entry_probe
+  changed_when: false
+  failed_when: false
+  when: autographs_deploy_kernel_boot_entry_probe_override | default(null) is not mapping
+
+- name: Resolve effective UEK boot entry probe | {{ autographs_deploy_kernel_entry_label }}
+  ansible.builtin.set_fact:
+    autographs_deploy_kernel_entry_probe_effective: >-
+      {{
+        autographs_deploy_kernel_boot_entry_probe_override
+        if autographs_deploy_kernel_boot_entry_probe_override | default(null) is mapping
+        else autographs_deploy_kernel_entry_probe | default({'rc': 1, 'stdout': ''})
+      }}
+
+- name: Parse exact UEK boot entry | {{ autographs_deploy_kernel_entry_label }}
+  ansible.builtin.set_fact:
+    autographs_deploy_kernel_entry_kernel_images: []
+    autographs_deploy_kernel_entry_initramfs_images: []
+    autographs_deploy_kernel_entry_kernel_lines: >-
+      {{
+        autographs_deploy_kernel_entry_probe_effective.stdout
+        | default('')
+        | regex_findall('(?m)^kernel=.*$')
+      }}
+    autographs_deploy_kernel_entry_initrd_lines: >-
+      {{
+        autographs_deploy_kernel_entry_probe_effective.stdout
+        | default('')
+        | regex_findall('(?m)^initrd=.*$')
+      }}
+    autographs_deploy_kernel_entry_expected_initramfs: >-
+      {{
+        autographs_deploy_kernel_entry_image
+        | dirname
+        ~ '/initramfs-'
+        ~ autographs_deploy_kernel_entry_release
+        ~ '.img'
+      }}
+
+- name: Collect exact UEK kernel image | {{ autographs_deploy_kernel_entry_label }}
+  ansible.builtin.set_fact:
+    autographs_deploy_kernel_entry_kernel_images: >-
+      {{
+        autographs_deploy_kernel_entry_kernel_images
+        + [item | regex_replace('^kernel=', '') | replace('"', '') | replace("'", '') | trim]
+      }}
+  loop: "{{ autographs_deploy_kernel_entry_kernel_lines }}"
+
+- name: Collect concrete UEK initramfs components | {{ autographs_deploy_kernel_entry_label }}
+  ansible.builtin.set_fact:
+    autographs_deploy_kernel_entry_initramfs_images: >-
+      {{
+        (
+          autographs_deploy_kernel_entry_initramfs_images
+          + (
+            item
+            | regex_replace('^initrd=', '')
+            | replace('"', '')
+            | replace("'", '')
+            | trim
+            | split
+            | select('match', '^/')
+            | list
+          )
+        )
+        | unique
+        | list
+      }}
+  loop: "{{ autographs_deploy_kernel_entry_initrd_lines }}"
+
+- name: Inspect concrete UEK initramfs components | {{ autographs_deploy_kernel_entry_label }}
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: true
+    get_checksum: false
+  loop: "{{ autographs_deploy_kernel_entry_initramfs_images }}"
+  register: autographs_deploy_kernel_entry_initramfs_stats
+
+- name: Require bootable exact UEK entry | {{ autographs_deploy_kernel_entry_label }}
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_kernel_entry_probe_effective.rc | default(1) | int == 0
+      - autographs_deploy_kernel_entry_kernel_images == [autographs_deploy_kernel_entry_image]
+      - autographs_deploy_kernel_entry_initrd_lines | length > 0
+      - autographs_deploy_kernel_entry_expected_initramfs in autographs_deploy_kernel_entry_initramfs_images
+      - autographs_deploy_kernel_entry_initramfs_images | length > 0
+      - >-
+        autographs_deploy_kernel_entry_initramfs_stats.results
+        | default([])
+        | length == autographs_deploy_kernel_entry_initramfs_images | length
+      - >-
+        autographs_deploy_kernel_entry_initramfs_stats.results
+        | default([])
+        | map(attribute='stat.exists', default=false)
+        | select('equalto', true)
+        | list
+        | length == autographs_deploy_kernel_entry_initramfs_images | length
+      - >-
+        autographs_deploy_kernel_entry_initramfs_stats.results
+        | default([])
+        | map(attribute='stat.isreg', default=false)
+        | select('equalto', true)
+        | list
+        | length == autographs_deploy_kernel_entry_initramfs_images | length
+    fail_msg: >-
+      Refusing RHCK package removal because the exact {{ autographs_deploy_kernel_entry_label }} UEK entry
+      {{ autographs_deploy_kernel_entry_image }} does not reference its release-matched regular initramfs
+      {{ autographs_deploy_kernel_entry_expected_initramfs }} and only regular concrete initrd components.

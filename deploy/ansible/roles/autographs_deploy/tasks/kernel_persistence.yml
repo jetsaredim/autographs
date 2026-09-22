@@ -75,6 +75,25 @@
 - name: Require installed UEK RPM ownership for bootable kernel images
   ansible.builtin.import_tasks: assert_kernel_ownership.yml
 
+- name: Validate exact running and default UEK boot entries
+  ansible.builtin.include_tasks: validate_kernel_boot_entry.yml
+  loop:
+    - label: running
+      image: "{{ autographs_deploy_running_kernel_image }}"
+      release: "{{ autographs_deploy_running_kernel_release.stdout | trim }}"
+    - label: default
+      image: "{{ autographs_deploy_default_kernel_image }}"
+      release: "{{ autographs_deploy_default_kernel_image | basename | regex_replace('^vmlinuz-', '') }}"
+  loop_control:
+    loop_var: autographs_deploy_kernel_entry
+  vars:
+    autographs_deploy_kernel_entry_label: "{{ autographs_deploy_kernel_entry.label }}"
+    autographs_deploy_kernel_entry_image: "{{ autographs_deploy_kernel_entry.image }}"
+    autographs_deploy_kernel_entry_release: "{{ autographs_deploy_kernel_entry.release }}"
+
+- name: Revalidate complete UEK boot state immediately before RHCK removal
+  ansible.builtin.import_tasks: revalidate_uek_boot_state.yml
+
 - name: Remove managed RHCK kernel packages from UEK runtime
   ansible.builtin.dnf:
     name: "{{ autographs_deploy_rhck_packages }}"

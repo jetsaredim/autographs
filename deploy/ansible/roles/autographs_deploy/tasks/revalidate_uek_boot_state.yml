@@ -1,0 +1,93 @@
+- name: Reinspect running kernel release before RHCK removal
+  ansible.builtin.command:
+    argv:
+      - uname
+      - -r
+  register: autographs_deploy_running_kernel_release_recheck
+  changed_when: false
+
+- name: Reinspect default boot kernel before RHCK removal
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - --default-kernel
+  register: autographs_deploy_default_kernel_recheck
+  changed_when: false
+
+- name: Require stable running and default UEK selections before RHCK removal
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_running_kernel_release_recheck.stdout | trim is search('el10uek')
+      - autographs_deploy_default_kernel_recheck.stdout | trim is search('el10uek')
+      - >-
+        autographs_deploy_running_kernel_release_recheck.stdout | trim
+        == autographs_deploy_running_kernel_release.stdout | trim
+      - >-
+        autographs_deploy_default_kernel_recheck.stdout | trim
+        == autographs_deploy_default_kernel.stdout | trim
+    fail_msg: >-
+      Refusing RHCK package removal because the running or default kernel changed during deployment validation.
+      Initial running={{ autographs_deploy_running_kernel_release.stdout | trim }},
+      current running={{ autographs_deploy_running_kernel_release_recheck.stdout | trim }},
+      initial default={{ autographs_deploy_default_kernel.stdout | trim }},
+      current default={{ autographs_deploy_default_kernel_recheck.stdout | trim }}.
+
+- name: Reinspect running UEK kernel image before RHCK removal
+  ansible.builtin.stat:
+    path: "{{ autographs_deploy_running_kernel_image }}"
+    follow: true
+    get_checksum: false
+  register: autographs_deploy_running_kernel_image_stat
+
+- name: Reinspect default UEK kernel image before RHCK removal
+  ansible.builtin.stat:
+    path: "{{ autographs_deploy_default_kernel_image }}"
+    follow: true
+    get_checksum: false
+  register: autographs_deploy_default_kernel_image_stat
+
+- name: Revalidate bootable running and default UEK kernel images
+  ansible.builtin.import_tasks: assert_kernel_images.yml
+
+- name: Reinspect running UEK kernel image RPM owner before RHCK removal
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qf
+      - --qf
+      - "%{NAME}\n"
+      - "{{ autographs_deploy_running_kernel_image }}"
+  register: autographs_deploy_running_kernel_image_owner
+  changed_when: false
+  failed_when: false
+
+- name: Reinspect default UEK kernel image RPM owner before RHCK removal
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qf
+      - --qf
+      - "%{NAME}\n"
+      - "{{ autographs_deploy_default_kernel_image }}"
+  register: autographs_deploy_default_kernel_image_owner
+  changed_when: false
+  failed_when: false
+
+- name: Revalidate installed UEK RPM ownership before RHCK removal
+  ansible.builtin.import_tasks: assert_kernel_ownership.yml
+
+- name: Revalidate exact running and default UEK boot entries before RHCK removal
+  ansible.builtin.include_tasks: validate_kernel_boot_entry.yml
+  loop:
+    - label: running
+      image: "{{ autographs_deploy_running_kernel_image }}"
+      release: "{{ autographs_deploy_running_kernel_release.stdout | trim }}"
+    - label: default
+      image: "{{ autographs_deploy_default_kernel_image }}"
+      release: "{{ autographs_deploy_default_kernel_image | basename | regex_replace('^vmlinuz-', '') }}"
+  loop_control:
+    loop_var: autographs_deploy_kernel_entry
+  vars:
+    autographs_deploy_kernel_entry_label: "{{ autographs_deploy_kernel_entry.label }}"
+    autographs_deploy_kernel_entry_image: "{{ autographs_deploy_kernel_entry.image }}"
+    autographs_deploy_kernel_entry_release: "{{ autographs_deploy_kernel_entry.release }}"
