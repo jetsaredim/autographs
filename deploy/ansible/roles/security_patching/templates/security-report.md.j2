@@ -38,16 +38,17 @@ OpenSCAP evaluation: `{{ security_patching_enrichment_status | default('unknown'
 
 {% for host in security_patching_hosts_with_findings %}
 {% set rhck_packages = hostvars[host].security_patching_installed_rhck_packages | default([]) %}
+{% set kernel_inventory_complete = hostvars[host].security_patching_kernel_inventory_is_complete | default(false) | bool %}
 {% set running_uek_valid = hostvars[host].security_patching_running_kernel_is_valid_uek | default(false) | bool %}
 {% set default_uek_valid = hostvars[host].security_patching_default_kernel_is_valid_uek | default(false) | bool %}
-{% if not running_uek_valid or not default_uek_valid %}
+{% if not kernel_inventory_complete or not running_uek_valid or not default_uek_valid %}
 ### Kernel recovery required on `{{ host }}`
 
 Running kernel: `{{ hostvars[host].security_patching_running_kernel_release | default('unknown') }}` (verified bootable UEK: `{{ running_uek_valid }}`).
 
 Default kernel image: `{{ hostvars[host].security_patching_default_kernel_image | default('unknown') }}` (verified bootable UEK: `{{ default_uek_valid }}`).
 
-Kernel probe diagnostics (bounded): `uname -r` rc=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).rc | default('unknown') }}`, stdout=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).stdout | default('') | replace('\n', ' ') }}`, stderr=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).stderr | default('') | replace('\n', ' ') }}`; `grubby --default-kernel` rc=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).rc | default('unknown') }}`, stdout=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).stdout | default('') | replace('\n', ' ') }}`, stderr=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).stderr | default('') | replace('\n', ' ') }}`.
+Kernel probe diagnostics (bounded): `rpm -qa` rc=`{{ (hostvars[host].security_patching_kernel_inventory_probe_facts | default({})).rc | default('unknown') }}`, stderr=`{{ (hostvars[host].security_patching_kernel_inventory_probe_facts | default({})).stderr | default('') | replace('\n', ' ') }}`; `uname -r` rc=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).rc | default('unknown') }}`, stdout=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).stdout | default('') | replace('\n', ' ') }}`, stderr=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).stderr | default('') | replace('\n', ' ') }}`; `grubby --default-kernel` rc=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).rc | default('unknown') }}`, stdout=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).stdout | default('') | replace('\n', ' ') }}`, stderr=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).stderr | default('') | replace('\n', ' ') }}`.
 
 Exact boot-entry diagnostics (bounded): running entry rc=`{{ ((hostvars[host].security_patching_running_kernel_boot_entry | default({})).probe | default({})).rc | default('unknown') }}`, default entry rc=`{{ ((hostvars[host].security_patching_default_kernel_boot_entry | default({})).probe | default({})).rc | default('unknown') }}`. Expected running initramfs: `{{ (hostvars[host].security_patching_running_kernel_boot_entry | default({})).expected_initramfs | default('unknown') }}`; expected default initramfs: `{{ (hostvars[host].security_patching_default_kernel_boot_entry | default({})).expected_initramfs | default('unknown') }}`.
 

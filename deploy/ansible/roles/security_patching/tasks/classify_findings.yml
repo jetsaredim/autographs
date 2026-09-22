@@ -87,7 +87,8 @@
     security_patching_next_action: >-
       {% if security_patching_scan_status | default('missing') != 'complete' %}
       investigate
-      {% elif not (security_patching_running_kernel_is_valid_uek | default(false) | bool)
+      {% elif not (security_patching_kernel_inventory_is_complete | default(false) | bool)
+         or not (security_patching_running_kernel_is_valid_uek | default(false) | bool)
          or not (security_patching_default_kernel_is_valid_uek | default(false) | bool) %}
       investigate
       {% elif security_patching_classification_rhck_packages | length > 0 %}
@@ -108,13 +109,15 @@
     security_patching_next_action_reason: >-
       {% if security_patching_scan_status | default('missing') != 'complete' %}
       The OpenSCAP scan was not complete.
-      {% elif not (security_patching_running_kernel_is_valid_uek | default(false) | bool)
+      {% elif not (security_patching_kernel_inventory_is_complete | default(false) | bool)
+         or not (security_patching_running_kernel_is_valid_uek | default(false) | bool)
          or not (security_patching_default_kernel_is_valid_uek | default(false) | bool) %}
       Kernel recovery is required before deployment convergence. Running kernel={{ security_patching_running_kernel_release | default('unknown') }}
       (verified UEK={{ security_patching_running_kernel_is_valid_uek | default(false) | bool }}),
       default kernel={{ security_patching_default_kernel_image | default('unknown') }}
       (verified UEK={{ security_patching_default_kernel_is_valid_uek | default(false) | bool }}).
-      Diagnostic probes: uname rc={{ (security_patching_running_kernel_probe_facts | default({})).rc | default('unknown') }},
+      Diagnostic probes: rpm inventory rc={{ (security_patching_kernel_inventory_probe_facts | default({})).rc | default('unknown') }},
+      uname rc={{ (security_patching_running_kernel_probe_facts | default({})).rc | default('unknown') }},
       grubby --default-kernel rc={{ (security_patching_default_kernel_probe_facts | default({})).rc | default('unknown') }}.
       Install a supported UEK package set if necessary, select a verified UEK image with grubby,
       and schedule a reboot when the running kernel is not UEK. Verify both states before running

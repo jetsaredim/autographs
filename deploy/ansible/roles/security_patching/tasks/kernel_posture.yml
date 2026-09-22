@@ -29,6 +29,12 @@
         | sort
         | list
       }}
+    security_patching_kernel_inventory_probe_facts:
+      rc: "{{ security_patching_installed_package_names.rc | default(1) | int }}"
+      stdout: >-
+        {{ security_patching_installed_package_names.stdout | default('') | truncate(security_patching_kernel_probe_output_max_chars, true, '...') }}
+      stderr: >-
+        {{ security_patching_installed_package_names.stderr | default('') | truncate(security_patching_kernel_probe_output_max_chars, true, '...') }}
 
 - name: Inspect running kernel release for kernel posture
   ansible.builtin.command:
@@ -173,6 +179,21 @@
         else security_patching_default_kernel_image_owner_result | default({'rc': 1, 'stdout': '', 'stderr': ''})
       }}
 
+- name: Record bounded kernel image owner diagnostics
+  ansible.builtin.set_fact:
+    security_patching_running_kernel_owner_probe_facts:
+      rc: "{{ security_patching_running_kernel_image_owner.rc | default(1) | int }}"
+      stdout: >-
+        {{ security_patching_running_kernel_image_owner.stdout | default('') | truncate(security_patching_kernel_probe_output_max_chars, true, '...') }}
+      stderr: >-
+        {{ security_patching_running_kernel_image_owner.stderr | default('') | truncate(security_patching_kernel_probe_output_max_chars, true, '...') }}
+    security_patching_default_kernel_owner_probe_facts:
+      rc: "{{ security_patching_default_kernel_image_owner.rc | default(1) | int }}"
+      stdout: >-
+        {{ security_patching_default_kernel_image_owner.stdout | default('') | truncate(security_patching_kernel_probe_output_max_chars, true, '...') }}
+      stderr: >-
+        {{ security_patching_default_kernel_image_owner.stderr | default('') | truncate(security_patching_kernel_probe_output_max_chars, true, '...') }}
+
 - name: Initialize exact kernel boot entry results
   ansible.builtin.set_fact:
     security_patching_kernel_boot_entry_results: {}
@@ -206,14 +227,16 @@
 
 - name: Record verified UEK kernel posture
   ansible.builtin.set_fact:
+    security_patching_kernel_inventory_is_complete: >-
+      {{ security_patching_kernel_inventory_probe_facts.rc | int == 0 }}
     security_patching_running_kernel_is_valid_uek: >-
       {{
         security_patching_running_kernel_command.rc | default(1) | int == 0
         and security_patching_running_kernel_release is search('el10uek')
         and (security_patching_running_kernel_image_stat.stat | default({})).exists | default(false)
         and (security_patching_running_kernel_image_stat.stat | default({})).isreg | default(false)
-        and security_patching_running_kernel_image_owner.rc | default(1) | int == 0
-        and security_patching_running_kernel_image_owner.stdout | default('') | trim is match('^kernel-uek($|-)')
+        and security_patching_running_kernel_owner_probe_facts.rc | int == 0
+        and security_patching_running_kernel_owner_probe_facts.stdout | trim is match('^kernel-uek($|-)')
         and security_patching_running_kernel_boot_entry.valid | default(false) | bool
       }}
     security_patching_default_kernel_is_valid_uek: >-
@@ -222,7 +245,7 @@
         and security_patching_default_kernel_image is search('el10uek')
         and (security_patching_default_kernel_image_stat.stat | default({})).exists | default(false)
         and (security_patching_default_kernel_image_stat.stat | default({})).isreg | default(false)
-        and security_patching_default_kernel_image_owner.rc | default(1) | int == 0
-        and security_patching_default_kernel_image_owner.stdout | default('') | trim is match('^kernel-uek($|-)')
+        and security_patching_default_kernel_owner_probe_facts.rc | int == 0
+        and security_patching_default_kernel_owner_probe_facts.stdout | trim is match('^kernel-uek($|-)')
         and security_patching_default_kernel_boot_entry.valid | default(false) | bool
       }}
