@@ -1,0 +1,277 @@
+- name: Requery newest installed UEK core package before boot mutation # noqa: command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - -q
+      - repoquery
+      - --installed
+      - --latest-limit=1
+      - "--qf=%{name}|%{epoch}|%{version}|%{release}|%{arch}"
+      - kernel-uek-core
+  register: security_patching_reboot_premutation_candidate_probe
+  changed_when: false
+  failed_when: false
+  when: security_patching_reboot_premutation_candidate_probe_override is not mapping
+
+- name: Resolve effective pre-mutation UEK package probe
+  ansible.builtin.set_fact:
+    security_patching_reboot_premutation_candidate_probe_effective: >-
+      {{
+        security_patching_reboot_premutation_candidate_probe_override
+        if security_patching_reboot_premutation_candidate_probe_override is mapping
+        else security_patching_reboot_premutation_candidate_probe
+        | default({'rc': 1, 'stdout': ''})
+      }}
+
+- name: Parse pre-mutation newest installed UEK package record
+  ansible.builtin.set_fact:
+    security_patching_reboot_premutation_candidate_records: >-
+      {{
+        security_patching_reboot_premutation_candidate_probe_effective.stdout
+        | default('')
+        | split('\n')
+        | select('match', '^kernel-uek-core\|[^|]*\|[^|]+\|[^|]+\|[^|]+$')
+        | list
+      }}
+
+- name: Parse pre-mutation newest installed UEK package fields
+  ansible.builtin.set_fact:
+    security_patching_reboot_premutation_candidate_fields: >-
+      {{
+        security_patching_reboot_premutation_candidate_records[0].split('|')
+        if security_patching_reboot_premutation_candidate_records | length == 1
+        else []
+      }}
+
+- name: Record pre-mutation newest installed UEK target
+  ansible.builtin.set_fact:
+    security_patching_reboot_premutation_kernel_evr: >-
+      {{
+        security_patching_reboot_premutation_candidate_fields[1]
+        ~ ':' ~ security_patching_reboot_premutation_candidate_fields[2]
+        ~ '-' ~ security_patching_reboot_premutation_candidate_fields[3]
+        if security_patching_reboot_premutation_candidate_fields | length == 5
+        else ''
+      }}
+    security_patching_reboot_premutation_kernel_release: >-
+      {{
+        security_patching_reboot_premutation_candidate_fields[2]
+        ~ '-' ~ security_patching_reboot_premutation_candidate_fields[3]
+        ~ '.' ~ security_patching_reboot_premutation_candidate_fields[4]
+        if security_patching_reboot_premutation_candidate_fields | length == 5
+        else ''
+      }}
+    security_patching_reboot_premutation_kernel_image: >-
+      {{
+        security_patching_reboot_kernel_boot_dir
+        ~ '/vmlinuz-'
+        ~ security_patching_reboot_premutation_candidate_fields[2]
+        ~ '-' ~ security_patching_reboot_premutation_candidate_fields[3]
+        ~ '.' ~ security_patching_reboot_premutation_candidate_fields[4]
+        if security_patching_reboot_premutation_candidate_fields | length == 5
+        else ''
+      }}
+
+- name: Reinspect selected UEK kernel image before boot mutation
+  ansible.builtin.stat:
+    path: "{{ security_patching_reboot_target_kernel_image }}"
+    follow: true
+    get_checksum: false
+  register: security_patching_reboot_premutation_kernel_image_stat
+
+- name: Reinspect selected UEK kernel image RPM owner before boot mutation
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qf
+      - --qf
+      - "%{NAME}\n"
+      - "{{ security_patching_reboot_target_kernel_image }}"
+  register: security_patching_reboot_premutation_kernel_owner_probe
+  changed_when: false
+  failed_when: false
+  when:
+    - security_patching_reboot_premutation_kernel_image_stat.stat.exists | default(false)
+    - security_patching_reboot_premutation_kernel_image_stat.stat.isreg | default(false)
+    - security_patching_reboot_premutation_owner_probe_override is not mapping
+
+- name: Resolve effective pre-mutation UEK owner probe
+  ansible.builtin.set_fact:
+    security_patching_reboot_premutation_owner_probe_effective: >-
+      {{
+        security_patching_reboot_premutation_owner_probe_override
+        if security_patching_reboot_premutation_owner_probe_override is mapping
+        else security_patching_reboot_premutation_kernel_owner_probe
+        | default({'rc': 1, 'stdout': ''})
+      }}
+
+- name: Reinspect exact selected UEK boot entry before boot mutation
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - "--info={{ security_patching_reboot_target_kernel_image }}"
+  register: security_patching_reboot_premutation_boot_entry_probe
+  changed_when: false
+  failed_when: false
+  when:
+    - security_patching_reboot_premutation_kernel_image_stat.stat.exists | default(false)
+    - security_patching_reboot_premutation_kernel_image_stat.stat.isreg | default(false)
+    - security_patching_reboot_premutation_boot_entry_probe_override is not mapping
+
+- name: Resolve effective pre-mutation UEK boot entry probe
+  ansible.builtin.set_fact:
+    security_patching_reboot_premutation_boot_entry_probe_effective: >-
+      {{
+        security_patching_reboot_premutation_boot_entry_probe_override
+        if security_patching_reboot_premutation_boot_entry_probe_override is mapping
+        else security_patching_reboot_premutation_boot_entry_probe
+        | default({'rc': 1, 'stdout': ''})
+      }}
+
+- name: Parse pre-mutation selected UEK boot entry fields
+  ansible.builtin.set_fact:
+    security_patching_reboot_premutation_entry_kernel_lines: >-
+      {{
+        security_patching_reboot_premutation_boot_entry_probe_effective.stdout
+        | default('')
+        | regex_findall('(?m)^kernel=.*$')
+      }}
+    security_patching_reboot_premutation_entry_initrd_lines: >-
+      {{
+        security_patching_reboot_premutation_boot_entry_probe_effective.stdout
+        | default('')
+        | regex_findall('(?m)^initrd=.*$')
+      }}
+    security_patching_reboot_premutation_entry_kernel_images: []
+    security_patching_reboot_premutation_initramfs_images: []
+
+- name: Collect pre-mutation selected UEK boot entry kernel images
+  ansible.builtin.set_fact:
+    security_patching_reboot_premutation_entry_kernel_images: >-
+      {{
+        security_patching_reboot_premutation_entry_kernel_images
+        + [item | regex_replace('^kernel=', '') | replace('"', '') | replace("'", '') | trim]
+      }}
+  loop: "{{ security_patching_reboot_premutation_entry_kernel_lines }}"
+
+- name: Collect pre-mutation concrete selected UEK initramfs components
+  ansible.builtin.set_fact:
+    security_patching_reboot_premutation_initramfs_images: >-
+      {{
+        (
+          security_patching_reboot_premutation_initramfs_images
+          + (
+            item
+            | regex_replace('^initrd=', '')
+            | replace('"', '')
+            | replace("'", '')
+            | trim
+            | split
+            | select('match', '^/')
+            | list
+          )
+        )
+        | unique
+        | list
+      }}
+  loop: "{{ security_patching_reboot_premutation_entry_initrd_lines }}"
+
+- name: Reinspect current selected UEK initramfs components before boot mutation
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: true
+    get_checksum: false
+  loop: "{{ security_patching_reboot_premutation_initramfs_images }}"
+  register: security_patching_reboot_premutation_initramfs_stats
+
+- name: Evaluate complete selected UEK proof immediately before boot mutation
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_revalidated: >-
+      {{
+        security_patching_reboot_target_kernel_valid | default(false) | bool
+        and security_patching_reboot_target_initramfs_valid | default(false) | bool
+        and security_patching_reboot_premutation_candidate_probe_effective.rc | default(1) | int == 0
+        and security_patching_reboot_premutation_candidate_records | length == 1
+        and security_patching_reboot_premutation_kernel_evr
+          == security_patching_reboot_target_kernel_evr
+        and security_patching_reboot_premutation_kernel_release
+          == security_patching_reboot_target_kernel_release
+        and security_patching_reboot_premutation_kernel_image
+          == security_patching_reboot_target_kernel_image
+        and security_patching_reboot_premutation_kernel_image_stat.stat.exists | default(false)
+        and security_patching_reboot_premutation_kernel_image_stat.stat.isreg | default(false)
+        and security_patching_reboot_premutation_owner_probe_effective.rc | default(1) | int == 0
+        and security_patching_reboot_premutation_owner_probe_effective.stdout
+          | default('')
+          | trim
+          == 'kernel-uek-core'
+        and security_patching_reboot_premutation_boot_entry_probe_effective.rc | default(1) | int == 0
+        and security_patching_reboot_premutation_entry_kernel_images
+          == [security_patching_reboot_target_kernel_image]
+        and security_patching_reboot_premutation_entry_kernel_images
+          == security_patching_reboot_target_entry_kernel_images
+        and security_patching_reboot_premutation_entry_initrd_lines | length > 0
+        and security_patching_reboot_premutation_initramfs_images
+          == security_patching_reboot_target_initramfs_images
+        and security_patching_reboot_target_initramfs_image
+          in security_patching_reboot_premutation_initramfs_images
+        and security_patching_reboot_premutation_initramfs_images | length > 0
+        and security_patching_reboot_premutation_initramfs_stats.results
+          | default([])
+          | length == security_patching_reboot_premutation_initramfs_images | length
+        and security_patching_reboot_premutation_initramfs_stats.results
+          | default([])
+          | map(attribute='stat.exists', default=false)
+          | select('equalto', true)
+          | list
+          | length == security_patching_reboot_premutation_initramfs_images | length
+        and security_patching_reboot_premutation_initramfs_stats.results
+          | default([])
+          | map(attribute='stat.isreg', default=false)
+          | select('equalto', true)
+          | list
+          | length == security_patching_reboot_premutation_initramfs_images | length
+      }}
+
+- name: Write complete pre-mutation UEK revalidation failure context
+  ansible.builtin.copy:
+    dest: "{{ security_patching_failure_context_path }}"
+    mode: "0600"
+    content: |
+      Validation failed before boot mutation: the selected newest UEK package, image, owner, or exact boot entry changed after preflight.
+
+      - Host: `{{ inventory_hostname }}`
+      - Expected EVR: `{{ security_patching_reboot_target_kernel_evr | default('unknown', true) }}`
+      - Current newest EVR: `{{ security_patching_reboot_premutation_kernel_evr | default('unknown', true) }}`
+      - Expected kernel image: `{{ security_patching_reboot_target_kernel_image | default('unknown', true) }}`
+      - Current newest kernel image: `{{ security_patching_reboot_premutation_kernel_image | default('unknown', true) }}`
+      - Current image exists: `{{ security_patching_reboot_premutation_kernel_image_stat.stat.exists | default(false) }}`
+      - Current image regular: `{{ security_patching_reboot_premutation_kernel_image_stat.stat.isreg | default(false) }}`
+      - Current image RPM owner: `{{ security_patching_reboot_premutation_owner_probe_effective.stdout | default('') | trim }}`
+      - Current exact-entry kernel images: `{{ security_patching_reboot_premutation_entry_kernel_images | default([]) | join(', ') }}`
+      - Expected initramfs: `{{ security_patching_reboot_target_initramfs_image | default('unknown', true) }}`
+      - Preflight initramfs components: `{{ security_patching_reboot_target_initramfs_images | default([]) | join(', ') }}`
+      - Current initramfs components: `{{ security_patching_reboot_premutation_initramfs_images | default([]) | join(', ') }}`
+
+      Current initramfs component evidence:
+      {% for result in security_patching_reboot_premutation_initramfs_stats.results | default([]) %}
+      - `{{ result.item }}`: exists={{ result.stat.exists | default(false) }}, regular={{ result.stat.isreg | default(false) }}
+      {% else %}
+      - None
+      {% endfor %}
+
+      No default-kernel selection, reboot, or installonly cleanup was attempted. Restore a complete newest
+      `kernel-uek-core` boot entry, re-run the scanner, and approve reboot cleanup again.
+  delegate_to: localhost
+  become: false
+  when:
+    - not (security_patching_reboot_target_revalidated | bool)
+    - security_patching_failure_context_path | trim | length > 0
+
+- name: Require unchanged complete newest UEK target before boot mutation
+  ansible.builtin.assert:
+    that:
+      - security_patching_reboot_target_revalidated | bool
+    fail_msg: >-
+      Refusing reboot mutation on {{ inventory_hostname }} because the newest installed UEK package or its
+      exact kernel/initramfs boot entry changed after preflight. No default selection, reboot, or cleanup was attempted.

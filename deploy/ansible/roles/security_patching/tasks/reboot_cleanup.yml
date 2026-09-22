@@ -1,61 +1,5 @@
-- name: Reinspect selected UEK initramfs components before boot mutation
-  ansible.builtin.stat:
-    path: "{{ item }}"
-    follow: true
-    get_checksum: false
-  loop: "{{ security_patching_reboot_target_initramfs_images | default([]) }}"
-  register: security_patching_reboot_target_initramfs_recheck_stats
-
-- name: Evaluate selected UEK initramfs proof immediately before boot mutation
-  ansible.builtin.set_fact:
-    security_patching_reboot_target_initramfs_revalidated: >-
-      {{
-        security_patching_reboot_target_initramfs_valid | default(false) | bool
-        and security_patching_reboot_target_initramfs_image | default('')
-          in security_patching_reboot_target_initramfs_images | default([])
-        and security_patching_reboot_target_initramfs_recheck_stats.results
-          | default([])
-          | length == security_patching_reboot_target_initramfs_images | default([]) | length
-        and security_patching_reboot_target_initramfs_recheck_stats.results
-          | default([])
-          | map(attribute='stat.exists', default=false)
-          | select('equalto', true)
-          | list
-          | length == security_patching_reboot_target_initramfs_images | default([]) | length
-        and security_patching_reboot_target_initramfs_recheck_stats.results
-          | default([])
-          | map(attribute='stat.isreg', default=false)
-          | select('equalto', true)
-          | list
-          | length == security_patching_reboot_target_initramfs_images | default([]) | length
-      }}
-
-- name: Write pre-mutation initramfs revalidation failure context
-  ansible.builtin.copy:
-    dest: "{{ security_patching_failure_context_path }}"
-    mode: "0600"
-    content: |
-      Validation failed before boot mutation: the selected newest UEK initramfs proof changed after preflight.
-
-      - Host: `{{ inventory_hostname }}`
-      - Expected kernel image: `{{ security_patching_reboot_target_kernel_image | default('unknown', true) }}`
-      - Expected initramfs: `{{ security_patching_reboot_target_initramfs_image | default('unknown', true) }}`
-      - Concrete initramfs components: `{{ security_patching_reboot_target_initramfs_images | default([]) | join(', ') }}`
-
-      Initramfs component evidence:
-      {% for result in security_patching_reboot_target_initramfs_recheck_stats.results | default([]) %}
-      - `{{ result.item }}`: exists={{ result.stat.exists | default(false) }}, regular={{ result.stat.isreg | default(false) }}
-      {% else %}
-      - None
-      {% endfor %}
-
-      No default-kernel selection, reboot, or installonly cleanup was attempted. Restore the complete initramfs
-      set for the selected UEK, then re-run the scanner before approving reboot cleanup again.
-  delegate_to: localhost
-  become: false
-  when:
-    - not (security_patching_reboot_target_initramfs_revalidated | bool)
-    - security_patching_failure_context_path | trim | length > 0
+- name: Revalidate complete selected UEK target immediately before boot mutation
+  ansible.builtin.import_tasks: revalidate_reboot_kernel.yml
 
 - name: Require verified newest UEK target before reboot mutation
   ansible.builtin.assert:
@@ -64,7 +8,7 @@
       - security_patching_reboot_target_kernel_image | default('') | length > 0
       - security_patching_reboot_target_kernel_release | default('') is search('el10uek')
       - security_patching_reboot_target_initramfs_valid | default(false) | bool
-      - security_patching_reboot_target_initramfs_revalidated | default(false) | bool
+      - security_patching_reboot_target_revalidated | default(false) | bool
       - security_patching_reboot_target_initramfs_image | default('') | length > 0
     fail_msg: >-
       Refusing reboot mutation on {{ inventory_hostname }} because preflight did not establish the newest

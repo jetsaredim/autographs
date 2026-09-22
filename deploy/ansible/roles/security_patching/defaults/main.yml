@@ -50,6 +50,9 @@ security_patching_reboot_kernel_boot_dir: /boot
 security_patching_reboot_kernel_candidate_probe_override: null
 security_patching_reboot_kernel_owner_probe_override: null
 security_patching_reboot_kernel_boot_entry_probe_override: null
+security_patching_reboot_premutation_candidate_probe_override: null
+security_patching_reboot_premutation_owner_probe_override: null
+security_patching_reboot_premutation_boot_entry_probe_override: null
 security_patching_rhck_packages:
   - kernel
   - kernel-abi-stablelists
