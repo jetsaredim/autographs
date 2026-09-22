@@ -1,8 +1,8 @@
 ---
 phase: quick-260920-gz7-enforce-a-uek-only-production-kernel-pos
-reviewed: 2026-09-22T01:36:42Z
+reviewed: 2026-09-22T11:24:46Z
 depth: deep
-files_reviewed: 40
+files_reviewed: 43
 files_reviewed_list:
   - .github/workflows/ci.yml
   - controller/tests/runtime_kernel_persistence.rs
@@ -24,6 +24,8 @@ files_reviewed_list:
   - deploy/ansible/roles/autographs_deploy/tasks/derive_dnf_exclusions.yml
   - deploy/ansible/roles/autographs_deploy/tasks/kernel_persistence.yml
   - deploy/ansible/roles/autographs_deploy/tasks/main.yml
+  - deploy/ansible/roles/autographs_deploy/tasks/revalidate_uek_boot_state.yml
+  - deploy/ansible/roles/autographs_deploy/tasks/validate_kernel_boot_entry.yml
   - deploy/ansible/roles/security_patching/defaults/main.yml
   - deploy/ansible/roles/security_patching/tasks/classify_findings.yml
   - deploy/ansible/roles/security_patching/tasks/classify_reboot_request.yml
@@ -34,6 +36,7 @@ files_reviewed_list:
   - deploy/ansible/roles/security_patching/tasks/post_result.yml
   - deploy/ansible/roles/security_patching/tasks/reboot_cleanup.yml
   - deploy/ansible/roles/security_patching/tasks/resolve_reboot_kernel.yml
+  - deploy/ansible/roles/security_patching/tasks/revalidate_reboot_kernel.yml
   - deploy/ansible/roles/security_patching/tasks/scan.yml
   - deploy/ansible/roles/security_patching/tasks/validate_post_reboot_kernel.yml
   - deploy/ansible/roles/security_patching/tasks/validate_reboot_state.yml
@@ -45,58 +48,50 @@ files_reviewed_list:
   - docs/security-patching.md
   - scripts/test_security_patching_create_issue_tasks.py
 findings:
-  critical: 2
+  critical: 1
   warning: 1
   info: 0
-  total: 3
+  total: 2
 status: issues_found
 ---
 
 # Quick Task 260920-gz7: Code Review Report
 
-**Reviewed:** 2026-09-22T01:36:42Z
+**Reviewed:** 2026-09-22T11:24:46Z
 **Depth:** deep
-**Files Reviewed:** 40
+**Files Reviewed:** 43
 **Status:** issues_found
 
 ## Summary
 
-The deep review covered the complete PR diff at `fb7d37f`, rechecked every prior review finding, traced the update/reboot reconciliation paths, and focused on the `e6df9ea` initramfs fix. The resolver now correctly parses exact quoted `kernel=` and `initrd=` fields, handles multiple concrete initrd components, requires the release-matched initramfs and every concrete component to be regular files, selects the RPM-ordered newest installed `kernel-uek-core`, preserves the target through reboot, and requires post-reboot running/default equality before cleanup. Multi-host drift, mixed clean/actionable approval scope, RHCK inventory, DNF exclusion preservation, issue refresh, action precedence, and CI wiring remain correct. Focused Ansible, Python, Rust, and all GitHub CI checks pass.
+The deep review covered the complete PR diff at `a98da2c` and rechecked the three findings fixed by `b5e4d3b`, `dc011fc`, and `50724c8`. Those fixes are present and correct: deployment now repeats exact running/default image, RPM-owner, grubby-entry, release-matched initramfs, and multi-component initrd proof immediately before RHCK removal; reboot cleanup repeats the RPM-newest target, exact owner/entry/component proof immediately before default mutation; and the RHCK fallback fixture now isolates the unsafe post-reboot kernel predicate. DNF exclusion preservation, RHCK package policy, approval drift reconciliation, multi-host action precedence, issue refresh/closure, and CI wiring also remain intact. All GitHub CI checks at this head are green.
 
-The PR is not clean. The deployment path still removes RHCK packages without proving the running/default UEK boot entries have usable initramfs files. In the reboot path, the new immediate revalidation stats only the paths remembered from preflight; it does not re-read the selected grubby entry, kernel image, or RPM owner, so a changed boot entry can pass the check and be rebooted. The fallback-boot fixture also no longer isolates its intended post-reboot guard after the new initramfs predicates were added.
+The PR is not clean. The scanner's definition of a "verified bootable UEK" is now weaker than the deployment gate: it checks only the kernel image and RPM owner, so a missing or mismatched initramfs is advertised as safe `configure` drift even though deployment must reject it. Separately, a failed `grubby --default-kernel` probe aborts the scan before the issue can be refreshed with the intended recovery state.
 
 ## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: Deployment removes RHCK before proving a bootable UEK initramfs exists
+### CR-01: Scanner can route an unbootable UEK entry into a non-convergent configure loop
 
-**File:** `deploy/ansible/roles/autographs_deploy/tasks/kernel_persistence.yml:23-83`
+**File:** `deploy/ansible/roles/security_patching/tasks/scan.yml:187-204`
 
-**Issue:** The destructive RHCK removal gate proves only that the running/default paths contain `el10uek`, that both `vmlinuz` paths are regular files, and that RPM reports a `kernel-uek*` owner. It never inspects either exact `grubby` entry or its initramfs. A stale default UEK entry can therefore retain a valid package-owned kernel image while `/boot/initramfs-<release>.img` is missing. The following DNF transaction removes the ordinary RHCK packages that still provide a bootable fallback, leaving the configured default unable to boot. This is the same bootability gap fixed by `e6df9ea` in the reboot workflow, but the deployment cleanup path still has it.
+**Issue:** `security_patching_running_kernel_is_valid_uek` and `security_patching_default_kernel_is_valid_uek` require only an `el10uek` name, a regular `vmlinuz`, and a `kernel-uek*` RPM owner. They never query the exact grubby entries or validate the release-matched initramfs and every concrete initrd component. After `b5e4d3b`, deployment requires that stronger proof before RHCK removal. Therefore a host with installed RHCK packages plus an owned UEK `vmlinuz` but a missing/mismatched UEK initramfs is classified `configure`; the issue tells the operator to run deployment convergence, deployment fails closed, and every rescan reproduces the same action. The report also labels this weaker state "verified bootable UEK," which is factually incorrect.
 
-**Fix:** Before `Remove managed RHCK kernel packages from UEK runtime`, resolve the exact running and default UEK entries, parse their concrete initrd components, require the release-matched initramfs and every concrete component to be regular files, and revalidate that proof immediately before the DNF removal. Add missing/mismatched-initramfs deployment fixtures proving RHCK removal is never reached.
-
-### CR-02: Pre-mutation revalidation does not prove the grubby entry still references the validated initramfs
-
-**File:** `deploy/ansible/roles/security_patching/tasks/reboot_cleanup.yml:1-31`
-
-**Issue:** Preflight correctly parses the selected grubby entry, but the later task named "Evaluate selected UEK initramfs proof immediately before boot mutation" only stats the list of paths captured earlier. It does not re-run `grubby --info=<target>`, reparse the exact `kernel=`/`initrd=` fields, or recheck the kernel image and RPM owner. If a kernel transaction or operator changes the BLS/grubby entry after the all-host preflight while the old files remain, this check stays true; `grubby --set-default` selects the changed entry, the readback verifies only the kernel path, and the workflow can reboot into a missing or mismatched initramfs. The security workflows serialize with each other, but production deployment uses a different concurrency group, and multi-host preflight/serial reboot also creates a nontrivial gap.
-
-**Fix:** Immediately before default selection, rerun the complete target proof: stat the kernel image, verify `kernel-uek-core` ownership, query the exact grubby entry, reparse its kernel and concrete initrd fields, require exact equality with the preserved target/component set, and stat the current component set. Add a fixture that changes the effective boot entry after resolver preflight while leaving the originally validated initramfs files present; selection/reboot/cleanup must remain unreachable.
+**Fix:** Add nonfatal exact-entry probes to `scan.yml`, parse the exact kernel/initrd fields with the same semantics as the deployment helper, and include release matching plus regular-file checks for all concrete components in both UEK-valid facts. Missing/mismatched entry state should classify `investigate`, render recovery guidance, and have a fixture proving RHCK drift cannot select `configure` until the deployment bootability gate can pass.
 
 ## Warnings
 
-### WR-01: The RHCK fallback fixture is now satisfied by an unrelated missing-initramfs predicate
+### WR-01: Missing default-kernel state aborts the scanner instead of updating the issue
 
-**File:** `deploy/ansible/playbooks/security-reboot-preflight-validate-test.yml:98-140`
+**File:** `deploy/ansible/roles/security_patching/tasks/scan.yml:126-155`
 
-**Issue:** The fallback-RHCK fixture invokes `validate_post_reboot_kernel.yml` without setting `security_patching_reboot_target_kernel_valid`, `security_patching_reboot_target_kernel_image`, or the new target initramfs facts. The guard therefore fails even if all running/default RHCK ownership and equality predicates regress, because the target/initramfs defaults alone evaluate false. The test still passes but no longer proves its stated property: that a fallback RHCK boot cannot reach installonly cleanup.
+**Issue:** `grubby --default-kernel` uses the command module's default fatal behavior, and the following `stat` is unconditional. If grubby returns nonzero because the saved/default entry is absent or corrupt, the scan exits before `classify_findings.yml` can mark the default UEK state invalid and before `create_issue.yml` can publish the documented kernel-recovery action. This leaves the existing ticket stale precisely when operator guidance is needed.
 
-**Fix:** Populate a fully valid expected target and initramfs proof in this fixture, then vary only the post-reboot running/default release, image, and owner to RHCK. Assert the failure context identifies the unsafe post-reboot kernel and cleanup remains unreachable.
+**Fix:** Make the default-kernel probe nonfatal, preserve its rc/stdout as evidence, guard the stat/owner/entry probes on a single valid path, and require `rc == 0` in `security_patching_default_kernel_is_valid_uek`. Add a failed/empty grubby fixture that completes classification as `investigate` with no approval label and an actionable refreshed issue.
 
 ---
 
-_Reviewed: 2026-09-22T01:36:42Z_
+_Reviewed: 2026-09-22T11:24:46Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
