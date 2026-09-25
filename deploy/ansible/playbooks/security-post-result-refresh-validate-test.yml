@@ -23,6 +23,19 @@
     security_patching_refresh_path_reached: false
     stale_advisory_id: ELSA-2026-11111
     remaining_advisory_id: ELSA-2026-22222
+    security_patching_fixture_probe: &complete_probe
+      rc: 0
+      stdout: fixture
+      stderr: ""
+    security_patching_fixture_boot_entry: &valid_boot_entry
+      valid: true
+      expected_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+      entry_kernel_images:
+        - /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+      expected_initramfs: /boot/initramfs-6.12.0-fixture.el10uek.x86_64.img
+      initramfs_images:
+        - /boot/initramfs-6.12.0-fixture.el10uek.x86_64.img
+      probe: *complete_probe
   tasks:
     - name: Add partial post-update fixture host
       ansible.builtin.add_host:
@@ -32,6 +45,15 @@
         security_patching_post_update_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
         security_patching_post_update_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
         security_patching_post_update_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_installed_rhck_packages: []
+        security_patching_post_update_kernel_inventory_is_complete: true
+        security_patching_post_update_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_update_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
         security_patching_post_update_running_kernel_is_valid_uek: true
         security_patching_post_update_default_kernel_is_valid_uek: true
         security_patching_approved_advisory_ids:
@@ -182,6 +204,8 @@
     security_patching_report_path: /tmp/autographs-security-post-result-kernel-recovery.md
     security_patching_result_comment_path: /tmp/autographs-security-post-result-kernel-recovery-comment.md
     security_post_result_kernel_recovery_path_reached: false
+    security_patching_fixture_probe: *complete_probe
+    security_patching_fixture_boot_entry: *valid_boot_entry
   tasks:
     - name: Add kernel-only update reconciliation fixture host
       ansible.builtin.add_host:
@@ -196,6 +220,14 @@
         security_patching_post_update_running_kernel_release: 6.12.0-fixture.el10_2.x86_64
         security_patching_post_update_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10_2.x86_64
         security_patching_post_update_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_kernel_inventory_is_complete: true
+        security_patching_post_update_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_update_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
         security_patching_post_update_running_kernel_is_valid_uek: false
         security_patching_post_update_default_kernel_is_valid_uek: true
         security_patching_post_update_next_action: investigate
@@ -252,6 +284,8 @@
     security_patching_report_path: /tmp/autographs-security-post-result-mixed-kernel.md
     security_patching_result_comment_path: /tmp/autographs-security-post-result-mixed-kernel-comment.md
     security_post_result_mixed_kernel_path_reached: false
+    security_patching_fixture_probe: *complete_probe
+    security_patching_fixture_boot_entry: *valid_boot_entry
   tasks:
     - name: Add mixed configure and investigate update fixture hosts
       ansible.builtin.add_host:
@@ -266,6 +300,14 @@
         security_patching_post_update_running_kernel_release: "{{ item.running_release }}"
         security_patching_post_update_running_kernel_image: "/boot/vmlinuz-{{ item.running_release }}"
         security_patching_post_update_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_kernel_inventory_is_complete: true
+        security_patching_post_update_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_update_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
         security_patching_post_update_running_kernel_is_valid_uek: "{{ item.running_uek }}"
         security_patching_post_update_default_kernel_is_valid_uek: true
         security_patching_post_update_next_action: "{{ item.action }}"
@@ -317,3 +359,79 @@
           - >-
             'Do not apply an approval label or run deployment convergence on an unsafe host'
             in lookup('ansible.builtin.file', security_patching_result_comment_path)
+
+- name: Validate incomplete kernel inventory remains open after update reconciliation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_post_result_inventory_failure_fixture_runtime
+    security_patching_request_instances:
+      inventory-failure-host:
+        advisory_ids: []
+    security_patching_scan_id: security-scan-post-result-inventory-failure-test
+    security_patching_request_scan_id: security-scan-approved-inventory-failure-fixture
+    security_patching_scan_timestamp: "2026-09-25T10:00:00Z"
+    security_patching_issue_number: "131"
+    security_patching_github_api_url: http://127.0.0.1:1
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_report_path: /tmp/autographs-security-post-result-inventory-failure.md
+    security_patching_result_comment_path: /tmp/autographs-security-post-result-inventory-failure-comment.md
+    security_post_result_inventory_failure_path_reached: false
+    security_patching_fixture_probe: *complete_probe
+    security_patching_fixture_boot_entry: *valid_boot_entry
+  tasks:
+    - name: Add inventory-only update reconciliation fixture host
+      ansible.builtin.add_host:
+        name: inventory-failure-host
+        groups: security_post_result_inventory_failure_fixture_runtime
+        security_patching_post_update_scan_status: complete
+        security_patching_post_update_entries: []
+        security_patching_post_update_advisories: []
+        security_patching_post_update_advisory_ids: []
+        security_patching_post_update_ksplice_aware_advisory_ids: []
+        security_patching_post_update_installed_rhck_packages: []
+        security_patching_post_update_kernel_inventory_is_complete: false
+        security_patching_post_update_kernel_inventory_probe_facts:
+          rc: 1
+          stdout: ""
+          stderr: inventory probe failed
+        security_patching_post_update_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_update_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_update_running_kernel_is_valid_uek: true
+        security_patching_post_update_default_kernel_is_valid_uek: true
+        security_patching_post_update_next_action: investigate
+        security_patching_post_update_next_action_label: ""
+        security_patching_post_update_next_action_reason: Kernel inventory recovery is required.
+        security_patching_ksplice_available: false
+        security_patching_ksplice_apply_mode: report_only
+        security_patching_dnf_changed: false
+        security_patching_approved_advisory_ids: []
+
+    - name: Run inventory-only update reconciliation until fake GitHub refresh fails
+      block:
+        - name: Attempt to publish inventory-only update result
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_result
+      rescue:
+        - name: Record expected inventory-only update fake GitHub failure
+          ansible.builtin.set_fact:
+            security_post_result_inventory_failure_path_reached: true
+
+    - name: Assert inventory-only update reconciliation remains actionable
+      ansible.builtin.assert:
+        that:
+          - security_post_result_inventory_failure_path_reached
+          - security_patching_remaining_hosts == ['inventory-failure-host']
+          - security_patching_next_action | trim == 'investigate'
+          - security_patching_reconciled_issue_body.state == 'open'
+          - "'rpm -qa` rc=`1`' in security_patching_refreshed_report_body"
+          - "'kernel inventory complete=False' in lookup('ansible.builtin.file', security_patching_result_comment_path)"

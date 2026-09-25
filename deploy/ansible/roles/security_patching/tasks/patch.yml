@@ -41,12 +41,28 @@
       {{ security_patching_update_ksplice_aware_advisory_ids | default([]) }}
     security_patching_post_update_installed_rhck_packages: >-
       {{ security_patching_installed_rhck_packages | default([]) }}
+    security_patching_post_update_kernel_inventory_is_complete: >-
+      {{ security_patching_kernel_inventory_is_complete | bool }}
+    security_patching_post_update_kernel_inventory_probe_facts: >-
+      {{ security_patching_kernel_inventory_probe_facts }}
     security_patching_post_update_running_kernel_release: >-
       {{ security_patching_running_kernel_release | default('unknown') }}
     security_patching_post_update_running_kernel_image: >-
       {{ security_patching_running_kernel_image | default('unknown') }}
     security_patching_post_update_default_kernel_image: >-
       {{ security_patching_default_kernel_image | default('unknown') }}
+    security_patching_post_update_running_kernel_probe_facts: >-
+      {{ security_patching_running_kernel_probe_facts }}
+    security_patching_post_update_default_kernel_probe_facts: >-
+      {{ security_patching_default_kernel_probe_facts }}
+    security_patching_post_update_running_kernel_owner_probe_facts: >-
+      {{ security_patching_running_kernel_owner_probe_facts }}
+    security_patching_post_update_default_kernel_owner_probe_facts: >-
+      {{ security_patching_default_kernel_owner_probe_facts }}
+    security_patching_post_update_running_kernel_boot_entry: >-
+      {{ security_patching_running_kernel_boot_entry }}
+    security_patching_post_update_default_kernel_boot_entry: >-
+      {{ security_patching_default_kernel_boot_entry }}
     security_patching_post_update_running_kernel_is_valid_uek: >-
       {{ security_patching_running_kernel_is_valid_uek | default(false) | bool }}
     security_patching_post_update_default_kernel_is_valid_uek: >-
@@ -141,12 +157,28 @@
         security_patching_post_update_ksplice_aware_advisory_ids: "{{ security_patching_update_ksplice_aware_advisory_ids | default([]) }}"
         security_patching_post_update_installed_rhck_packages: >-
           {{ security_patching_installed_rhck_packages | default([]) }}
+        security_patching_post_update_kernel_inventory_is_complete: >-
+          {{ security_patching_kernel_inventory_is_complete | bool }}
+        security_patching_post_update_kernel_inventory_probe_facts: >-
+          {{ security_patching_kernel_inventory_probe_facts }}
         security_patching_post_update_running_kernel_release: >-
           {{ security_patching_running_kernel_release | default('unknown') }}
         security_patching_post_update_running_kernel_image: >-
           {{ security_patching_running_kernel_image | default('unknown') }}
         security_patching_post_update_default_kernel_image: >-
           {{ security_patching_default_kernel_image | default('unknown') }}
+        security_patching_post_update_running_kernel_probe_facts: >-
+          {{ security_patching_running_kernel_probe_facts }}
+        security_patching_post_update_default_kernel_probe_facts: >-
+          {{ security_patching_default_kernel_probe_facts }}
+        security_patching_post_update_running_kernel_owner_probe_facts: >-
+          {{ security_patching_running_kernel_owner_probe_facts }}
+        security_patching_post_update_default_kernel_owner_probe_facts: >-
+          {{ security_patching_default_kernel_owner_probe_facts }}
+        security_patching_post_update_running_kernel_boot_entry: >-
+          {{ security_patching_running_kernel_boot_entry }}
+        security_patching_post_update_default_kernel_boot_entry: >-
+          {{ security_patching_default_kernel_boot_entry }}
         security_patching_post_update_running_kernel_is_valid_uek: >-
           {{ security_patching_running_kernel_is_valid_uek | default(false) | bool }}
         security_patching_post_update_default_kernel_is_valid_uek: >-

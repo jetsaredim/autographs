@@ -1,6 +1,26 @@
 - name: Validate matching security reboot state
   hosts: localhost
   gather_facts: false
+  vars:
+    security_patching_kernel_inventory_is_complete: true
+    security_patching_kernel_inventory_probe_facts: &reboot_state_probe
+      rc: 0
+      stdout: fixture
+      stderr: ""
+    security_patching_running_kernel_probe_facts: *reboot_state_probe
+    security_patching_default_kernel_probe_facts: *reboot_state_probe
+    security_patching_running_kernel_owner_probe_facts: *reboot_state_probe
+    security_patching_default_kernel_owner_probe_facts: *reboot_state_probe
+    security_patching_running_kernel_boot_entry: &reboot_state_boot_entry
+      valid: true
+      expected_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+      entry_kernel_images:
+        - /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+      expected_initramfs: /boot/initramfs-6.12.0-fixture.el10uek.x86_64.img
+      initramfs_images:
+        - /boot/initramfs-6.12.0-fixture.el10uek.x86_64.img
+      probe: *reboot_state_probe
+    security_patching_default_kernel_boot_entry: *reboot_state_boot_entry
   tasks:
     - name: Record matching approved reboot issue metadata
       ansible.builtin.set_fact:
@@ -37,6 +57,15 @@
 - name: Validate skipped clean security reboot state
   hosts: localhost
   gather_facts: false
+  vars: &reboot_state_posture
+    security_patching_kernel_inventory_is_complete: true
+    security_patching_kernel_inventory_probe_facts: *reboot_state_probe
+    security_patching_running_kernel_probe_facts: *reboot_state_probe
+    security_patching_default_kernel_probe_facts: *reboot_state_probe
+    security_patching_running_kernel_owner_probe_facts: *reboot_state_probe
+    security_patching_default_kernel_owner_probe_facts: *reboot_state_probe
+    security_patching_running_kernel_boot_entry: *reboot_state_boot_entry
+    security_patching_default_kernel_boot_entry: *reboot_state_boot_entry
   tasks:
     - name: Record clean approved reboot issue metadata
       ansible.builtin.set_fact:
@@ -59,6 +88,7 @@
 - name: Validate drifted security reboot state blocks mutation
   hosts: localhost
   gather_facts: false
+  vars: *reboot_state_posture
   tasks:
     - name: Record drifted approved reboot issue metadata
       ansible.builtin.set_fact:
@@ -158,6 +188,7 @@
 - name: Validate exact-ID reboot action changes preserve authoritative scan state
   hosts: security_reboot_action_reclassification_runtime
   gather_facts: false
+  vars: *reboot_state_posture
   tasks:
     - name: Validate current reclassified reboot finding set
       ansible.builtin.import_role:
@@ -228,6 +259,7 @@
 - name: Validate non-kernel security reboot state blocks mutation
   hosts: localhost
   gather_facts: false
+  vars: *reboot_state_posture
   tasks:
     - name: Record non-kernel approved reboot issue metadata
       ansible.builtin.set_fact:

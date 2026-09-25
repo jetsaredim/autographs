@@ -1,8 +1,8 @@
 ---
-status: diagnosed
+status: resolved
 trigger: PR #253 Validate Ansible fails after the seventh review-fix round in the mixed configure/investigate post-result refresh fixture
 created: 2026-09-25
-updated: 2026-09-25T05:45:49-04:00
+updated: 2026-09-25T07:15:00-04:00
 ---
 
 ## Symptoms
@@ -28,7 +28,7 @@ reasoning_checkpoint:
 hypothesis: confirmed — post-result kernel posture reconstruction is incomplete after scanner bootability hardening
 test: reproduced unchanged failure, inspected the rendered artifact, traced producer/snapshot/reconstruction/template consumers, and reran with only the missing inventory fact supplied
 expecting: confirmed — the safe RHCK-drift host renders configuration drift, the unsafe host renders recovery, aggregate investigate blocks group convergence, and the fixture passes when inventory completeness is present
-next_action: create and review REVIEW-CONVERGENCE.md with the complete posture invariant and update/reboot consumer matrix before any coder work
+next_action: push the verified fix and run an independent code review against the exact PR head
 
 ## Evidence
 
@@ -81,6 +81,6 @@ next_action: create and review REVIEW-CONVERGENCE.md with the complete posture i
 ## Resolution
 
 - root_cause: Commit `fce6775` expanded scanner classification and `security-report.md.j2` to require `security_patching_kernel_inventory_is_complete` (with new bounded probe/boot-entry diagnostics) but left update and reboot snapshot, completeness, remaining-host, and reconstruction paths on the older kernel-posture subset; the isolated post-result fixture therefore defaults the safe RHCK host's missing inventory fact to false, renders recovery instead of configuration drift, and omits the asserted mixed-group warning.
-- fix: not applied — diagnose-only. Before coder work, create and review `REVIEW-CONVERGENCE.md`; the correction must make update and reboot posture snapshots/reconstruction symmetric with the scanner contract, include inventory-only unsafe states in remaining-host selection, preserve bounded diagnostics needed by the report, and update all isolated result/reconciliation fixtures together.
-- verification: unchanged playbook reproduced the line-316 failure; supplying only `security_patching_kernel_inventory_is_complete=true` made the complete three-play fixture pass and restored the exact warning. Full verification after a future fix must cover safe RHCK drift, inventory-only probe failure, unsafe running/default/boot-entry states, mixed-host precedence, update result refresh, and reboot result refresh.
-- files_changed: `.planning/debug/pr253-ansible-ci-regression.md` only; no source or test files changed.
+- fix: update and reboot preflight/post-scan snapshots now preserve the complete kernel posture contract; result roles reject absent or malformed structured evidence, retain inventory-only unsafe hosts, reconstruct every diagnostic fact before report rendering, and surface inventory completeness in result comments.
+- verification: the original mixed-host failure passes; update and reboot fixtures cover safe RHCK drift, inventory-only probe failure, unsafe running/default posture, mixed-host precedence, and absent/malformed snapshot refusal. The complete Ansible validation sequence, production-profile ansible-lint, runtime validation, and Rust fmt/test/check/clippy checks pass.
+- files_changed: update/reboot snapshot and result tasks, update/reboot result templates, isolated validation playbooks, and this debug record.
