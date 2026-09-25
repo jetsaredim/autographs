@@ -93,7 +93,7 @@
         security_patching_post_update_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
         security_patching_post_update_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
         security_patching_post_update_installed_rhck_packages: []
-        security_patching_post_update_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_kernel_inventory_is_complete: true
         security_patching_post_update_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
         security_patching_post_update_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
         security_patching_post_update_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"

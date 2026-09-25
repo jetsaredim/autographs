@@ -691,9 +691,9 @@
         security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
         security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
         security_patching_post_reboot_installed_rhck_packages: []
-        security_patching_post_reboot_kernel_inventory_is_complete: "{{ item.inventory_complete | default(omit) }}"
+        security_patching_post_reboot_kernel_inventory_is_complete: true
         security_patching_post_reboot_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
-        security_patching_post_reboot_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_probe_facts: "{{ item.running_probe | default(omit) }}"
         security_patching_post_reboot_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
         security_patching_post_reboot_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
         security_patching_post_reboot_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
@@ -705,7 +705,7 @@
         - name: missing-host
           running_boot_entry: "{{ security_patching_fixture_boot_entry }}"
         - name: malformed-host
-          inventory_complete: true
+          running_probe: "{{ security_patching_fixture_probe }}"
           running_boot_entry:
             valid: true
             probe:

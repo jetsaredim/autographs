@@ -20,26 +20,32 @@
     or hostvars[item].security_patching_post_update_default_kernel_image is not defined
     or hostvars[item].security_patching_post_update_installed_rhck_packages is not defined
     or hostvars[item].security_patching_post_update_kernel_inventory_is_complete is not defined
+    or hostvars[item].security_patching_post_update_kernel_inventory_probe_facts is not defined
     or hostvars[item].security_patching_post_update_kernel_inventory_probe_facts is not mapping
     or 'rc' not in hostvars[item].security_patching_post_update_kernel_inventory_probe_facts
     or 'stdout' not in hostvars[item].security_patching_post_update_kernel_inventory_probe_facts
     or 'stderr' not in hostvars[item].security_patching_post_update_kernel_inventory_probe_facts
+    or hostvars[item].security_patching_post_update_running_kernel_probe_facts is not defined
     or hostvars[item].security_patching_post_update_running_kernel_probe_facts is not mapping
     or 'rc' not in hostvars[item].security_patching_post_update_running_kernel_probe_facts
     or 'stdout' not in hostvars[item].security_patching_post_update_running_kernel_probe_facts
     or 'stderr' not in hostvars[item].security_patching_post_update_running_kernel_probe_facts
+    or hostvars[item].security_patching_post_update_default_kernel_probe_facts is not defined
     or hostvars[item].security_patching_post_update_default_kernel_probe_facts is not mapping
     or 'rc' not in hostvars[item].security_patching_post_update_default_kernel_probe_facts
     or 'stdout' not in hostvars[item].security_patching_post_update_default_kernel_probe_facts
     or 'stderr' not in hostvars[item].security_patching_post_update_default_kernel_probe_facts
+    or hostvars[item].security_patching_post_update_running_kernel_owner_probe_facts is not defined
     or hostvars[item].security_patching_post_update_running_kernel_owner_probe_facts is not mapping
     or 'rc' not in hostvars[item].security_patching_post_update_running_kernel_owner_probe_facts
     or 'stdout' not in hostvars[item].security_patching_post_update_running_kernel_owner_probe_facts
     or 'stderr' not in hostvars[item].security_patching_post_update_running_kernel_owner_probe_facts
+    or hostvars[item].security_patching_post_update_default_kernel_owner_probe_facts is not defined
     or hostvars[item].security_patching_post_update_default_kernel_owner_probe_facts is not mapping
     or 'rc' not in hostvars[item].security_patching_post_update_default_kernel_owner_probe_facts
     or 'stdout' not in hostvars[item].security_patching_post_update_default_kernel_owner_probe_facts
     or 'stderr' not in hostvars[item].security_patching_post_update_default_kernel_owner_probe_facts
+    or hostvars[item].security_patching_post_update_running_kernel_boot_entry is not defined
     or hostvars[item].security_patching_post_update_running_kernel_boot_entry is not mapping
     or hostvars[item].security_patching_post_update_running_kernel_boot_entry
       | dict2items | map(attribute='key') | intersect(security_patching_required_boot_entry_keys) | length
@@ -48,6 +54,7 @@
     or hostvars[item].security_patching_post_update_running_kernel_boot_entry.probe
       | default({}) | dict2items | map(attribute='key') | intersect(security_patching_required_probe_keys) | length
       != security_patching_required_probe_keys | length
+    or hostvars[item].security_patching_post_update_default_kernel_boot_entry is not defined
     or hostvars[item].security_patching_post_update_default_kernel_boot_entry is not mapping
     or hostvars[item].security_patching_post_update_default_kernel_boot_entry
       | dict2items | map(attribute='key') | intersect(security_patching_required_boot_entry_keys) | length
