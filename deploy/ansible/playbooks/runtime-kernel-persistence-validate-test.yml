@@ -446,6 +446,81 @@
           - runtime_kernel_guard_failed
           - not runtime_kernel_mutation_reached
 
+- name: Validate production boot-entry command path without probe override
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    PATH: "{{ runtime_fake_grubby_dir }}:{{ lookup('ansible.builtin.env', 'PATH') }}"
+  vars:
+    runtime_boot_fixture_dir: /tmp/autographs-runtime-kernel-no-override
+    runtime_fake_grubby_dir: "{{ runtime_boot_fixture_dir }}/bin"
+    runtime_fake_grubby_marker: "{{ runtime_boot_fixture_dir }}/grubby-invoked"
+    runtime_boot_entry_validation_path: >-
+      {{ playbook_dir }}/../roles/autographs_deploy/tasks/validate_kernel_boot_entry.yml
+    autographs_deploy_kernel_entry_label: production-no-override
+    autographs_deploy_kernel_entry_release: 6.12.0-206.104.4.10.el10uek.x86_64
+    autographs_deploy_kernel_entry_image: >-
+      {{ runtime_boot_fixture_dir }}/vmlinuz-{{ autographs_deploy_kernel_entry_release }}
+  tasks:
+    - name: Create no-override boot-entry fixture directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0700"
+      loop:
+        - "{{ runtime_boot_fixture_dir }}"
+        - "{{ runtime_fake_grubby_dir }}"
+
+    - name: Create no-override UEK boot files
+      ansible.builtin.copy:
+        dest: "{{ item }}"
+        content: fixture
+        mode: "0600"
+      loop:
+        - "{{ autographs_deploy_kernel_entry_image }}"
+        - "{{ runtime_boot_fixture_dir }}/initramfs-{{ autographs_deploy_kernel_entry_release }}.img"
+
+    - name: Create controlled grubby command fixture
+      ansible.builtin.copy:
+        dest: "{{ runtime_fake_grubby_dir }}/grubby"
+        mode: "0700"
+        content: |
+          #!/usr/bin/env sh
+          set -eu
+          test "$1" = "--info={{ autographs_deploy_kernel_entry_image }}"
+          printf '%s\n' invoked > "{{ runtime_fake_grubby_marker }}"
+          printf '%s\n' 'kernel="{{ autographs_deploy_kernel_entry_image }}"'
+          printf '%s\n' 'initrd="{{ runtime_boot_fixture_dir }}/initramfs-{{ autographs_deploy_kernel_entry_release }}.img"'
+
+    - name: Remove stale grubby invocation marker
+      ansible.builtin.file:
+        path: "{{ runtime_fake_grubby_marker }}"
+        state: absent
+
+    - name: Require production probe override is absent
+      ansible.builtin.assert:
+        that:
+          - autographs_deploy_kernel_boot_entry_probe_override is not defined
+
+    - name: Validate production no-override boot entry
+      ansible.builtin.include_tasks: "{{ runtime_boot_entry_validation_path }}"
+
+    - name: Inspect grubby invocation marker
+      ansible.builtin.stat:
+        path: "{{ runtime_fake_grubby_marker }}"
+      register: runtime_fake_grubby_marker_stat
+
+    - name: Require successful production command-path validation
+      ansible.builtin.assert:
+        that:
+          - runtime_fake_grubby_marker_stat.stat.exists
+          - autographs_deploy_kernel_entry_probe.rc | int == 0
+          - autographs_deploy_kernel_entry_probe.cmd == ['grubby', '--info=' ~ autographs_deploy_kernel_entry_image]
+          - autographs_deploy_kernel_entry_probe_effective.rc | int == 0
+          - autographs_deploy_kernel_entry_kernel_images == [autographs_deploy_kernel_entry_image]
+          - autographs_deploy_kernel_entry_expected_initramfs in autographs_deploy_kernel_entry_initramfs_images
+
 - name: Validate missing default UEK initramfs fails before RHCK mutation
   hosts: localhost
   connection: local

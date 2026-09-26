@@ -6,14 +6,14 @@
   register: autographs_deploy_kernel_entry_probe
   changed_when: false
   failed_when: false
-  when: autographs_deploy_kernel_boot_entry_probe_override | default(null) is not mapping
+  when: autographs_deploy_kernel_boot_entry_probe_override | default(none) is not mapping
 
 - name: Resolve effective UEK boot entry probe | {{ autographs_deploy_kernel_entry_label }}
   ansible.builtin.set_fact:
     autographs_deploy_kernel_entry_probe_effective: >-
       {{
         autographs_deploy_kernel_boot_entry_probe_override
-        if autographs_deploy_kernel_boot_entry_probe_override | default(null) is mapping
+        if autographs_deploy_kernel_boot_entry_probe_override | default(none) is mapping
         else autographs_deploy_kernel_entry_probe | default({'rc': 1, 'stdout': ''})
       }}
 
