@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/jetsaredim/autographs/compare/v0.2.3...v0.2.4) (2026-09-26)
+
+
+### Bug Fixes
+
+* **patching:** enforce UEK-only kernel posture ([#253](https://github.com/jetsaredim/autographs/issues/253)) ([103a01f](https://github.com/jetsaredim/autographs/commit/103a01fa8676b590bbc058090e58edb433339981))
+
 ## [0.2.3](https://github.com/jetsaredim/autographs/compare/v0.2.2...v0.2.3) (2026-09-20)
 
 
