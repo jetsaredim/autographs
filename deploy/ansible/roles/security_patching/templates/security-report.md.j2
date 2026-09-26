@@ -10,7 +10,7 @@ next_action: "{{ report_next_action }}"
 instances: {}
 {% else %}
 instances:
-{% for host in security_patching_hosts_with_findings %}
+{% for host in security_patching_target_hosts | default(security_patching_hosts_with_findings) %}
   {{ host }}:
     advisory_ids: {{ hostvars[host].security_patching_update_advisory_ids | default([]) | unique | sort | list | to_json }}
 {% endfor %}
@@ -30,10 +30,51 @@ OpenSCAP evaluation: `{{ security_patching_enrichment_status | default('unknown'
 
 ## Summary
 
-| Instance | OpenSCAP findings | Advisories | Ksplice-specific OVAL findings |
-|---|---:|---:|---:|
+| Instance | OpenSCAP findings | Advisories | Ksplice-specific OVAL findings | RHCK drift packages | Running UEK verified | Default UEK verified |
+|---|---:|---:|---:|---:|---:|---:|
 {% for host in security_patching_hosts_with_findings %}
-| `{{ host }}` | {{ hostvars[host].security_patching_update_entries | default([]) | length }} | {{ hostvars[host].security_patching_update_advisory_ids | default([]) | length }} | {{ hostvars[host].security_patching_update_ksplice_aware_advisory_ids | default([]) | length }} |
+| `{{ host }}` | {{ hostvars[host].security_patching_update_entries | default([]) | length }} | {{ hostvars[host].security_patching_update_advisory_ids | default([]) | length }} | {{ hostvars[host].security_patching_update_ksplice_aware_advisory_ids | default([]) | length }} | {{ hostvars[host].security_patching_installed_rhck_packages | default([]) | length }} | {{ hostvars[host].security_patching_running_kernel_is_valid_uek | default(false) | bool }} | {{ hostvars[host].security_patching_default_kernel_is_valid_uek | default(false) | bool }} |
+{% endfor %}
+
+{% for host in security_patching_hosts_with_findings %}
+{% set rhck_packages = hostvars[host].security_patching_installed_rhck_packages | default([]) %}
+{% set kernel_inventory_complete = hostvars[host].security_patching_kernel_inventory_is_complete | default(false) | bool %}
+{% set running_uek_valid = hostvars[host].security_patching_running_kernel_is_valid_uek | default(false) | bool %}
+{% set default_uek_valid = hostvars[host].security_patching_default_kernel_is_valid_uek | default(false) | bool %}
+{% if not kernel_inventory_complete or not running_uek_valid or not default_uek_valid %}
+### Kernel recovery required on `{{ host }}`
+
+Running kernel: `{{ hostvars[host].security_patching_running_kernel_release | default('unknown') }}` (verified bootable UEK: `{{ running_uek_valid }}`).
+
+Default kernel image: `{{ hostvars[host].security_patching_default_kernel_image | default('unknown') }}` (verified bootable UEK: `{{ default_uek_valid }}`).
+
+Kernel probe diagnostics (bounded): `rpm -qa` rc=`{{ (hostvars[host].security_patching_kernel_inventory_probe_facts | default({})).rc | default('unknown') }}`, stderr=`{{ (hostvars[host].security_patching_kernel_inventory_probe_facts | default({})).stderr | default('') | replace('\n', ' ') }}`; `uname -r` rc=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).rc | default('unknown') }}`, stdout=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).stdout | default('') | replace('\n', ' ') }}`, stderr=`{{ (hostvars[host].security_patching_running_kernel_probe_facts | default({})).stderr | default('') | replace('\n', ' ') }}`; `grubby --default-kernel` rc=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).rc | default('unknown') }}`, stdout=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).stdout | default('') | replace('\n', ' ') }}`, stderr=`{{ (hostvars[host].security_patching_default_kernel_probe_facts | default({})).stderr | default('') | replace('\n', ' ') }}`.
+
+Exact boot-entry diagnostics (bounded): running entry rc=`{{ ((hostvars[host].security_patching_running_kernel_boot_entry | default({})).probe | default({})).rc | default('unknown') }}`, default entry rc=`{{ ((hostvars[host].security_patching_default_kernel_boot_entry | default({})).probe | default({})).rc | default('unknown') }}`. Expected running initramfs: `{{ (hostvars[host].security_patching_running_kernel_boot_entry | default({})).expected_initramfs | default('unknown') }}`; expected default initramfs: `{{ (hostvars[host].security_patching_default_kernel_boot_entry | default({})).expected_initramfs | default('unknown') }}`.
+
+Installed RHCK packages: {% if rhck_packages | length > 0 %}{% for package in rhck_packages %}`{{ package }}`{% if not loop.last %}, {% endif %}{% endfor %}{% else %}none detected{% endif %}.
+
+Do not approve package updates or a reboot from this issue, and do not run deployment convergence yet. Recover the host first:
+
+1. Install a supported UEK package set from the enabled Oracle Linux UEK repository if no bootable UEK image is installed.
+2. Select a verified UEK image for the next boot with `sudo grubby --set-default /boot/vmlinuz-<UEK release>`.
+3. If the running kernel is not verified UEK, schedule and perform a reboot, then confirm `uname -r` reports `el10uek`. If the running kernel is already verified UEK and only the default is unsafe, selecting that running UEK image does not itself require a reboot.
+4. Confirm both `/boot/vmlinuz-$(uname -r)` and `sudo grubby --default-kernel` name regular files owned by installed `kernel-uek*` RPMs. If the default probe failed or returned an empty path, repair the saved/default grubby entry before continuing.
+5. Query each exact image with `sudo grubby --info=/boot/vmlinuz-<UEK release>` and confirm it references `/boot/initramfs-<UEK release>.img`; every absolute initrd component must exist as a regular file.
+6. Run production deployment convergence to remove managed RHCK packages, then re-run the security scanner.
+
+{% elif rhck_packages | length > 0 %}
+### UEK-only configuration drift on `{{ host }}`
+
+Installed RHCK packages: {% for package in rhck_packages %}`{{ package }}`{% if not loop.last %}, {% endif %}{% endfor %}.
+
+{% if report_next_action == 'configure' %}
+Do not approve package updates or a reboot from this issue. Run the normal production deployment convergence; it first verifies that the running and default kernels are UEK, removes only the managed RHCK package family without rebooting, preserves rescue images, cleans stale missing non-rescue boot entries, and persists the RHCK DNF exclusions. Then re-run the security scanner so this issue is replaced with the authoritative UEK-only result.
+{% else %}
+Do not approve package updates or a reboot from this issue. Another target requires investigation or kernel recovery, so do not run deployment convergence for this target group until every host has a verified running and default UEK kernel.
+{% endif %}
+
+{% endif %}
 {% endfor %}
 
 ## Advisory review summary
@@ -79,6 +120,8 @@ Advisory-scoped DNF reports no package work, and all remaining findings are limi
 Apply the label `{{ report_approval_label }}` to run the separately approved production reboot and installonly cleanup workflow.
 {% elif report_next_action == 'close' %}
 The authoritative OpenSCAP scan is clean. No approval action is required, and an existing scanner issue is closed automatically.
+{% elif report_next_action == 'configure' %}
+The runtime has RHCK packages installed even though production is UEK-only. No update or reboot approval label is offered. Run production deployment convergence to remove the RHCK packages safely, then re-run the security scanner.
 {% else %}
 Do not apply an update or reboot approval label yet. The current findings could not be classified safely; inspect the workflow logs and package metadata, then re-run the scanner after resolving the ambiguity.
 {% endif %}

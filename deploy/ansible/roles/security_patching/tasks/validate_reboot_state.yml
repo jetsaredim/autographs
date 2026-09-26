@@ -31,12 +31,23 @@
         | list
       }}
 
+- name: Detect clean target that requires no approved reboot
+  ansible.builtin.set_fact:
+    security_patching_reboot_clean_skip: >-
+      {{
+        security_patching_scan_status | default('missing') == 'complete'
+        and security_patching_reboot_current_advisory_ids | length == 0
+        and security_patching_reboot_approved_advisory_ids | length == 0
+        and security_patching_next_action | default('investigate') | trim == 'close'
+      }}
+
 - name: Detect authoritative reboot action reclassification
   ansible.builtin.set_fact:
     security_patching_reboot_reclassified: >-
       {{
         security_patching_scan_status | default('missing') == 'complete'
         and not (security_patching_reboot_drift_detected | bool)
+        and not (security_patching_reboot_clean_skip | bool)
         and security_patching_next_action | default('investigate') | trim != 'reboot'
       }}
 
@@ -48,11 +59,48 @@
     security_patching_installonly_cleanup_changed: false
     security_patching_installonly_cleanup_stdout: ""
     security_patching_installonly_cleanup_stderr: ""
+    security_patching_reboot_target_kernel_evr: ""
+    security_patching_reboot_target_kernel_release: ""
+    security_patching_reboot_target_kernel_image: ""
+    security_patching_reboot_target_initramfs_image: ""
+    security_patching_reboot_target_initramfs_images: []
+    security_patching_reboot_target_initramfs_valid: false
+    security_patching_reboot_target_kernel_valid: false
+    security_patching_reboot_target_requires_default_change: false
+    security_patching_reboot_target_selection_changed: false
     security_patching_post_reboot_entries: "{{ security_patching_update_entries | default([]) }}"
     security_patching_post_reboot_advisories: "{{ security_patching_update_advisories | default([]) }}"
     security_patching_post_reboot_advisory_ids: "{{ security_patching_reboot_current_advisory_ids }}"
     security_patching_post_reboot_ksplice_aware_advisory_ids: >-
       {{ security_patching_update_ksplice_aware_advisory_ids | default([]) }}
+    security_patching_post_reboot_installed_rhck_packages: >-
+      {{ security_patching_installed_rhck_packages | default([]) }}
+    security_patching_post_reboot_kernel_inventory_is_complete: >-
+      {{ security_patching_kernel_inventory_is_complete | bool }}
+    security_patching_post_reboot_kernel_inventory_probe_facts: >-
+      {{ security_patching_kernel_inventory_probe_facts }}
+    security_patching_post_reboot_running_kernel_release: >-
+      {{ security_patching_running_kernel_release | default('unknown') }}
+    security_patching_post_reboot_running_kernel_image: >-
+      {{ security_patching_running_kernel_image | default('unknown') }}
+    security_patching_post_reboot_default_kernel_image: >-
+      {{ security_patching_default_kernel_image | default('unknown') }}
+    security_patching_post_reboot_running_kernel_probe_facts: >-
+      {{ security_patching_running_kernel_probe_facts }}
+    security_patching_post_reboot_default_kernel_probe_facts: >-
+      {{ security_patching_default_kernel_probe_facts }}
+    security_patching_post_reboot_running_kernel_owner_probe_facts: >-
+      {{ security_patching_running_kernel_owner_probe_facts }}
+    security_patching_post_reboot_default_kernel_owner_probe_facts: >-
+      {{ security_patching_default_kernel_owner_probe_facts }}
+    security_patching_post_reboot_running_kernel_boot_entry: >-
+      {{ security_patching_running_kernel_boot_entry }}
+    security_patching_post_reboot_default_kernel_boot_entry: >-
+      {{ security_patching_default_kernel_boot_entry }}
+    security_patching_post_reboot_running_kernel_is_valid_uek: >-
+      {{ security_patching_running_kernel_is_valid_uek | default(false) | bool }}
+    security_patching_post_reboot_default_kernel_is_valid_uek: >-
+      {{ security_patching_default_kernel_is_valid_uek | default(false) | bool }}
     security_patching_post_reboot_scan_status: "{{ security_patching_scan_status | default('missing') }}"
     security_patching_post_reboot_next_action: >-
       {{ security_patching_next_action | default('investigate') | trim }}
@@ -233,6 +281,59 @@
         ) is search('(?i)(nothing to do|no packages marked)')
       }}
 
+- name: Resolve newest installed UEK reboot target
+  ansible.builtin.import_tasks: resolve_reboot_kernel.yml
+  when:
+    - security_patching_reboot_approved_advisory_ids | length > 0
+    - not (security_patching_reboot_drift_detected | bool)
+    - security_patching_next_action | default('investigate') | trim == 'reboot'
+    - security_patching_reboot_entries_without_packages | default([]) | length == 0
+    - security_patching_reboot_disallowed_packages | default([]) | length == 0
+    - security_patching_reboot_dnf_noop_proven | bool
+
+- name: Write newest UEK selection failure context
+  ansible.builtin.copy:
+    dest: "{{ security_patching_failure_context_path }}"
+    mode: "0600"
+    content: |
+      Validation failed before reboot: the newest installed bootable UEK could not be established safely.
+
+      - Host: `{{ inventory_hostname }}`
+      - RPM-ordered package probe rc: `{{ security_patching_reboot_kernel_candidate_probe_effective.rc | default('missing') }}`
+      - Candidate records: `{{ security_patching_reboot_kernel_candidate_records | default([]) | length }}`
+      - Selected EVR: `{{ security_patching_reboot_target_kernel_evr | default('unknown', true) }}`
+      - Selected release: `{{ security_patching_reboot_target_kernel_release | default('unknown', true) }}`
+      - Selected image: `{{ security_patching_reboot_target_kernel_image | default('unknown', true) }}`
+      - Image exists: `{{ security_patching_reboot_target_kernel_image_stat.stat.exists | default(false) }}`
+      - Image regular: `{{ security_patching_reboot_target_kernel_image_stat.stat.isreg | default(false) }}`
+      - Image RPM owner: `{{ security_patching_reboot_target_kernel_owner_probe_effective.stdout | default('') | trim }}`
+      - Boot entry probe rc: `{{ security_patching_reboot_target_kernel_boot_entry_probe_effective.rc | default('missing') }}`
+      - Boot entry kernel images: `{{ security_patching_reboot_target_entry_kernel_images | default([]) | join(', ') }}`
+      - Expected initramfs: `{{ security_patching_reboot_target_initramfs_image | default('unknown', true) }}`
+      - Concrete initramfs components: `{{ security_patching_reboot_target_initramfs_images | default([]) | join(', ') }}`
+      - Initramfs components valid: `{{ security_patching_reboot_target_initramfs_valid | default(false) | bool }}`
+
+      Initramfs component evidence:
+      {% for result in security_patching_reboot_target_initramfs_image_stats.results | default([]) %}
+      - `{{ result.item }}`: exists={{ result.stat.exists | default(false) }}, regular={{ result.stat.isreg | default(false) }}
+      {% else %}
+      - None
+      {% endfor %}
+
+      No boot configuration or reboot mutation was attempted. Install a complete `kernel-uek-core` package,
+      verify its `/boot/vmlinuz-*el10uek*` image, concrete `/boot/initramfs-*el10uek*.img`, and exact
+      `grubby --info` entry, select it as the default when necessary, then re-run the scanner before
+      approving reboot cleanup again.
+  delegate_to: localhost
+  become: false
+  when:
+    - security_patching_failure_context_path | trim | length > 0
+    - security_patching_reboot_approved_advisory_ids | length > 0
+    - not (security_patching_reboot_drift_detected | bool)
+    - security_patching_next_action | default('investigate') | trim == 'reboot'
+    - security_patching_reboot_dnf_noop_proven | bool
+    - not (security_patching_reboot_target_kernel_valid | bool)
+
 - name: Record host reboot preflight decision
   ansible.builtin.set_fact:
     security_patching_reboot_preflight_ready: >-
@@ -244,4 +345,5 @@
         and security_patching_reboot_entries_without_packages | default([]) | length == 0
         and security_patching_reboot_disallowed_packages | default([]) | length == 0
         and security_patching_reboot_dnf_noop_proven | bool
+        and security_patching_reboot_target_kernel_valid | bool
       }}

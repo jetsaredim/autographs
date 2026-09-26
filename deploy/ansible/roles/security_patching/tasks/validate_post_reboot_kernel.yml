@@ -1,0 +1,83 @@
+- name: Evaluate post-reboot UEK safety proof
+  ansible.builtin.set_fact:
+    security_patching_post_reboot_kernel_safe: >-
+      {{
+        security_patching_post_reboot_running_kernel_release is search('el10uek')
+        and security_patching_post_reboot_running_kernel_image_stat.stat.exists | default(false)
+        and security_patching_post_reboot_running_kernel_image_stat.stat.isreg | default(false)
+        and security_patching_post_reboot_running_kernel_image_owner.rc | default(1) | int == 0
+        and security_patching_post_reboot_running_kernel_image_owner.stdout
+          | default('')
+          | trim
+          is match('^kernel-uek($|-)')
+        and security_patching_post_reboot_default_kernel.rc | default(1) | int == 0
+        and security_patching_post_reboot_default_kernel_image is search('el10uek')
+        and security_patching_post_reboot_default_kernel_image_stat.stat.exists | default(false)
+        and security_patching_post_reboot_default_kernel_image_stat.stat.isreg | default(false)
+        and security_patching_post_reboot_default_kernel_image_owner.rc | default(1) | int == 0
+        and security_patching_post_reboot_default_kernel_image_owner.stdout
+          | default('')
+          | trim
+          is match('^kernel-uek($|-)')
+        and security_patching_post_reboot_running_kernel_image
+          == security_patching_post_reboot_default_kernel_image
+        and security_patching_reboot_target_kernel_valid | default(false) | bool
+        and security_patching_reboot_target_kernel_image | default('') | length > 0
+        and security_patching_reboot_target_initramfs_valid | default(false) | bool
+        and security_patching_reboot_target_initramfs_image | default('')
+          in security_patching_reboot_target_initramfs_images | default([])
+        and security_patching_post_reboot_running_kernel_image
+          == security_patching_reboot_target_kernel_image
+        and security_patching_post_reboot_default_kernel_image
+          == security_patching_reboot_target_kernel_image
+      }}
+
+- name: Build bounded unsafe post-reboot kernel context
+  ansible.builtin.set_fact:
+    security_patching_post_reboot_kernel_failure_context: |
+      Validation failed after reboot and before installonly cleanup because the booted kernel was not the verified default UEK image.
+
+      - Host: `{{ inventory_hostname }}`
+      - Running release: `{{ security_patching_post_reboot_running_kernel_release | default('unknown') }}`
+      - Running image: `{{ security_patching_post_reboot_running_kernel_image | default('unknown') }}`
+      - Running image exists: `{{ security_patching_post_reboot_running_kernel_image_stat.stat.exists | default(false) }}`
+      - Running image regular: `{{ security_patching_post_reboot_running_kernel_image_stat.stat.isreg | default(false) }}`
+      - Running image RPM owner rc: `{{ security_patching_post_reboot_running_kernel_image_owner.rc | default('missing') }}`
+      - Running image RPM owner: `{{ security_patching_post_reboot_running_kernel_image_owner.stdout | default('') | trim }}`
+      - Default image probe rc: `{{ security_patching_post_reboot_default_kernel.rc | default('missing') }}`
+      - Default image: `{{ security_patching_post_reboot_default_kernel_image | default('unknown') }}`
+      - Default image exists: `{{ security_patching_post_reboot_default_kernel_image_stat.stat.exists | default(false) }}`
+      - Default image regular: `{{ security_patching_post_reboot_default_kernel_image_stat.stat.isreg | default(false) }}`
+      - Default image RPM owner rc: `{{ security_patching_post_reboot_default_kernel_image_owner.rc | default('missing') }}`
+      - Default image RPM owner: `{{ security_patching_post_reboot_default_kernel_image_owner.stdout | default('') | trim }}`
+      - Expected newest UEK EVR: `{{ security_patching_reboot_target_kernel_evr | default('unknown', true) }}`
+      - Expected newest UEK image: `{{ security_patching_reboot_target_kernel_image | default('unknown', true) }}`
+      - Expected newest UEK initramfs: `{{ security_patching_reboot_target_initramfs_image | default('unknown', true) }}`
+      - Verified initramfs components: `{{ security_patching_reboot_target_initramfs_images | default([]) | join(', ') }}`
+
+      No installonly package cleanup was attempted. Recover the verified newest UEK boot target before retrying.
+  when: not (security_patching_post_reboot_kernel_safe | bool)
+
+- name: Persist bounded unsafe post-reboot kernel context
+  ansible.builtin.copy:
+    dest: "{{ security_patching_failure_context_path }}"
+    mode: "0600"
+    content: >-
+      {{
+        security_patching_post_reboot_kernel_failure_context[
+          :(security_patching_failure_context_max_chars | int)
+        ]
+      }}
+  delegate_to: localhost
+  become: false
+  when:
+    - not (security_patching_post_reboot_kernel_safe | bool)
+    - security_patching_failure_context_path | trim | length > 0
+
+- name: Refuse installonly cleanup unless rebooted into verified default UEK
+  ansible.builtin.assert:
+    that:
+      - security_patching_post_reboot_kernel_safe | bool
+    fail_msg: >-
+      Refusing installonly cleanup on {{ inventory_hostname }} because the rebooted running kernel is not
+      the verified newest installed default UEK image. No package cleanup was attempted.

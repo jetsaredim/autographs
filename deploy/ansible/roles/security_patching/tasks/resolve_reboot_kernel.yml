@@ -1,0 +1,249 @@
+- name: Query newest installed UEK core package with RPM ordering # noqa: command-instead-of-module
+  ansible.builtin.command:
+    argv:
+      - dnf
+      - -q
+      - repoquery
+      - --installed
+      - --latest-limit=1
+      - "--qf=%{name}|%{epoch}|%{version}|%{release}|%{arch}"
+      - kernel-uek-core
+  register: security_patching_reboot_kernel_candidate_probe
+  changed_when: false
+  failed_when: false
+  when: security_patching_reboot_kernel_candidate_probe_override is not mapping
+
+- name: Resolve effective newest UEK package probe
+  ansible.builtin.set_fact:
+    security_patching_reboot_kernel_candidate_probe_effective: >-
+      {{
+        security_patching_reboot_kernel_candidate_probe_override
+        if security_patching_reboot_kernel_candidate_probe_override is mapping
+        else security_patching_reboot_kernel_candidate_probe
+      }}
+
+- name: Parse newest installed UEK package record
+  ansible.builtin.set_fact:
+    security_patching_reboot_kernel_candidate_records: >-
+      {{
+        security_patching_reboot_kernel_candidate_probe_effective.stdout
+        | default('')
+        | split('\n')
+        | select('match', '^kernel-uek-core\|[^|]*\|[^|]+\|[^|]+\|[^|]+$')
+        | list
+      }}
+
+- name: Parse newest installed UEK package fields
+  ansible.builtin.set_fact:
+    security_patching_reboot_kernel_candidate_fields: >-
+      {{
+        security_patching_reboot_kernel_candidate_records[0].split('|')
+        if security_patching_reboot_kernel_candidate_records | length == 1
+        else []
+      }}
+
+- name: Record selected UEK reboot target
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_kernel_evr: >-
+      {{
+        security_patching_reboot_kernel_candidate_fields[1]
+        ~ ':' ~ security_patching_reboot_kernel_candidate_fields[2]
+        ~ '-' ~ security_patching_reboot_kernel_candidate_fields[3]
+        if security_patching_reboot_kernel_candidate_fields | length == 5
+        else ''
+      }}
+    security_patching_reboot_target_kernel_release: >-
+      {{
+        security_patching_reboot_kernel_candidate_fields[2]
+        ~ '-' ~ security_patching_reboot_kernel_candidate_fields[3]
+        ~ '.' ~ security_patching_reboot_kernel_candidate_fields[4]
+        if security_patching_reboot_kernel_candidate_fields | length == 5
+        else ''
+      }}
+    security_patching_reboot_target_kernel_image: >-
+      {{
+        security_patching_reboot_kernel_boot_dir
+        ~ '/vmlinuz-'
+        ~ security_patching_reboot_kernel_candidate_fields[2]
+        ~ '-' ~ security_patching_reboot_kernel_candidate_fields[3]
+        ~ '.' ~ security_patching_reboot_kernel_candidate_fields[4]
+        if security_patching_reboot_kernel_candidate_fields | length == 5
+        else ''
+      }}
+
+- name: Inspect selected UEK reboot target image
+  ansible.builtin.stat:
+    path: "{{ security_patching_reboot_target_kernel_image }}"
+    follow: true
+    get_checksum: false
+  register: security_patching_reboot_target_kernel_image_stat
+  when: security_patching_reboot_target_kernel_image | length > 0
+
+- name: Inspect selected UEK reboot target RPM owner
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -qf
+      - --qf
+      - "%{NAME}\n"
+      - "{{ security_patching_reboot_target_kernel_image }}"
+  register: security_patching_reboot_target_kernel_owner_probe
+  changed_when: false
+  failed_when: false
+  when:
+    - security_patching_reboot_target_kernel_image_stat.stat.exists | default(false)
+    - security_patching_reboot_target_kernel_image_stat.stat.isreg | default(false)
+    - security_patching_reboot_kernel_owner_probe_override is not mapping
+
+- name: Resolve effective UEK reboot target owner probe
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_kernel_owner_probe_effective: >-
+      {{
+        security_patching_reboot_kernel_owner_probe_override
+        if security_patching_reboot_kernel_owner_probe_override is mapping
+        else security_patching_reboot_target_kernel_owner_probe
+        | default({'rc': 1, 'stdout': ''})
+      }}
+
+- name: Inspect selected UEK reboot target boot entry
+  ansible.builtin.command:
+    argv:
+      - grubby
+      - "--info={{ security_patching_reboot_target_kernel_image }}"
+  register: security_patching_reboot_target_kernel_boot_entry_probe
+  changed_when: false
+  failed_when: false
+  when:
+    - security_patching_reboot_target_kernel_image_stat.stat.exists | default(false)
+    - security_patching_reboot_target_kernel_image_stat.stat.isreg | default(false)
+    - security_patching_reboot_kernel_boot_entry_probe_override is not mapping
+
+- name: Resolve effective UEK reboot target boot entry probe
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_kernel_boot_entry_probe_effective: >-
+      {{
+        security_patching_reboot_kernel_boot_entry_probe_override
+        if security_patching_reboot_kernel_boot_entry_probe_override is mapping
+        else security_patching_reboot_target_kernel_boot_entry_probe
+        | default({'rc': 1, 'stdout': ''})
+      }}
+
+- name: Parse selected UEK boot entry fields
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_entry_kernel_lines: >-
+      {{
+        security_patching_reboot_target_kernel_boot_entry_probe_effective.stdout
+        | default('')
+        | regex_findall('(?m)^kernel=.*$')
+      }}
+    security_patching_reboot_target_entry_initrd_lines: >-
+      {{
+        security_patching_reboot_target_kernel_boot_entry_probe_effective.stdout
+        | default('')
+        | regex_findall('(?m)^initrd=.*$')
+      }}
+    security_patching_reboot_target_entry_kernel_images: []
+    security_patching_reboot_target_initramfs_images: []
+
+- name: Collect selected UEK boot entry kernel images
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_entry_kernel_images: >-
+      {{
+        security_patching_reboot_target_entry_kernel_images
+        + [item | regex_replace('^kernel=', '') | replace('"', '') | replace("'", '') | trim]
+      }}
+  loop: "{{ security_patching_reboot_target_entry_kernel_lines }}"
+
+- name: Collect concrete selected UEK initramfs components
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_initramfs_images: >-
+      {{
+        (
+          security_patching_reboot_target_initramfs_images
+          + (
+            item
+            | regex_replace('^initrd=', '')
+            | replace('"', '')
+            | replace("'", '')
+            | trim
+            | split
+            | select('match', '^/')
+            | list
+          )
+        )
+        | unique
+        | list
+      }}
+  loop: "{{ security_patching_reboot_target_entry_initrd_lines }}"
+
+- name: Record expected selected UEK initramfs image
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_initramfs_image: >-
+      {{
+        security_patching_reboot_kernel_boot_dir
+        ~ '/initramfs-'
+        ~ security_patching_reboot_target_kernel_release
+        ~ '.img'
+        if security_patching_reboot_target_kernel_release | length > 0
+        else ''
+      }}
+
+- name: Inspect concrete selected UEK initramfs components
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: true
+    get_checksum: false
+  loop: "{{ security_patching_reboot_target_initramfs_images }}"
+  register: security_patching_reboot_target_initramfs_image_stats
+
+- name: Evaluate selected UEK initramfs component proof
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_initramfs_valid: >-
+      {{
+        security_patching_reboot_target_initramfs_image | length > 0
+        and security_patching_reboot_target_initramfs_image
+          in security_patching_reboot_target_initramfs_images
+        and security_patching_reboot_target_initramfs_images | length > 0
+        and security_patching_reboot_target_initramfs_image_stats.results
+          | default([])
+          | length == security_patching_reboot_target_initramfs_images | length
+        and security_patching_reboot_target_initramfs_image_stats.results
+          | default([])
+          | map(attribute='stat.exists', default=false)
+          | select('equalto', true)
+          | list
+          | length == security_patching_reboot_target_initramfs_images | length
+        and security_patching_reboot_target_initramfs_image_stats.results
+          | default([])
+          | map(attribute='stat.isreg', default=false)
+          | select('equalto', true)
+          | list
+          | length == security_patching_reboot_target_initramfs_images | length
+      }}
+
+- name: Evaluate newest installed UEK reboot target proof
+  ansible.builtin.set_fact:
+    security_patching_reboot_target_kernel_valid: >-
+      {{
+        security_patching_reboot_kernel_candidate_probe_effective.rc | default(1) | int == 0
+        and security_patching_reboot_kernel_candidate_records | length == 1
+        and security_patching_reboot_target_kernel_release is search('el10uek')
+        and security_patching_reboot_target_kernel_image_stat.stat.exists | default(false)
+        and security_patching_reboot_target_kernel_image_stat.stat.isreg | default(false)
+        and security_patching_reboot_target_kernel_owner_probe_effective.rc | default(1) | int == 0
+        and security_patching_reboot_target_kernel_owner_probe_effective.stdout
+          | default('')
+          | trim
+          == 'kernel-uek-core'
+        and security_patching_reboot_target_kernel_boot_entry_probe_effective.rc | default(1) | int == 0
+        and security_patching_reboot_target_entry_kernel_images
+          == [security_patching_reboot_target_kernel_image]
+        and security_patching_reboot_target_entry_initrd_lines | length > 0
+        and security_patching_reboot_target_initramfs_valid | bool
+      }}
+    security_patching_reboot_target_requires_default_change: >-
+      {{
+        security_patching_reboot_target_kernel_image | length > 0
+        and security_patching_default_kernel_image | default('') | trim
+          != security_patching_reboot_target_kernel_image
+      }}

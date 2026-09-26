@@ -58,10 +58,18 @@
           | dict2items
           | map(attribute='value.advisory_ids')
           | select('defined')
-          | reject('equalto', [])
           | list
           | length
         ) == (security_patching_request_instances | length)
+      - >-
+        (
+          security_patching_request_instances
+          | dict2items
+          | map(attribute='value.advisory_ids')
+          | reject('equalto', [])
+          | list
+          | length
+        ) > 0
     fail_msg: "Issue #{{ security_patching_issue_number }} metadata does not match this update workflow."
 
 - name: Validate approved request target scope

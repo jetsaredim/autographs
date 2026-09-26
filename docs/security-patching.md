@@ -129,8 +129,8 @@ All three workflows use the `production-security-patching` concurrency group. Sc
 - Second play scans and validates every host in `security_patching_target_group` before any target may be mutated.
 - Third play aggregates the preflight on `localhost`. The live inventory host set must exactly match the approved metadata. Any advisory drift, or any complete exact-ID scan whose current action is now `update` or `investigate`, makes the whole request reconciliation-only. A target that is still classified `reboot` must have a complete scan, reboot-eligible packages, and a proven second DNF no-op before the aggregate mutation gate can pass.
 - Fourth play runs `tasks_from: reboot_cleanup` serially only when the aggregate mutation gate passes. A complete reconciliation state instead preserves every target's authoritative findings and records reboot/installonly cleanup as not attempted.
-- `tasks/validate_reboot_state.yml` compares current OpenSCAP advisory IDs to approved issue metadata, classifies kernel-family eligibility, and records the DNF no-op proof before downtime.
-- `tasks/reboot_cleanup.yml` records the running kernel, reboots, waits for SSH, records the new running kernel, waits for Autographs quadlet services, verifies local static Caddy health, verifies Caddy-fronted `/admin/api/health`, and runs:
+- `tasks/validate_reboot_state.yml` compares current OpenSCAP advisory IDs to approved issue metadata, classifies kernel-family eligibility, records the DNF no-op proof, and resolves the newest installed bootable `kernel-uek-core` image with DNF/RPM ordering before downtime. Its exact `grubby` entry must name that kernel and at least one concrete initramfs; the release-matched initramfs and every additional concrete component must be regular files. Runtime variables such as `$tuned_initrd` are ignored because they are not independently verifiable paths.
+- `tasks/reboot_cleanup.yml` selects that verified UEK image as the default, proves the selection converged, records the running kernel, reboots, waits for SSH, records the new running kernel, verifies it is the selected target, waits for Autographs quadlet services, verifies local static Caddy health, verifies Caddy-fronted `/admin/api/health`, and runs:
 
   ```bash
   dnf -y remove --oldinstallonly --setopt=installonly_limit=2
@@ -152,7 +152,7 @@ All three workflows use the `production-security-patching` concurrency group. Sc
 
 - Defines the GitHub API URL, repository, token, request headers, scan ID, timestamp, issue number, approver, temp file paths, Oracle OVAL URL, OpenSCAP result paths, default approval label, and default target group.
 - Defines the reboot follow-up guard defaults, including `security_patching_reboot_validate_dnf_noop` and `security_patching_reboot_allowed_package_regex`.
-- Defines the update and reboot approval labels plus the DNF output patterns used to classify each complete scan as `close`, `update`, `reboot`, or `investigate`.
+- Defines the update and reboot approval labels plus the DNF output patterns and UEK-only package inventory used to classify each complete scan as `close`, `configure`, `update`, `reboot`, or `investigate`.
 - Defines labels managed by the scanner:
 
   ```text
@@ -252,9 +252,10 @@ The scan path starts in `.github/workflows/weekly-security-scan.yml`, then runs 
    | Classification | Evidence | Issue action |
    |---|---|---|
    | `close` | Complete OpenSCAP scan has no findings | Close an existing scanner issue |
+   | `configure` | One or more managed RHCK packages are installed while both running and default kernel images are verified UEK | Offer no approval label; run deployment convergence, then re-scan |
    | `update` | DNF reports an advisory-scoped package transaction | Offer `approved-production-update` |
-   | `reboot` | DNF proves a no-op and every package is in the reboot/installonly family allowlist | Offer `approved-production-reboot` |
-   | `investigate` | Missing package metadata, mixed no-op findings, failed/unrecognized DNF evidence, or conflicting host classifications | Offer no approval label |
+   | `reboot` | DNF proves a no-op and every package is in the UEK reboot/installonly family allowlist | Offer `approved-production-reboot` |
+   | `investigate` | Running/default kernel is not verified UEK, package metadata is missing, no-op findings are mixed, DNF evidence is failed/unrecognized, or host classifications conflict | Offer no approval label; kernel-state reports include UEK selection/reboot recovery steps |
 
 The runtime host must have `openscap-scanner` installed so `oscap-ssh` can execute `oscap` remotely. The base deployment role installs that package during instance setup. The workflow inventory supplies `ansible_user`, and the workflow passes a temp deploy key through `SSH_ADDITIONAL_OPTIONS`; local runs can omit `ansible_user` and let SSH config provide `User` and `IdentityFile` for the production IP.
 
@@ -398,7 +399,7 @@ The apply playbook treats OpenSCAP as the authority for detection and closure. D
 
 The workflow runs hosts serially and re-scans after applying updates. It reconciles the full issue body, labels, and open/closed state with one idempotent GitHub `PATCH`, so the triggering approval label is consumed by the desired label set. It then comments the result. If findings remain, the same issue contains only the authoritative remaining advisory set and its classified next action.
 
-When the remaining findings are kernel or UEK installonly findings and DNF proves there is no package work, the refreshed issue offers only the separate `approved-production-reboot` label. Mixed, incomplete, or unrecognized states offer no approval label and require investigation. The reboot workflow independently rechecks that DNF is a no-op for the approved advisories, boots the instance into the newest installed kernel, waits for Autographs health, removes old installonly kernels, re-runs OpenSCAP, and refreshes or closes the same issue.
+When the remaining findings are UEK installonly findings and DNF proves there is no package work, the refreshed issue offers only the separate `approved-production-reboot` label. Installed RHCK packages take precedence over DNF work and produce the `configure` action only when both running and default images are verified bootable UEK; deployment can then remove that drift without rebooting. An RHCK running/default kernel, missing image, or non-UEK RPM owner instead produces `investigate` with no approval label and explicit guidance to install/select UEK and reboot when necessary before deployment convergence. Mixed, incomplete, or unrecognized states also offer no approval label and require investigation. The reboot workflow independently rechecks that DNF is a no-op for the approved advisories, boots the instance into the newest installed UEK, waits for Autographs health, removes old installonly kernels, re-runs OpenSCAP, and refreshes or closes the same issue.
 
 ## Reboot flow
 
@@ -406,29 +407,32 @@ The reboot path starts when an allowed operator applies `approved-production-reb
 
 `tasks/validate_request.yml` runs first on `localhost` with the reboot approval label and the same scanner metadata contract used by the update workflow. It confirms the actor is allowed, the issue is open, the issue is scanner-created, the reboot approval label is present, and metadata targets the requested group.
 
-The reboot playbook scans each runtime host again before downtime. `tasks/validate_reboot_state.yml` first preserves that authoritative scan. Advisory-ID drift, or an exact advisory set whose complete scan is now classified `update` or `investigate`, marks the request for successful no-mutation reconciliation. For an exact advisory set that is still classified `reboot`, the advisory package names must match the configured kernel/UEK package-family regex and this second DNF check must report no remaining package work:
+The reboot playbook scans each runtime host again before downtime. `tasks/validate_reboot_state.yml` first preserves that authoritative scan. Advisory-ID drift, or an exact advisory set whose complete scan is now classified `configure`, `update`, or `investigate`, marks the request for successful no-mutation reconciliation. For an exact advisory set that is still classified `reboot`, the advisory package names must match the configured UEK package-family regex and this second DNF check must report no remaining package work:
 
 ```bash
 dnf --assumeno upgrade-minimal --security --advisories=<comma-separated ELSA IDs>
 ```
 
-If the complete scan's DNF classification now reports package work, the current action becomes `update`; if its evidence is incomplete, mixed, or unrecognized, the action becomes `investigate`. Either complete action change disables reboot and installonly cleanup for the full target group and reaches `post_reboot_result`, which refreshes the issue with the current action and label. Incomplete scans, or a failed package-family or second DNF no-op safety proof after a target remains classified `reboot`, fail before downtime and use cleanup to remove the reboot approval label. If a host in the target group has no approved findings and remains clean, it records a skipped reboot state instead of rebooting.
+If the complete scan's DNF classification now reports package work, the current action becomes `update`; if its evidence is incomplete, mixed, or unrecognized, the action becomes `investigate`. Either complete action change disables reboot and installonly cleanup for the full target group and reaches `post_reboot_result`, which refreshes the issue with the current action and label. Incomplete scans, a failed package-family or second DNF no-op safety proof, or an inability to establish one newest installed bootable UEK after a target remains classified `reboot`, fail before downtime and use cleanup to remove the reboot approval label. The failure comment identifies the missing image, initramfs component, RPM ownership, or mismatched boot entry and tells the operator to repair UEK installation/selection before rescanning. If a host in the target group has no approved findings and remains clean, it records a skipped reboot state instead of rebooting.
 
 `tasks/reboot_cleanup.yml` then runs per runtime host that still has approved findings:
 
-1. Records the running kernel before reboot.
-2. Reboots the host and waits for SSH to return.
-3. Records the running kernel after reboot.
-4. Waits for `autographs-controller.service` and `autographs-caddy.service`.
-5. Verifies `http://127.0.0.1:8081/manifest.json`.
-6. Verifies Caddy-fronted `https://<AUTOGRAPHS_DOMAIN>/admin/api/health` by resolving the configured domain to `127.0.0.1` on the host.
-7. Removes old installonly kernel packages with:
+1. Uses `dnf repoquery --installed --latest-limit=1` for `kernel-uek-core`, so the selected target follows RPM epoch/version/release ordering instead of lexicographic filename ordering. The target must have a regular `/boot/vmlinuz-*el10uek*` image, an installed `kernel-uek-core` owner, and an exact `grubby` boot entry. That entry must reference the selected image and a regular release-matched `/boot/initramfs-*el10uek*.img`; every additional concrete initrd component is also required to exist as a regular file.
+2. Selects that exact image with `grubby --set-default`, reads the default back, and refuses downtime if it did not converge. A stale but valid UEK default is therefore advanced before reboot.
+3. Records the running kernel before reboot.
+4. Reboots the host and waits for SSH to return.
+5. Records the running kernel after reboot.
+6. Requires the running and default `/boot/vmlinuz-*` files to exist, be owned by installed `kernel-uek*` RPMs, identify the same booted UEK image, and equal the exact preflight target. A stale, fallback, or rescue boot fails closed and records bounded failure context before package cleanup.
+7. Waits for `autographs-controller.service` and `autographs-caddy.service`.
+8. Verifies `http://127.0.0.1:8081/manifest.json`.
+9. Verifies Caddy-fronted `https://<AUTOGRAPHS_DOMAIN>/admin/api/health` by resolving the configured domain to `127.0.0.1` on the host.
+10. Removes old installonly kernel packages with:
 
    ```bash
    dnf -y remove --oldinstallonly --setopt=installonly_limit=2
    ```
 
-After cleanup, the playbook re-runs the OpenSCAP scan. `tasks/post_reboot_result.yml` refuses to publish a result unless all hosts have complete post-reboot scan facts. It applies the same four-way next-action classifier and desired-state issue `PATCH`; remaining findings stay open with the accurate update/reboot/investigate guidance, while a clean scan closes the issue.
+After cleanup, the playbook re-runs the OpenSCAP scan. `tasks/post_reboot_result.yml` refuses to publish a result unless all hosts have complete post-reboot scan facts. It applies the same five-way next-action classifier and desired-state issue `PATCH`; remaining findings or RHCK drift stay open with accurate configure/update/reboot/investigate guidance, while a clean UEK-only scan closes the issue.
 
 The reboot result comment includes the kernel before reboot, kernel after reboot, whether installonly cleanup changed anything, and remaining OpenSCAP finding counts.
 

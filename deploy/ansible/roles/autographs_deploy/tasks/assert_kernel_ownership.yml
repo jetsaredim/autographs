@@ -1,0 +1,11 @@
+- name: Assert kernel images have installed UEK RPM owners
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_running_kernel_image_owner.rc | int == 0
+      - autographs_deploy_running_kernel_image_owner.stdout | trim is match('^kernel-uek($|-)')
+      - autographs_deploy_default_kernel_image_owner.rc | int == 0
+      - autographs_deploy_default_kernel_image_owner.stdout | trim is match('^kernel-uek($|-)')
+    fail_msg: >-
+      Refusing kernel package convergence because both bootable UEK images must
+      be owned by installed kernel-uek RPM packages. Running owner={{ autographs_deploy_running_kernel_image_owner.stdout | default('unknown') | trim }},
+      default owner={{ autographs_deploy_default_kernel_image_owner.stdout | default('unknown') | trim }}.

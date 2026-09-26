@@ -21,6 +21,19 @@
     security_reboot_refresh_path_reached: false
     stale_advisory_id: ELSA-2026-11111
     remaining_advisory_id: ELSA-2026-22222
+    security_patching_fixture_probe: &reboot_probe
+      rc: 0
+      stdout: fixture
+      stderr: ""
+    security_patching_fixture_boot_entry: &reboot_boot_entry
+      valid: true
+      expected_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+      entry_kernel_images:
+        - /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+      expected_initramfs: /boot/initramfs-6.12.0-fixture.el10uek.x86_64.img
+      initramfs_images:
+        - /boot/initramfs-6.12.0-fixture.el10uek.x86_64.img
+      probe: *reboot_probe
   tasks:
     - name: Add reboot drift fixture host with remaining findings
       ansible.builtin.add_host:
@@ -36,6 +49,20 @@
         security_patching_reboot_current_advisory_ids:
           - ELSA-2026-22222
         security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_installed_rhck_packages: []
+        security_patching_post_reboot_kernel_inventory_is_complete: true
+        security_patching_post_reboot_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: true
         security_patching_post_reboot_advisory_ids:
           - ELSA-2026-22222
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
@@ -141,6 +168,8 @@
     security_patching_approval_label: approved-production-reboot
     security_patching_result_comment_path: /tmp/autographs-security-reboot-clean-comment-test.md
     security_reboot_clean_comment_path_reached: false
+    security_patching_fixture_probe: *reboot_probe
+    security_patching_fixture_boot_entry: *reboot_boot_entry
   tasks:
     - name: Add reboot fixture host with clean findings
       ansible.builtin.add_host:
@@ -155,6 +184,20 @@
           - ELSA-2026-33333
         security_patching_reboot_current_advisory_ids: []
         security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_installed_rhck_packages: []
+        security_patching_post_reboot_kernel_inventory_is_complete: true
+        security_patching_post_reboot_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: true
         security_patching_post_reboot_advisory_ids: []
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
         security_patching_post_reboot_next_action: close
@@ -207,6 +250,8 @@
     security_patching_report_path: /tmp/autographs-security-reboot-update-reclassification.md
     security_patching_result_comment_path: /tmp/autographs-security-reboot-update-reclassification-comment.md
     security_reboot_update_refresh_path_reached: false
+    security_patching_fixture_probe: *reboot_probe
+    security_patching_fixture_boot_entry: *reboot_boot_entry
   tasks:
     - name: Add exact-ID update-reclassified reboot result hosts
       ansible.builtin.add_host:
@@ -226,6 +271,20 @@
         security_patching_reboot_current_advisory_ids:
           - "{{ item.advisory_id }}"
         security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_installed_rhck_packages: []
+        security_patching_post_reboot_kernel_inventory_is_complete: true
+        security_patching_post_reboot_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: true
         security_patching_post_reboot_advisory_ids:
           - "{{ item.advisory_id }}"
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
@@ -323,6 +382,8 @@
     security_patching_report_path: /tmp/autographs-security-reboot-investigate-reclassification.md
     security_patching_result_comment_path: /tmp/autographs-security-reboot-investigate-reclassification-comment.md
     security_reboot_investigate_refresh_path_reached: false
+    security_patching_fixture_probe: *reboot_probe
+    security_patching_fixture_boot_entry: *reboot_boot_entry
   tasks:
     - name: Add exact-ID investigate-reclassified reboot result host
       ansible.builtin.add_host:
@@ -342,6 +403,20 @@
         security_patching_reboot_current_advisory_ids:
           - ELSA-2026-55551
         security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_installed_rhck_packages: []
+        security_patching_post_reboot_kernel_inventory_is_complete: true
+        security_patching_post_reboot_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: true
         security_patching_post_reboot_advisory_ids:
           - ELSA-2026-55551
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
@@ -411,3 +486,323 @@
           - "'No reboot or installonly cleanup was attempted' in security_patching_reboot_result_comment_body"
           - "'Current action: `investigate`' in security_patching_reboot_result_comment_body"
           - "'investigate-one' in security_patching_reboot_result_comment_body"
+
+- name: Validate kernel-only recovery remains open after reboot reconciliation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_kernel_recovery_fixture_runtime
+    security_patching_request_instances:
+      unsafe-default-kernel:
+        advisory_ids: []
+    security_patching_scan_id: security-reboot-kernel-recovery-test
+    security_patching_scan_timestamp: "2026-09-20T01:00:00Z"
+    security_patching_issue_number: "128"
+    security_patching_github_api_url: http://127.0.0.1:1
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_report_path: /tmp/autographs-security-reboot-kernel-recovery.md
+    security_patching_result_comment_path: /tmp/autographs-security-reboot-kernel-recovery-comment.md
+    security_reboot_kernel_recovery_path_reached: false
+    security_patching_fixture_probe: *reboot_probe
+    security_patching_fixture_boot_entry: *reboot_boot_entry
+  tasks:
+    - name: Add kernel-only reboot reconciliation fixture host
+      ansible.builtin.add_host:
+        name: unsafe-default-kernel
+        groups: security_reboot_kernel_recovery_fixture_runtime
+        security_patching_reboot_completed: false
+        security_patching_pre_reboot_kernel_release: ""
+        security_patching_post_reboot_kernel_release: ""
+        security_patching_installonly_cleanup_changed: false
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_reclassified: true
+        security_patching_reboot_approved_advisory_ids: []
+        security_patching_reboot_current_advisory_ids: []
+        security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_entries: []
+        security_patching_post_reboot_advisories: []
+        security_patching_post_reboot_advisory_ids: []
+        security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_installed_rhck_packages: []
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10_2.x86_64
+        security_patching_post_reboot_kernel_inventory_is_complete: true
+        security_patching_post_reboot_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: false
+        security_patching_post_reboot_next_action: investigate
+        security_patching_post_reboot_next_action_label: ""
+        security_patching_post_reboot_next_action_reason: Kernel recovery is required.
+
+    - name: Run kernel-only reboot reconciliation until fake GitHub refresh fails
+      block:
+        - name: Attempt to publish kernel-only reboot result
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_reboot_result
+      rescue:
+        - name: Record expected kernel-only reboot fake GitHub failure
+          ansible.builtin.set_fact:
+            security_reboot_kernel_recovery_path_reached: true
+
+    - name: Assert kernel-only reboot reconciliation remains actionable
+      ansible.builtin.assert:
+        that:
+          - security_reboot_kernel_recovery_path_reached
+          - security_patching_remaining_hosts == ['unsafe-default-kernel']
+          - security_patching_hosts_with_findings == ['unsafe-default-kernel']
+          - security_patching_next_action | trim == 'investigate'
+          - security_patching_next_action_label | trim | length == 0
+          - security_patching_reconciled_issue_body.state == 'open'
+          - security_patching_reconciled_issue_body.state_reason is not defined
+          - "'Kernel recovery required on `unsafe-default-kernel`' in security_patching_refreshed_report_body"
+          - "'Default kernel image: `/boot/vmlinuz-6.12.0-fixture.el10_2.x86_64`' in security_patching_refreshed_report_body"
+          - "'running UEK verified=True, default UEK verified=False' in security_patching_reboot_result_comment_body"
+          - "'Recover a verified running and default UEK kernel first' in security_patching_reboot_result_comment_body"
+
+- name: Validate investigate outranks configure after reboot reconciliation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_mixed_kernel_fixture_runtime
+    security_patching_request_instances:
+      configure-host:
+        advisory_ids: []
+      investigate-host:
+        advisory_ids: []
+    security_patching_scan_id: security-reboot-mixed-kernel-test
+    security_patching_scan_timestamp: "2026-09-20T03:00:00Z"
+    security_patching_issue_number: "130"
+    security_patching_github_api_url: http://127.0.0.1:1
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_report_path: /tmp/autographs-security-reboot-mixed-kernel.md
+    security_patching_result_comment_path: /tmp/autographs-security-reboot-mixed-kernel-comment.md
+    security_reboot_mixed_kernel_path_reached: false
+    security_patching_fixture_probe: *reboot_probe
+    security_patching_fixture_boot_entry: *reboot_boot_entry
+  tasks:
+    - name: Add mixed configure and investigate reboot fixture hosts
+      ansible.builtin.add_host:
+        name: "{{ item.name }}"
+        groups: security_reboot_mixed_kernel_fixture_runtime
+        security_patching_reboot_completed: false
+        security_patching_pre_reboot_kernel_release: ""
+        security_patching_post_reboot_kernel_release: ""
+        security_patching_installonly_cleanup_changed: false
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_reclassified: true
+        security_patching_reboot_approved_advisory_ids: []
+        security_patching_reboot_current_advisory_ids: []
+        security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_entries: []
+        security_patching_post_reboot_advisories: []
+        security_patching_post_reboot_advisory_ids: []
+        security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_installed_rhck_packages: "{{ item.rhck_packages }}"
+        security_patching_post_reboot_running_kernel_release: "{{ item.running_release }}"
+        security_patching_post_reboot_running_kernel_image: "/boot/vmlinuz-{{ item.running_release }}"
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_kernel_inventory_is_complete: true
+        security_patching_post_reboot_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_running_kernel_is_valid_uek: "{{ item.running_uek }}"
+        security_patching_post_reboot_default_kernel_is_valid_uek: true
+        security_patching_post_reboot_next_action: "{{ item.action }}"
+        security_patching_post_reboot_next_action_label: ""
+        security_patching_post_reboot_next_action_reason: "{{ item.reason }}"
+      loop:
+        - name: configure-host
+          action: configure
+          rhck_packages:
+            - kernel-core
+          running_release: 6.12.0-fixture.el10uek.x86_64
+          running_uek: true
+          reason: RHCK packages violate the production UEK-only kernel posture.
+        - name: investigate-host
+          action: investigate
+          rhck_packages: []
+          running_release: 6.12.0-fixture.el10_2.x86_64
+          running_uek: false
+          reason: Kernel recovery is required.
+
+    - name: Run mixed reboot reconciliation until fake GitHub refresh fails
+      block:
+        - name: Attempt to publish mixed reboot result
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_reboot_result
+      rescue:
+        - name: Record expected mixed reboot fake GitHub failure
+          ansible.builtin.set_fact:
+            security_reboot_mixed_kernel_path_reached: true
+
+    - name: Assert reboot investigation precedence blocks convergence and approval
+      ansible.builtin.assert:
+        that:
+          - security_reboot_mixed_kernel_path_reached
+          - security_patching_remaining_hosts | sort == ['configure-host', 'investigate-host']
+          - security_patching_remaining_actions | sort == ['configure', 'investigate']
+          - security_patching_next_action | trim == 'investigate'
+          - security_patching_next_action_label | trim | length == 0
+          - security_patching_report_approval_label | trim | length == 0
+          - "'approved-production-update' not in security_patching_reconciled_issue_body.labels"
+          - "'approved-production-reboot' not in security_patching_reconciled_issue_body.labels"
+          - "'Run the normal production deployment convergence' not in security_patching_refreshed_report_body"
+          - "'do not run deployment convergence for this target group' in security_patching_refreshed_report_body"
+
+- name: Validate incomplete reboot snapshot evidence blocks result publication
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_incomplete_snapshot_fixture_runtime
+    security_patching_request_instances:
+      missing-host:
+        advisory_ids: []
+      malformed-host:
+        advisory_ids: []
+    security_patching_reboot_snapshot_guard_failed: false
+    security_patching_reboot_snapshot_guard_failure_message: ""
+    security_patching_fixture_probe: *reboot_probe
+    security_patching_fixture_boot_entry: *reboot_boot_entry
+  tasks:
+    - name: Add incomplete reboot snapshot fixture hosts
+      ansible.builtin.add_host:
+        name: "{{ item.name }}"
+        groups: security_reboot_incomplete_snapshot_fixture_runtime
+        security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_entries: []
+        security_patching_post_reboot_advisory_ids: []
+        security_patching_post_reboot_next_action: close
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_installed_rhck_packages: []
+        security_patching_post_reboot_kernel_inventory_is_complete: true
+        security_patching_post_reboot_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_probe_facts: "{{ item.running_probe | default(omit) }}"
+        security_patching_post_reboot_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_boot_entry: "{{ item.running_boot_entry }}"
+        security_patching_post_reboot_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: true
+      loop:
+        - name: missing-host
+          running_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        - name: malformed-host
+          running_probe: "{{ security_patching_fixture_probe }}"
+          running_boot_entry:
+            valid: true
+            probe:
+              rc: 0
+
+    - name: Run reboot result guard against incomplete snapshot evidence
+      block:
+        - name: Attempt to publish reboot result from incomplete snapshots
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_reboot_result
+      rescue:
+        - name: Record expected reboot snapshot guard failure
+          ansible.builtin.set_fact:
+            security_patching_reboot_snapshot_guard_failed: true
+            security_patching_reboot_snapshot_guard_failure_message: "{{ ansible_failed_result.msg | default('') }}"
+
+    - name: Assert incomplete reboot snapshots are rejected before publication
+      ansible.builtin.assert:
+        that:
+          - security_patching_reboot_snapshot_guard_failed
+          - security_patching_incomplete_post_reboot_hosts | sort == ['malformed-host', 'missing-host']
+          - "'Refusing to publish a security reboot result' in security_patching_reboot_snapshot_guard_failure_message"
+
+- name: Validate incomplete kernel inventory remains open after reboot reconciliation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_inventory_failure_fixture_runtime
+    security_patching_request_instances:
+      inventory-failure-host:
+        advisory_ids: []
+    security_patching_scan_id: security-reboot-inventory-failure-test
+    security_patching_scan_timestamp: "2026-09-25T11:00:00Z"
+    security_patching_issue_number: "132"
+    security_patching_github_api_url: http://127.0.0.1:1
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fixture-token
+    security_patching_report_path: /tmp/autographs-security-reboot-inventory-failure.md
+    security_patching_result_comment_path: /tmp/autographs-security-reboot-inventory-failure-comment.md
+    security_reboot_inventory_failure_path_reached: false
+    security_patching_fixture_probe: *reboot_probe
+    security_patching_fixture_boot_entry: *reboot_boot_entry
+  tasks:
+    - name: Add inventory-only reboot reconciliation fixture host
+      ansible.builtin.add_host:
+        name: inventory-failure-host
+        groups: security_reboot_inventory_failure_fixture_runtime
+        security_patching_reboot_completed: false
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_reclassified: true
+        security_patching_reboot_approved_advisory_ids: []
+        security_patching_reboot_current_advisory_ids: []
+        security_patching_post_reboot_scan_status: complete
+        security_patching_post_reboot_entries: []
+        security_patching_post_reboot_advisories: []
+        security_patching_post_reboot_advisory_ids: []
+        security_patching_post_reboot_ksplice_aware_advisory_ids: []
+        security_patching_post_reboot_installed_rhck_packages: []
+        security_patching_post_reboot_kernel_inventory_is_complete: false
+        security_patching_post_reboot_kernel_inventory_probe_facts:
+          rc: 1
+          stdout: ""
+          stderr: inventory probe failed
+        security_patching_post_reboot_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_reboot_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_reboot_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_reboot_running_kernel_is_valid_uek: true
+        security_patching_post_reboot_default_kernel_is_valid_uek: true
+        security_patching_post_reboot_next_action: investigate
+        security_patching_post_reboot_next_action_label: ""
+        security_patching_post_reboot_next_action_reason: Kernel inventory recovery is required.
+
+    - name: Run inventory-only reboot reconciliation until fake GitHub refresh fails
+      block:
+        - name: Attempt to publish inventory-only reboot result
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: post_reboot_result
+      rescue:
+        - name: Record expected inventory-only reboot fake GitHub failure
+          ansible.builtin.set_fact:
+            security_reboot_inventory_failure_path_reached: true
+
+    - name: Assert inventory-only reboot reconciliation remains actionable
+      ansible.builtin.assert:
+        that:
+          - security_reboot_inventory_failure_path_reached
+          - security_patching_remaining_hosts == ['inventory-failure-host']
+          - security_patching_next_action | trim == 'investigate'
+          - security_patching_reconciled_issue_body.state == 'open'
+          - "'rpm -qa` rc=`1`' in security_patching_refreshed_report_body"
+          - "'kernel inventory complete=False' in security_patching_reboot_result_comment_body"
+          - "'Do not apply an approval label or run deployment convergence on an unsafe host' in security_patching_reboot_result_comment_body"

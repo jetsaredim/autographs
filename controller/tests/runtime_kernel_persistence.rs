@@ -3,6 +3,7 @@ use std::{fs, path::PathBuf};
 #[test]
 fn deploy_role_disables_core_and_kernel_dump_persistence() {
     let deploy_tasks = read_repo("deploy/ansible/roles/autographs_deploy/tasks/main.yml");
+    let deploy_defaults = read_repo("deploy/ansible/roles/autographs_deploy/defaults/main.yml");
     let deploy_handlers = read_repo("deploy/ansible/roles/autographs_deploy/handlers/main.yml");
     let kernel_tasks =
         read_repo("deploy/ansible/roles/autographs_deploy/tasks/kernel_persistence.yml");
@@ -20,8 +21,51 @@ fn deploy_role_disables_core_and_kernel_dump_persistence() {
     assert!(kernel_tasks.contains("state: stopped"));
     assert!(kernel_tasks.contains("enabled: false"));
     assert!(kernel_tasks.contains("masked: true"));
-    assert!(!kernel_tasks.contains("failed_when: false"));
     assert!(!kernel_tasks.contains("ignore_errors:"));
+
+    for rejected_rhck_package in [
+        "kernel-uki-virt",
+        "kernel-uki-virt-addons",
+        "kernel-debug-uki-virt",
+        "kernel-debug-devel-matched",
+        "kernel-abi-stablelists",
+        "kernel-doc",
+    ] {
+        assert!(
+            deploy_defaults.contains(&format!("  - {rejected_rhck_package}\n")),
+            "deployment must remove and exclude RHCK package {rejected_rhck_package}"
+        );
+    }
+    for preserved_shared_package in ["kernel-headers", "kernel-tools", "kernel-tools-libs"] {
+        assert!(
+            !deploy_defaults.contains(&format!("  - {preserved_shared_package}\n")),
+            "deployment must preserve shared package {preserved_shared_package}"
+        );
+    }
+
+    let kernel_ownership_checks = kernel_tasks
+        .split("- name: Inspect running UEK kernel image RPM owner")
+        .nth(1)
+        .expect("running UEK ownership probe")
+        .split("- name: Remove managed RHCK kernel packages from UEK runtime")
+        .next()
+        .expect("bounded UEK ownership checks");
+    assert_eq!(
+        kernel_ownership_checks
+            .matches("failed_when: false")
+            .count(),
+        2
+    );
+    assert!(
+        kernel_ownership_checks
+            .contains("ansible.builtin.import_tasks: assert_kernel_ownership.yml")
+    );
+
+    let dump_persistence_tasks = kernel_tasks
+        .split("- name: Ensure systemd-coredump configuration directory exists")
+        .nth(1)
+        .expect("core and kernel dump persistence tasks");
+    assert!(!dump_persistence_tasks.contains("failed_when: false"));
 
     assert!(kernel_tasks.contains("- --info=ALL"));
     assert!(kernel_tasks.contains("- --update-kernel=ALL"));

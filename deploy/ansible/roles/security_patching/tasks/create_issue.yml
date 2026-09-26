@@ -30,15 +30,20 @@
   ansible.builtin.set_fact:
     security_patching_hosts_with_findings: []
 
-- name: Collect hosts with security update findings
+- name: Collect hosts with security findings or kernel posture drift
   ansible.builtin.set_fact:
     security_patching_hosts_with_findings: "{{ security_patching_hosts_with_findings + [item] }}"
   loop: "{{ security_patching_target_hosts }}"
-  when: (hostvars[item].security_patching_update_entries | default([]) | length) > 0
+  when: >-
+    (hostvars[item].security_patching_update_entries | default([]) | length) > 0
+    or (hostvars[item].security_patching_installed_rhck_packages | default([]) | length) > 0
+    or not (hostvars[item].security_patching_kernel_inventory_is_complete | default(false) | bool)
+    or not (hostvars[item].security_patching_running_kernel_is_valid_uek | default(false) | bool)
+    or not (hostvars[item].security_patching_default_kernel_is_valid_uek | default(false) | bool)
 
 - name: Report clean security update scan
   ansible.builtin.debug:
-    msg: "No available security updates were reported for {{ security_patching_target_group }}."
+    msg: "No security findings or UEK-only kernel posture drift were reported for {{ security_patching_target_group }}."
   when: security_patching_hosts_with_findings | length == 0
 
 - name: Initialize scanner issue action list
@@ -63,6 +68,10 @@
     security_patching_next_action: >-
       {% if security_patching_hosts_with_findings | length == 0 %}
       close
+      {% elif 'investigate' in security_patching_scanner_issue_actions %}
+      investigate
+      {% elif 'configure' in security_patching_scanner_issue_actions %}
+      configure
       {% elif security_patching_scanner_issue_actions | length == 1 %}
       {{ security_patching_scanner_issue_actions[0] }}
       {% else %}

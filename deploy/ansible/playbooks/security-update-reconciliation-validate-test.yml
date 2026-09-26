@@ -1,3 +1,104 @@
+- name: Validate clean and finding targets share an actionable update approval
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_update_mixed_clean_fixture_runtime
+  tasks:
+    - name: Add recovered clean update fixture host
+      ansible.builtin.add_host:
+        name: recovered-clean-host
+        groups: security_update_mixed_clean_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_update_advisory_ids: []
+        security_patching_next_action: close
+
+    - name: Add remaining update fixture host
+      ansible.builtin.add_host:
+        name: remaining-update-host
+        groups: security_update_mixed_clean_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_update_advisory_ids:
+          - ELSA-2026-11111
+        security_patching_next_action: update
+
+    - name: Record mixed clean and update approval metadata
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          recovered-clean-host:
+            advisory_ids: []
+          remaining-update-host:
+            advisory_ids:
+              - ELSA-2026-11111
+
+    - name: Classify mixed clean and update approval fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_update_request
+
+    - name: Assert only the finding host remains actionable
+      ansible.builtin.assert:
+        that:
+          - security_patching_request_instance_hosts == ['recovered-clean-host', 'remaining-update-host']
+          - security_patching_request_clean_hosts == ['recovered-clean-host']
+          - security_patching_request_actionable_hosts == ['remaining-update-host']
+          - security_patching_request_reconciliation_hosts == []
+          - not (security_patching_request_reconciliation_only | bool)
+
+- name: Validate an approved-empty clean update target skips package mutation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_request_instances:
+      localhost:
+        advisory_ids: []
+    security_patching_request_reconciliation_only: false
+    security_patching_scan_status: complete
+    security_patching_update_advisory_ids: []
+    security_patching_update_ksplice_aware_advisory_ids: []
+    security_patching_update_advisories: []
+    security_patching_update_entries: []
+    security_patching_installed_rhck_packages: []
+    security_patching_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+    security_patching_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+    security_patching_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+    security_patching_running_kernel_is_valid_uek: true
+    security_patching_default_kernel_is_valid_uek: true
+    security_patching_kernel_inventory_is_complete: true
+    security_patching_kernel_inventory_probe_facts: &update_probe
+      rc: 0
+      stdout: fixture
+      stderr: ""
+    security_patching_running_kernel_probe_facts: *update_probe
+    security_patching_default_kernel_probe_facts: *update_probe
+    security_patching_running_kernel_owner_probe_facts: *update_probe
+    security_patching_default_kernel_owner_probe_facts: *update_probe
+    security_patching_running_kernel_boot_entry: &update_boot_entry
+      valid: true
+      expected_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+      entry_kernel_images:
+        - /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+      expected_initramfs: /boot/initramfs-6.12.0-fixture.el10uek.x86_64.img
+      initramfs_images:
+        - /boot/initramfs-6.12.0-fixture.el10uek.x86_64.img
+      probe: *update_probe
+    security_patching_default_kernel_boot_entry: *update_boot_entry
+    security_patching_next_action: close
+    security_patching_next_action_label: ""
+    security_patching_next_action_reason: The complete OpenSCAP scan is clean.
+  tasks:
+    - name: Reconcile approved-empty clean update target
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: patch
+
+    - name: Assert approved-empty clean target skipped DNF mutation
+      ansible.builtin.assert:
+        that:
+          - security_patching_skipped_without_approval | bool
+          - security_patching_approved_advisory_ids == []
+          - not (security_patching_dnf_changed | bool)
+          - security_patching_post_update_next_action == 'close'
+
 - name: Validate aggregate preflight blocks partial multi-host mutation
   hosts: localhost
   gather_facts: false
@@ -46,6 +147,15 @@
 - name: Validate security update drift becomes reconciliation-only
   hosts: localhost
   gather_facts: false
+  vars:
+    security_patching_kernel_inventory_is_complete: true
+    security_patching_kernel_inventory_probe_facts: *update_probe
+    security_patching_running_kernel_probe_facts: *update_probe
+    security_patching_default_kernel_probe_facts: *update_probe
+    security_patching_running_kernel_owner_probe_facts: *update_probe
+    security_patching_default_kernel_owner_probe_facts: *update_probe
+    security_patching_running_kernel_boot_entry: *update_boot_entry
+    security_patching_default_kernel_boot_entry: *update_boot_entry
   tasks:
     - name: Record drifted approved update fixture
       ansible.builtin.set_fact:
@@ -65,6 +175,11 @@
           - advisory_id: ELSA-2026-22222
             packages:
               - openssl
+        security_patching_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_running_kernel_is_valid_uek: true
+        security_patching_default_kernel_is_valid_uek: true
         security_patching_next_action: update
         security_patching_next_action_label: approved-production-update
         security_patching_next_action_reason: Advisory-scoped DNF reported package work.
@@ -84,6 +199,8 @@
           - security_patching_post_update_advisory_ids == ['ELSA-2026-22222']
           - security_patching_post_update_next_action == 'update'
           - security_patching_post_update_next_action_label == 'approved-production-update'
+          - security_patching_post_update_running_kernel_is_valid_uek | bool
+          - security_patching_post_update_default_kernel_is_valid_uek | bool
 
     - name: Record clean current scan against stale approval fixture
       ansible.builtin.set_fact:
@@ -134,12 +251,28 @@
     security_patching_report_path: /tmp/autographs-security-update-clean-reconciliation-report.md
     security_patching_result_comment_path: /tmp/autographs-security-update-clean-reconciliation-comment.md
     security_patching_clean_reconciliation_reached_github: false
+    security_patching_fixture_probe: *update_probe
+    security_patching_fixture_boot_entry: *update_boot_entry
   tasks:
     - name: Add clean reconciliation fixture host
       ansible.builtin.add_host:
         name: production
         groups: security_update_clean_reconciliation_runtime
         security_patching_post_update_scan_status: complete
+        security_patching_post_update_running_kernel_release: 6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_running_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_default_kernel_image: /boot/vmlinuz-6.12.0-fixture.el10uek.x86_64
+        security_patching_post_update_installed_rhck_packages: []
+        security_patching_post_update_kernel_inventory_is_complete: true
+        security_patching_post_update_kernel_inventory_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_default_kernel_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_default_kernel_owner_probe_facts: "{{ security_patching_fixture_probe }}"
+        security_patching_post_update_running_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_update_default_kernel_boot_entry: "{{ security_patching_fixture_boot_entry }}"
+        security_patching_post_update_running_kernel_is_valid_uek: true
+        security_patching_post_update_default_kernel_is_valid_uek: true
         security_patching_post_update_advisory_ids: []
         security_patching_post_update_advisories: []
         security_patching_post_update_entries: []

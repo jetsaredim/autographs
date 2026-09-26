@@ -1,3 +1,154 @@
+- name: Validate clean and finding targets share an actionable reboot approval
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_target_group: security_reboot_mixed_clean_fixture_runtime
+  tasks:
+    - name: Add recovered clean reboot fixture host
+      ansible.builtin.add_host:
+        name: recovered-clean-host
+        groups: security_reboot_mixed_clean_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_clean_skip: true
+        security_patching_reboot_preflight_ready: false
+        security_patching_next_action: close
+        security_patching_post_reboot_next_action: close
+
+    - name: Add remaining reboot fixture host
+      ansible.builtin.add_host:
+        name: remaining-reboot-host
+        groups: security_reboot_mixed_clean_fixture_runtime
+        security_patching_scan_status: complete
+        security_patching_reboot_drift_detected: false
+        security_patching_reboot_clean_skip: false
+        security_patching_reboot_preflight_ready: true
+        security_patching_next_action: reboot
+        security_patching_post_reboot_next_action: reboot
+
+    - name: Record mixed clean and reboot approval metadata
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          recovered-clean-host:
+            advisory_ids: []
+          remaining-reboot-host:
+            advisory_ids:
+              - ELSA-2026-22222
+
+    - name: Classify mixed clean and reboot approval fixture
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: classify_reboot_request
+
+    - name: Mark simulated cleanup only for ready reboot targets
+      ansible.builtin.set_fact:
+        security_patching_reboot_cleanup_reached: true
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      loop: "{{ security_patching_target_hosts }}"
+      when:
+        - security_patching_reboot_mutation_allowed | bool
+        - hostvars[item].security_patching_reboot_preflight_ready | default(false) | bool
+
+    - name: Assert only the finding host reaches reboot cleanup
+      ansible.builtin.assert:
+        that:
+          - security_patching_request_instance_hosts == ['recovered-clean-host', 'remaining-reboot-host']
+          - security_patching_reboot_clean_hosts == ['recovered-clean-host']
+          - security_patching_reboot_actionable_hosts == ['remaining-reboot-host']
+          - security_patching_reboot_reconciliation_hosts == []
+          - security_patching_reboot_blocked_hosts == []
+          - security_patching_reboot_mutation_allowed | bool
+          - not (hostvars['recovered-clean-host'].security_patching_reboot_cleanup_reached | default(false) | bool)
+          - hostvars['remaining-reboot-host'].security_patching_reboot_cleanup_reached | bool
+
+- name: Validate post-reboot kernel proof precedes installonly cleanup
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_failure_context_path: ""
+    security_patching_failure_context_max_chars: 12000
+    security_post_reboot_validation_path: >-
+      {{ playbook_dir }}/../roles/security_patching/tasks/validate_post_reboot_kernel.yml
+    security_reboot_cleanup_tasks: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/security_patching/tasks/reboot_cleanup.yml') | from_yaml }}
+  tasks:
+    - name: Select post-reboot safety and cleanup tasks
+      ansible.builtin.set_fact:
+        security_post_reboot_guard_task: >-
+          {{
+            security_reboot_cleanup_tasks
+            | selectattr('name', 'equalto', 'Require safe post-reboot UEK before installonly cleanup')
+            | first
+          }}
+        security_installonly_cleanup_task: >-
+          {{
+            security_reboot_cleanup_tasks
+            | selectattr('name', 'equalto', 'Remove old installonly kernel packages after healthy reboot')
+            | first
+          }}
+
+    - name: Require production cleanup ordering contract
+      ansible.builtin.assert:
+        that:
+          - security_post_reboot_guard_task['ansible.builtin.import_tasks'] == 'validate_post_reboot_kernel.yml'
+          - security_reboot_cleanup_tasks.index(security_post_reboot_guard_task) < security_reboot_cleanup_tasks.index(security_installonly_cleanup_task)
+          - security_installonly_cleanup_task['ansible.builtin.command'].argv[3] == '--oldinstallonly'
+
+    - name: Record fallback RHCK boot fixture
+      ansible.builtin.set_fact:
+        security_patching_reboot_target_kernel_valid: true
+        security_patching_reboot_target_kernel_evr: 0:6.12.0-206.104.4.10.el10uek
+        security_patching_reboot_target_kernel_image: /boot/vmlinuz-6.12.0-206.104.4.10.el10uek.x86_64
+        security_patching_reboot_target_initramfs_valid: true
+        security_patching_reboot_target_initramfs_image: /boot/initramfs-6.12.0-206.104.4.10.el10uek.x86_64.img
+        security_patching_reboot_target_initramfs_images:
+          - /boot/initramfs-6.12.0-206.104.4.10.el10uek.x86_64.img
+        security_patching_post_reboot_running_kernel_release: 6.12.0-211.56.1.el10_2.x86_64
+        security_patching_post_reboot_running_kernel_image: /boot/vmlinuz-6.12.0-211.56.1.el10_2.x86_64
+        security_patching_post_reboot_default_kernel_image: /boot/vmlinuz-6.12.0-211.56.1.el10_2.x86_64
+        security_patching_post_reboot_default_kernel:
+          rc: 0
+        security_patching_post_reboot_running_kernel_image_stat:
+          stat:
+            exists: true
+            isreg: true
+        security_patching_post_reboot_default_kernel_image_stat:
+          stat:
+            exists: true
+            isreg: true
+        security_patching_post_reboot_running_kernel_image_owner:
+          rc: 0
+          stdout: kernel-core
+        security_patching_post_reboot_default_kernel_image_owner:
+          rc: 0
+          stdout: kernel-core
+        security_post_reboot_guard_failed: false
+        security_installonly_cleanup_reached: false
+
+    - name: Apply fallback boot guard before simulated installonly cleanup
+      block:
+        - name: Evaluate production post-reboot safety gate
+          ansible.builtin.include_tasks: "{{ security_post_reboot_validation_path }}"
+
+        - name: Record forbidden simulated installonly cleanup
+          ansible.builtin.set_fact:
+            security_installonly_cleanup_reached: true
+      rescue:
+        - name: Record expected fallback boot rejection
+          ansible.builtin.set_fact:
+            security_post_reboot_guard_failed: true
+
+    - name: Require fallback boot rejection before cleanup
+      ansible.builtin.assert:
+        that:
+          - security_post_reboot_guard_failed
+          - not security_installonly_cleanup_reached
+          - not (security_patching_post_reboot_kernel_safe | bool)
+          - security_patching_post_reboot_kernel_failure_context is search('6.12.0-211.56.1.el10_2.x86_64')
+          - security_patching_post_reboot_kernel_failure_context is search('kernel-core')
+          - security_patching_post_reboot_kernel_failure_context is search('6.12.0-206.104.4.10.el10uek.x86_64')
+
 - name: Validate aggregate reboot preflight prevents partial multi-host mutation
   hosts: localhost
   gather_facts: false

@@ -1,0 +1,11 @@
+- name: Assert running and default UEK kernel images are regular files
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_running_kernel_image_stat.stat.exists | default(false)
+      - autographs_deploy_running_kernel_image_stat.stat.isreg | default(false)
+      - autographs_deploy_default_kernel_image_stat.stat.exists | default(false)
+      - autographs_deploy_default_kernel_image_stat.stat.isreg | default(false)
+    fail_msg: >-
+      Refusing kernel package convergence because the running and default UEK
+      kernel images must both be regular files. Running image={{ autographs_deploy_running_kernel_image }},
+      default image={{ autographs_deploy_default_kernel_image }}.

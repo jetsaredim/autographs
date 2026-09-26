@@ -94,5 +94,8 @@
     security_patching_scan_message: >-
       {{ security_patching_oscap_result.message | default('Oracle Linux OpenSCAP OVAL evaluation completed.') }}
 
+- name: Inspect kernel posture without aborting scanner reporting
+  ansible.builtin.import_tasks: kernel_posture.yml
+
 - name: Classify current security finding action
   ansible.builtin.import_tasks: classify_findings.yml

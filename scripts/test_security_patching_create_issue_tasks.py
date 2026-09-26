@@ -56,8 +56,14 @@ REBOOT_RESULT_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
 REBOOT_PREFLIGHT_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
     "security-reboot-preflight-validate-test.yml"
 )
+REBOOT_KERNEL_SELECTION_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
+    "security-reboot-kernel-selection-validate-test.yml"
+)
 CLASSIFICATION_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
     "security-finding-classification-validate-test.yml"
+)
+KERNEL_POSTURE_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
+    "security-kernel-posture-validate-test.yml"
 )
 UPDATE_RECONCILIATION_TEST_PLAYBOOK_PATH = REPORT_RENDER_TEST_PLAYBOOK_PATH.with_name(
     "security-update-reconciliation-validate-test.yml"
@@ -240,11 +246,15 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         reboot_state_test = REBOOT_STATE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         reboot_result_test = REBOOT_RESULT_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         reboot_preflight_test = REBOOT_PREFLIGHT_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        reboot_kernel_selection_test = REBOOT_KERNEL_SELECTION_TEST_PLAYBOOK_PATH.read_text(
+            encoding="utf-8"
+        )
         non_kernel_fixture = nested_task_block_from(
             REBOOT_STATE_TEST_PLAYBOOK_PATH,
             "Record non-kernel approved reboot issue metadata",
         )
         classification_test = CLASSIFICATION_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
+        kernel_posture_test = KERNEL_POSTURE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         update_reconciliation_test = UPDATE_RECONCILIATION_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         target_scope_test = TARGET_SCOPE_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         ci = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml").read_text(
@@ -285,11 +295,22 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("tasks_from: classify_reboot_request", reboot_preflight_test)
         self.assertIn("late drift prevents cleanup on every target", reboot_preflight_test.lower())
         self.assertIn("security-reboot-preflight-validate-test.yml", ci)
+        self.assertIn("RPM-newest installed UEK target", reboot_kernel_selection_test)
+        self.assertIn("missing selected UEK initramfs fails closed", reboot_kernel_selection_test)
+        self.assertIn("mismatched selected UEK boot entry fails closed", reboot_kernel_selection_test)
+        self.assertIn("stale but otherwise valid post-reboot UEK", reboot_kernel_selection_test)
+        self.assertIn("security-reboot-kernel-selection-validate-test.yml", ci)
         self.assertIn("tasks_from: classify_findings", classification_test)
         self.assertIn("DNF-applicable", classification_test)
         self.assertIn("reboot-only", classification_test)
         self.assertIn("mixed unclassifiable", classification_test)
         self.assertIn("security-finding-classification-validate-test.yml", ci)
+        self.assertIn("failed default-kernel probe remains actionable", kernel_posture_test)
+        self.assertIn("complete deployment bootability proof", kernel_posture_test)
+        self.assertIn("missing release-matched initramfs", kernel_posture_test)
+        self.assertIn("mismatched initramfs", kernel_posture_test)
+        self.assertIn("missing exact grubby entry", kernel_posture_test)
+        self.assertIn("security-kernel-posture-validate-test.yml", ci)
         self.assertIn("tasks_from: patch", update_reconciliation_test)
         self.assertIn("security_patching_reconciliation_only", update_reconciliation_test)
         self.assertIn("security-update-reconciliation-validate-test.yml", ci)
@@ -411,6 +432,8 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("--advisories={{ security_patching_reboot_approved_advisory_ids | join(',') }}", validate_reboot_tasks)
         self.assertIn("Record reboot DNF no-op proof", validate_reboot_tasks)
         self.assertIn("security_patching_reboot_completed: false", validate_reboot_tasks)
+        self.assertIn("resolve_reboot_kernel.yml", validate_reboot_tasks)
+        self.assertIn("security_patching_reboot_target_kernel_valid", validate_reboot_tasks)
         self.assertIn("security_patching_reboot_reclassified_hosts", classify_reboot_tasks)
         self.assertIn("security_patching_reboot_reconciliation_hosts", classify_reboot_tasks)
         self.assertIn("reclassified for update reconciles without mutation", reboot_preflight_test.lower())
@@ -427,6 +450,8 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("Comment failed production security update result", failed_cleanup_tasks)
         self.assertIn("security_patching_failed_request_label_removal_response", failed_cleanup_tasks)
         self.assertIn("ansible.builtin.reboot", reboot_tasks)
+        self.assertIn("Select verified newest installed UEK as default", reboot_tasks)
+        self.assertIn("Refuse reboot unless newest installed UEK is the verified default", reboot_tasks)
         self.assertIn("--oldinstallonly", reboot_tasks)
         self.assertIn("--setopt=installonly_limit={{ security_patching_installonly_limit | int }}", reboot_tasks)
         self.assertIn("Verify Caddy-fronted admin health after reboot", reboot_tasks)
@@ -436,6 +461,9 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security_patching_reboot_result_comment_body", post_reboot_tasks)
         self.assertIn("Collect hosts whose approved reboot advisory set drifted", post_reboot_tasks)
         self.assertIn("Kernel before", result_template)
+        self.assertIn("Selected UEK target", result_template)
+        self.assertIn("Initramfs verified", result_template)
+        self.assertIn("Default changed", result_template)
         self.assertIn("Installonly cleanup", result_template)
         self.assertIn("Approval drift reconciled", result_template)
         self.assertIn("No reboot or installonly cleanup was attempted", result_template)

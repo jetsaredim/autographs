@@ -4,10 +4,22 @@
   gather_facts: false
   vars:
     runtime_role_dir: "{{ playbook_dir }}/../roles/autographs_deploy"
+    runtime_defaults: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/defaults/main.yml') | from_yaml }}
     runtime_main_tasks: >-
       {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/main.yml') | from_yaml }}
     runtime_kernel_tasks: >-
       {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/kernel_persistence.yml') | from_yaml }}
+    runtime_image_assertion_tasks: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/assert_kernel_images.yml') | from_yaml }}
+    runtime_owner_assertion_tasks: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/assert_kernel_ownership.yml') | from_yaml }}
+    runtime_boot_entry_validation_tasks: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/validate_kernel_boot_entry.yml') | from_yaml }}
+    runtime_boot_state_revalidation_tasks: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/revalidate_uek_boot_state.yml') | from_yaml }}
+    runtime_dnf_exclusion_tasks: >-
+      {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/tasks/derive_dnf_exclusions.yml') | from_yaml }}
     runtime_handlers: >-
       {{ lookup('ansible.builtin.file', runtime_role_dir ~ '/handlers/main.yml') | from_yaml }}
     autographs_deploy_controller_container_name: contract-controller
@@ -39,6 +51,40 @@
       ansible.builtin.set_fact:
         runtime_include_matches: >-
           {{ runtime_main_tasks | selectattr('name', 'equalto', 'Apply kernel persistence controls') | list }}
+        runtime_package_install_matches: >-
+          {{ runtime_main_tasks | selectattr('name', 'equalto', 'Ensure runtime packages are installed') | list }}
+        runtime_running_kernel_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect running kernel release') | list }}
+        runtime_default_kernel_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect default boot kernel') | list }}
+        runtime_uek_assert_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Require running and default UEK kernels before package convergence') | list }}
+        runtime_kernel_path_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Derive running kernel image path') | list }}
+        runtime_running_image_stat_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect running UEK kernel image') | list }}
+        runtime_default_image_stat_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect default UEK kernel image') | list }}
+        runtime_image_assert_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Require bootable running and default UEK kernel images') | list }}
+        runtime_running_owner_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect running UEK kernel image RPM owner') | list }}
+        runtime_default_owner_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Inspect default UEK kernel image RPM owner') | list }}
+        runtime_owner_assert_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Require installed UEK RPM ownership for bootable kernel images') | list }}
+        runtime_boot_entry_validate_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Validate exact running and default UEK boot entries') | list }}
+        runtime_boot_state_revalidate_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Revalidate complete UEK boot state immediately before RHCK removal') | list }}
+        runtime_rhck_remove_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Remove managed RHCK kernel packages from UEK runtime') | list }}
+        runtime_rhck_exclude_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Prevent managed RHCK kernel packages from being installed') | list }}
+        runtime_dnf_preserve_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Preserve existing DNF exclusions with managed RHCK exclusions') | list }}
+        runtime_stale_entry_matches: >-
+          {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Remove stale missing non-rescue kernel boot entries') | list }}
         runtime_kdump_matches: >-
           {{ runtime_kernel_tasks | selectattr('name', 'equalto', 'Stop and mask Kdump') | list }}
         runtime_grubby_info_matches: >-
@@ -68,6 +114,23 @@
       ansible.builtin.assert:
         that:
           - runtime_include_matches | length == 1
+          - runtime_package_install_matches | length == 1
+          - runtime_running_kernel_matches | length == 1
+          - runtime_default_kernel_matches | length == 1
+          - runtime_uek_assert_matches | length == 1
+          - runtime_kernel_path_matches | length == 1
+          - runtime_running_image_stat_matches | length == 1
+          - runtime_default_image_stat_matches | length == 1
+          - runtime_image_assert_matches | length == 1
+          - runtime_running_owner_matches | length == 1
+          - runtime_default_owner_matches | length == 1
+          - runtime_owner_assert_matches | length == 1
+          - runtime_boot_entry_validate_matches | length == 1
+          - runtime_boot_state_revalidate_matches | length == 1
+          - runtime_rhck_remove_matches | length == 1
+          - runtime_rhck_exclude_matches | length == 1
+          - runtime_dnf_preserve_matches | length == 1
+          - runtime_stale_entry_matches | length == 1
           - runtime_kdump_matches | length == 1
           - runtime_grubby_info_matches | length == 1
           - runtime_grubby_remove_matches | length == 1
@@ -84,6 +147,36 @@
     - name: Capture structured persistence tasks
       ansible.builtin.set_fact:
         runtime_include_task: "{{ runtime_include_matches | first }}"
+        runtime_package_install_task: "{{ runtime_package_install_matches | first }}"
+        runtime_running_kernel_task: "{{ runtime_running_kernel_matches | first }}"
+        runtime_default_kernel_task: "{{ runtime_default_kernel_matches | first }}"
+        runtime_uek_assert_task: "{{ runtime_uek_assert_matches | first }}"
+        runtime_kernel_path_task: "{{ runtime_kernel_path_matches | first }}"
+        runtime_running_image_stat_task: "{{ runtime_running_image_stat_matches | first }}"
+        runtime_default_image_stat_task: "{{ runtime_default_image_stat_matches | first }}"
+        runtime_image_assert_task: "{{ runtime_image_assert_matches | first }}"
+        runtime_running_owner_task: "{{ runtime_running_owner_matches | first }}"
+        runtime_default_owner_task: "{{ runtime_default_owner_matches | first }}"
+        runtime_owner_assert_task: "{{ runtime_owner_assert_matches | first }}"
+        runtime_boot_entry_validate_task: "{{ runtime_boot_entry_validate_matches | first }}"
+        runtime_boot_state_revalidate_task: "{{ runtime_boot_state_revalidate_matches | first }}"
+        runtime_image_guard_task: "{{ runtime_image_assertion_tasks | first }}"
+        runtime_owner_guard_task: "{{ runtime_owner_assertion_tasks | first }}"
+        runtime_boot_entry_probe_task: "{{ runtime_boot_entry_validation_tasks | first }}"
+        runtime_boot_entry_guard_task: "{{ runtime_boot_entry_validation_tasks | last }}"
+        runtime_boot_state_revalidation_guard_task: >-
+          {{
+            runtime_boot_state_revalidation_tasks
+            | selectattr('name', 'equalto', 'Require stable running and default UEK selections before RHCK removal')
+            | first
+          }}
+        runtime_boot_state_entry_revalidation_task: "{{ runtime_boot_state_revalidation_tasks | last }}"
+        runtime_dnf_main_section_task: "{{ runtime_dnf_exclusion_tasks | first }}"
+        runtime_dnf_merge_task: "{{ runtime_dnf_exclusion_tasks | last }}"
+        runtime_rhck_remove_task: "{{ runtime_rhck_remove_matches | first }}"
+        runtime_rhck_exclude_task: "{{ runtime_rhck_exclude_matches | first }}"
+        runtime_dnf_preserve_task: "{{ runtime_dnf_preserve_matches | first }}"
+        runtime_stale_entry_task: "{{ runtime_stale_entry_matches | first }}"
         runtime_kdump_task: "{{ runtime_kdump_matches | first }}"
         runtime_grubby_info_task: "{{ runtime_grubby_info_matches | first }}"
         runtime_grubby_remove_task: "{{ runtime_grubby_remove_matches | first }}"
@@ -101,6 +194,7 @@
       ansible.builtin.assert:
         that:
           - runtime_include_task['ansible.builtin.include_tasks'] == 'kernel_persistence.yml'
+          - runtime_main_tasks.index(runtime_include_task) < runtime_main_tasks.index(runtime_package_install_task)
           - "'when' not in runtime_include_task"
           - "'failed_when' not in runtime_include_task"
           - "'ignore_errors' not in runtime_include_task"
@@ -110,6 +204,65 @@
           - runtime_kdump_task['ansible.builtin.systemd'].masked == true
           - "'failed_when' not in runtime_kdump_task"
           - "'ignore_errors' not in runtime_kdump_task"
+          - runtime_running_kernel_task['ansible.builtin.command'].argv == ['uname', '-r']
+          - runtime_default_kernel_task['ansible.builtin.command'].argv == ['grubby', '--default-kernel']
+          - runtime_uek_assert_task['ansible.builtin.assert'].that | length == 2
+          - runtime_uek_assert_task['ansible.builtin.assert'].that[0] is search('el10uek')
+          - runtime_uek_assert_task['ansible.builtin.assert'].that[1] is search('el10uek')
+          - runtime_kernel_path_task['ansible.builtin.set_fact'].autographs_deploy_running_kernel_image is search('/boot/vmlinuz-')
+          - runtime_running_image_stat_task['ansible.builtin.stat'].follow == true
+          - runtime_default_image_stat_task['ansible.builtin.stat'].follow == true
+          - runtime_image_assert_task['ansible.builtin.import_tasks'] == 'assert_kernel_images.yml'
+          - runtime_image_guard_task['ansible.builtin.assert'].that | length == 4
+          - runtime_running_owner_task['ansible.builtin.command'].argv[0:4] == ['rpm', '-qf', '--qf', '%{NAME}\n']
+          - runtime_default_owner_task['ansible.builtin.command'].argv[0:4] == ['rpm', '-qf', '--qf', '%{NAME}\n']
+          - runtime_owner_assert_task['ansible.builtin.import_tasks'] == 'assert_kernel_ownership.yml'
+          - runtime_owner_guard_task['ansible.builtin.assert'].that | length == 4
+          - runtime_owner_guard_task['ansible.builtin.assert'].that[1] is search('kernel-uek')
+          - runtime_owner_guard_task['ansible.builtin.assert'].that[3] is search('kernel-uek')
+          - runtime_boot_entry_validate_task['ansible.builtin.include_tasks'] == 'validate_kernel_boot_entry.yml'
+          - runtime_boot_entry_validate_task.loop | length == 2
+          - runtime_boot_entry_probe_task['ansible.builtin.command'].argv[0] == 'grubby'
+          - runtime_boot_entry_probe_task['ansible.builtin.command'].argv[1] is match('^--info=')
+          - runtime_boot_entry_guard_task['ansible.builtin.assert'].that | length == 8
+          - runtime_boot_entry_guard_task['ansible.builtin.assert'].that[1] is search('kernel_entry_image')
+          - runtime_boot_entry_guard_task['ansible.builtin.assert'].that[3] is search('expected_initramfs')
+          - runtime_boot_entry_guard_task['ansible.builtin.assert'].that[6] is search('stat.exists')
+          - runtime_boot_entry_guard_task['ansible.builtin.assert'].that[7] is search('stat.isreg')
+          - runtime_boot_state_revalidate_task['ansible.builtin.import_tasks'] == 'revalidate_uek_boot_state.yml'
+          - runtime_boot_state_revalidation_guard_task['ansible.builtin.assert'].that | length == 4
+          - runtime_boot_state_entry_revalidation_task['ansible.builtin.include_tasks'] == 'validate_kernel_boot_entry.yml'
+          - runtime_boot_state_entry_revalidation_task.loop | length == 2
+          - runtime_kernel_tasks.index(runtime_image_assert_task) < runtime_kernel_tasks.index(runtime_running_owner_task)
+          - runtime_kernel_tasks.index(runtime_owner_assert_task) < runtime_kernel_tasks.index(runtime_boot_entry_validate_task)
+          - runtime_kernel_tasks.index(runtime_boot_entry_validate_task) < runtime_kernel_tasks.index(runtime_boot_state_revalidate_task)
+          - runtime_kernel_tasks.index(runtime_boot_state_revalidate_task) + 1 == runtime_kernel_tasks.index(runtime_rhck_remove_task)
+          - runtime_rhck_remove_task['ansible.builtin.dnf'].name == runtime_expected_rhck_packages_variable
+          - runtime_rhck_remove_task['ansible.builtin.dnf'].state == 'absent'
+          - runtime_rhck_remove_task['ansible.builtin.dnf'].autoremove == false
+          - runtime_rhck_remove_task['ansible.builtin.dnf'].disable_excludes == 'main'
+          - runtime_rhck_exclude_task['community.general.ini_file'].section == 'main'
+          - runtime_rhck_exclude_task['community.general.ini_file'].option == 'exclude'
+          - runtime_rhck_exclude_task['community.general.ini_file'].value == runtime_expected_rhck_exclude_value
+          - runtime_dnf_preserve_task['ansible.builtin.import_tasks'] == 'derive_dnf_exclusions.yml'
+          - runtime_dnf_main_section_task['ansible.builtin.set_fact'].autographs_deploy_dnf_main_section is search('main')
+          - runtime_dnf_merge_task['ansible.builtin.set_fact'].autographs_deploy_effective_dnf_excludes is search('autographs_deploy_rhck_packages')
+          - >-
+            "join(' ')" in
+            runtime_dnf_merge_task['ansible.builtin.set_fact'].autographs_deploy_effective_dnf_excludes
+          - "'kernel-headers' not in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-tools' not in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-tools-libs' not in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-abi-stablelists' in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-doc' in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-uki-virt' in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-uki-virt-addons' in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-debug-uki-virt' in runtime_defaults.autographs_deploy_rhck_packages"
+          - "'kernel-debug-devel-matched' in runtime_defaults.autographs_deploy_rhck_packages"
+          - runtime_stale_entry_task['ansible.builtin.shell'].executable == '/bin/bash'
+          - runtime_stale_entry_task['ansible.builtin.shell'].cmd is search('/boot/vmlinuz-0-rescue-')
+          - runtime_stale_entry_task['ansible.builtin.shell'].cmd is search('grubby --remove-kernel=')
+          - runtime_stale_entry_task.changed_when is search('removed stale boot entry:')
           - runtime_grubby_info_task['ansible.builtin.command'].argv == ['grubby', '--info=ALL']
           - runtime_grubby_remove_task['ansible.builtin.command'].argv == ['grubby', '--update-kernel=ALL', '--remove-args=crashkernel']
           - runtime_grubby_remove_task.when is defined
@@ -151,6 +304,9 @@
           - runtime_controller_restart_task['ansible.builtin.systemd'].state == 'restarted'
           - "'failed_when' not in runtime_controller_restart_task"
           - "'ignore_errors' not in runtime_controller_restart_task"
+      vars:
+        runtime_expected_rhck_packages_variable: !unsafe "{{ autographs_deploy_rhck_packages }}"
+        runtime_expected_rhck_exclude_value: !unsafe "{{ autographs_deploy_effective_dnf_excludes | join(' ') }}"
 
     - name: Require rendered persistence configuration semantics
       ansible.builtin.assert:
@@ -161,3 +317,289 @@
           - runtime_controller_service_ini.Service.LimitCORE == '0'
           - runtime_coredump_ini.Coredump.Storage == 'none'
           - runtime_coredump_ini.Coredump.ProcessSizeMax == '0'
+
+- name: Validate missing default UEK image fails before RHCK mutation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_kernel_tasks: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/autographs_deploy/tasks/kernel_persistence.yml') | from_yaml }}
+    runtime_image_assertion_path: >-
+      {{ playbook_dir }}/../roles/autographs_deploy/tasks/assert_kernel_images.yml
+  tasks:
+    - name: Record stale default UEK fixture
+      ansible.builtin.set_fact:
+        autographs_deploy_running_kernel_image_stat:
+          stat:
+            exists: true
+            isreg: true
+        autographs_deploy_default_kernel_image_stat:
+          stat:
+            exists: false
+            isreg: false
+        autographs_deploy_running_kernel_image: /boot/vmlinuz-fixture.el10uek.x86_64
+        autographs_deploy_default_kernel_image: /boot/vmlinuz-stale.el10uek.x86_64
+        runtime_kernel_guard_failed: false
+        runtime_kernel_mutation_reached: false
+
+    - name: Apply stale default UEK safety gate before simulated mutation
+      block:
+        - name: Evaluate production image safety assertions
+          ansible.builtin.include_tasks: "{{ runtime_image_assertion_path }}"
+
+        - name: Record forbidden simulated RHCK mutation
+          ansible.builtin.set_fact:
+            runtime_kernel_mutation_reached: true
+      rescue:
+        - name: Record expected stale default rejection
+          ansible.builtin.set_fact:
+            runtime_kernel_guard_failed: true
+
+    - name: Require stale default rejection before mutation
+      ansible.builtin.assert:
+        that:
+          - runtime_kernel_guard_failed
+          - not runtime_kernel_mutation_reached
+
+- name: Validate missing running UEK image fails before RHCK mutation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_kernel_tasks: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/autographs_deploy/tasks/kernel_persistence.yml') | from_yaml }}
+    runtime_image_assertion_path: >-
+      {{ playbook_dir }}/../roles/autographs_deploy/tasks/assert_kernel_images.yml
+  tasks:
+    - name: Record missing running UEK fixture
+      ansible.builtin.set_fact:
+        autographs_deploy_running_kernel_image_stat:
+          stat:
+            exists: false
+            isreg: false
+        autographs_deploy_default_kernel_image_stat:
+          stat:
+            exists: true
+            isreg: true
+        autographs_deploy_running_kernel_image: /boot/vmlinuz-missing.el10uek.x86_64
+        autographs_deploy_default_kernel_image: /boot/vmlinuz-fixture.el10uek.x86_64
+        runtime_kernel_guard_failed: false
+        runtime_kernel_mutation_reached: false
+
+    - name: Apply missing running UEK safety gate before simulated mutation
+      block:
+        - name: Evaluate production image safety assertions
+          ansible.builtin.include_tasks: "{{ runtime_image_assertion_path }}"
+
+        - name: Record forbidden simulated RHCK mutation
+          ansible.builtin.set_fact:
+            runtime_kernel_mutation_reached: true
+      rescue:
+        - name: Record expected missing running rejection
+          ansible.builtin.set_fact:
+            runtime_kernel_guard_failed: true
+
+    - name: Require missing running rejection before mutation
+      ansible.builtin.assert:
+        that:
+          - runtime_kernel_guard_failed
+          - not runtime_kernel_mutation_reached
+
+- name: Validate non-UEK image ownership fails before RHCK mutation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_kernel_tasks: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/autographs_deploy/tasks/kernel_persistence.yml') | from_yaml }}
+    runtime_owner_assertion_path: >-
+      {{ playbook_dir }}/../roles/autographs_deploy/tasks/assert_kernel_ownership.yml
+  tasks:
+    - name: Record invalid UEK ownership fixture
+      ansible.builtin.set_fact:
+        autographs_deploy_running_kernel_image_owner:
+          rc: 0
+          stdout: kernel-uek-core
+        autographs_deploy_default_kernel_image_owner:
+          rc: 0
+          stdout: kernel-core
+        runtime_kernel_guard_failed: false
+        runtime_kernel_mutation_reached: false
+
+    - name: Apply invalid UEK ownership gate before simulated mutation
+      block:
+        - name: Evaluate production ownership safety assertions
+          ansible.builtin.include_tasks: "{{ runtime_owner_assertion_path }}"
+
+        - name: Record forbidden simulated RHCK mutation
+          ansible.builtin.set_fact:
+            runtime_kernel_mutation_reached: true
+      rescue:
+        - name: Record expected ownership rejection
+          ansible.builtin.set_fact:
+            runtime_kernel_guard_failed: true
+
+    - name: Require invalid ownership rejection before mutation
+      ansible.builtin.assert:
+        that:
+          - runtime_kernel_guard_failed
+          - not runtime_kernel_mutation_reached
+
+- name: Validate missing default UEK initramfs fails before RHCK mutation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_boot_fixture_dir: /tmp/autographs-runtime-kernel-boot-entry
+    runtime_boot_entry_validation_path: >-
+      {{ playbook_dir }}/../roles/autographs_deploy/tasks/validate_kernel_boot_entry.yml
+    autographs_deploy_kernel_entry_label: default
+    autographs_deploy_kernel_entry_release: 6.12.0-206.104.4.10.el10uek.x86_64
+    autographs_deploy_kernel_entry_image: >-
+      {{ runtime_boot_fixture_dir }}/vmlinuz-{{ autographs_deploy_kernel_entry_release }}
+    autographs_deploy_kernel_boot_entry_probe_override:
+      rc: 0
+      stdout: |
+        kernel="{{ autographs_deploy_kernel_entry_image }}"
+        initrd="{{ runtime_boot_fixture_dir }}/initramfs-{{ autographs_deploy_kernel_entry_release }}.img"
+  tasks:
+    - name: Create deployment boot-entry fixture directory
+      ansible.builtin.file:
+        path: "{{ runtime_boot_fixture_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Create deployment UEK kernel image fixture
+      ansible.builtin.copy:
+        dest: "{{ autographs_deploy_kernel_entry_image }}"
+        content: fixture
+        mode: "0600"
+
+    - name: Ensure deployment UEK initramfs fixture is missing
+      ansible.builtin.file:
+        path: "{{ runtime_boot_fixture_dir }}/initramfs-{{ autographs_deploy_kernel_entry_release }}.img"
+        state: absent
+
+    - name: Record deployment missing-initramfs mutation sentinel
+      ansible.builtin.set_fact:
+        runtime_boot_entry_guard_failed: false
+        runtime_kernel_mutation_reached: false
+
+    - name: Apply deployment boot-entry guard before simulated RHCK mutation
+      block:
+        - name: Validate missing-initramfs deployment entry
+          ansible.builtin.include_tasks: "{{ runtime_boot_entry_validation_path }}"
+
+        - name: Record forbidden simulated RHCK mutation after missing initramfs
+          ansible.builtin.set_fact:
+            runtime_kernel_mutation_reached: true
+      rescue:
+        - name: Record expected deployment missing-initramfs rejection
+          ansible.builtin.set_fact:
+            runtime_boot_entry_guard_failed: true
+
+    - name: Require missing deployment initramfs rejection before mutation
+      ansible.builtin.assert:
+        that:
+          - runtime_boot_entry_guard_failed
+          - not runtime_kernel_mutation_reached
+          - autographs_deploy_kernel_entry_expected_initramfs in autographs_deploy_kernel_entry_initramfs_images
+          - not autographs_deploy_kernel_entry_initramfs_stats.results[0].stat.exists
+
+- name: Validate mismatched default UEK initramfs fails before RHCK mutation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_boot_fixture_dir: /tmp/autographs-runtime-kernel-boot-entry
+    runtime_boot_entry_validation_path: >-
+      {{ playbook_dir }}/../roles/autographs_deploy/tasks/validate_kernel_boot_entry.yml
+    autographs_deploy_kernel_entry_label: default
+    autographs_deploy_kernel_entry_release: 6.12.0-206.104.4.10.el10uek.x86_64
+    autographs_deploy_kernel_entry_image: >-
+      {{ runtime_boot_fixture_dir }}/vmlinuz-{{ autographs_deploy_kernel_entry_release }}
+    runtime_mismatched_initramfs: >-
+      {{ runtime_boot_fixture_dir }}/initramfs-6.12.0-206.104.4.9.el10uek.x86_64.img
+    autographs_deploy_kernel_boot_entry_probe_override:
+      rc: 0
+      stdout: |
+        kernel="{{ autographs_deploy_kernel_entry_image }}"
+        initrd="{{ runtime_mismatched_initramfs }}"
+  tasks:
+    - name: Create mismatched deployment UEK initramfs fixture
+      ansible.builtin.copy:
+        dest: "{{ runtime_mismatched_initramfs }}"
+        content: fixture
+        mode: "0600"
+
+    - name: Record deployment mismatched-initramfs mutation sentinel
+      ansible.builtin.set_fact:
+        runtime_boot_entry_guard_failed: false
+        runtime_kernel_mutation_reached: false
+
+    - name: Apply mismatched deployment boot-entry guard before simulated RHCK mutation
+      block:
+        - name: Validate mismatched-initramfs deployment entry
+          ansible.builtin.include_tasks: "{{ runtime_boot_entry_validation_path }}"
+
+        - name: Record forbidden simulated RHCK mutation after mismatched initramfs
+          ansible.builtin.set_fact:
+            runtime_kernel_mutation_reached: true
+      rescue:
+        - name: Record expected deployment mismatched-initramfs rejection
+          ansible.builtin.set_fact:
+            runtime_boot_entry_guard_failed: true
+
+    - name: Require mismatched deployment initramfs rejection before mutation
+      ansible.builtin.assert:
+        that:
+          - runtime_boot_entry_guard_failed
+          - not runtime_kernel_mutation_reached
+          - autographs_deploy_kernel_entry_expected_initramfs not in autographs_deploy_kernel_entry_initramfs_images
+          - autographs_deploy_kernel_entry_initramfs_stats.results[0].stat.exists
+          - autographs_deploy_kernel_entry_initramfs_stats.results[0].stat.isreg
+
+- name: Validate DNF main exclusions are merged without cross-section leakage
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    runtime_dnf_exclusion_path: >-
+      {{ playbook_dir }}/../roles/autographs_deploy/tasks/derive_dnf_exclusions.yml
+    runtime_dnf_fixture: |-
+      [main]
+      gpgcheck=True
+      exclude=openssl kernel-tools
+      exclude = sudo vim-minimal  # operator policy
+
+      [ol10_baseos_latest]
+      name=Oracle Linux 10 BaseOS Latest
+      exclude=repo-only-package
+    autographs_deploy_rhck_packages:
+      - kernel
+      - kernel-core
+  tasks:
+    - name: Record multi-line DNF exclusion fixture
+      ansible.builtin.set_fact:
+        autographs_deploy_dnf_config:
+          content: "{{ runtime_dnf_fixture | b64encode }}"
+
+    - name: Apply production DNF exclusion merge logic
+      ansible.builtin.include_tasks: "{{ runtime_dnf_exclusion_path }}"
+
+    - name: Record first canonical exclusion result
+      ansible.builtin.set_fact:
+        runtime_first_dnf_excludes: "{{ autographs_deploy_effective_dnf_excludes }}"
+
+    - name: Reapply production DNF exclusion merge logic
+      ansible.builtin.include_tasks: "{{ runtime_dnf_exclusion_path }}"
+
+    - name: Require complete scoped and idempotent DNF exclusion merge
+      ansible.builtin.assert:
+        that:
+          - autographs_deploy_effective_dnf_excludes == ['kernel', 'kernel-core', 'kernel-tools', 'openssl', 'sudo', 'vim-minimal']
+          - "'repo-only-package' not in autographs_deploy_effective_dnf_excludes"
+          - autographs_deploy_effective_dnf_excludes == runtime_first_dnf_excludes
+          - autographs_deploy_dnf_main_section is search('exclude=openssl kernel-tools')
+          - autographs_deploy_dnf_main_section is not search('repo-only-package')

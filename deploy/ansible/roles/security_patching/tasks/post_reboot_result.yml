@@ -15,7 +15,69 @@
     hostvars[item].security_patching_post_reboot_entries is not defined
     or hostvars[item].security_patching_post_reboot_advisory_ids is not defined
     or hostvars[item].security_patching_post_reboot_next_action is not defined
+    or hostvars[item].security_patching_post_reboot_running_kernel_release is not defined
+    or hostvars[item].security_patching_post_reboot_running_kernel_image is not defined
+    or hostvars[item].security_patching_post_reboot_default_kernel_image is not defined
+    or hostvars[item].security_patching_post_reboot_installed_rhck_packages is not defined
+    or hostvars[item].security_patching_post_reboot_kernel_inventory_is_complete is not defined
+    or hostvars[item].security_patching_post_reboot_kernel_inventory_probe_facts is not defined
+    or hostvars[item].security_patching_post_reboot_kernel_inventory_probe_facts is not mapping
+    or 'rc' not in hostvars[item].security_patching_post_reboot_kernel_inventory_probe_facts
+    or 'stdout' not in hostvars[item].security_patching_post_reboot_kernel_inventory_probe_facts
+    or 'stderr' not in hostvars[item].security_patching_post_reboot_kernel_inventory_probe_facts
+    or hostvars[item].security_patching_post_reboot_running_kernel_probe_facts is not defined
+    or hostvars[item].security_patching_post_reboot_running_kernel_probe_facts is not mapping
+    or 'rc' not in hostvars[item].security_patching_post_reboot_running_kernel_probe_facts
+    or 'stdout' not in hostvars[item].security_patching_post_reboot_running_kernel_probe_facts
+    or 'stderr' not in hostvars[item].security_patching_post_reboot_running_kernel_probe_facts
+    or hostvars[item].security_patching_post_reboot_default_kernel_probe_facts is not defined
+    or hostvars[item].security_patching_post_reboot_default_kernel_probe_facts is not mapping
+    or 'rc' not in hostvars[item].security_patching_post_reboot_default_kernel_probe_facts
+    or 'stdout' not in hostvars[item].security_patching_post_reboot_default_kernel_probe_facts
+    or 'stderr' not in hostvars[item].security_patching_post_reboot_default_kernel_probe_facts
+    or hostvars[item].security_patching_post_reboot_running_kernel_owner_probe_facts is not defined
+    or hostvars[item].security_patching_post_reboot_running_kernel_owner_probe_facts is not mapping
+    or 'rc' not in hostvars[item].security_patching_post_reboot_running_kernel_owner_probe_facts
+    or 'stdout' not in hostvars[item].security_patching_post_reboot_running_kernel_owner_probe_facts
+    or 'stderr' not in hostvars[item].security_patching_post_reboot_running_kernel_owner_probe_facts
+    or hostvars[item].security_patching_post_reboot_default_kernel_owner_probe_facts is not defined
+    or hostvars[item].security_patching_post_reboot_default_kernel_owner_probe_facts is not mapping
+    or 'rc' not in hostvars[item].security_patching_post_reboot_default_kernel_owner_probe_facts
+    or 'stdout' not in hostvars[item].security_patching_post_reboot_default_kernel_owner_probe_facts
+    or 'stderr' not in hostvars[item].security_patching_post_reboot_default_kernel_owner_probe_facts
+    or hostvars[item].security_patching_post_reboot_running_kernel_boot_entry is not defined
+    or hostvars[item].security_patching_post_reboot_running_kernel_boot_entry is not mapping
+    or hostvars[item].security_patching_post_reboot_running_kernel_boot_entry
+      | dict2items | map(attribute='key') | intersect(security_patching_required_boot_entry_keys) | length
+      != security_patching_required_boot_entry_keys | length
+    or (hostvars[item].security_patching_post_reboot_running_kernel_boot_entry.probe | default({})) is not mapping
+    or hostvars[item].security_patching_post_reboot_running_kernel_boot_entry.probe
+      | default({}) | dict2items | map(attribute='key') | intersect(security_patching_required_probe_keys) | length
+      != security_patching_required_probe_keys | length
+    or hostvars[item].security_patching_post_reboot_default_kernel_boot_entry is not defined
+    or hostvars[item].security_patching_post_reboot_default_kernel_boot_entry is not mapping
+    or hostvars[item].security_patching_post_reboot_default_kernel_boot_entry
+      | dict2items | map(attribute='key') | intersect(security_patching_required_boot_entry_keys) | length
+      != security_patching_required_boot_entry_keys | length
+    or (hostvars[item].security_patching_post_reboot_default_kernel_boot_entry.probe | default({})) is not mapping
+    or hostvars[item].security_patching_post_reboot_default_kernel_boot_entry.probe
+      | default({}) | dict2items | map(attribute='key') | intersect(security_patching_required_probe_keys) | length
+      != security_patching_required_probe_keys | length
+    or hostvars[item].security_patching_post_reboot_running_kernel_is_valid_uek is not defined
+    or hostvars[item].security_patching_post_reboot_default_kernel_is_valid_uek is not defined
     or hostvars[item].security_patching_post_reboot_scan_status | default('missing') != 'complete'
+  vars:
+    security_patching_required_probe_keys:
+      - rc
+      - stdout
+      - stderr
+    security_patching_required_boot_entry_keys:
+      - valid
+      - expected_image
+      - entry_kernel_images
+      - expected_initramfs
+      - initramfs_images
+      - probe
 
 - name: Require complete post-reboot scan results for all target hosts
   ansible.builtin.assert:
@@ -31,11 +93,16 @@
     security_patching_reboot_drift_hosts: []
     security_patching_reboot_reclassified_hosts: []
 
-- name: Collect hosts with remaining post-reboot security findings
+- name: Collect hosts with remaining post-reboot findings or kernel posture drift
   ansible.builtin.set_fact:
     security_patching_remaining_hosts: "{{ security_patching_remaining_hosts + [item] }}"
   loop: "{{ security_patching_target_hosts }}"
-  when: (hostvars[item].security_patching_post_reboot_entries | default([]) | length) > 0
+  when: >-
+    (hostvars[item].security_patching_post_reboot_entries | default([]) | length) > 0
+    or (hostvars[item].security_patching_post_reboot_installed_rhck_packages | default([]) | length) > 0
+    or not (hostvars[item].security_patching_post_reboot_kernel_inventory_is_complete | bool)
+    or not (hostvars[item].security_patching_post_reboot_running_kernel_is_valid_uek | bool)
+    or not (hostvars[item].security_patching_post_reboot_default_kernel_is_valid_uek | bool)
 
 - name: Collect hosts whose approved reboot advisory set drifted
   ansible.builtin.set_fact:
@@ -72,6 +139,10 @@
     security_patching_next_action: >-
       {% if security_patching_remaining_hosts | length == 0 %}
       close
+      {% elif 'investigate' in security_patching_remaining_actions %}
+      investigate
+      {% elif 'configure' in security_patching_remaining_actions %}
+      configure
       {% elif security_patching_remaining_actions | length == 1 %}
       {{ security_patching_remaining_actions[0] }}
       {% else %}
@@ -128,6 +199,34 @@
     security_patching_update_advisory_ids: "{{ hostvars[item].security_patching_post_reboot_advisory_ids | default([]) }}"
     security_patching_update_ksplice_aware_advisory_ids: >-
       {{ hostvars[item].security_patching_post_reboot_ksplice_aware_advisory_ids | default([]) }}
+    security_patching_installed_rhck_packages: >-
+      {{ hostvars[item].security_patching_post_reboot_installed_rhck_packages | default([]) }}
+    security_patching_kernel_inventory_is_complete: >-
+      {{ hostvars[item].security_patching_post_reboot_kernel_inventory_is_complete | bool }}
+    security_patching_kernel_inventory_probe_facts: >-
+      {{ hostvars[item].security_patching_post_reboot_kernel_inventory_probe_facts }}
+    security_patching_running_kernel_release: >-
+      {{ hostvars[item].security_patching_post_reboot_running_kernel_release }}
+    security_patching_running_kernel_image: >-
+      {{ hostvars[item].security_patching_post_reboot_running_kernel_image }}
+    security_patching_default_kernel_image: >-
+      {{ hostvars[item].security_patching_post_reboot_default_kernel_image }}
+    security_patching_running_kernel_probe_facts: >-
+      {{ hostvars[item].security_patching_post_reboot_running_kernel_probe_facts }}
+    security_patching_default_kernel_probe_facts: >-
+      {{ hostvars[item].security_patching_post_reboot_default_kernel_probe_facts }}
+    security_patching_running_kernel_owner_probe_facts: >-
+      {{ hostvars[item].security_patching_post_reboot_running_kernel_owner_probe_facts }}
+    security_patching_default_kernel_owner_probe_facts: >-
+      {{ hostvars[item].security_patching_post_reboot_default_kernel_owner_probe_facts }}
+    security_patching_running_kernel_boot_entry: >-
+      {{ hostvars[item].security_patching_post_reboot_running_kernel_boot_entry }}
+    security_patching_default_kernel_boot_entry: >-
+      {{ hostvars[item].security_patching_post_reboot_default_kernel_boot_entry }}
+    security_patching_running_kernel_is_valid_uek: >-
+      {{ hostvars[item].security_patching_post_reboot_running_kernel_is_valid_uek | bool }}
+    security_patching_default_kernel_is_valid_uek: >-
+      {{ hostvars[item].security_patching_post_reboot_default_kernel_is_valid_uek | bool }}
   loop: "{{ security_patching_remaining_hosts }}"
   delegate_to: "{{ item }}"
   delegate_facts: true
