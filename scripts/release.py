@@ -472,10 +472,11 @@ def apply_deployment_status(
         result["previousControllerDigest"] = active_digest
     result["deployedControllerVersion"] = controller_tag
     result["deployedControllerDigest"] = controller_digest
-    if mode == "retry":
-        result["retryRecovery"] = retry_recovery_audit
-    else:
-        result.pop("retryRecovery", None)
+    if impact != "repo-only":
+        if mode == "retry" and retry_recovery_audit["recoveryApplied"] is True:
+            result["retryRecovery"] = retry_recovery_audit
+        else:
+            result.pop("retryRecovery", None)
 
     unchanged = {
         key: value for key, value in result.items() if key != "updatedAt"

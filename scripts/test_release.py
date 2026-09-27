@@ -112,6 +112,22 @@ def retry_audit(value: dict | None = None) -> dict:
     }
 
 
+def recovered_status() -> dict:
+    recovered_manifest = manifest(
+        impact="runtime-config",
+        controller_tag="v1.2.2",
+        controller_digest="sha256:" + "1" * 64,
+        reused=True,
+    )
+    return release.apply_deployment_status(
+        base_status(),
+        recovered_manifest,
+        "retry",
+        "2026-02-01T00:00:00Z",
+        retry_audit(recovered_manifest),
+    )
+
+
 class ReleaseRangeTests(unittest.TestCase):
     def test_classifies_arbitrary_ref_range_for_ci(self):
         repo = make_repo()
@@ -453,6 +469,88 @@ class StatusTransitionTests(unittest.TestCase):
         self.assertEqual(updated["deployedRepositoryVersion"], "v1.2.2")
         self.assertEqual(updated["latestDeployImpactVersion"], "v1.2.2")
         self.assertEqual(updated["sourceRevision"], "a" * 40)
+
+    def test_repo_only_transitions_preserve_active_recovery_provenance(self):
+        status = recovered_status()
+        active_recovery = status["retryRecovery"]
+        repo_manifest = manifest(
+            version="v1.2.4",
+            source="c" * 40,
+            impact="repo-only",
+            controller_tag="v1.2.2",
+            controller_digest="sha256:" + "1" * 64,
+            reused=True,
+        )
+
+        automatic = release.apply_deployment_status(
+            status, repo_manifest, "automatic", "2026-02-02T00:00:00Z"
+        )
+        retried = release.apply_deployment_status(
+            automatic,
+            repo_manifest,
+            "retry",
+            "2026-02-03T00:00:00Z",
+            retry_audit(repo_manifest),
+        )
+
+        self.assertEqual(automatic["retryRecovery"], active_recovery)
+        self.assertEqual(retried["retryRecovery"], active_recovery)
+        self.assertEqual(retried["deployedRepositoryVersion"], "v1.2.3")
+        self.assertEqual(retried["sourceRevision"], "b" * 40)
+
+    def test_production_mutations_replace_or_clear_recovery_provenance(self):
+        status = recovered_status()
+        for impact in ("runtime-config", "controller-image"):
+            with self.subTest(impact=impact):
+                controller_changed = impact == "controller-image"
+                updated = release.apply_deployment_status(
+                    status,
+                    manifest(
+                        version="v1.2.4",
+                        source="c" * 40,
+                        impact=impact,
+                        controller_tag="v1.2.4" if controller_changed else "v1.2.2",
+                        controller_digest=(
+                            "sha256:" + ("4" if controller_changed else "1") * 64
+                        ),
+                        reused=not controller_changed,
+                    ),
+                    "automatic",
+                    "2026-02-02T00:00:00Z",
+                )
+                self.assertNotIn("retryRecovery", updated)
+
+        retry_manifest = manifest(
+            version="v1.2.4",
+            source="c" * 40,
+            impact="runtime-config",
+            controller_tag="v1.2.2",
+            controller_digest="sha256:" + "1" * 64,
+            reused=True,
+        )
+        replacement = retry_audit(retry_manifest)
+        replacement["recoveryRevision"] = "f" * 40
+        retried = release.apply_deployment_status(
+            status,
+            retry_manifest,
+            "retry",
+            "2026-02-02T00:00:00Z",
+            replacement,
+        )
+        self.assertEqual(retried["retryRecovery"], replacement)
+
+    def test_controller_rollback_preserves_runtime_recovery_provenance(self):
+        status = recovered_status()
+        active_recovery = status["retryRecovery"]
+
+        rolled_back = release.apply_controller_rollback(
+            status,
+            "v1.2.1",
+            "sha256:" + "0" * 64,
+            "2026-02-03T00:00:00Z",
+        )
+
+        self.assertEqual(rolled_back["retryRecovery"], active_recovery)
 
     def test_controller_rollback_changes_only_controller_mapping_and_timestamp(self):
         status = release.apply_deployment_status(
