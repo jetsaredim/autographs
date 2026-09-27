@@ -377,7 +377,7 @@ def validate_reused_controller_is_current(
 def validate_retry_recovery_audit(
     audit: dict[str, object], release_manifest: dict[str, object]
 ) -> None:
-    """Bind retry automation provenance to the immutable release identity."""
+    """Bind stable retry recovery payload evidence to the release identity."""
     _validate_manifest(release_manifest)
     if audit.get("schemaVersion") != 1:
         raise ReleaseError("retry recovery audit must use schemaVersion 1")
@@ -387,9 +387,12 @@ def validate_retry_recovery_audit(
         raise ReleaseError(
             "retry recovery audit releaseSourceRevision does not match the manifest"
         )
-    for field in ("automationRevision", "recoveryRevision"):
-        if not re.fullmatch(r"[0-9a-f]{40}", str(audit.get(field) or "")):
-            raise ReleaseError(f"retry recovery audit {field} must be a full Git SHA")
+    if not re.fullmatch(r"[0-9a-f]{40}", str(audit.get("recoveryRevision") or "")):
+        raise ReleaseError("retry recovery audit recoveryRevision must be a full Git SHA")
+    if "automationRevision" in audit:
+        raise ReleaseError(
+            "retry recovery audit cannot contain per-attempt automation provenance"
+        )
     recovery_applied = audit.get("recoveryApplied")
     if not isinstance(recovery_applied, bool):
         raise ReleaseError("retry recovery audit recoveryApplied must be a boolean")

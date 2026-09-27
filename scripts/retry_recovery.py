@@ -15,6 +15,7 @@ from pathlib import Path
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 SEMVER_TAG_RE = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+$")
+POSITIVE_INTEGER_RE = re.compile(r"^[1-9][0-9]*$")
 DEPLOY_PREFIX = "deploy/ansible/"
 
 
@@ -82,7 +83,6 @@ def apply_recovery(
     contract_path: Path,
     release_tag: str,
     source_revision: str,
-    automation_revision: str,
 ) -> dict[str, object]:
     """Validate every changed Ansible path before overlaying approved bytes."""
     if not SEMVER_TAG_RE.fullmatch(release_tag):
@@ -93,9 +93,6 @@ def apply_recovery(
         raise RecoveryError(
             f"release tag {release_tag} resolves to {tag_commit}, not {source_commit}"
         )
-    if not SHA_RE.fullmatch(automation_revision):
-        raise RecoveryError("automation revision must be a full lowercase Git SHA")
-
     releases = _load_contract(contract_path)
     entry = releases.get(release_tag)
     if entry is None:
@@ -103,7 +100,6 @@ def apply_recovery(
             "schemaVersion": 1,
             "releaseTag": release_tag,
             "releaseSourceRevision": source_commit,
-            "automationRevision": automation_revision,
             "recoveryApplied": False,
             "recoveryRevision": source_commit,
             "approvedFiles": [],
@@ -171,13 +167,41 @@ def apply_recovery(
         "schemaVersion": 1,
         "releaseTag": release_tag,
         "releaseSourceRevision": source_commit,
-        "automationRevision": automation_revision,
         "recoveryApplied": True,
         "recoveryRevision": recovery_commit,
         "approvedFiles": [
             {"path": path, "sha256": digest}
             for path, _, digest in approved_content
         ],
+    }
+
+
+def _encode_json(value: object) -> bytes:
+    return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def build_attempt_record(
+    audit: dict[str, object],
+    automation_revision: str,
+    workflow_run_id: str,
+    workflow_run_attempt: str,
+) -> dict[str, object]:
+    """Bind one workflow attempt to stable recovery payload evidence."""
+    if not SHA_RE.fullmatch(automation_revision):
+        raise RecoveryError("automation revision must be a full lowercase Git SHA")
+    if not POSITIVE_INTEGER_RE.fullmatch(workflow_run_id):
+        raise RecoveryError("workflow run id must be a positive integer")
+    if not POSITIVE_INTEGER_RE.fullmatch(workflow_run_attempt):
+        raise RecoveryError("workflow run attempt must be a positive integer")
+    return {
+        "schemaVersion": 1,
+        "releaseTag": audit["releaseTag"],
+        "releaseSourceRevision": audit["releaseSourceRevision"],
+        "recoveryRevision": audit["recoveryRevision"],
+        "recoveryAuditSha256": f"sha256:{hashlib.sha256(_encode_json(audit)).hexdigest()}",
+        "automationRevision": automation_revision,
+        "workflowRunId": workflow_run_id,
+        "workflowRunAttempt": workflow_run_attempt,
     }
 
 
@@ -199,16 +223,25 @@ def main() -> int:
     parser.add_argument("--release-tag", required=True)
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--automation-revision", required=True)
+    parser.add_argument("--workflow-run-id", required=True)
+    parser.add_argument("--workflow-run-attempt", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--attempt-output", type=Path, required=True)
     args = parser.parse_args()
     audit = apply_recovery(
         args.repo,
         args.contract,
         args.release_tag,
         args.source_revision,
+    )
+    attempt = build_attempt_record(
+        audit,
         args.automation_revision,
+        args.workflow_run_id,
+        args.workflow_run_attempt,
     )
     _write_json_atomic(args.output, audit)
+    _write_json_atomic(args.attempt_output, attempt)
     print(json.dumps(audit, sort_keys=True))
     return 0
 

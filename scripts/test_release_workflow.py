@@ -286,7 +286,6 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             contract,
             "v1.0.0",
             source,
-            "a" * 40,
         )
 
         self.assertEqual((repo / allowed_path).read_text(encoding="utf-8"), "fixed\n")
@@ -328,7 +327,6 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
                         contract,
                         "v1.0.0",
                         source,
-                        "a" * 40,
                     )
 
                 self.assertEqual(

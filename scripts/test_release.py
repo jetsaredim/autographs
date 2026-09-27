@@ -101,7 +101,6 @@ def retry_audit(value: dict | None = None) -> dict:
         "schemaVersion": 1,
         "releaseTag": release_manifest["repositoryVersion"],
         "releaseSourceRevision": source,
-        "automationRevision": "c" * 40,
         "recoveryApplied": True,
         "recoveryRevision": "d" * 40,
         "approvedFiles": [
