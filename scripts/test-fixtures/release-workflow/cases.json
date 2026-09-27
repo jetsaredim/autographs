@@ -26,8 +26,20 @@
   },
   "retry_automation_checkout": {
     "release_source_step": "Checkout selected release tag",
-    "retry_automation_step": "Checkout dispatched main retry automation",
-    "automation_path": ".retry-automation"
+    "retry_automation_step": "Checkout dispatched main retry guard",
+    "recovery_step": "Prepare retry recovery contract",
+    "automation_path": ".retry-automation",
+    "sparse_paths": [
+      "scripts/retry_recovery.py",
+      "scripts/retry-recovery-contracts.json"
+    ],
+    "allowed_path": "deploy/ansible/roles/autographs_deploy/tasks/validate_kernel_boot_entry.yml",
+    "forbidden_paths": [
+      "deploy/ansible/roles/autographs_deploy/defaults/main.yml",
+      "deploy/ansible/roles/autographs_deploy/templates/app.env.j2",
+      "deploy/ansible/roles/autographs_deploy/files/Caddyfile",
+      "deploy/ansible/roles/autographs_deploy/tasks/main.yml"
+    ]
   },
   "unresolved_draft_block": {
     "step": "Check unresolved draft releases",

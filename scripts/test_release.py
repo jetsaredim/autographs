@@ -94,6 +94,25 @@ def manifest(
     }
 
 
+def retry_audit(value: dict | None = None) -> dict:
+    release_manifest = value or manifest()
+    source = release_manifest["sourceRevision"]
+    return {
+        "schemaVersion": 1,
+        "releaseTag": release_manifest["repositoryVersion"],
+        "releaseSourceRevision": source,
+        "automationRevision": "c" * 40,
+        "recoveryApplied": True,
+        "recoveryRevision": "d" * 40,
+        "approvedFiles": [
+            {
+                "path": "deploy/ansible/roles/autographs_deploy/tasks/hotfix.yml",
+                "sha256": "sha256:" + "e" * 64,
+            }
+        ],
+    }
+
+
 class ReleaseRangeTests(unittest.TestCase):
     def test_classifies_arbitrary_ref_range_for_ci(self):
         repo = make_repo()
@@ -389,14 +408,33 @@ class StatusTransitionTests(unittest.TestCase):
         self.assertEqual(updated["sourceRevision"], "b" * 40)
 
     def test_retry_transition_is_idempotent_after_partial_failure(self):
+        audit = retry_audit()
         first = release.apply_deployment_status(
-            base_status(), manifest(), "retry", "2026-02-01T00:00:00Z"
+            base_status(), manifest(), "retry", "2026-02-01T00:00:00Z", audit
         )
         second = release.apply_deployment_status(
-            first, manifest(), "retry", "2026-02-02T00:00:00Z"
+            first, manifest(), "retry", "2026-02-02T00:00:00Z", audit
         )
 
         self.assertEqual(second, first)
+        self.assertEqual(second["retryRecovery"], audit)
+
+    def test_retry_status_requires_audit_bound_to_release_identity(self):
+        with self.assertRaisesRegex(release.ReleaseError, "requires a verified"):
+            release.apply_deployment_status(
+                base_status(), manifest(), "retry", "2026-02-01T00:00:00Z"
+            )
+
+        mismatched = retry_audit()
+        mismatched["releaseTag"] = "v9.9.9"
+        with self.assertRaisesRegex(release.ReleaseError, "releaseTag"):
+            release.apply_deployment_status(
+                base_status(),
+                manifest(),
+                "retry",
+                "2026-02-01T00:00:00Z",
+                mismatched,
+            )
 
     def test_repo_only_transition_does_not_claim_production_mutation(self):
         status = base_status()
