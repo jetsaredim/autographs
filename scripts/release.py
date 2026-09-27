@@ -374,16 +374,73 @@ def validate_reused_controller_is_current(
     assert_digest_matches(active_digest, manifest_digest)
 
 
+def validate_retry_recovery_audit(
+    audit: dict[str, object], release_manifest: dict[str, object]
+) -> None:
+    """Bind retry automation provenance to the immutable release identity."""
+    _validate_manifest(release_manifest)
+    if audit.get("schemaVersion") != 1:
+        raise ReleaseError("retry recovery audit must use schemaVersion 1")
+    if audit.get("releaseTag") != release_manifest.get("repositoryVersion"):
+        raise ReleaseError("retry recovery audit releaseTag does not match the manifest")
+    if audit.get("releaseSourceRevision") != release_manifest.get("sourceRevision"):
+        raise ReleaseError(
+            "retry recovery audit releaseSourceRevision does not match the manifest"
+        )
+    for field in ("automationRevision", "recoveryRevision"):
+        if not re.fullmatch(r"[0-9a-f]{40}", str(audit.get(field) or "")):
+            raise ReleaseError(f"retry recovery audit {field} must be a full Git SHA")
+    recovery_applied = audit.get("recoveryApplied")
+    if not isinstance(recovery_applied, bool):
+        raise ReleaseError("retry recovery audit recoveryApplied must be a boolean")
+    approved_files = audit.get("approvedFiles")
+    if not isinstance(approved_files, list):
+        raise ReleaseError("retry recovery audit approvedFiles must be an array")
+    seen: set[str] = set()
+    for item in approved_files:
+        if not isinstance(item, dict):
+            raise ReleaseError("retry recovery audit approvedFiles entries must be objects")
+        path = item.get("path")
+        digest = item.get("sha256")
+        if (
+            not isinstance(path, str)
+            or not path.startswith("deploy/ansible/")
+            or Path(path).is_absolute()
+            or ".." in Path(path).parts
+            or path in seen
+        ):
+            raise ReleaseError(f"retry recovery audit contains invalid path {path!r}")
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(digest or "")):
+            raise ReleaseError(f"retry recovery audit contains invalid hash for {path}")
+        seen.add(path)
+    if recovery_applied and not approved_files:
+        raise ReleaseError("applied retry recovery audit must list approved files")
+    if not recovery_applied:
+        if approved_files:
+            raise ReleaseError("tag-only retry recovery audit cannot list approved files")
+        if audit.get("recoveryRevision") != audit.get("releaseSourceRevision"):
+            raise ReleaseError(
+                "tag-only retry recovery revision must equal the release source revision"
+            )
+
+
 def apply_deployment_status(
     status: dict[str, object],
     release_manifest: dict[str, object],
     mode: str,
     updated_at: str,
+    retry_recovery_audit: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Apply an automatic/retry success without inventing release state."""
     if mode not in {"automatic", "retry"}:
         raise ReleaseError(f"status mode must be automatic or retry, got {mode!r}")
     _validate_manifest(release_manifest)
+    if mode == "retry":
+        if retry_recovery_audit is None:
+            raise ReleaseError("retry status requires a verified retry recovery audit")
+        validate_retry_recovery_audit(retry_recovery_audit, release_manifest)
+    elif retry_recovery_audit is not None:
+        raise ReleaseError("automatic status cannot include retry recovery provenance")
     result = dict(status)
     version = str(release_manifest["repositoryVersion"])
     impact = str(release_manifest["impact"])
@@ -412,6 +469,10 @@ def apply_deployment_status(
         result["previousControllerDigest"] = active_digest
     result["deployedControllerVersion"] = controller_tag
     result["deployedControllerDigest"] = controller_digest
+    if mode == "retry":
+        result["retryRecovery"] = retry_recovery_audit
+    else:
+        result.pop("retryRecovery", None)
 
     unchanged = {
         key: value for key, value in result.items() if key != "updatedAt"
@@ -546,6 +607,7 @@ def main() -> int:
     update.add_argument("--manifest", type=Path, required=True)
     update.add_argument("--mode", choices=("automatic", "retry"), required=True)
     update.add_argument("--updated-at", required=True)
+    update.add_argument("--retry-recovery-audit", type=Path)
 
     rollback = subcommands.add_parser("rollback-status")
     rollback.add_argument("--status-file", type=Path, default=Path(".release-status.json"))
@@ -600,11 +662,17 @@ def main() -> int:
     elif args.command == "assert-digest":
         assert_digest_matches(args.expected, args.actual)
     elif args.command == "update-status":
+        retry_recovery_audit = (
+            _json_object(args.retry_recovery_audit)
+            if args.retry_recovery_audit
+            else None
+        )
         value = apply_deployment_status(
             _json_object(args.status_file),
             _json_object(args.manifest),
             args.mode,
             args.updated_at,
+            retry_recovery_audit,
         )
         _write_json_atomic(args.status_file, value)
     elif args.command == "rollback-status":
