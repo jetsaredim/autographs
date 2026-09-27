@@ -183,6 +183,16 @@ jobs:
           ref: ${{ steps.request.outputs.release_tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Checkout dispatched main retry automation
+        if: steps.request.outputs.operation == 'retry'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: "0"
+          ref: ${{ github.sha }}
+          path: .retry-automation
+          sparse-checkout: deploy/ansible
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Checkout current main for controller rollback
         if: steps.request.outputs.operation == 'rollback'
         uses: actions/checkout@v7
@@ -603,7 +613,7 @@ jobs:
         if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
-          ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
+          ANSIBLE_CONFIG: ${{ steps.request.outputs.operation == 'retry' && format('{0}/.retry-automation/deploy/ansible/ansible.cfg', github.workspace) || format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
           AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
           AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
           AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID: ${{ steps.terraform_apply.outputs.admin_password_hash_vault_secret_id }}
@@ -616,7 +626,7 @@ jobs:
           ORACLE_DB_WALLET_ZIP_BASE64: ${{ secrets.ORACLE_DB_WALLET_ZIP_BASE64 }}
         with:
           playbook: playbooks/deploy.yml
-          directory: deploy/ansible
+          directory: ${{ steps.request.outputs.operation == 'retry' && '.retry-automation/deploy/ansible' || 'deploy/ansible' }}
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]

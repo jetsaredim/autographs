@@ -106,12 +106,80 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             concurrency["group"], self.production_job["concurrency"]["group"]
         )
 
-    def test_exact_automatic_retry_tag_checkout(self):
-        case = self.cases["exact_automatic_retry_tag_checkout"]
-        step = self.production_steps[case["step"]]
-        for key, value in case["required_with"].items():
-            self.assertEqual(step["with"][key], value)
-        self.assertIn("steps.request.outputs.operation != 'rollback'", step["if"])
+    def test_retry_uses_current_main_automation_without_relabeling_release_content(self):
+        case = self.cases["retry_automation_checkout"]
+        release_source = self.production_steps[case["release_source_step"]]
+        self.assertEqual(release_source["with"]["fetch-depth"], "0")
+        self.assertEqual(
+            release_source["with"]["ref"],
+            "${{ steps.request.outputs.release_tag }}",
+        )
+        self.assertNotIn("path", release_source["with"])
+        self.assertIn(
+            "steps.request.outputs.operation != 'rollback'", release_source["if"]
+        )
+
+        retry_automation = self.production_steps[case["retry_automation_step"]]
+        self.assertEqual(
+            retry_automation["if"], "steps.request.outputs.operation == 'retry'"
+        )
+        self.assertEqual(retry_automation["with"]["fetch-depth"], "0")
+        self.assertEqual(retry_automation["with"]["ref"], "${{ github.sha }}")
+        self.assertEqual(retry_automation["with"]["path"], case["automation_path"])
+        self.assertEqual(
+            retry_automation["with"]["sparse-checkout"].strip(), "deploy/ansible"
+        )
+        self.assert_ordered(
+            [
+                case["release_source_step"],
+                case["retry_automation_step"],
+                "Validate selected release source",
+                "Run full deployment",
+            ]
+        )
+
+        deploy = self.production_steps["Run full deployment"]
+        self.assertEqual(
+            deploy["with"]["directory"],
+            "${{ steps.request.outputs.operation == 'retry' && "
+            "'.retry-automation/deploy/ansible' || 'deploy/ansible' }}",
+        )
+        self.assertEqual(
+            deploy["env"]["ANSIBLE_CONFIG"],
+            "${{ steps.request.outputs.operation == 'retry' && "
+            "format('{0}/.retry-automation/deploy/ansible/ansible.cfg', github.workspace) "
+            "|| format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}",
+        )
+        for release_identity in (
+            "steps.request.outputs.release_tag",
+            "steps.manifest.outputs.controller_tag",
+            "steps.manifest.outputs.controller_digest",
+            "steps.source.outputs.source_revision",
+        ):
+            self.assertIn(release_identity, deploy["with"]["options"])
+
+        self.assertEqual(
+            self.production_steps["Build and publish semantic controller image"]["with"][
+                "files"
+            ].strip(),
+            ".github/docker-bake.hcl",
+        )
+        self.assertEqual(
+            self.production_steps["Terraform apply"]["working-directory"],
+            "infra/terraform",
+        )
+        for step_name in (
+            "Resolve controller image plan",
+            "Build and publish semantic controller image",
+            "Reconcile release manifest",
+            "Terraform apply",
+            "Verify deployment health",
+            "Commit production release status",
+            "Publish GitHub Release",
+        ):
+            self.assertNotIn(
+                case["automation_path"], json.dumps(self.production_steps[step_name])
+            )
 
     def test_manual_production_operations_require_main(self):
         condition = self.production_job["if"]

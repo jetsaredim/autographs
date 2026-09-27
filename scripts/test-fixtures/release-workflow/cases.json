@@ -24,12 +24,10 @@
       "Publish GitHub Release"
     ]
   },
-  "exact_automatic_retry_tag_checkout": {
-    "step": "Checkout selected release tag",
-    "required_with": {
-      "fetch-depth": "0",
-      "ref": "${{ steps.request.outputs.release_tag }}"
-    }
+  "retry_automation_checkout": {
+    "release_source_step": "Checkout selected release tag",
+    "retry_automation_step": "Checkout dispatched main retry automation",
+    "automation_path": ".retry-automation"
   },
   "unresolved_draft_block": {
     "step": "Check unresolved draft releases",
