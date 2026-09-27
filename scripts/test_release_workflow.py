@@ -23,6 +23,7 @@ ROLLBACK_PATH = ROOT / "deploy/ansible/playbooks/controller-rollback.yml"
 DOCKER_BAKE_PATH = ROOT / ".github/docker-bake.hcl"
 RECOVERY_SCRIPT_PATH = ROOT / "scripts/retry_recovery.py"
 RECOVERY_CONTRACT_PATH = ROOT / "scripts/retry-recovery-contracts.json"
+RELEASE_SCRIPT_PATH = ROOT / "scripts/release.py"
 
 recovery_spec = importlib.util.spec_from_file_location(
     "retry_recovery", RECOVERY_SCRIPT_PATH
@@ -30,6 +31,11 @@ recovery_spec = importlib.util.spec_from_file_location(
 retry_recovery = importlib.util.module_from_spec(recovery_spec)
 assert recovery_spec.loader is not None
 recovery_spec.loader.exec_module(retry_recovery)
+
+release_spec = importlib.util.spec_from_file_location("release", RELEASE_SCRIPT_PATH)
+release = importlib.util.module_from_spec(release_spec)
+assert release_spec.loader is not None
+release_spec.loader.exec_module(release)
 
 
 def git(repo: Path, *args: str) -> str:
@@ -226,6 +232,11 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("scripts/retry_recovery.py", recovery["run"])
         self.assertIn("scripts/retry-recovery-contracts.json", recovery["run"])
         self.assertIn("retry-recovery-audit.json", recovery["run"])
+        self.assertIn(
+            "retry-recovery-attempt-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json",
+            recovery["run"],
+        )
+        self.assertIn("--attempt-output", recovery["run"])
         self.assertIn("scripts/release.py reconcile-asset", recovery["run"])
         self.assertIn("gh release upload", recovery["run"])
 
@@ -293,6 +304,56 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertEqual(audit["releaseSourceRevision"], source)
         self.assertEqual(audit["recoveryRevision"], recovery)
         self.assertEqual(audit["approvedFiles"][0]["path"], allowed_path)
+        self.assertNotIn("automationRevision", audit)
+
+    def test_retry_recovery_existing_asset_survives_a_later_dispatch(self):
+        case = self.cases["retry_automation_checkout"]
+        allowed_path = case["allowed_path"]
+        repo, source, recovery = make_recovery_repo(allowed_path, [])
+        contract = write_recovery_contract(repo, recovery, allowed_path)
+
+        audit_a = retry_recovery.apply_recovery(repo, contract, "v1.0.0", source)
+        attempt_a = retry_recovery.build_attempt_record(
+            audit_a, "a" * 40, "100", "1"
+        )
+        existing_asset = retry_recovery._encode_json(audit_a)
+
+        git(repo, "checkout", "--force", "--detach", source)
+        audit_b = retry_recovery.apply_recovery(repo, contract, "v1.0.0", source)
+        attempt_b = retry_recovery.build_attempt_record(
+            audit_b, "b" * 40, "101", "1"
+        )
+        generated_asset = retry_recovery._encode_json(audit_b)
+
+        self.assertEqual(
+            release.reconcile_manifest_asset(existing_asset, generated_asset), "same"
+        )
+        self.assertEqual(audit_b, audit_a)
+        self.assertNotEqual(
+            attempt_b["automationRevision"], attempt_a["automationRevision"]
+        )
+        self.assertNotEqual(attempt_b["workflowRunId"], attempt_a["workflowRunId"])
+        self.assertEqual(
+            attempt_b["recoveryAuditSha256"], attempt_a["recoveryAuditSha256"]
+        )
+
+        git(repo, "checkout", "--force", "main")
+        write_file(repo, allowed_path, "revised recovery\n")
+        git(repo, "add", allowed_path)
+        git(repo, "commit", "-m", "revise recovery payload")
+        revised_recovery = git(repo, "rev-parse", "HEAD")
+        revised_contract = write_recovery_contract(
+            repo, revised_recovery, allowed_path
+        )
+        git(repo, "checkout", "--force", "--detach", source)
+        revised_audit = retry_recovery.apply_recovery(
+            repo, revised_contract, "v1.0.0", source
+        )
+
+        with self.assertRaisesRegex(release.ReleaseError, "conflict"):
+            release.reconcile_manifest_asset(
+                existing_asset, retry_recovery._encode_json(revised_audit)
+            )
 
     def test_repository_recovery_contract_pins_revision_and_file_hashes(self):
         contract = json.loads(RECOVERY_CONTRACT_PATH.read_text(encoding="utf-8"))
