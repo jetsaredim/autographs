@@ -286,6 +286,55 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         status = self.production_steps["Commit production release status"]["run"]
         self.assertIn("--retry-recovery-audit", status)
 
+    def test_status_commit_uses_clean_current_main_checkout_after_recovery(self):
+        checkout_name = "Checkout current main for production status"
+        checkout = self.production_steps[checkout_name]
+        tooling_checkout_name = "Checkout trusted production status tooling"
+        tooling_checkout = self.production_steps[tooling_checkout_name]
+        status = self.production_steps["Commit production release status"]
+        status_condition = (
+            "steps.request.outputs.operation == 'rollback' || "
+            "steps.release_gate.outputs.ready == 'true'"
+        )
+
+        self.assertEqual(checkout["if"], status_condition)
+        self.assertEqual(checkout["uses"], "actions/checkout@v7")
+        self.assertEqual(checkout["with"]["fetch-depth"], "0")
+        self.assertEqual(checkout["with"]["ref"], "main")
+        self.assertEqual(checkout["with"]["path"], ".production-status")
+        self.assertEqual(tooling_checkout["if"], status_condition)
+        self.assertEqual(tooling_checkout["uses"], "actions/checkout@v7")
+        self.assertEqual(tooling_checkout["with"]["fetch-depth"], "1")
+        self.assertEqual(tooling_checkout["with"]["ref"], "${{ github.sha }}")
+        self.assertEqual(tooling_checkout["with"]["path"], ".status-automation")
+        self.assertEqual(
+            tooling_checkout["with"]["sparse-checkout"], "scripts/release.py"
+        )
+        self.assertEqual(
+            tooling_checkout["with"]["sparse-checkout-cone-mode"], "false"
+        )
+        self.assertEqual(tooling_checkout["with"]["persist-credentials"], "false")
+        self.assertEqual(status["if"], status_condition)
+        self.assertEqual(status["working-directory"], ".production-status")
+        trusted_release_script = (
+            'python3 "$GITHUB_WORKSPACE/.status-automation/scripts/release.py"'
+        )
+        self.assertEqual(status["run"].count(trusted_release_script), 2)
+        self.assertIn(f"{trusted_release_script} rollback-status", status["run"])
+        self.assertIn(f"{trusted_release_script} update-status", status["run"])
+        self.assertNotIn("python3 scripts/release.py", status["run"])
+        self.assertNotIn("git restore", status["run"])
+        self.assertNotIn("git reset", status["run"])
+        self.assert_ordered(
+            [
+                "Validate release completion gate",
+                checkout_name,
+                tooling_checkout_name,
+                "Commit production release status",
+                "Publish GitHub Release",
+            ]
+        )
+
     def test_retry_recovery_two_revision_allowlist_accepts_only_approved_bytes(self):
         case = self.cases["retry_automation_checkout"]
         allowed_path = case["allowed_path"]
