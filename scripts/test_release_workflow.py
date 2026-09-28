@@ -286,6 +286,33 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         status = self.production_steps["Commit production release status"]["run"]
         self.assertIn("--retry-recovery-audit", status)
 
+    def test_status_commit_uses_clean_current_main_checkout_after_recovery(self):
+        checkout_name = "Checkout current main for production status"
+        checkout = self.production_steps[checkout_name]
+        status = self.production_steps["Commit production release status"]
+        status_condition = (
+            "steps.request.outputs.operation == 'rollback' || "
+            "steps.release_gate.outputs.ready == 'true'"
+        )
+
+        self.assertEqual(checkout["if"], status_condition)
+        self.assertEqual(checkout["uses"], "actions/checkout@v7")
+        self.assertEqual(checkout["with"]["fetch-depth"], "0")
+        self.assertEqual(checkout["with"]["ref"], "main")
+        self.assertEqual(checkout["with"]["path"], ".production-status")
+        self.assertEqual(status["if"], status_condition)
+        self.assertEqual(status["working-directory"], ".production-status")
+        self.assertNotIn("git restore", status["run"])
+        self.assertNotIn("git reset", status["run"])
+        self.assert_ordered(
+            [
+                "Validate release completion gate",
+                checkout_name,
+                "Commit production release status",
+                "Publish GitHub Release",
+            ]
+        )
+
     def test_retry_recovery_two_revision_allowlist_accepts_only_approved_bytes(self):
         case = self.cases["retry_automation_checkout"]
         allowed_path = case["allowed_path"]

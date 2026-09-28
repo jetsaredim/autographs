@@ -821,8 +821,18 @@ jobs:
             --extra-vars autographs_rollback_controller_version=${{ steps.rollback_manifest.outputs.controller_tag }}
             --extra-vars autographs_rollback_controller_digest=${{ steps.rollback_manifest.outputs.controller_digest }}
 
+      - name: Checkout current main for production status
+        if: steps.request.outputs.operation == 'rollback' || steps.release_gate.outputs.ready == 'true'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: "0"
+          ref: main
+          path: .production-status
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Commit production release status
         if: steps.request.outputs.operation == 'rollback' || steps.release_gate.outputs.ready == 'true'
+        working-directory: .production-status
         env:
           CONTROLLER_TAG: ${{ steps.manifest.outputs.controller_tag || steps.rollback_manifest.outputs.controller_tag }}
           CONTROLLER_DIGEST: ${{ steps.manifest.outputs.controller_digest || steps.rollback_manifest.outputs.controller_digest }}
