@@ -1,12 +1,29 @@
 {
-  "deployedControllerDigest": "sha256:03b638b282f0e899190d3dc90abcd8ed3e7b2d23ce8169a8ebf2b7f678b71f8e",
-  "deployedControllerVersion": "v0.2.3",
-  "deployedRepositoryVersion": "v0.2.3",
+  "deployedControllerDigest": "sha256:a724df6e4371dc64f866983ac2505631dbb6d4d00a63276989ecb8c01f627238",
+  "deployedControllerVersion": "v0.2.4",
+  "deployedRepositoryVersion": "v0.2.4",
   "lastDeployImpact": "controller-image",
-  "latestDeployImpactVersion": "v0.2.3",
-  "latestRepositoryVersion": "v0.2.3",
-  "previousControllerDigest": "sha256:9e5e82da72be3365e4d2d6df85f64a76d4de8bcf46881001caf39c65a77fc25b",
-  "previousControllerVersion": "v0.2.2",
-  "sourceRevision": "564017a2c14d2abac35cf48461ac17b0f764f7bc",
-  "updatedAt": "2026-09-20T02:26:07Z"
+  "latestDeployImpactVersion": "v0.2.4",
+  "latestRepositoryVersion": "v0.2.4",
+  "previousControllerDigest": "sha256:03b638b282f0e899190d3dc90abcd8ed3e7b2d23ce8169a8ebf2b7f678b71f8e",
+  "previousControllerVersion": "v0.2.3",
+  "retryRecovery": {
+    "approvedFiles": [
+      {
+        "path": "deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml",
+        "sha256": "sha256:e2f0e7a9e26e98422ea26b071b4e0956d54ceaa29b5a43b77325704052956571"
+      },
+      {
+        "path": "deploy/ansible/roles/autographs_deploy/tasks/validate_kernel_boot_entry.yml",
+        "sha256": "sha256:79cdef944f950ec64fd1a0ba3ca5e98ca2a7f69d34ae406c4085f0ad0b0b01a0"
+      }
+    ],
+    "recoveryApplied": true,
+    "recoveryRevision": "75bb0a9979639a32a7bb3d8da2507bc33f5c38f9",
+    "releaseSourceRevision": "b41fe89c93cb997470a23a33f858307a364daed1",
+    "releaseTag": "v0.2.4",
+    "schemaVersion": 1
+  },
+  "sourceRevision": "b41fe89c93cb997470a23a33f858307a364daed1",
+  "updatedAt": "2026-09-28T14:10:37Z"
 }
