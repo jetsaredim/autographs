@@ -830,6 +830,17 @@ jobs:
           path: .production-status
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Checkout trusted production status tooling
+        if: steps.request.outputs.operation == 'rollback' || steps.release_gate.outputs.ready == 'true'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: "1"
+          ref: ${{ github.sha }}
+          path: .status-automation
+          sparse-checkout: scripts/release.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
       - name: Commit production release status
         if: steps.request.outputs.operation == 'rollback' || steps.release_gate.outputs.ready == 'true'
         working-directory: .production-status
@@ -846,7 +857,7 @@ jobs:
             git fetch origin main:refs/remotes/origin/main
             git switch --force-create production-status origin/main
             if [ "$OPERATION" = "rollback" ]; then
-              python3 scripts/release.py rollback-status \
+              python3 "$GITHUB_WORKSPACE/.status-automation/scripts/release.py" rollback-status \
                 --controller-tag "$CONTROLLER_TAG" \
                 --controller-digest "$CONTROLLER_DIGEST" \
                 --updated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -861,7 +872,7 @@ jobs:
                   --retry-recovery-audit "$RUNNER_TEMP/release-assets/retry-recovery-audit.json"
                 )
               fi
-              python3 scripts/release.py update-status "${update_args[@]}"
+              python3 "$GITHUB_WORKSPACE/.status-automation/scripts/release.py" update-status "${update_args[@]}"
             fi
             git add .release-status.json
             if git diff --cached --quiet; then
