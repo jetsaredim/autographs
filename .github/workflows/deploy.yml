@@ -183,6 +183,18 @@ jobs:
           ref: ${{ steps.request.outputs.release_tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Checkout dispatched main retry guard
+        if: steps.request.outputs.operation == 'retry'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: "0"
+          ref: ${{ github.sha }}
+          path: .retry-automation
+          sparse-checkout: |
+            scripts/retry_recovery.py
+            scripts/retry-recovery-contracts.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Checkout current main for controller rollback
         if: steps.request.outputs.operation == 'rollback'
         uses: actions/checkout@v7
@@ -204,6 +216,73 @@ jobs:
             --source-revision "$source_revision"
           echo "source_revision=${source_revision}" >> "$GITHUB_OUTPUT"
           git show origin/main:.release-status.json > "$RUNNER_TEMP/current-release-status.json"
+
+      - name: Prepare retry recovery contract
+        if: steps.request.outputs.operation == 'retry'
+        id: retry_recovery
+        env:
+          AUTOMATION_REVISION: ${{ github.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.request.outputs.release_tag }}
+          SOURCE_REVISION: ${{ steps.source.outputs.source_revision }}
+        run: |
+          set -euo pipefail
+          asset_dir="$RUNNER_TEMP/release-assets"
+          audit="$asset_dir/retry-recovery-audit.json"
+          attempt_asset="retry-recovery-attempt-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          attempt="$asset_dir/$attempt_asset"
+          mkdir -p "$asset_dir"
+          python3 .retry-automation/scripts/retry_recovery.py \
+            --repo . \
+            --contract .retry-automation/scripts/retry-recovery-contracts.json \
+            --release-tag "$RELEASE_TAG" \
+            --source-revision "$SOURCE_REVISION" \
+            --automation-revision "$AUTOMATION_REVISION" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --workflow-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --output "$audit" \
+            --attempt-output "$attempt"
+
+          asset_count="$(gh release view "$RELEASE_TAG" --json assets \
+            --jq '[.assets[] | select(.name == "retry-recovery-audit.json")] | length')"
+          if [ "$asset_count" -eq 1 ]; then
+            existing_dir="$RUNNER_TEMP/existing-retry-recovery-audit"
+            mkdir -p "$existing_dir"
+            gh release download "$RELEASE_TAG" \
+              --pattern retry-recovery-audit.json \
+              --dir "$existing_dir"
+            python3 scripts/release.py reconcile-asset \
+              --generated "$audit" \
+              --existing "$existing_dir/retry-recovery-audit.json" >/dev/null
+          elif [ "$asset_count" -eq 0 ]; then
+            gh release upload "$RELEASE_TAG" "$audit"
+          else
+            echo "Release contains multiple retry-recovery-audit.json assets." >&2
+            exit 1
+          fi
+
+          attempt_count="$(gh release view "$RELEASE_TAG" --json assets \
+            --jq "[.assets[] | select(.name == \"${attempt_asset}\")] | length")"
+          if [ "$attempt_count" -eq 1 ]; then
+            existing_attempt_dir="$RUNNER_TEMP/existing-retry-recovery-attempt"
+            mkdir -p "$existing_attempt_dir"
+            gh release download "$RELEASE_TAG" \
+              --pattern "$attempt_asset" \
+              --dir "$existing_attempt_dir"
+            python3 scripts/release.py reconcile-asset \
+              --generated "$attempt" \
+              --existing "$existing_attempt_dir/$attempt_asset" >/dev/null
+          elif [ "$attempt_count" -eq 0 ]; then
+            gh release upload "$RELEASE_TAG" "$attempt"
+          else
+            echo "Release contains multiple ${attempt_asset} assets." >&2
+            exit 1
+          fi
+          {
+            echo "verified=true"
+            echo "recovery_revision=$(jq -er '.recoveryRevision' "$audit")"
+            echo "attempt_asset=${attempt_asset}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Load published rollback manifest
         if: steps.request.outputs.operation == 'rollback'
@@ -603,7 +682,7 @@ jobs:
         if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
-          ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
+          ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
           AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
           AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
           AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID: ${{ steps.terraform_apply.outputs.admin_password_hash_vault_secret_id }}
@@ -683,10 +762,16 @@ jobs:
         if: steps.request.outputs.operation != 'rollback'
         id: release_gate
         env:
+          OPERATION: ${{ steps.request.outputs.operation }}
           PRODUCTION_MUTATION_REQUIRED: ${{ steps.manifest.outputs.production_mutation_required }}
           DEPLOYMENT_VERIFIED: ${{ steps.deployment_health.outputs.verified }}
+          RETRY_RECOVERY_VERIFIED: ${{ steps.retry_recovery.outputs.verified }}
         run: |
           set -euo pipefail
+          if [ "$OPERATION" = "retry" ] && [ "$RETRY_RECOVERY_VERIFIED" != "true" ]; then
+            echo "Retry completion requires a verified recovery audit." >&2
+            exit 1
+          fi
           case "$PRODUCTION_MUTATION_REQUIRED" in
             true)
               if [ "$DEPLOYMENT_VERIFIED" != "true" ]; then
@@ -756,10 +841,17 @@ jobs:
                 --controller-digest "$CONTROLLER_DIGEST" \
                 --updated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             else
-              python3 scripts/release.py update-status \
-                --manifest "$RUNNER_TEMP/release-assets/release-manifest.json" \
-                --mode "$OPERATION" \
+              update_args=(
+                --manifest "$RUNNER_TEMP/release-assets/release-manifest.json"
+                --mode "$OPERATION"
                 --updated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              )
+              if [ "$OPERATION" = "retry" ]; then
+                update_args+=(
+                  --retry-recovery-audit "$RUNNER_TEMP/release-assets/retry-recovery-audit.json"
+                )
+              fi
+              python3 scripts/release.py update-status "${update_args[@]}"
             fi
             git add .release-status.json
             if git diff --cached --quiet; then

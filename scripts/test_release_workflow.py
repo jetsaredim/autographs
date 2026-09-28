@@ -2,8 +2,12 @@
 
 """Structural regression tests for the privileged production release graph."""
 
+import hashlib
+import importlib.util
 import json
 import re
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -17,6 +21,88 @@ ROLE_TASKS_PATH = ROOT / "deploy/ansible/roles/autographs_deploy/tasks/main.yml"
 APP_ENV_PATH = ROOT / "deploy/ansible/roles/autographs_deploy/templates/app.env.j2"
 ROLLBACK_PATH = ROOT / "deploy/ansible/playbooks/controller-rollback.yml"
 DOCKER_BAKE_PATH = ROOT / ".github/docker-bake.hcl"
+RECOVERY_SCRIPT_PATH = ROOT / "scripts/retry_recovery.py"
+RECOVERY_CONTRACT_PATH = ROOT / "scripts/retry-recovery-contracts.json"
+RELEASE_SCRIPT_PATH = ROOT / "scripts/release.py"
+
+recovery_spec = importlib.util.spec_from_file_location(
+    "retry_recovery", RECOVERY_SCRIPT_PATH
+)
+retry_recovery = importlib.util.module_from_spec(recovery_spec)
+assert recovery_spec.loader is not None
+recovery_spec.loader.exec_module(retry_recovery)
+
+release_spec = importlib.util.spec_from_file_location("release", RELEASE_SCRIPT_PATH)
+release = importlib.util.module_from_spec(release_spec)
+assert release_spec.loader is not None
+release_spec.loader.exec_module(release)
+
+
+def git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def git_bytes(repo: Path, *args: str) -> bytes:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    ).stdout
+
+
+def write_file(repo: Path, path: str, content: str) -> None:
+    target = repo / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+
+
+def make_recovery_repo(allowed_path: str, extra_paths: list[str]) -> tuple[Path, str, str]:
+    repo = Path(tempfile.mkdtemp())
+    git(repo, "init", "-b", "main")
+    git(repo, "config", "user.name", "Recovery Tests")
+    git(repo, "config", "user.email", "recovery-tests@example.invalid")
+    write_file(repo, allowed_path, "broken\n")
+    for path in extra_paths:
+        write_file(repo, path, "release\n")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "release source")
+    git(repo, "tag", "v1.0.0")
+    source = git(repo, "rev-parse", "HEAD")
+    write_file(repo, allowed_path, "fixed\n")
+    for path in extra_paths:
+        write_file(repo, path, "later main\n")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "recovery candidate")
+    recovery = git(repo, "rev-parse", "HEAD")
+    git(repo, "checkout", "--detach", source)
+    return repo, source, recovery
+
+
+def write_recovery_contract(
+    repo: Path, recovery_revision: str, allowed_path: str
+) -> Path:
+    digest = hashlib.sha256(
+        git_bytes(repo, "show", f"{recovery_revision}:{allowed_path}")
+    ).hexdigest()
+    contract = {
+        "schemaVersion": 1,
+        "releases": {
+            "v1.0.0": {
+                "recoveryRevision": recovery_revision,
+                "approvedFiles": {allowed_path: f"sha256:{digest}"},
+            }
+        },
+    }
+    path = repo / "recovery-contract.json"
+    path.write_text(json.dumps(contract), encoding="utf-8")
+    return path
 
 
 def load_workflow() -> dict:
@@ -106,12 +192,207 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             concurrency["group"], self.production_job["concurrency"]["group"]
         )
 
-    def test_exact_automatic_retry_tag_checkout(self):
-        case = self.cases["exact_automatic_retry_tag_checkout"]
-        step = self.production_steps[case["step"]]
-        for key, value in case["required_with"].items():
-            self.assertEqual(step["with"][key], value)
-        self.assertIn("steps.request.outputs.operation != 'rollback'", step["if"])
+    def test_retry_uses_current_main_automation_without_relabeling_release_content(self):
+        case = self.cases["retry_automation_checkout"]
+        release_source = self.production_steps[case["release_source_step"]]
+        self.assertEqual(release_source["with"]["fetch-depth"], "0")
+        self.assertEqual(
+            release_source["with"]["ref"],
+            "${{ steps.request.outputs.release_tag }}",
+        )
+        self.assertNotIn("path", release_source["with"])
+        self.assertIn(
+            "steps.request.outputs.operation != 'rollback'", release_source["if"]
+        )
+
+        retry_automation = self.production_steps[case["retry_automation_step"]]
+        self.assertEqual(
+            retry_automation["if"], "steps.request.outputs.operation == 'retry'"
+        )
+        self.assertEqual(retry_automation["with"]["fetch-depth"], "0")
+        self.assertEqual(retry_automation["with"]["ref"], "${{ github.sha }}")
+        self.assertEqual(retry_automation["with"]["path"], case["automation_path"])
+        self.assertEqual(
+            retry_automation["with"]["sparse-checkout"].splitlines(),
+            case["sparse_paths"],
+        )
+        self.assert_ordered(
+            [
+                case["release_source_step"],
+                case["retry_automation_step"],
+                "Validate selected release source",
+                case["recovery_step"],
+                "Terraform apply",
+                "Run full deployment",
+            ]
+        )
+
+        recovery = self.production_steps[case["recovery_step"]]
+        self.assertEqual(recovery["id"], "retry_recovery")
+        self.assertIn("scripts/retry_recovery.py", recovery["run"])
+        self.assertIn("scripts/retry-recovery-contracts.json", recovery["run"])
+        self.assertIn("retry-recovery-audit.json", recovery["run"])
+        self.assertIn(
+            "retry-recovery-attempt-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json",
+            recovery["run"],
+        )
+        self.assertIn("--attempt-output", recovery["run"])
+        self.assertIn("scripts/release.py reconcile-asset", recovery["run"])
+        self.assertIn("gh release upload", recovery["run"])
+
+        deploy = self.production_steps["Run full deployment"]
+        self.assertEqual(deploy["with"]["directory"], "deploy/ansible")
+        self.assertEqual(
+            deploy["env"]["ANSIBLE_CONFIG"],
+            "${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}",
+        )
+        for release_identity in (
+            "steps.request.outputs.release_tag",
+            "steps.manifest.outputs.controller_tag",
+            "steps.manifest.outputs.controller_digest",
+            "steps.source.outputs.source_revision",
+        ):
+            self.assertIn(release_identity, deploy["with"]["options"])
+
+        self.assertEqual(
+            self.production_steps["Build and publish semantic controller image"]["with"][
+                "files"
+            ].strip(),
+            ".github/docker-bake.hcl",
+        )
+        self.assertEqual(
+            self.production_steps["Terraform apply"]["working-directory"],
+            "infra/terraform",
+        )
+        for step_name in (
+            "Resolve controller image plan",
+            "Build and publish semantic controller image",
+            "Reconcile release manifest",
+            "Terraform apply",
+            "Verify deployment health",
+            "Commit production release status",
+            "Publish GitHub Release",
+        ):
+            self.assertNotIn(
+                case["automation_path"], json.dumps(self.production_steps[step_name])
+            )
+
+        gate = self.production_steps["Validate release completion gate"]
+        self.assertEqual(
+            gate["env"]["RETRY_RECOVERY_VERIFIED"],
+            "${{ steps.retry_recovery.outputs.verified }}",
+        )
+        self.assertIn("Retry completion requires a verified recovery audit", gate["run"])
+        status = self.production_steps["Commit production release status"]["run"]
+        self.assertIn("--retry-recovery-audit", status)
+
+    def test_retry_recovery_two_revision_allowlist_accepts_only_approved_bytes(self):
+        case = self.cases["retry_automation_checkout"]
+        allowed_path = case["allowed_path"]
+        repo, source, recovery = make_recovery_repo(allowed_path, [])
+        contract = write_recovery_contract(repo, recovery, allowed_path)
+
+        audit = retry_recovery.apply_recovery(
+            repo,
+            contract,
+            "v1.0.0",
+            source,
+        )
+
+        self.assertEqual((repo / allowed_path).read_text(encoding="utf-8"), "fixed\n")
+        self.assertTrue(audit["recoveryApplied"])
+        self.assertEqual(audit["releaseSourceRevision"], source)
+        self.assertEqual(audit["recoveryRevision"], recovery)
+        self.assertEqual(audit["approvedFiles"][0]["path"], allowed_path)
+        self.assertNotIn("automationRevision", audit)
+
+    def test_retry_recovery_existing_asset_survives_a_later_dispatch(self):
+        case = self.cases["retry_automation_checkout"]
+        allowed_path = case["allowed_path"]
+        repo, source, recovery = make_recovery_repo(allowed_path, [])
+        contract = write_recovery_contract(repo, recovery, allowed_path)
+
+        audit_a = retry_recovery.apply_recovery(repo, contract, "v1.0.0", source)
+        attempt_a = retry_recovery.build_attempt_record(
+            audit_a, "a" * 40, "100", "1"
+        )
+        existing_asset = retry_recovery._encode_json(audit_a)
+
+        git(repo, "checkout", "--force", "--detach", source)
+        audit_b = retry_recovery.apply_recovery(repo, contract, "v1.0.0", source)
+        attempt_b = retry_recovery.build_attempt_record(
+            audit_b, "b" * 40, "101", "1"
+        )
+        generated_asset = retry_recovery._encode_json(audit_b)
+
+        self.assertEqual(
+            release.reconcile_manifest_asset(existing_asset, generated_asset), "same"
+        )
+        self.assertEqual(audit_b, audit_a)
+        self.assertNotEqual(
+            attempt_b["automationRevision"], attempt_a["automationRevision"]
+        )
+        self.assertNotEqual(attempt_b["workflowRunId"], attempt_a["workflowRunId"])
+        self.assertEqual(
+            attempt_b["recoveryAuditSha256"], attempt_a["recoveryAuditSha256"]
+        )
+
+        git(repo, "checkout", "--force", "main")
+        write_file(repo, allowed_path, "revised recovery\n")
+        git(repo, "add", allowed_path)
+        git(repo, "commit", "-m", "revise recovery payload")
+        revised_recovery = git(repo, "rev-parse", "HEAD")
+        revised_contract = write_recovery_contract(
+            repo, revised_recovery, allowed_path
+        )
+        git(repo, "checkout", "--force", "--detach", source)
+        revised_audit = retry_recovery.apply_recovery(
+            repo, revised_contract, "v1.0.0", source
+        )
+
+        with self.assertRaisesRegex(release.ReleaseError, "conflict"):
+            release.reconcile_manifest_asset(
+                existing_asset, retry_recovery._encode_json(revised_audit)
+            )
+
+    def test_repository_recovery_contract_pins_revision_and_file_hashes(self):
+        contract = json.loads(RECOVERY_CONTRACT_PATH.read_text(encoding="utf-8"))
+        recovery = contract["releases"]["v0.2.4"]
+        self.assertRegex(recovery["recoveryRevision"], r"^[0-9a-f]{40}$")
+        self.assertEqual(
+            sorted(recovery["approvedFiles"]),
+            [
+                "deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml",
+                "deploy/ansible/roles/autographs_deploy/tasks/validate_kernel_boot_entry.yml",
+            ],
+        )
+        for digest in recovery["approvedFiles"].values():
+            self.assertRegex(digest, r"^sha256:[0-9a-f]{64}$")
+
+    def test_retry_recovery_rejects_each_non_allowlisted_desired_state_path(self):
+        case = self.cases["retry_automation_checkout"]
+        allowed_path = case["allowed_path"]
+        for forbidden_path in case["forbidden_paths"]:
+            with self.subTest(forbidden_path=forbidden_path):
+                repo, source, recovery = make_recovery_repo(
+                    allowed_path, [forbidden_path]
+                )
+                contract = write_recovery_contract(repo, recovery, allowed_path)
+
+                with self.assertRaisesRegex(
+                    retry_recovery.RecoveryError,
+                    "unexpected=.*" + re.escape(forbidden_path),
+                ):
+                    retry_recovery.apply_recovery(
+                        repo,
+                        contract,
+                        "v1.0.0",
+                        source,
+                    )
+
+                self.assertEqual(
+                    (repo / allowed_path).read_text(encoding="utf-8"), "broken\n"
+                )
 
     def test_manual_production_operations_require_main(self):
         condition = self.production_job["if"]

@@ -1,0 +1,12 @@
+{
+  "releases": {
+    "v0.2.4": {
+      "approvedFiles": {
+        "deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml": "sha256:e2f0e7a9e26e98422ea26b071b4e0956d54ceaa29b5a43b77325704052956571",
+        "deploy/ansible/roles/autographs_deploy/tasks/validate_kernel_boot_entry.yml": "sha256:79cdef944f950ec64fd1a0ba3ca5e98ca2a7f69d34ae406c4085f0ad0b0b01a0"
+      },
+      "recoveryRevision": "75bb0a9979639a32a7bb3d8da2507bc33f5c38f9"
+    }
+  },
+  "schemaVersion": 1
+}
