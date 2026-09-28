@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.5](https://github.com/jetsaredim/autographs/compare/v0.2.4...v0.2.5) (2026-09-28)
+
+
+### Bug Fixes
+
+* **deploy:** handle absent kernel probe override ([#256](https://github.com/jetsaredim/autographs/issues/256)) ([75bb0a9](https://github.com/jetsaredim/autographs/commit/75bb0a9979639a32a7bb3d8da2507bc33f5c38f9))
+* **deploy:** isolate retry status checkout ([#258](https://github.com/jetsaredim/autographs/issues/258)) ([98f4e8b](https://github.com/jetsaredim/autographs/commit/98f4e8b801435f8927a536cccc03c3ff8b53dc5c))
+* **deploy:** recover drafts with current automation ([#257](https://github.com/jetsaredim/autographs/issues/257)) ([75a3793](https://github.com/jetsaredim/autographs/commit/75a3793523da76158cb52c78fc09f407699b0ee2))
+
 ## [0.2.4](https://github.com/jetsaredim/autographs/compare/v0.2.3...v0.2.4) (2026-09-26)
 
 
