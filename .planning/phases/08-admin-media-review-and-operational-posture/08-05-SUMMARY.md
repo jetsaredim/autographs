@@ -108,10 +108,10 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 RED: Add failing Oracle adjustment schema test** - `3344ce7` (test)
-2. **Task 1 GREEN: Add Oracle adjustment schema support** - `315317f` (feat)
-3. **Task 2 RED: Define Oracle adjustment persistence contract** - `aac2f84` (test)
-4. **Task 2 GREEN: Persist Oracle image adjustments** - `09bdb6a` (feat)
+1. **Task 1 RED: Add failing Oracle adjustment schema test** - `436aab1` (chore)
+2. **Task 1 GREEN: Add Oracle adjustment schema support** - `01787e9` (feat)
+3. **Task 2 RED: Define Oracle adjustment persistence contract** - `8beaac9` (chore)
+4. **Task 2 GREEN: Persist Oracle image adjustments** - `da94f2e` (feat)
 
 **Plan metadata:** Pending closeout commit.
 
