@@ -1,17 +1,20 @@
 ---
-gsd_state_version: 1.0
+gsd_state_version: "1.0"
 milestone: v1.0
-milestone_name: milestone
+current_phase: 08
+current_phase_name: Admin Media Review and Operational Posture
 status: executing
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-09-01T21:00:00-04:00"
-last_activity: 2026-09-20 -- Completed UEK-only production kernel posture quick task.
+stopped_at: Completed 08-05-PLAN.md
+last_updated: "2026-09-30T01:48:33.280Z"
+last_activity: 2026-09-30
+last_activity_desc: Completed Phase 08 Plan 05 Oracle image adjustment persistence
+state_head: 09bdb6a0e3ca96336e813f1aa7b2eca0d8248db9
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 47
-  completed_plans: 43
-  percent: 70
+  completed_plans: 44
+milestone_name: milestone
 ---
 
 # Project State
@@ -21,22 +24,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-28)
 
 **Core value:** A collector can reliably browse and manage a high-quality autograph catalog where private images and useful metadata stay connected end to end.
-**Current focus:** Phase 08 — admin-media-review-and-operational-posture
+**Current focus:** Phase 08 — Admin Media Review and Operational Posture
 
 ## Current Position
 
-Phase: 08 (admin-media-review-and-operational-posture) — EXECUTING
-Plan: 2 of 8
+Phase: 08 (Admin Media Review and Operational Posture) — EXECUTING
+Plan: 6 of 8
 Status: Ready to execute
-Last activity: 2026-09-20 -- Completed UEK-only production kernel posture quick task.
+Last activity: 2026-09-30 — Completed Phase 08 Plan 05 Oracle image adjustment persistence
 
-Progress: [█████████░] 89% of milestone plans complete; Phase 8 Plan 4 is next
+Progress: [█████████░] 94% of milestone plans complete; Phase 8 Plan 6 is next
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 42 of 47
+- Total plans completed: 44 of 47
 - Average duration: 29 min
 - Total execution time: 1.9 hours
 
@@ -83,6 +86,12 @@ Progress: [█████████░] 89% of milestone plans complete; Phas
 | Phase 08 P02 | live session plus PR checkpoint | 3 tasks | 10 files |
 | Phase 08 P03 | 8min | 3 tasks | 6 files |
 | Phase 08 P04 | 13min | 3 tasks | 13 files |
+
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 08 P05 | 7min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -153,6 +162,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 08-04]: Use the 08-RESEARCH.md package-legitimacy approval for imageproc 0.27.0 and resolve Cargo.lock through the compile/test gate.
 - [Phase ?]: [Phase 08-04]: Keep public static JSON/HTML contracts unchanged in Plan 08-04; Plan 08-07 owns adjustment-aware public publisher/cache behavior.
 - [Phase ?]: [Phase 08-04]: Expose adjustment metadata through the private admin item response while keeping public static artifacts untouched.
+- [Phase 08]: Persist Oracle image adjustment metadata as validated typed JSON in a nullable CLOB. — Option<String> binding represents reset as SQL NULL while ImageAdjustment serialization preserves the validated private contract.
+- [Phase 08]: Redact malformed persisted adjustment JSON at the Oracle adapter boundary. — The controller should reject tampered data without exposing stored payload contents or internal parsing detail.
+- [Phase 08]: Clear adjustment_json in the private-original replacement statement. — Correction geometry belongs to a specific source image and must not carry across replacement media.
 
 ### Pending Todos
 
@@ -178,8 +190,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-09-04
-Stopped at: Resumed release-please quick task 260904-j6b, executing Plan 02 after completed Plan 01 and merging latest main.
+Last session: 2026-09-30T01:48:07.843Z
+Stopped at: Completed 08-05-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed
