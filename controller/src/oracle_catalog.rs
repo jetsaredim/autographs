@@ -244,11 +244,12 @@ impl CatalogRepository for OracleCatalogRepository {
                 now_epoch_seconds(),
             );
             insert_edit_event(&connection, &event)?;
+            let created =
+                load_item_before_commit(&connection, id, "created Oracle item was not found")?;
             connection
                 .commit()
                 .map_err(|error| format!("commit Oracle catalog item: {error}"))?;
-            load_item(&connection, id)?
-                .ok_or_else(|| "created Oracle item was not found".to_owned())
+            Ok(created)
         })
         .await
     }
@@ -360,11 +361,12 @@ impl CatalogRepository for OracleCatalogRepository {
                 now_epoch_seconds(),
             );
             insert_edit_event(&connection, &event)?;
+            let updated =
+                load_item_before_commit(&connection, id, "updated Oracle item was not found")?;
             connection
                 .commit()
                 .map_err(|error| format!("commit Oracle catalog update: {error}"))?;
-            load_item(&connection, id)?
-                .ok_or_else(|| "updated Oracle item was not found".to_owned())
+            Ok(updated)
         })
         .await
     }
@@ -452,11 +454,15 @@ impl CatalogRepository for OracleCatalogRepository {
                 now_epoch_seconds(),
             );
             insert_edit_event(&connection, &event)?;
+            let updated = load_item_before_commit(
+                &connection,
+                item_id,
+                "updated Oracle item was not found",
+            )?;
             connection
                 .commit()
                 .map_err(|error| format!("commit Oracle catalog image: {error}"))?;
-            load_item(&connection, item_id)?
-                .ok_or_else(|| "updated Oracle item was not found".to_owned())
+            Ok(updated)
         })
         .await
     }
@@ -484,8 +490,9 @@ impl CatalogRepository for OracleCatalogRepository {
                 .map_err(|error| format!("touch Oracle catalog item for primary image: {error}"))?;
             let event = AutographEditEvent::new(item_id, EditEventKind::PrimaryImageChanged, "Primary image changed", Vec::new(), now_epoch_seconds());
             insert_edit_event(&connection, &event)?;
+            let updated = load_item_before_commit(&connection, item_id, "autograph item was not found")?;
             connection.commit().map_err(|error| format!("commit Oracle primary image: {error}"))?;
-            load_item(&connection, item_id)?.ok_or_else(|| "autograph item was not found".to_owned())
+            Ok(updated)
         }).await
     }
 
@@ -526,11 +533,12 @@ impl CatalogRepository for OracleCatalogRepository {
                 now_epoch_seconds(),
             );
             insert_edit_event(&connection, &event)?;
+            let updated =
+                load_item_before_commit(&connection, item_id, "autograph item was not found")?;
             connection
                 .commit()
                 .map_err(|error| format!("commit Oracle image metadata removal: {error}"))?;
-            load_item(&connection, item_id)?
-                .ok_or_else(|| "autograph item was not found".to_owned())
+            Ok(updated)
         })
         .await
     }
@@ -590,11 +598,12 @@ impl CatalogRepository for OracleCatalogRepository {
                 now_epoch_seconds(),
             );
             insert_edit_event(&connection, &event)?;
+            let updated =
+                load_item_before_commit(&connection, item_id, "autograph item was not found")?;
             connection
                 .commit()
                 .map_err(|error| format!("commit Oracle image metadata replacement: {error}"))?;
-            load_item(&connection, item_id)?
-                .ok_or_else(|| "autograph item was not found".to_owned())
+            Ok(updated)
         })
         .await
     }
@@ -634,11 +643,12 @@ impl CatalogRepository for OracleCatalogRepository {
                 now_epoch_seconds(),
             );
             insert_edit_event(&connection, &event)?;
+            let updated =
+                load_item_before_commit(&connection, item_id, "autograph item was not found")?;
             connection
                 .commit()
                 .map_err(|error| format!("commit Oracle image adjustment metadata: {error}"))?;
-            load_item(&connection, item_id)?
-                .ok_or_else(|| "autograph item was not found".to_owned())
+            Ok(updated)
         })
         .await
     }
@@ -1012,6 +1022,26 @@ fn load_item(connection: &Connection, id: Uuid) -> Result<Option<AutographItem>,
     item.franchises = load_franchises(connection, id)?;
     item.images = load_images(connection, id)?;
     Ok(Some(item))
+}
+
+fn load_item_before_commit(
+    connection: &Connection,
+    id: Uuid,
+    not_found_message: &str,
+) -> Result<AutographItem, String> {
+    let result =
+        load_item(connection, id).and_then(|item| item.ok_or_else(|| not_found_message.to_owned()));
+    match result {
+        Ok(item) => Ok(item),
+        Err(error) => {
+            connection.rollback().map_err(|rollback_error| {
+                format!(
+                    "{error}; rollback Oracle catalog mutation after failed item reload: {rollback_error}"
+                )
+            })?;
+            Err(error)
+        }
+    }
 }
 
 fn load_items(

@@ -3,8 +3,9 @@ mod live {
     use std::{env, time::Duration};
 
     use autographs_controller::{
-        media::PrivateMediaStore, oci_media::OciInstancePrincipalMediaStore, oracle_connection,
-        storage_keys::build_original_object_key,
+        catalog::CatalogRepository, image_adjustments::ImageAdjustment, media::PrivateMediaStore,
+        oci_media::OciInstancePrincipalMediaStore, oracle_catalog::OracleCatalogRepository,
+        oracle_connection, storage_keys::build_original_object_key,
     };
     use oracledb::Connection;
     use sha2::{Digest, Sha256};
@@ -133,6 +134,112 @@ mod live {
         assert_eq!(stored_object_key, object_key);
         assert_eq!(stored_filename, "live secret source.jpg");
         assert!(image_rows.next().is_none());
+
+        assert_failed_adjustment_reload_rolls_back(
+            &connection,
+            OracleCatalogRepository::new(
+                oracle_user,
+                oracle_password,
+                oracle_connect_string,
+                storage_namespace,
+                bucket_name,
+            ),
+            &item_id,
+            &image_id,
+        )
+        .await;
+    }
+
+    async fn assert_failed_adjustment_reload_rolls_back(
+        connection: &Connection,
+        repository: OracleCatalogRepository,
+        item_id: &str,
+        target_image_id: &str,
+    ) {
+        let malformed_image_id = Uuid::new_v4().to_string();
+        let malformed_object_key = build_original_object_key(
+            Uuid::parse_str(item_id).expect("parse smoke item id"),
+            Uuid::parse_str(&malformed_image_id).expect("parse malformed smoke image id"),
+        );
+        connection
+            .execute(
+                "insert into autograph_images (
+                    id, item_id, storage_namespace, bucket_name, object_key,
+                    content_type, byte_size, is_primary, adjustment_json
+                ) values (:1, :2, :3, :4, :5, :6, :7, 'N', :8)",
+                &[
+                    &malformed_image_id,
+                    &item_id,
+                    &"live-smoke-namespace",
+                    &"live-smoke-bucket",
+                    &malformed_object_key,
+                    &"application/octet-stream",
+                    &1_i64,
+                    &"not-json",
+                ],
+            )
+            .expect("insert malformed sibling adjustment metadata");
+        connection
+            .commit()
+            .expect("commit malformed sibling adjustment metadata");
+
+        let before_updated_at: String = connection
+            .query_row(
+                "select to_char(updated_at, 'YYYY-MM-DD HH24:MI:SS.FF9') from autograph_items where id = :1",
+                &[&item_id],
+            )
+            .expect("read item timestamp before rollback check")
+            .get(0)
+            .expect("decode item timestamp before rollback check");
+        let before_history_count: i64 = connection
+            .query_row(
+                "select count(*) from autograph_edit_events where item_id = :1",
+                &[&item_id],
+            )
+            .expect("read history count before rollback check")
+            .get(0)
+            .expect("decode history count before rollback check");
+
+        let error = repository
+            .update_image_adjustment(
+                Uuid::parse_str(item_id).expect("parse smoke item id"),
+                Uuid::parse_str(target_image_id).expect("parse smoke target image id"),
+                Some(ImageAdjustment::identity()),
+            )
+            .await
+            .expect_err("malformed sibling adjustment must reject the mutation");
+        assert_eq!(
+            error,
+            "read Oracle catalog image adjustment metadata: invalid adjustment JSON"
+        );
+
+        let target_adjustment: Option<String> = connection
+            .query_row(
+                "select adjustment_json from autograph_images where id = :1 and item_id = :2",
+                &[&target_image_id, &item_id],
+            )
+            .expect("read target adjustment after rollback check")
+            .get(0)
+            .expect("decode target adjustment after rollback check");
+        assert_eq!(target_adjustment, None);
+        let after_updated_at: String = connection
+            .query_row(
+                "select to_char(updated_at, 'YYYY-MM-DD HH24:MI:SS.FF9') from autograph_items where id = :1",
+                &[&item_id],
+            )
+            .expect("read item timestamp after rollback check")
+            .get(0)
+            .expect("decode item timestamp after rollback check");
+        assert_eq!(after_updated_at, before_updated_at);
+        let after_history_count: i64 = connection
+            .query_row(
+                "select count(*) from autograph_edit_events where item_id = :1",
+                &[&item_id],
+            )
+            .expect("read history count after rollback check")
+            .get(0)
+            .expect("decode history count after rollback check");
+        assert_eq!(after_history_count, before_history_count);
     }
 
     async fn run_cleanup(item_ids: Vec<String>, object_keys: Vec<String>) {
