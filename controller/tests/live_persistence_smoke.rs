@@ -3,7 +3,7 @@ mod live {
     use std::{env, time::Duration};
 
     use autographs_controller::{
-        catalog::{AutographImage, CatalogRepository, ImageReplacementInput},
+        catalog::{AutographImage, CatalogRepository, EditEventKind, ImageReplacementInput},
         image_adjustments::ImageAdjustment,
         media::PrivateMediaStore,
         oci_media::OciInstancePrincipalMediaStore,
@@ -58,6 +58,7 @@ mod live {
             oracle_connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
                 .expect("connect to Oracle Autonomous Database");
         assert_static_runtime_schema(&connection);
+        assert_image_adjustment_migration_states(&connection);
         let media =
             OciInstancePrincipalMediaStore::new(storage_namespace.clone(), bucket_name.clone())
                 .expect("configure OCI instance-principal media store");
@@ -152,6 +153,209 @@ mod live {
             &image_id,
         )
         .await;
+    }
+
+    #[derive(Clone, Copy)]
+    enum MigrationConstraintState {
+        OldOnly,
+        Both,
+        TemporaryOnly,
+        CanonicalNew,
+    }
+
+    fn assert_image_adjustment_migration_states(connection: &Connection) {
+        for state in [
+            MigrationConstraintState::OldOnly,
+            MigrationConstraintState::Both,
+            MigrationConstraintState::TemporaryOnly,
+            MigrationConstraintState::CanonicalNew,
+        ] {
+            let suffix = Uuid::new_v4().simple().to_string()[..10].to_ascii_uppercase();
+            let table = format!("AE_MIG_{suffix}");
+            let canonical_constraint = format!("AE_CK_{suffix}");
+            let temporary_constraint = format!("AE_V8_{suffix}");
+            let mut cleanup = ScratchTableCleanup::create(connection, table.clone());
+
+            match state {
+                MigrationConstraintState::OldOnly => {
+                    add_migration_check_constraint(connection, &table, &canonical_constraint, false)
+                }
+                MigrationConstraintState::Both => {
+                    add_migration_check_constraint(
+                        connection,
+                        &table,
+                        &canonical_constraint,
+                        false,
+                    );
+                    add_migration_check_constraint(connection, &table, &temporary_constraint, true);
+                }
+                MigrationConstraintState::TemporaryOnly => {
+                    add_migration_check_constraint(connection, &table, &temporary_constraint, true)
+                }
+                MigrationConstraintState::CanonicalNew => {
+                    add_migration_check_constraint(connection, &table, &canonical_constraint, true)
+                }
+            }
+
+            let migration = migration_constraint_block_for_scratch(
+                &table,
+                &canonical_constraint,
+                &temporary_constraint,
+            );
+            connection
+                .execute(&migration, &[])
+                .expect("apply image adjustment migration state transition");
+            if matches!(state, MigrationConstraintState::CanonicalNew) {
+                connection
+                    .execute(&migration, &[])
+                    .expect("rerun image adjustment migration state transition");
+            }
+
+            let canonical_count: i64 = connection
+                .query_row(
+                    "select count(*) from user_constraints
+                      where table_name = :1
+                        and constraint_name = :2
+                        and constraint_type = 'C'
+                        and status = 'ENABLED'",
+                    &[&table, &canonical_constraint],
+                )
+                .expect("inspect migrated canonical constraint")
+                .get(0)
+                .expect("decode migrated canonical constraint count");
+            assert_eq!(canonical_count, 1);
+            let temporary_count: i64 = connection
+                .query_row(
+                    "select count(*) from user_constraints
+                      where table_name = :1 and constraint_name = :2",
+                    &[&table, &temporary_constraint],
+                )
+                .expect("inspect migrated temporary constraint")
+                .get(0)
+                .expect("decode migrated temporary constraint count");
+            assert_eq!(temporary_count, 0);
+
+            for kind in EditEventKind::ALL {
+                connection
+                    .execute(
+                        &format!("insert into {table} (event_type) values (:1)"),
+                        &[&kind.as_str()],
+                    )
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "migrated constraint rejected supported event {}: {error}",
+                            kind.as_str()
+                        )
+                    });
+            }
+            assert!(
+                connection
+                    .execute(
+                        &format!("insert into {table} (event_type) values ('unexpectedEvent')"),
+                        &[],
+                    )
+                    .is_err(),
+                "migrated constraint admitted an unsupported event"
+            );
+            connection
+                .rollback()
+                .expect("rollback migration state fixture rows");
+            cleanup.cleanup();
+        }
+    }
+
+    fn add_migration_check_constraint(
+        connection: &Connection,
+        table: &str,
+        constraint: &str,
+        include_adjustment: bool,
+    ) {
+        let values = EditEventKind::ALL
+            .into_iter()
+            .filter(|kind| include_adjustment || *kind != EditEventKind::ImageAdjustmentChanged)
+            .map(|kind| format!("'{}'", kind.as_str()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        connection
+            .execute(
+                &format!(
+                    "alter table {table} add constraint {constraint} check (event_type in ({values}))"
+                ),
+                &[],
+            )
+            .expect("seed image adjustment migration constraint state");
+    }
+
+    fn migration_constraint_block_for_scratch(
+        table: &str,
+        canonical_constraint: &str,
+        temporary_constraint: &str,
+    ) -> String {
+        let script = include_str!("../db/updates/08-01-image-adjustments.sql");
+        let start = script
+            .find("declare\n  canonical_constraint_count number;")
+            .expect("find migration constraint block");
+        let remainder = &script[start..];
+        let end = remainder
+            .find("\n/\n\ncommit;")
+            .expect("find migration constraint block terminator");
+        remainder[..end]
+            .replace("AUTOGRAPH_EDIT_EVENTS_TYPE_V08", temporary_constraint)
+            .replace(
+                "autograph_edit_events_type_v08",
+                &temporary_constraint.to_ascii_lowercase(),
+            )
+            .replace("AUTOGRAPH_EDIT_EVENTS_TYPE_CK", canonical_constraint)
+            .replace(
+                "autograph_edit_events_type_ck",
+                &canonical_constraint.to_ascii_lowercase(),
+            )
+            .replace("AUTOGRAPH_EDIT_EVENTS", table)
+            .replace("autograph_edit_events", &table.to_ascii_lowercase())
+    }
+
+    struct ScratchTableCleanup<'a> {
+        connection: &'a Connection,
+        table: String,
+        active: bool,
+    }
+
+    impl<'a> ScratchTableCleanup<'a> {
+        fn create(connection: &'a Connection, table: String) -> Self {
+            connection
+                .execute(
+                    &format!("create table {table} (event_type varchar2(48) not null)"),
+                    &[],
+                )
+                .expect("create image adjustment migration scratch table");
+            Self {
+                connection,
+                table,
+                active: true,
+            }
+        }
+
+        fn cleanup(&mut self) {
+            self.connection
+                .execute(&format!("drop table {} purge", self.table), &[])
+                .expect("drop image adjustment migration scratch table");
+            self.active = false;
+        }
+    }
+
+    impl Drop for ScratchTableCleanup<'_> {
+        fn drop(&mut self) {
+            if self.active
+                && let Err(error) = self
+                    .connection
+                    .execute(&format!("drop table {} purge", self.table), &[])
+            {
+                eprintln!(
+                    "LIVE_PERSISTENCE_RECOVERY_REQUIRED scratch_table={} error={error}",
+                    self.table
+                );
+            }
+        }
     }
 
     async fn assert_oracle_adjustment_contract(

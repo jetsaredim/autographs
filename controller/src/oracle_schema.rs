@@ -533,4 +533,26 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn phase8_migration_stages_expanded_constraint_before_legacy_drop() {
+        let script = include_str!("../db/updates/08-01-image-adjustments.sql");
+        let add_temporary = script
+            .find("add constraint autograph_edit_events_type_v08")
+            .expect("temporary constraint add is present");
+        let drop_canonical = script
+            .find("drop constraint autograph_edit_events_type_ck")
+            .expect("legacy canonical constraint drop is present");
+        let rename_temporary = script
+            .find(
+                "rename constraint autograph_edit_events_type_v08 to autograph_edit_events_type_ck",
+            )
+            .expect("temporary constraint rename is present");
+
+        assert!(add_temporary < drop_canonical);
+        assert!(drop_canonical < rename_temporary);
+        assert!(script.contains("canonical_new_count"));
+        assert!(script.contains("temporary_new_count"));
+        assert!(script.contains("if canonical_new_count > 0 then"));
+    }
 }
