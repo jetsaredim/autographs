@@ -2461,6 +2461,36 @@ mod tests {
     }
 
     #[test]
+    fn oracle_image_loaders_select_adjustment_metadata() {
+        let image_sql = load_images_for_items_sql(Some(PublicationStatus::Published));
+        assert!(image_sql.contains("img.adjustment_json"));
+        assert!(IMAGE_SELECT_COLUMNS.contains("adjustment_json"));
+    }
+
+    #[test]
+    fn oracle_adjustment_json_round_trips_and_rejects_invalid_values() {
+        let adjustment = crate::image_adjustments::ImageAdjustment::identity();
+        let serialized = serialize_image_adjustment(Some(&adjustment)).unwrap();
+
+        assert_eq!(
+            deserialize_image_adjustment(serialized).unwrap(),
+            Some(adjustment)
+        );
+        assert_eq!(serialize_image_adjustment(None).unwrap(), None);
+        assert_eq!(deserialize_image_adjustment(None).unwrap(), None);
+        assert_eq!(
+            deserialize_image_adjustment(Some("not-json".to_owned())).unwrap_err(),
+            "read Oracle catalog image adjustment metadata: invalid adjustment JSON"
+        );
+    }
+
+    #[test]
+    fn oracle_adjustment_mutations_persist_updates_and_clear_replacements() {
+        assert!(UPDATE_IMAGE_ADJUSTMENT_SQL.contains("adjustment_json = :1"));
+        assert!(REPLACE_IMAGE_METADATA_SQL.contains("adjustment_json = null"));
+    }
+
+    #[test]
     fn oracle_profile_links_normalize_to_compact_ids() {
         assert_eq!(normalize_profile_link(None, "wikipediaUrl").unwrap(), None);
         assert_eq!(
