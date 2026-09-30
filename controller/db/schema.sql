@@ -162,6 +162,7 @@ create table autograph_edit_events (
       'imageAdded',
       'imageRemoved',
       'imageReplaced',
+      'imageAdjustmentChanged',
       'primaryImageChanged',
       'publicationChanged',
       'cleanupChanged'

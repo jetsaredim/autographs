@@ -51,6 +51,12 @@ const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[
         "controller/db/updates/06-03-media-cleanup.sql",
     ),
     (
+        "AUTOGRAPH_EDIT_EVENTS",
+        "AUTOGRAPH_EDIT_EVENTS_TYPE_CK",
+        &["imageAdjustmentChanged"],
+        "controller/db/updates/08-01-image-adjustments.sql",
+    ),
+    (
         "AUTOGRAPH_ITEMS",
         "AUTOGRAPH_ITEMS_FORMAT_CK",
         &["trim(format) is not null"],
@@ -490,5 +496,28 @@ mod tests {
             images_statement.contains("adjustment_json clob"),
             "missing adjustment_json column from autograph_images schema"
         );
+
+        assert!(
+            REQUIRED_CHECK_CONSTRAINTS.contains(&(
+                "AUTOGRAPH_EDIT_EVENTS",
+                "AUTOGRAPH_EDIT_EVENTS_TYPE_CK",
+                &["imageAdjustmentChanged"][..],
+                "controller/db/updates/08-01-image-adjustments.sql",
+            )),
+            "missing image adjustment event constraint preflight"
+        );
+
+        let edit_events_statement = statements
+            .iter()
+            .find(|statement| statement.starts_with("create table autograph_edit_events"))
+            .expect("autograph_edit_events statement is present");
+        assert!(
+            edit_events_statement.contains("imageAdjustmentChanged"),
+            "missing image adjustment event from canonical constraint"
+        );
+
+        let update_script = include_str!("../db/updates/08-01-image-adjustments.sql");
+        assert!(update_script.contains("AUTOGRAPH_EDIT_EVENTS_TYPE_CK"));
+        assert!(update_script.contains("imageAdjustmentChanged"));
     }
 }
