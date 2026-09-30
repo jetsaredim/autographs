@@ -18,6 +18,7 @@ use crate::catalog::{
     event_kind_for_diffs, event_summary, normalize_profile_link, normalize_signer_name,
     now_epoch_seconds, signer_match_rank, signer_profile_field_diffs, validate_required_fields,
 };
+use crate::image_adjustments::ImageAdjustment;
 use crate::oracle_connection::{self, OracleConnectionSettings};
 
 const ITEM_SELECT_COLUMNS: &str = "title, signer, description, category, object_reference,
@@ -37,7 +38,28 @@ const LOAD_ITEM_SQL: &str = "select
 from autograph_items where id = :1";
 
 const IMAGE_SELECT_COLUMNS: &str = "id, object_key, original_filename, content_type, byte_size,
-    checksum, etag, is_primary, sort_order, alt_text";
+    checksum, etag, is_primary, sort_order, alt_text, adjustment_json";
+
+const UPDATE_IMAGE_ADJUSTMENT_SQL: &str = "update autograph_images set
+    adjustment_json = :1,
+    updated_at = current_timestamp
+where id = :2 and item_id = :3";
+
+const REPLACE_IMAGE_METADATA_SQL: &str = "update autograph_images set
+    storage_namespace = :1,
+    bucket_name = :2,
+    object_key = :3,
+    original_filename = :4,
+    content_type = :5,
+    byte_size = :6,
+    checksum = :7,
+    etag = :8,
+    is_primary = :9,
+    sort_order = :10,
+    alt_text = :11,
+    adjustment_json = null,
+    updated_at = current_timestamp
+where id = :12 and item_id = :13";
 
 const SIGNER_CREDIT_ROWS_FOR_UPDATE_SQL: &str =
     "select signer_id, sort_order, item_role, item_context
@@ -390,13 +412,14 @@ impl CatalogRepository for OracleCatalogRepository {
             let image_id = image.id.to_string();
             let byte_size = image.byte_size as i64;
             let is_primary = if image.is_primary { "Y" } else { "N" };
+            let adjustment_json = serialize_image_adjustment(image.adjustment.as_ref())?;
             connection
                 .execute(
                     "insert into autograph_images (
                         id, item_id, storage_namespace, bucket_name, object_key,
                         original_filename, content_type, byte_size, checksum, etag,
-                        is_primary, sort_order, alt_text
-                    ) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12, :13)",
+                        is_primary, sort_order, alt_text, adjustment_json
+                    ) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12, :13, :14)",
                     &[
                         &image_id,
                         &item_id_text,
@@ -411,6 +434,7 @@ impl CatalogRepository for OracleCatalogRepository {
                         &is_primary,
                         &image.sort_order,
                         &image.alt_text,
+                        &adjustment_json,
                     ],
                 )
                 .map_err(|error| format!("insert Oracle catalog image: {error}"))?;
@@ -528,20 +552,7 @@ impl CatalogRepository for OracleCatalogRepository {
             let is_primary = if existing.is_primary { "Y" } else { "N" };
             let statement = connection
                 .execute(
-                    "update autograph_images set
-                        storage_namespace = :1,
-                        bucket_name = :2,
-                        object_key = :3,
-                        original_filename = :4,
-                        content_type = :5,
-                        byte_size = :6,
-                        checksum = :7,
-                        etag = :8,
-                        is_primary = :9,
-                        sort_order = :10,
-                        alt_text = :11,
-                        updated_at = current_timestamp
-                    where id = :12 and item_id = :13",
+                    REPLACE_IMAGE_METADATA_SQL,
                     &[
                         &storage_namespace,
                         &bucket_name,
@@ -582,6 +593,50 @@ impl CatalogRepository for OracleCatalogRepository {
             connection
                 .commit()
                 .map_err(|error| format!("commit Oracle image metadata replacement: {error}"))?;
+            load_item(&connection, item_id)?
+                .ok_or_else(|| "autograph item was not found".to_owned())
+        })
+        .await
+    }
+
+    async fn update_image_adjustment(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+        adjustment: Option<ImageAdjustment>,
+    ) -> Result<AutographItem, String> {
+        self.with_connection(move |connection| {
+            let item_id_text = item_id.to_string();
+            let image_id_text = image_id.to_string();
+            let adjustment_json = serialize_image_adjustment(adjustment.as_ref())?;
+            let statement = connection
+                .execute(
+                    UPDATE_IMAGE_ADJUSTMENT_SQL,
+                    &[&adjustment_json, &image_id_text, &item_id_text],
+                )
+                .map_err(|error| format!("update Oracle image adjustment metadata: {error}"))?;
+            if statement.rows_affected() == 0 {
+                return Err("autograph image was not found".to_owned());
+            }
+            connection
+                .execute(
+                    "update autograph_items set updated_at = current_timestamp where id = :1",
+                    &[&item_id_text],
+                )
+                .map_err(|error| {
+                    format!("touch Oracle catalog item for image adjustment: {error}")
+                })?;
+            let event = AutographEditEvent::new(
+                item_id,
+                EditEventKind::ImageAdjustmentChanged,
+                "Image adjustments changed",
+                Vec::new(),
+                now_epoch_seconds(),
+            );
+            insert_edit_event(&connection, &event)?;
+            connection
+                .commit()
+                .map_err(|error| format!("commit Oracle image adjustment metadata: {error}"))?;
             load_item(&connection, item_id)?
                 .ok_or_else(|| "autograph item was not found".to_owned())
         })
@@ -1571,7 +1626,8 @@ fn load_images_for_items_sql(publication_status: Option<PublicationStatus>) -> S
     format!(
         "select
             img.item_id, img.id, img.object_key, img.original_filename, img.content_type,
-            img.byte_size, img.checksum, img.etag, img.is_primary, img.sort_order, img.alt_text
+            img.byte_size, img.checksum, img.etag, img.is_primary, img.sort_order, img.alt_text,
+            img.adjustment_json
          from autograph_images img
          join autograph_items i on i.id = img.item_id
          {}
@@ -1801,8 +1857,28 @@ fn image_from_row(row: &Row, offset: usize) -> Result<AutographImage, String> {
         is_primary: row_value::<String>(row, offset + 7, "image primary flag")? == "Y",
         sort_order: row_value(row, offset + 8, "image sort order")?,
         alt_text: row_value(row, offset + 9, "image alt text")?,
-        adjustment: None,
+        adjustment: deserialize_image_adjustment(row_value(
+            row,
+            offset + 10,
+            "image adjustment metadata",
+        )?)?,
     })
+}
+
+fn serialize_image_adjustment(
+    adjustment: Option<&ImageAdjustment>,
+) -> Result<Option<String>, String> {
+    adjustment.map(ImageAdjustment::to_json).transpose()
+}
+
+fn deserialize_image_adjustment(value: Option<String>) -> Result<Option<ImageAdjustment>, String> {
+    value
+        .map(|value| {
+            ImageAdjustment::from_json(&value).map_err(|_| {
+                "read Oracle catalog image adjustment metadata: invalid adjustment JSON".to_owned()
+            })
+        })
+        .transpose()
 }
 
 fn promote_first_remaining_image(connection: &Connection, item_id: Uuid) -> Result<(), String> {
