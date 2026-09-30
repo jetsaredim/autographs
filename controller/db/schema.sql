@@ -114,6 +114,7 @@ create table autograph_images (
   sort_order number(10) default 0 not null,
   alt_text varchar2(500),
   original_filename varchar2(512),
+  adjustment_json clob,
   created_at timestamp default current_timestamp not null,
   updated_at timestamp default current_timestamp not null,
   primary_item_id generated always as (
