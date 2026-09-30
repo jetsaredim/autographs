@@ -1047,22 +1047,24 @@ mod live {
         );
         let row = connection
             .query_row(
-                "select count(*) from user_constraints
+                "select search_condition_vc from user_constraints
                   where table_name = 'AUTOGRAPH_EDIT_EVENTS'
                     and constraint_name = 'AUTOGRAPH_EDIT_EVENTS_TYPE_CK'
                     and constraint_type = 'C'
-                    and status = 'ENABLED'
-                    and search_condition_vc like '%imageAdjustmentChanged%'",
+                    and status = 'ENABLED'",
                 &[],
             )
             .expect("inspect adjustment event constraint");
-        let adjustment_event_count: i64 = row
+        let edit_event_condition: String = row
             .get(0)
-            .expect("decode adjustment event constraint count");
-        assert_eq!(
-            adjustment_event_count, 1,
-            "static runtime schema does not admit imageAdjustmentChanged; run controller/db/updates/08-01-image-adjustments.sql before the live persistence smoke"
-        );
+            .expect("decode adjustment event constraint condition");
+        for kind in EditEventKind::ALL {
+            assert!(
+                edit_event_condition.contains(&format!("'{}'", kind.as_str())),
+                "static runtime schema does not admit {}; run controller/db/updates/08-01-image-adjustments.sql before the live persistence smoke",
+                kind.as_str()
+            );
+        }
     }
 
     fn update_image_checksum(connection: &Connection, image_id: &str, checksum: &str) {

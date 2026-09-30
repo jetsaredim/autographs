@@ -41,15 +41,15 @@ begin
      and constraint_name = 'AUTOGRAPH_EDIT_EVENTS_TYPE_CK'
      and constraint_type = 'C'
      and status = 'ENABLED'
-     and search_condition_vc like '%created%'
-     and search_condition_vc like '%metadataUpdated%'
-     and search_condition_vc like '%imageAdded%'
-     and search_condition_vc like '%imageRemoved%'
-     and search_condition_vc like '%imageReplaced%'
-     and search_condition_vc like '%imageAdjustmentChanged%'
-     and search_condition_vc like '%primaryImageChanged%'
-     and search_condition_vc like '%publicationChanged%'
-     and search_condition_vc like '%cleanupChanged%';
+     and search_condition_vc like '%''created''%'
+     and search_condition_vc like '%''metadataUpdated''%'
+     and search_condition_vc like '%''imageAdded''%'
+     and search_condition_vc like '%''imageRemoved''%'
+     and search_condition_vc like '%''imageReplaced''%'
+     and search_condition_vc like '%''imageAdjustmentChanged''%'
+     and search_condition_vc like '%''primaryImageChanged''%'
+     and search_condition_vc like '%''publicationChanged''%'
+     and search_condition_vc like '%''cleanupChanged''%';
 
   select count(*)
     into temporary_constraint_count
@@ -64,15 +64,15 @@ begin
      and constraint_name = 'AUTOGRAPH_EDIT_EVENTS_TYPE_V08'
      and constraint_type = 'C'
      and status = 'ENABLED'
-     and search_condition_vc like '%created%'
-     and search_condition_vc like '%metadataUpdated%'
-     and search_condition_vc like '%imageAdded%'
-     and search_condition_vc like '%imageRemoved%'
-     and search_condition_vc like '%imageReplaced%'
-     and search_condition_vc like '%imageAdjustmentChanged%'
-     and search_condition_vc like '%primaryImageChanged%'
-     and search_condition_vc like '%publicationChanged%'
-     and search_condition_vc like '%cleanupChanged%';
+     and search_condition_vc like '%''created''%'
+     and search_condition_vc like '%''metadataUpdated''%'
+     and search_condition_vc like '%''imageAdded''%'
+     and search_condition_vc like '%''imageRemoved''%'
+     and search_condition_vc like '%''imageReplaced''%'
+     and search_condition_vc like '%''imageAdjustmentChanged''%'
+     and search_condition_vc like '%''primaryImageChanged''%'
+     and search_condition_vc like '%''publicationChanged''%'
+     and search_condition_vc like '%''cleanupChanged''%';
 
   if canonical_new_count > 0 then
     if temporary_constraint_count > 0 then

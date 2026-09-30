@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use oracledb::{Connection, ToDbValue};
 
-use crate::oracle_connection;
+use crate::{catalog::EditEventKind, oracle_connection};
 
 const SCHEMA_SQL: &str = include_str!("../db/schema.sql");
 const EXPECTED_TABLES: &[&str] = &[
@@ -45,18 +45,6 @@ const REQUIRED_COLUMNS: &[(&str, &str)] = &[
 ];
 const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[
     (
-        "AUTOGRAPH_EDIT_EVENTS",
-        "AUTOGRAPH_EDIT_EVENTS_TYPE_CK",
-        &["cleanupChanged"],
-        "controller/db/updates/06-03-media-cleanup.sql",
-    ),
-    (
-        "AUTOGRAPH_EDIT_EVENTS",
-        "AUTOGRAPH_EDIT_EVENTS_TYPE_CK",
-        &["imageAdjustmentChanged"],
-        "controller/db/updates/08-01-image-adjustments.sql",
-    ),
-    (
         "AUTOGRAPH_ITEMS",
         "AUTOGRAPH_ITEMS_FORMAT_CK",
         &["trim(format) is not null"],
@@ -81,6 +69,8 @@ const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[
         "controller/db/updates/07-01-taxonomy-schema.sql",
     ),
 ];
+const EDIT_EVENT_CONSTRAINT: &str = "AUTOGRAPH_EDIT_EVENTS_TYPE_CK";
+const EDIT_EVENT_CONSTRAINT_UPDATE: &str = "controller/db/updates/08-01-image-adjustments.sql";
 const REQUIRED_UNIQUE_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[(
     "AUTOGRAPH_SIGNERS",
     "AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ",
@@ -159,6 +149,8 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
         }
     }
 
+    verify_edit_event_constraint(connection)?;
+
     for (table, constraint, columns, update_script) in REQUIRED_UNIQUE_CONSTRAINTS {
         let expected_columns = columns.join(",");
         let count = query_count(
@@ -188,6 +180,43 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
     }
 
     tracing::info!("Oracle catalog schema preflight passed");
+    Ok(())
+}
+
+fn verify_edit_event_constraint(connection: &Connection) -> Result<(), String> {
+    let mut rows = connection
+        .query(
+            "select search_condition_vc from user_constraints
+              where table_name = 'AUTOGRAPH_EDIT_EVENTS'
+                and constraint_name = :1
+                and constraint_type = 'C'
+                and status = 'ENABLED'",
+            &[&EDIT_EVENT_CONSTRAINT],
+        )
+        .map_err(|error| format!("inspect Oracle catalog edit-event constraint: {error}"))?;
+    let Some(row) = rows.next() else {
+        return Err(format!(
+            "Oracle catalog schema is partially initialized; enabled constraint AUTOGRAPH_EDIT_EVENTS.{EDIT_EVENT_CONSTRAINT} was not found; run {EDIT_EVENT_CONSTRAINT_UPDATE} before deploying this controller"
+        ));
+    };
+    let row =
+        row.map_err(|error| format!("read Oracle catalog edit-event constraint row: {error}"))?;
+    let condition: String = row.get(0).map_err(|error| {
+        format!("decode Oracle catalog edit-event constraint condition: {error}")
+    })?;
+    validate_edit_event_constraint_condition(&condition)
+}
+
+fn validate_edit_event_constraint_condition(condition: &str) -> Result<(), String> {
+    for kind in EditEventKind::ALL {
+        let required_value = kind.as_str();
+        let quoted_value = format!("'{required_value}'");
+        if !condition.contains(&quoted_value) {
+            return Err(format!(
+                "Oracle catalog schema is partially initialized; constraint AUTOGRAPH_EDIT_EVENTS.{EDIT_EVENT_CONSTRAINT} is missing required value {required_value}; run {EDIT_EVENT_CONSTRAINT_UPDATE} before deploying this controller"
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -290,8 +319,9 @@ fn schema_statements() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        EXPECTED_TABLES, REQUIRED_CHECK_CONSTRAINTS, REQUIRED_COLUMNS, REQUIRED_UNIQUE_CONSTRAINTS,
-        schema_statements,
+        EDIT_EVENT_CONSTRAINT, EDIT_EVENT_CONSTRAINT_UPDATE, EXPECTED_TABLES,
+        REQUIRED_CHECK_CONSTRAINTS, REQUIRED_COLUMNS, REQUIRED_UNIQUE_CONSTRAINTS,
+        schema_statements, validate_edit_event_constraint_condition,
     };
     use crate::catalog::EditEventKind;
 
@@ -498,14 +528,10 @@ mod tests {
             "missing adjustment_json column from autograph_images schema"
         );
 
-        assert!(
-            REQUIRED_CHECK_CONSTRAINTS.contains(&(
-                "AUTOGRAPH_EDIT_EVENTS",
-                "AUTOGRAPH_EDIT_EVENTS_TYPE_CK",
-                &["imageAdjustmentChanged"][..],
-                "controller/db/updates/08-01-image-adjustments.sql",
-            )),
-            "missing image adjustment event constraint preflight"
+        assert_eq!(EDIT_EVENT_CONSTRAINT, "AUTOGRAPH_EDIT_EVENTS_TYPE_CK");
+        assert_eq!(
+            EDIT_EVENT_CONSTRAINT_UPDATE,
+            "controller/db/updates/08-01-image-adjustments.sql"
         );
 
         let edit_events_statement = statements
@@ -532,6 +558,18 @@ mod tests {
                 "Phase 8 migration constraint is missing Rust event type {event_type}"
             );
         }
+        validate_edit_event_constraint_condition(edit_events_statement)
+            .expect("canonical constraint satisfies runtime event preflight");
+    }
+
+    #[test]
+    fn phase8_runtime_preflight_rejects_partial_edit_event_constraint() {
+        let partial_condition = "event_type in ('cleanupChanged', 'imageAdjustmentChanged')";
+        let error = validate_edit_event_constraint_condition(partial_condition)
+            .expect_err("partial edit-event constraint must fail runtime preflight");
+
+        assert!(error.contains("missing required value created"));
+        assert!(error.contains("controller/db/updates/08-01-image-adjustments.sql"));
     }
 
     #[test]
