@@ -293,6 +293,7 @@ mod tests {
         EXPECTED_TABLES, REQUIRED_CHECK_CONSTRAINTS, REQUIRED_COLUMNS, REQUIRED_UNIQUE_CONSTRAINTS,
         schema_statements,
     };
+    use crate::catalog::EditEventKind;
 
     #[test]
     fn schema_parser_discards_comments_and_statement_terminators() {
@@ -519,5 +520,17 @@ mod tests {
         let update_script = include_str!("../db/updates/08-01-image-adjustments.sql");
         assert!(update_script.contains("AUTOGRAPH_EDIT_EVENTS_TYPE_CK"));
         assert!(update_script.contains("imageAdjustmentChanged"));
+
+        for kind in EditEventKind::ALL {
+            let event_type = kind.as_str();
+            assert!(
+                edit_events_statement.contains(event_type),
+                "canonical constraint is missing Rust event type {event_type}"
+            );
+            assert!(
+                update_script.contains(event_type),
+                "Phase 8 migration constraint is missing Rust event type {event_type}"
+            );
+        }
     }
 }

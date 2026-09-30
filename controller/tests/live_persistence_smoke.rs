@@ -3,9 +3,13 @@ mod live {
     use std::{env, time::Duration};
 
     use autographs_controller::{
-        catalog::CatalogRepository, image_adjustments::ImageAdjustment, media::PrivateMediaStore,
-        oci_media::OciInstancePrincipalMediaStore, oracle_catalog::OracleCatalogRepository,
-        oracle_connection, storage_keys::build_original_object_key,
+        catalog::{AutographImage, CatalogRepository, ImageReplacementInput},
+        image_adjustments::ImageAdjustment,
+        media::PrivateMediaStore,
+        oci_media::OciInstancePrincipalMediaStore,
+        oracle_catalog::OracleCatalogRepository,
+        oracle_connection,
+        storage_keys::build_original_object_key,
     };
     use oracledb::Connection;
     use sha2::{Digest, Sha256};
@@ -135,7 +139,7 @@ mod live {
         assert_eq!(stored_filename, "live secret source.jpg");
         assert!(image_rows.next().is_none());
 
-        assert_failed_adjustment_reload_rolls_back(
+        assert_oracle_adjustment_contract(
             &connection,
             OracleCatalogRepository::new(
                 oracle_user,
@@ -150,9 +154,159 @@ mod live {
         .await;
     }
 
-    async fn assert_failed_adjustment_reload_rolls_back(
+    async fn assert_oracle_adjustment_contract(
         connection: &Connection,
         repository: OracleCatalogRepository,
+        item_id: &str,
+        target_image_id: &str,
+    ) {
+        let item_uuid = Uuid::parse_str(item_id).expect("parse smoke item id");
+        let target_image_uuid =
+            Uuid::parse_str(target_image_id).expect("parse smoke target image id");
+        connection
+            .execute(
+                "update autograph_items set updated_at = timestamp '2000-01-01 00:00:00' where id = :1",
+                &[&item_id],
+            )
+            .expect("set stable item timestamp before adjustment contract checks");
+        connection
+            .commit()
+            .expect("commit stable item timestamp before adjustment contract checks");
+        let before_updated_at = item_updated_at(connection, item_id);
+        let before_adjustment_events =
+            edit_event_count(connection, item_id, "imageAdjustmentChanged");
+
+        let adjustment = ImageAdjustment::identity();
+        let saved = repository
+            .update_image_adjustment(item_uuid, target_image_uuid, Some(adjustment.clone()))
+            .await
+            .expect("save live Oracle image adjustment");
+        assert_eq!(
+            saved
+                .images
+                .iter()
+                .find(|image| image.id == target_image_uuid)
+                .and_then(|image| image.adjustment.as_ref()),
+            Some(&adjustment)
+        );
+        let stored_json = image_adjustment_json(connection, item_id, target_image_id)
+            .expect("saved adjustment JSON is present");
+        assert_eq!(
+            ImageAdjustment::from_json(&stored_json).expect("decode saved adjustment JSON"),
+            adjustment
+        );
+        assert_ne!(item_updated_at(connection, item_id), before_updated_at);
+        assert_eq!(
+            edit_event_count(connection, item_id, "imageAdjustmentChanged"),
+            before_adjustment_events + 1
+        );
+
+        let reset = repository
+            .update_image_adjustment(item_uuid, target_image_uuid, None)
+            .await
+            .expect("reset live Oracle image adjustment");
+        assert_eq!(
+            reset
+                .images
+                .iter()
+                .find(|image| image.id == target_image_uuid)
+                .and_then(|image| image.adjustment.as_ref()),
+            None
+        );
+        assert_eq!(
+            image_adjustment_json(connection, item_id, target_image_id),
+            None
+        );
+        assert_eq!(
+            edit_event_count(connection, item_id, "imageAdjustmentChanged"),
+            before_adjustment_events + 2
+        );
+
+        for (wrong_item_id, wrong_image_id) in [
+            (Uuid::new_v4(), target_image_uuid),
+            (item_uuid, Uuid::new_v4()),
+        ] {
+            assert_eq!(
+                repository
+                    .update_image_adjustment(
+                        wrong_item_id,
+                        wrong_image_id,
+                        Some(ImageAdjustment::identity()),
+                    )
+                    .await
+                    .expect_err("wrong adjustment identifiers must fail"),
+                "autograph image was not found"
+            );
+        }
+        assert_eq!(
+            edit_event_count(connection, item_id, "imageAdjustmentChanged"),
+            before_adjustment_events + 2
+        );
+
+        repository
+            .update_image_adjustment(
+                item_uuid,
+                target_image_uuid,
+                Some(ImageAdjustment::identity()),
+            )
+            .await
+            .expect("save adjustment before replacement");
+        assert_eq!(
+            edit_event_count(connection, item_id, "imageAdjustmentChanged"),
+            before_adjustment_events + 3
+        );
+        let replacement_object_key = build_original_object_key(item_uuid, Uuid::new_v4());
+        let before_replacement_events = edit_event_count(connection, item_id, "imageReplaced");
+        let replaced = repository
+            .replace_image_metadata(
+                item_uuid,
+                target_image_uuid,
+                ImageReplacementInput {
+                    image: AutographImage {
+                        id: Uuid::new_v4(),
+                        object_key: replacement_object_key.clone(),
+                        original_filename: "replacement-smoke.png".to_owned(),
+                        content_type: "image/png".to_owned(),
+                        byte_size: 16,
+                        checksum: Some("replacement-checksum".to_owned()),
+                        etag: Some("replacement-etag".to_owned()),
+                        is_primary: false,
+                        sort_order: 99,
+                        alt_text: Some("Replacement smoke image".to_owned()),
+                        adjustment: Some(ImageAdjustment::identity()),
+                    },
+                },
+            )
+            .await
+            .expect("replace live Oracle image metadata");
+        let replaced_image = replaced
+            .images
+            .iter()
+            .find(|image| image.id == target_image_uuid)
+            .expect("replaced image remains attached");
+        assert_eq!(replaced_image.object_key, replacement_object_key);
+        assert_eq!(replaced_image.adjustment, None);
+        assert_eq!(
+            image_adjustment_json(connection, item_id, target_image_id),
+            None
+        );
+        assert_eq!(
+            edit_event_count(connection, item_id, "imageReplaced"),
+            before_replacement_events + 1
+        );
+
+        assert_failed_adjustment_reload_rolls_back(
+            connection,
+            &repository,
+            item_id,
+            target_image_id,
+        )
+        .await;
+    }
+
+    async fn assert_failed_adjustment_reload_rolls_back(
+        connection: &Connection,
+        repository: &OracleCatalogRepository,
         item_id: &str,
         target_image_id: &str,
     ) {
@@ -240,6 +394,43 @@ mod live {
             .get(0)
             .expect("decode history count after rollback check");
         assert_eq!(after_history_count, before_history_count);
+    }
+
+    fn image_adjustment_json(
+        connection: &Connection,
+        item_id: &str,
+        image_id: &str,
+    ) -> Option<String> {
+        connection
+            .query_row(
+                "select adjustment_json from autograph_images where id = :1 and item_id = :2",
+                &[&image_id, &item_id],
+            )
+            .expect("read live image adjustment JSON")
+            .get(0)
+            .expect("decode live image adjustment JSON")
+    }
+
+    fn item_updated_at(connection: &Connection, item_id: &str) -> String {
+        connection
+            .query_row(
+                "select to_char(updated_at, 'YYYY-MM-DD HH24:MI:SS.FF9') from autograph_items where id = :1",
+                &[&item_id],
+            )
+            .expect("read live item timestamp")
+            .get(0)
+            .expect("decode live item timestamp")
+    }
+
+    fn edit_event_count(connection: &Connection, item_id: &str, event_type: &str) -> i64 {
+        connection
+            .query_row(
+                "select count(*) from autograph_edit_events where item_id = :1 and event_type = :2",
+                &[&item_id, &event_type],
+            )
+            .expect("read live edit event count")
+            .get(0)
+            .expect("decode live edit event count")
     }
 
     async fn run_cleanup(item_ids: Vec<String>, object_keys: Vec<String>) {
@@ -637,6 +828,36 @@ mod live {
         assert_eq!(
             cleanup_count, 2,
             "static runtime schema is missing AUTOGRAPH_CLEANUP_EVENTS cleanup columns; initialize or update the database from controller/db/schema.sql and controller/db/updates/06-03-media-cleanup.sql before the live persistence smoke"
+        );
+        let row = connection
+            .query_row(
+                "select count(*) from user_tab_columns where table_name = 'AUTOGRAPH_IMAGES' and column_name = 'ADJUSTMENT_JSON'",
+                &[],
+            )
+            .expect("inspect adjustment metadata schema");
+        let adjustment_column_count: i64 =
+            row.get(0).expect("decode adjustment metadata schema count");
+        assert_eq!(
+            adjustment_column_count, 1,
+            "static runtime schema is missing AUTOGRAPH_IMAGES.ADJUSTMENT_JSON; run controller/db/updates/08-01-image-adjustments.sql before the live persistence smoke"
+        );
+        let row = connection
+            .query_row(
+                "select count(*) from user_constraints
+                  where table_name = 'AUTOGRAPH_EDIT_EVENTS'
+                    and constraint_name = 'AUTOGRAPH_EDIT_EVENTS_TYPE_CK'
+                    and constraint_type = 'C'
+                    and status = 'ENABLED'
+                    and search_condition_vc like '%imageAdjustmentChanged%'",
+                &[],
+            )
+            .expect("inspect adjustment event constraint");
+        let adjustment_event_count: i64 = row
+            .get(0)
+            .expect("decode adjustment event constraint count");
+        assert_eq!(
+            adjustment_event_count, 1,
+            "static runtime schema does not admit imageAdjustmentChanged; run controller/db/updates/08-01-image-adjustments.sql before the live persistence smoke"
         );
     }
 
