@@ -74,11 +74,12 @@ mod live {
 
         let item_id = item_id.to_string();
         let image_id = image_id.to_string();
-        let _cleanup = LivePersistenceSmokeCleanup {
+        let mut cleanup = LivePersistenceSmokeCleanup {
             connection: &connection,
             media: media.clone(),
             item_id: item_id.clone(),
             object_key: object_key.clone(),
+            cleaned: false,
         };
         connection
             .execute(
@@ -153,6 +154,10 @@ mod live {
             &image_id,
         )
         .await;
+        cleanup
+            .cleanup_and_verify()
+            .await
+            .expect("clean and verify live persistence smoke fixtures");
     }
 
     #[derive(Clone, Copy)]
@@ -713,16 +718,33 @@ mod live {
                 .await
                 .unwrap_or_else(|_| panic!("timed out deleting cleanup OCI object: {object_key}"))
                 .expect("delete cleanup OCI Object Storage object");
-            match tokio::time::timeout(Duration::from_secs(75), media.read(&object_key)).await {
-                Err(_) => panic!("timed out confirming cleanup OCI object absence: {object_key}"),
-                Ok(Err(error)) => {
-                    println!("cleanup confirmed object absent: {object_key} ({error})")
-                }
-                Ok(Ok(_)) => panic!("cleanup object still exists after delete: {object_key}"),
-            }
+            verify_oci_object_absent(&media, &object_key)
+                .await
+                .unwrap_or_else(|error| panic!("{error}"));
         }
 
         println!("live persistence cleanup complete");
+    }
+
+    async fn verify_oci_object_absent(
+        media: &OciInstancePrincipalMediaStore,
+        object_key: &str,
+    ) -> Result<(), String> {
+        match tokio::time::timeout(Duration::from_secs(75), media.read(object_key)).await {
+            Err(_) => Err(format!(
+                "timed out confirming cleanup OCI object absence: {object_key}"
+            )),
+            Ok(Err(error)) if error.contains("returned status 404") => {
+                println!("cleanup confirmed object absent: {object_key}");
+                Ok(())
+            }
+            Ok(Err(error)) => Err(format!(
+                "could not confirm cleanup OCI object absence: {object_key}: {error}"
+            )),
+            Ok(Ok(_)) => Err(format!(
+                "cleanup OCI object still exists after delete: {object_key}"
+            )),
+        }
     }
 
     fn list_smoke_rows() {
@@ -936,46 +958,126 @@ mod live {
         media: OciInstancePrincipalMediaStore,
         item_id: String,
         object_key: String,
+        cleaned: bool,
+    }
+
+    impl LivePersistenceSmokeCleanup<'_> {
+        async fn cleanup_and_verify(&mut self) -> Result<(), String> {
+            tokio::time::timeout(Duration::from_secs(75), self.media.delete(&self.object_key))
+                .await
+                .map_err(|_| {
+                    format!(
+                        "timed out deleting live smoke OCI object: {}",
+                        self.object_key
+                    )
+                })?
+                .map_err(|error| {
+                    format!("delete live smoke OCI object {}: {error}", self.object_key)
+                })?;
+            verify_oci_object_absent(&self.media, &self.object_key).await?;
+
+            let statement = self
+                .connection
+                .execute(
+                    "delete from autograph_items where id = :1",
+                    &[&self.item_id],
+                )
+                .map_err(|error| format!("delete live smoke Oracle item: {error}"))?;
+            if statement.rows_affected() != 1 {
+                return Err(format!(
+                    "delete live smoke Oracle item affected {} rows instead of 1",
+                    statement.rows_affected()
+                ));
+            }
+            self.connection
+                .commit()
+                .map_err(|error| format!("commit live smoke Oracle cleanup: {error}"))?;
+
+            for (sql, label) in [
+                (
+                    "select count(*) from autograph_items where id = :1",
+                    "item rows",
+                ),
+                (
+                    "select count(*) from autograph_images where item_id = :1",
+                    "image rows",
+                ),
+                (
+                    "select count(*) from autograph_edit_events where item_id = :1",
+                    "edit-event rows",
+                ),
+            ] {
+                let count: i64 = self
+                    .connection
+                    .query_row(sql, &[&self.item_id])
+                    .map_err(|error| format!("verify live smoke cleanup {label}: {error}"))?
+                    .get(0)
+                    .map_err(|error| format!("decode live smoke cleanup {label}: {error}"))?;
+                if count != 0 {
+                    return Err(format!(
+                        "live smoke cleanup left {count} {label} for item {}",
+                        self.item_id
+                    ));
+                }
+            }
+
+            self.cleaned = true;
+            Ok(())
+        }
+
+        fn report_recovery_required(&self, step: &str, error: impl std::fmt::Display) {
+            eprintln!(
+                "LIVE_PERSISTENCE_RECOVERY_REQUIRED item_id={} object_key={} step={} error={error}",
+                self.item_id, self.object_key, step
+            );
+        }
     }
 
     impl Drop for LivePersistenceSmokeCleanup<'_> {
         fn drop(&mut self) {
-            std::thread::scope(|scope| {
+            if self.cleaned {
+                return;
+            }
+
+            let media_result = std::thread::scope(|scope| {
                 let media = self.media.clone();
                 let object_key = self.object_key.clone();
-                let _ = scope
-                    .spawn(move || {
-                        let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                scope
+                    .spawn(move || -> Result<(), String> {
+                        let runtime = tokio::runtime::Builder::new_current_thread()
                             .enable_all()
                             .build()
-                        else {
-                            return;
-                        };
-                        let result = runtime.block_on(async {
-                            tokio::time::timeout(Duration::from_secs(75), media.delete(&object_key))
+                            .map_err(|error| format!("build fallback cleanup runtime: {error}"))?;
+                        runtime
+                            .block_on(async {
+                                tokio::time::timeout(
+                                    Duration::from_secs(75),
+                                    media.delete(&object_key),
+                                )
                                 .await
-                        });
-                        match result {
-                            Ok(Ok(())) => {}
-                            Ok(Err(error)) => eprintln!(
-                                "live persistence cleanup could not delete OCI object: {error}"
-                            ),
-                            Err(_) => eprintln!(
-                                "live persistence cleanup timed out deleting OCI object {object_key}"
-                            ),
-                        }
+                            })
+                            .map_err(|_| {
+                                format!("timed out deleting fallback OCI object {object_key}")
+                            })?
                     })
-                    .join();
+                    .join()
             });
-            let _ = self.connection.execute(
-                "delete from autograph_images where item_id = :1",
-                &[&self.item_id],
-            );
-            let _ = self.connection.execute(
+            match media_result {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => self.report_recovery_required("oci-delete", error),
+                Err(_) => self.report_recovery_required("oci-delete", "fallback thread panicked"),
+            }
+
+            if let Err(error) = self.connection.execute(
                 "delete from autograph_items where id = :1",
                 &[&self.item_id],
-            );
-            let _ = self.connection.commit();
+            ) {
+                self.report_recovery_required("oracle-delete", error);
+                return;
+            }
+            if let Err(error) = self.connection.commit() {
+                self.report_recovery_required("oracle-commit", error);
+            }
         }
     }
 
