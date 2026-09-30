@@ -472,4 +472,22 @@ mod tests {
             "missing signer normalized-name unique constraint preflight"
         );
     }
+
+    #[test]
+    fn phase8_preflight_requires_private_image_adjustment_metadata() {
+        assert!(
+            REQUIRED_COLUMNS.contains(&("AUTOGRAPH_IMAGES", "ADJUSTMENT_JSON")),
+            "missing private image adjustment metadata preflight"
+        );
+
+        let statements = schema_statements();
+        let images_statement = statements
+            .iter()
+            .find(|statement| statement.starts_with("create table autograph_images"))
+            .expect("autograph_images statement is present");
+        assert!(
+            images_statement.contains("adjustment_json clob"),
+            "missing adjustment_json column from autograph_images schema"
+        );
+    }
 }
