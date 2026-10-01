@@ -628,6 +628,56 @@ fn static_admin_image_review_contract_is_private_accessible_and_draft_local() {
 }
 
 #[test]
+fn static_admin_image_review_uses_dom_nodes_and_same_origin_endpoints() {
+    let javascript = static_admin_file("admin.js");
+    let review = source_section(
+        &javascript,
+        "function renderImagePreviewFrame(itemId, image) {",
+        "async function renderHistory(",
+    );
+    for expected in [
+        "document.createElement(\"img\")",
+        "preview.src = endpoints.imagePreview(itemId, image.id);",
+        "preview.alt = image.altText || \"Private autograph image preview\";",
+        "frame.replaceChildren(textNode(\"p\", copy.previewError, \"status-warning\"));",
+        "element.textContent = text;",
+        "request(endpoints.imageReview(state.currentItem.id, imageId))",
+        "request(endpoints.imageAdjustmentAssist(itemId, imageId), { method: \"POST\" })",
+        "jsonRequest(",
+        "endpoints.imageAdjustment(itemId, imageId)",
+    ] {
+        assert!(
+            javascript.contains(expected),
+            "static admin image review DOM/request contract is missing {expected}"
+        );
+    }
+    assert!(
+        !review.contains("innerHTML"),
+        "image review must render dynamic values through DOM nodes and textContent"
+    );
+    for endpoint in [
+        "imagePreview",
+        "imageReview",
+        "imageAdjustment",
+        "imageAdjustmentAssist",
+    ] {
+        let marker = format!("{endpoint}: (id, imageId) =>");
+        let start = javascript
+            .find(&marker)
+            .unwrap_or_else(|| panic!("missing endpoint {endpoint}"));
+        let endpoint_source = &javascript[start
+            ..javascript[start..]
+                .find(",\n")
+                .map(|end| start + end)
+                .unwrap_or(javascript.len())];
+        assert!(
+            endpoint_source.contains("/admin/api/items/"),
+            "{endpoint} must remain same-origin under /admin/api"
+        );
+    }
+}
+
+#[test]
 fn static_admin_bootstraps_existing_sessions_without_expired_copy() {
     let source = static_admin_source();
     for expected in [
