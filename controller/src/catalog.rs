@@ -393,6 +393,18 @@ pub enum EditEventKind {
 }
 
 impl EditEventKind {
+    pub const ALL: [Self; 9] = [
+        Self::Created,
+        Self::MetadataUpdated,
+        Self::ImageAdded,
+        Self::ImageRemoved,
+        Self::ImageReplaced,
+        Self::ImageAdjustmentChanged,
+        Self::PrimaryImageChanged,
+        Self::PublicationChanged,
+        Self::CleanupChanged,
+    ];
+
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Created => "created",

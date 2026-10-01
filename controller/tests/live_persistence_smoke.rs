@@ -3,7 +3,12 @@ mod live {
     use std::{env, time::Duration};
 
     use autographs_controller::{
-        media::PrivateMediaStore, oci_media::OciInstancePrincipalMediaStore, oracle_connection,
+        catalog::{AutographImage, CatalogRepository, EditEventKind, ImageReplacementInput},
+        image_adjustments::ImageAdjustment,
+        media::PrivateMediaStore,
+        oci_media::OciInstancePrincipalMediaStore,
+        oracle_catalog::OracleCatalogRepository,
+        oracle_connection,
         storage_keys::build_original_object_key,
     };
     use oracledb::Connection;
@@ -53,6 +58,7 @@ mod live {
             oracle_connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
                 .expect("connect to Oracle Autonomous Database");
         assert_static_runtime_schema(&connection);
+        assert_image_adjustment_migration_states(&connection);
         let media =
             OciInstancePrincipalMediaStore::new(storage_namespace.clone(), bucket_name.clone())
                 .expect("configure OCI instance-principal media store");
@@ -68,11 +74,12 @@ mod live {
 
         let item_id = item_id.to_string();
         let image_id = image_id.to_string();
-        let _cleanup = LivePersistenceSmokeCleanup {
+        let mut cleanup = LivePersistenceSmokeCleanup {
             connection: &connection,
             media: media.clone(),
             item_id: item_id.clone(),
             object_key: object_key.clone(),
+            cleaned: false,
         };
         connection
             .execute(
@@ -133,6 +140,571 @@ mod live {
         assert_eq!(stored_object_key, object_key);
         assert_eq!(stored_filename, "live secret source.jpg");
         assert!(image_rows.next().is_none());
+
+        assert_oracle_adjustment_contract(
+            &connection,
+            OracleCatalogRepository::new(
+                oracle_user,
+                oracle_password,
+                oracle_connect_string,
+                storage_namespace,
+                bucket_name,
+            ),
+            &item_id,
+            &image_id,
+        )
+        .await;
+        cleanup
+            .cleanup_and_verify()
+            .await
+            .expect("clean and verify live persistence smoke fixtures");
+    }
+
+    #[derive(Clone, Copy)]
+    enum MigrationConstraintState {
+        OldOnly,
+        Both,
+        TemporaryOnly,
+        CanonicalNew,
+        WidenedCanonical,
+        WidenedTemporary,
+        WrongCaseCanonical,
+        WrongCaseTemporary,
+    }
+
+    #[derive(Clone, Copy)]
+    enum MigrationConstraintCondition {
+        Legacy,
+        Exact,
+        Widened,
+        WrongCase,
+    }
+
+    fn assert_image_adjustment_migration_states(connection: &Connection) {
+        for state in [
+            MigrationConstraintState::OldOnly,
+            MigrationConstraintState::Both,
+            MigrationConstraintState::TemporaryOnly,
+            MigrationConstraintState::CanonicalNew,
+            MigrationConstraintState::WidenedCanonical,
+            MigrationConstraintState::WidenedTemporary,
+            MigrationConstraintState::WrongCaseCanonical,
+            MigrationConstraintState::WrongCaseTemporary,
+        ] {
+            let suffix = Uuid::new_v4().simple().to_string()[..10].to_ascii_uppercase();
+            let table = format!("AE_MIG_{suffix}");
+            let canonical_constraint = format!("AE_CK_{suffix}");
+            let temporary_constraint = format!("AE_V8_{suffix}");
+            let mut cleanup = ScratchTableCleanup::create(connection, table.clone());
+
+            match state {
+                MigrationConstraintState::OldOnly => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &canonical_constraint,
+                    MigrationConstraintCondition::Legacy,
+                ),
+                MigrationConstraintState::Both => {
+                    add_migration_check_constraint(
+                        connection,
+                        &table,
+                        &canonical_constraint,
+                        MigrationConstraintCondition::Legacy,
+                    );
+                    add_migration_check_constraint(
+                        connection,
+                        &table,
+                        &temporary_constraint,
+                        MigrationConstraintCondition::Exact,
+                    );
+                }
+                MigrationConstraintState::TemporaryOnly => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &temporary_constraint,
+                    MigrationConstraintCondition::Exact,
+                ),
+                MigrationConstraintState::CanonicalNew => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &canonical_constraint,
+                    MigrationConstraintCondition::Exact,
+                ),
+                MigrationConstraintState::WidenedCanonical => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &canonical_constraint,
+                    MigrationConstraintCondition::Widened,
+                ),
+                MigrationConstraintState::WidenedTemporary => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &temporary_constraint,
+                    MigrationConstraintCondition::Widened,
+                ),
+                MigrationConstraintState::WrongCaseCanonical => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &canonical_constraint,
+                    MigrationConstraintCondition::WrongCase,
+                ),
+                MigrationConstraintState::WrongCaseTemporary => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &temporary_constraint,
+                    MigrationConstraintCondition::WrongCase,
+                ),
+            }
+
+            let migration = migration_constraint_block_for_scratch(
+                &table,
+                &canonical_constraint,
+                &temporary_constraint,
+            );
+            connection
+                .execute(&migration, &[])
+                .expect("apply image adjustment migration state transition");
+            if matches!(state, MigrationConstraintState::CanonicalNew) {
+                connection
+                    .execute(&migration, &[])
+                    .expect("rerun image adjustment migration state transition");
+            }
+
+            let canonical_count: i64 = connection
+                .query_row(
+                    "select count(*) from user_constraints
+                      where table_name = :1
+                        and constraint_name = :2
+                        and constraint_type = 'C'
+                        and status = 'ENABLED'",
+                    &[&table, &canonical_constraint],
+                )
+                .expect("inspect migrated canonical constraint")
+                .get(0)
+                .expect("decode migrated canonical constraint count");
+            assert_eq!(canonical_count, 1);
+            let temporary_count: i64 = connection
+                .query_row(
+                    "select count(*) from user_constraints
+                      where table_name = :1 and constraint_name = :2",
+                    &[&table, &temporary_constraint],
+                )
+                .expect("inspect migrated temporary constraint")
+                .get(0)
+                .expect("decode migrated temporary constraint count");
+            assert_eq!(temporary_count, 0);
+
+            for kind in EditEventKind::ALL {
+                connection
+                    .execute(
+                        &format!("insert into {table} (event_type) values (:1)"),
+                        &[&kind.as_str()],
+                    )
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "migrated constraint rejected supported event {}: {error}",
+                            kind.as_str()
+                        )
+                    });
+            }
+            assert!(
+                connection
+                    .execute(
+                        &format!("insert into {table} (event_type) values ('unexpectedEvent')"),
+                        &[],
+                    )
+                    .is_err(),
+                "migrated constraint admitted an unsupported event"
+            );
+            connection
+                .rollback()
+                .expect("rollback migration state fixture rows");
+            cleanup.cleanup();
+        }
+    }
+
+    fn add_migration_check_constraint(
+        connection: &Connection,
+        table: &str,
+        constraint: &str,
+        condition: MigrationConstraintCondition,
+    ) {
+        let mut values = EditEventKind::ALL
+            .into_iter()
+            .filter(|kind| {
+                !matches!(condition, MigrationConstraintCondition::Legacy)
+                    || *kind != EditEventKind::ImageAdjustmentChanged
+            })
+            .map(|kind| format!("'{}'", kind.as_str()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        if matches!(condition, MigrationConstraintCondition::WrongCase) {
+            values = values.replace("'metadataUpdated'", "'metadataupdated'");
+        }
+        let widening = if matches!(condition, MigrationConstraintCondition::Widened) {
+            " or 1 = 1"
+        } else {
+            ""
+        };
+        connection
+            .execute(
+                &format!(
+                    "alter table {table} add constraint {constraint} check (event_type in ({values}){widening})"
+                ),
+                &[],
+            )
+            .expect("seed image adjustment migration constraint state");
+    }
+
+    fn migration_constraint_block_for_scratch(
+        table: &str,
+        canonical_constraint: &str,
+        temporary_constraint: &str,
+    ) -> String {
+        let script = include_str!("../db/updates/08-01-image-adjustments.sql");
+        let start = script
+            .find("declare\n  canonical_constraint_count number;")
+            .expect("find migration constraint block");
+        let remainder = &script[start..];
+        let end = remainder
+            .find("\n/\n\ncommit;")
+            .expect("find migration constraint block terminator");
+        remainder[..end]
+            .replace("AUTOGRAPH_EDIT_EVENTS_TYPE_V08", temporary_constraint)
+            .replace(
+                "autograph_edit_events_type_v08",
+                &temporary_constraint.to_ascii_lowercase(),
+            )
+            .replace("AUTOGRAPH_EDIT_EVENTS_TYPE_CK", canonical_constraint)
+            .replace(
+                "autograph_edit_events_type_ck",
+                &canonical_constraint.to_ascii_lowercase(),
+            )
+            .replace("AUTOGRAPH_EDIT_EVENTS", table)
+            .replace("autograph_edit_events", &table.to_ascii_lowercase())
+    }
+
+    struct ScratchTableCleanup<'a> {
+        connection: &'a Connection,
+        table: String,
+        active: bool,
+    }
+
+    impl<'a> ScratchTableCleanup<'a> {
+        fn create(connection: &'a Connection, table: String) -> Self {
+            connection
+                .execute(
+                    &format!("create table {table} (event_type varchar2(48) not null)"),
+                    &[],
+                )
+                .expect("create image adjustment migration scratch table");
+            Self {
+                connection,
+                table,
+                active: true,
+            }
+        }
+
+        fn cleanup(&mut self) {
+            self.connection
+                .execute(&format!("drop table {} purge", self.table), &[])
+                .expect("drop image adjustment migration scratch table");
+            self.active = false;
+        }
+    }
+
+    impl Drop for ScratchTableCleanup<'_> {
+        fn drop(&mut self) {
+            if self.active
+                && let Err(error) = self
+                    .connection
+                    .execute(&format!("drop table {} purge", self.table), &[])
+            {
+                eprintln!(
+                    "LIVE_PERSISTENCE_RECOVERY_REQUIRED scratch_table={} error={error}",
+                    self.table
+                );
+            }
+        }
+    }
+
+    async fn assert_oracle_adjustment_contract(
+        connection: &Connection,
+        repository: OracleCatalogRepository,
+        item_id: &str,
+        target_image_id: &str,
+    ) {
+        let item_uuid = Uuid::parse_str(item_id).expect("parse smoke item id");
+        let target_image_uuid =
+            Uuid::parse_str(target_image_id).expect("parse smoke target image id");
+        connection
+            .execute(
+                "update autograph_items set updated_at = timestamp '2000-01-01 00:00:00' where id = :1",
+                &[&item_id],
+            )
+            .expect("set stable item timestamp before adjustment contract checks");
+        connection
+            .commit()
+            .expect("commit stable item timestamp before adjustment contract checks");
+        let before_updated_at = item_updated_at(connection, item_id);
+        let before_adjustment_events =
+            edit_event_count(connection, item_id, "imageAdjustmentChanged");
+
+        let adjustment = ImageAdjustment::identity();
+        let saved = repository
+            .update_image_adjustment(item_uuid, target_image_uuid, Some(adjustment.clone()))
+            .await
+            .expect("save live Oracle image adjustment");
+        assert_eq!(
+            saved
+                .images
+                .iter()
+                .find(|image| image.id == target_image_uuid)
+                .and_then(|image| image.adjustment.as_ref()),
+            Some(&adjustment)
+        );
+        let stored_json = image_adjustment_json(connection, item_id, target_image_id)
+            .expect("saved adjustment JSON is present");
+        assert_eq!(
+            ImageAdjustment::from_json(&stored_json).expect("decode saved adjustment JSON"),
+            adjustment
+        );
+        assert_ne!(item_updated_at(connection, item_id), before_updated_at);
+        assert_eq!(
+            edit_event_count(connection, item_id, "imageAdjustmentChanged"),
+            before_adjustment_events + 1
+        );
+
+        let reset = repository
+            .update_image_adjustment(item_uuid, target_image_uuid, None)
+            .await
+            .expect("reset live Oracle image adjustment");
+        assert_eq!(
+            reset
+                .images
+                .iter()
+                .find(|image| image.id == target_image_uuid)
+                .and_then(|image| image.adjustment.as_ref()),
+            None
+        );
+        assert_eq!(
+            image_adjustment_json(connection, item_id, target_image_id),
+            None
+        );
+        assert_eq!(
+            edit_event_count(connection, item_id, "imageAdjustmentChanged"),
+            before_adjustment_events + 2
+        );
+
+        for (wrong_item_id, wrong_image_id) in [
+            (Uuid::new_v4(), target_image_uuid),
+            (item_uuid, Uuid::new_v4()),
+        ] {
+            assert_eq!(
+                repository
+                    .update_image_adjustment(
+                        wrong_item_id,
+                        wrong_image_id,
+                        Some(ImageAdjustment::identity()),
+                    )
+                    .await
+                    .expect_err("wrong adjustment identifiers must fail"),
+                "autograph image was not found"
+            );
+        }
+        assert_eq!(
+            edit_event_count(connection, item_id, "imageAdjustmentChanged"),
+            before_adjustment_events + 2
+        );
+
+        repository
+            .update_image_adjustment(
+                item_uuid,
+                target_image_uuid,
+                Some(ImageAdjustment::identity()),
+            )
+            .await
+            .expect("save adjustment before replacement");
+        assert_eq!(
+            edit_event_count(connection, item_id, "imageAdjustmentChanged"),
+            before_adjustment_events + 3
+        );
+        let replacement_object_key = build_original_object_key(item_uuid, Uuid::new_v4());
+        let before_replacement_events = edit_event_count(connection, item_id, "imageReplaced");
+        let replaced = repository
+            .replace_image_metadata(
+                item_uuid,
+                target_image_uuid,
+                ImageReplacementInput {
+                    image: AutographImage {
+                        id: Uuid::new_v4(),
+                        object_key: replacement_object_key.clone(),
+                        original_filename: "replacement-smoke.png".to_owned(),
+                        content_type: "image/png".to_owned(),
+                        byte_size: 16,
+                        checksum: Some("replacement-checksum".to_owned()),
+                        etag: Some("replacement-etag".to_owned()),
+                        is_primary: false,
+                        sort_order: 99,
+                        alt_text: Some("Replacement smoke image".to_owned()),
+                        adjustment: Some(ImageAdjustment::identity()),
+                    },
+                },
+            )
+            .await
+            .expect("replace live Oracle image metadata");
+        let replaced_image = replaced
+            .images
+            .iter()
+            .find(|image| image.id == target_image_uuid)
+            .expect("replaced image remains attached");
+        assert_eq!(replaced_image.object_key, replacement_object_key);
+        assert_eq!(replaced_image.adjustment, None);
+        assert_eq!(
+            image_adjustment_json(connection, item_id, target_image_id),
+            None
+        );
+        assert_eq!(
+            edit_event_count(connection, item_id, "imageReplaced"),
+            before_replacement_events + 1
+        );
+
+        assert_failed_adjustment_reload_rolls_back(
+            connection,
+            &repository,
+            item_id,
+            target_image_id,
+        )
+        .await;
+    }
+
+    async fn assert_failed_adjustment_reload_rolls_back(
+        connection: &Connection,
+        repository: &OracleCatalogRepository,
+        item_id: &str,
+        target_image_id: &str,
+    ) {
+        let malformed_image_id = Uuid::new_v4().to_string();
+        let malformed_object_key = build_original_object_key(
+            Uuid::parse_str(item_id).expect("parse smoke item id"),
+            Uuid::parse_str(&malformed_image_id).expect("parse malformed smoke image id"),
+        );
+        connection
+            .execute(
+                "insert into autograph_images (
+                    id, item_id, storage_namespace, bucket_name, object_key,
+                    content_type, byte_size, is_primary, adjustment_json
+                ) values (:1, :2, :3, :4, :5, :6, :7, 'N', :8)",
+                &[
+                    &malformed_image_id,
+                    &item_id,
+                    &"live-smoke-namespace",
+                    &"live-smoke-bucket",
+                    &malformed_object_key,
+                    &"application/octet-stream",
+                    &1_i64,
+                    &"not-json",
+                ],
+            )
+            .expect("insert malformed sibling adjustment metadata");
+        connection
+            .commit()
+            .expect("commit malformed sibling adjustment metadata");
+
+        let before_updated_at: String = connection
+            .query_row(
+                "select to_char(updated_at, 'YYYY-MM-DD HH24:MI:SS.FF9') from autograph_items where id = :1",
+                &[&item_id],
+            )
+            .expect("read item timestamp before rollback check")
+            .get(0)
+            .expect("decode item timestamp before rollback check");
+        let before_history_count: i64 = connection
+            .query_row(
+                "select count(*) from autograph_edit_events where item_id = :1",
+                &[&item_id],
+            )
+            .expect("read history count before rollback check")
+            .get(0)
+            .expect("decode history count before rollback check");
+
+        let error = repository
+            .update_image_adjustment(
+                Uuid::parse_str(item_id).expect("parse smoke item id"),
+                Uuid::parse_str(target_image_id).expect("parse smoke target image id"),
+                Some(ImageAdjustment::identity()),
+            )
+            .await
+            .expect_err("malformed sibling adjustment must reject the mutation");
+        assert_eq!(
+            error,
+            "read Oracle catalog image adjustment metadata: invalid adjustment JSON"
+        );
+
+        let target_adjustment: Option<String> = connection
+            .query_row(
+                "select adjustment_json from autograph_images where id = :1 and item_id = :2",
+                &[&target_image_id, &item_id],
+            )
+            .expect("read target adjustment after rollback check")
+            .get(0)
+            .expect("decode target adjustment after rollback check");
+        assert_eq!(target_adjustment, None);
+        let after_updated_at: String = connection
+            .query_row(
+                "select to_char(updated_at, 'YYYY-MM-DD HH24:MI:SS.FF9') from autograph_items where id = :1",
+                &[&item_id],
+            )
+            .expect("read item timestamp after rollback check")
+            .get(0)
+            .expect("decode item timestamp after rollback check");
+        assert_eq!(after_updated_at, before_updated_at);
+        let after_history_count: i64 = connection
+            .query_row(
+                "select count(*) from autograph_edit_events where item_id = :1",
+                &[&item_id],
+            )
+            .expect("read history count after rollback check")
+            .get(0)
+            .expect("decode history count after rollback check");
+        assert_eq!(after_history_count, before_history_count);
+    }
+
+    fn image_adjustment_json(
+        connection: &Connection,
+        item_id: &str,
+        image_id: &str,
+    ) -> Option<String> {
+        connection
+            .query_row(
+                "select adjustment_json from autograph_images where id = :1 and item_id = :2",
+                &[&image_id, &item_id],
+            )
+            .expect("read live image adjustment JSON")
+            .get(0)
+            .expect("decode live image adjustment JSON")
+    }
+
+    fn item_updated_at(connection: &Connection, item_id: &str) -> String {
+        connection
+            .query_row(
+                "select to_char(updated_at, 'YYYY-MM-DD HH24:MI:SS.FF9') from autograph_items where id = :1",
+                &[&item_id],
+            )
+            .expect("read live item timestamp")
+            .get(0)
+            .expect("decode live item timestamp")
+    }
+
+    fn edit_event_count(connection: &Connection, item_id: &str, event_type: &str) -> i64 {
+        connection
+            .query_row(
+                "select count(*) from autograph_edit_events where item_id = :1 and event_type = :2",
+                &[&item_id, &event_type],
+            )
+            .expect("read live edit event count")
+            .get(0)
+            .expect("decode live edit event count")
     }
 
     async fn run_cleanup(item_ids: Vec<String>, object_keys: Vec<String>) {
@@ -211,16 +783,33 @@ mod live {
                 .await
                 .unwrap_or_else(|_| panic!("timed out deleting cleanup OCI object: {object_key}"))
                 .expect("delete cleanup OCI Object Storage object");
-            match tokio::time::timeout(Duration::from_secs(75), media.read(&object_key)).await {
-                Err(_) => panic!("timed out confirming cleanup OCI object absence: {object_key}"),
-                Ok(Err(error)) => {
-                    println!("cleanup confirmed object absent: {object_key} ({error})")
-                }
-                Ok(Ok(_)) => panic!("cleanup object still exists after delete: {object_key}"),
-            }
+            verify_oci_object_absent(&media, &object_key)
+                .await
+                .unwrap_or_else(|error| panic!("{error}"));
         }
 
         println!("live persistence cleanup complete");
+    }
+
+    async fn verify_oci_object_absent(
+        media: &OciInstancePrincipalMediaStore,
+        object_key: &str,
+    ) -> Result<(), String> {
+        match tokio::time::timeout(Duration::from_secs(75), media.read(object_key)).await {
+            Err(_) => Err(format!(
+                "timed out confirming cleanup OCI object absence: {object_key}"
+            )),
+            Ok(Err(error)) if error.contains("returned status 404") => {
+                println!("cleanup confirmed object absent: {object_key}");
+                Ok(())
+            }
+            Ok(Err(error)) => Err(format!(
+                "could not confirm cleanup OCI object absence: {object_key}: {error}"
+            )),
+            Ok(Ok(_)) => Err(format!(
+                "cleanup OCI object still exists after delete: {object_key}"
+            )),
+        }
     }
 
     fn list_smoke_rows() {
@@ -434,46 +1023,126 @@ mod live {
         media: OciInstancePrincipalMediaStore,
         item_id: String,
         object_key: String,
+        cleaned: bool,
+    }
+
+    impl LivePersistenceSmokeCleanup<'_> {
+        async fn cleanup_and_verify(&mut self) -> Result<(), String> {
+            tokio::time::timeout(Duration::from_secs(75), self.media.delete(&self.object_key))
+                .await
+                .map_err(|_| {
+                    format!(
+                        "timed out deleting live smoke OCI object: {}",
+                        self.object_key
+                    )
+                })?
+                .map_err(|error| {
+                    format!("delete live smoke OCI object {}: {error}", self.object_key)
+                })?;
+            verify_oci_object_absent(&self.media, &self.object_key).await?;
+
+            let statement = self
+                .connection
+                .execute(
+                    "delete from autograph_items where id = :1",
+                    &[&self.item_id],
+                )
+                .map_err(|error| format!("delete live smoke Oracle item: {error}"))?;
+            if statement.rows_affected() != 1 {
+                return Err(format!(
+                    "delete live smoke Oracle item affected {} rows instead of 1",
+                    statement.rows_affected()
+                ));
+            }
+            self.connection
+                .commit()
+                .map_err(|error| format!("commit live smoke Oracle cleanup: {error}"))?;
+
+            for (sql, label) in [
+                (
+                    "select count(*) from autograph_items where id = :1",
+                    "item rows",
+                ),
+                (
+                    "select count(*) from autograph_images where item_id = :1",
+                    "image rows",
+                ),
+                (
+                    "select count(*) from autograph_edit_events where item_id = :1",
+                    "edit-event rows",
+                ),
+            ] {
+                let count: i64 = self
+                    .connection
+                    .query_row(sql, &[&self.item_id])
+                    .map_err(|error| format!("verify live smoke cleanup {label}: {error}"))?
+                    .get(0)
+                    .map_err(|error| format!("decode live smoke cleanup {label}: {error}"))?;
+                if count != 0 {
+                    return Err(format!(
+                        "live smoke cleanup left {count} {label} for item {}",
+                        self.item_id
+                    ));
+                }
+            }
+
+            self.cleaned = true;
+            Ok(())
+        }
+
+        fn report_recovery_required(&self, step: &str, error: impl std::fmt::Display) {
+            eprintln!(
+                "LIVE_PERSISTENCE_RECOVERY_REQUIRED item_id={} object_key={} step={} error={error}",
+                self.item_id, self.object_key, step
+            );
+        }
     }
 
     impl Drop for LivePersistenceSmokeCleanup<'_> {
         fn drop(&mut self) {
-            std::thread::scope(|scope| {
+            if self.cleaned {
+                return;
+            }
+
+            let media_result = std::thread::scope(|scope| {
                 let media = self.media.clone();
                 let object_key = self.object_key.clone();
-                let _ = scope
-                    .spawn(move || {
-                        let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                scope
+                    .spawn(move || -> Result<(), String> {
+                        let runtime = tokio::runtime::Builder::new_current_thread()
                             .enable_all()
                             .build()
-                        else {
-                            return;
-                        };
-                        let result = runtime.block_on(async {
-                            tokio::time::timeout(Duration::from_secs(75), media.delete(&object_key))
+                            .map_err(|error| format!("build fallback cleanup runtime: {error}"))?;
+                        runtime
+                            .block_on(async {
+                                tokio::time::timeout(
+                                    Duration::from_secs(75),
+                                    media.delete(&object_key),
+                                )
                                 .await
-                        });
-                        match result {
-                            Ok(Ok(())) => {}
-                            Ok(Err(error)) => eprintln!(
-                                "live persistence cleanup could not delete OCI object: {error}"
-                            ),
-                            Err(_) => eprintln!(
-                                "live persistence cleanup timed out deleting OCI object {object_key}"
-                            ),
-                        }
+                            })
+                            .map_err(|_| {
+                                format!("timed out deleting fallback OCI object {object_key}")
+                            })?
                     })
-                    .join();
+                    .join()
             });
-            let _ = self.connection.execute(
-                "delete from autograph_images where item_id = :1",
-                &[&self.item_id],
-            );
-            let _ = self.connection.execute(
+            match media_result {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => self.report_recovery_required("oci-delete", error),
+                Err(_) => self.report_recovery_required("oci-delete", "fallback thread panicked"),
+            }
+
+            if let Err(error) = self.connection.execute(
                 "delete from autograph_items where id = :1",
                 &[&self.item_id],
-            );
-            let _ = self.connection.commit();
+            ) {
+                self.report_recovery_required("oracle-delete", error);
+                return;
+            }
+            if let Err(error) = self.connection.commit() {
+                self.report_recovery_required("oracle-commit", error);
+            }
         }
     }
 
@@ -531,6 +1200,38 @@ mod live {
             cleanup_count, 2,
             "static runtime schema is missing AUTOGRAPH_CLEANUP_EVENTS cleanup columns; initialize or update the database from controller/db/schema.sql and controller/db/updates/06-03-media-cleanup.sql before the live persistence smoke"
         );
+        let row = connection
+            .query_row(
+                "select count(*) from user_tab_columns where table_name = 'AUTOGRAPH_IMAGES' and column_name = 'ADJUSTMENT_JSON'",
+                &[],
+            )
+            .expect("inspect adjustment metadata schema");
+        let adjustment_column_count: i64 =
+            row.get(0).expect("decode adjustment metadata schema count");
+        assert_eq!(
+            adjustment_column_count, 1,
+            "static runtime schema is missing AUTOGRAPH_IMAGES.ADJUSTMENT_JSON; run controller/db/updates/08-01-image-adjustments.sql before the live persistence smoke"
+        );
+        let row = connection
+            .query_row(
+                "select search_condition_vc from user_constraints
+                  where table_name = 'AUTOGRAPH_EDIT_EVENTS'
+                    and constraint_name = 'AUTOGRAPH_EDIT_EVENTS_TYPE_CK'
+                    and constraint_type = 'C'
+                    and status = 'ENABLED'",
+                &[],
+            )
+            .expect("inspect adjustment event constraint");
+        let edit_event_condition: String = row
+            .get(0)
+            .expect("decode adjustment event constraint condition");
+        for kind in EditEventKind::ALL {
+            assert!(
+                edit_event_condition.contains(&format!("'{}'", kind.as_str())),
+                "static runtime schema does not admit {}; run controller/db/updates/08-01-image-adjustments.sql before the live persistence smoke",
+                kind.as_str()
+            );
+        }
     }
 
     fn update_image_checksum(connection: &Connection, image_id: &str, checksum: &str) {

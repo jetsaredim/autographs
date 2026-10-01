@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use oracledb::{Connection, ToDbValue};
 
-use crate::oracle_connection;
+use crate::{catalog::EditEventKind, oracle_connection};
 
 const SCHEMA_SQL: &str = include_str!("../db/schema.sql");
 const EXPECTED_TABLES: &[&str] = &[
@@ -32,6 +32,7 @@ const REQUIRED_COLUMNS: &[(&str, &str)] = &[
     ("AUTOGRAPH_ITEM_SIGNERS", "ITEM_ROLE"),
     ("AUTOGRAPH_ITEM_SIGNERS", "ITEM_CONTEXT"),
     ("AUTOGRAPH_IMAGES", "ORIGINAL_FILENAME"),
+    ("AUTOGRAPH_IMAGES", "ADJUSTMENT_JSON"),
     ("AUTOGRAPH_PUBLISH_JOBS", "STATUS"),
     ("AUTOGRAPH_PUBLISH_JOBS", "SNAPSHOT_EVENT_COUNT"),
     ("AUTOGRAPH_EDIT_EVENTS", "EVENT_TYPE"),
@@ -43,12 +44,6 @@ const REQUIRED_COLUMNS: &[(&str, &str)] = &[
     ("AUTOGRAPH_PUBLIC_DERIVATIVES", "PUBLIC_PATH"),
 ];
 const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[
-    (
-        "AUTOGRAPH_EDIT_EVENTS",
-        "AUTOGRAPH_EDIT_EVENTS_TYPE_CK",
-        &["cleanupChanged"],
-        "controller/db/updates/06-03-media-cleanup.sql",
-    ),
     (
         "AUTOGRAPH_ITEMS",
         "AUTOGRAPH_ITEMS_FORMAT_CK",
@@ -74,6 +69,8 @@ const REQUIRED_CHECK_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[
         "controller/db/updates/07-01-taxonomy-schema.sql",
     ),
 ];
+const EDIT_EVENT_CONSTRAINT: &str = "AUTOGRAPH_EDIT_EVENTS_TYPE_CK";
+const EDIT_EVENT_CONSTRAINT_UPDATE: &str = "controller/db/updates/08-01-image-adjustments.sql";
 const REQUIRED_UNIQUE_CONSTRAINTS: &[(&str, &str, &[&str], &str)] = &[(
     "AUTOGRAPH_SIGNERS",
     "AUTOGRAPH_SIGNERS_NORMALIZED_NAME_UQ",
@@ -152,6 +149,8 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
         }
     }
 
+    verify_edit_event_constraint(connection)?;
+
     for (table, constraint, columns, update_script) in REQUIRED_UNIQUE_CONSTRAINTS {
         let expected_columns = columns.join(",");
         let count = query_count(
@@ -182,6 +181,214 @@ fn ensure_initialized_on_connection(connection: &Connection) -> Result<(), Strin
 
     tracing::info!("Oracle catalog schema preflight passed");
     Ok(())
+}
+
+fn verify_edit_event_constraint(connection: &Connection) -> Result<(), String> {
+    let mut rows = connection
+        .query(
+            "select search_condition_vc from user_constraints
+              where table_name = 'AUTOGRAPH_EDIT_EVENTS'
+                and constraint_name = :1
+                and constraint_type = 'C'
+                and status = 'ENABLED'",
+            &[&EDIT_EVENT_CONSTRAINT],
+        )
+        .map_err(|error| format!("inspect Oracle catalog edit-event constraint: {error}"))?;
+    let Some(row) = rows.next() else {
+        return Err(format!(
+            "Oracle catalog schema is partially initialized; enabled constraint AUTOGRAPH_EDIT_EVENTS.{EDIT_EVENT_CONSTRAINT} was not found; run {EDIT_EVENT_CONSTRAINT_UPDATE} before deploying this controller"
+        ));
+    };
+    let row =
+        row.map_err(|error| format!("read Oracle catalog edit-event constraint row: {error}"))?;
+    let condition: String = row.get(0).map_err(|error| {
+        format!("decode Oracle catalog edit-event constraint condition: {error}")
+    })?;
+    validate_edit_event_constraint_condition(&condition)
+}
+
+fn validate_edit_event_constraint_condition(condition: &str) -> Result<(), String> {
+    let values = EditEventConstraintParser::new(condition)
+        .parse()
+        .map_err(|reason| edit_event_constraint_error(&reason))?;
+    let expected = EditEventKind::ALL
+        .into_iter()
+        .map(|kind| kind.as_str().to_owned())
+        .collect::<HashSet<_>>();
+    let mut actual = HashSet::with_capacity(values.len());
+
+    for value in values {
+        if !actual.insert(value.clone()) {
+            return Err(edit_event_constraint_error(&format!(
+                "contains duplicate value {value}"
+            )));
+        }
+    }
+
+    if let Some(value) = expected.difference(&actual).next() {
+        return Err(edit_event_constraint_error(&format!(
+            "is missing required value {value}"
+        )));
+    }
+    if let Some(value) = actual.difference(&expected).next() {
+        return Err(edit_event_constraint_error(&format!(
+            "contains unsupported value {value}"
+        )));
+    }
+    Ok(())
+}
+
+fn edit_event_constraint_error(reason: &str) -> String {
+    format!(
+        "Oracle catalog schema is partially initialized; constraint AUTOGRAPH_EDIT_EVENTS.{EDIT_EVENT_CONSTRAINT} {reason}; run {EDIT_EVENT_CONSTRAINT_UPDATE} before deploying this controller"
+    )
+}
+
+struct EditEventConstraintParser<'a> {
+    input: &'a str,
+    position: usize,
+}
+
+impl<'a> EditEventConstraintParser<'a> {
+    fn new(input: &'a str) -> Self {
+        Self { input, position: 0 }
+    }
+
+    fn parse(mut self) -> Result<Vec<String>, String> {
+        self.skip_whitespace();
+        let mut outer_parentheses = 0usize;
+        while self.consume_char('(') {
+            outer_parentheses += 1;
+            self.skip_whitespace();
+        }
+
+        let identifier = self.parse_identifier()?;
+        if !identifier.eq_ignore_ascii_case("event_type") {
+            return Err("does not constrain event_type".to_owned());
+        }
+        self.skip_whitespace();
+        self.parse_keyword("in")?;
+        self.skip_whitespace();
+        self.expect_char('(')?;
+        self.skip_whitespace();
+
+        let mut values = Vec::new();
+        loop {
+            values.push(self.parse_string_literal()?);
+            self.skip_whitespace();
+            if self.consume_char(',') {
+                self.skip_whitespace();
+                continue;
+            }
+            self.expect_char(')')?;
+            break;
+        }
+
+        for _ in 0..outer_parentheses {
+            self.skip_whitespace();
+            self.expect_char(')')?;
+        }
+        self.skip_whitespace();
+        if self.position != self.input.len() {
+            return Err("contains unsupported trailing predicate syntax".to_owned());
+        }
+        Ok(values)
+    }
+
+    fn parse_identifier(&mut self) -> Result<String, String> {
+        if self.consume_char('"') {
+            let start = self.position;
+            while let Some(character) = self.peek_char() {
+                if character == '"' {
+                    let identifier = self.input[start..self.position].to_owned();
+                    self.position += character.len_utf8();
+                    return Ok(identifier);
+                }
+                self.position += character.len_utf8();
+            }
+            return Err("contains an unterminated quoted identifier".to_owned());
+        }
+
+        let start = self.position;
+        while let Some(character) = self.peek_char() {
+            if character.is_ascii_alphanumeric() || character == '_' {
+                self.position += character.len_utf8();
+            } else {
+                break;
+            }
+        }
+        if start == self.position {
+            return Err("does not start with an event_type identifier".to_owned());
+        }
+        Ok(self.input[start..self.position].to_owned())
+    }
+
+    fn parse_keyword(&mut self, expected: &str) -> Result<(), String> {
+        let start = self.position;
+        while let Some(character) = self.peek_char() {
+            if character.is_ascii_alphabetic() {
+                self.position += character.len_utf8();
+            } else {
+                break;
+            }
+        }
+        if !self.input[start..self.position].eq_ignore_ascii_case(expected) {
+            return Err(format!("does not use the required {expected} predicate"));
+        }
+        Ok(())
+    }
+
+    fn parse_string_literal(&mut self) -> Result<String, String> {
+        self.expect_char('\'')?;
+        let mut value = String::new();
+        loop {
+            let Some(character) = self.peek_char() else {
+                return Err("contains an unterminated string literal".to_owned());
+            };
+            self.position += character.len_utf8();
+            if character != '\'' {
+                value.push(character);
+                continue;
+            }
+            if self.consume_char('\'') {
+                value.push('\'');
+                continue;
+            }
+            return Ok(value);
+        }
+    }
+
+    fn skip_whitespace(&mut self) {
+        while let Some(character) = self.peek_char() {
+            if !character.is_whitespace() {
+                break;
+            }
+            self.position += character.len_utf8();
+        }
+    }
+
+    fn expect_char(&mut self, expected: char) -> Result<(), String> {
+        if self.consume_char(expected) {
+            Ok(())
+        } else {
+            Err(format!(
+                "does not match the exact allowlist grammar near `{expected}`"
+            ))
+        }
+    }
+
+    fn consume_char(&mut self, expected: char) -> bool {
+        if self.peek_char() == Some(expected) {
+            self.position += expected.len_utf8();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn peek_char(&self) -> Option<char> {
+        self.input[self.position..].chars().next()
+    }
 }
 
 fn query_count(
@@ -283,9 +490,11 @@ fn schema_statements() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        EXPECTED_TABLES, REQUIRED_CHECK_CONSTRAINTS, REQUIRED_COLUMNS, REQUIRED_UNIQUE_CONSTRAINTS,
-        schema_statements,
+        EDIT_EVENT_CONSTRAINT, EDIT_EVENT_CONSTRAINT_UPDATE, EXPECTED_TABLES,
+        REQUIRED_CHECK_CONSTRAINTS, REQUIRED_COLUMNS, REQUIRED_UNIQUE_CONSTRAINTS,
+        schema_statements, validate_edit_event_constraint_condition,
     };
+    use crate::catalog::EditEventKind;
 
     #[test]
     fn schema_parser_discards_comments_and_statement_terminators() {
@@ -470,6 +679,166 @@ mod tests {
                 "controller/db/updates/07-01-taxonomy-schema.sql",
             )),
             "missing signer normalized-name unique constraint preflight"
+        );
+    }
+
+    #[test]
+    fn phase8_preflight_requires_private_image_adjustment_metadata() {
+        assert!(
+            REQUIRED_COLUMNS.contains(&("AUTOGRAPH_IMAGES", "ADJUSTMENT_JSON")),
+            "missing private image adjustment metadata preflight"
+        );
+
+        let statements = schema_statements();
+        let images_statement = statements
+            .iter()
+            .find(|statement| statement.starts_with("create table autograph_images"))
+            .expect("autograph_images statement is present");
+        assert!(
+            images_statement.contains("adjustment_json clob"),
+            "missing adjustment_json column from autograph_images schema"
+        );
+
+        assert_eq!(EDIT_EVENT_CONSTRAINT, "AUTOGRAPH_EDIT_EVENTS_TYPE_CK");
+        assert_eq!(
+            EDIT_EVENT_CONSTRAINT_UPDATE,
+            "controller/db/updates/08-01-image-adjustments.sql"
+        );
+
+        let edit_events_statement = statements
+            .iter()
+            .find(|statement| statement.starts_with("create table autograph_edit_events"))
+            .expect("autograph_edit_events statement is present");
+        assert!(
+            edit_events_statement.contains("imageAdjustmentChanged"),
+            "missing image adjustment event from canonical constraint"
+        );
+
+        let update_script = include_str!("../db/updates/08-01-image-adjustments.sql");
+        assert!(update_script.contains("AUTOGRAPH_EDIT_EVENTS_TYPE_CK"));
+        assert!(update_script.contains("imageAdjustmentChanged"));
+
+        for kind in EditEventKind::ALL {
+            let event_type = kind.as_str();
+            assert!(
+                edit_events_statement.contains(event_type),
+                "canonical constraint is missing Rust event type {event_type}"
+            );
+            assert!(
+                update_script.contains(event_type),
+                "Phase 8 migration constraint is missing Rust event type {event_type}"
+            );
+        }
+        let canonical_condition = format!(
+            "event_type in ({})",
+            EditEventKind::ALL
+                .into_iter()
+                .map(|kind| format!("'{}'", kind.as_str()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        validate_edit_event_constraint_condition(&canonical_condition)
+            .expect("canonical constraint satisfies runtime event preflight");
+    }
+
+    #[test]
+    fn phase8_runtime_preflight_accepts_only_the_exact_event_allowlist() {
+        let values = EditEventKind::ALL
+            .into_iter()
+            .map(|kind| format!("'{}'", kind.as_str()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        for condition in [
+            format!("event_type in ({values})"),
+            format!(" (( \"EVENT_TYPE\"\n In\n ({values}) )) "),
+        ] {
+            validate_edit_event_constraint_condition(&condition)
+                .unwrap_or_else(|error| panic!("exact event allowlist was rejected: {error}"));
+        }
+
+        let invalid_conditions = [
+            (
+                "missing supported literal",
+                "event_type in ('cleanupChanged', 'imageAdjustmentChanged')".to_owned(),
+            ),
+            (
+                "extra literal",
+                format!("event_type in ({values}, 'unexpectedEvent')"),
+            ),
+            (
+                "duplicate literal",
+                format!("event_type in ({values}, 'created')"),
+            ),
+            (
+                "wrong-case literal",
+                format!(
+                    "event_type in ({})",
+                    values.replace("'metadataUpdated'", "'metadataupdated'")
+                ),
+            ),
+            (
+                "widened predicate",
+                format!("event_type in ({values}) or 1 = 1"),
+            ),
+            (
+                "second predicate",
+                format!("event_type in ({values}) and event_type is not null"),
+            ),
+            (
+                "unterminated literal",
+                "event_type in ('created)".to_owned(),
+            ),
+            (
+                "doubled-quote literal",
+                format!("event_type in ({values}, 'unexpected''Event')"),
+            ),
+        ];
+        for (label, condition) in invalid_conditions {
+            let error = match validate_edit_event_constraint_condition(&condition) {
+                Ok(()) => panic!("{label} must fail runtime preflight"),
+                Err(error) => error,
+            };
+            assert!(
+                error.contains("controller/db/updates/08-01-image-adjustments.sql"),
+                "{label} did not provide migration remediation: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn phase8_migration_stages_expanded_constraint_before_legacy_drop() {
+        let script = include_str!("../db/updates/08-01-image-adjustments.sql");
+        let repair_enabled_canonical = script
+            .split("elsif canonical_enabled_count > 0 then")
+            .nth(1)
+            .expect("enabled canonical repair branch is present")
+            .split("\n    else")
+            .next()
+            .expect("enabled canonical repair branch has a terminator");
+        let add_temporary = repair_enabled_canonical
+            .find("add constraint autograph_edit_events_type_v08")
+            .expect("temporary constraint add is present");
+        let drop_canonical = repair_enabled_canonical
+            .find("drop constraint autograph_edit_events_type_ck")
+            .expect("legacy canonical constraint drop is present");
+        let rename_temporary = repair_enabled_canonical
+            .find(
+                "rename constraint autograph_edit_events_type_v08 to autograph_edit_events_type_ck",
+            )
+            .expect("temporary constraint rename is present");
+
+        assert!(add_temporary < drop_canonical);
+        assert!(drop_canonical < rename_temporary);
+        assert!(script.contains("canonical_new_count"));
+        assert!(script.contains("temporary_new_count"));
+        assert!(script.contains("if canonical_new_count > 0 then"));
+        assert!(script.contains("function normalize_event_condition"));
+        assert!(script.contains("normalize_event_condition(canonical_condition)"));
+        assert!(script.contains("normalize_event_condition(temporary_condition)"));
+        assert!(
+            !script
+                .to_ascii_lowercase()
+                .contains("search_condition_vc like")
         );
     }
 }
