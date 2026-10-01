@@ -564,6 +564,70 @@ fn static_admin_image_actions_require_saved_changes_in_shared_path() {
 }
 
 #[test]
+fn static_admin_image_review_contract_is_private_accessible_and_draft_local() {
+    let source = static_admin_source();
+    for expected in [
+        "id=\"image-review-view\"",
+        "id=\"image-review-stage\"",
+        "id=\"image-review-controls\"",
+        "id=\"image-review-message\"",
+        "id=\"image-review-save\"",
+        "id=\"image-review-discard\"",
+        "id=\"image-review-reset\"",
+        "Review image",
+        "Save adjustments",
+        "Discard image edits",
+        "Reset adjustments",
+        "Preview unavailable. Retry the preview or replace the image; provider details are hidden from the browser.",
+        "Private image only. Publish when this item is ready for the public catalog.",
+        "Adjustments saved privately. Publish changes when this image is ready for the public site.",
+        "Auto correction could not find reliable edges. Adjust the corners manually.",
+        "Top left corner",
+        "Top right corner",
+        "Bottom right corner",
+        "Bottom left corner",
+        "imagePreview",
+        "imageReview",
+        "imageAdjustment",
+        "imageAdjustmentAssist",
+        "openImageReview",
+        "renderImagePreviewFrame",
+        "renderImageReview",
+        "saveImageAdjustments",
+        "resetImageAdjustments",
+        "discardImageEdits",
+        "detectImageEdges",
+        "renderPerspectiveHandles",
+        "setReviewComparisonMode",
+        "status === \"confident\"",
+        "aspect-ratio: 4 / 3",
+        ".review-matte",
+        ".corner-handle",
+        ".dirty-adjustment-band",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin image review contract is missing {expected}"
+        );
+    }
+
+    for denied in [
+        "storageNamespace",
+        "bucketName",
+        "objectKey",
+        "https://objectstorage",
+        "originalFilename",
+        "localStorage",
+        "sessionStorage",
+    ] {
+        assert!(
+            !source.contains(denied),
+            "static admin image review source must not contain {denied}"
+        );
+    }
+}
+
+#[test]
 fn static_admin_bootstraps_existing_sessions_without_expired_copy() {
     let source = static_admin_source();
     for expected in [
