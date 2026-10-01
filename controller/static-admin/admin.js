@@ -17,6 +17,14 @@ const endpoints = {
     `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}`,
   imageReplace: (id, imageId) =>
     `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}`,
+  imagePreview: (id, imageId) =>
+    `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/preview`,
+  imageReview: (id, imageId) =>
+    `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/review`,
+  imageAdjustment: (id, imageId) =>
+    `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/adjustment`,
+  imageAdjustmentAssist: (id, imageId) =>
+    `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/adjustment/assist`,
   cleanupRetry: (id, imageId) =>
     `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/cleanup/retry`,
   publishIncremental: "/admin/api/publish/incremental",
@@ -40,6 +48,15 @@ const copy = {
   signerCreate: "Type a name to create a new signer, or choose an existing signer.",
   mergeSigner:
     "Merge signer: Merge these signer profiles and update linked items? Review the target profile first; this cannot be undone from the admin UI.",
+  previewError:
+    "Preview unavailable. Retry the preview or replace the image; provider details are hidden from the browser.",
+  privateOnly: "Private image only. Publish when this item is ready for the public catalog.",
+  adjustmentSaved:
+    "Adjustments saved privately. Publish changes when this image is ready for the public site.",
+  assistUnavailable: "Auto correction could not find reliable edges. Adjust the corners manually.",
+  resetAdjustment:
+    "Reset adjustments: Clear saved crop, rotation, pan, and perspective correction for this image? The original upload stays unchanged.",
+  discardImageEdits: "Discard unsaved image edits and return to the item editor?",
 };
 
 const state = {
@@ -53,6 +70,11 @@ const state = {
   managedSigners: [],
   focusedSignerId: null,
   taxonomySuggestions: {},
+  reviewImage: null,
+  reviewDraftAdjustment: null,
+  reviewSavedAdjustment: null,
+  reviewComparisonMode: "latest",
+  reviewOverlays: { grid: false, centerline: false, edges: true },
 };
 
 const uploadOnlyFieldNames = new Set(["images", "replacementImage", "altText"]);
@@ -98,6 +120,12 @@ const elements = {
   signerManagementQuery: $("#signer-management-query"),
   signerManagementRows: $("#signer-management-rows"),
   signerManagementMessage: $("#signer-management-message"),
+  imageReviewStage: $("#image-review-stage"),
+  imageReviewControls: $("#image-review-controls"),
+  imageReviewMessage: $("#image-review-message"),
+  imageReviewSave: $("#image-review-save"),
+  imageReviewDiscard: $("#image-review-discard"),
+  imageReviewReset: $("#image-review-reset"),
 };
 
 const setText = (selector, value) => {
@@ -1248,6 +1276,7 @@ function renderImages(images = [], cleanupWarnings = []) {
     const tile = document.createElement("article");
     tile.className = image.isPrimary ? "image-tile primary-image" : "image-tile";
     tile.append(
+      renderImagePreviewFrame(state.currentItem.id, image),
       textNode("h4", image.isPrimary ? "Primary image" : "Supporting image"),
       textNode("p", image.altText || "No alt text recorded."),
       textNode("p", `${image.contentType || "image"} - ${image.byteSize || 0} bytes`, "helper-text")
@@ -1259,6 +1288,7 @@ function renderImages(images = [], cleanupWarnings = []) {
     const actions = document.createElement("div");
     actions.className = "inline-actions";
     actions.append(
+      buttonNode("Review image", "primary-action", () => openImageReview(image.id)),
       buttonNode("Mark primary", "secondary-action", () => markPrimary(image.id)),
       buttonNode("Remove image", "destructive", () => removeImage(image.id)),
       buttonNode("Replace image", "secondary-action", () => replaceImage(image.id))
@@ -1268,6 +1298,218 @@ function renderImages(images = [], cleanupWarnings = []) {
     }
     tile.append(actions);
     elements.imageGrid.append(tile);
+  }
+}
+
+function renderImagePreviewFrame(itemId, image) {
+  const frame = document.createElement("div");
+  frame.className = "preview-frame review-matte";
+  const preview = document.createElement("img");
+  preview.src = endpoints.imagePreview(itemId, image.id);
+  preview.alt = image.altText || "Private autograph image preview";
+  preview.loading = "lazy";
+  preview.addEventListener("error", () => {
+    frame.replaceChildren(textNode("p", copy.previewError, "status-warning"));
+  });
+  frame.append(preview);
+  return frame;
+}
+
+const identityReviewAdjustment = () => ({
+  rotationDegrees: 0,
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+  crop: null,
+  perspective: {
+    corners: [
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      { x: 1, y: 1 },
+      { x: 0, y: 1 },
+    ],
+  },
+});
+
+const cloneAdjustment = (adjustment) =>
+  JSON.parse(JSON.stringify(adjustment || identityReviewAdjustment()));
+
+async function openImageReview(imageId) {
+  if (!state.currentItem?.id || !ensureSavedBeforeImageChange()) {
+    return;
+  }
+  try {
+    const review = await request(endpoints.imageReview(state.currentItem.id, imageId));
+    state.reviewImage = review;
+    state.reviewSavedAdjustment = cloneAdjustment(review.adjustment);
+    state.reviewDraftAdjustment = cloneAdjustment(review.adjustment);
+    state.reviewComparisonMode = "latest";
+    state.reviewOverlays = { grid: false, centerline: false, edges: true };
+    setView("image-review-view");
+    renderImageReview();
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.imageMessage.textContent = copy.previewError;
+    }
+  }
+}
+
+function renderImageReview() {
+  elements.imageReviewStage.replaceChildren();
+  if (!state.reviewImage || !state.reviewDraftAdjustment) {
+    elements.imageReviewStage.append(textNode("p", copy.previewError, "status-warning"));
+    return;
+  }
+  const frame = document.createElement("div");
+  frame.className = `review-frame ${state.reviewComparisonMode === "split" ? "split-comparison" : ""}`;
+  const image = document.createElement("img");
+  image.src = state.reviewImage.privatePreviewUrl;
+  image.alt = "Latest private image under review";
+  const draft = state.reviewDraftAdjustment;
+  image.style.transform = `translate(${draft.panX * 25}%, ${draft.panY * 25}%) scale(${draft.zoom}) rotate(${draft.rotationDegrees}deg)`;
+  image.addEventListener("error", () => {
+    elements.imageReviewMessage.textContent = copy.previewError;
+  });
+  frame.append(image);
+  for (const [overlay, enabled] of Object.entries(state.reviewOverlays)) {
+    if (enabled) {
+      const layer = document.createElement("div");
+      layer.className = `review-overlay review-overlay-${overlay}`;
+      layer.setAttribute("aria-hidden", "true");
+      frame.append(layer);
+    }
+  }
+  renderPerspectiveHandles(frame);
+  elements.imageReviewStage.append(frame);
+  elements.imageReviewMessage.textContent = state.reviewImage.message || copy.privateOnly;
+  syncReviewControls();
+}
+
+function renderPerspectiveHandles(frame) {
+  const labels = ["Top left corner", "Top right corner", "Bottom right corner", "Bottom left corner"];
+  const corners = state.reviewDraftAdjustment.perspective?.corners || identityReviewAdjustment().perspective.corners;
+  corners.forEach((corner, index) => {
+    const handle = document.createElement("button");
+    handle.type = "button";
+    handle.className = "corner-handle";
+    handle.setAttribute("aria-label", labels[index]);
+    handle.title = labels[index];
+    handle.style.left = `${corner.x * 100}%`;
+    handle.style.top = `${corner.y * 100}%`;
+    handle.addEventListener("keydown", (event) => movePerspectiveHandle(index, event));
+    frame.append(handle);
+  });
+}
+
+function movePerspectiveHandle(index, event) {
+  const delta = event.shiftKey ? 0.05 : 0.01;
+  const direction = {
+    ArrowLeft: [-delta, 0],
+    ArrowRight: [delta, 0],
+    ArrowUp: [0, -delta],
+    ArrowDown: [0, delta],
+  }[event.key];
+  if (!direction) {
+    return;
+  }
+  event.preventDefault();
+  const corner = state.reviewDraftAdjustment.perspective.corners[index];
+  corner.x = Math.max(0, Math.min(1, corner.x + direction[0]));
+  corner.y = Math.max(0, Math.min(1, corner.y + direction[1]));
+  renderImageReview();
+}
+
+function syncReviewControls() {
+  const draft = state.reviewDraftAdjustment;
+  for (const [id, value] of [
+    ["review-rotation", draft.rotationDegrees],
+    ["review-rotation-number", draft.rotationDegrees],
+    ["review-zoom", draft.zoom],
+    ["review-pan-x", draft.panX],
+    ["review-pan-y", draft.panY],
+  ]) {
+    const control = $(`#${id}`);
+    if (control) {
+      control.value = value;
+    }
+  }
+}
+
+function setReviewComparisonMode(mode) {
+  state.reviewComparisonMode = mode;
+  renderImageReview();
+}
+
+async function detectImageEdges() {
+  const { itemId, imageId } = state.reviewImage || {};
+  if (!itemId || !imageId) {
+    return;
+  }
+  try {
+    const proposal = await request(endpoints.imageAdjustmentAssist(itemId, imageId), { method: "POST" });
+    if (proposal.status === "confident" && proposal.corners?.length === 4) {
+      state.reviewDraftAdjustment.perspective = { corners: cloneAdjustment(proposal.corners) };
+      renderImageReview();
+      elements.imageReviewMessage.textContent = "Detected edges applied. Review the corners before saving.";
+      return;
+    }
+    elements.imageReviewMessage.textContent = copy.assistUnavailable;
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.imageReviewMessage.textContent = copy.assistUnavailable;
+    }
+  }
+}
+
+async function saveImageAdjustments() {
+  const { itemId, imageId } = state.reviewImage || {};
+  if (!itemId || !imageId) {
+    return;
+  }
+  try {
+    const item = await jsonRequest(
+      endpoints.imageAdjustment(itemId, imageId),
+      "PATCH",
+      state.reviewDraftAdjustment
+    );
+    state.currentItem = item;
+    state.reviewSavedAdjustment = cloneAdjustment(state.reviewDraftAdjustment);
+    elements.imageReviewMessage.textContent = copy.adjustmentSaved;
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.imageReviewMessage.textContent =
+        "Adjustments did not save. Keep this page open, review the controls, and try again.";
+    }
+  }
+}
+
+function discardImageEdits() {
+  if (!window.confirm(copy.discardImageEdits)) {
+    return;
+  }
+  state.reviewDraftAdjustment = cloneAdjustment(state.reviewSavedAdjustment);
+  setView("add-item-view");
+  renderImages(state.currentItem?.images || [], state.currentItem?.cleanupWarnings || []);
+}
+
+async function resetImageAdjustments() {
+  if (!state.reviewImage || !window.confirm(copy.resetAdjustment)) {
+    return;
+  }
+  try {
+    const item = await request(
+      endpoints.imageAdjustment(state.reviewImage.itemId, state.reviewImage.imageId),
+      { method: "DELETE" }
+    );
+    state.currentItem = item;
+    state.reviewSavedAdjustment = identityReviewAdjustment();
+    state.reviewDraftAdjustment = identityReviewAdjustment();
+    renderImageReview();
+    elements.imageReviewMessage.textContent = "Adjustments cleared. The original upload is unchanged.";
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.imageReviewMessage.textContent = error.message;
+    }
   }
 }
 
@@ -1749,6 +1991,28 @@ $("#upload-more-images").addEventListener("click", () => uploadImages());
 $("#publish-from-editor").addEventListener("click", publishFromEditor);
 $("#publish-incremental").addEventListener("click", () => publishChanges("incremental"));
 $("#publish-full").addEventListener("click", () => publishChanges("full"));
+elements.imageReviewSave.addEventListener("click", saveImageAdjustments);
+elements.imageReviewDiscard.addEventListener("click", discardImageEdits);
+elements.imageReviewReset.addEventListener("click", resetImageAdjustments);
+$("#image-review-detect").addEventListener("click", detectImageEdges);
+for (const button of document.querySelectorAll("[data-review-mode]")) {
+  button.addEventListener("click", () => setReviewComparisonMode(button.dataset.reviewMode));
+}
+for (const toggle of document.querySelectorAll("[data-review-overlay]")) {
+  toggle.addEventListener("change", () => {
+    state.reviewOverlays[toggle.dataset.reviewOverlay] = toggle.checked;
+    renderImageReview();
+  });
+}
+for (const control of document.querySelectorAll("[data-adjustment-field]")) {
+  control.addEventListener("input", () => {
+    if (!state.reviewDraftAdjustment) {
+      return;
+    }
+    state.reviewDraftAdjustment[control.dataset.adjustmentField] = Number(control.value);
+    renderImageReview();
+  });
+}
 
 elements.itemForm.addEventListener("submit", saveItem);
 elements.itemForm.addEventListener("input", markDirty);

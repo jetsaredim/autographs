@@ -681,6 +681,145 @@ h4 {
   background: #ffffff;
 }
 
+.preview-frame {
+  display: grid;
+  aspect-ratio: 4 / 3;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.preview-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.review-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+  gap: 24px;
+}
+
+.review-stage,
+.review-matte {
+  background: #1f2421;
+}
+
+.review-stage {
+  display: grid;
+  min-height: 32rem;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.review-frame {
+  position: relative;
+  width: min(100%, 48rem);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+
+.review-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.review-controls,
+.review-control-grid,
+.review-toggle-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.review-controls fieldset {
+  margin: 0;
+  border: 1px solid #d7ddd5;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.review-overlay,
+.corner-handle {
+  position: absolute;
+}
+
+.review-overlay {
+  inset: 0;
+  pointer-events: none;
+}
+
+.review-overlay-grid {
+  inset: 33%;
+  border: 1px solid #ffffff88;
+}
+
+.review-overlay-centerline::before,
+.review-overlay-centerline::after {
+  position: absolute;
+  content: "";
+  background: #ffffffaa;
+}
+
+.review-overlay-centerline::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.review-overlay-centerline::after {
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+
+.review-overlay-edges {
+  inset: 8%;
+  border: 2px dashed #ffffffcc;
+}
+
+.corner-handle {
+  width: 24px;
+  min-height: 24px;
+  border: 3px solid #ffffff;
+  border-radius: 999px;
+  padding: 0;
+  background: #25636a;
+  transform: translate(-50%, -50%);
+}
+
+.split-comparison::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: #d7ddd5;
+  content: "";
+}
+
+.dirty-adjustment-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+  border: 1px solid #9a6700;
+  border-radius: 8px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.dirty-adjustment-band p {
+  margin: 0;
+  color: #9a6700;
+  font-weight: 600;
+}
+
 .primary-image {
   border-color: #25636a;
 }
