@@ -44,8 +44,8 @@ Lineage status:
 
 ### WR-02: The constraint replacement can commit the drop before the replacement exists
 
-**Classification:** WARNING  
-**Lineage classification:** **fix regression** — introduced by the CR-01 repair.  
+**Classification:** WARNING
+**Lineage classification:** **fix regression** — introduced by the CR-01 repair.
 **File:** `controller/db/updates/08-01-image-adjustments.sql:25-53`
 
 **Shared invariant:** At every migration boundary, `AUTOGRAPH_EDIT_EVENTS` must retain an enabled check constraint that admits every event emitted by the controller. A failed or interrupted upgrade must not temporarily or permanently widen the table to arbitrary event values.
@@ -58,8 +58,8 @@ Lineage status:
 
 ### WR-03: Runtime preflight accepts an edit-event constraint missing seven supported values
 
-**Classification:** WARNING  
-**Lineage classification:** **incomplete fix** — CR-01 added a complete static text check but not a complete production preflight check.  
+**Classification:** WARNING
+**Lineage classification:** **incomplete fix** — CR-01 added a complete static text check but not a complete production preflight check.
 **Files:** `controller/src/oracle_schema.rs:46-58`, `controller/src/oracle_schema.rs:141-159`, `controller/src/catalog.rs:395-419`
 
 **Shared invariant:** Every event kind that a production mutation can emit must be admitted by the enabled database constraint before the controller is considered schema-ready.
@@ -72,8 +72,8 @@ Lineage status:
 
 ### WR-04: A passing live smoke can silently leave production fixtures behind
 
-**Classification:** WARNING  
-**Lineage classification:** **test weakness** — follow-on to WR-01's new credentialed Oracle/OCI proof.  
+**Classification:** WARNING
+**Lineage classification:** **test weakness** — follow-on to WR-01's new credentialed Oracle/OCI proof.
 **File:** `controller/tests/live_persistence_smoke.rs:730-775`
 
 **Shared invariant:** A successful live smoke means both that the persistence contract passed and that every Oracle row and OCI object created by the run was durably removed. Cleanup failure must either fail the run or leave explicit, actionable recovery evidence.
@@ -97,6 +97,6 @@ Lineage status:
 
 ---
 
-_Reviewed: 2026-09-30T22:50:06Z_  
-_Reviewer: the agent (gsd-code-reviewer)_  
+_Reviewed: 2026-09-30T22:50:06Z_
+_Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_

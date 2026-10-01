@@ -21,9 +21,9 @@ status: issues_found
 
 # Phase 08 Plan 05: Code Review Report — Iteration 3 Convergence Checkpoint
 
-**Reviewed:** 2026-10-01T01:16:51Z  
-**Depth:** deep  
-**Files Reviewed:** 7  
+**Reviewed:** 2026-10-01T01:16:51Z
+**Depth:** deep
+**Files Reviewed:** 7
 **Status:** issues_found
 
 ## Summary
@@ -38,8 +38,8 @@ Convergence failed at round three. One Warning remains: event constraint preflig
 
 ### WR-05: Event constraint checks accept predicates that admit unsupported event types
 
-**Classification:** WARNING  
-**Lineage classification:** **incomplete fix** — remaining gap in WR-03's runtime event-contract repair; the same literal-presence assumption also affects WR-02 migration convergence.  
+**Classification:** WARNING
+**Lineage classification:** **incomplete fix** — remaining gap in WR-03's runtime event-contract repair; the same literal-presence assumption also affects WR-02 migration convergence.
 **File:** `controller/src/oracle_schema.rs:210-220`; related migration state detection: `controller/db/updates/08-01-image-adjustments.sql:26-58`
 
 **Shared invariant:** The enabled Oracle edit-event constraint must admit every `EditEventKind::ALL` value and reject every unsupported value. Runtime readiness and migration convergence must establish both halves of that contract because history decoding rejects unknown values.
@@ -108,6 +108,6 @@ Convergence failed at round three. One Warning remains: event constraint preflig
 
 ---
 
-_Reviewed: 2026-10-01T01:16:51Z_  
-_Reviewer: the agent (gsd-code-reviewer)_  
+_Reviewed: 2026-10-01T01:16:51Z_
+_Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
