@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/jetsaredim/autographs/compare/v0.2.5...v0.3.0) (2026-10-01)
+
+
+### Features
+
+* persist Oracle image adjustments ([#261](https://github.com/jetsaredim/autographs/issues/261)) ([15c0779](https://github.com/jetsaredim/autographs/commit/15c07797723f6433699714a7471d6a3339ffea2b))
+
 ## [0.2.5](https://github.com/jetsaredim/autographs/compare/v0.2.4...v0.2.5) (2026-09-28)
 
 
