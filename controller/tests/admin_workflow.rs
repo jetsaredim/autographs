@@ -917,9 +917,18 @@ async fn admin_image_review_routes_require_session_and_validate_ids() {
     let routes = [
         ("GET", "/admin/api/items/not-an-id/images/not-an-id/preview"),
         ("GET", "/admin/api/items/not-an-id/images/not-an-id/review"),
-        ("PATCH", "/admin/api/items/not-an-id/images/not-an-id/adjustment"),
-        ("DELETE", "/admin/api/items/not-an-id/images/not-an-id/adjustment"),
-        ("POST", "/admin/api/items/not-an-id/images/not-an-id/adjustment/assist"),
+        (
+            "PATCH",
+            "/admin/api/items/not-an-id/images/not-an-id/adjustment",
+        ),
+        (
+            "DELETE",
+            "/admin/api/items/not-an-id/images/not-an-id/adjustment",
+        ),
+        (
+            "POST",
+            "/admin/api/items/not-an-id/images/not-an-id/adjustment/assist",
+        ),
     ];
 
     for (method, uri) in routes {
@@ -1043,7 +1052,10 @@ async fn authenticated_admin_image_preview_is_no_store_webp_and_redacts_failures
         .unwrap();
     assert_eq!(failure.status(), StatusCode::INTERNAL_SERVER_ERROR);
     let body = response_string(failure).await;
-    assert_eq!(body, "Private image preview is unavailable. Check controller logs for details.");
+    assert_eq!(
+        body,
+        "Private image preview is unavailable. Check controller logs for details."
+    );
     assert_redacted(&body);
 }
 
@@ -1085,11 +1097,7 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
         .await
         .unwrap();
     media.write(&unavailable_key, &png_fixture()).await.unwrap();
-    let app = router_with_stores(
-        ControllerConfig::for_test(false),
-        repository.clone(),
-        media,
-    );
+    let app = router_with_stores(ControllerConfig::for_test(false), repository.clone(), media);
     let cookie = admin_cookie(&app).await;
 
     let review = app
@@ -1109,7 +1117,12 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
     assert_eq!(review.status(), StatusCode::OK);
     let review = response_json(review).await;
     assert_eq!(review["imageId"], confident_id.to_string());
-    assert!(review["privatePreviewUrl"].as_str().unwrap().starts_with("/admin/api/"));
+    assert!(
+        review["privatePreviewUrl"]
+            .as_str()
+            .unwrap()
+            .starts_with("/admin/api/")
+    );
 
     let saved = app
         .clone()
@@ -1127,9 +1140,11 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
         .await
         .unwrap();
     assert_eq!(saved.status(), StatusCode::OK);
-    assert!(repository.get(item.id).await.unwrap().unwrap().images[0]
-        .adjustment
-        .is_some());
+    assert!(
+        repository.get(item.id).await.unwrap().unwrap().images[0]
+            .adjustment
+            .is_some()
+    );
 
     let confident = image_assist(&app, item.id, confident_id, &cookie).await;
     assert_eq!(confident["status"], "confident");
@@ -1156,9 +1171,11 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
         .await
         .unwrap();
     assert_eq!(reset.status(), StatusCode::OK);
-    assert!(repository.get(item.id).await.unwrap().unwrap().images[0]
-        .adjustment
-        .is_none());
+    assert!(
+        repository.get(item.id).await.unwrap().unwrap().images[0]
+            .adjustment
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -2562,7 +2579,11 @@ fn png_fixture() -> Vec<u8> {
 fn high_contrast_skew_fixture() -> Vec<u8> {
     let mut image = RgbImage::from_pixel(64, 48, Rgb([0, 0, 0]));
     for y in 8..40 {
-        let inset = if y < 24 { 12 - (y - 8) / 8 } else { 10 + (y - 24) / 8 };
+        let inset = if y < 24 {
+            12 - (y - 8) / 8
+        } else {
+            10 + (y - 24) / 8
+        };
         for x in inset..(64 - inset) {
             image.put_pixel(x, y, Rgb([255, 255, 255]));
         }
