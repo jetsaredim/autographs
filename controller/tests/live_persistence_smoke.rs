@@ -166,6 +166,18 @@ mod live {
         Both,
         TemporaryOnly,
         CanonicalNew,
+        WidenedCanonical,
+        WidenedTemporary,
+        WrongCaseCanonical,
+        WrongCaseTemporary,
+    }
+
+    #[derive(Clone, Copy)]
+    enum MigrationConstraintCondition {
+        Legacy,
+        Exact,
+        Widened,
+        WrongCase,
     }
 
     fn assert_image_adjustment_migration_states(connection: &Connection) {
@@ -174,6 +186,10 @@ mod live {
             MigrationConstraintState::Both,
             MigrationConstraintState::TemporaryOnly,
             MigrationConstraintState::CanonicalNew,
+            MigrationConstraintState::WidenedCanonical,
+            MigrationConstraintState::WidenedTemporary,
+            MigrationConstraintState::WrongCaseCanonical,
+            MigrationConstraintState::WrongCaseTemporary,
         ] {
             let suffix = Uuid::new_v4().simple().to_string()[..10].to_ascii_uppercase();
             let table = format!("AE_MIG_{suffix}");
@@ -182,24 +198,62 @@ mod live {
             let mut cleanup = ScratchTableCleanup::create(connection, table.clone());
 
             match state {
-                MigrationConstraintState::OldOnly => {
-                    add_migration_check_constraint(connection, &table, &canonical_constraint, false)
-                }
+                MigrationConstraintState::OldOnly => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &canonical_constraint,
+                    MigrationConstraintCondition::Legacy,
+                ),
                 MigrationConstraintState::Both => {
                     add_migration_check_constraint(
                         connection,
                         &table,
                         &canonical_constraint,
-                        false,
+                        MigrationConstraintCondition::Legacy,
                     );
-                    add_migration_check_constraint(connection, &table, &temporary_constraint, true);
+                    add_migration_check_constraint(
+                        connection,
+                        &table,
+                        &temporary_constraint,
+                        MigrationConstraintCondition::Exact,
+                    );
                 }
-                MigrationConstraintState::TemporaryOnly => {
-                    add_migration_check_constraint(connection, &table, &temporary_constraint, true)
-                }
-                MigrationConstraintState::CanonicalNew => {
-                    add_migration_check_constraint(connection, &table, &canonical_constraint, true)
-                }
+                MigrationConstraintState::TemporaryOnly => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &temporary_constraint,
+                    MigrationConstraintCondition::Exact,
+                ),
+                MigrationConstraintState::CanonicalNew => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &canonical_constraint,
+                    MigrationConstraintCondition::Exact,
+                ),
+                MigrationConstraintState::WidenedCanonical => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &canonical_constraint,
+                    MigrationConstraintCondition::Widened,
+                ),
+                MigrationConstraintState::WidenedTemporary => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &temporary_constraint,
+                    MigrationConstraintCondition::Widened,
+                ),
+                MigrationConstraintState::WrongCaseCanonical => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &canonical_constraint,
+                    MigrationConstraintCondition::WrongCase,
+                ),
+                MigrationConstraintState::WrongCaseTemporary => add_migration_check_constraint(
+                    connection,
+                    &table,
+                    &temporary_constraint,
+                    MigrationConstraintCondition::WrongCase,
+                ),
             }
 
             let migration = migration_constraint_block_for_scratch(
@@ -273,18 +327,29 @@ mod live {
         connection: &Connection,
         table: &str,
         constraint: &str,
-        include_adjustment: bool,
+        condition: MigrationConstraintCondition,
     ) {
-        let values = EditEventKind::ALL
+        let mut values = EditEventKind::ALL
             .into_iter()
-            .filter(|kind| include_adjustment || *kind != EditEventKind::ImageAdjustmentChanged)
+            .filter(|kind| {
+                !matches!(condition, MigrationConstraintCondition::Legacy)
+                    || *kind != EditEventKind::ImageAdjustmentChanged
+            })
             .map(|kind| format!("'{}'", kind.as_str()))
             .collect::<Vec<_>>()
             .join(", ");
+        if matches!(condition, MigrationConstraintCondition::WrongCase) {
+            values = values.replace("'metadataUpdated'", "'metadataupdated'");
+        }
+        let widening = if matches!(condition, MigrationConstraintCondition::Widened) {
+            " or 1 = 1"
+        } else {
+            ""
+        };
         connection
             .execute(
                 &format!(
-                    "alter table {table} add constraint {constraint} check (event_type in ({values}))"
+                    "alter table {table} add constraint {constraint} check (event_type in ({values}){widening})"
                 ),
                 &[],
             )
