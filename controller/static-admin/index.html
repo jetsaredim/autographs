@@ -352,9 +352,9 @@
               <fieldset>
                 <legend>Comparison</legend>
                 <div class="inline-actions">
-                  <button type="button" class="secondary-action" data-review-mode="latest">Latest</button>
-                  <button type="button" class="secondary-action" data-review-mode="before-after">Before / After</button>
-                  <button type="button" class="secondary-action" data-review-mode="split">Split</button>
+                  <button type="button" class="secondary-action" data-review-mode="latest" aria-pressed="true">Latest</button>
+                  <button type="button" class="secondary-action" data-review-mode="before-after" aria-pressed="false">Before / After</button>
+                  <button type="button" class="secondary-action" data-review-mode="split" aria-pressed="false">Split</button>
                 </div>
               </fieldset>
 
@@ -394,7 +394,7 @@
           </div>
 
           <p id="image-review-message" class="status-message" role="status" tabindex="-1"></p>
-          <div class="dirty-adjustment-band">
+          <div id="image-review-dirty-band" class="dirty-adjustment-band" hidden>
             <p>Adjustment edits stay private and local until saved.</p>
             <div class="inline-actions">
               <button id="image-review-save" type="button" class="primary-action">Save adjustments</button>

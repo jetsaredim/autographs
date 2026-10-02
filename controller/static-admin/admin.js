@@ -19,6 +19,8 @@ const endpoints = {
     `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}`,
   imagePreview: (id, imageId) =>
     `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/preview`,
+  imageDraftPreview: (id, imageId) =>
+    `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/preview/draft`,
   imageReview: (id, imageId) =>
     `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/review`,
   imageAdjustment: (id, imageId) =>
@@ -57,6 +59,7 @@ const copy = {
   resetAdjustment:
     "Reset adjustments: Clear saved crop, rotation, pan, and perspective correction for this image? The original upload stays unchanged.",
   discardImageEdits: "Discard unsaved image edits and return to the item editor?",
+  discardImageEditsForNavigation: "Discard unsaved image edits and continue?",
 };
 
 const state = {
@@ -73,8 +76,16 @@ const state = {
   reviewImage: null,
   reviewDraftAdjustment: null,
   reviewSavedAdjustment: null,
+  reviewDirty: false,
   reviewComparisonMode: "latest",
   reviewOverlays: { grid: false, centerline: false, edges: true },
+  reviewPreviewUrl: null,
+  reviewPreviewStatus: "idle",
+  reviewPreviewAbortController: null,
+  reviewPreviewTimer: null,
+  reviewPreviewRevision: 0,
+  reviewFocusedCornerIndex: null,
+  reviewMessage: "",
 };
 
 const uploadOnlyFieldNames = new Set(["images", "replacementImage", "altText"]);
@@ -126,6 +137,9 @@ const elements = {
   imageReviewSave: $("#image-review-save"),
   imageReviewDiscard: $("#image-review-discard"),
   imageReviewReset: $("#image-review-reset"),
+  imageReviewDirtyBand: $("#image-review-dirty-band"),
+  publishIncremental: $("#publish-incremental"),
+  publishFull: $("#publish-full"),
 };
 
 const setText = (selector, value) => {
@@ -256,7 +270,7 @@ const stateCell = (item) => {
   icons.className = "state-icons";
   icons.append(
     pendingChangesIcon(item.hasPendingChanges),
-    publicationStatusButton(item.publicationStatus, () => setView("publish-view"))
+    publicationStatusButton(item.publicationStatus, () => navigateToView("publish-view"))
   );
   layout.append(copy, icons);
   cell.append(layout);
@@ -365,7 +379,9 @@ const jsonRequest = (path, method, body) =>
 
 function handleAuthFailure() {
   showLogin(copy.sessionExpired);
-  elements.sessionStatus.textContent = copy.sessionExpired;
+  elements.sessionStatus.textContent = state.reviewDirty
+    ? `${copy.sessionExpired} Unsaved image edits remain in this page until you log in or close it.`
+    : copy.sessionExpired;
 }
 
 function showWorkflow() {
@@ -400,6 +416,28 @@ function setView(viewId) {
   } else if (viewId === "diagnostics-view") {
     renderDiagnostics();
   }
+}
+
+function confirmDiscardReviewForNavigation() {
+  if (state.reviewDirty && !window.confirm(copy.discardImageEditsForNavigation)) {
+    return false;
+  }
+  if (state.reviewImage) {
+    clearImageReviewState();
+  }
+  return true;
+}
+
+function navigateToView(viewId) {
+  if (
+    viewId !== "image-review-view" &&
+    state.currentView === "image-review-view" &&
+    !confirmDiscardReviewForNavigation()
+  ) {
+    return false;
+  }
+  setView(viewId);
+  return true;
 }
 
 const pendingCopy = (count) => `${count} saved change(s) have not been published yet.`;
@@ -1214,6 +1252,7 @@ function renderEditor(item = null) {
   elements.itemForm.reset();
   elements.discardUnsaved.hidden = true;
   elements.publishFromEditor.setAttribute("aria-disabled", "false");
+  syncPublishAvailability();
   setText("#dirty-state", "No unsaved client-side edits.");
   setText("#editor-title", item ? "Edit item" : "Add item");
   setText(
@@ -1304,14 +1343,28 @@ function renderImages(images = [], cleanupWarnings = []) {
 function renderImagePreviewFrame(itemId, image) {
   const frame = document.createElement("div");
   frame.className = "preview-frame review-matte";
-  const preview = document.createElement("img");
-  preview.src = endpoints.imagePreview(itemId, image.id);
-  preview.alt = image.altText || "Private autograph image preview";
-  preview.loading = "lazy";
-  preview.addEventListener("error", () => {
-    frame.replaceChildren(textNode("p", copy.previewError, "status-warning"));
-  });
-  frame.append(preview);
+  let attempt = 0;
+  const loadPreview = () => {
+    const preview = document.createElement("img");
+    const separator = endpoints.imagePreview(itemId, image.id).includes("?") ? "&" : "?";
+    preview.src = `${endpoints.imagePreview(itemId, image.id)}${separator}retry=${attempt}`;
+    preview.alt = image.altText || "Private autograph image preview";
+    preview.loading = "lazy";
+    preview.addEventListener("error", () => {
+      const failure = document.createElement("div");
+      failure.className = "preview-failure";
+      failure.append(
+        textNode("p", copy.previewError, "status-warning"),
+        buttonNode("Retry preview", "secondary-action", () => {
+          attempt += 1;
+          loadPreview();
+        })
+      );
+      frame.replaceChildren(failure);
+    });
+    frame.replaceChildren(preview);
+  };
+  loadPreview();
   return frame;
 }
 
@@ -1321,18 +1374,152 @@ const identityReviewAdjustment = () => ({
   panX: 0,
   panY: 0,
   crop: null,
-  perspective: {
-    corners: [
-      { x: 0, y: 0 },
-      { x: 1, y: 0 },
-      { x: 1, y: 1 },
-      { x: 0, y: 1 },
-    ],
-  },
+  perspective: null,
 });
+
+const fullFramePerspectiveCorners = () => [
+  { x: 0, y: 0 },
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
+  { x: 0, y: 1 },
+];
 
 const cloneAdjustment = (adjustment) =>
   JSON.parse(JSON.stringify(adjustment || identityReviewAdjustment()));
+
+const canonicalReviewAdjustment = (adjustment) => {
+  const canonical = cloneAdjustment(adjustment);
+  const corners = canonical.perspective?.corners;
+  if (
+    Array.isArray(corners) &&
+    corners.length === 4 &&
+    corners.every((corner, index) => {
+      const fullFrame = fullFramePerspectiveCorners()[index];
+      return corner.x === fullFrame.x && corner.y === fullFrame.y;
+    })
+  ) {
+    canonical.perspective = null;
+  }
+  return canonical;
+};
+
+const reviewAdjustmentsEqual = (left, right) =>
+  JSON.stringify(canonicalReviewAdjustment(left)) === JSON.stringify(canonicalReviewAdjustment(right));
+
+const currentPerspectiveCorners = () =>
+  cloneAdjustment(
+    state.reviewDraftAdjustment?.perspective?.corners || fullFramePerspectiveCorners()
+  );
+
+function syncPublishAvailability() {
+  const disabled = state.dirty || state.reviewDirty;
+  for (const button of [elements.publishFromEditor, elements.publishIncremental, elements.publishFull]) {
+    if (!button) {
+      continue;
+    }
+    button.disabled = disabled;
+    button.setAttribute("aria-disabled", disabled ? "true" : "false");
+  }
+}
+
+function syncReviewDirtyState() {
+  state.reviewDirty = Boolean(
+    state.reviewDraftAdjustment &&
+      !reviewAdjustmentsEqual(state.reviewDraftAdjustment, state.reviewSavedAdjustment)
+  );
+  elements.imageReviewDirtyBand.hidden = !state.reviewDirty;
+  elements.imageReviewSave.disabled = !state.reviewDirty;
+  syncPublishAvailability();
+}
+
+function revokeReviewPreviewUrl() {
+  if (state.reviewPreviewUrl) {
+    URL.revokeObjectURL(state.reviewPreviewUrl);
+    state.reviewPreviewUrl = null;
+  }
+}
+
+function cancelReviewPreviewRequest() {
+  if (state.reviewPreviewTimer) {
+    window.clearTimeout(state.reviewPreviewTimer);
+    state.reviewPreviewTimer = null;
+  }
+  if (state.reviewPreviewAbortController) {
+    state.reviewPreviewAbortController.abort();
+    state.reviewPreviewAbortController = null;
+  }
+}
+
+function clearImageReviewState() {
+  cancelReviewPreviewRequest();
+  revokeReviewPreviewUrl();
+  state.reviewImage = null;
+  state.reviewDraftAdjustment = null;
+  state.reviewSavedAdjustment = null;
+  state.reviewDirty = false;
+  state.reviewPreviewStatus = "idle";
+  state.reviewFocusedCornerIndex = null;
+  state.reviewMessage = "";
+  state.reviewPreviewRevision += 1;
+  syncPublishAvailability();
+}
+
+function scheduleDraftPreview({ immediate = false } = {}) {
+  cancelReviewPreviewRequest();
+  state.reviewPreviewStatus = state.reviewPreviewUrl ? "refreshing" : "loading";
+  const revision = state.reviewPreviewRevision + 1;
+  state.reviewPreviewRevision = revision;
+  state.reviewPreviewTimer = window.setTimeout(
+    () => loadDraftPreview(revision),
+    immediate ? 0 : 150
+  );
+}
+
+async function loadDraftPreview(revision) {
+  const { itemId, imageId } = state.reviewImage || {};
+  if (!itemId || !imageId || !state.reviewDraftAdjustment) {
+    return;
+  }
+  const draftPreviewUrl = endpoints.imageDraftPreview(itemId, imageId);
+  const controller = new AbortController();
+  state.reviewPreviewAbortController = controller;
+  try {
+    const response = await fetch(draftPreviewUrl, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(canonicalReviewAdjustment(state.reviewDraftAdjustment)),
+      signal: controller.signal,
+    });
+    if (response.status === 401) {
+      handleAuthFailure();
+      throw new Error(copy.sessionExpired);
+    }
+    if (!response.ok) {
+      throw new Error(copy.previewError);
+    }
+    const blob = await response.blob();
+    if (revision !== state.reviewPreviewRevision) {
+      return;
+    }
+    const nextUrl = URL.createObjectURL(blob);
+    revokeReviewPreviewUrl();
+    state.reviewPreviewUrl = nextUrl;
+    state.reviewPreviewStatus = "ready";
+    renderImageReview();
+  } catch (error) {
+    if (error.name === "AbortError" || revision !== state.reviewPreviewRevision) {
+      return;
+    }
+    state.reviewPreviewStatus = "error";
+    state.reviewMessage = copy.previewError;
+    renderImageReview();
+  } finally {
+    if (state.reviewPreviewAbortController === controller) {
+      state.reviewPreviewAbortController = null;
+    }
+  }
+}
 
 async function openImageReview(imageId) {
   if (!state.currentItem?.id || !ensureSavedBeforeImageChange()) {
@@ -1341,12 +1528,17 @@ async function openImageReview(imageId) {
   try {
     const review = await request(endpoints.imageReview(state.currentItem.id, imageId));
     state.reviewImage = review;
-    state.reviewSavedAdjustment = cloneAdjustment(review.adjustment);
-    state.reviewDraftAdjustment = cloneAdjustment(review.adjustment);
+    state.reviewSavedAdjustment = canonicalReviewAdjustment(review.adjustment);
+    state.reviewDraftAdjustment = canonicalReviewAdjustment(review.adjustment);
+    state.reviewDirty = false;
     state.reviewComparisonMode = "latest";
     state.reviewOverlays = { grid: false, centerline: false, edges: true };
+    state.reviewPreviewStatus = "loading";
+    state.reviewFocusedCornerIndex = null;
+    state.reviewMessage = review.message || copy.privateOnly;
     setView("image-review-view");
     renderImageReview();
+    scheduleDraftPreview({ immediate: true });
   } catch (error) {
     if (error.status !== 401) {
       elements.imageMessage.textContent = copy.previewError;
@@ -1360,17 +1552,58 @@ function renderImageReview() {
     elements.imageReviewStage.append(textNode("p", copy.previewError, "status-warning"));
     return;
   }
+  if (state.reviewPreviewStatus === "error") {
+    const failure = document.createElement("div");
+    failure.className = "preview-failure";
+    failure.append(
+      textNode("p", copy.previewError, "status-warning"),
+      buttonNode("Retry preview", "secondary-action", () =>
+        scheduleDraftPreview({ immediate: true })
+      )
+    );
+    elements.imageReviewStage.append(failure);
+    elements.imageReviewMessage.textContent = state.reviewMessage;
+    syncReviewControls();
+    syncReviewDirtyState();
+    syncReviewComparisonButtons();
+    return;
+  }
+  if (!state.reviewPreviewUrl) {
+    elements.imageReviewStage.append(loadingState("Rendering the complete draft adjustment..."));
+    elements.imageReviewMessage.textContent = state.reviewMessage;
+    syncReviewControls();
+    syncReviewDirtyState();
+    syncReviewComparisonButtons();
+    return;
+  }
   const frame = document.createElement("div");
-  frame.className = `review-frame ${state.reviewComparisonMode === "split" ? "split-comparison" : ""}`;
-  const image = document.createElement("img");
-  image.src = state.reviewImage.privatePreviewUrl;
-  image.alt = "Latest private image under review";
-  const draft = state.reviewDraftAdjustment;
-  image.style.transform = `translate(${draft.panX * 25}%, ${draft.panY * 25}%) scale(${draft.zoom}) rotate(${draft.rotationDegrees}deg)`;
-  image.addEventListener("error", () => {
-    elements.imageReviewMessage.textContent = copy.previewError;
-  });
-  frame.append(image);
+  frame.className = `review-frame review-comparison-${state.reviewComparisonMode}`;
+  const latestImage = reviewImageNode(
+    state.reviewPreviewUrl,
+    "Latest private image under review",
+    "review-image-latest"
+  );
+  const publicUrl = state.reviewImage.publicCurrentPreviewUrl;
+  if (state.reviewComparisonMode === "before-after" && publicUrl) {
+    const pair = document.createElement("div");
+    pair.className = "before-after-comparison";
+    pair.append(
+      reviewComparisonPane(
+        reviewImageNode(publicUrl, "Current public image", "review-image-public"),
+        "Public current"
+      ),
+      reviewComparisonPane(latestImage, "Private latest")
+    );
+    frame.append(pair);
+  } else if (state.reviewComparisonMode === "split" && publicUrl) {
+    frame.classList.add("split-comparison");
+    frame.append(
+      reviewImageNode(publicUrl, "Current public image", "review-image-public"),
+      latestImage
+    );
+  } else {
+    frame.append(latestImage);
+  }
   for (const [overlay, enabled] of Object.entries(state.reviewOverlays)) {
     if (enabled) {
       const layer = document.createElement("div");
@@ -1381,23 +1614,50 @@ function renderImageReview() {
   }
   renderPerspectiveHandles(frame);
   elements.imageReviewStage.append(frame);
-  elements.imageReviewMessage.textContent = state.reviewImage.message || copy.privateOnly;
+  elements.imageReviewMessage.textContent = state.reviewMessage;
   syncReviewControls();
+  syncReviewDirtyState();
+  syncReviewComparisonButtons();
+}
+
+function reviewImageNode(src, alt, className) {
+  const image = document.createElement("img");
+  image.src = src;
+  image.alt = alt;
+  image.className = className;
+  image.addEventListener("error", () => {
+    state.reviewPreviewStatus = "error";
+    state.reviewMessage = copy.previewError;
+    renderImageReview();
+  });
+  return image;
+}
+
+function reviewComparisonPane(image, label) {
+  const pane = document.createElement("figure");
+  pane.className = "comparison-pane";
+  const caption = document.createElement("figcaption");
+  caption.textContent = label;
+  pane.append(image, caption);
+  return pane;
 }
 
 function renderPerspectiveHandles(frame) {
   const labels = ["Top left corner", "Top right corner", "Bottom right corner", "Bottom left corner"];
-  const corners = state.reviewDraftAdjustment.perspective?.corners || identityReviewAdjustment().perspective.corners;
+  const corners = currentPerspectiveCorners();
   corners.forEach((corner, index) => {
     const handle = document.createElement("button");
     handle.type = "button";
     handle.className = "corner-handle";
     handle.setAttribute("aria-label", labels[index]);
     handle.title = labels[index];
-    handle.style.left = `${corner.x * 100}%`;
-    handle.style.top = `${corner.y * 100}%`;
+    positionPerspectiveHandle(handle, corner);
     handle.addEventListener("keydown", (event) => movePerspectiveHandle(index, event));
+    handle.addEventListener("pointerdown", (event) => beginPerspectiveDrag(index, event, frame));
     frame.append(handle);
+    if (state.reviewFocusedCornerIndex === index) {
+      requestAnimationFrame(() => handle.focus());
+    }
   });
 }
 
@@ -1413,10 +1673,56 @@ function movePerspectiveHandle(index, event) {
     return;
   }
   event.preventDefault();
-  const corner = state.reviewDraftAdjustment.perspective.corners[index];
-  corner.x = Math.max(0, Math.min(1, corner.x + direction[0]));
-  corner.y = Math.max(0, Math.min(1, corner.y + direction[1]));
-  renderImageReview();
+  const corners = currentPerspectiveCorners();
+  const corner = corners[index];
+  state.reviewFocusedCornerIndex = index;
+  setPerspectiveCorner(
+    index,
+    corner.x + direction[0],
+    corner.y + direction[1],
+    event.currentTarget
+  );
+}
+
+function beginPerspectiveDrag(index, event, frame) {
+  event.preventDefault();
+  const handle = event.currentTarget;
+  state.reviewFocusedCornerIndex = index;
+  handle.setPointerCapture(event.pointerId);
+  const move = (moveEvent) => {
+    const bounds = frame.getBoundingClientRect();
+    setPerspectiveCorner(
+      index,
+      (moveEvent.clientX - bounds.left) / bounds.width,
+      (moveEvent.clientY - bounds.top) / bounds.height,
+      handle
+    );
+  };
+  const finish = () => {
+    handle.removeEventListener("pointermove", move);
+    handle.removeEventListener("pointerup", finish);
+    handle.removeEventListener("pointercancel", finish);
+  };
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("pointerup", finish);
+  handle.addEventListener("pointercancel", finish);
+}
+
+function setPerspectiveCorner(index, x, y, handle) {
+  const corners = currentPerspectiveCorners();
+  corners[index] = {
+    x: Math.max(0, Math.min(1, x)),
+    y: Math.max(0, Math.min(1, y)),
+  };
+  state.reviewDraftAdjustment.perspective = { corners };
+  positionPerspectiveHandle(handle, corners[index]);
+  syncReviewDirtyState();
+  scheduleDraftPreview();
+}
+
+function positionPerspectiveHandle(handle, corner) {
+  handle.style.left = `clamp(22px, ${corner.x * 100}%, calc(100% - 22px))`;
+  handle.style.top = `clamp(22px, ${corner.y * 100}%, calc(100% - 22px))`;
 }
 
 function syncReviewControls() {
@@ -1436,8 +1742,27 @@ function syncReviewControls() {
 }
 
 function setReviewComparisonMode(mode) {
+  if (mode !== "latest" && !state.reviewImage?.canComparePublicCurrent) {
+    return;
+  }
   state.reviewComparisonMode = mode;
   renderImageReview();
+}
+
+function syncReviewComparisonButtons() {
+  const canCompare = Boolean(state.reviewImage?.canComparePublicCurrent);
+  if (!canCompare && state.reviewComparisonMode !== "latest") {
+    state.reviewComparisonMode = "latest";
+  }
+  for (const button of document.querySelectorAll("[data-review-mode]")) {
+    const mode = button.dataset.reviewMode;
+    const active = mode === state.reviewComparisonMode;
+    const unavailable = mode !== "latest" && !canCompare;
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+    button.classList.toggle("is-active", active);
+    button.disabled = unavailable;
+    button.setAttribute("aria-disabled", unavailable ? "true" : "false");
+  }
 }
 
 async function detectImageEdges() {
@@ -1449,14 +1774,17 @@ async function detectImageEdges() {
     const proposal = await request(endpoints.imageAdjustmentAssist(itemId, imageId), { method: "POST" });
     if (proposal.status === "confident" && proposal.corners?.length === 4) {
       state.reviewDraftAdjustment.perspective = { corners: cloneAdjustment(proposal.corners) };
+      state.reviewMessage = "Detected edges applied. Review the corners before saving.";
       renderImageReview();
-      elements.imageReviewMessage.textContent = "Detected edges applied. Review the corners before saving.";
+      scheduleDraftPreview();
       return;
     }
-    elements.imageReviewMessage.textContent = copy.assistUnavailable;
+    state.reviewMessage = copy.assistUnavailable;
+    elements.imageReviewMessage.textContent = state.reviewMessage;
   } catch (error) {
     if (error.status !== 401) {
-      elements.imageReviewMessage.textContent = copy.assistUnavailable;
+      state.reviewMessage = copy.assistUnavailable;
+      elements.imageReviewMessage.textContent = state.reviewMessage;
     }
   }
 }
@@ -1470,11 +1798,15 @@ async function saveImageAdjustments() {
     const item = await jsonRequest(
       endpoints.imageAdjustment(itemId, imageId),
       "PATCH",
-      state.reviewDraftAdjustment
+      canonicalReviewAdjustment(state.reviewDraftAdjustment)
     );
     state.currentItem = item;
-    state.reviewSavedAdjustment = cloneAdjustment(state.reviewDraftAdjustment);
-    elements.imageReviewMessage.textContent = copy.adjustmentSaved;
+    state.reviewSavedAdjustment = canonicalReviewAdjustment(state.reviewDraftAdjustment);
+    state.reviewDraftAdjustment = cloneAdjustment(state.reviewSavedAdjustment);
+    state.reviewImage.adjustment = cloneAdjustment(state.reviewSavedAdjustment);
+    state.reviewMessage = copy.adjustmentSaved;
+    syncReviewDirtyState();
+    elements.imageReviewMessage.textContent = state.reviewMessage;
   } catch (error) {
     if (error.status !== 401) {
       elements.imageReviewMessage.textContent =
@@ -1484,10 +1816,10 @@ async function saveImageAdjustments() {
 }
 
 function discardImageEdits() {
-  if (!window.confirm(copy.discardImageEdits)) {
+  if (state.reviewDirty && !window.confirm(copy.discardImageEdits)) {
     return;
   }
-  state.reviewDraftAdjustment = cloneAdjustment(state.reviewSavedAdjustment);
+  clearImageReviewState();
   setView("add-item-view");
   renderImages(state.currentItem?.images || [], state.currentItem?.cleanupWarnings || []);
 }
@@ -1504,8 +1836,10 @@ async function resetImageAdjustments() {
     state.currentItem = item;
     state.reviewSavedAdjustment = identityReviewAdjustment();
     state.reviewDraftAdjustment = identityReviewAdjustment();
+    state.reviewImage.adjustment = null;
+    state.reviewMessage = "Adjustments cleared. The original upload is unchanged.";
     renderImageReview();
-    elements.imageReviewMessage.textContent = "Adjustments cleared. The original upload is unchanged.";
+    scheduleDraftPreview({ immediate: true });
   } catch (error) {
     if (error.status !== 401) {
       elements.imageReviewMessage.textContent = error.message;
@@ -1790,6 +2124,13 @@ async function retryCleanup(imageId) {
 }
 
 function ensureSavedBeforePublish() {
+  if (state.reviewDirty) {
+    setView("image-review-view");
+    state.reviewMessage = "Save or discard image adjustments before publishing.";
+    elements.imageReviewMessage.textContent = state.reviewMessage;
+    elements.imageReviewMessage.focus();
+    return false;
+  }
   if (!state.dirty) {
     return true;
   }
@@ -1800,6 +2141,9 @@ function ensureSavedBeforePublish() {
 }
 
 function ensureSavedBeforeImageChange() {
+  if (state.reviewDirty && !confirmDiscardReviewForNavigation()) {
+    return false;
+  }
   if (!state.dirty) {
     return true;
   }
@@ -1810,6 +2154,9 @@ function ensureSavedBeforeImageChange() {
 }
 
 function ensureSavedBeforeOpeningAnotherItem() {
+  if (state.reviewDirty && !confirmDiscardReviewForNavigation()) {
+    return false;
+  }
   if (!state.dirty) {
     return true;
   }
@@ -1820,6 +2167,9 @@ function ensureSavedBeforeOpeningAnotherItem() {
 }
 
 function ensureSavedBeforeManagingSigner() {
+  if (state.reviewDirty && !confirmDiscardReviewForNavigation()) {
+    return false;
+  }
   if (!state.dirty) {
     return true;
   }
@@ -1888,6 +2238,7 @@ const markDirty = (event) => {
   elements.discardUnsaved.hidden = false;
   elements.publishFromEditor.setAttribute("aria-disabled", "true");
   elements.dirtyState.textContent = "Unsaved client-side edits. Save before publishing.";
+  syncPublishAvailability();
 };
 
 function publishFromEditor() {
@@ -1958,6 +2309,10 @@ elements.loginForm.addEventListener("submit", async (event) => {
 });
 
 elements.logout.addEventListener("click", async () => {
+  if (state.reviewDirty && !window.confirm(copy.discardImageEditsForNavigation)) {
+    return;
+  }
+  clearImageReviewState();
   try {
     await request(endpoints.logout, { method: "POST" });
   } finally {
@@ -1971,7 +2326,7 @@ for (const tab of elements.tabs) {
       openNewItemEditor();
       return;
     }
-    setView(tab.dataset.view);
+    navigateToView(tab.dataset.view);
   });
 }
 
@@ -1979,7 +2334,7 @@ $("#refresh-status").addEventListener("click", renderHub);
 $("#refresh-diagnostics").addEventListener("click", renderHub);
 $("#refresh-items").addEventListener("click", renderItemList);
 $("#refresh-history").addEventListener("click", () => renderHistory());
-$("#back-to-hub").addEventListener("click", () => setView("hub-view"));
+$("#back-to-hub").addEventListener("click", () => navigateToView("hub-view"));
 $("#add-another-item").addEventListener("click", openNewItemEditor);
 $("#add-signer-row").addEventListener("click", () => {
   const index = elements.signerRows.children.length;
@@ -2010,9 +2365,18 @@ for (const control of document.querySelectorAll("[data-adjustment-field]")) {
       return;
     }
     state.reviewDraftAdjustment[control.dataset.adjustmentField] = Number(control.value);
-    renderImageReview();
+    syncReviewDirtyState();
+    scheduleDraftPreview();
   });
 }
+
+window.addEventListener("beforeunload", (event) => {
+  if (!state.dirty && !state.reviewDirty) {
+    return;
+  }
+  event.preventDefault();
+  event.returnValue = "";
+});
 
 elements.itemForm.addEventListener("submit", saveItem);
 elements.itemForm.addEventListener("input", markDirty);
@@ -2026,4 +2390,6 @@ elements.signerManagementForm.addEventListener("submit", (event) => {
   renderSignerManagement();
 });
 
-bootstrapSession();
+if (!window.__AUTOGRAPHS_STATIC_ADMIN_TEST__) {
+  bootstrapSession();
+}
