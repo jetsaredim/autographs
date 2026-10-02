@@ -198,6 +198,7 @@ Resume file: None
 
 | Date | Task | Summary |
 |------|------|---------|
+| 2026-10-01 | update-agents-md-with-the-valid-conventi | Documented the exact allowed Conventional Commit types (`feat`, `fix`, `perf`, `revert`, `docs`, and `chore`) in a manual AGENTS.md section and explicitly rejected every other type identifier. Implementation commit `b34f07c`. |
 | 2026-09-20 | enforce-a-uek-only-production-kernel-pos | Enforced fail-closed UEK running/default checks, safe RHCK cleanup and exclusions, stale non-rescue boot-entry cleanup, and an actionable no-approval `configure` scanner state that prevents patch/reboot loops. Implementation commit `1bd3796`. |
 | 2026-09-18 | streamline-controller-ci-compilation-and | Removed duplicate test compilation, added an exportable cargo-chef dependency layer, and skipped runtime-image builds for unrelated PRs. Implementation commit `fff42a1`. |
 | 2026-09-18 | update-oracle-fromdbvalue-lifetime-bound | Added higher-ranked lifetime bounds to the Oracle row-value helpers for `oracledb 26.0.0-beta.3`; production-feature tests and the release controller build pass. Implementation commit `9301c6a`. |

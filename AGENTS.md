@@ -162,6 +162,12 @@ Use these entry points:
 Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
 <!-- GSD:workflow-end -->
 
+## Conventional Commit Type Identifiers
+
+The valid Conventional Commit type identifiers are exactly `feat`, `fix`, `perf`, `revert`, `docs`, and `chore`.
+
+All other Conventional Commit type identifiers are invalid for this repository.
+
 ## Git Commit Branch Guardrails
 
 - Never commit directly to `main` or `master`.
