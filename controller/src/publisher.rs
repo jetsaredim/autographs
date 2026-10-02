@@ -501,7 +501,16 @@ struct PublishProgress {
 
 struct BuildPublicItemsResult {
     items: Vec<PublicSourceItem>,
+    image_previews: Vec<PublishedImagePreview>,
     progress: PublishProgress,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PublishedImagePreview {
+    item_id: Uuid,
+    image_id: Uuid,
+    detail_path: String,
 }
 
 struct DerivativeCache {
@@ -739,6 +748,28 @@ impl LocalPublisher {
         retention_status(&self.root, self.retention_policy)
     }
 
+    pub fn public_image_preview(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+    ) -> Result<Option<String>, String> {
+        let Some(release_id) = active_release_id(&self.root)? else {
+            return Ok(None);
+        };
+        let map_path = admin_image_map_path(&self.root, &release_id);
+        if !map_path.is_file() {
+            return Ok(None);
+        }
+        let bytes = fs::read(&map_path)
+            .map_err(|error| format!("read active release image map: {error}"))?;
+        let previews: Vec<PublishedImagePreview> = serde_json::from_slice(&bytes)
+            .map_err(|error| format!("parse active release image map: {error}"))?;
+        Ok(previews
+            .into_iter()
+            .find(|preview| preview.item_id == item_id && preview.image_id == image_id)
+            .map(|preview| preview.detail_path))
+    }
+
     pub async fn acquire_publish_lock(&self) -> AsyncMutexGuard<'_, ()> {
         self.publish_lock.lock().await
     }
@@ -843,6 +874,7 @@ impl LocalPublisher {
                     "static publish failed"
                 );
                 retain_failed_candidates(&self.root, &candidate, self.retention_policy)?;
+                remove_admin_image_map(&self.root, &release_id)?;
                 let status = PublishStatus {
                     state: "failed".to_owned(),
                     stage: Some(PublishStage::Failed.as_str().to_owned()),
@@ -937,6 +969,7 @@ impl LocalPublisher {
             &public_items.items,
             self.generator_metadata.clone(),
         )?;
+        write_admin_image_map(&self.root, release_id, &public_items.image_previews)?;
         validate_private_source_absence(candidate, &items)?;
         tracing::info!(
             release_id = %release_id,
@@ -1028,6 +1061,7 @@ async fn build_public_items(
 ) -> Result<BuildPublicItemsResult, String> {
     let mut used_slugs = BTreeSet::new();
     let mut public_items = Vec::new();
+    let mut image_previews = Vec::new();
     let mut progress = PublishProgress {
         item_count: items.len(),
         ..Default::default()
@@ -1163,6 +1197,17 @@ async fn build_public_items(
                     content_type: derivative.content_type.to_owned(),
                 });
             }
+            let detail_path = variants
+                .iter()
+                .find(|variant| variant.name == ImageVariantName::Detail)
+                .expect("detail derivative is generated")
+                .path
+                .clone();
+            image_previews.push(PublishedImagePreview {
+                item_id: item.id,
+                image_id: image.id,
+                detail_path,
+            });
             images.push(PublicImage {
                 alt_text: image
                     .alt_text
@@ -1212,8 +1257,37 @@ async fn build_public_items(
     }
     Ok(BuildPublicItemsResult {
         items: public_items,
+        image_previews,
         progress,
     })
+}
+
+fn admin_image_map_path(root: &Path, release_id: &str) -> PathBuf {
+    root.join(".admin-release-maps")
+        .join(format!("{release_id}.json"))
+}
+
+fn write_admin_image_map(
+    root: &Path,
+    release_id: &str,
+    previews: &[PublishedImagePreview],
+) -> Result<(), String> {
+    let path = admin_image_map_path(root, release_id);
+    let parent = path.parent().expect("admin image map parent");
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("create active release image map directory: {error}"))?;
+    let bytes = serde_json::to_vec(previews)
+        .map_err(|error| format!("serialize active release image map: {error}"))?;
+    fs::write(path, bytes).map_err(|error| format!("write active release image map: {error}"))
+}
+
+fn remove_admin_image_map(root: &Path, release_id: &str) -> Result<(), String> {
+    let path = admin_image_map_path(root, release_id);
+    if path.exists() {
+        fs::remove_file(path)
+            .map_err(|error| format!("remove inactive release image map: {error}"))?;
+    }
+    Ok(())
 }
 
 enum DerivativeSourceKey {
@@ -1892,6 +1966,7 @@ fn prune_promoted_releases(
         if !retained.contains(&release.name) {
             fs::remove_dir_all(&release.path)
                 .map_err(|error| format!("prune promoted release: {error}"))?;
+            remove_admin_image_map(root, &release.name)?;
         }
     }
     Ok(())

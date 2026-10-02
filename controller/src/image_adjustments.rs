@@ -111,6 +111,17 @@ impl ImageAdjustment {
             && self.perspective.is_none()
     }
 
+    pub fn into_canonical(mut self) -> Option<Self> {
+        if self
+            .perspective
+            .as_ref()
+            .is_some_and(ImagePerspective::is_full_frame)
+        {
+            self.perspective = None;
+        }
+        (!self.is_identity()).then_some(self)
+    }
+
     pub fn from_json(value: &str) -> Result<Self, String> {
         let adjustment = serde_json::from_str::<Self>(value)
             .map_err(|error| format!("parse image adjustment: {error}"))?;
@@ -159,6 +170,16 @@ impl ImagePerspective {
 
     fn normalized_source_points(&self) -> [(f32, f32); 4] {
         self.corners.map(|corner| (corner.x, corner.y))
+    }
+
+    fn is_full_frame(&self) -> bool {
+        self.corners
+            == [
+                ImagePoint { x: 0.0, y: 0.0 },
+                ImagePoint { x: 1.0, y: 0.0 },
+                ImagePoint { x: 1.0, y: 1.0 },
+                ImagePoint { x: 0.0, y: 1.0 },
+            ]
     }
 }
 
