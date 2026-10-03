@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, process::Command};
 
 #[test]
 fn static_admin_source_keeps_secrets_private_and_privileged_calls_same_origin() {
@@ -255,7 +255,7 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
 
     let state_icon_fragments = [
         "pendingChangesIcon(item.hasPendingChanges)",
-        "publicationStatusButton(item.publicationStatus, () => setView(\"publish-view\"))",
+        "publicationStatusButton(item.publicationStatus, () => navigateToView(\"publish-view\"))",
     ];
     let mut previous_position = 0;
     for fragment in state_icon_fragments {
@@ -281,7 +281,7 @@ fn static_admin_item_list_keeps_compact_icon_column_contract() {
         "cell.append(layout);",
         "copy.title = formatEpoch(item.updatedAtEpochSeconds);",
         "pendingChangesIcon(item.hasPendingChanges)",
-        "publicationStatusButton(item.publicationStatus, () => setView(\"publish-view\"))",
+        "publicationStatusButton(item.publicationStatus, () => navigateToView(\"publish-view\"))",
     ] {
         assert!(
             source.contains(accessibility_fragment),
@@ -561,6 +561,165 @@ fn static_admin_image_actions_require_saved_changes_in_shared_path() {
             "static admin source should guard image actions with {expected}"
         );
     }
+}
+
+#[test]
+fn static_admin_image_review_contract_is_private_accessible_and_draft_local() {
+    let source = static_admin_source();
+    for expected in [
+        "id=\"image-review-view\"",
+        "id=\"image-review-stage\"",
+        "id=\"image-review-controls\"",
+        "id=\"image-review-message\"",
+        "id=\"image-review-save\"",
+        "id=\"image-review-discard\"",
+        "id=\"image-review-reset\"",
+        "Review image",
+        "Save adjustments",
+        "Back to item editor",
+        "Reset adjustments",
+        "Preview unavailable. Retry the preview or replace the image; provider details are hidden from the browser.",
+        "Private image only. Publish when this item is ready for the public catalog.",
+        "Adjustments saved privately. Publish changes when this image is ready for the public site.",
+        "Auto correction could not find reliable edges. Adjust the corners manually.",
+        "Top left corner",
+        "Top right corner",
+        "Bottom right corner",
+        "Bottom left corner",
+        "imagePreview",
+        "imageDraftPreview",
+        "imageSourcePreview",
+        "imageReview",
+        "imageAdjustment",
+        "imageAdjustmentAssist",
+        "openImageReview",
+        "renderImagePreviewFrame",
+        "renderImageReview",
+        "saveImageAdjustments",
+        "resetImageAdjustments",
+        "discardImageEdits",
+        "detectImageEdges",
+        "renderPerspectiveHandles",
+        "setReviewComparisonMode",
+        "status === \"confident\"",
+        "aspect-ratio: 4 / 3",
+        ".review-matte",
+        ".corner-handle",
+        ".dirty-adjustment-band",
+        "Retry preview",
+        "aria-pressed=\"true\"",
+        "grid-template-columns: 1fr",
+    ] {
+        assert!(
+            source.contains(expected),
+            "static admin image review contract is missing {expected}"
+        );
+    }
+
+    for denied in [
+        "storageNamespace",
+        "bucketName",
+        "objectKey",
+        "https://objectstorage",
+        "originalFilename",
+        "localStorage",
+        "sessionStorage",
+    ] {
+        assert!(
+            !source.contains(denied),
+            "static admin image review source must not contain {denied}"
+        );
+    }
+}
+
+#[test]
+fn static_admin_image_review_uses_dom_nodes_and_same_origin_endpoints() {
+    let javascript = static_admin_file("admin.js");
+    let review = source_section(
+        &javascript,
+        "function renderImagePreviewFrame(itemId, image) {",
+        "async function renderHistory(",
+    );
+    for expected in [
+        "document.createElement(\"img\")",
+        "endpoints.imagePreview(itemId, image.id)",
+        "preview.alt = image.altText || \"Private autograph image preview\";",
+        "buttonNode(\"Retry preview\"",
+        "element.textContent = text;",
+        "request(endpoints.imageReview(itemId, imageId))",
+        "request(endpoints.imageAdjustmentAssist(itemId, imageId), { method: \"POST\" })",
+        "fetch(draftPreviewUrl",
+        "canonicalReviewAdjustment(state.reviewDraftAdjustment)",
+        "publicCurrentPreviewUrl",
+        "syncReviewComparisonButtons",
+        "setPointerCapture",
+        "beforeunload",
+        "jsonRequest(",
+        "endpoints.imageAdjustment(itemId, imageId)",
+    ] {
+        assert!(
+            javascript.contains(expected),
+            "static admin image review DOM/request contract is missing {expected}"
+        );
+    }
+    assert!(
+        !review.contains("innerHTML"),
+        "image review must render dynamic values through DOM nodes and textContent"
+    );
+    for endpoint in [
+        "imagePreview",
+        "imageDraftPreview",
+        "imageSourcePreview",
+        "imageReview",
+        "imageAdjustment",
+        "imageAdjustmentAssist",
+    ] {
+        let marker = format!("{endpoint}: (id, imageId) =>");
+        let start = javascript
+            .find(&marker)
+            .unwrap_or_else(|| panic!("missing endpoint {endpoint}"));
+        let endpoint_source = &javascript[start
+            ..javascript[start..]
+                .find(",\n")
+                .map(|end| start + end)
+                .unwrap_or(javascript.len())];
+        assert!(
+            endpoint_source.contains("/admin/api/items/"),
+            "{endpoint} must remain same-origin under /admin/api"
+        );
+    }
+}
+
+#[test]
+fn static_admin_review_behavior_executes_against_a_dom_harness() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let script = root.join("tests/static_admin_behavior.mjs");
+    let output = Command::new("node")
+        .arg(&script)
+        .current_dir(&root)
+        .output()
+        .expect("run static admin behavior harness with node");
+    assert!(
+        output.status.success(),
+        "static admin behavior harness failed:\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn static_admin_review_layout_has_a_narrow_viewport_override() {
+    let css = static_admin_file("admin.css");
+    let columns = css_property_values(&css, ".review-layout", "grid-template-columns");
+    assert!(
+        columns.iter().any(|value| value == "1fr"),
+        "review layout must collapse to one column at the narrow breakpoint"
+    );
+    let minimum_heights = css_property_values(&css, ".review-stage", "min-height");
+    assert!(
+        minimum_heights.iter().any(|value| value == "18rem"),
+        "review stage must reduce its minimum height at narrow viewports"
+    );
 }
 
 #[test]

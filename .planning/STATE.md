@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 08
 current_phase_name: Admin Media Review and Operational Posture
 status: executing
-stopped_at: Completed 08-05-PLAN.md
-last_updated: "2026-09-30T01:48:33.280Z"
-last_activity: 2026-09-30
-last_activity_desc: Completed Phase 08 Plan 05 Oracle image adjustment persistence
-state_head: 09bdb6a0e3ca96336e813f1aa7b2eca0d8248db9
+stopped_at: Completed 08-06-PLAN.md
+last_updated: "2026-10-01T19:51:45.566Z"
+last_activity: 2026-10-01
+last_activity_desc: Phase 08 execution started
+state_head: 1d181865b9a92b83c00a2eedf253dbe5562953e9
 progress:
   total_phases: 10
   completed_phases: 7
-  total_plans: 47
-  completed_plans: 44
+  total_plans: 48
+  completed_plans: 45
 milestone_name: milestone
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 ## Current Position
 
 Phase: 08 (Admin Media Review and Operational Posture) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 9
 Status: Ready to execute
-Last activity: 2026-09-30 — Completed Phase 08 Plan 05 Oracle image adjustment persistence
+Last activity: 2026-10-01 — Phase 08 execution started
 
 Progress: [█████████░] 94% of milestone plans complete; Phase 8 Plan 6 is next
 
@@ -92,6 +92,7 @@ Progress: [█████████░] 94% of milestone plans complete; Phas
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 08 P05 | 7min | 2 tasks | 4 files |
+| Phase 08 P06 | 6h 57m | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -165,6 +166,9 @@ Recent decisions affecting current work:
 - [Phase 08]: Persist Oracle image adjustment metadata as validated typed JSON in a nullable CLOB. — Option<String> binding represents reset as SQL NULL while ImageAdjustment serialization preserves the validated private contract.
 - [Phase 08]: Redact malformed persisted adjustment JSON at the Oracle adapter boundary. — The controller should reject tampered data without exposing stored payload contents or internal parsing detail.
 - [Phase 08]: Clear adjustment_json in the private-original replacement statement. — Correction geometry belongs to a specific source image and must not carry across replacement media.
+- [Phase 08]: Use authenticated detail-sized adjusted WebP previews with no-store headers for both normal tiles and focused review.
+- [Phase 08]: Keep static-admin image adjustments draft-local until explicit save, confirmed discard, or confirmed reset.
+- [Phase 08]: Apply only confident four-corner auto-assist proposals and preserve manual handles for unavailable results.
 
 ### Pending Todos
 
@@ -190,8 +194,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-09-30T01:48:07.843Z
-Stopped at: Completed 08-05-PLAN.md
+Last session: 2026-10-01T19:51:45.364Z
+Stopped at: Completed 08-06-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed

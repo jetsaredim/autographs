@@ -2,6 +2,7 @@ use std::{sync::Arc, time::Instant};
 
 use axum::{
     Json, Router,
+    body::Bytes,
     extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
@@ -20,9 +21,15 @@ use crate::{
         MemoryCatalogRepository, PublicationStatus, REQUIRED_FIELDS_ERROR, now_epoch_seconds,
     },
     config::ControllerConfig,
-    image_adjustments::ImageAdjustment,
+    derivatives::DerivativeVariant,
+    image_adjustments::{
+        ImageAdjustment, ImageAdjustmentProposalStatus, ImagePoint, generate_adjusted_derivative,
+        propose_image_adjustment,
+    },
     media::{LocalMediaStore, PrivateMediaStore},
-    publisher::{LocalPublisher, PublishMode, PublishStatus, ReleaseRetentionPolicy},
+    publisher::{
+        LocalPublisher, PublicImagePreview, PublishMode, PublishStatus, ReleaseRetentionPolicy,
+    },
     storage_keys::build_original_object_key,
 };
 
@@ -296,6 +303,30 @@ pub fn router_with_services(
         .route(
             "/admin/api/items/{id}/images/{image_id}/primary",
             post(set_primary_image),
+        )
+        .route(
+            "/admin/api/items/{id}/images/{image_id}/preview",
+            get(preview_image),
+        )
+        .route(
+            "/admin/api/items/{id}/images/{image_id}/preview/draft",
+            post(preview_image_draft),
+        )
+        .route(
+            "/admin/api/items/{id}/images/{image_id}/preview/source",
+            get(preview_image_source),
+        )
+        .route(
+            "/admin/api/items/{id}/images/{image_id}/review",
+            get(review_image),
+        )
+        .route(
+            "/admin/api/items/{id}/images/{image_id}/adjustment",
+            patch(save_image_adjustment).delete(reset_image_adjustment),
+        )
+        .route(
+            "/admin/api/items/{id}/images/{image_id}/adjustment/assist",
+            post(assist_image_adjustment),
         )
         .route(
             "/admin/api/items/{id}/images/{image_id}",
@@ -730,6 +761,403 @@ async fn set_primary_image(
         Err(error) => {
             tracing::error!(%item_id, %image_id, error = %error, "failed to set primary image");
             repository_update_error_status(&error).into_response()
+        }
+    }
+}
+
+async fn preview_image(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        tracing::warn!(status = %status, "rejected image preview request");
+        return status.into_response();
+    }
+    let loaded = match load_admin_image(&state, &id, &image_id).await {
+        Ok(loaded) => loaded,
+        Err(error) => return image_lookup_error_response("preview", &id, &image_id, error),
+    };
+    image_preview_response(
+        &state,
+        loaded.item_id,
+        loaded.image_id,
+        &loaded.image,
+        loaded.image.adjustment.as_ref(),
+    )
+    .await
+}
+
+async fn preview_image_draft(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, "rejected draft image preview request");
+        return status.into_response();
+    }
+    let loaded = match load_admin_image(&state, &id, &image_id).await {
+        Ok(loaded) => loaded,
+        Err(error) => return image_lookup_error_response("draft preview", &id, &image_id, error),
+    };
+    let Ok(input) = serde_json::from_slice::<AdminImageAdjustmentRequest>(&body) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    if input.0.validate().is_err() {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    let adjustment = input.0.into_canonical();
+    image_preview_response(
+        &state,
+        loaded.item_id,
+        loaded.image_id,
+        &loaded.image,
+        adjustment.as_ref(),
+    )
+    .await
+}
+
+async fn preview_image_source(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        tracing::warn!(status = %status, "rejected source guide preview request");
+        return status.into_response();
+    }
+    let loaded = match load_admin_image(&state, &id, &image_id).await {
+        Ok(loaded) => loaded,
+        Err(error) => {
+            return image_lookup_error_response("source guide preview", &id, &image_id, error);
+        }
+    };
+    image_preview_response(&state, loaded.item_id, loaded.image_id, &loaded.image, None).await
+}
+
+async fn image_preview_response(
+    state: &AppState,
+    item_id: Uuid,
+    image_id: Uuid,
+    image: &AutographImage,
+    adjustment: Option<&ImageAdjustment>,
+) -> Response {
+    let source = match state.media.read(&image.object_key).await {
+        Ok(source) => source,
+        Err(error) => {
+            tracing::error!(%item_id, %image_id, error_kind = classify_media_error(&error), "failed to read private image for preview");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Private image preview is unavailable. Check controller logs for details.",
+            )
+                .into_response();
+        }
+    };
+    let derivative = match generate_adjusted_derivative(
+        &source,
+        DerivativeVariant::Detail,
+        adjustment,
+    ) {
+        Ok(derivative) => derivative,
+        Err(error) => {
+            tracing::error!(%item_id, %image_id, error_kind = classify_media_error(&error), "failed to generate private image preview");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Private image preview is unavailable. Check controller logs for details.",
+            )
+                .into_response();
+        }
+    };
+    (
+        [
+            (header::CONTENT_TYPE, HeaderValue::from_static("image/webp")),
+            (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
+        ],
+        derivative.bytes,
+    )
+        .into_response()
+}
+
+async fn review_image(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        tracing::warn!(status = %status, "rejected image review request");
+        return status.into_response();
+    }
+    let loaded = match load_admin_image(&state, &id, &image_id).await {
+        Ok(loaded) => loaded,
+        Err(error) => return image_lookup_error_response("review", &id, &image_id, error),
+    };
+    let public_image_preview = match state
+        .publisher
+        .public_image_preview(loaded.item_id, loaded.image_id)
+    {
+        Ok(preview) => preview,
+        Err(_) => {
+            tracing::error!(item_id = %loaded.item_id, image_id = %loaded.image_id, error_kind = "active_release_lookup_failed", "failed to resolve public current image preview");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let (public_current_preview_url, comparison_migration_required) = match public_image_preview {
+        PublicImagePreview::Available(preview) => (preview, false),
+        PublicImagePreview::MapMigrationRequired => (None, true),
+        PublicImagePreview::NoActiveRelease => (None, false),
+    };
+    let has_pending_changes = if public_current_preview_url.is_some() {
+        match state
+            .repository
+            .pending_changes_for_item(loaded.item_id)
+            .await
+        {
+            Ok(summary) => summary.count > 0,
+            Err(_) => {
+                tracing::error!(item_id = %loaded.item_id, error_kind = "repository_pending_lookup_failed", "failed to resolve image review publish state");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        }
+    } else {
+        false
+    };
+    let (review_state, message) = match (
+        &public_current_preview_url,
+        has_pending_changes,
+        comparison_migration_required
+            && loaded.item.publication_status == PublicationStatus::Published,
+    ) {
+        (None, _, true) => (
+            "comparisonMigrationRequired",
+            "Public comparison needs one full publish after this controller upgrade. The active public release remains unchanged until that publish succeeds.",
+        ),
+        (Some(_), true, _) => (
+            "unpublishedChanges",
+            "Private changes are not published yet. Compare latest with the current public image.",
+        ),
+        (Some(_), false, _) => (
+            "published",
+            "Latest private image matches the current published release.",
+        ),
+        (None, _, _) => (
+            "privateOnly",
+            "Private image only. Publish when this item is ready for the public catalog.",
+        ),
+    };
+    Json(AdminImageReviewResponse {
+        item_id: loaded.item_id,
+        image_id: loaded.image_id,
+        private_preview_url: format!(
+            "/admin/api/items/{}/images/{}/preview",
+            loaded.item_id, loaded.image_id
+        ),
+        draft_preview_url: format!(
+            "/admin/api/items/{}/images/{}/preview/draft",
+            loaded.item_id, loaded.image_id
+        ),
+        source_guide_preview_url: format!(
+            "/admin/api/items/{}/images/{}/preview/source",
+            loaded.item_id, loaded.image_id
+        ),
+        can_compare_public_current: public_current_preview_url.is_some(),
+        public_current_preview_url,
+        state: review_state,
+        adjustment: loaded.image.adjustment,
+        message,
+    })
+    .into_response()
+}
+
+async fn save_image_adjustment(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, "rejected image adjustment save request");
+        return status.into_response();
+    }
+    let image_id_text = image_id;
+    let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id_text))
+    else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let Ok(input) = serde_json::from_slice::<AdminImageAdjustmentRequest>(&body) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    if input.0.validate().is_err() {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    let loaded = match load_admin_image(&state, &id, &image_id_text).await {
+        Ok(loaded) => loaded,
+        Err(error) => {
+            return image_lookup_error_response("adjustment save", &id, &image_id_text, error);
+        }
+    };
+    let adjustment = input.0.into_canonical();
+    if loaded.image.adjustment == adjustment {
+        return Json(AdminImageAdjustmentResponse(
+            item_response_with_state(&state, loaded.item).await,
+        ))
+        .into_response();
+    }
+    match state
+        .repository
+        .update_image_adjustment(item_id, image_id, adjustment)
+        .await
+    {
+        Ok(item) => Json(AdminImageAdjustmentResponse(
+            item_response_with_state(&state, item).await,
+        ))
+        .into_response(),
+        Err(error) => repository_update_error_status(&error).into_response(),
+    }
+}
+
+async fn reset_image_adjustment(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, "rejected image adjustment reset request");
+        return status.into_response();
+    }
+    let image_id_text = image_id;
+    let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(&id), Uuid::parse_str(&image_id_text))
+    else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    let loaded = match load_admin_image(&state, &id, &image_id_text).await {
+        Ok(loaded) => loaded,
+        Err(error) => {
+            return image_lookup_error_response("adjustment reset", &id, &image_id_text, error);
+        }
+    };
+    if loaded.image.adjustment.is_none() {
+        return Json(AdminImageAdjustmentResponse(
+            item_response_with_state(&state, loaded.item).await,
+        ))
+        .into_response();
+    }
+    match state
+        .repository
+        .update_image_adjustment(item_id, image_id, None)
+        .await
+    {
+        Ok(item) => Json(AdminImageAdjustmentResponse(
+            item_response_with_state(&state, item).await,
+        ))
+        .into_response(),
+        Err(error) => repository_update_error_status(&error).into_response(),
+    }
+}
+
+async fn assist_image_adjustment(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, "rejected image adjustment assist request");
+        return status.into_response();
+    }
+    let loaded = match load_admin_image(&state, &id, &image_id).await {
+        Ok(loaded) => loaded,
+        Err(error) => {
+            return image_lookup_error_response("adjustment assist", &id, &image_id, error);
+        }
+    };
+    let item_id = loaded.item_id;
+    let image_id = loaded.image_id;
+    let image = loaded.image;
+    let source = match state.media.read(&image.object_key).await {
+        Ok(source) => source,
+        Err(error) => {
+            tracing::error!(%item_id, %image_id, error_kind = classify_media_error(&error), "failed to read private image for adjustment assist");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    match propose_image_adjustment(&source) {
+        Ok(proposal) => Json(AdminImageAssistResponse {
+            status: proposal.status,
+            corners: proposal.corners,
+            message: proposal.message,
+        })
+        .into_response(),
+        Err(error) => {
+            tracing::error!(%item_id, %image_id, error_kind = classify_media_error(&error), "failed to propose private image adjustment");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+struct LoadedAdminImage {
+    item_id: Uuid,
+    image_id: Uuid,
+    item: AutographItem,
+    image: AutographImage,
+}
+
+enum LoadAdminImageError {
+    MalformedId,
+    NotFound,
+    Repository,
+}
+
+async fn load_admin_image(
+    state: &AppState,
+    id: &str,
+    image_id: &str,
+) -> Result<LoadedAdminImage, LoadAdminImageError> {
+    let (Ok(item_id), Ok(image_id)) = (Uuid::parse_str(id), Uuid::parse_str(image_id)) else {
+        return Err(LoadAdminImageError::MalformedId);
+    };
+    let item = state
+        .repository
+        .get(item_id)
+        .await
+        .map_err(|_| LoadAdminImageError::Repository)?
+        .ok_or(LoadAdminImageError::NotFound)?;
+    let image = item
+        .images
+        .iter()
+        .find(|image| image.id == image_id)
+        .cloned()
+        .ok_or(LoadAdminImageError::NotFound)?;
+    Ok(LoadedAdminImage {
+        item_id,
+        image_id,
+        item,
+        image,
+    })
+}
+
+fn image_lookup_error_response(
+    operation: &'static str,
+    id: &str,
+    image_id: &str,
+    error: LoadAdminImageError,
+) -> Response {
+    match error {
+        LoadAdminImageError::MalformedId => StatusCode::BAD_REQUEST.into_response(),
+        LoadAdminImageError::NotFound => StatusCode::NOT_FOUND.into_response(),
+        LoadAdminImageError::Repository => {
+            tracing::error!(
+                operation,
+                item_id = id,
+                image_id,
+                error_kind = "repository_load_failed",
+                "failed to load admin image"
+            );
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
 }
@@ -1664,6 +2092,38 @@ pub(super) struct ItemResponse {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct AdminImageReviewResponse {
+    item_id: Uuid,
+    image_id: Uuid,
+    private_preview_url: String,
+    draft_preview_url: String,
+    source_guide_preview_url: String,
+    public_current_preview_url: Option<String>,
+    state: &'static str,
+    adjustment: Option<ImageAdjustment>,
+    can_compare_public_current: bool,
+    message: &'static str,
+}
+
+#[derive(Deserialize)]
+#[serde(transparent)]
+struct AdminImageAdjustmentRequest(ImageAdjustment);
+
+#[derive(Serialize)]
+#[serde(transparent)]
+struct AdminImageAdjustmentResponse(ItemResponse);
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AdminImageAssistResponse {
+    status: ImageAdjustmentProposalStatus,
+    corners: Vec<ImagePoint>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SignerCreditResponse {
     signer: admin_items::AdminSignerProfileResponse,
     sort_order: i32,
@@ -1767,6 +2227,7 @@ struct PublishSummaryResponse {
     started_at_epoch_seconds: Option<i64>,
     finished_at_epoch_seconds: Option<i64>,
     error: Option<String>,
+    cleanup_warning: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1816,6 +2277,7 @@ impl From<PublishStatus> for PublishSummaryResponse {
             started_at_epoch_seconds: status.started_at_epoch_seconds,
             finished_at_epoch_seconds: status.finished_at_epoch_seconds,
             error: status.error,
+            cleanup_warning: status.cleanup_warning,
         }
     }
 }

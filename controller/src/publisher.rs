@@ -45,6 +45,7 @@ const ADMIN_HTML: &str = include_str!("../static-admin/index.html");
 const ADMIN_JS: &str = include_str!("../static-admin/admin.js");
 const ADMIN_CSS: &str = include_str!("../static-admin/admin.css");
 const SAFE_PUBLISH_ERROR: &str = "Static publish failed. Check controller logs for details.";
+const SAFE_RELEASE_CLEANUP_WARNING: &str = "The release is active, but old release cleanup needs attention and will be retried on a later publish.";
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -440,6 +441,7 @@ pub struct PublishStatus {
     pub started_at_epoch_seconds: Option<i64>,
     pub finished_at_epoch_seconds: Option<i64>,
     pub error: Option<String>,
+    pub cleanup_warning: Option<String>,
 }
 
 impl Default for PublishStatus {
@@ -456,6 +458,7 @@ impl Default for PublishStatus {
             started_at_epoch_seconds: None,
             finished_at_epoch_seconds: None,
             error: None,
+            cleanup_warning: None,
         }
     }
 }
@@ -501,7 +504,23 @@ struct PublishProgress {
 
 struct BuildPublicItemsResult {
     items: Vec<PublicSourceItem>,
+    image_previews: Vec<PublishedImagePreview>,
     progress: PublishProgress,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PublishedImagePreview {
+    item_id: Uuid,
+    image_id: Uuid,
+    detail_path: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PublicImagePreview {
+    NoActiveRelease,
+    MapMigrationRequired,
+    Available(Option<String>),
 }
 
 struct DerivativeCache {
@@ -739,6 +758,30 @@ impl LocalPublisher {
         retention_status(&self.root, self.retention_policy)
     }
 
+    pub fn public_image_preview(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+    ) -> Result<PublicImagePreview, String> {
+        let Some(release_id) = active_release_id(&self.root)? else {
+            return Ok(PublicImagePreview::NoActiveRelease);
+        };
+        let map_path = admin_image_map_path(&self.root, &release_id);
+        if !map_path.is_file() {
+            return Ok(PublicImagePreview::MapMigrationRequired);
+        }
+        let bytes = fs::read(&map_path)
+            .map_err(|error| format!("read active release image map: {error}"))?;
+        let previews: Vec<PublishedImagePreview> = serde_json::from_slice(&bytes)
+            .map_err(|error| format!("parse active release image map: {error}"))?;
+        Ok(PublicImagePreview::Available(
+            previews
+                .into_iter()
+                .find(|preview| preview.item_id == item_id && preview.image_id == image_id)
+                .map(|preview| preview.detail_path),
+        ))
+    }
+
     pub async fn acquire_publish_lock(&self) -> AsyncMutexGuard<'_, ()> {
         self.publish_lock.lock().await
     }
@@ -778,7 +821,7 @@ impl LocalPublisher {
             "static publish accepted"
         );
 
-        let result = self
+        let prepared = self
             .build_candidate(repository, media, mode, &release_id, &candidate)
             .await
             .and_then(|progress| {
@@ -793,69 +836,105 @@ impl LocalPublisher {
                     "static publish validation completed"
                 );
                 Ok((manifest, progress))
-            })
-            .and_then(|(manifest, progress)| {
-                self.update_progress(&release_id, PublishStage::PromotingRelease, &progress);
-                promote_candidate(&self.root, &release_id)?;
-                prune_promoted_releases(&self.root, self.retention_policy)?;
-                tracing::info!(
-                    release_id = %release_id,
-                    mode = ?mode,
-                    stage = PublishStage::PromotingRelease.as_str(),
-                    "static publish release promotion completed"
-                );
-                Ok((manifest, progress))
             });
 
-        match result {
-            Ok((manifest, progress)) => {
-                let status = PublishStatus {
-                    state: "succeeded".to_owned(),
-                    stage: Some(PublishStage::Succeeded.as_str().to_owned()),
-                    release_id: Some(release_id),
-                    artifact_count: manifest.artifacts.len(),
-                    byte_size: manifest
-                        .artifacts
-                        .iter()
-                        .map(|artifact| artifact.byte_size)
-                        .sum(),
-                    item_count: progress.item_count,
-                    image_count: progress.image_count,
-                    derivative_count: progress.derivative_count,
-                    started_at_epoch_seconds: Some(started_at_epoch_seconds),
-                    finished_at_epoch_seconds: Some(OffsetDateTime::now_utc().unix_timestamp()),
-                    error: None,
-                };
-                self.set_status(status.clone());
-                Ok(status)
-            }
+        let (manifest, progress) = match prepared {
+            Ok(prepared) => prepared,
             Err(error) => {
-                let failed_stage = self
-                    .status()
-                    .stage
-                    .unwrap_or_else(|| PublishStage::Accepted.as_str().to_owned());
-                let error_kind = classify_publish_error(&failed_stage, &error);
-                tracing::error!(
-                    release_id = %release_id,
-                    mode = ?mode,
-                    failed_stage = %failed_stage,
-                    error_kind,
-                    "static publish failed"
-                );
-                retain_failed_candidates(&self.root, &candidate, self.retention_policy)?;
-                let status = PublishStatus {
-                    state: "failed".to_owned(),
-                    stage: Some(PublishStage::Failed.as_str().to_owned()),
-                    release_id: Some(release_id),
-                    started_at_epoch_seconds: Some(started_at_epoch_seconds),
-                    finished_at_epoch_seconds: Some(OffsetDateTime::now_utc().unix_timestamp()),
-                    error: Some(SAFE_PUBLISH_ERROR.to_owned()),
-                    ..Default::default()
-                };
-                self.set_status(status);
-                Err(error)
+                self.record_pre_promotion_failure(
+                    &release_id,
+                    &candidate,
+                    mode,
+                    started_at_epoch_seconds,
+                    &error,
+                )?;
+                return Err(error);
             }
+        };
+
+        self.update_progress(&release_id, PublishStage::PromotingRelease, &progress);
+        if let Err(error) = promote_candidate(&self.root, &release_id) {
+            self.record_pre_promotion_failure(
+                &release_id,
+                &candidate,
+                mode,
+                started_at_epoch_seconds,
+                &error,
+            )?;
+            return Err(error);
         }
+
+        let cleanup_warning = post_promotion_cleanup(&self.root, self.retention_policy);
+        if cleanup_warning.is_some() {
+            tracing::warn!(
+                release_id = %release_id,
+                mode = ?mode,
+                stage = PublishStage::PromotingRelease.as_str(),
+                "static publish release is active but retention cleanup needs retry"
+            );
+        }
+        tracing::info!(
+            release_id = %release_id,
+            mode = ?mode,
+            stage = PublishStage::PromotingRelease.as_str(),
+            "static publish release promotion completed"
+        );
+
+        let status = PublishStatus {
+            state: "succeeded".to_owned(),
+            stage: Some(PublishStage::Succeeded.as_str().to_owned()),
+            release_id: Some(release_id),
+            artifact_count: manifest.artifacts.len(),
+            byte_size: manifest
+                .artifacts
+                .iter()
+                .map(|artifact| artifact.byte_size)
+                .sum(),
+            item_count: progress.item_count,
+            image_count: progress.image_count,
+            derivative_count: progress.derivative_count,
+            started_at_epoch_seconds: Some(started_at_epoch_seconds),
+            finished_at_epoch_seconds: Some(OffsetDateTime::now_utc().unix_timestamp()),
+            error: None,
+            cleanup_warning,
+        };
+        self.set_status(status.clone());
+        Ok(status)
+    }
+
+    fn record_pre_promotion_failure(
+        &self,
+        release_id: &str,
+        candidate: &Path,
+        mode: PublishMode,
+        started_at_epoch_seconds: i64,
+        error: &str,
+    ) -> Result<(), String> {
+        let failed_stage = self
+            .status()
+            .stage
+            .unwrap_or_else(|| PublishStage::Accepted.as_str().to_owned());
+        let error_kind = classify_publish_error(&failed_stage, error);
+        tracing::error!(
+            release_id,
+            mode = ?mode,
+            failed_stage = %failed_stage,
+            error_kind,
+            "static publish failed"
+        );
+        retain_failed_candidates(&self.root, candidate, self.retention_policy)?;
+        remove_admin_image_map(&self.root, release_id)?;
+        let status = PublishStatus {
+            state: "failed".to_owned(),
+            stage: Some(PublishStage::Failed.as_str().to_owned()),
+            release_id: Some(release_id.to_owned()),
+            started_at_epoch_seconds: Some(started_at_epoch_seconds),
+            finished_at_epoch_seconds: Some(OffsetDateTime::now_utc().unix_timestamp()),
+            error: Some(SAFE_PUBLISH_ERROR.to_owned()),
+            ..Default::default()
+        };
+        self.set_status(status);
+        Ok(())
     }
 
     async fn build_candidate(
@@ -937,6 +1016,7 @@ impl LocalPublisher {
             &public_items.items,
             self.generator_metadata.clone(),
         )?;
+        write_admin_image_map(&self.root, release_id, &public_items.image_previews)?;
         validate_private_source_absence(candidate, &items)?;
         tracing::info!(
             release_id = %release_id,
@@ -1028,6 +1108,7 @@ async fn build_public_items(
 ) -> Result<BuildPublicItemsResult, String> {
     let mut used_slugs = BTreeSet::new();
     let mut public_items = Vec::new();
+    let mut image_previews = Vec::new();
     let mut progress = PublishProgress {
         item_count: items.len(),
         ..Default::default()
@@ -1163,6 +1244,17 @@ async fn build_public_items(
                     content_type: derivative.content_type.to_owned(),
                 });
             }
+            let detail_path = variants
+                .iter()
+                .find(|variant| variant.name == ImageVariantName::Detail)
+                .expect("detail derivative is generated")
+                .path
+                .clone();
+            image_previews.push(PublishedImagePreview {
+                item_id: item.id,
+                image_id: image.id,
+                detail_path,
+            });
             images.push(PublicImage {
                 alt_text: image
                     .alt_text
@@ -1212,8 +1304,37 @@ async fn build_public_items(
     }
     Ok(BuildPublicItemsResult {
         items: public_items,
+        image_previews,
         progress,
     })
+}
+
+fn admin_image_map_path(root: &Path, release_id: &str) -> PathBuf {
+    root.join(".admin-release-maps")
+        .join(format!("{release_id}.json"))
+}
+
+fn write_admin_image_map(
+    root: &Path,
+    release_id: &str,
+    previews: &[PublishedImagePreview],
+) -> Result<(), String> {
+    let path = admin_image_map_path(root, release_id);
+    let parent = path.parent().expect("admin image map parent");
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("create active release image map directory: {error}"))?;
+    let bytes = serde_json::to_vec(previews)
+        .map_err(|error| format!("serialize active release image map: {error}"))?;
+    fs::write(path, bytes).map_err(|error| format!("write active release image map: {error}"))
+}
+
+fn remove_admin_image_map(root: &Path, release_id: &str) -> Result<(), String> {
+    let path = admin_image_map_path(root, release_id);
+    if path.exists() {
+        fs::remove_file(path)
+            .map_err(|error| format!("remove inactive release image map: {error}"))?;
+    }
+    Ok(())
 }
 
 enum DerivativeSourceKey {
@@ -1876,6 +1997,21 @@ fn prune_promoted_releases(
     root: &Path,
     retention_policy: ReleaseRetentionPolicy,
 ) -> Result<(), String> {
+    prune_promoted_releases_with(root, retention_policy, remove_admin_image_map, |path| {
+        fs::remove_dir_all(path).map_err(|error| format!("prune promoted release: {error}"))
+    })
+}
+
+fn prune_promoted_releases_with<RemoveMap, RemoveRelease>(
+    root: &Path,
+    retention_policy: ReleaseRetentionPolicy,
+    mut remove_map: RemoveMap,
+    mut remove_release: RemoveRelease,
+) -> Result<(), String>
+where
+    RemoveMap: FnMut(&Path, &str) -> Result<(), String>,
+    RemoveRelease: FnMut(&Path) -> Result<(), String>,
+{
     let releases_root = root.join("releases");
     let active_release_id = active_release_id(root)?;
     let mut retained = active_release_id.iter().cloned().collect::<BTreeSet<_>>();
@@ -1890,11 +2026,25 @@ fn prune_promoted_releases(
 
     for release in release_directories(&releases_root)? {
         if !retained.contains(&release.name) {
-            fs::remove_dir_all(&release.path)
-                .map_err(|error| format!("prune promoted release: {error}"))?;
+            remove_map(root, &release.name)?;
+            remove_release(&release.path)?;
         }
     }
     Ok(())
+}
+
+fn post_promotion_cleanup(root: &Path, retention_policy: ReleaseRetentionPolicy) -> Option<String> {
+    match prune_promoted_releases(root, retention_policy) {
+        Ok(()) => None,
+        Err(error) => {
+            tracing::error!(
+                error = %error,
+                error_kind = "release_retention_cleanup",
+                "post-promotion release cleanup failed; active release remains authoritative"
+            );
+            Some(SAFE_RELEASE_CLEANUP_WARNING.to_owned())
+        }
+    }
 }
 
 fn retain_failed_candidates(
@@ -2536,6 +2686,72 @@ mod tests {
             .map(|release| release.name)
             .collect::<Vec<_>>();
         assert_eq!(names, vec!["aaa-newest", "mmm-middle", "zzz-oldest"]);
+    }
+
+    #[test]
+    fn post_promotion_cleanup_failure_preserves_active_release_and_private_map() {
+        let root = tempfile::tempdir().unwrap();
+        let releases = root.path().join("releases");
+        fs::create_dir_all(releases.join("old-release")).unwrap();
+        fs::create_dir_all(releases.join("new-release")).unwrap();
+        fs::write(releases.join("new-release/index.html"), b"active").unwrap();
+        write_admin_image_map(root.path(), "new-release", &[]).unwrap();
+
+        let old_map = admin_image_map_path(root.path(), "old-release");
+        fs::create_dir_all(&old_map).unwrap();
+        promote_candidate(root.path(), "new-release").unwrap();
+
+        let warning = post_promotion_cleanup(root.path(), ReleaseRetentionPolicy::new(1, 1));
+
+        assert_eq!(warning.as_deref(), Some(SAFE_RELEASE_CLEANUP_WARNING));
+        assert_eq!(
+            active_release_id(root.path()).unwrap().as_deref(),
+            Some("new-release")
+        );
+        assert_eq!(
+            fs::read(root.path().join("current/index.html")).unwrap(),
+            b"active"
+        );
+        assert!(admin_image_map_path(root.path(), "new-release").is_file());
+        assert!(releases.join("old-release").is_dir());
+    }
+
+    #[test]
+    fn promoted_release_deletion_failure_never_targets_the_active_release_or_map() {
+        let root = tempfile::tempdir().unwrap();
+        let releases = root.path().join("releases");
+        fs::create_dir_all(releases.join("old-release")).unwrap();
+        fs::create_dir_all(releases.join("new-release")).unwrap();
+        fs::write(releases.join("new-release/index.html"), b"active").unwrap();
+        write_admin_image_map(root.path(), "new-release", &[]).unwrap();
+        promote_candidate(root.path(), "new-release").unwrap();
+        let mut attempted_release = None;
+
+        let error = prune_promoted_releases_with(
+            root.path(),
+            ReleaseRetentionPolicy::new(1, 1),
+            |_, _| Ok(()),
+            |path| {
+                attempted_release = path.file_name().map(|name| name.to_owned());
+                Err("forced old-release deletion failure".to_owned())
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error, "forced old-release deletion failure");
+        assert_eq!(
+            attempted_release.as_deref(),
+            Some(std::ffi::OsStr::new("old-release"))
+        );
+        assert_eq!(
+            active_release_id(root.path()).unwrap().as_deref(),
+            Some("new-release")
+        );
+        assert_eq!(
+            fs::read(root.path().join("current/index.html")).unwrap(),
+            b"active"
+        );
+        assert!(admin_image_map_path(root.path(), "new-release").is_file());
     }
 
     #[test]

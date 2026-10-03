@@ -925,8 +925,9 @@ impl CatalogRepository for MemoryCatalogRepository {
         if let Some(adjustment) = adjustment.as_ref() {
             adjustment.validate()?;
         }
+        let adjustment = adjustment.and_then(ImageAdjustment::into_canonical);
         let now = now_epoch_seconds();
-        let updated = {
+        let (updated, changed) = {
             let mut items = self.items.lock().expect("catalog state lock");
             let item = items
                 .get_mut(&item_id)
@@ -936,20 +937,25 @@ impl CatalogRepository for MemoryCatalogRepository {
                 .iter_mut()
                 .find(|image| image.id == image_id)
                 .ok_or_else(|| "autograph image was not found".to_owned())?;
-            image.adjustment = adjustment;
-            item.updated_at_epoch_seconds = now;
-            item.clone()
+            let changed = image.adjustment != adjustment;
+            if changed {
+                image.adjustment = adjustment;
+                item.updated_at_epoch_seconds = now;
+            }
+            (item.clone(), changed)
         };
-        self.events
-            .lock()
-            .expect("catalog event lock")
-            .push(AutographEditEvent::new(
-                item_id,
-                EditEventKind::ImageAdjustmentChanged,
-                "Image adjustments changed",
-                Vec::new(),
-                now,
-            ));
+        if changed {
+            self.events
+                .lock()
+                .expect("catalog event lock")
+                .push(AutographEditEvent::new(
+                    item_id,
+                    EditEventKind::ImageAdjustmentChanged,
+                    "Image adjustments changed",
+                    Vec::new(),
+                    now,
+                ));
+        }
         Ok(updated)
     }
 

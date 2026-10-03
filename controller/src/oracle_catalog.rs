@@ -617,6 +617,22 @@ impl CatalogRepository for OracleCatalogRepository {
         self.with_connection(move |connection| {
             let item_id_text = item_id.to_string();
             let image_id_text = image_id.to_string();
+            if let Some(adjustment) = adjustment.as_ref() {
+                adjustment.validate()?;
+            }
+            let adjustment = adjustment.and_then(ImageAdjustment::into_canonical);
+            let current =
+                load_item_before_commit(&connection, item_id, "autograph item was not found")?;
+            let current_adjustment = current
+                .images
+                .iter()
+                .find(|image| image.id == image_id)
+                .ok_or_else(|| "autograph image was not found".to_owned())?
+                .adjustment
+                .clone();
+            if current_adjustment == adjustment {
+                return Ok(current);
+            }
             let adjustment_json = serialize_image_adjustment(adjustment.as_ref())?;
             let statement = connection
                 .execute(

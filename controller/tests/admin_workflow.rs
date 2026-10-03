@@ -1,9 +1,10 @@
 use async_trait::async_trait;
 use autographs_controller::{
     catalog::{
-        AutographImage, AutographItemInput, AutographItemUpdate, CatalogRepository, CleanupStatus,
-        EditEventKind, FieldPatch, ImageCleanupEvent, ImageReplacementInput, ItemOrigin,
-        MemoryCatalogRepository, PublicationStatus, SignerCreditInput, SignerProfileUpdateInput,
+        AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
+        CleanupStatus, EditEventKind, FieldPatch, ImageCleanupEvent, ImageReplacementInput,
+        ItemOrigin, MemoryCatalogRepository, PublicationStatus, SignerCreditInput,
+        SignerProfileUpdateInput,
     },
     config::ControllerConfig,
     image_adjustments::{ImageAdjustment, ImageCrop},
@@ -18,6 +19,7 @@ use axum::{
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 use serde_json::{Value, json};
 use std::{
+    fs,
     io::Cursor,
     sync::{
         Arc,
@@ -905,6 +907,720 @@ async fn memory_repository_saves_and_resets_image_adjustment_history() {
             .count(),
         2
     );
+}
+
+#[tokio::test]
+async fn admin_image_review_routes_require_session_and_validate_ids() {
+    let app = router_with_stores(
+        ControllerConfig::for_test(false),
+        Arc::new(MemoryCatalogRepository::default()),
+        Arc::new(LocalMediaStore::new(tempfile::tempdir().unwrap().path())),
+    );
+    let routes = [
+        ("GET", "/admin/api/items/not-an-id/images/not-an-id/preview"),
+        (
+            "GET",
+            "/admin/api/items/not-an-id/images/not-an-id/preview/source",
+        ),
+        (
+            "POST",
+            "/admin/api/items/not-an-id/images/not-an-id/preview/draft",
+        ),
+        ("GET", "/admin/api/items/not-an-id/images/not-an-id/review"),
+        (
+            "PATCH",
+            "/admin/api/items/not-an-id/images/not-an-id/adjustment",
+        ),
+        (
+            "DELETE",
+            "/admin/api/items/not-an-id/images/not-an-id/adjustment",
+        ),
+        (
+            "POST",
+            "/admin/api/items/not-an-id/images/not-an-id/adjustment/assist",
+        ),
+    ];
+
+    for (method, uri) in routes {
+        let unauthenticated = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(uri)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(unauthenticated.status(), StatusCode::UNAUTHORIZED, "{uri}");
+
+        let authenticated = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(uri)
+                    .header(header::COOKIE, admin_cookie(&app).await)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(authenticated.status(), StatusCode::BAD_REQUEST, "{uri}");
+    }
+}
+
+#[tokio::test]
+async fn authenticated_admin_image_preview_is_no_store_webp_and_redacts_failures() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Preview Item",
+            "Carrie Fisher",
+            "Photos",
+            vec!["rebel"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    repository
+        .attach_image(
+            item.id,
+            test_image(image_id, object_key.clone(), "private-preview.png"),
+        )
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let media = Arc::new(LocalMediaStore::new(media_root.path()));
+    media.write(&object_key, &png_fixture()).await.unwrap();
+    let app = router_with_stores(ControllerConfig::for_test(false), repository, media);
+
+    let preview = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{image_id}/preview",
+                item.id
+            ))
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(preview.status(), StatusCode::OK);
+    assert_eq!(preview.headers()[header::CONTENT_TYPE], "image/webp");
+    assert_eq!(preview.headers()[header::CACHE_CONTROL], "no-store");
+
+    let source_guide = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{image_id}/preview/source",
+                item.id
+            ))
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(source_guide.status(), StatusCode::OK);
+    assert_eq!(source_guide.headers()[header::CONTENT_TYPE], "image/webp");
+    assert_eq!(source_guide.headers()[header::CACHE_CONTROL], "no-store");
+
+    let failing_repository = Arc::new(MemoryCatalogRepository::default());
+    let failing_item = failing_repository
+        .create(test_item_input(
+            "Failing Preview Item",
+            "Mark Hamill",
+            "Photos",
+            vec!["jedi"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let failing_image_id = uuid::Uuid::new_v4();
+    failing_repository
+        .attach_image(
+            failing_item.id,
+            test_image(
+                failing_image_id,
+                "originals/private/leaky-object-key.png".to_owned(),
+                "private-leak.png",
+            ),
+        )
+        .await
+        .unwrap();
+    let failing_app = router_with_stores(
+        ControllerConfig::for_test(false),
+        failing_repository,
+        Arc::new(LeakyFailingReadMediaStore),
+    );
+    let failure = failing_app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{failing_image_id}/preview",
+                failing_item.id
+            ))
+            .header(header::COOKIE, admin_cookie(&failing_app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(failure.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = response_string(failure).await;
+    assert_eq!(
+        body,
+        "Private image preview is unavailable. Check controller logs for details."
+    );
+    assert_redacted(&body);
+}
+
+#[tokio::test]
+async fn portrait_source_guide_stays_unadjusted_while_output_uses_saved_transform() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Portrait Review Item",
+            "Mark Hamill",
+            "Photos",
+            vec!["portrait"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    repository
+        .attach_image(
+            item.id,
+            test_image(image_id, object_key.clone(), "portrait.png"),
+        )
+        .await
+        .unwrap();
+    repository
+        .update_image_adjustment(item.id, image_id, Some(test_adjustment()))
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let media = Arc::new(LocalMediaStore::new(media_root.path()));
+    media
+        .write(&object_key, &portrait_png_fixture())
+        .await
+        .unwrap();
+    let app = router_with_stores(ControllerConfig::for_test(false), repository, media);
+    let cookie = admin_cookie(&app).await;
+
+    let source = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{image_id}/preview/source",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    let adjusted = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{image_id}/preview",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(source.status(), StatusCode::OK);
+    assert_eq!(adjusted.status(), StatusCode::OK);
+    let source_bytes = to_bytes(source.into_body(), usize::MAX).await.unwrap();
+    let adjusted_bytes = to_bytes(adjusted.into_body(), usize::MAX).await.unwrap();
+    assert_ne!(source_bytes, adjusted_bytes);
+    let source_image = image::load_from_memory(&source_bytes).unwrap();
+    assert!(source_image.height() > source_image.width());
+}
+
+#[tokio::test]
+async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Review Item",
+            "Natalie Portman",
+            "Photos",
+            vec!["naboo"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let confident_id = uuid::Uuid::new_v4();
+    let unavailable_id = uuid::Uuid::new_v4();
+    let confident_key = build_original_object_key(item.id, confident_id);
+    let unavailable_key = build_original_object_key(item.id, unavailable_id);
+    repository
+        .attach_image(
+            item.id,
+            test_image(confident_id, confident_key.clone(), "confident.png"),
+        )
+        .await
+        .unwrap();
+    repository
+        .attach_image(
+            item.id,
+            test_image(unavailable_id, unavailable_key.clone(), "ambiguous.png"),
+        )
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let media = Arc::new(LocalMediaStore::new(media_root.path()));
+    media
+        .write(&confident_key, &high_contrast_skew_fixture())
+        .await
+        .unwrap();
+    media.write(&unavailable_key, &png_fixture()).await.unwrap();
+    let app = router_with_stores(ControllerConfig::for_test(false), repository.clone(), media);
+    let cookie = admin_cookie(&app).await;
+
+    let review = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{confident_id}/review",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(review.status(), StatusCode::OK);
+    let review = response_json(review).await;
+    assert_eq!(review["imageId"], confident_id.to_string());
+    assert!(
+        review["privatePreviewUrl"]
+            .as_str()
+            .unwrap()
+            .starts_with("/admin/api/")
+    );
+    assert!(
+        review["draftPreviewUrl"]
+            .as_str()
+            .unwrap()
+            .ends_with("/preview/draft")
+    );
+    assert!(
+        review["sourceGuidePreviewUrl"]
+            .as_str()
+            .unwrap()
+            .ends_with("/preview/source")
+    );
+    assert_eq!(review["canComparePublicCurrent"], false);
+
+    let saved = app
+        .clone()
+        .oneshot(
+            Request::patch(format!(
+                "/admin/api/items/{}/images/{confident_id}/adjustment",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(serde_json::to_vec(&test_adjustment()).unwrap()))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(saved.status(), StatusCode::OK);
+    assert!(
+        repository.get(item.id).await.unwrap().unwrap().images[0]
+            .adjustment
+            .is_some()
+    );
+
+    let saved_preview = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{confident_id}/preview",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(saved_preview.status(), StatusCode::OK);
+    let saved_preview_bytes = to_bytes(saved_preview.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let draft_preview = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/admin/api/items/{}/images/{confident_id}/preview/draft",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(serde_json::to_vec(&test_adjustment()).unwrap()))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(draft_preview.status(), StatusCode::OK);
+    assert_eq!(draft_preview.headers()[header::CACHE_CONTROL], "no-store");
+    let draft_preview_bytes = to_bytes(draft_preview.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    assert_eq!(draft_preview_bytes, saved_preview_bytes);
+
+    let adjustment_events_before_noop = repository
+        .history(item.id)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|event| event.kind == EditEventKind::ImageAdjustmentChanged)
+        .count();
+    let no_op_save = app
+        .clone()
+        .oneshot(
+            Request::patch(format!(
+                "/admin/api/items/{}/images/{confident_id}/adjustment",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(serde_json::to_vec(&test_adjustment()).unwrap()))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(no_op_save.status(), StatusCode::OK);
+    let adjustment_events_after_noop = repository
+        .history(item.id)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|event| event.kind == EditEventKind::ImageAdjustmentChanged)
+        .count();
+    assert_eq!(adjustment_events_after_noop, adjustment_events_before_noop);
+
+    let identity_save = app
+        .clone()
+        .oneshot(
+            Request::patch(format!(
+                "/admin/api/items/{}/images/{unavailable_id}/adjustment",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({
+                    "rotationDegrees": 0,
+                    "zoom": 1,
+                    "panX": 0,
+                    "panY": 0,
+                    "crop": null,
+                    "perspective": { "corners": [
+                        { "x": 0, "y": 0 },
+                        { "x": 1, "y": 0 },
+                        { "x": 1, "y": 1 },
+                        { "x": 0, "y": 1 }
+                    ] }
+                })
+                .to_string(),
+            ))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(identity_save.status(), StatusCode::OK);
+    let unchanged = repository.get(item.id).await.unwrap().unwrap();
+    assert_eq!(unchanged.images[1].adjustment, None);
+    let adjustment_events_after_identity = repository
+        .history(item.id)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|event| event.kind == EditEventKind::ImageAdjustmentChanged)
+        .count();
+    assert_eq!(
+        adjustment_events_after_identity,
+        adjustment_events_after_noop
+    );
+
+    let confident = image_assist(&app, item.id, confident_id, &cookie).await;
+    assert_eq!(confident["status"], "confident");
+    assert_eq!(confident["corners"].as_array().unwrap().len(), 4);
+    let unavailable = image_assist(&app, item.id, unavailable_id, &cookie).await;
+    assert_eq!(unavailable["status"], "unavailable");
+    assert_eq!(
+        unavailable["message"],
+        "Auto correction could not find reliable edges. Adjust the corners manually."
+    );
+
+    let reset = app
+        .clone()
+        .oneshot(
+            Request::delete(format!(
+                "/admin/api/items/{}/images/{confident_id}/adjustment",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(reset.status(), StatusCode::OK);
+    assert!(
+        repository.get(item.id).await.unwrap().unwrap().images[0]
+            .adjustment
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn image_review_resolves_the_active_public_derivative_and_reports_private_changes() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Published Review Item",
+            "Carrie Fisher",
+            "Photos",
+            vec!["rebel"],
+            PublicationStatus::Published,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    repository
+        .attach_image(
+            item.id,
+            test_image(image_id, object_key.clone(), "published-review.png"),
+        )
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let media = Arc::new(LocalMediaStore::new(media_root.path()));
+    media.write(&object_key, &png_fixture()).await.unwrap();
+    let static_root = tempfile::tempdir().unwrap();
+    let mut config = ControllerConfig::for_test(false);
+    config.static_release_root = static_root.path().to_path_buf();
+    let app = router_with_stores(config, repository.clone(), media);
+    let cookie = admin_cookie(&app).await;
+
+    let publish = app
+        .clone()
+        .oneshot(
+            Request::post("/admin/api/publish/full")
+                .header(header::COOKIE, &cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    let review = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{image_id}/review",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(review.status(), StatusCode::OK);
+    let review = response_json(review).await;
+    assert_eq!(review["canComparePublicCurrent"], true);
+    assert_eq!(review["state"], "published");
+    assert!(
+        review["publicCurrentPreviewUrl"]
+            .as_str()
+            .unwrap()
+            .starts_with("/media/")
+    );
+
+    let save = app
+        .clone()
+        .oneshot(
+            Request::patch(format!(
+                "/admin/api/items/{}/images/{image_id}/adjustment",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(serde_json::to_vec(&test_adjustment()).unwrap()))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(save.status(), StatusCode::OK);
+
+    let changed_review = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{image_id}/review",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(changed_review.status(), StatusCode::OK);
+    let changed_review = response_json(changed_review).await;
+    assert_eq!(changed_review["state"], "unpublishedChanges");
+    assert_eq!(changed_review["canComparePublicCurrent"], true);
+}
+
+#[tokio::test]
+async fn published_legacy_release_requires_verified_comparison_map_migration() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Legacy Published Review Item",
+            "Carrie Fisher",
+            "Photos",
+            vec!["rebel"],
+            PublicationStatus::Published,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    repository
+        .attach_image(
+            item.id,
+            test_image(image_id, object_key.clone(), "legacy-published.png"),
+        )
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let media = Arc::new(LocalMediaStore::new(media_root.path()));
+    media.write(&object_key, &png_fixture()).await.unwrap();
+    let static_root = tempfile::tempdir().unwrap();
+    let legacy_release = static_root.path().join("releases/legacy-release");
+    fs::create_dir_all(&legacy_release).unwrap();
+    fs::write(legacy_release.join("index.html"), "legacy public release").unwrap();
+    std::os::unix::fs::symlink(
+        "releases/legacy-release",
+        static_root.path().join("current"),
+    )
+    .unwrap();
+    let mut config = ControllerConfig::for_test(false);
+    config.static_release_root = static_root.path().to_path_buf();
+    let app = router_with_stores(config, repository, media);
+    let cookie = admin_cookie(&app).await;
+
+    let review = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{image_id}/review",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(review.status(), StatusCode::OK);
+    let review = response_json(review).await;
+    assert_eq!(review["state"], "comparisonMigrationRequired");
+    assert_eq!(review["canComparePublicCurrent"], false);
+    assert!(
+        review["message"]
+            .as_str()
+            .unwrap()
+            .contains("one full publish after this controller upgrade")
+    );
+    assert!(
+        !review["message"]
+            .as_str()
+            .unwrap()
+            .contains("Private image only")
+    );
+    assert_eq!(
+        fs::read_to_string(static_root.path().join("current/index.html")).unwrap(),
+        "legacy public release"
+    );
+}
+
+#[tokio::test]
+async fn image_read_routes_report_repository_failures_as_internal_errors() {
+    let app = router_with_stores(
+        ControllerConfig::for_test(false),
+        Arc::new(FailingGetRepository),
+        Arc::new(LocalMediaStore::new(tempfile::tempdir().unwrap().path())),
+    );
+    let cookie = admin_cookie(&app).await;
+    let item_id = uuid::Uuid::new_v4();
+    let image_id = uuid::Uuid::new_v4();
+    for (method, suffix) in [
+        ("GET", "preview"),
+        ("GET", "review"),
+        ("POST", "adjustment/assist"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(format!(
+                        "/admin/api/items/{item_id}/images/{image_id}/{suffix}"
+                    ))
+                    .header(header::COOKIE, &cookie)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "{suffix}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -2305,6 +3021,78 @@ fn png_fixture() -> Vec<u8> {
     body.into_inner()
 }
 
+fn portrait_png_fixture() -> Vec<u8> {
+    let mut image = RgbImage::from_pixel(40, 80, Rgb([10, 20, 30]));
+    for y in 8..36 {
+        for x in 5..30 {
+            image.put_pixel(x, y, Rgb([220, 160, 40]));
+        }
+    }
+    let mut body = Cursor::new(Vec::new());
+    DynamicImage::ImageRgb8(image)
+        .write_to(&mut body, ImageFormat::Png)
+        .unwrap();
+    body.into_inner()
+}
+
+fn high_contrast_skew_fixture() -> Vec<u8> {
+    let mut image = RgbImage::from_pixel(64, 48, Rgb([0, 0, 0]));
+    for y in 8..40 {
+        let inset = if y < 24 {
+            12 - (y - 8) / 8
+        } else {
+            10 + (y - 24) / 8
+        };
+        for x in inset..(64 - inset) {
+            image.put_pixel(x, y, Rgb([255, 255, 255]));
+        }
+    }
+    let mut body = Cursor::new(Vec::new());
+    DynamicImage::ImageRgb8(image)
+        .write_to(&mut body, ImageFormat::Png)
+        .unwrap();
+    body.into_inner()
+}
+
+fn test_image(id: uuid::Uuid, object_key: String, filename: &str) -> AutographImage {
+    AutographImage {
+        id,
+        object_key,
+        original_filename: filename.to_owned(),
+        content_type: "image/png".to_owned(),
+        byte_size: 128,
+        checksum: None,
+        etag: None,
+        is_primary: false,
+        sort_order: 0,
+        alt_text: None,
+        adjustment: None,
+    }
+}
+
+async fn image_assist(
+    app: &axum::Router,
+    item_id: uuid::Uuid,
+    image_id: uuid::Uuid,
+    cookie: &str,
+) -> Value {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/admin/api/items/{item_id}/images/{image_id}/adjustment/assist"
+            ))
+            .header(header::COOKIE, cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    response_json(response).await
+}
+
 fn test_adjustment() -> ImageAdjustment {
     ImageAdjustment {
         rotation_degrees: 2.5,
@@ -2398,6 +3186,39 @@ impl PrivateMediaStore for BlockingReadMediaStore {
 }
 
 struct LeakyFailingReadMediaStore;
+
+struct FailingGetRepository;
+
+#[async_trait]
+impl CatalogRepository for FailingGetRepository {
+    async fn create(&self, _input: AutographItemInput) -> Result<AutographItem, String> {
+        Err("repository unavailable".to_owned())
+    }
+
+    async fn update(
+        &self,
+        _id: uuid::Uuid,
+        _input: AutographItemUpdate,
+    ) -> Result<AutographItem, String> {
+        Err("repository unavailable".to_owned())
+    }
+
+    async fn get(&self, _id: uuid::Uuid) -> Result<Option<AutographItem>, String> {
+        Err("repository unavailable with private connection details".to_owned())
+    }
+
+    async fn list(&self) -> Result<Vec<AutographItem>, String> {
+        Err("repository unavailable".to_owned())
+    }
+
+    async fn attach_image(
+        &self,
+        _item_id: uuid::Uuid,
+        _image: AutographImage,
+    ) -> Result<AutographItem, String> {
+        Err("repository unavailable".to_owned())
+    }
+}
 
 #[async_trait]
 impl PrivateMediaStore for LeakyFailingReadMediaStore {
