@@ -853,7 +853,9 @@ h4 {
 .corner-handle {
   z-index: 4;
   width: 44px;
+  height: 44px;
   min-height: 44px;
+  box-sizing: border-box;
   border: 0;
   border-radius: 999px;
   padding: 0;

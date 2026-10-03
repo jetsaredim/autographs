@@ -112,7 +112,7 @@ fn static_admin_source_references_collection_workflow_contract() {
         "iconBadge(\"No pending changes\", \"clean\"",
         "actions.className = \"actions-cell\"",
         "actionGroup.className = \"row-actions\"",
-        "buttonNode(displayName, \"inline-link\", () =>",
+        "buttonNode(displayName, \"inline-link review-egress-control\", () =>",
         "openSignerManagement(signerId, displayName)",
         "itemListStatus: $(\"#item-list-status\")",
         "elements.itemList.setAttribute(\"aria-busy\", \"true\")",
@@ -600,6 +600,12 @@ fn static_admin_image_review_contract_is_private_accessible_and_draft_local() {
         "discardImageEdits",
         "detectImageEdges",
         "renderPerspectiveHandles",
+        "projectPerspectiveHandles",
+        "observePerspectiveProjection",
+        "isAuthoritativeOutputRender",
+        "invalidateReviewOutputRender",
+        "beginReviewMutation",
+        "blockReviewEgressWhileMutationPending",
         "setReviewComparisonMode",
         "status === \"confident\"",
         "aspect-ratio: 4 / 3",
@@ -719,6 +725,16 @@ fn static_admin_review_layout_has_a_narrow_viewport_override() {
     assert!(
         minimum_heights.iter().any(|value| value == "18rem"),
         "review stage must reduce its minimum height at narrow viewports"
+    );
+    assert_eq!(
+        css_property_values(&css, ".corner-handle", "width"),
+        vec!["44px"],
+        "perspective controls must retain a 44px horizontal hit target"
+    );
+    assert_eq!(
+        css_property_values(&css, ".corner-handle", "height"),
+        vec!["44px"],
+        "perspective controls must retain a 44px vertical hit target"
     );
 }
 

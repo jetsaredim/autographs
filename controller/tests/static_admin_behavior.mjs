@@ -53,6 +53,12 @@ class FakeElement {
     this.listeners.set(type, (this.listeners.get(type) || []).filter((value) => value !== listener));
   }
   async dispatch(type, init = {}) {
+    if (this.disabled && ["click", "change", "input", "keydown", "pointerdown", "pointermove", "pointerup"].includes(type)) {
+      return { target: this, currentTarget: this, ignoredBecauseDisabled: true };
+    }
+    return this.dispatchProgrammatic(type, init);
+  }
+  async dispatchProgrammatic(type, init = {}) {
     const event = {
       preventDefault() { this.defaultPrevented = true; },
       target: this, currentTarget: this, ...init,
@@ -106,6 +112,13 @@ const document = {
     if (selector === "[data-review-mode]") return comparisonButtons;
     if (selector === "[data-review-overlay]") return overlayToggles;
     if (selector === "[data-adjustment-field]") return adjustmentControls;
+    if (selector === ".review-egress-control") {
+      const matches = new Set();
+      for (const root of new Set([...ids.values(), ...views])) {
+        for (const match of findAllByClass(root, "review-egress-control", [])) matches.add(match);
+      }
+      return [...matches];
+    }
     return [];
   },
   createElement(tagName) { return new FakeElement(tagName); },
@@ -117,6 +130,7 @@ const timers = new Map();
 const fetchQueue = [];
 const fetchCalls = [];
 let blobId = 0;
+const revokedUrls = [];
 const enqueueFetch = (value) => fetchQueue.push(value);
 const deferred = () => {
   let resolve;
@@ -135,6 +149,11 @@ const flushTimers = async () => {
     timers.clear();
     for (const [, callback] of pending) await callback();
   }
+};
+const startTimers = () => {
+  const pending = [...timers.entries()].sort(([left], [right]) => left - right);
+  timers.clear();
+  return pending.map(([, callback]) => callback());
 };
 const findByClass = (root, className) => {
   if (!root) return null;
@@ -158,15 +177,26 @@ const window = {
   setTimeout(callback) { timerId += 1; timers.set(timerId, callback); return timerId; },
   clearTimeout(id) { timers.delete(id); },
   addEventListener() {},
+  removeEventListener() {},
 };
+const resizeObservers = [];
+class FakeResizeObserver {
+  constructor(callback) { this.callback = callback; this.targets = new Set(); this.disconnected = false; resizeObservers.push(this); }
+  observe(target) { this.targets.add(target); }
+  disconnect() { this.targets.clear(); this.disconnected = true; }
+  trigger(target) {
+    if (!this.disconnected && this.targets.has(target)) this.callback([{ target }], this);
+  }
+}
 class TestUrl extends URL {
   static createObjectURL() { blobId += 1; return `blob:test-preview-${blobId}`; }
-  static revokeObjectURL() {}
+  static revokeObjectURL(url) { revokedUrls.push(url); }
 }
 const context = vm.createContext({
   AbortController, Blob, FormData, JSON, Map, Math, Number, Object, Promise, Set, String,
   URL: TestUrl, assert, console, deferred, document, enqueueFetch, fetchCalls, findAllByClass,
-  findByClass, flushTimers, response,
+  findByClass, flushTimers, response, resizeObservers, revokedUrls, startTimers,
+  ResizeObserver: FakeResizeObserver,
   fetch: async (path, options = {}) => {
     fetchCalls.push({ path, options });
     if (!fetchQueue.length) throw new Error(`unexpected fetch ${path}`);
@@ -269,18 +299,82 @@ await run(`
 enqueueFetch(response());
 await flushTimers();
 assert.equal(fetchQueue.length, 0, "recovered preview response should be consumed");
-await run(`await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");`);
+await run(`
+  const firstMountedOutput = findByClass(elements.imageReviewStage, "review-image-latest");
+  const sameDraftUrl = state.reviewPreviewUrl;
+  await firstMountedOutput.dispatch("load");
+  assert.equal(state.reviewPreviewStatus, "ready");
+  const grid = document.querySelector("#review-overlay-grid");
+  grid.checked = true;
+  await grid.dispatch("change");
+  const replacementOutput = findByClass(elements.imageReviewStage, "review-image-latest");
+  assert.notEqual(replacementOutput, firstMountedOutput);
+  assert.notEqual(state.reviewMountedOutput.node, firstMountedOutput);
+  assert.equal(state.reviewPreviewStatus, "rendering");
+  assert.equal(elements.imageReviewSave.disabled, true);
+  await firstMountedOutput.dispatchProgrammatic("load");
+  assert.equal(state.reviewPreviewStatus, "rendering");
+  assert.equal(elements.imageReviewSave.disabled, true);
+  await replacementOutput.dispatch("load");
+  assert.equal(state.reviewPreviewStatus, "ready");
+  assert.equal(elements.imageReviewSave.disabled, false);
+  await firstMountedOutput.dispatchProgrammatic("error");
+  assert.equal(state.reviewPreviewStatus, "ready");
+  assert.equal(findByClass(elements.imageReviewStage, "review-image-latest"), replacementOutput);
+  assert.equal(revokedUrls.includes(sameDraftUrl), false);
+`);
+
+const olderPreviewResponse = deferred();
+enqueueFetch(olderPreviewResponse.promise);
+await run(`
+  const rotation = document.querySelector("#review-rotation");
+  rotation.value = "5.5";
+  await rotation.dispatch("input");
+`);
+const [olderPreviewPromise] = startTimers();
+await Promise.resolve();
+enqueueFetch(response());
+await run(`
+  const rotation = document.querySelector("#review-rotation");
+  rotation.value = "5";
+  await rotation.dispatch("input");
+`);
+await flushTimers();
+const authoritativeUrl = await run(`return state.reviewPreviewUrl;`);
+olderPreviewResponse.resolve(response());
+await olderPreviewPromise;
+await run(`
+  assert.equal(state.reviewDraftAdjustment.rotationDegrees, 5);
+  assert.equal(state.reviewPreviewUrl, ${JSON.stringify(authoritativeUrl)});
+  assert.equal(revokedUrls.includes(state.reviewPreviewUrl), false);
+  assert.equal(state.reviewPreviewStatus, "rendering");
+  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+  assert.equal(elements.imageReviewSave.disabled, false);
+`);
 
 const saveResponse = deferred();
 enqueueFetch(saveResponse.promise);
 const savePromise = run(`return elements.imageReviewSave.dispatch("click")`);
 await Promise.resolve();
 await run(`
-  assert.equal(state.reviewMutationPending, "save");
+  assert.equal(state.reviewMutationPending.operation, "save");
   assert.equal(document.querySelector("#review-rotation").disabled, true);
   const rotation = document.querySelector("#review-rotation");
   rotation.value = "6";
-  await rotation.dispatch("input");
+  const disabledInput = await rotation.dispatch("input");
+  assert.equal(disabledInput.ignoredBecauseDisabled, true);
+  assert.equal(state.reviewDraftAdjustment.rotationDegrees, 5);
+  const originalView = state.currentView;
+  const fetchCount = fetchCalls.length;
+  await elements.imageReviewDiscard.dispatchProgrammatic("click");
+  await elements.tabs.find((tab) => tab.dataset.view === "publish-view").dispatchProgrammatic("click");
+  await elements.logout.dispatchProgrammatic("click");
+  await loadItem("another-item");
+  assert.equal(renderEditor({ id: "another-item", images: [] }), false);
+  assert.equal(state.currentView, originalView);
+  assert.equal(state.reviewImage.imageId, "image-a");
+  assert.equal(fetchCalls.length, fetchCount);
+  assert.match(elements.imageReviewMessage.textContent, /Save is still in progress/);
 `);
 saveResponse.resolve(response({ json: {
   id: "item-a",
@@ -291,15 +385,39 @@ await run(`
   const patch = fetchCalls.findLast((call) => call.options.method === "PATCH");
   assert.equal(JSON.parse(patch.options.body).rotationDegrees, 5);
   assert.equal(state.reviewSavedAdjustment.rotationDegrees, 5);
-  assert.equal(state.reviewDraftAdjustment.rotationDegrees, 6);
-  assert.equal(state.reviewDirty, true);
-  assert.equal(elements.imageReviewSave.disabled, true);
+  assert.equal(state.reviewDraftAdjustment.rotationDegrees, 5);
+  assert.equal(state.reviewDirty, false);
+  assert.equal(state.reviewMutationPending, null);
+  assert.equal(elements.imageReviewDiscard.disabled, false);
+  assert.match(elements.imageReviewMessage.textContent, /Adjustments saved privately/);
+`);
+
+await run(`
+  const rotation = document.querySelector("#review-rotation");
+  rotation.value = "6";
+  await rotation.dispatch("input");
 `);
 enqueueFetch(response());
 await flushTimers();
+await run(`await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");`);
+const failedSaveResponse = deferred();
+enqueueFetch(failedSaveResponse.promise);
+const failedSavePromise = run(`return elements.imageReviewSave.dispatch("click")`);
+await Promise.resolve();
 await run(`
-  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
-  assert.equal(elements.imageReviewSave.disabled, false);
+  await elements.imageReviewDiscard.dispatchProgrammatic("click");
+  assert.equal(state.currentView, "image-review-view");
+  assert.equal(state.reviewMutationPending.operation, "save");
+`);
+failedSaveResponse.resolve(response({ status: 500, text: "save failed" }));
+await failedSavePromise;
+await run(`
+  assert.equal(state.reviewSavedAdjustment.rotationDegrees, 5);
+  assert.equal(state.reviewDraftAdjustment.rotationDegrees, 6);
+  assert.equal(state.reviewDirty, true);
+  assert.equal(state.reviewMutationPending, null);
+  assert.equal(elements.imageReviewDiscard.disabled, false);
+  assert.match(elements.imageReviewMessage.textContent, /did not save/);
 `);
 
 await run(`await elements.imageReviewDiscard.dispatch("click");`);
@@ -347,7 +465,33 @@ await run(`
   sourceImage.naturalWidth = 200;
   sourceImage.naturalHeight = 400;
   await sourceImage.dispatch("load");
-  const handle = findAllByClass(sourceFrame, "corner-handle")[0];
+  let handles = findAllByClass(sourceFrame, "corner-handle");
+  assert.equal(handles[0].style.left, "125px");
+  assert.equal(handles[0].style.top, "22px");
+  assert.equal(handles[2].style.left, "275px");
+  assert.equal(handles[2].style.top, "278px");
+  sourceFrame.rect = { left: 0, top: 0, width: 240, height: 320 };
+  resizeObservers.findLast((observer) => !observer.disconnected).trigger(sourceFrame);
+  handles = findAllByClass(sourceFrame, "corner-handle");
+  assert.equal(handles[0].style.left, "40px");
+  assert.equal(handles[0].style.top, "22px");
+  assert.equal(handles[2].style.left, "200px");
+  assert.equal(handles[2].style.top, "298px");
+  assert.equal(state.reviewDraftAdjustment.perspective, null);
+  sourceFrame.rect = { left: 0, top: 0, width: 240, height: 160 };
+  sourceImage.naturalWidth = 400;
+  sourceImage.naturalHeight = 200;
+  resizeObservers.findLast((observer) => !observer.disconnected).trigger(sourceFrame);
+  handles = findAllByClass(sourceFrame, "corner-handle");
+  assert.equal(JSON.stringify(handles.map((entry) => [entry.style.left, entry.style.top])), JSON.stringify([
+    ["22px", "22px"], ["218px", "22px"], ["218px", "138px"], ["22px", "138px"]
+  ]));
+  assert.equal(state.reviewDraftAdjustment.perspective, null);
+  sourceFrame.rect = { left: 0, top: 0, width: 400, height: 300 };
+  sourceImage.naturalWidth = 200;
+  sourceImage.naturalHeight = 400;
+  resizeObservers.findLast((observer) => !observer.disconnected).trigger(sourceFrame);
+  const handle = handles[0];
   await handle.dispatch("pointerdown", { pointerId: 9 });
   await handle.dispatch("pointermove", { clientX: 125, clientY: 0 });
   assert.deepEqual(state.reviewDraftAdjustment.perspective.corners[0], { x: 0, y: 0 });
@@ -361,20 +505,55 @@ enqueueFetch(lateReset.promise);
 const resetPromise = run(`return elements.imageReviewReset.dispatch("click")`);
 await Promise.resolve();
 await run(`
-  assert.equal(state.reviewMutationPending, "reset");
-  await elements.imageReviewDiscard.dispatch("click");
-`);
-enqueueFetch(response({ json: reviewPayload("item-b", "image-b", { rotationDegrees: 9, zoom: 1, panX: 0, panY: 0, crop: null, perspective: null }) }));
-await run(`
-  state.currentItem = { id: "item-b", images: [{ id: "image-b" }], cleanupWarnings: [] };
-  renderImages(state.currentItem.images, []);
-  await elements.imageGrid.children[0].children[4].children[0].dispatch("click");
+  assert.equal(state.reviewMutationPending.operation, "reset");
+  const activeSession = state.reviewSession.revision;
+  const beforeEgress = fetchCalls.length;
+  await elements.imageReviewDiscard.dispatchProgrammatic("click");
+  await elements.tabs.find((tab) => tab.dataset.view === "publish-view").dispatchProgrammatic("click");
+  await elements.logout.dispatchProgrammatic("click");
+  await loadItem("another-item");
+  assert.equal(state.currentView, "image-review-view");
+  assert.equal(state.reviewSession.revision, activeSession);
+  assert.equal(fetchCalls.length, beforeEgress);
+  assert.match(elements.imageReviewMessage.textContent, /Reset is still in progress/);
 `);
 lateReset.resolve(response({ json: { id: "item-b", images: [{ id: "image-b", adjustment: null }] } }));
 await resetPromise;
 await run(`
   assert.equal(state.reviewImage.imageId, "image-b");
-  assert.equal(state.reviewDraftAdjustment.rotationDegrees, 9);
+  assert.equal(state.currentItem.images[0].adjustment, null);
+  assert.equal(state.reviewSavedAdjustment.rotationDegrees, 0);
+  assert.equal(state.reviewDraftAdjustment.rotationDegrees, 0);
+  assert.equal(state.reviewDirty, false);
+  assert.equal(state.reviewMutationPending, null);
+  assert.equal(elements.imageReviewDiscard.disabled, false);
+  assert.match(state.reviewMessage, /Adjustments cleared/);
+`);
+enqueueFetch(response());
+await flushTimers();
+await run(`
+  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+`);
+const failedResetResponse = deferred();
+enqueueFetch(failedResetResponse.promise);
+const failedResetPromise = run(`return elements.imageReviewReset.dispatch("click")`);
+await Promise.resolve();
+await run(`
+  assert.equal(state.reviewMutationPending.operation, "reset");
+  await elements.tabs.find((tab) => tab.dataset.view === "publish-view").dispatchProgrammatic("click");
+  assert.equal(state.currentView, "image-review-view");
+`);
+failedResetResponse.resolve(response({ status: 500, text: "reset failed" }));
+await failedResetPromise;
+await run(`
+  assert.equal(state.reviewMutationPending, null);
+  assert.equal(state.reviewSavedAdjustment.rotationDegrees, 0);
+  assert.equal(state.reviewDraftAdjustment.rotationDegrees, 0);
+  assert.equal(state.reviewDirty, false);
+  assert.equal(elements.imageReviewDiscard.disabled, false);
+  assert.match(elements.imageReviewMessage.textContent, /reset failed/);
+`);
+await run(`
   const beforePublish = fetchCalls.length;
   const rotation = document.querySelector("#review-rotation");
   rotation.value = "10";

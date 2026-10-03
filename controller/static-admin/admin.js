@@ -87,10 +87,18 @@ const state = {
   reviewPreviewTimer: null,
   reviewPreviewRevision: 0,
   reviewDisplayedRevision: null,
+  reviewOutputRenderGeneration: 0,
+  reviewMountedOutput: null,
   reviewDraftRevision: 0,
   reviewSessionRevision: 0,
   reviewSession: null,
   reviewMutationPending: null,
+  reviewMutationRevision: 0,
+  reviewPerspectiveGeneration: 0,
+  reviewPerspectiveFrame: null,
+  reviewPerspectiveImage: null,
+  reviewPerspectiveObserver: null,
+  reviewPerspectiveResizeListener: null,
   reviewFocusedCornerIndex: null,
   reviewMessage: "",
 };
@@ -198,7 +206,8 @@ const iconPaths = {
 const iconButton = (label, icon, onClick) => {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "icon-action";
+  button.className = "icon-action review-egress-control";
+  button.disabled = Boolean(state.reviewMutationPending);
   button.setAttribute("aria-label", label);
   button.title = label;
   button.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24">${iconPaths[icon]}</svg>`;
@@ -238,7 +247,8 @@ const publicationStatusButton = (status, onClick) => {
   const { label, icon, tone } = publicationStatusParts(status);
   const button = document.createElement("button");
   button.type = "button";
-  button.className = `status-icon status-icon-action ${tone}`;
+  button.className = `status-icon status-icon-action review-egress-control ${tone}`;
+  button.disabled = Boolean(state.reviewMutationPending);
   button.setAttribute("aria-label", `Publish status: ${label}`);
   button.title = `Publish status: ${label}`;
   button.append(iconNode(icon));
@@ -406,6 +416,13 @@ function showLogin(message = "") {
 }
 
 function setView(viewId) {
+  if (
+    viewId !== "image-review-view" &&
+    state.reviewSession &&
+    blockReviewEgressWhileMutationPending()
+  ) {
+    return false;
+  }
   state.currentView = viewId;
   for (const view of elements.views) {
     view.hidden = view.id !== viewId;
@@ -423,9 +440,13 @@ function setView(viewId) {
   } else if (viewId === "diagnostics-view") {
     renderDiagnostics();
   }
+  return true;
 }
 
 function confirmDiscardReviewForNavigation() {
+  if (blockReviewEgressWhileMutationPending()) {
+    return false;
+  }
   if (state.reviewDirty && !window.confirm(copy.discardImageEditsForNavigation)) {
     return false;
   }
@@ -443,8 +464,7 @@ function navigateToView(viewId) {
   ) {
     return false;
   }
-  setView(viewId);
-  return true;
+  return setView(viewId);
 }
 
 const pendingCopy = (count) => `${count} saved change(s) have not been published yet.`;
@@ -723,11 +743,11 @@ const signerCell = (item) => {
     const displayName = name || "Empty";
     const signerId = ids[index];
     if (signerId) {
-      content.append(
-        buttonNode(displayName, "inline-link", () => {
-          openSignerManagement(signerId, displayName);
-        })
-      );
+      const signerButton = buttonNode(displayName, "inline-link review-egress-control", () => {
+        openSignerManagement(signerId, displayName);
+      });
+      signerButton.disabled = Boolean(state.reviewMutationPending);
+      content.append(signerButton);
     } else {
       content.append(textNode("span", displayName));
     }
@@ -1255,6 +1275,10 @@ function fillDatalist(id, values = []) {
 }
 
 function renderEditor(item = null) {
+  if (state.reviewSession && state.reviewMutationPending) {
+    blockReviewEgressWhileMutationPending();
+    return false;
+  }
   if (state.reviewSession && state.reviewSession.itemId !== item?.id) {
     clearImageReviewState();
   }
@@ -1309,6 +1333,7 @@ function renderEditor(item = null) {
   renderImages(values.images || [], values.cleanupWarnings || []);
   renderHistory(item?.id);
   setView("add-item-view");
+  return true;
 }
 
 function renderImages(images = [], cleanupWarnings = []) {
@@ -1423,7 +1448,7 @@ const currentPerspectiveCorners = () =>
   );
 
 function syncPublishAvailability() {
-  const disabled = state.dirty || state.reviewDirty;
+  const disabled = state.dirty || state.reviewDirty || Boolean(state.reviewMutationPending);
   for (const button of [elements.publishFromEditor, elements.publishIncremental, elements.publishFull]) {
     if (!button) {
       continue;
@@ -1444,16 +1469,89 @@ function syncReviewDirtyState() {
     state.reviewDisplayedRevision === state.reviewDraftRevision;
   elements.imageReviewSave.disabled =
     !state.reviewDirty || !latestPreviewIsDisplayed || Boolean(state.reviewMutationPending);
-  elements.imageReviewReset.disabled = Boolean(state.reviewMutationPending);
-  $("#image-review-detect").disabled = Boolean(state.reviewMutationPending);
-  for (const control of document.querySelectorAll("[data-adjustment-field]")) {
-    control.disabled = Boolean(state.reviewMutationPending);
+  const mutationPending = Boolean(state.reviewMutationPending);
+  elements.imageReviewReset.disabled = mutationPending;
+  elements.imageReviewDiscard.disabled = mutationPending;
+  elements.logout.disabled = mutationPending;
+  for (const tab of elements.tabs) {
+    tab.disabled = mutationPending;
   }
+  for (const control of document.querySelectorAll(".review-egress-control")) {
+    control.disabled = mutationPending;
+  }
+  $("#image-review-detect").disabled = mutationPending;
+  for (const control of document.querySelectorAll("[data-adjustment-field]")) {
+    control.disabled = mutationPending;
+  }
+  for (const toggle of document.querySelectorAll("[data-review-overlay]")) {
+    toggle.disabled = mutationPending;
+  }
+  syncReviewComparisonButtons();
   syncPublishAvailability();
+}
+
+function pendingMutationMessage() {
+  const operation = state.reviewMutationPending?.operation === "reset" ? "Reset" : "Save";
+  return `${operation} is still in progress. Keep this review open until it finishes.`;
+}
+
+function blockReviewEgressWhileMutationPending() {
+  if (!state.reviewMutationPending) {
+    return false;
+  }
+  state.reviewMessage = pendingMutationMessage();
+  elements.imageReviewMessage.textContent = state.reviewMessage;
+  if (typeof elements.imageReviewMessage.focus === "function") {
+    elements.imageReviewMessage.focus();
+  }
+  return true;
+}
+
+function beginReviewMutation(operation, session, itemId, imageId) {
+  state.reviewMutationRevision += 1;
+  state.reviewMutationPending = {
+    operation,
+    token: state.reviewMutationRevision,
+    session,
+    itemId,
+    imageId,
+  };
+  syncReviewDirtyState();
+  return state.reviewMutationPending;
+}
+
+function isCurrentReviewMutation(mutation) {
+  return Boolean(
+    mutation &&
+      state.reviewMutationPending === mutation &&
+      isCurrentReviewSession(mutation.session) &&
+      state.reviewImage?.itemId === mutation.itemId &&
+      state.reviewImage?.imageId === mutation.imageId
+  );
+}
+
+function invalidateReviewOutputRender() {
+  state.reviewOutputRenderGeneration += 1;
+  state.reviewMountedOutput = null;
+}
+
+function disconnectPerspectiveProjection() {
+  state.reviewPerspectiveGeneration += 1;
+  state.reviewPerspectiveFrame = null;
+  state.reviewPerspectiveImage = null;
+  if (state.reviewPerspectiveObserver) {
+    state.reviewPerspectiveObserver.disconnect();
+    state.reviewPerspectiveObserver = null;
+  }
+  if (state.reviewPerspectiveResizeListener) {
+    window.removeEventListener("resize", state.reviewPerspectiveResizeListener);
+    state.reviewPerspectiveResizeListener = null;
+  }
 }
 
 function revokeReviewPreviewUrl() {
   if (state.reviewPreviewUrl) {
+    invalidateReviewOutputRender();
     URL.revokeObjectURL(state.reviewPreviewUrl);
     state.reviewPreviewUrl = null;
   }
@@ -1471,6 +1569,8 @@ function cancelReviewPreviewRequest() {
 }
 
 function clearImageReviewState() {
+  invalidateReviewOutputRender();
+  disconnectPerspectiveProjection();
   cancelReviewPreviewRequest();
   revokeReviewPreviewUrl();
   state.reviewImage = null;
@@ -1490,6 +1590,8 @@ function clearImageReviewState() {
 }
 
 function beginReviewSession(itemId, imageId) {
+  invalidateReviewOutputRender();
+  disconnectPerspectiveProjection();
   cancelReviewPreviewRequest();
   revokeReviewPreviewUrl();
   state.reviewSessionRevision += 1;
@@ -1627,6 +1729,8 @@ async function openImageReview(imageId) {
 }
 
 function renderImageReview() {
+  invalidateReviewOutputRender();
+  disconnectPerspectiveProjection();
   elements.imageReviewStage.replaceChildren();
   if (!state.reviewImage || !state.reviewDraftAdjustment) {
     elements.imageReviewStage.append(textNode("p", copy.previewError, "status-warning"));
@@ -1645,12 +1749,24 @@ function renderImageReview() {
     state.reviewImage.sourceGuidePreviewUrl ||
     endpoints.imageSourcePreview(state.reviewImage.itemId, state.reviewImage.imageId);
   sourceImage.alt = "Sanitized unadjusted source used for perspective coordinates";
-  sourceImage.addEventListener("load", () => renderPerspectiveHandles(sourceFrame, sourceImage));
+  const perspectiveGeneration = state.reviewPerspectiveGeneration;
+  state.reviewPerspectiveFrame = sourceFrame;
+  state.reviewPerspectiveImage = sourceImage;
+  sourceImage.addEventListener("load", () => {
+    if (isCurrentPerspectiveProjection(perspectiveGeneration, sourceFrame, sourceImage)) {
+      renderPerspectiveHandles(sourceFrame, sourceImage);
+      projectPerspectiveHandles();
+    }
+  });
   sourceImage.addEventListener("error", () => {
-    sourceFrame.replaceChildren(textNode("p", copy.previewError, "status-warning"));
+    if (isCurrentPerspectiveProjection(perspectiveGeneration, sourceFrame, sourceImage)) {
+      disconnectPerspectiveProjection();
+      sourceFrame.replaceChildren(textNode("p", copy.previewError, "status-warning"));
+    }
   });
   sourceFrame.append(sourceImage);
   renderPerspectiveHandles(sourceFrame, sourceImage);
+  observePerspectiveProjection(perspectiveGeneration, sourceFrame, sourceImage);
   sourcePanel.append(sourceFrame);
 
   const outputPanel = document.createElement("section");
@@ -1673,26 +1789,38 @@ function renderImageReview() {
     frame.className = `review-frame review-comparison-${state.reviewComparisonMode}`;
     const displayedRevision = state.reviewDraftRevision;
     const displayedSession = state.reviewSession ? { ...state.reviewSession } : null;
+    const displayedPreviewRevision = state.reviewPreviewRevision;
+    const displayedPreviewUrl = state.reviewPreviewUrl;
+    const renderGeneration = state.reviewOutputRenderGeneration;
+    state.reviewPreviewStatus = "rendering";
+    state.reviewDisplayedRevision = null;
     const latestImage = reviewImageNode(
-      state.reviewPreviewUrl,
+      displayedPreviewUrl,
       "Latest private image under review",
       "review-image-latest",
       () => {
-        if (
-          isCurrentReviewSession(displayedSession) &&
-          displayedRevision === state.reviewDraftRevision &&
-          state.reviewPreviewStatus === "rendering"
-        ) {
+        if (isAuthoritativeOutputRender({
+          session: displayedSession,
+          draftRevision: displayedRevision,
+          previewRevision: displayedPreviewRevision,
+          previewUrl: displayedPreviewUrl,
+          generation: renderGeneration,
+          node: latestImage,
+        })) {
           state.reviewPreviewStatus = "ready";
           state.reviewDisplayedRevision = displayedRevision;
           syncReviewDirtyState();
         }
       },
       () => {
-        if (
-          isCurrentReviewSession(displayedSession) &&
-          displayedRevision === state.reviewDraftRevision
-        ) {
+        if (isAuthoritativeOutputRender({
+          session: displayedSession,
+          draftRevision: displayedRevision,
+          previewRevision: displayedPreviewRevision,
+          previewUrl: displayedPreviewUrl,
+          generation: renderGeneration,
+          node: latestImage,
+        })) {
           state.reviewPreviewStatus = "error";
           state.reviewDisplayedRevision = null;
           state.reviewMessage = copy.previewError;
@@ -1700,6 +1828,16 @@ function renderImageReview() {
         }
       }
     );
+    state.reviewMountedOutput = {
+      session: displayedSession,
+      itemId: state.reviewImage.itemId,
+      imageId: state.reviewImage.imageId,
+      draftRevision: displayedRevision,
+      previewRevision: displayedPreviewRevision,
+      previewUrl: displayedPreviewUrl,
+      generation: renderGeneration,
+      node: latestImage,
+    };
     const publicUrl = state.reviewImage.publicCurrentPreviewUrl;
     if (state.reviewComparisonMode === "before-after" && publicUrl) {
       const pair = document.createElement("div");
@@ -1737,6 +1875,27 @@ function renderImageReview() {
   syncReviewControls();
   syncReviewDirtyState();
   syncReviewComparisonButtons();
+}
+
+function isAuthoritativeOutputRender(candidate) {
+  const mounted = state.reviewMountedOutput;
+  return Boolean(
+    mounted &&
+      mounted.node === candidate.node &&
+      candidate.node.parentNode &&
+      mounted.generation === candidate.generation &&
+      state.reviewOutputRenderGeneration === candidate.generation &&
+      mounted.previewRevision === candidate.previewRevision &&
+      state.reviewPreviewRevision === candidate.previewRevision &&
+      mounted.previewUrl === candidate.previewUrl &&
+      state.reviewPreviewUrl === candidate.previewUrl &&
+      mounted.draftRevision === candidate.draftRevision &&
+      state.reviewDraftRevision === candidate.draftRevision &&
+      mounted.itemId === state.reviewImage?.itemId &&
+      mounted.imageId === state.reviewImage?.imageId &&
+      isCurrentReviewSession(candidate.session) &&
+      state.reviewPreviewStatus === "rendering"
+  );
 }
 
 function reviewImageNode(src, alt, className, onLoad = null, onError = null) {
@@ -1789,7 +1948,51 @@ function renderPerspectiveHandles(frame, sourceImage) {
   });
 }
 
+function isCurrentPerspectiveProjection(generation, frame, sourceImage) {
+  return Boolean(
+    state.reviewSession &&
+      generation === state.reviewPerspectiveGeneration &&
+      state.reviewPerspectiveFrame === frame &&
+      state.reviewPerspectiveImage === sourceImage &&
+      frame.parentNode
+  );
+}
+
+function observePerspectiveProjection(generation, frame, sourceImage) {
+  const project = () => {
+    if (isCurrentPerspectiveProjection(generation, frame, sourceImage)) {
+      projectPerspectiveHandles();
+    }
+  };
+  if (typeof ResizeObserver === "function") {
+    const observer = new ResizeObserver(project);
+    state.reviewPerspectiveObserver = observer;
+    observer.observe(frame);
+  } else {
+    state.reviewPerspectiveResizeListener = project;
+    window.addEventListener("resize", project);
+  }
+}
+
+function projectPerspectiveHandles() {
+  const frame = state.reviewPerspectiveFrame;
+  const sourceImage = state.reviewPerspectiveImage;
+  if (!frame || !sourceImage) {
+    return;
+  }
+  const handles = [...frame.children].filter((child) => child.className === "corner-handle");
+  const corners = currentPerspectiveCorners();
+  handles.forEach((handle, index) => {
+    if (corners[index]) {
+      positionPerspectiveHandle(handle, corners[index], frame, sourceImage);
+    }
+  });
+}
+
 function movePerspectiveHandle(index, event) {
+  if (state.reviewMutationPending) {
+    return;
+  }
   const delta = event.shiftKey ? 0.05 : 0.01;
   const direction = {
     ArrowLeft: [-delta, 0],
@@ -1833,11 +2036,17 @@ function sourceRenderedBounds(frame, sourceImage) {
 }
 
 function beginPerspectiveDrag(index, event, frame, sourceImage) {
+  if (state.reviewMutationPending) {
+    return;
+  }
   event.preventDefault();
   const handle = event.currentTarget;
   state.reviewFocusedCornerIndex = index;
   handle.setPointerCapture(event.pointerId);
   const move = (moveEvent) => {
+    if (state.reviewMutationPending) {
+      return;
+    }
     const bounds = sourceRenderedBounds(frame, sourceImage);
     setPerspectiveCorner(
       index,
@@ -1865,7 +2074,7 @@ function setPerspectiveCorner(index, x, y, handle, frame = handle?.sourceFrame, 
     y: Math.max(0, Math.min(1, y)),
   };
   state.reviewDraftAdjustment.perspective = { corners };
-  positionPerspectiveHandle(handle, corners[index], frame, sourceImage);
+  projectPerspectiveHandles();
   markReviewDraftChanged();
 }
 
@@ -1875,8 +2084,13 @@ function positionPerspectiveHandle(handle, corner, frame, sourceImage) {
   if (!frameBounds || !sourceBounds) {
     return;
   }
-  handle.style.left = `${sourceBounds.left - frameBounds.left + corner.x * sourceBounds.width}px`;
-  handle.style.top = `${sourceBounds.top - frameBounds.top + corner.y * sourceBounds.height}px`;
+  const targetRadius = 22;
+  const horizontalInset = Math.min(targetRadius, frameBounds.width / 2);
+  const verticalInset = Math.min(targetRadius, frameBounds.height / 2);
+  const sourceX = sourceBounds.left - frameBounds.left + corner.x * sourceBounds.width;
+  const sourceY = sourceBounds.top - frameBounds.top + corner.y * sourceBounds.height;
+  handle.style.left = `${Math.max(horizontalInset, Math.min(frameBounds.width - horizontalInset, sourceX))}px`;
+  handle.style.top = `${Math.max(verticalInset, Math.min(frameBounds.height - verticalInset, sourceY))}px`;
 }
 
 function syncReviewControls() {
@@ -1896,7 +2110,7 @@ function syncReviewControls() {
 }
 
 function setReviewComparisonMode(mode) {
-  if (mode !== "latest" && !state.reviewImage?.canComparePublicCurrent) {
+  if (state.reviewMutationPending || (mode !== "latest" && !state.reviewImage?.canComparePublicCurrent)) {
     return;
   }
   state.reviewComparisonMode = mode;
@@ -1914,21 +2128,26 @@ function syncReviewComparisonButtons() {
     const unavailable = mode !== "latest" && !canCompare;
     button.setAttribute("aria-pressed", active ? "true" : "false");
     button.classList.toggle("is-active", active);
-    button.disabled = unavailable;
-    button.setAttribute("aria-disabled", unavailable ? "true" : "false");
+    const disabled = unavailable || Boolean(state.reviewMutationPending);
+    button.disabled = disabled;
+    button.setAttribute("aria-disabled", disabled ? "true" : "false");
   }
 }
 
 async function detectImageEdges() {
   const { itemId, imageId } = state.reviewImage || {};
-  if (!itemId || !imageId) {
+  if (!itemId || !imageId || state.reviewMutationPending) {
     return;
   }
   const session = state.reviewSession ? { ...state.reviewSession } : null;
   const draftRevision = state.reviewDraftRevision;
   try {
     const proposal = await request(endpoints.imageAdjustmentAssist(itemId, imageId), { method: "POST" });
-    if (!isCurrentReviewSession(session) || draftRevision !== state.reviewDraftRevision) {
+    if (
+      !isCurrentReviewSession(session) ||
+      draftRevision !== state.reviewDraftRevision ||
+      state.reviewMutationPending
+    ) {
       return;
     }
     if (proposal.status === "confident" && proposal.corners?.length === 4) {
@@ -1943,6 +2162,7 @@ async function detectImageEdges() {
     if (
       isCurrentReviewSession(session) &&
       draftRevision === state.reviewDraftRevision &&
+      !state.reviewMutationPending &&
       error.status !== 401
     ) {
       state.reviewMessage = copy.assistUnavailable;
@@ -1959,15 +2179,14 @@ async function saveImageAdjustments() {
   const session = state.reviewSession ? { ...state.reviewSession } : null;
   const submittedRevision = state.reviewDraftRevision;
   const submittedAdjustment = canonicalReviewAdjustment(state.reviewDraftAdjustment);
-  state.reviewMutationPending = "save";
-  syncReviewDirtyState();
+  const mutation = beginReviewMutation("save", session, itemId, imageId);
   try {
     const item = await jsonRequest(
       endpoints.imageAdjustment(itemId, imageId),
       "PATCH",
       submittedAdjustment
     );
-    if (!isCurrentReviewSession(session)) {
+    if (!isCurrentReviewMutation(mutation)) {
       return;
     }
     const returnedAdjustment = item.images?.find((image) => image.id === imageId)?.adjustment;
@@ -1981,12 +2200,13 @@ async function saveImageAdjustments() {
     state.reviewMessage = copy.adjustmentSaved;
     elements.imageReviewMessage.textContent = state.reviewMessage;
   } catch (error) {
-    if (isCurrentReviewSession(session) && error.status !== 401) {
-      elements.imageReviewMessage.textContent =
+    if (isCurrentReviewMutation(mutation) && error.status !== 401) {
+      state.reviewMessage =
         "Adjustments did not save. Keep this page open, review the controls, and try again.";
+      elements.imageReviewMessage.textContent = state.reviewMessage;
     }
   } finally {
-    if (isCurrentReviewSession(session) && state.reviewMutationPending === "save") {
+    if (isCurrentReviewMutation(mutation)) {
       state.reviewMutationPending = null;
       syncReviewDirtyState();
     }
@@ -1994,6 +2214,9 @@ async function saveImageAdjustments() {
 }
 
 function discardImageEdits() {
+  if (blockReviewEgressWhileMutationPending()) {
+    return;
+  }
   if (state.reviewDirty && !window.confirm(copy.discardImageEdits)) {
     return;
   }
@@ -2003,20 +2226,19 @@ function discardImageEdits() {
 }
 
 async function resetImageAdjustments() {
-  if (!state.reviewImage || !window.confirm(copy.resetAdjustment)) {
+  if (state.reviewMutationPending || !state.reviewImage || !window.confirm(copy.resetAdjustment)) {
     return;
   }
   const session = state.reviewSession ? { ...state.reviewSession } : null;
   const submittedRevision = state.reviewDraftRevision;
   const { itemId, imageId } = state.reviewImage;
-  state.reviewMutationPending = "reset";
-  syncReviewDirtyState();
+  const mutation = beginReviewMutation("reset", session, itemId, imageId);
   try {
     const item = await request(
       endpoints.imageAdjustment(itemId, imageId),
       { method: "DELETE" }
     );
-    if (!isCurrentReviewSession(session)) {
+    if (!isCurrentReviewMutation(mutation)) {
       return;
     }
     state.currentItem = item;
@@ -2029,11 +2251,12 @@ async function resetImageAdjustments() {
     state.reviewMessage = "Adjustments cleared. The original upload is unchanged.";
     scheduleDraftPreview({ immediate: true });
   } catch (error) {
-    if (isCurrentReviewSession(session) && error.status !== 401) {
-      elements.imageReviewMessage.textContent = error.message;
+    if (isCurrentReviewMutation(mutation) && error.status !== 401) {
+      state.reviewMessage = error.message;
+      elements.imageReviewMessage.textContent = state.reviewMessage;
     }
   } finally {
-    if (isCurrentReviewSession(session) && state.reviewMutationPending === "reset") {
+    if (isCurrentReviewMutation(mutation)) {
       state.reviewMutationPending = null;
       syncReviewDirtyState();
     }
@@ -2317,6 +2540,9 @@ async function retryCleanup(imageId) {
 }
 
 function ensureSavedBeforePublish() {
+  if (blockReviewEgressWhileMutationPending()) {
+    return false;
+  }
   if (state.reviewDirty) {
     setView("image-review-view");
     state.reviewMessage = "Save or discard image adjustments before publishing.";
@@ -2334,6 +2560,9 @@ function ensureSavedBeforePublish() {
 }
 
 function ensureSavedBeforeImageChange() {
+  if (blockReviewEgressWhileMutationPending()) {
+    return false;
+  }
   if (state.reviewDirty && !confirmDiscardReviewForNavigation()) {
     return false;
   }
@@ -2347,6 +2576,9 @@ function ensureSavedBeforeImageChange() {
 }
 
 function ensureSavedBeforeOpeningAnotherItem() {
+  if (blockReviewEgressWhileMutationPending()) {
+    return false;
+  }
   if (state.reviewDirty && !confirmDiscardReviewForNavigation()) {
     return false;
   }
@@ -2360,6 +2592,9 @@ function ensureSavedBeforeOpeningAnotherItem() {
 }
 
 function ensureSavedBeforeManagingSigner() {
+  if (blockReviewEgressWhileMutationPending()) {
+    return false;
+  }
   if (state.reviewDirty && !confirmDiscardReviewForNavigation()) {
     return false;
   }
@@ -2503,6 +2738,9 @@ elements.loginForm.addEventListener("submit", async (event) => {
 });
 
 elements.logout.addEventListener("click", async () => {
+  if (blockReviewEgressWhileMutationPending()) {
+    return;
+  }
   if (state.reviewDirty && !window.confirm(copy.discardImageEditsForNavigation)) {
     return;
   }
@@ -2549,13 +2787,16 @@ for (const button of document.querySelectorAll("[data-review-mode]")) {
 }
 for (const toggle of document.querySelectorAll("[data-review-overlay]")) {
   toggle.addEventListener("change", () => {
+    if (state.reviewMutationPending) {
+      return;
+    }
     state.reviewOverlays[toggle.dataset.reviewOverlay] = toggle.checked;
     renderImageReview();
   });
 }
 for (const control of document.querySelectorAll("[data-adjustment-field]")) {
   control.addEventListener("input", () => {
-    if (!state.reviewDraftAdjustment) {
+    if (!state.reviewDraftAdjustment || state.reviewMutationPending) {
       return;
     }
     state.reviewDraftAdjustment[control.dataset.adjustmentField] = Number(control.value);
@@ -2564,7 +2805,7 @@ for (const control of document.querySelectorAll("[data-adjustment-field]")) {
 }
 
 window.addEventListener("beforeunload", (event) => {
-  if (!state.dirty && !state.reviewDirty) {
+  if (!state.dirty && !state.reviewDirty && !state.reviewMutationPending) {
     return;
   }
   event.preventDefault();
