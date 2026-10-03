@@ -27,7 +27,9 @@ use crate::{
         propose_image_adjustment,
     },
     media::{LocalMediaStore, PrivateMediaStore},
-    publisher::{LocalPublisher, PublishMode, PublishStatus, ReleaseRetentionPolicy},
+    publisher::{
+        LocalPublisher, PublicImagePreview, PublishMode, PublishStatus, ReleaseRetentionPolicy,
+    },
     storage_keys::build_original_object_key,
 };
 
@@ -309,6 +311,10 @@ pub fn router_with_services(
         .route(
             "/admin/api/items/{id}/images/{image_id}/preview/draft",
             post(preview_image_draft),
+        )
+        .route(
+            "/admin/api/items/{id}/images/{image_id}/preview/source",
+            get(preview_image_source),
         )
         .route(
             "/admin/api/items/{id}/images/{image_id}/review",
@@ -814,6 +820,24 @@ async fn preview_image_draft(
     .await
 }
 
+async fn preview_image_source(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        tracing::warn!(status = %status, "rejected source guide preview request");
+        return status.into_response();
+    }
+    let loaded = match load_admin_image(&state, &id, &image_id).await {
+        Ok(loaded) => loaded,
+        Err(error) => {
+            return image_lookup_error_response("source guide preview", &id, &image_id, error);
+        }
+    };
+    image_preview_response(&state, loaded.item_id, loaded.image_id, &loaded.image, None).await
+}
+
 async fn image_preview_response(
     state: &AppState,
     item_id: Uuid,
@@ -870,7 +894,7 @@ async fn review_image(
         Ok(loaded) => loaded,
         Err(error) => return image_lookup_error_response("review", &id, &image_id, error),
     };
-    let public_current_preview_url = match state
+    let public_image_preview = match state
         .publisher
         .public_image_preview(loaded.item_id, loaded.image_id)
     {
@@ -879,6 +903,11 @@ async fn review_image(
             tracing::error!(item_id = %loaded.item_id, image_id = %loaded.image_id, error_kind = "active_release_lookup_failed", "failed to resolve public current image preview");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
+    };
+    let (public_current_preview_url, comparison_migration_required) = match public_image_preview {
+        PublicImagePreview::Available(preview) => (preview, false),
+        PublicImagePreview::MapMigrationRequired => (None, true),
+        PublicImagePreview::NoActiveRelease => (None, false),
     };
     let has_pending_changes = if public_current_preview_url.is_some() {
         match state
@@ -895,16 +924,25 @@ async fn review_image(
     } else {
         false
     };
-    let (review_state, message) = match (&public_current_preview_url, has_pending_changes) {
-        (Some(_), true) => (
+    let (review_state, message) = match (
+        &public_current_preview_url,
+        has_pending_changes,
+        comparison_migration_required
+            && loaded.item.publication_status == PublicationStatus::Published,
+    ) {
+        (None, _, true) => (
+            "comparisonMigrationRequired",
+            "Public comparison needs one full publish after this controller upgrade. The active public release remains unchanged until that publish succeeds.",
+        ),
+        (Some(_), true, _) => (
             "unpublishedChanges",
             "Private changes are not published yet. Compare latest with the current public image.",
         ),
-        (Some(_), false) => (
+        (Some(_), false, _) => (
             "published",
             "Latest private image matches the current published release.",
         ),
-        (None, _) => (
+        (None, _, _) => (
             "privateOnly",
             "Private image only. Publish when this item is ready for the public catalog.",
         ),
@@ -918,6 +956,10 @@ async fn review_image(
         ),
         draft_preview_url: format!(
             "/admin/api/items/{}/images/{}/preview/draft",
+            loaded.item_id, loaded.image_id
+        ),
+        source_guide_preview_url: format!(
+            "/admin/api/items/{}/images/{}/preview/source",
             loaded.item_id, loaded.image_id
         ),
         can_compare_public_current: public_current_preview_url.is_some(),
@@ -2055,6 +2097,7 @@ struct AdminImageReviewResponse {
     image_id: Uuid,
     private_preview_url: String,
     draft_preview_url: String,
+    source_guide_preview_url: String,
     public_current_preview_url: Option<String>,
     state: &'static str,
     adjustment: Option<ImageAdjustment>,
@@ -2184,6 +2227,7 @@ struct PublishSummaryResponse {
     started_at_epoch_seconds: Option<i64>,
     finished_at_epoch_seconds: Option<i64>,
     error: Option<String>,
+    cleanup_warning: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -2233,6 +2277,7 @@ impl From<PublishStatus> for PublishSummaryResponse {
             started_at_epoch_seconds: status.started_at_epoch_seconds,
             finished_at_epoch_seconds: status.finished_at_epoch_seconds,
             error: status.error,
+            cleanup_warning: status.cleanup_warning,
         }
     }
 }

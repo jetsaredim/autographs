@@ -722,11 +722,46 @@ h4 {
   border-radius: 8px;
 }
 
+.review-preview-workspace {
+  display: grid;
+  width: 100%;
+  gap: 20px;
+}
+
+.review-preview-panel {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.review-preview-panel > h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.source-guide-frame {
+  position: relative;
+  width: min(100%, 48rem);
+  aspect-ratio: 4 / 3;
+  justify-self: center;
+}
+
+.source-guide-frame > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .review-frame {
   position: relative;
   width: min(100%, 48rem);
   aspect-ratio: 4 / 3;
   overflow: hidden;
+}
+
+.image-review-actions {
+  margin-top: 16px;
 }
 
 .review-frame img {

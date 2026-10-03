@@ -19,6 +19,7 @@ use axum::{
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 use serde_json::{Value, json};
 use std::{
+    fs,
     io::Cursor,
     sync::{
         Arc,
@@ -918,6 +919,10 @@ async fn admin_image_review_routes_require_session_and_validate_ids() {
     let routes = [
         ("GET", "/admin/api/items/not-an-id/images/not-an-id/preview"),
         (
+            "GET",
+            "/admin/api/items/not-an-id/images/not-an-id/preview/source",
+        ),
+        (
             "POST",
             "/admin/api/items/not-an-id/images/not-an-id/preview/draft",
         ),
@@ -1013,6 +1018,24 @@ async fn authenticated_admin_image_preview_is_no_store_webp_and_redacts_failures
     assert_eq!(preview.headers()[header::CONTENT_TYPE], "image/webp");
     assert_eq!(preview.headers()[header::CACHE_CONTROL], "no-store");
 
+    let source_guide = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{image_id}/preview/source",
+                item.id
+            ))
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(source_guide.status(), StatusCode::OK);
+    assert_eq!(source_guide.headers()[header::CONTENT_TYPE], "image/webp");
+    assert_eq!(source_guide.headers()[header::CACHE_CONTROL], "no-store");
+
     let failing_repository = Arc::new(MemoryCatalogRepository::default());
     let failing_item = failing_repository
         .create(test_item_input(
@@ -1062,6 +1085,77 @@ async fn authenticated_admin_image_preview_is_no_store_webp_and_redacts_failures
         "Private image preview is unavailable. Check controller logs for details."
     );
     assert_redacted(&body);
+}
+
+#[tokio::test]
+async fn portrait_source_guide_stays_unadjusted_while_output_uses_saved_transform() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Portrait Review Item",
+            "Mark Hamill",
+            "Photos",
+            vec!["portrait"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    repository
+        .attach_image(
+            item.id,
+            test_image(image_id, object_key.clone(), "portrait.png"),
+        )
+        .await
+        .unwrap();
+    repository
+        .update_image_adjustment(item.id, image_id, Some(test_adjustment()))
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let media = Arc::new(LocalMediaStore::new(media_root.path()));
+    media
+        .write(&object_key, &portrait_png_fixture())
+        .await
+        .unwrap();
+    let app = router_with_stores(ControllerConfig::for_test(false), repository, media);
+    let cookie = admin_cookie(&app).await;
+
+    let source = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{image_id}/preview/source",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    let adjusted = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{image_id}/preview",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(source.status(), StatusCode::OK);
+    assert_eq!(adjusted.status(), StatusCode::OK);
+    let source_bytes = to_bytes(source.into_body(), usize::MAX).await.unwrap();
+    let adjusted_bytes = to_bytes(adjusted.into_body(), usize::MAX).await.unwrap();
+    assert_ne!(source_bytes, adjusted_bytes);
+    let source_image = image::load_from_memory(&source_bytes).unwrap();
+    assert!(source_image.height() > source_image.width());
 }
 
 #[tokio::test]
@@ -1133,6 +1227,12 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
             .as_str()
             .unwrap()
             .ends_with("/preview/draft")
+    );
+    assert!(
+        review["sourceGuidePreviewUrl"]
+            .as_str()
+            .unwrap()
+            .ends_with("/preview/source")
     );
     assert_eq!(review["canComparePublicCurrent"], false);
 
@@ -1408,6 +1508,81 @@ async fn image_review_resolves_the_active_public_derivative_and_reports_private_
     let changed_review = response_json(changed_review).await;
     assert_eq!(changed_review["state"], "unpublishedChanges");
     assert_eq!(changed_review["canComparePublicCurrent"], true);
+}
+
+#[tokio::test]
+async fn published_legacy_release_requires_verified_comparison_map_migration() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Legacy Published Review Item",
+            "Carrie Fisher",
+            "Photos",
+            vec!["rebel"],
+            PublicationStatus::Published,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    repository
+        .attach_image(
+            item.id,
+            test_image(image_id, object_key.clone(), "legacy-published.png"),
+        )
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let media = Arc::new(LocalMediaStore::new(media_root.path()));
+    media.write(&object_key, &png_fixture()).await.unwrap();
+    let static_root = tempfile::tempdir().unwrap();
+    let legacy_release = static_root.path().join("releases/legacy-release");
+    fs::create_dir_all(&legacy_release).unwrap();
+    fs::write(legacy_release.join("index.html"), "legacy public release").unwrap();
+    std::os::unix::fs::symlink(
+        "releases/legacy-release",
+        static_root.path().join("current"),
+    )
+    .unwrap();
+    let mut config = ControllerConfig::for_test(false);
+    config.static_release_root = static_root.path().to_path_buf();
+    let app = router_with_stores(config, repository, media);
+    let cookie = admin_cookie(&app).await;
+
+    let review = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{}/images/{image_id}/review",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(review.status(), StatusCode::OK);
+    let review = response_json(review).await;
+    assert_eq!(review["state"], "comparisonMigrationRequired");
+    assert_eq!(review["canComparePublicCurrent"], false);
+    assert!(
+        review["message"]
+            .as_str()
+            .unwrap()
+            .contains("one full publish after this controller upgrade")
+    );
+    assert!(
+        !review["message"]
+            .as_str()
+            .unwrap()
+            .contains("Private image only")
+    );
+    assert_eq!(
+        fs::read_to_string(static_root.path().join("current/index.html")).unwrap(),
+        "legacy public release"
+    );
 }
 
 #[tokio::test]
@@ -2841,6 +3016,20 @@ fn assert_json_true(value: &Value) {
 fn png_fixture() -> Vec<u8> {
     let mut body = Cursor::new(Vec::new());
     DynamicImage::ImageRgb8(RgbImage::from_pixel(8, 8, Rgb([1, 2, 3])))
+        .write_to(&mut body, ImageFormat::Png)
+        .unwrap();
+    body.into_inner()
+}
+
+fn portrait_png_fixture() -> Vec<u8> {
+    let mut image = RgbImage::from_pixel(40, 80, Rgb([10, 20, 30]));
+    for y in 8..36 {
+        for x in 5..30 {
+            image.put_pixel(x, y, Rgb([220, 160, 40]));
+        }
+    }
+    let mut body = Cursor::new(Vec::new());
+    DynamicImage::ImageRgb8(image)
         .write_to(&mut body, ImageFormat::Png)
         .unwrap();
     body.into_inner()
