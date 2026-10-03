@@ -1,113 +1,112 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-fixed_at: 2026-10-02T01:46:12Z
+fixed_at: 2026-10-03T00:55:30Z
 review_path: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
-iteration: 1
-findings_in_scope: 9
-fixed: 9
+iteration: 2
+findings_in_scope: 8
+fixed: 8
 skipped: 0
 status: all_fixed
 ---
 
 # Phase 08: Code Review Fix Report
 
-**Fixed at:** 2026-10-02T01:46:12Z
+**Fixed at:** 2026-10-03T00:55:30Z
 **Source review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md`
-**Iteration:** 1
+**Iteration:** 2
 
 **Summary:**
 
-- Findings in scope: 9
-- Fixed: 9
+- Findings in scope: 8
+- Fixed: 8
 - Skipped: 0
+- Coherent source/test commit: `e1c1f0a`
 
 ## Fixed Issues
 
-### CR-01: Focused review double-applies saved transforms and never previews perspective edits
+### CR-01: Save remains enabled while the displayed preview is stale or failed
 
 **Status:** Fixed — requires human verification
-**Files modified:** `controller/src/routes.rs`, `controller/src/image_adjustments.rs`, `controller/static-admin/admin.js`, `controller/tests/admin_workflow.rs`, `controller/tests/static_admin.rs`, `controller/tests/static_admin_behavior.mjs`
-**Commits:** `a93ce9e`, `d8c82e7`
-**Applied fix:** Added an authenticated, no-store draft-preview endpoint that renders the canonical draft through `generate_adjusted_derivative`. The browser debounces and cancels draft requests, displays the returned WebP without CSS geometry, and therefore uses the same perspective/rotation/crop/zoom/pan order as persistence and publishing. Integration coverage proves saved and draft endpoints return identical bytes for the same non-identity adjustment; the DOM harness proves the focused image has no second client transform.
+**Files modified:** `controller/static-admin/admin.js`, `controller/tests/static_admin_behavior.mjs`
+**Commit:** `e1c1f0a`
+**Applied fix:** Draft edits now advance an explicit draft revision, immediately remove stale adjusted pixels from the authoritative output panel, and disable Save until the matching blob has both returned and fired its image `load` event. Failed or pending renders keep Save disabled and expose only loading/error UI.
 
-### CR-02: Before/after and split comparison controls are placeholders
-
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/src/publisher.rs`, `controller/src/routes.rs`, `controller/static-admin/admin.js`, `controller/static-admin/admin.css`, `controller/tests/admin_workflow.rs`, `controller/tests/static_admin_behavior.mjs`
-**Commits:** `a93ce9e`, `d8c82e7`
-**Applied fix:** The publisher now records an admin-private item/image-to-detail-artifact map beside each promoted release. Review responses resolve the active release's actual public derivative, report published/unpublished/private-only state accurately, and expose comparison only when that artifact is available. Before/after and split modes now render distinct public-current and private-latest sources. Release-map cleanup follows failed and pruned releases.
-
-### CR-03: Review drafts bypass dirty-state, navigation, and publish guards
+### CR-02: An in-flight Save marks later, unsent edits as saved
 
 **Status:** Fixed — requires human verification
-**Files modified:** `controller/static-admin/admin.js`, `controller/static-admin/index.html`, `controller/tests/static_admin.rs`, `controller/tests/static_admin_behavior.mjs`
-**Commit:** `d8c82e7`
-**Applied fix:** Added canonical `reviewDirty` derivation and one discard-confirmation path used by top-level navigation, item switching, image actions, signer management, and logout. Publish controls are disabled while either item or image drafts are dirty, the shared publish path refuses stale publication, session expiry preserves the in-page draft, and `beforeunload` guards page closure. Save/reset clear the flag only after successful server mutation.
+**Files modified:** `controller/static-admin/admin.js`, `controller/tests/static_admin_behavior.mjs`
+**Commit:** `e1c1f0a`
+**Applied fix:** Save snapshots the submitted adjustment, draft revision, and review session. Its response advances only the saved baseline, preserving a later draft as dirty; mutation controls are disabled while Save/Reset is pending. The deferred-fetch harness verifies the PATCH body contains revision A while a later revision B remains dirty after A succeeds.
 
-### WR-01: Saving an untouched image creates a non-identity perspective adjustment
-
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/src/image_adjustments.rs`, `controller/src/catalog.rs`, `controller/src/oracle_catalog.rs`, `controller/src/routes.rs`, `controller/static-admin/admin.js`, `controller/tests/admin_workflow.rs`, `controller/tests/static_admin_behavior.mjs`
-**Commits:** `a93ce9e`, `d8c82e7`
-**Applied fix:** Identity drafts now use `perspective: null`; full-frame corners canonicalize back to null on both client and server. Route and repository mutation boundaries skip unchanged canonical adjustments, so no-op saves do not touch timestamps, pending state, or history.
-
-### WR-02: Repository failures are misreported as missing images
+### CR-03: Post-promotion cleanup can remove the active static release
 
 **Status:** Fixed — requires human verification
-**Files modified:** `controller/src/routes.rs`, `controller/tests/admin_workflow.rs`
-**Commit:** `a93ce9e`
-**Applied fix:** Replaced the lossy optional loader with an explicit malformed/not-found/repository-error result. Preview, review, draft preview, save/reset, and assist now distinguish 400, 404, and safely logged 500 outcomes. A failing repository double verifies 500 behavior across the three read callers named by the review.
+**Files modified:** `controller/src/publisher.rs`, `controller/src/routes.rs`, `controller/static-admin/admin.js`
+**Commit:** `e1c1f0a`
+**Applied fix:** Pre-promotion failures retain failed candidates, while post-promotion retention is a separate housekeeping result. Once `current` switches, pruning failure returns a successful publish with a redacted `cleanupWarning`; the active release and its private comparison map are never moved or deleted. Inactive maps are removed before inactive releases so a failure remains retryable on the next publish.
 
-### WR-03: Perspective handles lose focus after one keypress and have no pointer interaction
-
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/static-admin/admin.js`, `controller/static-admin/admin.css`, `controller/tests/static_admin_behavior.mjs`
-**Commit:** `d8c82e7`
-**Applied fix:** Keyboard movement updates the existing focused handle and restores its corner focus after async preview refresh. Pointer capture/drag updates normalized corners continuously. Each handle now has a clamped 44px hit target with a 24px visual marker and touch-safe dragging. The DOM harness exercises repeated arrow keys and pointer movement.
-
-### WR-04: Preview failure states provide no retry action
+### CR-04: Perspective handles use frame coordinates instead of source-image coordinates
 
 **Status:** Fixed — requires human verification
-**Files modified:** `controller/static-admin/admin.js`, `controller/static-admin/admin.css`, `controller/tests/static_admin_behavior.mjs`
-**Commit:** `d8c82e7`
-**Applied fix:** Tile and focused failure states now render in-place `Retry preview` actions. Tile retries recreate the same-origin image with a request token; focused retries rerun the authenticated draft renderer while preserving the draft and surrounding review context. The DOM harness executes error-to-retry behavior.
+**Files modified:** `controller/src/routes.rs`, `controller/static-admin/admin.js`, `controller/static-admin/admin.css`, `controller/tests/admin_workflow.rs`, `controller/tests/static_admin.rs`, `controller/tests/static_admin_behavior.mjs`
+**Commit:** `e1c1f0a`
+**Applied fix:** Added an authenticated, no-store sanitized unadjusted source-guide endpoint. Perspective handles now live on that guide and calculate fitted image bounds from its intrinsic aspect ratio, while the canonical adjusted derivative remains a separate output preview. Tests cover portrait letterboxing, normalized pointer coordinates, a non-identity saved adjustment, and distinct source/output pixels.
 
-### WR-05: Focused review layout does not collapse on mobile
-
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/static-admin/admin.css`, `controller/tests/static_admin.rs`
-**Commit:** `d8c82e7`
-**Applied fix:** The existing narrow breakpoint now collapses `.review-layout` to one column and reduces the stage minimum height to 18rem. A CSS regression test verifies both responsive declarations.
-
-### WR-06: Comparison buttons expose no selected state to sighted or assistive-tech users
+### CR-05: Older async review actions can overwrite a newer item or review session
 
 **Status:** Fixed — requires human verification
-**Files modified:** `controller/static-admin/index.html`, `controller/static-admin/admin.js`, `controller/static-admin/admin.css`, `controller/tests/static_admin_behavior.mjs`
-**Commit:** `d8c82e7`
-**Applied fix:** Comparison buttons synchronize exactly one `aria-pressed`/active state after every mode change. Before/after and split are disabled with `aria-disabled` when no public-current artifact exists. The DOM harness exercises both private-only and comparison-capable state.
+**Files modified:** `controller/static-admin/admin.js`, `controller/tests/static_admin_behavior.mjs`
+**Commit:** `e1c1f0a`
+**Applied fix:** Review open, draft render, assist, Save, and Reset now carry one item/image/session identity and the relevant draft revision across every await. Closing, navigating, switching item/image, or beginning a newer review invalidates older responses. Deferred A→B, assist-after-close, reset-after-reopen, and review→navigation interleavings execute in the harness.
 
-## Lineage and Sibling-Path Classification
+### CR-06: Clean reviews hide the only Discard and Reset actions
 
-- **Incomplete-fix lineage:** CR-01 and CR-02 were incomplete original implementations, not regressions from an earlier repair round. They are resolved as one rendering/comparison contract rather than sibling point fixes.
-- **Sibling-path misses repaired:** Direct memory and Oracle adjustment mutations now share canonical no-op behavior; dirty-draft handling covers tabs, status links, item changes, image actions, signer management, logout, session failure, page close, and both publish entry points.
-- **Fix regressions:** None discovered.
-- **Independent findings:** WR-02 and WR-05 were independent of the rendering authority but were fixed in the same round.
-- **Test weaknesses repaired:** The prior source-string-only browser coverage is supplemented by an executable DOM harness for canonical dirty state, repeated keyboard movement, pointer drag, navigation confirmation, publish refusal, retry recovery, comparison capability, distinct comparison sources, and absence of a second CSS transform.
+**Status:** Fixed — requires human verification
+**Files modified:** `controller/static-admin/index.html`, `controller/static-admin/admin.js`, `controller/tests/static_admin.rs`, `controller/tests/static_admin_behavior.mjs`
+**Commit:** `e1c1f0a`
+**Applied fix:** Back to item editor and Reset are now outside the conditional dirty band and remain reachable in clean and dirty states. Only Save depends on dirty state and latest-preview authority. The DOM harness opens a clean review, invokes Reset without an edit, and uses Back while a mutation is pending.
+
+### WR-01: Existing active releases cannot provide public-current comparison
+
+**Status:** Fixed — requires human verification
+**Files modified:** `controller/src/publisher.rs`, `controller/src/routes.rs`, `controller/tests/admin_workflow.rs`
+**Commit:** `e1c1f0a`
+**Applied fix:** Active-release lookup now distinguishes no release, a mapped release, and a pre-map release. A published item on a legacy release reports `comparisonMigrationRequired` with the safe rollout contract: run one full publish after upgrade; the current release remains unchanged unless that publish succeeds. An integration test constructs a legacy active release without a map and verifies the explicit migration state and unchanged public artifact.
+
+### WR-02: The DOM harness does not execute draft requests or user event paths
+
+**Status:** Fixed — requires human verification
+**Files modified:** `controller/tests/static_admin_behavior.mjs`, `controller/tests/static_admin.rs`, `controller/tests/admin_workflow.rs`, `controller/src/publisher.rs`
+**Commit:** `e1c1f0a`
+**Applied fix:** Replaced the non-executing timer/fetch stubs with a flushable fake clock, controllable/deferred fetch queue, response bodies/blobs, and registered-event dispatch. Assertions cover serialized request bodies, blob render revisions, image load success/failure, dirty state after deferred Save, A→B/close/navigation response ordering, clean Reset/Back, publish refusal, portrait source bounds, and promotion map/release deletion failures.
+
+## Lineage and Shared-Invariant Coverage
+
+- **Incomplete Round 1 fixes completed:** Round 1 CR-01 now includes displayed-pixel revision authority and source-coordinate parity; Round 1 CR-02 now includes migration and post-promotion atomicity.
+- **Fix regressions repaired:** Round 2 CR-02 and CR-05 close the asynchronous dirty/session regressions introduced around the Round 1 synchronous navigation guards.
+- **Sibling-path misses repaired:** The same session/revision checks cover review, draft preview, assist, Save, Reset, item/image switching, Back, top-level navigation, and logout invalidation. Promotion housekeeping covers both inactive-map and inactive-release deletion failures without touching the active pair.
+- **Independent workflow reachability:** CR-06 separates always-reachable Back/Reset actions from the dirty-only message and preview-authorized Save.
+- **Test weaknesses repaired:** WR-02 now executes the actual registered event paths and request interleavings rather than calling only synchronous helpers.
+- **Producer/consumer/mutation inventory:** Producers are the unadjusted source route, draft renderer, active-release map, and publisher; consumers are the source guide, adjusted output/comparison panes, and review response; mutations are Save/Reset/assist/manual edits and release promotion; reporting/action paths are publish status, cleanup warning, migration state, navigation, publish refusal, and retry UI.
 
 ## Verification
 
 All gates ran in the provided isolated checkout `/tmp/autographs-pr263-review` on branch `gsd/phase-08-admin-media-review-and-operational-posture`.
 
 - `node --check controller/static-admin/admin.js` — passed.
+- `node --check controller/tests/static_admin_behavior.mjs` — passed.
 - `node controller/tests/static_admin_behavior.mjs` — passed.
-- `cargo fmt --manifest-path controller/Cargo.toml --check` — passed.
-- `cargo test --manifest-path controller/Cargo.toml` — passed; 159 tests passed and 2 credential-gated live tests remained ignored by their existing contract.
+- `cargo fmt --manifest-path controller/Cargo.toml --check` — passed after formatting.
+- `cargo test --manifest-path controller/Cargo.toml --lib publisher::tests -- --nocapture` — passed; 4 publisher unit tests, including map and release deletion failure injection.
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin -- --nocapture` — passed; 18 tests.
+- `cargo test --manifest-path controller/Cargo.toml --test admin_workflow -- --nocapture` — passed; 36 tests after adding migration and portrait source/output coverage.
+- `cargo test --manifest-path controller/Cargo.toml` — passed; 163 non-ignored tests passed and 2 credential-gated live tests remained ignored.
 - `cargo check --manifest-path controller/Cargo.toml --features production-persistence` — passed.
 - `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings` — passed.
 - `git diff --check` — passed.
 
 ---
 
-_Fixed: 2026-10-02T01:46:12Z_
+_Fixed: 2026-10-03T00:55:30Z_
 _Fixer: the agent (gsd-code-fixer)_
-_Iteration: 1_
+_Iteration: 2_
