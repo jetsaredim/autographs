@@ -1,6 +1,6 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-02T12:14:37Z
+reviewed: 2026-10-03T01:05:09Z
 depth: deep
 files_reviewed: 11
 files_reviewed_list:
@@ -16,128 +16,129 @@ files_reviewed_list:
   - controller/tests/static_admin.rs
   - controller/tests/static_admin_behavior.mjs
 findings:
-  critical: 6
-  warning: 2
+  critical: 1
+  warning: 3
   info: 0
-  total: 8
+  total: 4
 status: issues_found
 ---
 
-# Phase 08: Code Review Report — Round 2
+# Phase 08: Code Review Report — Round 3 Convergence Checkpoint
 
-**Reviewed:** 2026-10-02T12:14:37Z
+**Reviewed:** 2026-10-03T01:05:09Z
 **Depth:** deep
 **Files Reviewed:** 11
-**Status:** issues_found
+**Status:** issues_found — reassessment required
 
 ## Narrative Findings (AI reviewer)
 
 ### Summary
 
-The server now renders draft previews with the publishing derivative function, the image map is outside Caddy's `current` document root, and memory/Oracle adjustment writes share canonical no-op handling. Eight actionable issues remain. Several are request-order failures that the new DOM harness cannot exercise; a release cleanup failure can remove the active release after promotion.
+Round 2 repaired the repository baseline snapshot, active-release protection, legacy-release migration state, source-coordinate conversion, clean-state actions, and most request-session ordering. Four actionable issues remain: a detached image element can authorize or invalidate a same-revision preview, perspective handle geometry becomes stale after responsive resizing and clips full-frame hit targets, an in-flight Save/Reset can continue invisibly after the operator confirms Back/discard, and the DOM harness models disabled controls unlike a browser while omitting those interleavings.
 
-### Round 1 lineage
+This is the mandatory third review. Because one Critical and three Warning findings remain, the repository convergence guard requires a durable reassessment and reviewed revised implementation plan before any further coder work. Do not start another point-fix round from this report alone.
 
-| Round 1 finding | Round 2 disposition | Evidence |
+### Round 2 finding lineage
+
+| Round 2 finding | Round 3 disposition | Evidence |
 | --- | --- | --- |
-| CR-01 transform parity | Incomplete fix and sibling-path miss | Draft bytes use the publishing renderer, but Save can accept an edit before its preview is shown (CR-01), and source-coordinate handles are drawn over transformed, letterboxed output (CR-04). |
-| CR-02 public-current comparison | Incomplete fix and sibling-path miss | New releases have a private map, but promotion cleanup can break the active release (CR-03); releases made before this change have no map (WR-01). |
-| CR-03 dirty/navigation/publish guards | Fix regression | Synchronous guards exist, but an in-flight Save can silently mark an unsent draft clean (CR-02), and older review/assist/reset responses can overwrite a newer session (CR-05). |
-| WR-01 canonical no-op adjustment | Resolved for the reviewed route and both repositories | `into_canonical` removes exact full-frame corners and identity; the memory and Oracle mutation boundaries skip unchanged values. |
-| WR-02 repository failures as 404 | Resolved | `load_admin_image` now distinguishes malformed, missing, and repository-error results. |
-| WR-03 perspective keyboard/pointer interaction | Incomplete fix | Focus and pointer handlers exist, but they use the 4:3 frame rather than the fitted source coordinates (CR-04). |
-| WR-04 preview retry | Resolved for the direct failure path | Tile and focused failures expose retry actions. |
-| WR-05 narrow layout | Resolved at the CSS breakpoint | The review layout changes to one column below 760px. |
-| WR-06 comparison selected state | Resolved | Buttons synchronize `aria-pressed`, active styling, and disabled capability. |
+| CR-01 displayed-preview revision authority | Incomplete fix / sibling-path miss | Request and draft revisions are checked, but callbacks from detached image elements within the same revision are still authoritative (CR-01). |
+| CR-02 in-flight Save baseline | Resolved for returned repository state; sibling action-path miss remains | The submitted snapshot becomes the saved baseline and later drafts stay dirty. Back/discard can still hide a mutation that is already in flight (WR-02). |
+| CR-03 promotion cleanup safety | Resolved for the reviewed failure matrix | Pre-promotion recovery is separate from post-promotion pruning; map and release deletion failures leave `current` and its active map intact. |
+| CR-04 perspective coordinate parity | Incomplete fix | Initial pointer conversion uses fitted source bounds, but pixel-positioned handles are not recomputed after layout changes and edge targets are clipped at narrow widths (WR-01). |
+| CR-05 async review-session authority | Sibling-path miss | Item/image/session checks reject older requests, but they do not distinguish older DOM render instances for the same session and draft revision (CR-01). Back also invalidates the session while the underlying mutation continues (WR-02). |
+| CR-06 clean-state action reachability | Resolved | Back and Reset remain visible outside the dirty-only band. |
+| WR-01 legacy active-release migration | Resolved | A legacy release without a map reports `comparisonMigrationRequired` and preserves the active artifact until a successful publish. |
+| WR-02 executable DOM coverage | Incomplete fix / test weakness | Timers, fetches, and registered listeners execute, but disabled elements still dispatch user input and same-revision render/resize/pending-Back cases are absent (WR-03). |
 
-The shared review invariant spans the API preview producer, the active-release map, the browser draft and comparison consumers, save/reset/publish mutations, navigation/session actions, and tests. The current test suite checks synchronous helpers and route bytes but does not cover the outstanding asynchronous interleavings or release failure matrix (WR-02).
+### Inherited Round 1 lineage
+
+| Round 1 finding | Round 3 disposition |
+| --- | --- |
+| CR-01 transform/pixel-review parity | Incomplete through CR-01 and WR-01. The server renderer is shared, but displayed-render authority and responsive source geometry are not closed. |
+| CR-02 public-current comparison | Resolved for generated maps, active-release safety, and explicit legacy migration state. |
+| CR-03 dirty/navigation/publish guards | Incomplete through WR-02: a pending mutation can be hidden by the discard/navigation path. |
+| WR-01 canonical no-op adjustment | Resolved in route, memory repository, and Oracle repository mutation boundaries. |
+| WR-02 repository failures reported as 404 | Resolved. Repository failures are distinguished from missing images. |
+| WR-03 perspective keyboard/pointer interaction | Incomplete through WR-01 after responsive geometry changes. |
+| WR-04 preview retry | Resolved for tile and focused-preview failures. |
+| WR-05 narrow layout | Layout column collapse is resolved; WR-01 is a new fix regression in handle reachability at that layout. |
+| WR-06 comparison selected state | Resolved. |
+
+### Shared-invariant inventory
+
+| Invariant | Producers | Consumers / reporting paths | Mutation boundaries | Tests | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| Displayed-preview revision authority | Draft-preview route, blob response, image load/error event | Adjusted output panel, Save enablement, retry state | Manual/assist/reset draft changes | Node DOM harness | Open: CR-01 |
+| Async review-session authority | Review/session token, request responses | Review view, messages, editor item, navigation | Review, assist, Save, Reset, Back/logout | Deferred fetch harness | Open: CR-01, WR-02 |
+| Promotion atomicity | Candidate/map writer, `promote_candidate`, post-promotion prune | `current`, active map, publish status/warning | Symlink switch, map/release deletion | Publisher failure injection | Closed for active-release safety |
+| Coordinate parity | Source-guide route and intrinsic dimensions | Handle overlay and pointer conversion | Keyboard/pointer/assist corner updates | Portrait DOM/API tests | Open: WR-01 |
+| Focused action reachability | Review controls and dirty band | Back, Reset, Save, navigation | Pending Save/Reset | DOM harness | Open: WR-02 |
+| Existing release migration | Active symlink/map lookup | Review state/message and comparison capability | First post-upgrade publish | Admin workflow integration test | Closed |
+| Test fidelity | Fake DOM, clock, fetch queue | Registered events and state assertions | Disabled controls, render replacement, resize | `static_admin_behavior.mjs` | Open: WR-03 |
 
 ### Critical Issues
 
-#### CR-01: Save remains enabled while the displayed preview is stale or failed
+#### CR-01: Detached same-revision image callbacks can authorize Save or erase a newer render state
 
 **Classification:** BLOCKER
-**File:** `controller/static-admin/admin.js:1467-1475`
-**Related:** `controller/static-admin/admin.js:1425-1433`, `controller/static-admin/admin.js:1555-1585`, `controller/static-admin/admin.js:1792-1802`
+**File:** `controller/static-admin/admin.js:1674-1700`
+**Related:** `controller/static-admin/admin.js:1898-1904`, `controller/static-admin/admin.js:2547-2552`
 
-**Issue:** An input change queues a draft render for 150 ms and sets `reviewPreviewStatus` to `refreshing`, but retains `reviewPreviewUrl`. `renderImageReview` displays that old URL whenever it exists, and `syncReviewDirtyState` enables Save solely from metadata inequality. A user can move a control and immediately save an adjustment the UI has never rendered. If the new request fails, Save also remains enabled behind the retry state. This breaks the original CR-01 pixel-review invariant even though the server's draft renderer is correct.
+**Issue:** The adjusted-image `load` and `error` handlers capture only the review session and `reviewDraftRevision`. Comparison and overlay changes call `renderImageReview()` without advancing either value. That replacement detaches the old `<img>` and creates a new one for the same blob. If the detached element later fires `load`, its callback marks the revision `ready` and enables Save even though the currently mounted image has not loaded. Conversely, its late `error` can replace a newer successful render with the failure state. The same gap exists whenever the view is rerendered without a draft revision change. The displayed-preview authority fix therefore still equates “same draft” with “current render instance.”
 
-**Fix:** Track the draft revision represented by the displayed blob. Mark the stage pending on every edit; enable Save only after the latest revision renders successfully. Keep Save disabled on draft-preview failure and show the pending/error state without presenting old pixels as current.
-
-#### CR-02: An in-flight Save marks later, unsent edits as saved
-
-**Classification:** BLOCKER
-**File:** `controller/static-admin/admin.js:1797-1808`
-**Related:** `controller/static-admin/admin.js:2362-2370`, `controller/static-admin/admin.js:1827-1842`
-
-**Issue:** `jsonRequest` serializes adjustment A when Save is clicked, then awaits the PATCH. Controls remain editable. If the operator changes the draft to B before the response arrives, the success path copies the *live* B into `reviewSavedAdjustment`, clears `reviewDirty`, and reports success although the repository saved A. Navigation and publishing now proceed while the visible state and persisted derivative disagree. Reset has the same unguarded response timing and can overwrite edits made while DELETE is pending.
-
-**Fix:** Snapshot the submitted adjustment and review-session revision before the request. On success, set the saved baseline from the returned image (or the submitted snapshot); retain any later draft and recompute dirty state. Disable conflicting mutation controls while Save/Reset is pending, and ignore responses for a session that has since closed or switched images.
-
-#### CR-03: Post-promotion cleanup can remove the active static release
-
-**Classification:** BLOCKER
-**File:** `controller/src/publisher.rs:829-831`
-**Related:** `controller/src/publisher.rs:863-877`, `controller/src/publisher.rs:1965-1970`, `controller/src/publisher.rs:1934-1947`
-
-**Issue:** `promote_candidate` switches `current` to the new release before `prune_promoted_releases` runs. Pruning can fail while removing an old release *or its newly introduced admin image map*. That error enters the generic failure branch, where `retain_failed_candidates` renames the new release directory into `failed`, leaving `current` dangling; `remove_admin_image_map` then deletes its comparison map. Caddy serves `/srv/autographs/static/current`, so a cleanup failure after a successful promotion can take the public catalog offline. The original generic failure path existed, but the new map cleanup introduces another direct trigger and still treats the active release as a candidate.
-
-**Fix:** Split pre-promotion failure recovery from post-promotion housekeeping. Once the pointer has switched, never move or delete the active release or its map because pruning failed. Report cleanup failure separately and retry pruning later. Add a failure-injection test for old-release/map deletion that asserts `current` remains readable and its map remains available.
-
-#### CR-04: Perspective handles use frame coordinates instead of source-image coordinates
-
-**Classification:** BLOCKER
-**File:** `controller/static-admin/admin.js:1645-1655`
-**Related:** `controller/static-admin/admin.js:1692-1719`, `controller/static-admin/admin.css:725-735`, `controller/src/image_adjustments.rs:278-298`
-
-**Issue:** The server interprets perspective corners as normalized coordinates of the *private original before transformation*. The browser draws and drags them across a fixed 4:3 `.review-frame`, while `<img>` uses `object-fit: contain` and can occupy only part of that frame. For a portrait image, the full-frame handles sit in the side matte; pointer positions are divided by the full frame width, so a handle placed on a visible source corner sends a different source coordinate. With a saved rotation/crop/perspective, the preview is already transformed, so its visible corners cannot serve as the original-coordinate guide either. The auto-assist proposal uses original coordinates and is likewise overlaid in the wrong place.
-
-**Fix:** Provide a sanitized unadjusted source guide for perspective editing, fit the handles to that image's actual rendered bounds, and convert pointer coordinates relative to those bounds. Keep the canonical adjusted derivative as a separate output preview. Test portrait and non-identity saved adjustments with pointer coordinates and resulting pixels.
-
-#### CR-05: Older async review actions can overwrite a newer item or review session
-
-**Classification:** BLOCKER
-**File:** `controller/static-admin/admin.js:1524-1541`
-**Related:** `controller/static-admin/admin.js:1768-1779`, `controller/static-admin/admin.js:1827-1842`, `controller/static-admin/admin.js:2210-2229`
-
-**Issue:** `openImageReview` does not verify that the item/image is still selected when its GET resolves. The operator can click Review for image A, switch tabs or items while it is pending, and the late response forces the UI back to A's review while `currentItem` refers to the newer item. Similarly, an assist response for A applies corners to whatever `state.reviewDraftAdjustment` exists when it resolves; after discarding A and opening B, it can silently apply A's corners to B. A late reset response can replace B's draft/current item as well. The navigation guard only considers an already-open dirty draft, so it cannot prevent these in-flight cases.
-
-**Fix:** Give each review session an identity/revision token, increment it on item change or close, and check it after every awaited review/assist/save/reset response before mutating state. Cancel requests where practical. Add deferred-response DOM tests for A→B and review→navigation transitions.
-
-#### CR-06: Clean reviews hide the only Discard and Reset actions
-
-**Classification:** BLOCKER
-**File:** `controller/static-admin/index.html:396-404`
-**Related:** `controller/static-admin/admin.js:1425-1432`, `controller/static-admin/admin.js:1818-1842`, `controller/static-admin/admin.css:16-18`
-
-**Issue:** The Save, Discard, and Reset buttons all live inside `image-review-dirty-band`, which `syncReviewDirtyState` hides whenever the draft matches the saved adjustment. On opening an image with a saved correction, the operator cannot invoke Reset until first changing an unrelated control. A clean review also has no in-view way to return to the item editor; it requires a top-level tab. This removes the requested reset/discard workflow in its normal starting state.
-
-**Fix:** Keep Discard/Back and Reset visible in the focused review; disable only Save when the draft is clean. Keep the dirty message conditional as a separate element. Add a DOM test that opens a saved adjustment and invokes Reset without first editing it.
+**Fix:** Give every adjusted-output render a monotonically increasing render token (and capture the current preview request revision/blob URL). In each `load`/`error` callback, require the session, draft revision, preview revision/URL, and render token to match the currently mounted output before changing `reviewPreviewStatus` or `reviewDisplayedRevision`. Invalidate the prior render token before replacing the stage. Add a deferred DOM test that retains the first image node, rerenders via comparison/overlay, and proves late events from the detached node cannot enable Save or overwrite the newer node's result.
 
 ### Warnings
 
-#### WR-01: Existing active releases cannot provide public-current comparison
+#### WR-01: Perspective handle geometry is stale after resize and full-frame targets are clipped at narrow widths
 
 **Classification:** WARNING
-**File:** `controller/src/publisher.rs:753-764`
-**Related:** `controller/src/routes.rs:873-925`, `controller/src/publisher.rs:960-967`
+**File:** `controller/static-admin/admin.js:1817-1833`
+**Related:** `controller/static-admin/admin.js:1872-1879`, `controller/static-admin/admin.css:740-762`, `controller/static-admin/admin.css:853-876`
 
-**Issue:** The admin image map is created only by publishes with this new code. After deploying the controller over an existing active static release, `public_image_preview` returns `None` for every image because the old release has no map; the review route labels published images `privateOnly` and disables comparison. The release remains valid and public, but the new feature is unavailable until an operator performs a fresh publish.
+**Issue:** Fitted source bounds are computed correctly when the source loads or a handle moves, but handle positions are stored as absolute pixels and no `ResizeObserver` or window resize path recomputes them. After the responsive layout changes size, the image refits while the four buttons remain at their old coordinates. For full-frame corners, positioning the 44px button center at exact `0` or frame width/height also places half the target outside the source frame; when the source frame fills the `review-stage`, the parent's `overflow: hidden` clips that target. This makes the guide inaccurate after resize and reduces the promised accessible hit area at common narrow layouts.
 
-**Fix:** Backfill the active release's private map from a verified repository-to-public-artifact association during rollout, or explicitly require and verify an initial publish before enabling the review UI. Do not report a known published image as private-only solely because migration metadata is absent.
+**Fix:** Observe source-frame size changes and reposition all handles from their normalized corner values after every resize/intrinsic-size change. Keep the coordinate value normalized to the real image edge while clamping only the visual button center far enough inward to preserve its 44px hit target (or provide an unclipped overlay gutter). Test a portrait source before and after changing the frame rectangle, plus all four full-frame corners at the narrow breakpoint.
 
-#### WR-02: The DOM harness does not execute draft requests or user event paths
+#### WR-02: Back/discard can hide a Save or Reset that continues mutating the repository
 
 **Classification:** WARNING
-**File:** `controller/tests/static_admin_behavior.mjs:139-174`
-**Related:** `controller/tests/static_admin_behavior.mjs:185-284`, `controller/tests/static_admin.rs:691-705`
+**File:** `controller/static-admin/admin.js:1996-2002`
+**Related:** `controller/static-admin/admin.js:1445-1451`, `controller/static-admin/admin.js:1954-1993`, `controller/static-admin/admin.js:2005-2040`
 
-**Issue:** `window.setTimeout` only returns a number, so `scheduleDraftPreview` never calls `loadDraftPreview`; the global `fetch` always throws if invoked. Most assertions call internal functions directly, and the fake DOM never dispatches a real input, Save, tab, or reset event sequence. The harness therefore passes while CR-01, CR-02, and CR-05 remain possible, and its comparison assertion only checks assigned `src` strings rather than successful image loads.
+**Issue:** Save/Reset disable most edit controls, but Back remains active. Confirming the “Discard unsaved image edits” prompt calls `clearImageReviewState()`, invalidates the session, and returns to the editor while the PATCH/DELETE continues. The completion is then deliberately ignored because its session is stale, so a successful persistent mutation receives no success message and `state.currentItem` stays stale. In the Reset case, a clean review can leave with no confirmation at all. The operator can continue working or publish while an invisible adjustment mutation completes; publish boundary tracking prevents direct release corruption, but the action semantics and on-screen repository state are no longer trustworthy.
 
-**Fix:** Use a fake clock that flushes scheduled callbacks, a controllable fetch/response queue, and event dispatch through the registered UI listeners. Assert serialized request bodies, rendered blob revisions, dirty state after deferred responses, and navigation/publish actions.
+**Fix:** Treat mutation pending as a navigation guard. Disable Back and all tab/logout/item navigation while Save/Reset is in flight, or await the mutation and surface its result before leaving. Do not present a discard confirmation for work that has already been submitted unless cancellation is guaranteed end to end. Add tests for both Save→Back and Reset→Back that verify no hidden mutation and no stale editor state.
+
+#### WR-03: The DOM harness dispatches user input on disabled controls and misses the remaining browser interleavings
+
+**Classification:** WARNING
+**File:** `controller/tests/static_admin_behavior.mjs:55-61`
+**Related:** `controller/tests/static_admin_behavior.mjs:274-303`, `controller/tests/static_admin_behavior.mjs:359-384`
+
+**Issue:** `FakeElement.dispatch` invokes listeners even when the element is disabled. The in-flight Save test explicitly asserts the rotation control is disabled and then dispatches an `input` event on it, a path a browser user cannot take. The harness also treats leaving during a pending Reset as success without asserting what happened to the persistent mutation, and it never retains a detached same-revision image callback or changes source-frame geometry after load. It therefore does not provide the claimed browser-faithful coverage for CR-01, WR-01, or WR-02.
+
+**Fix:** Make activation/input dispatch honor `disabled` for user-event simulations, with a separate explicit primitive only when a programmatic event is intended. Exercise a genuinely enabled concurrent path where required, add detached render-event ordering, add frame resize/reposition assertions, and assert the pending-mutation navigation contract and resulting repository/editor state.
+
+## Mandatory convergence checkpoint
+
+The third review has actionable Critical/Warning findings. Per the repository guard, the next artifact must reassess finding lineage, shared invariants, complete consumer/action inventory, assumptions, failure matrix, revised plan requirements, and explicit resume criteria. Coder work may resume only after those revised assumptions and the implementation plan are reviewed, with both evidence references recorded in the convergence artifact and its status changed from `reassessment_required` to `ready_to_resume`.
+
+## Verification
+
+- `git diff --check 70f6d63..e1c1f0a` — passed.
+- `node --check controller/static-admin/admin.js` — passed.
+- `node --check controller/tests/static_admin_behavior.mjs` — passed.
+- `node controller/tests/static_admin_behavior.mjs` — passed.
+- `cargo test --manifest-path controller/Cargo.toml --lib publisher::tests -- --nocapture` — passed; 4 tests.
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin -- --nocapture` — passed; 18 tests.
+- `cargo test --manifest-path controller/Cargo.toml --test admin_workflow -- --nocapture` — passed; 36 tests.
+
+Passing tests do not cover the event/render and responsive-layout orderings above.
 
 ---
 
-_Reviewed: 2026-10-02T12:14:37Z_
+_Reviewed: 2026-10-03T01:05:09Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
