@@ -110,10 +110,13 @@ An active perspective gesture creates a render barrier around its connected capt
 | User-event helper targets a disabled control | No browser-user listener executes. |
 | Test intentionally needs programmatic dispatch | A separate explicit helper dispatches it and the test states why. |
 | Source-image load fires after pointer capture but before first move | Capture owner remains connected; projection may update in place, but no full stage replacement occurs. |
+| Pointerdown is attempted before authoritative source intrinsic/fitted geometry exists | No gesture starts; handles are absent or disabled until projection readiness is established. |
+| Source-image error fires during drag | Gesture terminates exactly once before the source frame changes; accepted movement is reconciled once and the error is shown in place. |
 | Preview response or adjusted-image load/error arrives during drag | State may be recorded, but stage replacement/reporting that detaches the owner is deferred until settlement and remains subject to request/render authority. |
 | Assist completion arrives during drag | It cannot replace or mutate the active gesture; it is rejected as stale or deferred under an explicit single-owner policy. |
 | Drag settles normally with deferred work | Capture releases, final normalized geometry wins, and exactly one authoritative render/preview sequence reconciles deferred status. |
 | Drag is cancelled, loses capture, or is torn down | Listeners/capture/deferred work are cleared according to the documented cancel contract; no stale render or preview is scheduled. |
+| Pointerup releases capture and synchronously/reentrantly emits `lostpointercapture` | Terminal state is already marked, so the second callback is a no-op and no duplicate preview/render flush occurs. |
 | Pointerdown occurs at the visual center of an inset edge handle, followed by zero movement | Normalized corner is unchanged. |
 | Pointer moves from an inset edge handle | The initial grab offset is preserved and the normalized corner changes only by the pointer's source-space delta. |
 

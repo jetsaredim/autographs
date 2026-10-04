@@ -110,11 +110,38 @@ During an authoritative active drag, producers that are not needed for the gestu
 
 Use one centralized helper for checking/queuing stage replacement so a newly added callback cannot bypass the gesture contract through a direct `renderImageReview()` call.
 
+The barrier policy is closed per producer:
+
+| Producer | Policy while drag is active | Settlement behavior |
+|---|---|---|
+| Source-image first load | A drag cannot start until intrinsic dimensions are non-zero and projection state is `ready`; handles remain disabled beforehand. A redundant authoritative load during drag may only reproject in place. | No queued full render. |
+| Source-image error | End the gesture through the single terminal path before replacing frame children; keep the last accepted normalized corner, then show the source error in place. | If the gesture moved, schedule one final draft preview after cleanup; never recreate the stage from the error callback. |
+| Preview fetch success | Accept/revoke blobs using the existing request/session/draft authority, record the newest accepted URL/status, and mark output rendering as deferred without calling `renderImageReview()`. | Discard any pre-gesture accepted output as superseded by the final gesture draft; schedule the final draft preview, whose result becomes authoritative. |
+| Preview fetch failure | Record the still-authoritative failure as deferred; do not replace the stage or capture owner. | A moved gesture supersedes the old failure with its final preview request. If no move occurred, flush the failure render after cleanup. |
+| Adjusted-output load | Update only the already-mounted output's authority/status in place; do not replace the stage. | Preserve the status if still current, unless superseded by the final gesture preview. |
+| Adjusted-output error | Record the authoritative error and queue its visual render; do not call `renderImageReview()` during the drag. | A moved gesture supersedes it with the final preview. With no move, flush the error render after cleanup. |
+| Assist completion started before drag | Reject the completion when a drag is active; do not apply or queue its proposal or message. | No flush. Operator may request assist again after settlement. |
+| Retry, comparison, overlay, scalar, keyboard, Save, Reset, navigation/logout | Disable where represented by a control and reject again in the handler. | No queued action; the operator may retry explicitly afterward. |
+| Resize observation | Reproject the same connected handles in place. Rebase the normalized grab offset using the last pointer client coordinates and current fitted bounds so the mathematical corner does not move merely because layout changed. | Continue the same gesture and basis; no render is queued. |
+| Session/item/image change or review teardown | Invalidate the gesture and all deferred render state before any replacement. | Discard without preview because the owning review is no longer current. |
+
 #### Preserve source-space grab offset
 
-At pointerdown, compute the pointer position in true fitted-source coordinates and record the delta from that position to the authoritative normalized corner expressed in source coordinates. On each move, convert the new pointer through the current fitted bounds, add the recorded source-space delta, clamp the resulting mathematical corner to the source bounds, and normalize it. The visually inset handle center remains presentation-only.
+Handles are non-interactive until the authoritative source image has non-zero intrinsic dimensions and fitted bounds with non-zero width and height. Therefore pointerdown-before-source-load is rejected by construction and cannot create a gesture with a fallback frame coordinate basis.
 
-A pointermove whose coordinates equal pointerdown must leave the normalized model unchanged. Moving an inset edge handle by a source-space delta must move the mathematical corner by the same delta without first jumping from the image edge to the inset center. If fitted geometry changes during the gesture, either terminate the gesture under the documented cancel contract or recompute from a stable normalized grab offset; do not silently reuse stale pixel geometry.
+At pointerdown after that precondition, convert the pointer to normalized fitted-source coordinates and record `grabOffset = authoritativeCorner - pointerPosition`. On each move, convert the new pointer through the current fitted bounds, add the normalized grab offset, clamp the resulting mathematical corner to `[0, 1]`, and store it. The visually inset handle center remains presentation-only.
+
+A pointermove whose coordinates equal pointerdown must leave the normalized model unchanged. Moving an inset edge handle by a source-space delta must move the mathematical corner by the same delta without first jumping from the image edge to the inset center. The gesture stores the last client coordinates. If fitted geometry changes, recompute the normalized grab offset as `currentCorner - normalized(lastPointer)` under the new bounds before accepting another move; this makes resize itself a model no-op and avoids stale pixel geometry.
+
+#### Terminal-state table
+
+| Terminal event | Capture/listener behavior | Model and deferred-work behavior |
+|---|---|---|
+| `pointerup` | Mark terminal before releasing capture; remove all gesture listeners; release capture only if still held. A resulting `lostpointercapture` observes terminal state and is a no-op. | Commit last accepted corner. If moved, discard pre-gesture deferred preview/error renders and schedule exactly one final preview. If not moved, flush the newest authoritative deferred render once. |
+| `pointercancel` | Same idempotent cleanup and release ordering as pointerup. | Commit the last already-accepted corner using the same moved/no-move reconciliation as pointerup; do not invent a rollback that would reuse old revisions. |
+| External `lostpointercapture` | Enter the same terminal function once; it must not call release recursively when capture is already absent. | Same commit/reconciliation rule as pointercancel. |
+| Source-image error | Enter terminal function before replacing source-frame children. | Commit accepted movement, reconcile preview exactly once, then show the source error in place. |
+| Review teardown or session/item/image invalidation | Mark terminal, remove listeners, and release only if safe/current; ignore reentrant lost-capture. | Discard queued render state and do not schedule preview for the retired review. |
 
 ### Coherent implementation requirements
 
@@ -124,16 +151,20 @@ A pointermove whose coordinates equal pointerdown must leave the normalized mode
 4. Record source-space grab offset at pointerdown and apply it to every move, including all four full-frame corners whose visual centers are inset by 22px.
 5. Settle or cancel exactly once across pointerup, pointercancel, lostpointercapture, resize invalidation, review teardown, and session/item/image changes; remove listeners and queued work deterministically.
 6. Preserve keyboard, assist, overlays, comparison, scalar adjustments, dirty state, Save authorization, responsive projection, and mounted-output authority outside an active drag.
+7. Add explicit source projection readiness state. Do not attach enabled pointer/keyboard handlers until source intrinsic/fitted geometry is valid; source error must leave no enabled handles.
+8. Make gesture termination idempotent before any `releasePointerCapture()` call so reentrant `lostpointercapture` cannot settle or flush twice.
 
 ### Decisive regression matrix
 
-- Begin a drag, then deliver source-image load before the first move; the original capture node stays connected and receives multiple user moves.
+- Before source load, handles are absent or disabled and pointerdown cannot start a gesture. After first authoritative load, begin a drag; a redundant load callback may only reproject the same connected handle in place.
+- Begin a drag, then deliver source-image error before the first move and after a move; cleanup occurs once, capture is released safely, the source error appears in place, and preview reconciliation follows the terminal table.
 - Begin a drag with an older preview request/output pending, then resolve success and error variants between moves; no stage replacement occurs, stale authority remains rejected, and one final settled preview wins.
 - Begin a drag, then resolve an assist request; verify the explicit reject/defer policy and that the active draft remains authoritative.
 - For each of four edge handles, pointerdown at the visual center followed by a same-coordinate move is a model no-op.
 - For portrait and landscape fitted bounds, two pointer deltas from an inset handle produce matching normalized source deltas without a first-move jump.
-- Resize during drag follows the chosen explicit cancel/rebase contract and cannot apply stale frame geometry.
+- Resize during drag rebases the normalized grab offset from the last pointer coordinates; resize itself is a model no-op and the next delta uses current fitted geometry.
 - Pointerup, pointercancel, lost capture, teardown, and session switch each prove exactly-once listener cleanup and preview/deferred-work behavior.
+- Pointerup-triggered capture release and its reentrant `lostpointercapture` callback produce only one settlement and one preview/deferred-render reconciliation.
 - User dispatch continues to reject disconnected nodes; explicit programmatic dispatch remains limited to intentional stale-callback or handler-guard tests.
 
 ### Addendum completion criteria
