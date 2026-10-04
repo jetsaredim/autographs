@@ -1,11 +1,11 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: ready_to_resume
+status: reassessment_required
 trigger_review: 08-REVIEW.md
-assumption_revision_evidence: 08-PR-263-ROUND3-REVISED-PLAN.md#contract-decisions
-implementation_plan_review_evidence: 08-PR-263-ROUND3-PLAN-REVIEW.md
-implementation_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-5963986246
+assumption_revision_evidence: 08-PR-263-ROUND3-REVISED-PLAN.md#pointer-lifecycle-reassessment-addendum
+implementation_plan_review_evidence: pending
+implementation_plan_review_comment: pending
 ---
 
 # PR 263 Review/Fix Convergence Reassessment
@@ -35,6 +35,16 @@ Per the repository convergence guard, no further coder pass may begin until this
 | Round 3 WR-02 | Open Warning | Back/discard can hide a Save or Reset that continues mutating persistence. |
 | Round 3 WR-03 | Open Warning / test weakness | Browser-impossible disabled-control events and missing interleavings allow the defects above to pass. |
 
+### Post-convergence pointer lineage
+
+| Finding | Classification | Current state |
+|---|---|---|
+| Post-convergence WR-01: capture owner replaced on first move | Incomplete Round 3 WR-01 fix / sibling-path miss | Commit `7c11380` keeps the stage mounted for ordinary pointer moves and settles one preview at gesture end. |
+| Pointer follow-up WR-01: async completion replaces capture owner | Incomplete fix / sibling-path miss | Open: source-image load and pre-existing preview/output-error/assist completions can still rerender while a drag owns pointer capture, especially before the first move. |
+| Pointer follow-up WR-02: inset target changes normalized corner | Fix regression / test weakness | Open: mapping the absolute pointer position directly to source coordinates ignores the grab offset introduced by visually inset 44px edge targets, so first movement jumps the mathematical corner. |
+
+The previously approved plan covered synchronous edit producers but assumed that keeping `pointermove` itself from rerendering was sufficient. The follow-up review disproved that assumption: all asynchronous UI completions capable of stage replacement are also drag-time producers, and the visual hit-target projection needs an inverse mapping that preserves the exact point grabbed.
+
 ## Shared Invariants
 
 ### 1. Mounted-output authority
@@ -53,6 +63,10 @@ Once Save or Reset crosses the persistence boundary, the review cannot be discar
 
 User-event helpers must obey browser disabled-control behavior. Programmatic dispatch, when intentionally needed, must be explicit. The harness must control image events, resize observation, deferred fetches, detached nodes, and navigation attempts so each authority boundary is executable and asserted.
 
+### 5. Gesture isolation and reversible projection
+
+An active perspective gesture creates a render barrier around its connected capture owner. Every synchronous action and asynchronous completion that could replace the source frame or handle must either be rejected, made in-place, or deferred until settlement. The visual inset used to preserve a 44px target is a presentation transform; pointer dragging must preserve the initial source-to-pointer grab offset so the normalized corner does not jump when the gesture begins.
+
 ## Complete Consumer and Action Inventory
 
 | Invariant | Producers | Consumers and reporting paths | Mutation / invalidation boundaries | Required tests |
@@ -61,6 +75,8 @@ User-event helpers must obey browser disabled-control behavior. Programmatic dis
 | Normalized geometry authority | Intrinsic image dimensions, normalized corners, fitted source bounds, frame observer | Handle positions, labels, pointer and keyboard updates, preview request payload | Image load, responsive resize, breakpoint/layout change, manual/assist corner change, review teardown | Portrait and landscape resize; all four full-frame corners; 44px hit targets; pointer/keyboard parity |
 | Mutation/navigation serialization | Save PATCH, Reset DELETE, mutation-pending state and token | Back, tabs, item selection, logout, messages, current item, baseline, dirty state, publish controls | Mutation submit, success/failure settlement, session teardown | Save→Back, Reset→Back, tab/item/logout during pending mutation, success/failure reconciliation |
 | Test fidelity | Fake elements, user-event helper, timers, deferred fetch queue, fake image events, fake resize observer | All DOM behavior assertions | Disabled/enabled transition, node detach, render replacement, resize delivery, deferred mutation completion | Browser-impossible events rejected; explicit programmatic events supported; all three open behavioral findings reproduced before fix and closed after fix |
+| Gesture isolation | Pointerdown/capture, source-image load, preview fetch response, adjusted-image load/error, assist completion, retry/comparison/overlay/control actions, resize observer | Connected capture owner, source frame, handle projection, preview status/message, settled preview scheduling | Pointer move/up/cancel/lost capture, session/item/image/generation change, stage rerender, async completion, teardown | Async source/preview/error/assist completions before first move and between moves; capture owner stays connected; settlement/teardown flushes or discards deferred work exactly once |
+| Reversible visual projection | Normalized corner, fitted source bounds, 22px visual inset, pointerdown position | Pointer-to-source conversion, handle pixels, labels, preview payload | Edge/corner pointerdown, multiple moves, resize during gesture, cancel/settlement | Grab centered on all four inset edge handles; zero-distance move is a no-op; subsequent deltas change the normalized corner by the same source-space delta without a jump |
 
 ## Assumption Audit
 
@@ -73,6 +89,10 @@ User-event helpers must obey browser disabled-control behavior. Programmatic dis
 - Rejected: a synthetic DOM event helper may invoke listeners on disabled controls and still demonstrate browser user behavior.
 - Revised: user-event dispatch must honor `disabled`; programmatic events require a distinct explicit primitive, and correctness claims require controlled detached-node, resize, and deferred-request interleavings.
 - Retained: publisher promotion/cleanup atomicity and legacy-release migration are closed unless the coherent change touches those contracts.
+- Rejected: preventing `pointermove` from rerendering is enough to keep the capture owner mounted.
+- Revised: active drag is a render barrier covering every synchronous producer and asynchronous completion that can replace the stage; deferred effects must be explicitly flushed or discarded at settlement/teardown.
+- Rejected: absolute pointer-to-source mapping remains correct when an edge handle's visual center is inset from its normalized corner.
+- Revised: pointerdown records the source-space grab offset between the mathematical corner and pointer; every move applies that offset before normalization, so a zero-distance move cannot change the model.
 
 ## Failure Matrix
 
@@ -89,10 +109,17 @@ User-event helpers must obey browser disabled-control behavior. Programmatic dis
 | Pending mutation fails | Error remains visible in the same review, no baseline is advanced, and egress is re-enabled consistently. |
 | User-event helper targets a disabled control | No browser-user listener executes. |
 | Test intentionally needs programmatic dispatch | A separate explicit helper dispatches it and the test states why. |
+| Source-image load fires after pointer capture but before first move | Capture owner remains connected; projection may update in place, but no full stage replacement occurs. |
+| Preview response or adjusted-image load/error arrives during drag | State may be recorded, but stage replacement/reporting that detaches the owner is deferred until settlement and remains subject to request/render authority. |
+| Assist completion arrives during drag | It cannot replace or mutate the active gesture; it is rejected as stale or deferred under an explicit single-owner policy. |
+| Drag settles normally with deferred work | Capture releases, final normalized geometry wins, and exactly one authoritative render/preview sequence reconciles deferred status. |
+| Drag is cancelled, loses capture, or is torn down | Listeners/capture/deferred work are cleared according to the documented cancel contract; no stale render or preview is scheduled. |
+| Pointerdown occurs at the visual center of an inset edge handle, followed by zero movement | Normalized corner is unchanged. |
+| Pointer moves from an inset edge handle | The initial grab offset is preserved and the normalized corner changes only by the pointer's source-space delta. |
 
 ## Revised Plan Requirements
 
-The coherent implementation is specified in `08-PR-263-ROUND3-REVISED-PLAN.md`. It must close all four Round 3 findings as one lifecycle contract change rather than separate point fixes. `08-PR-263-ROUND3-PLAN-REVIEW.md` independently approved the plan with zero blockers, warnings, or advisories; the approval is also preserved in the PR comment referenced in frontmatter.
+The original coherent implementation was specified in `08-PR-263-ROUND3-REVISED-PLAN.md` and approved in `08-PR-263-ROUND3-PLAN-REVIEW.md`. The pointer-lifecycle follow-up exposed two omitted assumptions, so the plan now contains a `Pointer Lifecycle Reassessment Addendum`. No further coder work may begin until an independent reviewer approves that addendum and its new evidence path/comment are recorded in frontmatter.
 
 ## Resume Criteria
 

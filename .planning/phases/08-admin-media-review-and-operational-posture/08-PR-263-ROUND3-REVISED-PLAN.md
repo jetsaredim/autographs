@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: approved
+status: review_required
 depends_on:
   - 08-REVIEW.md
   - 08-PR-263-CONVERGENCE.md
@@ -97,3 +97,45 @@ Split fake-DOM event delivery into a user-event helper that refuses disabled con
 ## Done
 
 The plan is implemented only when one shared lifecycle authority closes CR-01 and WR-01–03, all decisive interleavings pass in the executable DOM harness, focused Rust contracts remain green, the full verification set passes, and a lineage-preserving deep review reports zero actionable findings.
+
+## Pointer Lifecycle Reassessment Addendum
+
+### Revised contract decisions
+
+#### Active drag is a render barrier
+
+Treat a live perspective drag as exclusive ownership of the connected source frame and captured handle. Centralize a `renderImageReview` barrier that covers every known stage-replacement producer, not only pointer movement. The inventory must include source-image load callbacks, preview-fetch completion, adjusted-output load/error callbacks, assist completion, retry, comparison/overlay controls, scalar adjustment controls, keyboard perspective actions, Save/Reset, responsive projection callbacks, session/item/image changes, and teardown.
+
+During an authoritative active drag, producers that are not needed for the gesture must be disabled or rejected. Asynchronous completions may update request-local bookkeeping only when their existing authority tuple remains current, but any DOM replacement or status/reporting render must be queued behind the drag barrier. Settlement releases capture/listeners first, applies the final normalized corner as the winning draft, and then performs one authoritative render/preview reconciliation. Cancel, lost capture, session invalidation, or teardown must explicitly discard or reconcile queued work according to the existing request/render authority; no callback may detach the owner mid-gesture or schedule stale work afterward.
+
+Use one centralized helper for checking/queuing stage replacement so a newly added callback cannot bypass the gesture contract through a direct `renderImageReview()` call.
+
+#### Preserve source-space grab offset
+
+At pointerdown, compute the pointer position in true fitted-source coordinates and record the delta from that position to the authoritative normalized corner expressed in source coordinates. On each move, convert the new pointer through the current fitted bounds, add the recorded source-space delta, clamp the resulting mathematical corner to the source bounds, and normalize it. The visually inset handle center remains presentation-only.
+
+A pointermove whose coordinates equal pointerdown must leave the normalized model unchanged. Moving an inset edge handle by a source-space delta must move the mathematical corner by the same delta without first jumping from the image edge to the inset center. If fitted geometry changes during the gesture, either terminate the gesture under the documented cancel contract or recompute from a stable normalized grab offset; do not silently reuse stale pixel geometry.
+
+### Coherent implementation requirements
+
+1. Inventory every direct `renderImageReview()` caller and every callback that can indirectly replace the source frame; route them through the active-drag render barrier or prove they mutate only connected in-place geometry.
+2. Preserve existing request revision, blob ownership, render generation, node identity, review session, item/image, and perspective-generation checks when deferred work is reconciled.
+3. Keep the connected handle and frame stable across async source load, preview response, adjusted load/error, and assist response interleavings before the first move and between multiple moves.
+4. Record source-space grab offset at pointerdown and apply it to every move, including all four full-frame corners whose visual centers are inset by 22px.
+5. Settle or cancel exactly once across pointerup, pointercancel, lostpointercapture, resize invalidation, review teardown, and session/item/image changes; remove listeners and queued work deterministically.
+6. Preserve keyboard, assist, overlays, comparison, scalar adjustments, dirty state, Save authorization, responsive projection, and mounted-output authority outside an active drag.
+
+### Decisive regression matrix
+
+- Begin a drag, then deliver source-image load before the first move; the original capture node stays connected and receives multiple user moves.
+- Begin a drag with an older preview request/output pending, then resolve success and error variants between moves; no stage replacement occurs, stale authority remains rejected, and one final settled preview wins.
+- Begin a drag, then resolve an assist request; verify the explicit reject/defer policy and that the active draft remains authoritative.
+- For each of four edge handles, pointerdown at the visual center followed by a same-coordinate move is a model no-op.
+- For portrait and landscape fitted bounds, two pointer deltas from an inset handle produce matching normalized source deltas without a first-move jump.
+- Resize during drag follows the chosen explicit cancel/rebase contract and cannot apply stale frame geometry.
+- Pointerup, pointercancel, lost capture, teardown, and session switch each prove exactly-once listener cleanup and preview/deferred-work behavior.
+- User dispatch continues to reject disconnected nodes; explicit programmatic dispatch remains limited to intentional stale-callback or handler-guard tests.
+
+### Addendum completion criteria
+
+This reopened plan is ready to resume only after independent review confirms the async producer inventory, centralized render barrier, deferred-work reconciliation, grab-offset coordinate math, failure matrix, and browser-faithful tests. Implementation is complete only when a subsequent lineage-preserving deep source review reports zero Critical, Warning, and Info findings.
