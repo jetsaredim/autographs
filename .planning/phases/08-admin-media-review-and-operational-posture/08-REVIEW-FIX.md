@@ -1,112 +1,82 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-fixed_at: 2026-10-03T00:55:30Z
+fixed_at: 2026-10-03T13:18:13Z
 review_path: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
-iteration: 2
-findings_in_scope: 8
-fixed: 8
+iteration: 3
+findings_in_scope: 4
+fixed: 4
 skipped: 0
 status: all_fixed
 ---
 
 # Phase 08: Code Review Fix Report
 
-**Fixed at:** 2026-10-03T00:55:30Z
+**Fixed at:** 2026-10-03T13:18:13Z
 **Source review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md`
-**Iteration:** 2
+**Iteration:** 3 — post-convergence coherent contract pass
 
 **Summary:**
 
-- Findings in scope: 8
-- Fixed: 8
+- Findings in scope: 4
+- Fixed: 4
 - Skipped: 0
-- Coherent source/test commit: `e1c1f0a`
+- Convergence evidence: `08-PR-263-CONVERGENCE.md`
+- Approved plan: `08-PR-263-ROUND3-REVISED-PLAN.md`
+- Independent plan review: `08-PR-263-ROUND3-PLAN-REVIEW.md`
+- PR evidence comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-5982678671
 
 ## Fixed Issues
 
-### CR-01: Save remains enabled while the displayed preview is stale or failed
+### CR-01: Detached same-revision image callbacks can authorize Save or erase a newer render state
+
+**Status:** Fixed — requires human verification
+**Files modified:** `controller/static-admin/admin.js`, `controller/tests/static_admin_behavior.mjs`, `controller/tests/static_admin.rs`
+**Applied fix:** Added a monotonically increasing adjusted-output render generation distinct from preview-request ordering. Every callback must match the current review session, item/image, draft revision, preview revision and blob URL, render generation, and exact mounted image node. Mount, rerender, retry, URL replacement, and teardown invalidate prior authority before DOM replacement. The harness retains detached nodes and proves late load/error events are inert while the current blob remains owned and unrevoked.
+
+### WR-01: Perspective handle geometry is stale after resize and full-frame targets are clipped
+
+**Status:** Fixed — requires human verification
+**Files modified:** `controller/static-admin/admin.js`, `controller/static-admin/admin.css`, `controller/tests/static_admin_behavior.mjs`, `controller/tests/static_admin.rs`
+**Applied fix:** Normalized source corners remain the sole geometry model. A review-scoped `ResizeObserver` reprojects handles from current intrinsic and frame dimensions, and is invalidated on rerender or teardown. Visual centers clamp 22px inside the frame without changing normalized coordinates or pointer mapping, while CSS guarantees a 44px by 44px target. Portrait and landscape resize cases cover all four edge corners.
+
+### WR-02: Back/discard can hide a Save or Reset that continues mutating persistence
 
 **Status:** Fixed — requires human verification
 **Files modified:** `controller/static-admin/admin.js`, `controller/tests/static_admin_behavior.mjs`
-**Commit:** `e1c1f0a`
-**Applied fix:** Draft edits now advance an explicit draft revision, immediately remove stale adjusted pixels from the authoritative output panel, and disable Save until the matching blob has both returned and fired its image `load` event. Failed or pending renders keep Save disabled and expose only loading/error UI.
+**Applied fix:** Save and Reset now create one review-scoped pending-mutation record containing operation, token, session, item, and image identity. Review Back, tabs, item navigation, signer navigation, publish routes, direct editor rendering, logout, and unload are serialized behind the same handler-level guard while visible controls are disabled. Success reconciles the returned item, saved baseline, draft, dirty state, message, and publish availability before reopening egress; failure retains the review and baseline and reports the error before reopening controls.
 
-### CR-02: An in-flight Save marks later, unsent edits as saved
+### WR-03: The DOM harness dispatches user input on disabled controls and misses browser interleavings
 
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/static-admin/admin.js`, `controller/tests/static_admin_behavior.mjs`
-**Commit:** `e1c1f0a`
-**Applied fix:** Save snapshots the submitted adjustment, draft revision, and review session. Its response advances only the saved baseline, preserving a later draft as dirty; mutation controls are disabled while Save/Reset is pending. The deferred-fetch harness verifies the PATCH body contains revision A while a later revision B remains dirty after A succeeds.
+**Status:** Fixed
+**Files modified:** `controller/tests/static_admin_behavior.mjs`, `controller/tests/static_admin.rs`
+**Applied fix:** User-event dispatch now ignores disabled controls and intentional programmatic dispatch is explicit. The harness controls retained image nodes, resize delivery, deferred preview requests, blob revocation, and deferred Save/Reset responses. It executes old/new load and error ordering, older request completion, portrait and landscape reprojection, disabled edit attempts, Back/tab/item/logout attempts, and success/failure reconciliation.
 
-### CR-03: Post-promotion cleanup can remove the active static release
+## Shared-Invariant and Consumer Audit
 
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/src/publisher.rs`, `controller/src/routes.rs`, `controller/static-admin/admin.js`
-**Commit:** `e1c1f0a`
-**Applied fix:** Pre-promotion failures retain failed candidates, while post-promotion retention is a separate housekeeping result. Once `current` switches, pruning failure returns a successful publish with a redacted `cleanupWarning`; the active release and its private comparison map are never moved or deleted. Inactive maps are removed before inactive releases so a failure remains retryable on the next publish.
-
-### CR-04: Perspective handles use frame coordinates instead of source-image coordinates
-
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/src/routes.rs`, `controller/static-admin/admin.js`, `controller/static-admin/admin.css`, `controller/tests/admin_workflow.rs`, `controller/tests/static_admin.rs`, `controller/tests/static_admin_behavior.mjs`
-**Commit:** `e1c1f0a`
-**Applied fix:** Added an authenticated, no-store sanitized unadjusted source-guide endpoint. Perspective handles now live on that guide and calculate fitted image bounds from its intrinsic aspect ratio, while the canonical adjusted derivative remains a separate output preview. Tests cover portrait letterboxing, normalized pointer coordinates, a non-identity saved adjustment, and distinct source/output pixels.
-
-### CR-05: Older async review actions can overwrite a newer item or review session
-
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/static-admin/admin.js`, `controller/tests/static_admin_behavior.mjs`
-**Commit:** `e1c1f0a`
-**Applied fix:** Review open, draft render, assist, Save, and Reset now carry one item/image/session identity and the relevant draft revision across every await. Closing, navigating, switching item/image, or beginning a newer review invalidates older responses. Deferred A→B, assist-after-close, reset-after-reopen, and review→navigation interleavings execute in the harness.
-
-### CR-06: Clean reviews hide the only Discard and Reset actions
-
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/static-admin/index.html`, `controller/static-admin/admin.js`, `controller/tests/static_admin.rs`, `controller/tests/static_admin_behavior.mjs`
-**Commit:** `e1c1f0a`
-**Applied fix:** Back to item editor and Reset are now outside the conditional dirty band and remain reachable in clean and dirty states. Only Save depends on dirty state and latest-preview authority. The DOM harness opens a clean review, invokes Reset without an edit, and uses Back while a mutation is pending.
-
-### WR-01: Existing active releases cannot provide public-current comparison
-
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/src/publisher.rs`, `controller/src/routes.rs`, `controller/tests/admin_workflow.rs`
-**Commit:** `e1c1f0a`
-**Applied fix:** Active-release lookup now distinguishes no release, a mapped release, and a pre-map release. A published item on a legacy release reports `comparisonMigrationRequired` with the safe rollout contract: run one full publish after upgrade; the current release remains unchanged unless that publish succeeds. An integration test constructs a legacy active release without a map and verifies the explicit migration state and unchanged public artifact.
-
-### WR-02: The DOM harness does not execute draft requests or user event paths
-
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/tests/static_admin_behavior.mjs`, `controller/tests/static_admin.rs`, `controller/tests/admin_workflow.rs`, `controller/src/publisher.rs`
-**Commit:** `e1c1f0a`
-**Applied fix:** Replaced the non-executing timer/fetch stubs with a flushable fake clock, controllable/deferred fetch queue, response bodies/blobs, and registered-event dispatch. Assertions cover serialized request bodies, blob render revisions, image load success/failure, dirty state after deferred Save, A→B/close/navigation response ordering, clean Reset/Back, publish refusal, portrait source bounds, and promotion map/release deletion failures.
-
-## Lineage and Shared-Invariant Coverage
-
-- **Incomplete Round 1 fixes completed:** Round 1 CR-01 now includes displayed-pixel revision authority and source-coordinate parity; Round 1 CR-02 now includes migration and post-promotion atomicity.
-- **Fix regressions repaired:** Round 2 CR-02 and CR-05 close the asynchronous dirty/session regressions introduced around the Round 1 synchronous navigation guards.
-- **Sibling-path misses repaired:** The same session/revision checks cover review, draft preview, assist, Save, Reset, item/image switching, Back, top-level navigation, and logout invalidation. Promotion housekeeping covers both inactive-map and inactive-release deletion failures without touching the active pair.
-- **Independent workflow reachability:** CR-06 separates always-reachable Back/Reset actions from the dirty-only message and preview-authorized Save.
-- **Test weaknesses repaired:** WR-02 now executes the actual registered event paths and request interleavings rather than calling only synchronous helpers.
-- **Producer/consumer/mutation inventory:** Producers are the unadjusted source route, draft renderer, active-release map, and publisher; consumers are the source guide, adjusted output/comparison panes, and review response; mutations are Save/Reset/assist/manual edits and release promotion; reporting/action paths are publish status, cleanup warning, migration state, navigation, publish refusal, and retry UI.
+- **Mounted-output authority:** Audited draft request production, blob creation/revocation, all adjusted-output mounts, load/error reporting, Save enablement, comparison and overlay rerenders, retry, session/item changes, and teardown. Request ordering and DOM generation are separate and jointly required.
+- **Normalized geometry authority:** Audited source intrinsic load, fitted source bounds, observer delivery, keyboard and pointer mutation, assist mutation, responsive rerender, labels, and full-size edge targets. Pixel positions are disposable projections only.
+- **Mutation/navigation serialization:** Audited Save, Reset, assist, adjustment inputs, pointer drags, comparison and overlays, Back, tabs, item and signer navigation, direct editor rendering, logout, publish, and unload. Presentation disabling is backed by handler-level refusal.
+- **Test fidelity:** Audited disabled/enabled transitions, explicit programmatic events, detached nodes, request and blob ownership, mutable rectangles, fake resize observers, deferred mutations, returned repository items, messages, baselines, dirty state, and navigation availability.
+- **Preserved closed contracts:** Publisher promotion/cleanup safety, legacy-release migration, Oracle persistence, privacy, and public media behavior were not changed; their existing focused and full-suite regressions remain green.
 
 ## Verification
 
-All gates ran in the provided isolated checkout `/tmp/autographs-pr263-review` on branch `gsd/phase-08-admin-media-review-and-operational-posture`.
+All gates ran in `/tmp/autographs-pr263-review` on `gsd/phase-08-admin-media-review-and-operational-posture`.
 
 - `node --check controller/static-admin/admin.js` — passed.
 - `node --check controller/tests/static_admin_behavior.mjs` — passed.
 - `node controller/tests/static_admin_behavior.mjs` — passed.
-- `cargo fmt --manifest-path controller/Cargo.toml --check` — passed after formatting.
-- `cargo test --manifest-path controller/Cargo.toml --lib publisher::tests -- --nocapture` — passed; 4 publisher unit tests, including map and release deletion failure injection.
+- `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
 - `cargo test --manifest-path controller/Cargo.toml --test static_admin -- --nocapture` — passed; 18 tests.
-- `cargo test --manifest-path controller/Cargo.toml --test admin_workflow -- --nocapture` — passed; 36 tests after adding migration and portrait source/output coverage.
-- `cargo test --manifest-path controller/Cargo.toml` — passed; 163 non-ignored tests passed and 2 credential-gated live tests remained ignored.
+- `cargo test --manifest-path controller/Cargo.toml --test admin_workflow -- --nocapture` — passed; 36 tests.
+- `cargo test --manifest-path controller/Cargo.toml --lib publisher::tests -- --nocapture` — passed; 4 tests.
+- `cargo test --manifest-path controller/Cargo.toml --all-targets` — passed; 163 non-ignored tests, with 2 credential-gated live tests ignored.
 - `cargo check --manifest-path controller/Cargo.toml --features production-persistence` — passed.
 - `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings` — passed.
 - `git diff --check` — passed.
 
 ---
 
-_Fixed: 2026-10-03T00:55:30Z_
+_Fixed: 2026-10-03T13:18:13Z_
 _Fixer: the agent (gsd-code-fixer)_
-_Iteration: 2_
+_Iteration: 3_
