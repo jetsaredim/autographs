@@ -99,6 +99,7 @@ const state = {
   reviewPerspectiveImage: null,
   reviewPerspectiveObserver: null,
   reviewPerspectiveResizeListener: null,
+  reviewPerspectiveDrag: null,
   reviewFocusedCornerIndex: null,
   reviewMessage: "",
 };
@@ -1536,6 +1537,7 @@ function invalidateReviewOutputRender() {
 }
 
 function disconnectPerspectiveProjection() {
+  finishPerspectiveDrag({ settle: false });
   state.reviewPerspectiveGeneration += 1;
   state.reviewPerspectiveFrame = null;
   state.reviewPerspectiveImage = null;
@@ -1609,11 +1611,13 @@ function isCurrentReviewSession(session) {
   );
 }
 
-function markReviewDraftChanged() {
+function markReviewDraftChanged({ schedulePreview = true } = {}) {
   state.reviewDraftRevision += 1;
   state.reviewDisplayedRevision = null;
   syncReviewDirtyState();
-  scheduleDraftPreview();
+  if (schedulePreview) {
+    scheduleDraftPreview();
+  }
 }
 
 function scheduleDraftPreview({ immediate = false } = {}) {
@@ -1990,7 +1994,7 @@ function projectPerspectiveHandles() {
 }
 
 function movePerspectiveHandle(index, event) {
-  if (state.reviewMutationPending) {
+  if (state.reviewMutationPending || state.reviewPerspectiveDrag) {
     return;
   }
   const delta = event.shiftKey ? 0.05 : 0.01;
@@ -2036,15 +2040,34 @@ function sourceRenderedBounds(frame, sourceImage) {
 }
 
 function beginPerspectiveDrag(index, event, frame, sourceImage) {
-  if (state.reviewMutationPending) {
+  if (state.reviewMutationPending || state.reviewPerspectiveDrag) {
     return;
   }
   event.preventDefault();
   const handle = event.currentTarget;
+  const session = state.reviewSession ? { ...state.reviewSession } : null;
+  const generation = state.reviewPerspectiveGeneration;
+  const itemId = state.reviewImage?.itemId;
+  const imageId = state.reviewImage?.imageId;
   state.reviewFocusedCornerIndex = index;
   handle.setPointerCapture(event.pointerId);
   const move = (moveEvent) => {
-    if (state.reviewMutationPending) {
+    const drag = state.reviewPerspectiveDrag;
+    if (
+      !drag ||
+      drag.handle !== handle ||
+      moveEvent.pointerId !== drag.pointerId ||
+      state.reviewMutationPending ||
+      generation !== state.reviewPerspectiveGeneration ||
+      !isCurrentReviewSession(session) ||
+      state.reviewImage?.itemId !== itemId ||
+      state.reviewImage?.imageId !== imageId ||
+      state.reviewPerspectiveFrame !== frame ||
+      state.reviewPerspectiveImage !== sourceImage ||
+      handle.parentNode !== frame ||
+      !frame.parentNode
+    ) {
+      finishPerspectiveDrag({ settle: false });
       return;
     }
     const bounds = sourceRenderedBounds(frame, sourceImage);
@@ -2054,20 +2077,72 @@ function beginPerspectiveDrag(index, event, frame, sourceImage) {
       (moveEvent.clientY - bounds.top) / bounds.height,
       handle,
       frame,
-      sourceImage
+      sourceImage,
+      { schedulePreview: false }
     );
+    drag.moved = true;
   };
-  const finish = () => {
-    handle.removeEventListener("pointermove", move);
-    handle.removeEventListener("pointerup", finish);
-    handle.removeEventListener("pointercancel", finish);
+  const finish = (finishEvent) => {
+    if (finishEvent?.pointerId !== undefined && finishEvent.pointerId !== event.pointerId) {
+      return;
+    }
+    finishPerspectiveDrag({ settle: true });
+  };
+  state.reviewPerspectiveDrag = {
+    generation,
+    session,
+    itemId,
+    imageId,
+    index,
+    pointerId: event.pointerId,
+    handle,
+    frame,
+    sourceImage,
+    move,
+    finish,
+    moved: false,
   };
   handle.addEventListener("pointermove", move);
   handle.addEventListener("pointerup", finish);
   handle.addEventListener("pointercancel", finish);
+  handle.addEventListener("lostpointercapture", finish);
 }
 
-function setPerspectiveCorner(index, x, y, handle, frame = handle?.sourceFrame, sourceImage = handle?.sourceImage) {
+function finishPerspectiveDrag({ settle } = { settle: false }) {
+  const drag = state.reviewPerspectiveDrag;
+  if (!drag) {
+    return;
+  }
+  state.reviewPerspectiveDrag = null;
+  drag.handle.removeEventListener("pointermove", drag.move);
+  drag.handle.removeEventListener("pointerup", drag.finish);
+  drag.handle.removeEventListener("pointercancel", drag.finish);
+  drag.handle.removeEventListener("lostpointercapture", drag.finish);
+  if (
+    settle &&
+    drag.moved &&
+    drag.generation === state.reviewPerspectiveGeneration &&
+    isCurrentReviewSession(drag.session) &&
+    state.reviewImage?.itemId === drag.itemId &&
+    state.reviewImage?.imageId === drag.imageId &&
+    state.reviewPerspectiveFrame === drag.frame &&
+    state.reviewPerspectiveImage === drag.sourceImage &&
+    drag.handle.parentNode === drag.frame &&
+    drag.frame.parentNode
+  ) {
+    scheduleDraftPreview();
+  }
+}
+
+function setPerspectiveCorner(
+  index,
+  x,
+  y,
+  handle,
+  frame = handle?.sourceFrame,
+  sourceImage = handle?.sourceImage,
+  { schedulePreview = true } = {}
+) {
   const corners = currentPerspectiveCorners();
   corners[index] = {
     x: Math.max(0, Math.min(1, x)),
@@ -2075,7 +2150,7 @@ function setPerspectiveCorner(index, x, y, handle, frame = handle?.sourceFrame, 
   };
   state.reviewDraftAdjustment.perspective = { corners };
   projectPerspectiveHandles();
-  markReviewDraftChanged();
+  markReviewDraftChanged({ schedulePreview });
 }
 
 function positionPerspectiveHandle(handle, corner, frame, sourceImage) {
@@ -2110,7 +2185,11 @@ function syncReviewControls() {
 }
 
 function setReviewComparisonMode(mode) {
-  if (state.reviewMutationPending || (mode !== "latest" && !state.reviewImage?.canComparePublicCurrent)) {
+  if (
+    state.reviewMutationPending ||
+    state.reviewPerspectiveDrag ||
+    (mode !== "latest" && !state.reviewImage?.canComparePublicCurrent)
+  ) {
     return;
   }
   state.reviewComparisonMode = mode;
@@ -2136,7 +2215,7 @@ function syncReviewComparisonButtons() {
 
 async function detectImageEdges() {
   const { itemId, imageId } = state.reviewImage || {};
-  if (!itemId || !imageId || state.reviewMutationPending) {
+  if (!itemId || !imageId || state.reviewMutationPending || state.reviewPerspectiveDrag) {
     return;
   }
   const session = state.reviewSession ? { ...state.reviewSession } : null;
@@ -2173,7 +2252,7 @@ async function detectImageEdges() {
 
 async function saveImageAdjustments() {
   const { itemId, imageId } = state.reviewImage || {};
-  if (!itemId || !imageId || elements.imageReviewSave.disabled) {
+  if (!itemId || !imageId || state.reviewPerspectiveDrag || elements.imageReviewSave.disabled) {
     return;
   }
   const session = state.reviewSession ? { ...state.reviewSession } : null;
@@ -2226,7 +2305,12 @@ function discardImageEdits() {
 }
 
 async function resetImageAdjustments() {
-  if (state.reviewMutationPending || !state.reviewImage || !window.confirm(copy.resetAdjustment)) {
+  if (
+    state.reviewMutationPending ||
+    state.reviewPerspectiveDrag ||
+    !state.reviewImage ||
+    !window.confirm(copy.resetAdjustment)
+  ) {
     return;
   }
   const session = state.reviewSession ? { ...state.reviewSession } : null;
@@ -2787,7 +2871,7 @@ for (const button of document.querySelectorAll("[data-review-mode]")) {
 }
 for (const toggle of document.querySelectorAll("[data-review-overlay]")) {
   toggle.addEventListener("change", () => {
-    if (state.reviewMutationPending) {
+    if (state.reviewMutationPending || state.reviewPerspectiveDrag) {
       return;
     }
     state.reviewOverlays[toggle.dataset.reviewOverlay] = toggle.checked;
@@ -2796,7 +2880,7 @@ for (const toggle of document.querySelectorAll("[data-review-overlay]")) {
 }
 for (const control of document.querySelectorAll("[data-adjustment-field]")) {
   control.addEventListener("input", () => {
-    if (!state.reviewDraftAdjustment || state.reviewMutationPending) {
+    if (!state.reviewDraftAdjustment || state.reviewMutationPending || state.reviewPerspectiveDrag) {
       return;
     }
     state.reviewDraftAdjustment[control.dataset.adjustmentField] = Number(control.value);

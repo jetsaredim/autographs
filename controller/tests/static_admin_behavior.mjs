@@ -23,6 +23,7 @@ class FakeElement {
       tagName: tagName.toUpperCase(), id, hidden: false, disabled: false, dataset: {}, style: {},
       children: [], attributes: new Map(), listeners: new Map(), className: "", textContent: "",
       elements: {}, value: "", checked: false,
+      connectedRoot: false,
       rect: { left: 0, top: 0, width: 400, height: 300 },
       naturalWidth: tagName === "img" ? 400 : 0, naturalHeight: tagName === "img" ? 300 : 0,
     });
@@ -52,7 +53,18 @@ class FakeElement {
   removeEventListener(type, listener) {
     this.listeners.set(type, (this.listeners.get(type) || []).filter((value) => value !== listener));
   }
+  get isConnected() {
+    let node = this;
+    while (node) {
+      if (node.connectedRoot) return true;
+      node = node.parentNode;
+    }
+    return false;
+  }
   async dispatch(type, init = {}) {
+    if (!this.isConnected) {
+      return { target: this, currentTarget: this, ignoredBecauseDisconnected: true };
+    }
     if (this.disabled && ["click", "change", "input", "keydown", "pointerdown", "pointermove", "pointerup"].includes(type)) {
       return { target: this, currentTarget: this, ignoredBecauseDisabled: true };
     }
@@ -77,7 +89,11 @@ class FakeElement {
 
 const ids = new Map();
 const elementForId = (id) => {
-  if (!ids.has(id)) ids.set(id, new FakeElement("div", id));
+  if (!ids.has(id)) {
+    const element = new FakeElement("div", id);
+    element.connectedRoot = true;
+    ids.set(id, element);
+  }
   return ids.get(id);
 };
 const adjustmentControls = [
@@ -95,12 +111,14 @@ const overlayToggles = ["grid", "centerline", "edges"].map((name) => {
 });
 const comparisonButtons = ["latest", "before-after", "split"].map((mode) => {
   const button = new FakeElement("button");
+  button.connectedRoot = true;
   button.dataset.reviewMode = mode;
   return button;
 });
 const views = ["hub-view", "add-item-view", "image-review-view", "publish-view"].map(elementForId);
 const tabButtons = ["hub-view", "publish-view"].map((view) => {
   const button = new FakeElement("button");
+  button.connectedRoot = true;
   button.dataset.view = view;
   return button;
 });
@@ -457,6 +475,9 @@ await run(`
 assist.resolve(response({ json: { status: "confident", corners: [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.9, y: 0.9 }, { x: 0.1, y: 0.9 }] } }));
 await assistPromise;
 await run(`assert.equal(state.reviewDraftAdjustment.perspective, null);`);
+enqueueFetch(response());
+await flushTimers();
+await run(`await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");`);
 
 await run(`
   const sourceFrame = findByClass(elements.imageReviewStage, "source-guide-frame");
@@ -492,12 +513,94 @@ await run(`
   sourceImage.naturalHeight = 400;
   resizeObservers.findLast((observer) => !observer.disconnected).trigger(sourceFrame);
   const handle = handles[0];
+  const fetchCountBeforeDrag = fetchCalls.length;
+  const previewRevisionBeforeDrag = state.reviewPreviewRevision;
   await handle.dispatch("pointerdown", { pointerId: 9 });
-  await handle.dispatch("pointermove", { clientX: 125, clientY: 0 });
+  await handle.dispatch("pointermove", { pointerId: 9, clientX: 125, clientY: 0 });
   assert.deepEqual(state.reviewDraftAdjustment.perspective.corners[0], { x: 0, y: 0 });
-  await handle.dispatch("pointermove", { clientX: 200, clientY: 150 });
+  assert.equal(handle.isConnected, true);
+  assert.equal(findAllByClass(sourceFrame, "corner-handle")[0], handle);
+  await handle.dispatch("pointermove", { pointerId: 9, clientX: 200, clientY: 150 });
   assert.deepEqual(state.reviewDraftAdjustment.perspective.corners[0], { x: 0.5, y: 0.5 });
+  assert.equal(handle.isConnected, true);
+  assert.equal(findAllByClass(sourceFrame, "corner-handle")[0], handle);
+  assert.equal(handle.pointerCapture, 9);
+  assert.equal(state.reviewDirty, true);
+  assert.equal(elements.imageReviewSave.disabled, true);
+  assert.equal(fetchCalls.length, fetchCountBeforeDrag);
+  assert.equal(state.reviewPreviewRevision, previewRevisionBeforeDrag);
+  await handle.dispatch("pointerup", { pointerId: 9 });
+  assert.equal(handle.isConnected, false);
+  assert.equal(state.reviewPerspectiveDrag, null);
+  assert.equal(state.reviewPreviewStatus, "loading");
+  assert.equal(state.reviewPreviewRevision, previewRevisionBeforeDrag + 1);
+  globalThis.dragFetchCount = fetchCountBeforeDrag;
   assert.match(sourceImage.src, /preview\\/source$/);
+`);
+enqueueFetch(response());
+const dragPreviewPromises = startTimers();
+assert.equal(dragPreviewPromises.length, 1, "one settled drag preview must be scheduled");
+await Promise.all(dragPreviewPromises);
+await run(`
+  assert.equal(fetchCalls.length, dragFetchCount + 1);
+  const request = fetchCalls.at(-1);
+  assert.equal(JSON.stringify(JSON.parse(request.options.body).perspective.corners[0]), JSON.stringify({ x: 0.5, y: 0.5 }));
+  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+  assert.equal(state.reviewPreviewStatus, "ready");
+  assert.equal(state.reviewDisplayedRevision, state.reviewDraftRevision);
+`);
+
+await run(`
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  const image = frame.children[0];
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  await handle.dispatch("pointerdown", { pointerId: 10 });
+  await handle.dispatch("pointermove", { pointerId: 10, clientX: 100, clientY: 75 });
+  const settledCorner = JSON.stringify(state.reviewDraftAdjustment.perspective.corners[0]);
+  await handle.dispatch("pointercancel", { pointerId: 10 });
+  assert.equal(state.reviewPerspectiveDrag, null);
+  assert.equal(handle.isConnected, false);
+  const disconnectedMove = await handle.dispatch("pointermove", { pointerId: 10, clientX: 400, clientY: 300 });
+  assert.equal(disconnectedMove.ignoredBecauseDisconnected, true);
+  await handle.dispatchProgrammatic("pointermove", { pointerId: 10, clientX: 400, clientY: 300 });
+  assert.equal(JSON.stringify(state.reviewDraftAdjustment.perspective.corners[0]), settledCorner);
+  assert.match(image.src, /preview\\/source$/);
+`);
+enqueueFetch(response());
+const cancelPreviewPromises = startTimers();
+assert.equal(cancelPreviewPromises.length, 1, "pointer cancel must settle exactly one preview");
+await Promise.all(cancelPreviewPromises);
+await run(`await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");`);
+
+await run(`
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  await handle.dispatch("pointerdown", { pointerId: 11 });
+  await handle.dispatch("pointermove", { pointerId: 11, clientX: 300, clientY: 75 });
+  const settledCorner = JSON.stringify(state.reviewDraftAdjustment.perspective.corners[0]);
+  await handle.dispatch("lostpointercapture", { pointerId: 11 });
+  assert.equal(state.reviewPerspectiveDrag, null);
+  assert.equal(handle.isConnected, false);
+  await handle.dispatchProgrammatic("pointermove", { pointerId: 11, clientX: 0, clientY: 300 });
+  assert.equal(JSON.stringify(state.reviewDraftAdjustment.perspective.corners[0]), settledCorner);
+`);
+enqueueFetch(response());
+const lostCapturePreviewPromises = startTimers();
+assert.equal(lostCapturePreviewPromises.length, 1, "lost capture must settle exactly one preview");
+await Promise.all(lostCapturePreviewPromises);
+await run(`await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");`);
+
+await run(`
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  await handle.dispatch("pointerdown", { pointerId: 12 });
+  await handle.dispatch("pointermove", { pointerId: 12, clientX: 100, clientY: 225 });
+  const teardownCorner = JSON.stringify(state.reviewDraftAdjustment.perspective.corners[0]);
+  disconnectPerspectiveProjection();
+  assert.equal(state.reviewPerspectiveDrag, null);
+  await handle.dispatchProgrammatic("pointermove", { pointerId: 12, clientX: 400, clientY: 0 });
+  assert.equal(JSON.stringify(state.reviewDraftAdjustment.perspective.corners[0]), teardownCorner);
+  assert.equal(startTimers().length, 0);
 `);
 
 const lateReset = deferred();

@@ -602,6 +602,8 @@ fn static_admin_image_review_contract_is_private_accessible_and_draft_local() {
         "renderPerspectiveHandles",
         "projectPerspectiveHandles",
         "observePerspectiveProjection",
+        "finishPerspectiveDrag",
+        "lostpointercapture",
         "isAuthoritativeOutputRender",
         "invalidateReviewOutputRender",
         "beginReviewMutation",
