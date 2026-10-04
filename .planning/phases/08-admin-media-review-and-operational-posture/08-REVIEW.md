@@ -1,6 +1,6 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-04T18:32:21Z
+reviewed: 2026-10-04T18:51:44Z
 depth: deep
 files_reviewed: 11
 files_reviewed_list:
@@ -17,15 +17,15 @@ files_reviewed_list:
   - controller/tests/static_admin_behavior.mjs
 findings:
   critical: 0
-  warning: 1
+  warning: 2
   info: 0
-  total: 1
+  total: 2
 status: issues_found
 ---
 
-# Phase 08: Code Review Report — Post-Convergence Review
+# Phase 08: Code Review Report — Pointer Lifecycle Follow-up
 
-**Reviewed:** 2026-10-04T18:32:21Z
+**Reviewed:** 2026-10-04T18:51:44Z
 **Depth:** deep
 **Files Reviewed:** 11
 **Status:** issues_found
@@ -34,55 +34,62 @@ status: issues_found
 
 ### Summary
 
-The coherent post-convergence pass closes the mounted-output authority, persistence-mutation serialization, responsive resize projection, disabled-control simulation, publisher promotion, legacy migration, privacy, and public-output findings. One actionable interaction defect remains in the perspective producer: the first pointer movement schedules a preview and synchronously replaces the entire review stage, detaching the element that owns pointer capture. The test then continues dispatching pointer events directly to that detached element, so it cannot demonstrate the real browser drag lifecycle.
+Commit `7c11380` keeps the captured handle mounted across ordinary pointer movements, rejects retired-node user delivery, settles one preview on pointer up/cancel/lost capture, and preserves the previously closed mutation, publisher, migration, privacy, and public-output contracts. The interaction is not yet authoritative end to end, however. Asynchronous producers that were already active before `pointerdown` can still replace the captured node, and the inset used to keep a 44px edge target visible is not accounted for when converting pointer movement back to normalized source coordinates.
 
-### Round 3 finding lineage
+### Finding lineage
 
-| Round 3 finding | Post-convergence disposition | Evidence |
+| Prior finding | Current disposition | Evidence |
 | --- | --- | --- |
-| CR-01 detached same-revision callbacks | Resolved | Network request revision, preview URL, output render generation, exact mounted node, draft revision, item/image, and review session must all remain current before load/error callbacks can update preview state or authorize Save. Detached-node load/error ordering is exercised. |
-| WR-01 responsive perspective geometry | Incomplete fix / sibling-path miss | Resize reprojection and 44px edge-target clamping are repaired, but a pointer producer replaces its own captured handle on the first movement, interrupting the continuous drag lifecycle (WR-01). |
-| WR-02 pending mutation egress | Resolved | Save and Reset use one identity-scoped pending mutation; Back, tabs, item/signer navigation, direct editor rendering, publish, logout, and unload paths are guarded until success/failure reconciliation. |
-| WR-03 browser-faithful DOM coverage | Incomplete fix / test weakness | Disabled user controls, detached image callbacks, resize delivery, and deferred mutations are modeled, but the perspective test manually sends a second user pointer movement to a handle already detached by the first movement (WR-01). |
+| Post-convergence WR-01: first move replaces the pointer-capture owner | Incomplete fix / sibling-path miss | Ordinary moves now retain the same handle, but source-image load and already-running preview/assist work can still rerender or replace it after `pointerdown` (WR-01). |
+| Round 3 WR-01: normalized geometry and responsive projection | Incomplete fix | Resize projection and full-size edge targets remain correct, but dragging an inset edge target maps its visual center as a new source coordinate, so the model jumps before tracking the intended delta (WR-02). |
+| Round 3 WR-03: browser-faithful DOM coverage | Incomplete fix / test weakness | Disconnected-node delivery is rejected and terminal events are exercised, but the harness starts only after source load, resolves no competing async producer during capture, and moves edge handles directly to the hidden true corner rather than checking a zero/small movement from the visible target (WR-01, WR-02). |
+| Round 3 CR-01: mounted adjusted-output authority | Resolved | Request, render generation, exact node, preview URL/revision, draft revision, item/image, and session still gate output callbacks and Save authorization. |
+| Round 3 WR-02: pending mutation egress | Resolved | Save/Reset remain serialized with review egress through success and failure reconciliation. |
 
 ### Inherited closed-contract check
 
 | Contract | Verdict |
 | --- | --- |
-| Mounted adjusted-output authority and blob ownership | Closed; stale requests and stale DOM instances cannot update the current output or Save state. |
+| Mounted adjusted-output authority and blob ownership | Closed for output/Save correctness; WR-01 concerns interruption of an active pointer gesture, not stale output authorization. |
 | Save/Reset repository reconciliation and navigation serialization | Closed for success, failure, and named egress paths. |
-| Publisher promotion and post-promotion cleanup | Closed; focused and full publisher tests preserve the active release and public-current map across cleanup failures. |
-| Legacy active-release migration | Closed; the active legacy artifact remains protected until a successful publish establishes comparison metadata. |
-| Private-original and public-output boundaries | Closed; authenticated previews stay `no-store`, errors remain redacted, and public privacy tests pass. |
+| Publisher promotion and post-promotion cleanup | Closed; full publisher coverage preserves the active release and comparison map. |
+| Legacy active-release migration | Closed; the active legacy artifact remains protected until successful comparison metadata exists. |
+| Private-original and public-output boundaries | Closed; authenticated previews remain private/no-store and public privacy contracts pass. |
 
 ### Warnings
 
-#### WR-01: Perspective dragging replaces the pointer-capture owner after the first move
+#### WR-01: Pre-existing async producers can still detach the active pointer-capture owner
 
 **Classification:** WARNING
-**File:** `controller/static-admin/admin.js:2046-2058`
-**Related:** `controller/static-admin/admin.js:2070-2078`, `controller/static-admin/admin.js:1612-1631`, `controller/tests/static_admin_behavior.mjs:495-499`
+**File:** `controller/static-admin/admin.js:1759-1763`
+**Related:** `controller/static-admin/admin.js:1668-1694`, `controller/static-admin/admin.js:1819-1832`, `controller/static-admin/admin.js:2216-2235`, `controller/tests/static_admin_behavior.mjs:482-539`
 
-**Issue:** `beginPerspectiveDrag()` captures the pointer on the current corner button. Its first `pointermove` calls `setPerspectiveCorner()`, which calls `markReviewDraftChanged()`. `scheduleDraftPreview()` then synchronously calls `renderImageReview()`, replacing `imageReviewStage` and detaching that captured button and its source frame. A browser will no longer deliver a continuous user drag to the newly created handle without a new pointer-down; any later event retained by the old listener also uses the detached frame's geometry. The DOM test masks this by invoking a second `dispatch("pointermove")` directly on the old `handle` variable after the first dispatch has already rerendered the stage. That is programmatic delivery to a detached node, not browser-faithful user behavior.
+**Issue:** The new drag record guards synchronous controls and keeps the handle mounted while `pointermove` itself mutates the model, but it does not serialize async work that began before the gesture. Handles are created before the source image loads; if the operator presses one and the image then emits `load`, the callback calls `renderPerspectiveHandles()`, removes the captured button, and creates four replacements without ending or transferring the drag. A draft-preview response or adjusted-output error that resolves after `pointerdown` but before the first move can call `renderImageReview()`, and an already-running edge-assist response can call `markReviewDraftChanged()` and do the same because their completion guards do not reject `state.reviewPerspectiveDrag`. Thus one physical gesture can lose its connected capture owner before its first movement or terminal event. The current harness always fires source load before pointerdown and does not resolve any preview, output error, or assist promise while capture is live, so it cannot catch these interleavings.
 
-**Fix:** Keep the pointer-capture owner mounted for the duration of the drag. Separate source-guide/handle rendering from adjusted-output status rendering, or defer the full stage rerender/preview scheduling until `pointerup`/`pointercancel` while projecting the active handle in place during movement. Track the active drag by review/perspective generation and terminate it on teardown or `lostpointercapture`. Update the harness so user-event dispatch refuses disconnected nodes, assert that multiple physical drag movements update the current normalized corner without replacing the active handle, and reserve explicit detached-node dispatch only for testing stale-callback rejection.
+**Fix:** Make async render authority aware of the active gesture. Do not replace handles on source load (project the existing connected handles, or do not enable/create them until the source is ready), and either defer or reject/reschedule preview, output-error, and assist completions while `reviewPerspectiveDrag` owns the stage. Whichever policy is chosen must preserve the final normalized model and schedule exactly one authoritative preview at the terminal event. Add controlled tests for `pointerdown` followed by source load, assist completion, preview completion, and output error both before and after the first move; the same capture node must remain connected until pointerup/cancel/lost capture or an explicit lifecycle teardown.
+
+#### WR-02: Dragging a visually inset edge handle jumps the normalized corner
+
+**Classification:** WARNING
+**File:** `controller/static-admin/admin.js:2042-2082`
+**Related:** `controller/static-admin/admin.js:2156-2168`, `controller/tests/static_admin_behavior.mjs:502-524`
+
+**Issue:** Edge corners retain their true normalized values while `positionPerspectiveHandle()` clamps each 44px button center 22px inside the frame. The move handler nevertheless converts the pointer's absolute client position directly into a source coordinate. For a full-frame landscape corner, the model is `x = 0` while the visible handle center is at `x = 22px`; the first one-pixel movement from that center writes approximately `23 / frameWidth` instead of a small delta from zero. The corner therefore jumps inward solely because its accessible hit target was inset. The test masks this by moving the pointer from the visible inset center to the invisible mathematical edge (`clientY: 0`) and asserting zero, rather than asserting that a stationary or one-pixel move from the visible center preserves/gradually changes the normalized value.
+
+**Fix:** Record the grab relationship at pointerdown and apply movement as a delta from the starting normalized corner (or subtract a maintained grab offset from the current pointer-to-source projection), including when frame geometry changes during capture. A pointermove at the same client coordinates as pointerdown must leave the corner unchanged, and a one-pixel move must change it by one source pixel's normalized fraction without a target-radius jump. Extend the harness across all four full-frame corners and portrait/landscape frames, including resize during capture.
 
 ## Verification
 
 - `git diff --check origin/main...HEAD` — passed.
 - `node --check controller/static-admin/admin.js` — passed.
-- `node --check controller/tests/static_admin_behavior.mjs` — passed.
-- `node controller/tests/static_admin_behavior.mjs` — passed, but the perspective sequence contains the detached-node fidelity gap described above.
+- `node controller/tests/static_admin_behavior.mjs` — passed, but omits the async-capture and inset-grab interleavings described above.
 - `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
-- `cargo test --manifest-path controller/Cargo.toml --test static_admin -- --nocapture` — passed; 18 tests.
-- `cargo test --manifest-path controller/Cargo.toml --test admin_workflow -- --nocapture` — passed; 36 tests.
-- `cargo test --manifest-path controller/Cargo.toml --lib publisher::tests -- --nocapture` — passed; 4 tests.
 - `cargo test --manifest-path controller/Cargo.toml --all-targets` — passed; 163 non-ignored tests, with 2 credential-gated live tests ignored.
 - `cargo check --manifest-path controller/Cargo.toml --features production-persistence` — passed.
 - `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings` — passed.
 
 ---
 
-_Reviewed: 2026-10-04T18:32:21Z_
+_Reviewed: 2026-10-04T18:51:44Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
