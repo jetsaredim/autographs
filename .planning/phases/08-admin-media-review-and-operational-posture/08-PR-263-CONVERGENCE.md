@@ -1,11 +1,11 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: ready_to_resume
+status: reassessment_required
 trigger_review: 08-REVIEW.md
-assumption_revision_evidence: 08-PR-263-ROUND3-REVISED-PLAN.md#pointer-lifecycle-reassessment-addendum
-implementation_plan_review_evidence: 08-PR-263-POINTER-PLAN-REVIEW-ITER2.md
-implementation_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-5983334411
+assumption_revision_evidence: 08-PR-263-ROUND3-REVISED-PLAN.md#media-revision-authority-addendum
+implementation_plan_review_evidence: pending
+implementation_plan_review_comment: pending
 ---
 
 # PR 263 Review/Fix Convergence Reassessment
@@ -45,6 +45,14 @@ Per the repository convergence guard, no further coder pass may begin until this
 
 The previously approved plan covered synchronous edit producers but assumed that keeping `pointermove` itself from rerendering was sufficient. The follow-up review disproved that assumption: all asynchronous UI completions capable of stage replacement are also drag-time producers, and the visual hit-target projection needs an inverse mapping that preserves the exact point grabbed.
 
+### Media-replacement lineage
+
+| Finding | Classification | Current state |
+|---|---|---|
+| Gesture-lifecycle CR-01: same-ID replacement preserves stale review authority | Independent sibling mutation-boundary miss | Open: a replacement PUT started before review can commit new private bytes under the same item/image UUID while the review, gesture, draft previews, and later adjustment save remain bound only to those UUIDs. Old-source geometry can then be persisted for the replacement media. |
+
+The approved gesture plan correctly serialized callbacks inside one review session, but assumed item/image UUIDs identify immutable media. Replacement intentionally preserves the image UUID while changing its object key, checksum, byte size, intrinsic geometry, and adjustment baseline. Review authority must therefore include an opaque media revision and the persistence boundary must enforce it atomically.
+
 ## Shared Invariants
 
 ### 1. Mounted-output authority
@@ -67,6 +75,10 @@ User-event helpers must obey browser disabled-control behavior. Programmatic dis
 
 An active perspective gesture creates a render barrier around its connected capture owner. Every synchronous action and asynchronous completion that could replace the source frame or handle must either be rejected, made in-place, or deferred until settlement. The visual inset used to preserve a 44px target is a presentation transform; pointer dragging must preserve the initial source-to-pointer grab offset so the normalized corner does not jump when the gesture begins.
 
+### 6. Immutable media-revision authority
+
+Item ID plus image ID identifies a catalog slot, not the bytes currently occupying it. Every review response, source/draft preview, assist proposal, adjusted-output callback, Save/Reset mutation, and client reconciliation must bind to one opaque media revision derived from server-private media metadata. The opaque token must not reveal an Object Storage key, namespace, bucket, or raw checksum. Adjustment persistence must compare the expected private object key atomically in the repository update so a replacement cannot race between route validation and write.
+
 ## Complete Consumer and Action Inventory
 
 | Invariant | Producers | Consumers and reporting paths | Mutation / invalidation boundaries | Required tests |
@@ -77,6 +89,7 @@ An active perspective gesture creates a render barrier around its connected capt
 | Test fidelity | Fake elements, user-event helper, timers, deferred fetch queue, fake image events, fake resize observer | All DOM behavior assertions | Disabled/enabled transition, node detach, render replacement, resize delivery, deferred mutation completion | Browser-impossible events rejected; explicit programmatic events supported; all three open behavioral findings reproduced before fix and closed after fix |
 | Gesture isolation | Pointerdown/capture, source-image load, preview fetch response, adjusted-image load/error, assist completion, retry/comparison/overlay/control actions, resize observer | Connected capture owner, source frame, handle projection, preview status/message, settled preview scheduling | Pointer move/up/cancel/lost capture, session/item/image/generation change, stage rerender, async completion, teardown | Async source/preview/error/assist completions before first move and between moves; capture owner stays connected; settlement/teardown flushes or discards deferred work exactly once |
 | Reversible visual projection | Normalized corner, fitted source bounds, 22px visual inset, pointerdown position | Pointer-to-source conversion, handle pixels, labels, preview payload | Edge/corner pointerdown, multiple moves, resize during gesture, cancel/settlement | Grab centered on all four inset edge handles; zero-distance move is a no-op; subsequent deltas change the normalized corner by the same source-space delta without a jump |
+| Immutable media revision | Replacement upload/metadata commit, opaque revision derivation, review response, admin item response | Review session, preview URLs/requests, assist, output callbacks, Save/Reset, editor reconciliation, dirty/publish reporting | Replacement started before/during review, route pre/post validation, atomic repository update, cleanup-warning rollback, review teardown | Same-ID replacement resolves before first move, between moves, during preview/assist, before Save/Reset repository write, and after route validation; stale work returns conflict/invalidates and cannot persist |
 
 ## Assumption Audit
 
@@ -93,6 +106,10 @@ An active perspective gesture creates a render barrier around its connected capt
 - Revised: active drag is a render barrier covering every synchronous producer and asynchronous completion that can replace the stage; deferred effects must be explicitly flushed or discarded at settlement/teardown.
 - Rejected: absolute pointer-to-source mapping remains correct when an edge handle's visual center is inset from its normalized corner.
 - Revised: pointerdown records the source-space grab offset between the mathematical corner and pointer; every move applies that offset before normalization, so a zero-distance move cannot change the model.
+- Rejected: stable item/image UUIDs are sufficient authority for a review or adjustment mutation.
+- Revised: the image UUID is a replaceable slot. An opaque media revision binds client work to a specific private-object snapshot, and the repository mutation condition uses the server-private expected object key to close the validation/write race.
+- Rejected: invalidating the UI when the replacement response arrives is sufficient.
+- Revised: client invalidation is required for prompt UX, while server pre/post validation and atomic compare-and-set remain authoritative for concurrent requests, other sessions, and response-order races.
 
 ## Failure Matrix
 
@@ -119,10 +136,15 @@ An active perspective gesture creates a render barrier around its connected capt
 | Pointerup releases capture and synchronously/reentrantly emits `lostpointercapture` | Terminal state is already marked, so the second callback is a no-op and no duplicate preview/render flush occurs. |
 | Pointerdown occurs at the visual center of an inset edge handle, followed by zero movement | Normalized corner is unchanged. |
 | Pointer moves from an inset edge handle | The initial grab offset is preserved and the normalized corner changes only by the pointer's source-space delta. |
+| Replacement begins before review, then returns while review/drag is active | Returned item carries a different opaque media revision; review/gesture/requests are invalidated before editor reconciliation, and old geometry cannot remain savable. |
+| Replacement commits after stale draft preview or assist starts | Route revalidation rejects/suppresses the old-media result; the client treats revision conflict as review invalidation, not a retryable same-media preview error. |
+| Replacement commits after Save/Reset route validation but before repository write | Atomic expected-object-key predicate updates zero rows and returns conflict; replacement adjustment baseline remains unchanged. |
+| Replacement cleanup warning rolls metadata back to original object | Response revision matches the restored original media; any still-current review may only continue if its exact revision remains current, otherwise it is invalidated. |
+| Opaque revision is exposed through admin API | Token cannot be reversed into or used as an OCI namespace, bucket, object key, signed URL, or raw media checksum; no token enters public static output. |
 
 ## Revised Plan Requirements
 
-The original coherent implementation was specified in `08-PR-263-ROUND3-REVISED-PLAN.md` and approved in `08-PR-263-ROUND3-PLAN-REVIEW.md`. The pointer-lifecycle follow-up exposed two omitted assumptions, so the plan now contains a `Pointer Lifecycle Reassessment Addendum`. The first addendum review (`08-PR-263-POINTER-PLAN-REVIEW.md`) required revisions; iteration 2 (`08-PR-263-POINTER-PLAN-REVIEW-ITER2.md`) approved the deterministic producer/terminal policies, source-readiness gate, grab-offset/rebase math, and executable matrix with zero findings. Its evidence path and PR comment are recorded in frontmatter, so one coherent coder pass may resume.
+The original coherent implementation and pointer-lifecycle addendum remain historical approved evidence. The latest review exposed an independent sibling mutation boundary, so the plan now contains a `Media Revision Authority Addendum`. No further coder work may begin until an independent reviewer approves its opaque-token contract, pre/post validation, atomic repository compare-and-set, client invalidation, rollback behavior, privacy boundary, and concurrency matrix, with the new evidence path/comment recorded in frontmatter.
 
 ## Resume Criteria
 

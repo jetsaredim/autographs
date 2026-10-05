@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: approved
+status: review_required
 depends_on:
   - 08-REVIEW.md
   - 08-PR-263-CONVERGENCE.md
@@ -170,3 +170,64 @@ A pointermove whose coordinates equal pointerdown must leave the normalized mode
 ### Addendum completion criteria
 
 This reopened plan is ready to resume only after independent review confirms the async producer inventory, centralized render barrier, deferred-work reconciliation, grab-offset coordinate math, failure matrix, and browser-faithful tests. Implementation is complete only when a subsequent lineage-preserving deep source review reports zero Critical, Warning, and Info findings.
+
+## Media Revision Authority Addendum
+
+### Contract decision
+
+Treat each catalog image UUID as a replaceable slot and bind review work to an immutable opaque `mediaRevision`. Derive the admin-only token by domain-separated SHA-256 over server-private fields that change on replacement, including the image UUID, object key, checksum/ETag when present, content type, and byte size. Return only the digest token; never return the source fields, and never include the token in public static artifacts.
+
+Expose `mediaRevision` in authenticated admin image and review responses. Store it in the review session authority tuple alongside item/image IDs. All review-source URLs and draft/assist/Save/Reset requests carry the expected token through an explicit admin contract. A mismatch is HTTP 409 with a stable redacted response that tells the admin client the media changed; it is not reported as missing, provider failure, or ordinary preview retry.
+
+### Server validation and atomicity
+
+1. Centralize token derivation and constant-time-equivalent exact comparison over the loaded `AutographImage` snapshot.
+2. Validate the expected revision before reading private media or doing expensive source/draft/assist work.
+3. Re-load and validate the revision after media read/render/assist work and before returning a successful result, so a replacement committed during computation cannot publish an old-media result into the active review.
+4. Extend the repository adjustment mutation boundary to accept the server-private expected object key from the validated snapshot. In-memory updates compare it while holding the item lock. Oracle updates add `and object_key = :expected_object_key` to the adjustment SQL predicate. Zero affected rows with an existing image are a media-revision conflict, not not-found.
+5. Apply the atomic predicate to both Save and Reset, including canonical no-op paths: a route may return no-op success only after a fresh revision check proves the snapshot is still current.
+6. Preserve replacement rollback semantics. If cleanup-warning persistence fails and metadata rolls back to the original object, subsequent responses derive the original revision; no response may claim the replacement revision after rollback.
+
+### Client reconciliation
+
+- `beginReviewSession` captures `mediaRevision`; every preview request, output callback, gesture authority check, assist response, Save/Reset completion, and deferred render checks the same value.
+- When any admin item response is reconciled through `renderEditor`, compare the active reviewed image's returned `mediaRevision` even when item/image IDs are unchanged. A mismatch terminates gesture authority, aborts/deauthorizes preview/assist/mutation work, clears the review, and shows a stable message that the image was replaced and must be reopened.
+- `replaceImage` records its item/image target before issuing PUT. If its response changes the active review's revision, invalidate review state before assigning/rendering the returned item. This covers replacement begun before review.
+- A 409 media-revision conflict from source/draft/assist/Save/Reset invalidates the review rather than retrying against the replacement media with old normalized coordinates.
+- Never carry old adjustments across replacement: replacement continues to reset adjustment metadata to `None`, and stale Save/Reset cannot restore or clear it.
+
+### Consumer and mutation inventory
+
+| Surface | Required revision behavior |
+|---|---|
+| Admin item/image response | Includes opaque current `mediaRevision` for private client reconciliation only. |
+| Review response/session | Captures current token and uses it in every subsequent authority tuple. |
+| Source/private preview GET | Versioned authenticated URL/request validates before read and again before successful response. |
+| Draft preview POST | Validates before render and after render; stale result is 409 and cannot create/mount a current blob. |
+| Assist POST | Validates before private read/proposal and after proposal; stale result is 409 and cannot change corners/message. |
+| Adjusted-output callbacks | Require session media revision in addition to request/blob/render/node authority. |
+| Save PATCH / Reset DELETE | Validate token, then repository atomically compares expected private object key during the adjustment update/no-op decision. |
+| Replacement PUT success/cleanup rollback | Returned image token identifies the actually committed/restored object; client compares before editor render. |
+| Remove/item/session/logout teardown | Existing invalidation discards revision-bound work. |
+
+### Concurrency and regression matrix
+
+- Start replacement, open review on the old revision, then resolve replacement before source load, before first move, between moves, while preview/assist is pending, and before Save/Reset response; every old review path invalidates and cannot mutate replacement metadata.
+- Commit replacement between draft/assist pre-validation and post-validation; old result returns conflict and is never mounted/applied.
+- Commit replacement between Save/Reset route validation and repository update; conditional update returns conflict and leaves replacement adjustment `None`.
+- Exercise same content type and byte size across replacement to prove UUID/basic metadata are not treated as revision identity.
+- Exercise replacement cleanup success, cleanup warning, and rollback-after-warning-persistence failure; returned token and persisted object agree in every branch.
+- Exercise another-session/external replacement by feeding a 409 into source, draft, assist, Save, and Reset; client teardown/message is consistent.
+- Prove opaque tokens change on replacement, restore on metadata rollback, omit raw object key/checksum, remain absent from public JSON/HTML/manifests, and keep preview responses `no-store`.
+- Preserve all gesture barrier, pointer capture, resize/grab-offset, mutation/egress, publisher promotion, legacy migration, privacy, and full-suite regressions.
+
+### Required implementation surfaces
+
+- `controller/src/routes.rs` for opaque revision derivation, authenticated response/request contracts, pre/post validation, conflict response, and client-visible revision fields.
+- `controller/src/catalog.rs` and `controller/src/oracle_catalog.rs` for atomic expected-object-key adjustment updates and conflict classification.
+- `controller/static-admin/admin.js` for revision-bound review authority and same-ID replacement reconciliation.
+- `controller/tests/admin_workflow.rs`, `controller/tests/static_admin_behavior.mjs`, `controller/tests/static_admin.rs`, Oracle source/unit coverage, and live-smoke compile coverage as appropriate.
+
+### Completion criteria
+
+This addendum may resume only after an independent reviewer approves the opaque token/privacy contract, all route/repository race closures, rollback semantics, client invalidation, and concurrency tests with zero findings. Implementation is complete only when full verification passes and a subsequent lineage-preserving deep source review reports zero Critical, Warning, and Info findings.
