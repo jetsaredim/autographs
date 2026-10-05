@@ -1,51 +1,83 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-fixed_at: 2026-10-04T18:38:30Z
+fixed_at: 2026-10-05T01:05:27Z
 review_path: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
-iteration: 4
-findings_in_scope: 1
-fixed: 1
+iteration: 5
+findings_in_scope: 2
+fixed: 2
 skipped: 0
 status: all_fixed
 ---
 
 # Phase 08: Code Review Fix Report
 
-**Fixed at:** 2026-10-04T18:38:30Z
+**Fixed at:** 2026-10-05T01:05:27Z
 **Source review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md`
-**Iteration:** 4 — post-convergence pointer-lifecycle correction
+**Iteration:** 5 — approved pointer-lifecycle addendum
 
 **Summary:**
 
-- Findings in scope: 1
-- Fixed: 1
+- Findings in scope: 2
+- Fixed: 2
 - Skipped: 0
-- Implementation commit: `7c11380`
-- PR fix comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-5983155034
+- Implementation commit: `0559c82`
+- PR fix comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-5986381118
 
 ## Fixed Issues
 
-### WR-01: Perspective dragging replaces the pointer-capture owner after the first move
+### WR-01: Pre-existing async producers can still detach the active pointer-capture owner
 
 **Status:** Fixed — requires human verification
 **Files modified:** `controller/static-admin/admin.js`, `controller/tests/static_admin_behavior.mjs`, `controller/tests/static_admin.rs`
-**Commit:** `7c11380`
-**Applied fix:** Pointer movement now mutates the normalized perspective model and reprojects the mounted handles in place without scheduling a preview or replacing the captured node. The active drag records review-session, item/image, perspective-generation, frame, image, handle, and pointer identities; every movement revalidates that authority. Pointer up, cancel, or lost capture removes all gesture listeners and schedules exactly one settled preview. Projection teardown or a session/render invalidation terminates the gesture without scheduling stale work. Concurrent keyboard, assist, comparison, overlay, adjustment, Save, and Reset actions cannot supersede an active drag.
+**Commit:** `0559c82`
+**Applied fix:** Added one stage-render barrier around every `renderImageReview()` call. While a current gesture owns the connected source frame, preview success/failure and adjusted-output failure may update authoritative state but defer stage replacement. Accepted no-move work flushes once after capture cleanup; moved gestures supersede pre-gesture output/error state and schedule one final preview. Source load only establishes readiness or reprojects in place, source error terminates once before changing the connected source frame, and output-only deferred reconciliation preserves that error frame. Assist completions and synchronous retry/comparison/overlay/scalar/keyboard/Save/Reset/navigation/logout producers are rejected or disabled during the gesture. Session, item/image, login, and review teardown discard queued work and release capture without scheduling retired requests.
 
-The executable fake DOM now distinguishes connected browser-user delivery from explicit programmatic delivery. User dispatch to a disconnected node is rejected. Tests prove two physical moves reach the same connected captured handle, normalized geometry changes in place, no request or preview revision advances before settlement, exactly one settled preview contains the final corner, and cancel, lost capture, teardown, and deliberate stale-node delivery cannot mutate retired gesture state.
+### WR-02: Dragging a visually inset edge handle jumps the normalized corner
 
-## Shared-Invariant and Consumer Audit
+**Status:** Fixed — requires human verification
+**Files modified:** `controller/static-admin/admin.js`, `controller/tests/static_admin_behavior.mjs`, `controller/tests/static_admin.rs`
+**Commit:** `0559c82`
+**Applied fix:** Added an explicit source-projection readiness gate and normalized fitted-source grab offset. Pointerdown is rejected until intrinsic and rendered geometry are non-zero. Movement applies `currentPointer + grabOffset`, so a move at the visually inset handle center is a model no-op and later pixel deltas produce matching normalized source deltas. Resize and redundant source-load callbacks rebase the offset from the current mathematical corner and last client coordinates before reprojecting the same connected handles.
 
-- **Pointer producer authority:** Pointer down establishes one capture owner and immutable session/item/image/perspective-generation identity. Pointer move validates that complete tuple before changing normalized coordinates. A second pointer cannot steal the active gesture.
-- **Sibling producers:** Keyboard movement retains the existing immediate preview path when no drag is active. Auto-assist, scalar adjustment controls, overlays, comparison controls, Save, and Reset refuse concurrent action while pointer authority is live, preventing an unrelated full render from detaching the capture owner.
-- **Consumers:** Handle pixels remain projections of normalized corners; each accepted movement reprojects all current handles without replacing them. Dirty state and Save authorization update immediately, while adjusted output remains non-authoritative until the settled preview loads.
-- **Mutation and invalidation boundaries:** Pointer up, pointer cancel, and lost capture settle once. Render/projection teardown, review-session change, item/image change, pending persistence mutation, disconnected frame/handle, or generation mismatch remove gesture listeners without scheduling stale preview work.
-- **Reporting/action paths:** Dirty reporting and Save disabling occur on the first accepted move. The settled preview owns the final draft revision and restores Save authority only after its current output node loads.
-- **Test fidelity:** Browser-user dispatch rejects disconnected nodes. `dispatchProgrammatic` remains explicit and is used only where tests intentionally exercise stale callbacks or handler-level guards.
+## Direct and Indirect Producer Audit
+
+| Producer | Active-gesture policy | Terminal reconciliation |
+|---|---|---|
+| Source first/redundant load | Pre-readiness handles are disabled; authoritative load enables or reprojects the existing handles in place and rebases an active grab. | No queued stage render. |
+| Source error | Enters the idempotent terminal path before projection teardown and replaces only source-frame children. | No-move deferred output renders in place once; moved geometry schedules one final preview without an immediate stage replacement. |
+| Preview success | Request/session/draft checks remain authoritative; accepted blob/status is recorded and the centralized stage render is deferred. | No-move flushes once; moved geometry revokes/supersedes it and schedules the final preview. |
+| Preview failure | Authoritative error/status is recorded and its stage render is deferred. | No-move flushes once; moved geometry restores the pre-gesture message and supersedes the failure with the final preview. |
+| Adjusted-output load | Updates only the already-mounted authoritative output and Save state in place. | Preserved unless a moved gesture supersedes its draft. |
+| Adjusted-output error | Records the authoritative error and defers the full render. | No-move flushes once; moved geometry supersedes it with the final preview. |
+| Assist completion | A completion that observes an active drag is rejected without proposal or message mutation. | No deferred work. |
+| Retry, comparison, overlays, scalar controls, keyboard, Save, Reset | Presentation controls are disabled where applicable and every handler independently rejects the action. | Operator may retry after settlement. |
+| Resize observer | Rebase grab offset from the last client position under the new fitted bounds, then reproject the same handles. | Model remains unchanged by resize itself. |
+| Navigation/logout/session/item/image/teardown | Handler guard blocks ordinary egress; explicit lifecycle invalidation marks terminal, removes listeners, conditionally releases capture, and discards deferred render state. | No preview is scheduled for a retired review. |
+
+Every direct `renderImageReview()` caller was audited: preview scheduling, preview success/failure, initial review open, adjusted-output failure, terminal deferred flush, comparison mode, and overlay changes now pass through the centralized barrier or execute only after gesture authority has ended. The only review-stage replacements are the barrier-controlled full render and source-error's terminal in-place source-frame replacement. Handle recreation occurs only during a full stage render; source load and resize are in-place projections.
+
+## Terminal-State Audit
+
+- Pointer up and pointer cancel mark the drag terminal before listener removal and conditional capture release. A synchronous/reentrant lost-capture callback sees terminal state and cannot settle twice.
+- External lost capture uses the same terminal path without recursively releasing already-lost capture.
+- Source error uses the same terminal path, preserving accepted geometry and reconciling deferred output/final preview exactly once before or after its in-place error presentation as required.
+- Review/session/item/image/login teardown discards deferred work and never schedules a preview for the retired authority.
+- Exact authority remains the conjunction of review session, item/image, perspective generation, connected frame/image/handle, and pointer identity. Existing output authority additionally retains request revision, draft revision, preview URL, render generation, and exact mounted node.
+
+## Executable Regression Coverage
+
+- Pre-load handles are disabled and cannot capture; first load enables them without replacement.
+- All four full-frame inset corner centers accept a same-coordinate move as a no-op.
+- Portrait and landscape gestures apply two source-space deltas without a first-move jump.
+- Resize and redundant load during capture preserve the normalized model, rebase the grab offset, and retain the same connected handle.
+- Accepted preview success, preview failure, stale success/failure between moves, adjusted-output load/error, and an in-flight assist completion are exercised while capture is live.
+- Source error is exercised before and after movement, including output-only no-move deferred reconciliation.
+- Pointer up, cancel, external lost capture, reentrant release-triggered lost capture, projection teardown, and full review/session teardown prove exactly-once cleanup and scheduling/discard behavior.
+- Browser-user delivery rejects disconnected nodes; explicit programmatic delivery is reserved for stale-callback and handler-guard tests.
 
 ## Verification
 
-All gates ran in `/tmp/autographs-pr263-review` on `gsd/phase-08-admin-media-review-and-operational-posture` at implementation commit `7c11380`.
+All gates ran in `/tmp/autographs-pr263-review` on `gsd/phase-08-admin-media-review-and-operational-posture` at implementation commit `0559c82`.
 
 - `node --check controller/static-admin/admin.js` — passed.
 - `node --check controller/tests/static_admin_behavior.mjs` — passed.
@@ -61,6 +93,6 @@ All gates ran in `/tmp/autographs-pr263-review` on `gsd/phase-08-admin-media-rev
 
 ---
 
-_Fixed: 2026-10-04T18:38:30Z_
+_Fixed: 2026-10-05T01:05:27Z_
 _Fixer: the agent (gsd-code-fixer)_
-_Iteration: 4_
+_Iteration: 5_
