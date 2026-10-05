@@ -183,16 +183,18 @@ Expose `mediaRevision` in authenticated admin image and review responses. Store 
 
 1. Centralize token derivation and constant-time-equivalent exact comparison over the loaded `AutographImage` snapshot.
 2. Validate the expected revision before reading private media or doing expensive source/draft/assist work.
-3. Re-load and validate the revision after media read/render/assist work and before returning a successful result, so a replacement committed during computation cannot publish an old-media result into the active review.
+3. Re-load and validate the revision in one common terminal finalizer after media read/render/assist work on every success and error branch. Revision mismatch takes precedence and returns the stable 409 conflict even when the old-object read, derivative render, or assist proposal failed. Only when revision is still current may the operation return its original success or redacted provider/render 500.
 4. Extend the repository adjustment mutation boundary to accept the server-private expected object key from the validated snapshot. In-memory updates compare it while holding the item lock. Oracle updates add `and object_key = :expected_object_key` to the adjustment SQL predicate. Zero affected rows with an existing image are a media-revision conflict, not not-found.
 5. Apply the atomic predicate to both Save and Reset, including canonical no-op paths: a route may return no-op success only after a fresh revision check proves the snapshot is still current.
-6. Preserve replacement rollback semantics. If cleanup-warning persistence fails and metadata rolls back to the original object, subsequent responses derive the original revision; no response may claim the replacement revision after rollback.
+6. Preserve replacement rollback semantics by restoring the complete original `AutographImage` snapshot, including its saved adjustment. Repository replacement writes the adjustment supplied in `ImageReplacementInput`: the normal replacement route explicitly supplies `None`, while rollback supplies `existing_image.adjustment`. Oracle replacement SQL persists the supplied adjustment JSON rather than unconditionally setting it to null; the in-memory adapter follows the same contract. If complete restoration fails, return error and do not emit a success-shaped token or item response.
+7. Define a typed media-revision conflict at the repository/route boundary rather than relying on generic error substring mapping. Its response is HTTP 409 with a stable redacted `{ code: "mediaRevisionConflict", message: "Image media changed. Reopen the review." }` contract. Missing image/item remains 404 and injected repository/provider failure remains 500.
 
 ### Client reconciliation
 
 - `beginReviewSession` captures `mediaRevision`; every preview request, output callback, gesture authority check, assist response, Save/Reset completion, and deferred render checks the same value.
-- When any admin item response is reconciled through `renderEditor`, compare the active reviewed image's returned `mediaRevision` even when item/image IDs are unchanged. A mismatch terminates gesture authority, aborts/deauthorizes preview/assist/mutation work, clears the review, and shows a stable message that the image was replaced and must be reopened.
-- `replaceImage` records its item/image target before issuing PUT. If its response changes the active review's revision, invalidate review state before assigning/rendering the returned item. This covers replacement begun before review.
+- Introduce one `reconcileAdminItemResponse(item)` boundary that runs before any `state.currentItem` assignment or editor render. When review is active, it locates the reviewed image in the response; missing image or mismatched `mediaRevision` both terminate gesture authority, abort/deauthorize preview/assist/mutation work, clear the review, and preserve a stable message that the image changed and must be reopened. Exact presence plus exact revision may continue.
+- Route every item-returning client path through that boundary, including upload, set-primary, remove, replace, cleanup retry, Save, Reset, item save/load refresh, and any sibling direct `renderEditor(item)` call. Remove preassignment at call sites so reconciliation always precedes new current-item state and render side effects.
+- `replaceImage` records its item/image target before issuing PUT, but uses the same central reconciliation rather than a special-case assignment. This covers replacement begun before review and same-ID response ordering.
 - A 409 media-revision conflict from source/draft/assist/Save/Reset invalidates the review rather than retrying against the replacement media with old normalized coordinates.
 - Never carry old adjustments across replacement: replacement continues to reset adjustment metadata to `None`, and stale Save/Reset cannot restore or clear it.
 
@@ -207,16 +209,20 @@ Expose `mediaRevision` in authenticated admin image and review responses. Store 
 | Assist POST | Validates before private read/proposal and after proposal; stale result is 409 and cannot change corners/message. |
 | Adjusted-output callbacks | Require session media revision in addition to request/blob/render/node authority. |
 | Save PATCH / Reset DELETE | Validate token, then repository atomically compares expected private object key during the adjustment update/no-op decision. |
-| Replacement PUT success/cleanup rollback | Returned image token identifies the actually committed/restored object; client compares before editor render. |
-| Remove/item/session/logout teardown | Existing invalidation discards revision-bound work. |
+| Replacement PUT success/cleanup rollback | Normal replacement clears adjustment; rollback restores the complete original image including adjustment. Returned token identifies the actually persisted object; client compares before assignment/editor render. |
+| All item-returning mutations | Pass through central presence+revision reconciliation before `state.currentItem` assignment; missing reviewed image and changed revision both invalidate. |
+| Remove/item/session/logout teardown | Missing-image reconciliation or existing lifecycle invalidation discards revision-bound work. |
 
 ### Concurrency and regression matrix
 
 - Start replacement, open review on the old revision, then resolve replacement before source load, before first move, between moves, while preview/assist is pending, and before Save/Reset response; every old review path invalidates and cannot mutate replacement metadata.
 - Commit replacement between draft/assist pre-validation and post-validation; old result returns conflict and is never mounted/applied.
+- Delete/replace the old object so source read, derivative generation, or assist fails after pre-validation; the common terminal revalidation returns 409 when revision changed and returns redacted 500 only when revision stayed current.
 - Commit replacement between Save/Reset route validation and repository update; conditional update returns conflict and leaves replacement adjustment `None`.
-- Exercise same content type and byte size across replacement to prove UUID/basic metadata are not treated as revision identity.
-- Exercise replacement cleanup success, cleanup warning, and rollback-after-warning-persistence failure; returned token and persisted object agree in every branch.
+- Exercise exact status separation: expected-object-key mismatch is 409 with the stable conflict body, missing image is 404, missing item is 404, and injected repository/provider failure is 500 with no private details.
+- Replace with byte-identical media and identical checksum/ETag, content type, byte size, alt text, primary state, and sort order; the new random private object identity alone changes the opaque token. Rollback restores the original token.
+- Exercise replacement cleanup success, cleanup warning, and rollback-after-warning-persistence failure from an original image with a non-identity saved adjustment; persisted object, adjustment, returned/error contract, and derived token agree in every branch.
+- Exercise upload, set-primary, remove, replace, cleanup retry, Save/Reset, and item refresh responses while review is active; each reconciles before assignment, and missing image or revision mismatch invalidates consistently.
 - Exercise another-session/external replacement by feeding a 409 into source, draft, assist, Save, and Reset; client teardown/message is consistent.
 - Prove opaque tokens change on replacement, restore on metadata rollback, omit raw object key/checksum, remain absent from public JSON/HTML/manifests, and keep preview responses `no-store`.
 - Preserve all gesture barrier, pointer capture, resize/grab-offset, mutation/egress, publisher promotion, legacy migration, privacy, and full-suite regressions.

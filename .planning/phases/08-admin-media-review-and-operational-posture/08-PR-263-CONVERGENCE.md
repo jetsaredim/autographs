@@ -138,8 +138,13 @@ Item ID plus image ID identifies a catalog slot, not the bytes currently occupyi
 | Pointer moves from an inset edge handle | The initial grab offset is preserved and the normalized corner changes only by the pointer's source-space delta. |
 | Replacement begins before review, then returns while review/drag is active | Returned item carries a different opaque media revision; review/gesture/requests are invalidated before editor reconciliation, and old geometry cannot remain savable. |
 | Replacement commits after stale draft preview or assist starts | Route revalidation rejects/suppresses the old-media result; the client treats revision conflict as review invalidation, not a retryable same-media preview error. |
+| Replacement deletes/replaces the old object while source/draft/assist work fails | Final authority revalidation runs on the error path; revision mismatch returns the stable 409 conflict instead of provider/render 500. The original operation error is returned only if revision is still current. |
 | Replacement commits after Save/Reset route validation but before repository write | Atomic expected-object-key predicate updates zero rows and returns conflict; replacement adjustment baseline remains unchanged. |
-| Replacement cleanup warning rolls metadata back to original object | Response revision matches the restored original media; any still-current review may only continue if its exact revision remains current, otherwise it is invalidated. |
+| Replacement cleanup warning persistence fails and metadata rolls back to original object | Repository restoration writes the complete original image snapshot, including its saved adjustment. The original opaque revision and adjustment baseline are restored together; partial rollback is an error and no success response is emitted. |
+| Returned item omits the actively reviewed image | Central reconciliation invalidates review/gesture/async authority before assigning `state.currentItem` or rendering the item, exactly as for revision mismatch. |
+| Any item-returning mutation responds while review is active | Upload, set-primary, remove, replace, cleanup retry, Save/Reset, and other item responses pass one reconciliation boundary before current-item assignment. |
+| Expected object key mismatches / image is absent / item is absent / repository fails | Responses are respectively stable redacted 409 / 404 / 404 / 500; tests prove the classes do not collapse into the string-error fallback. |
+| Replacement uploads byte-identical media with identical public/basic metadata | New private object identity alone changes `mediaRevision`; rolling metadata back to the complete original snapshot restores the original token and adjustment. |
 | Opaque revision is exposed through admin API | Token cannot be reversed into or used as an OCI namespace, bucket, object key, signed URL, or raw media checksum; no token enters public static output. |
 
 ## Revised Plan Requirements
