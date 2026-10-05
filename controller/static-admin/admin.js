@@ -89,6 +89,7 @@ const state = {
   reviewDisplayedRevision: null,
   reviewOutputRenderGeneration: 0,
   reviewMountedOutput: null,
+  reviewOutputPanel: null,
   reviewDraftRevision: 0,
   reviewSessionRevision: 0,
   reviewSession: null,
@@ -100,6 +101,8 @@ const state = {
   reviewPerspectiveObserver: null,
   reviewPerspectiveResizeListener: null,
   reviewPerspectiveDrag: null,
+  reviewSourceProjectionStatus: "idle",
+  reviewStageRenderDeferred: false,
   reviewFocusedCornerIndex: null,
   reviewMessage: "",
 };
@@ -411,6 +414,8 @@ function showWorkflow() {
 }
 
 function showLogin(message = "") {
+  finishPerspectiveDrag({ settle: false, reason: "login-hidden" });
+  state.reviewStageRenderDeferred = false;
   elements.workflowView.hidden = true;
   elements.loginView.hidden = false;
   elements.loginMessage.textContent = message;
@@ -1449,7 +1454,11 @@ const currentPerspectiveCorners = () =>
   );
 
 function syncPublishAvailability() {
-  const disabled = state.dirty || state.reviewDirty || Boolean(state.reviewMutationPending);
+  const disabled =
+    state.dirty ||
+    state.reviewDirty ||
+    Boolean(state.reviewMutationPending) ||
+    Boolean(state.reviewPerspectiveDrag);
   for (const button of [elements.publishFromEditor, elements.publishIncremental, elements.publishFull]) {
     if (!button) {
       continue;
@@ -1469,23 +1478,27 @@ function syncReviewDirtyState() {
     state.reviewPreviewStatus === "ready" &&
     state.reviewDisplayedRevision === state.reviewDraftRevision;
   elements.imageReviewSave.disabled =
-    !state.reviewDirty || !latestPreviewIsDisplayed || Boolean(state.reviewMutationPending);
+    !state.reviewDirty ||
+    !latestPreviewIsDisplayed ||
+    Boolean(state.reviewMutationPending) ||
+    Boolean(state.reviewPerspectiveDrag);
   const mutationPending = Boolean(state.reviewMutationPending);
-  elements.imageReviewReset.disabled = mutationPending;
-  elements.imageReviewDiscard.disabled = mutationPending;
-  elements.logout.disabled = mutationPending;
+  const interactionBlocked = mutationPending || Boolean(state.reviewPerspectiveDrag);
+  elements.imageReviewReset.disabled = interactionBlocked;
+  elements.imageReviewDiscard.disabled = interactionBlocked;
+  elements.logout.disabled = interactionBlocked;
   for (const tab of elements.tabs) {
-    tab.disabled = mutationPending;
+    tab.disabled = interactionBlocked;
   }
   for (const control of document.querySelectorAll(".review-egress-control")) {
-    control.disabled = mutationPending;
+    control.disabled = interactionBlocked;
   }
-  $("#image-review-detect").disabled = mutationPending;
+  $("#image-review-detect").disabled = interactionBlocked;
   for (const control of document.querySelectorAll("[data-adjustment-field]")) {
-    control.disabled = mutationPending;
+    control.disabled = interactionBlocked;
   }
   for (const toggle of document.querySelectorAll("[data-review-overlay]")) {
-    toggle.disabled = mutationPending;
+    toggle.disabled = interactionBlocked;
   }
   syncReviewComparisonButtons();
   syncPublishAvailability();
@@ -1497,10 +1510,12 @@ function pendingMutationMessage() {
 }
 
 function blockReviewEgressWhileMutationPending() {
-  if (!state.reviewMutationPending) {
+  if (!state.reviewMutationPending && !state.reviewPerspectiveDrag) {
     return false;
   }
-  state.reviewMessage = pendingMutationMessage();
+  state.reviewMessage = state.reviewMutationPending
+    ? pendingMutationMessage()
+    : "Finish positioning the perspective corner before leaving this review.";
   elements.imageReviewMessage.textContent = state.reviewMessage;
   if (typeof elements.imageReviewMessage.focus === "function") {
     elements.imageReviewMessage.focus();
@@ -1536,11 +1551,14 @@ function invalidateReviewOutputRender() {
   state.reviewMountedOutput = null;
 }
 
-function disconnectPerspectiveProjection() {
-  finishPerspectiveDrag({ settle: false });
+function disconnectPerspectiveProjection({ terminateDrag = true } = {}) {
+  if (terminateDrag) {
+    finishPerspectiveDrag({ settle: false, reason: "teardown" });
+  }
   state.reviewPerspectiveGeneration += 1;
   state.reviewPerspectiveFrame = null;
   state.reviewPerspectiveImage = null;
+  state.reviewSourceProjectionStatus = "idle";
   if (state.reviewPerspectiveObserver) {
     state.reviewPerspectiveObserver.disconnect();
     state.reviewPerspectiveObserver = null;
@@ -1585,6 +1603,8 @@ function clearImageReviewState() {
   state.reviewFocusedCornerIndex = null;
   state.reviewMessage = "";
   state.reviewMutationPending = null;
+  state.reviewStageRenderDeferred = false;
+  state.reviewOutputPanel = null;
   state.reviewSessionRevision += 1;
   state.reviewSession = null;
   state.reviewPreviewRevision += 1;
@@ -1596,6 +1616,7 @@ function beginReviewSession(itemId, imageId) {
   disconnectPerspectiveProjection();
   cancelReviewPreviewRequest();
   revokeReviewPreviewUrl();
+  state.reviewStageRenderDeferred = false;
   state.reviewSessionRevision += 1;
   state.reviewSession = { revision: state.reviewSessionRevision, itemId, imageId };
   return { ...state.reviewSession };
@@ -1620,7 +1641,7 @@ function markReviewDraftChanged({ schedulePreview = true } = {}) {
   }
 }
 
-function scheduleDraftPreview({ immediate = false } = {}) {
+function scheduleDraftPreview({ immediate = false, renderStage = true } = {}) {
   cancelReviewPreviewRequest();
   state.reviewPreviewStatus = "loading";
   state.reviewDisplayedRevision = null;
@@ -1632,7 +1653,9 @@ function scheduleDraftPreview({ immediate = false } = {}) {
     () => loadDraftPreview(revision, draftRevision, session),
     immediate ? 0 : 150
   );
-  renderImageReview();
+  if (renderStage) {
+    renderImageReview();
+  }
 }
 
 async function loadDraftPreview(revision, draftRevision, session) {
@@ -1733,9 +1756,20 @@ async function openImageReview(imageId) {
 }
 
 function renderImageReview() {
+  if (state.reviewPerspectiveDrag && !state.reviewPerspectiveDrag.terminal) {
+    state.reviewStageRenderDeferred = true;
+    return false;
+  }
+  state.reviewStageRenderDeferred = false;
+  renderImageReviewNow();
+  return true;
+}
+
+function renderImageReviewNow() {
   invalidateReviewOutputRender();
   disconnectPerspectiveProjection();
   elements.imageReviewStage.replaceChildren();
+  state.reviewOutputPanel = null;
   if (!state.reviewImage || !state.reviewDraftAdjustment) {
     elements.imageReviewStage.append(textNode("p", copy.previewError, "status-warning"));
     return;
@@ -1754,18 +1788,34 @@ function renderImageReview() {
     endpoints.imageSourcePreview(state.reviewImage.itemId, state.reviewImage.imageId);
   sourceImage.alt = "Sanitized unadjusted source used for perspective coordinates";
   const perspectiveGeneration = state.reviewPerspectiveGeneration;
+  state.reviewSourceProjectionStatus = "loading";
   state.reviewPerspectiveFrame = sourceFrame;
   state.reviewPerspectiveImage = sourceImage;
   sourceImage.addEventListener("load", () => {
     if (isCurrentPerspectiveProjection(perspectiveGeneration, sourceFrame, sourceImage)) {
-      renderPerspectiveHandles(sourceFrame, sourceImage);
+      const bounds = sourceRenderedBounds(sourceFrame, sourceImage);
+      if (!sourceImage.naturalWidth || !sourceImage.naturalHeight || !bounds.width || !bounds.height) {
+        return;
+      }
+      state.reviewSourceProjectionStatus = "ready";
+      rebasePerspectiveDrag(sourceFrame, sourceImage);
+      syncPerspectiveHandleAvailability(sourceFrame);
       projectPerspectiveHandles();
     }
   });
   sourceImage.addEventListener("error", () => {
     if (isCurrentPerspectiveProjection(perspectiveGeneration, sourceFrame, sourceImage)) {
-      disconnectPerspectiveProjection();
+      const terminal = finishPerspectiveDrag({
+        settle: true,
+        reason: "source-error",
+        renderStage: false,
+      });
+      disconnectPerspectiveProjection({ terminateDrag: false });
+      state.reviewSourceProjectionStatus = "error";
       sourceFrame.replaceChildren(textNode("p", copy.previewError, "status-warning"));
+      if (terminal?.authoritative && !terminal.moved && terminal.deferredRender) {
+        renderReviewOutputPanel(state.reviewOutputPanel);
+      }
     }
   });
   sourceFrame.append(sourceImage);
@@ -1775,15 +1825,36 @@ function renderImageReview() {
 
   const outputPanel = document.createElement("section");
   outputPanel.className = "review-preview-panel";
+  state.reviewOutputPanel = outputPanel;
+  renderReviewOutputPanel(outputPanel, { invalidate: false });
+  workspace.append(sourcePanel, outputPanel);
+  elements.imageReviewStage.append(workspace);
+  elements.imageReviewMessage.textContent = state.reviewMessage;
+  syncReviewControls();
+  syncReviewDirtyState();
+  syncReviewComparisonButtons();
+}
+
+function renderReviewOutputPanel(outputPanel, { invalidate = true } = {}) {
+  if (!outputPanel) {
+    return;
+  }
+  if (invalidate) {
+    invalidateReviewOutputRender();
+  }
+  outputPanel.replaceChildren();
   outputPanel.append(textNode("h3", "Adjusted output preview"));
   if (state.reviewPreviewStatus === "error") {
     const failure = document.createElement("div");
     failure.className = "preview-failure";
+    const retry = buttonNode("Retry preview", "secondary-action", () => {
+      if (!state.reviewPerspectiveDrag) {
+        scheduleDraftPreview({ immediate: true });
+      }
+    });
     failure.append(
       textNode("p", copy.previewError, "status-warning"),
-      buttonNode("Retry preview", "secondary-action", () =>
-        scheduleDraftPreview({ immediate: true })
-      )
+      retry
     );
     outputPanel.append(failure);
   } else if (!state.reviewPreviewUrl || state.reviewPreviewStatus === "loading") {
@@ -1873,12 +1944,8 @@ function renderImageReview() {
     }
     outputPanel.append(frame);
   }
-  workspace.append(sourcePanel, outputPanel);
-  elements.imageReviewStage.append(workspace);
   elements.imageReviewMessage.textContent = state.reviewMessage;
-  syncReviewControls();
   syncReviewDirtyState();
-  syncReviewComparisonButtons();
 }
 
 function isAuthoritativeOutputRender(candidate) {
@@ -1937,7 +2004,8 @@ function renderPerspectiveHandles(frame, sourceImage) {
     handle.className = "corner-handle";
     handle.setAttribute("aria-label", labels[index]);
     handle.title = labels[index];
-    handle.disabled = Boolean(state.reviewMutationPending);
+    handle.disabled =
+      Boolean(state.reviewMutationPending) || state.reviewSourceProjectionStatus !== "ready";
     handle.sourceFrame = frame;
     handle.sourceImage = sourceImage;
     positionPerspectiveHandle(handle, corner, frame, sourceImage);
@@ -1950,6 +2018,18 @@ function renderPerspectiveHandles(frame, sourceImage) {
       requestAnimationFrame(() => handle.focus());
     }
   });
+}
+
+function syncPerspectiveHandleAvailability(frame = state.reviewPerspectiveFrame) {
+  if (!frame) {
+    return;
+  }
+  const disabled =
+    Boolean(state.reviewMutationPending) || state.reviewSourceProjectionStatus !== "ready";
+  for (const handle of [...frame.children].filter((child) => child.className === "corner-handle")) {
+    handle.disabled = disabled;
+    handle.setAttribute("aria-disabled", disabled ? "true" : "false");
+  }
 }
 
 function isCurrentPerspectiveProjection(generation, frame, sourceImage) {
@@ -1965,6 +2045,7 @@ function isCurrentPerspectiveProjection(generation, frame, sourceImage) {
 function observePerspectiveProjection(generation, frame, sourceImage) {
   const project = () => {
     if (isCurrentPerspectiveProjection(generation, frame, sourceImage)) {
+      rebasePerspectiveDrag(frame, sourceImage);
       projectPerspectiveHandles();
     }
   };
@@ -1994,7 +2075,11 @@ function projectPerspectiveHandles() {
 }
 
 function movePerspectiveHandle(index, event) {
-  if (state.reviewMutationPending || state.reviewPerspectiveDrag) {
+  if (
+    state.reviewMutationPending ||
+    state.reviewPerspectiveDrag ||
+    state.reviewSourceProjectionStatus !== "ready"
+  ) {
     return;
   }
   const delta = event.shiftKey ? 0.05 : 0.01;
@@ -2039,8 +2124,56 @@ function sourceRenderedBounds(frame, sourceImage) {
   };
 }
 
+function normalizedSourcePoint(frame, sourceImage, clientX, clientY) {
+  const bounds = sourceRenderedBounds(frame, sourceImage);
+  if (
+    state.reviewSourceProjectionStatus !== "ready" ||
+    !Number.isFinite(clientX) ||
+    !Number.isFinite(clientY) ||
+    !sourceImage?.naturalWidth ||
+    !sourceImage?.naturalHeight ||
+    !bounds.width ||
+    !bounds.height
+  ) {
+    return null;
+  }
+  return {
+    x: (clientX - bounds.left) / bounds.width,
+    y: (clientY - bounds.top) / bounds.height,
+  };
+}
+
+function rebasePerspectiveDrag(frame, sourceImage) {
+  const drag = state.reviewPerspectiveDrag;
+  if (
+    !drag ||
+    drag.terminal ||
+    drag.frame !== frame ||
+    drag.sourceImage !== sourceImage ||
+    !drag.lastPointer
+  ) {
+    return;
+  }
+  const pointer = normalizedSourcePoint(
+    frame,
+    sourceImage,
+    drag.lastPointer.clientX,
+    drag.lastPointer.clientY
+  );
+  const corner = currentPerspectiveCorners()[drag.index];
+  if (pointer && corner) {
+    drag.grabOffset = { x: corner.x - pointer.x, y: corner.y - pointer.y };
+  }
+}
+
 function beginPerspectiveDrag(index, event, frame, sourceImage) {
-  if (state.reviewMutationPending || state.reviewPerspectiveDrag) {
+  const pointer = normalizedSourcePoint(frame, sourceImage, event.clientX, event.clientY);
+  if (
+    state.reviewMutationPending ||
+    state.reviewPerspectiveDrag ||
+    state.reviewSourceProjectionStatus !== "ready" ||
+    !pointer
+  ) {
     return;
   }
   event.preventDefault();
@@ -2049,6 +2182,7 @@ function beginPerspectiveDrag(index, event, frame, sourceImage) {
   const generation = state.reviewPerspectiveGeneration;
   const itemId = state.reviewImage?.itemId;
   const imageId = state.reviewImage?.imageId;
+  const corner = currentPerspectiveCorners()[index];
   state.reviewFocusedCornerIndex = index;
   handle.setPointerCapture(event.pointerId);
   const move = (moveEvent) => {
@@ -2067,26 +2201,40 @@ function beginPerspectiveDrag(index, event, frame, sourceImage) {
       handle.parentNode !== frame ||
       !frame.parentNode
     ) {
-      finishPerspectiveDrag({ settle: false });
+      finishPerspectiveDrag({ settle: false, reason: "invalidated" });
       return;
     }
-    const bounds = sourceRenderedBounds(frame, sourceImage);
-    setPerspectiveCorner(
+    const currentPointer = normalizedSourcePoint(
+      frame,
+      sourceImage,
+      moveEvent.clientX,
+      moveEvent.clientY
+    );
+    if (!currentPointer) {
+      finishPerspectiveDrag({ settle: false, reason: "invalidated" });
+      return;
+    }
+    drag.lastPointer = { clientX: moveEvent.clientX, clientY: moveEvent.clientY };
+    const changed = setPerspectiveCorner(
       index,
-      (moveEvent.clientX - bounds.left) / bounds.width,
-      (moveEvent.clientY - bounds.top) / bounds.height,
+      currentPointer.x + drag.grabOffset.x,
+      currentPointer.y + drag.grabOffset.y,
       handle,
       frame,
       sourceImage,
       { schedulePreview: false }
     );
-    drag.moved = true;
+    drag.moved = drag.moved || changed;
   };
   const finish = (finishEvent) => {
     if (finishEvent?.pointerId !== undefined && finishEvent.pointerId !== event.pointerId) {
       return;
     }
-    finishPerspectiveDrag({ settle: true });
+    finishPerspectiveDrag({
+      settle: true,
+      reason: finishEvent?.type || "pointer-terminal",
+      releaseCapture: finishEvent?.type !== "lostpointercapture",
+    });
   };
   state.reviewPerspectiveDrag = {
     generation,
@@ -2098,29 +2246,52 @@ function beginPerspectiveDrag(index, event, frame, sourceImage) {
     handle,
     frame,
     sourceImage,
+    messageAtStart: state.reviewMessage,
+    grabOffset: { x: corner.x - pointer.x, y: corner.y - pointer.y },
+    lastPointer: { clientX: event.clientX, clientY: event.clientY },
     move,
     finish,
     moved: false,
+    terminal: false,
   };
   handle.addEventListener("pointermove", move);
   handle.addEventListener("pointerup", finish);
   handle.addEventListener("pointercancel", finish);
   handle.addEventListener("lostpointercapture", finish);
+  syncReviewDirtyState();
 }
 
-function finishPerspectiveDrag({ settle } = { settle: false }) {
+function finishPerspectiveDrag({
+  settle = false,
+  reason = "teardown",
+  renderStage = true,
+  releaseCapture = true,
+} = {}) {
   const drag = state.reviewPerspectiveDrag;
-  if (!drag) {
-    return;
+  if (!drag || drag.terminal) {
+    return null;
   }
-  state.reviewPerspectiveDrag = null;
+  drag.terminal = true;
+  drag.terminalReason = reason;
   drag.handle.removeEventListener("pointermove", drag.move);
   drag.handle.removeEventListener("pointerup", drag.finish);
   drag.handle.removeEventListener("pointercancel", drag.finish);
+  if (releaseCapture && typeof drag.handle.releasePointerCapture === "function") {
+    try {
+      if (
+        typeof drag.handle.hasPointerCapture !== "function" ||
+        drag.handle.hasPointerCapture(drag.pointerId)
+      ) {
+        drag.handle.releasePointerCapture(drag.pointerId);
+      }
+    } catch (_error) {
+      // Capture may already have been released by the browser terminal event.
+    }
+  }
   drag.handle.removeEventListener("lostpointercapture", drag.finish);
-  if (
+  state.reviewPerspectiveDrag = null;
+  const authoritative =
     settle &&
-    drag.moved &&
     drag.generation === state.reviewPerspectiveGeneration &&
     isCurrentReviewSession(drag.session) &&
     state.reviewImage?.itemId === drag.itemId &&
@@ -2128,10 +2299,26 @@ function finishPerspectiveDrag({ settle } = { settle: false }) {
     state.reviewPerspectiveFrame === drag.frame &&
     state.reviewPerspectiveImage === drag.sourceImage &&
     drag.handle.parentNode === drag.frame &&
-    drag.frame.parentNode
-  ) {
-    scheduleDraftPreview();
+    drag.frame.parentNode;
+  const deferredRender = state.reviewStageRenderDeferred;
+  state.reviewStageRenderDeferred = false;
+  if (!authoritative) {
+    syncReviewDirtyState();
+    return { authoritative: false, moved: drag.moved, deferredRender };
   }
+  if (drag.moved) {
+    state.reviewMessage = drag.messageAtStart;
+    revokeReviewPreviewUrl();
+    scheduleDraftPreview({ renderStage });
+    if (!renderStage) {
+      syncReviewDirtyState();
+    }
+  } else if (deferredRender && renderStage) {
+    renderImageReview();
+  } else {
+    syncReviewDirtyState();
+  }
+  return { authoritative: true, moved: drag.moved, deferredRender };
 }
 
 function setPerspectiveCorner(
@@ -2144,13 +2331,18 @@ function setPerspectiveCorner(
   { schedulePreview = true } = {}
 ) {
   const corners = currentPerspectiveCorners();
-  corners[index] = {
+  const nextCorner = {
     x: Math.max(0, Math.min(1, x)),
     y: Math.max(0, Math.min(1, y)),
   };
+  if (corners[index].x === nextCorner.x && corners[index].y === nextCorner.y) {
+    return false;
+  }
+  corners[index] = nextCorner;
   state.reviewDraftAdjustment.perspective = { corners };
   projectPerspectiveHandles();
   markReviewDraftChanged({ schedulePreview });
+  return true;
 }
 
 function positionPerspectiveHandle(handle, corner, frame, sourceImage) {
@@ -2207,7 +2399,8 @@ function syncReviewComparisonButtons() {
     const unavailable = mode !== "latest" && !canCompare;
     button.setAttribute("aria-pressed", active ? "true" : "false");
     button.classList.toggle("is-active", active);
-    const disabled = unavailable || Boolean(state.reviewMutationPending);
+    const disabled =
+      unavailable || Boolean(state.reviewMutationPending) || Boolean(state.reviewPerspectiveDrag);
     button.disabled = disabled;
     button.setAttribute("aria-disabled", disabled ? "true" : "false");
   }
@@ -2225,7 +2418,8 @@ async function detectImageEdges() {
     if (
       !isCurrentReviewSession(session) ||
       draftRevision !== state.reviewDraftRevision ||
-      state.reviewMutationPending
+      state.reviewMutationPending ||
+      state.reviewPerspectiveDrag
     ) {
       return;
     }
@@ -2242,6 +2436,7 @@ async function detectImageEdges() {
       isCurrentReviewSession(session) &&
       draftRevision === state.reviewDraftRevision &&
       !state.reviewMutationPending &&
+      !state.reviewPerspectiveDrag &&
       error.status !== 401
     ) {
       state.reviewMessage = copy.assistUnavailable;

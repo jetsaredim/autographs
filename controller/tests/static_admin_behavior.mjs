@@ -68,12 +68,15 @@ class FakeElement {
     if (this.disabled && ["click", "change", "input", "keydown", "pointerdown", "pointermove", "pointerup"].includes(type)) {
       return { target: this, currentTarget: this, ignoredBecauseDisabled: true };
     }
+    if (type === "lostpointercapture" && init.pointerId === this.pointerCapture) {
+      this.pointerCapture = null;
+    }
     return this.dispatchProgrammatic(type, init);
   }
   async dispatchProgrammatic(type, init = {}) {
     const event = {
       preventDefault() { this.defaultPrevented = true; },
-      target: this, currentTarget: this, ...init,
+      type, clientX: 0, clientY: 0, target: this, currentTarget: this, ...init,
     };
     for (const listener of this.listeners.get(type) || []) await listener(event);
     return event;
@@ -82,6 +85,14 @@ class FakeElement {
   getAttribute(name) { return this.attributes.get(name); }
   focus() { this.focused = true; }
   setPointerCapture(pointerId) { this.pointerCapture = pointerId; }
+  hasPointerCapture(pointerId) { return this.pointerCapture === pointerId; }
+  releasePointerCapture(pointerId) {
+    if (!this.hasPointerCapture(pointerId)) return;
+    this.pointerCapture = null;
+    this.pointerReleaseCount = (this.pointerReleaseCount || 0) + 1;
+    const event = { type: "lostpointercapture", pointerId, target: this, currentTarget: this };
+    for (const listener of this.listeners.get("lostpointercapture") || []) listener(event);
+  }
   getBoundingClientRect() { return this.rect; }
   querySelector() { return new FakeElement("button"); }
   reset() {}
@@ -485,8 +496,14 @@ await run(`
   sourceFrame.rect = { left: 0, top: 0, width: 400, height: 300 };
   sourceImage.naturalWidth = 200;
   sourceImage.naturalHeight = 400;
-  await sourceImage.dispatch("load");
   let handles = findAllByClass(sourceFrame, "corner-handle");
+  assert.equal(handles.every((handle) => handle.disabled), true);
+  const preLoadPointer = await handles[0].dispatch("pointerdown", { pointerId: 8, clientX: 125, clientY: 22 });
+  assert.equal(preLoadPointer.ignoredBecauseDisabled, true);
+  assert.equal(state.reviewPerspectiveDrag, null);
+  await sourceImage.dispatch("load");
+  handles = findAllByClass(sourceFrame, "corner-handle");
+  assert.equal(handles.every((handle) => !handle.disabled), true);
   assert.equal(handles[0].style.left, "125px");
   assert.equal(handles[0].style.top, "22px");
   assert.equal(handles[2].style.left, "275px");
@@ -508,20 +525,45 @@ await run(`
     ["22px", "22px"], ["218px", "22px"], ["218px", "138px"], ["22px", "138px"]
   ]));
   assert.equal(state.reviewDraftAdjustment.perspective, null);
+  for (const [index, handle] of handles.entries()) {
+    const pointerId = 20 + index;
+    const clientX = sourceFrame.rect.left + Number.parseFloat(handle.style.left);
+    const clientY = sourceFrame.rect.top + Number.parseFloat(handle.style.top);
+    await handle.dispatch("pointerdown", { pointerId, clientX, clientY });
+    await handle.dispatch("pointermove", { pointerId, clientX, clientY });
+    assert.equal(state.reviewDraftAdjustment.perspective, null);
+    assert.equal(handle.isConnected, true);
+    await handle.dispatch("pointerup", { pointerId, clientX, clientY });
+    assert.equal(handle.pointerReleaseCount, 1);
+    assert.equal(handle.isConnected, true);
+  }
+  assert.equal(startTimers().length, 0);
   sourceFrame.rect = { left: 0, top: 0, width: 400, height: 300 };
   sourceImage.naturalWidth = 200;
   sourceImage.naturalHeight = 400;
   resizeObservers.findLast((observer) => !observer.disconnected).trigger(sourceFrame);
   const handle = handles[0];
+  const releaseCountBeforeDrag = handle.pointerReleaseCount || 0;
   const fetchCountBeforeDrag = fetchCalls.length;
   const previewRevisionBeforeDrag = state.reviewPreviewRevision;
-  await handle.dispatch("pointerdown", { pointerId: 9 });
-  await handle.dispatch("pointermove", { pointerId: 9, clientX: 125, clientY: 0 });
-  assert.deepEqual(state.reviewDraftAdjustment.perspective.corners[0], { x: 0, y: 0 });
+  await handle.dispatch("pointerdown", { pointerId: 9, clientX: 125, clientY: 22 });
+  await handle.dispatch("pointermove", { pointerId: 9, clientX: 125, clientY: 22 });
+  assert.equal(state.reviewDraftAdjustment.perspective, null);
   assert.equal(handle.isConnected, true);
   assert.equal(findAllByClass(sourceFrame, "corner-handle")[0], handle);
-  await handle.dispatch("pointermove", { pointerId: 9, clientX: 200, clientY: 150 });
-  assert.deepEqual(state.reviewDraftAdjustment.perspective.corners[0], { x: 0.5, y: 0.5 });
+  await handle.dispatch("pointermove", { pointerId: 9, clientX: 140, clientY: 52 });
+  assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].x - 0.1) < 1e-9, true);
+  assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].y - 0.1) < 1e-9, true);
+  sourceFrame.rect = { left: 0, top: 0, width: 300, height: 400 };
+  resizeObservers.findLast((observer) => !observer.disconnected).trigger(sourceFrame);
+  assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].x - 0.1) < 1e-9, true);
+  assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].y - 0.1) < 1e-9, true);
+  assert.equal(handle.isConnected, true);
+  await sourceImage.dispatch("load");
+  assert.equal(findAllByClass(sourceFrame, "corner-handle")[0], handle);
+  await handle.dispatch("pointermove", { pointerId: 9, clientX: 160, clientY: 92 });
+  assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].x - 0.2) < 1e-9, true);
+  assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].y - 0.2) < 1e-9, true);
   assert.equal(handle.isConnected, true);
   assert.equal(findAllByClass(sourceFrame, "corner-handle")[0], handle);
   assert.equal(handle.pointerCapture, 9);
@@ -534,6 +576,7 @@ await run(`
   assert.equal(state.reviewPerspectiveDrag, null);
   assert.equal(state.reviewPreviewStatus, "loading");
   assert.equal(state.reviewPreviewRevision, previewRevisionBeforeDrag + 1);
+  assert.equal(handle.pointerReleaseCount, releaseCountBeforeDrag + 1);
   globalThis.dragFetchCount = fetchCountBeforeDrag;
   assert.match(sourceImage.src, /preview\\/source$/);
 `);
@@ -544,18 +587,316 @@ await Promise.all(dragPreviewPromises);
 await run(`
   assert.equal(fetchCalls.length, dragFetchCount + 1);
   const request = fetchCalls.at(-1);
-  assert.equal(JSON.stringify(JSON.parse(request.options.body).perspective.corners[0]), JSON.stringify({ x: 0.5, y: 0.5 }));
+  const submittedCorner = JSON.parse(request.options.body).perspective.corners[0];
+  assert.equal(Math.abs(submittedCorner.x - 0.2) < 1e-9, true);
+  assert.equal(Math.abs(submittedCorner.y - 0.2) < 1e-9, true);
   await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+  await findByClass(elements.imageReviewStage, "source-guide-frame").children[0].dispatch("load");
   assert.equal(state.reviewPreviewStatus, "ready");
   assert.equal(state.reviewDisplayedRevision, state.reviewDraftRevision);
+`);
+
+const dragAssist = deferred();
+enqueueFetch(dragAssist.promise);
+const dragAssistPromise = run(`return document.querySelector("#image-review-detect").dispatch("click")`);
+await Promise.resolve();
+await run(`
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  globalThis.assistDragHandle = handle;
+  globalThis.assistDraftBefore = JSON.stringify(state.reviewDraftAdjustment);
+  await handle.dispatch("pointerdown", { pointerId: 30, clientX: startX, clientY: startY });
+  assert.equal(document.querySelector("#review-rotation").disabled, true);
+  assert.equal(document.querySelector("#image-review-detect").disabled, true);
+  assert.equal(elements.imageReviewDiscard.disabled, true);
+  const overlayBefore = state.reviewOverlays.grid;
+  await document.querySelector("#review-overlay-grid").dispatchProgrammatic("change");
+  await elements.imageReviewDiscard.dispatchProgrammatic("click");
+  assert.equal(state.reviewOverlays.grid, overlayBefore);
+  assert.equal(state.reviewPerspectiveDrag.handle, handle);
+`);
+dragAssist.resolve(response({ json: {
+  status: "confident",
+  corners: [{ x: 0.05, y: 0.05 }, { x: 0.95, y: 0.05 }, { x: 0.95, y: 0.95 }, { x: 0.05, y: 0.95 }],
+} }));
+await dragAssistPromise;
+await run(`
+  assert.equal(assistDragHandle.isConnected, true);
+  assert.equal(JSON.stringify(state.reviewDraftAdjustment), assistDraftBefore);
+  await assistDragHandle.dispatch("pointerup", { pointerId: 30 });
+  assert.equal(state.reviewPerspectiveDrag, null);
+  assert.equal(assistDragHandle.isConnected, true);
+`);
+
+const staleSuccessDuringDrag = deferred();
+enqueueFetch(staleSuccessDuringDrag.promise);
+await run(`
+  const rotation = document.querySelector("#review-rotation");
+  rotation.value = String(Number(rotation.value) + 1);
+  await rotation.dispatch("input");
+`);
+const [staleSuccessDuringDragPromise] = startTimers();
+await Promise.resolve();
+await run(`
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  await frame.children[0].dispatch("load");
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  globalThis.staleSuccessHandle = handle;
+  globalThis.staleSuccessStartX = startX;
+  globalThis.staleSuccessStartY = startY;
+  await handle.dispatch("pointerdown", { pointerId: 41, clientX: startX, clientY: startY });
+  await handle.dispatch("pointermove", {
+    pointerId: 41,
+    clientX: startX + 10,
+    clientY: startY + 10,
+  });
+`);
+staleSuccessDuringDrag.resolve(response());
+await staleSuccessDuringDragPromise;
+await run(`
+  assert.equal(staleSuccessHandle.isConnected, true);
+  assert.equal(state.reviewStageRenderDeferred, false);
+  await staleSuccessHandle.dispatch("pointermove", {
+    pointerId: 41,
+    clientX: staleSuccessStartX + 20,
+    clientY: staleSuccessStartY + 20,
+  });
+  await staleSuccessHandle.dispatch("pointerup", { pointerId: 41 });
+`);
+enqueueFetch(response());
+await flushTimers();
+await run(`
+  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+  await findByClass(elements.imageReviewStage, "source-guide-frame").children[0].dispatch("load");
+`);
+
+const staleFailureDuringDrag = deferred();
+enqueueFetch(staleFailureDuringDrag.promise);
+await run(`
+  const rotation = document.querySelector("#review-rotation");
+  rotation.value = String(Number(rotation.value) + 1);
+  await rotation.dispatch("input");
+`);
+const [staleFailureDuringDragPromise] = startTimers();
+await Promise.resolve();
+await run(`
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  await frame.children[0].dispatch("load");
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  globalThis.staleFailureHandle = handle;
+  globalThis.staleFailureStartX = startX;
+  globalThis.staleFailureStartY = startY;
+  await handle.dispatch("pointerdown", { pointerId: 42, clientX: startX, clientY: startY });
+  await handle.dispatch("pointermove", {
+    pointerId: 42,
+    clientX: startX + 10,
+    clientY: startY + 10,
+  });
+`);
+staleFailureDuringDrag.resolve(response({ status: 500, text: "stale failure" }));
+await staleFailureDuringDragPromise;
+await run(`
+  assert.equal(staleFailureHandle.isConnected, true);
+  assert.equal(state.reviewStageRenderDeferred, false);
+  await staleFailureHandle.dispatch("pointermove", {
+    pointerId: 42,
+    clientX: staleFailureStartX + 20,
+    clientY: staleFailureStartY + 20,
+  });
+  await staleFailureHandle.dispatch("pointerup", { pointerId: 42 });
+`);
+enqueueFetch(response());
+await flushTimers();
+await run(`
+  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+  await findByClass(elements.imageReviewStage, "source-guide-frame").children[0].dispatch("load");
+`);
+
+const previewDuringDrag = deferred();
+enqueueFetch(previewDuringDrag.promise);
+await run(`
+  const rotation = document.querySelector("#review-rotation");
+  rotation.value = String(Number(rotation.value) + 1);
+  await rotation.dispatch("input");
+`);
+const [previewDuringDragPromise] = startTimers();
+await Promise.resolve();
+await run(`
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  const image = frame.children[0];
+  await image.dispatch("load");
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  globalThis.asyncDragHandle = handle;
+  globalThis.asyncDragStartX = startX;
+  globalThis.asyncDragStartY = startY;
+  await handle.dispatch("pointerdown", { pointerId: 31, clientX: startX, clientY: startY });
+`);
+previewDuringDrag.resolve(response());
+await previewDuringDragPromise;
+await run(`
+  assert.equal(asyncDragHandle.isConnected, true);
+  assert.equal(state.reviewStageRenderDeferred, true);
+  assert.equal(state.reviewPreviewStatus, "rendering");
+  await asyncDragHandle.dispatch("pointermove", {
+    pointerId: 31,
+    clientX: asyncDragStartX + 20,
+    clientY: asyncDragStartY + 15,
+  });
+  assert.equal(asyncDragHandle.isConnected, true);
+  await asyncDragHandle.dispatch("pointerup", { pointerId: 31 });
+  assert.equal(asyncDragHandle.isConnected, false);
+  assert.equal(state.reviewStageRenderDeferred, false);
+`);
+enqueueFetch(response());
+const finalAsyncDragPreview = startTimers();
+assert.equal(finalAsyncDragPreview.length, 1, "deferred preview must be superseded once at settlement");
+await Promise.all(finalAsyncDragPreview);
+await run(`
+  const output = findByClass(elements.imageReviewStage, "review-image-latest");
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  await frame.children[0].dispatch("load");
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  await handle.dispatch("pointerdown", { pointerId: 32, clientX: startX, clientY: startY });
+  await output.dispatch("error");
+  assert.equal(handle.isConnected, true);
+  assert.equal(state.reviewStageRenderDeferred, true);
+  await handle.dispatch("pointermove", {
+    pointerId: 32,
+    clientX: startX + 20,
+    clientY: startY + 15,
+  });
+  await handle.dispatch("pointerup", { pointerId: 32 });
+  assert.equal(handle.isConnected, false);
+`);
+enqueueFetch(response());
+const outputErrorRecoveryPreview = startTimers();
+assert.equal(outputErrorRecoveryPreview.length, 1, "moved drag must supersede deferred output error once");
+await Promise.all(outputErrorRecoveryPreview);
+await run(`
+  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+  await findByClass(elements.imageReviewStage, "source-guide-frame").children[0].dispatch("load");
+`);
+
+const failedPreviewDuringDrag = deferred();
+enqueueFetch(failedPreviewDuringDrag.promise);
+await run(`
+  const rotation = document.querySelector("#review-rotation");
+  rotation.value = String(Number(rotation.value) + 1);
+  await rotation.dispatch("input");
+`);
+const [failedPreviewDuringDragPromise] = startTimers();
+await Promise.resolve();
+await run(`
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  await frame.children[0].dispatch("load");
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  globalThis.failedPreviewHandle = handle;
+  globalThis.failedPreviewSource = frame.children[0];
+  await handle.dispatch("pointerdown", { pointerId: 35, clientX: startX, clientY: startY });
+`);
+failedPreviewDuringDrag.resolve(response({ status: 500, text: "preview failed" }));
+await failedPreviewDuringDragPromise;
+await run(`
+  assert.equal(failedPreviewHandle.isConnected, true);
+  assert.equal(state.reviewPreviewStatus, "error");
+  assert.equal(state.reviewStageRenderDeferred, true);
+  await failedPreviewSource.dispatch("error");
+  assert.equal(failedPreviewHandle.isConnected, false);
+  assert.equal(state.reviewStageRenderDeferred, false);
+  assert.match(findByClass(elements.imageReviewStage, "source-guide-frame").children[0].textContent, /Preview unavailable/);
+  assert.ok(findByClass(elements.imageReviewStage, "preview-failure"));
+  assert.equal(startTimers().length, 0);
+`);
+enqueueFetch(response());
+await run(`await findByClass(elements.imageReviewStage, "secondary-action").dispatch("click");`);
+await flushTimers();
+await run(`
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  await frame.children[0].dispatch("load");
+  const output = findByClass(elements.imageReviewStage, "review-image-latest");
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  await handle.dispatch("pointerdown", { pointerId: 36, clientX: startX, clientY: startY });
+  await output.dispatch("load");
+  assert.equal(handle.isConnected, true);
+  assert.equal(state.reviewPreviewStatus, "ready");
+  await handle.dispatch("pointerup", { pointerId: 36 });
+  assert.equal(handle.isConnected, true);
 `);
 
 await run(`
   const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
   const image = frame.children[0];
   const handle = findAllByClass(frame, "corner-handle")[0];
-  await handle.dispatch("pointerdown", { pointerId: 10 });
-  await handle.dispatch("pointermove", { pointerId: 10, clientX: 100, clientY: 75 });
+  const releaseCount = handle.pointerReleaseCount || 0;
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  await handle.dispatch("pointerdown", { pointerId: 33, clientX: startX, clientY: startY });
+  await image.dispatch("error");
+  assert.equal(state.reviewPerspectiveDrag, null);
+  assert.equal(handle.pointerReleaseCount, releaseCount + 1);
+  assert.equal(handle.isConnected, false);
+  assert.match(frame.children[0].textContent, /Preview unavailable/);
+  assert.equal(startTimers().length, 0);
+  renderImageReview();
+  await findByClass(elements.imageReviewStage, "source-guide-frame").children[0].dispatch("load");
+  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+`);
+
+await run(`
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  const image = frame.children[0];
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  await handle.dispatch("pointerdown", { pointerId: 34, clientX: startX, clientY: startY });
+  await handle.dispatch("pointermove", {
+    pointerId: 34,
+    clientX: startX + 20,
+    clientY: startY + 15,
+  });
+  await image.dispatch("error");
+  assert.equal(state.reviewPerspectiveDrag, null);
+  assert.equal(handle.pointerReleaseCount, 1);
+  assert.equal(handle.isConnected, false);
+  assert.match(frame.children[0].textContent, /Preview unavailable/);
+`);
+enqueueFetch(response());
+const sourceErrorPreview = startTimers();
+assert.equal(sourceErrorPreview.length, 1, "source error after movement must reconcile one preview");
+await Promise.all(sourceErrorPreview);
+await run(`
+  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+  await findByClass(elements.imageReviewStage, "source-guide-frame").children[0].dispatch("load");
+`);
+
+await run(`
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  const image = frame.children[0];
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  const startingCorner = { ...currentPerspectiveCorners()[0] };
+  await handle.dispatch("pointerdown", { pointerId: 10, clientX: startX, clientY: startY });
+  await handle.dispatch("pointermove", { pointerId: 10, clientX: startX + 40, clientY: startY + 30 });
+  assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].x - Math.min(1, startingCorner.x + 0.1)) < 1e-9, true);
+  assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].y - Math.min(1, startingCorner.y + 0.1)) < 1e-9, true);
+  await handle.dispatch("pointermove", { pointerId: 10, clientX: startX + 80, clientY: startY + 60 });
+  assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].x - Math.min(1, startingCorner.x + 0.2)) < 1e-9, true);
+  assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].y - Math.min(1, startingCorner.y + 0.2)) < 1e-9, true);
   const settledCorner = JSON.stringify(state.reviewDraftAdjustment.perspective.corners[0]);
   await handle.dispatch("pointercancel", { pointerId: 10 });
   assert.equal(state.reviewPerspectiveDrag, null);
@@ -570,13 +911,18 @@ enqueueFetch(response());
 const cancelPreviewPromises = startTimers();
 assert.equal(cancelPreviewPromises.length, 1, "pointer cancel must settle exactly one preview");
 await Promise.all(cancelPreviewPromises);
-await run(`await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");`);
+await run(`
+  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+  await findByClass(elements.imageReviewStage, "source-guide-frame").children[0].dispatch("load");
+`);
 
 await run(`
   const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
   const handle = findAllByClass(frame, "corner-handle")[0];
-  await handle.dispatch("pointerdown", { pointerId: 11 });
-  await handle.dispatch("pointermove", { pointerId: 11, clientX: 300, clientY: 75 });
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  await handle.dispatch("pointerdown", { pointerId: 11, clientX: startX, clientY: startY });
+  await handle.dispatch("pointermove", { pointerId: 11, clientX: startX + 30, clientY: startY + 20 });
   const settledCorner = JSON.stringify(state.reviewDraftAdjustment.perspective.corners[0]);
   await handle.dispatch("lostpointercapture", { pointerId: 11 });
   assert.equal(state.reviewPerspectiveDrag, null);
@@ -588,19 +934,66 @@ enqueueFetch(response());
 const lostCapturePreviewPromises = startTimers();
 assert.equal(lostCapturePreviewPromises.length, 1, "lost capture must settle exactly one preview");
 await Promise.all(lostCapturePreviewPromises);
-await run(`await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");`);
+await run(`
+  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+  await findByClass(elements.imageReviewStage, "source-guide-frame").children[0].dispatch("load");
+`);
 
 await run(`
   const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
   const handle = findAllByClass(frame, "corner-handle")[0];
-  await handle.dispatch("pointerdown", { pointerId: 12 });
-  await handle.dispatch("pointermove", { pointerId: 12, clientX: 100, clientY: 225 });
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  await handle.dispatch("pointerdown", { pointerId: 12, clientX: startX, clientY: startY });
+  await handle.dispatch("pointermove", { pointerId: 12, clientX: startX + 20, clientY: startY + 20 });
   const teardownCorner = JSON.stringify(state.reviewDraftAdjustment.perspective.corners[0]);
   disconnectPerspectiveProjection();
   assert.equal(state.reviewPerspectiveDrag, null);
   await handle.dispatchProgrammatic("pointermove", { pointerId: 12, clientX: 400, clientY: 0 });
   assert.equal(JSON.stringify(state.reviewDraftAdjustment.perspective.corners[0]), teardownCorner);
   assert.equal(startTimers().length, 0);
+`);
+
+await run(`
+  renderImageReview();
+  const frame = findByClass(elements.imageReviewStage, "source-guide-frame");
+  await frame.children[0].dispatch("load");
+  const output = findByClass(elements.imageReviewStage, "review-image-latest");
+  if (output) await output.dispatch("load");
+  const handle = findAllByClass(frame, "corner-handle")[0];
+  const startX = frame.rect.left + Number.parseFloat(handle.style.left);
+  const startY = frame.rect.top + Number.parseFloat(handle.style.top);
+  await handle.dispatch("pointerdown", { pointerId: 40, clientX: startX, clientY: startY });
+  await handle.dispatch("pointermove", {
+    pointerId: 40,
+    clientX: startX + 20,
+    clientY: startY + 15,
+  });
+  const retiredCorner = JSON.stringify(state.reviewDraftAdjustment.perspective.corners[0]);
+  clearImageReviewState();
+  assert.equal(state.reviewPerspectiveDrag, null);
+  assert.equal(handle.pointerReleaseCount, 1);
+  assert.equal(handle.isConnected, true);
+  await handle.dispatchProgrammatic("pointermove", {
+    pointerId: 40,
+    clientX: startX + 100,
+    clientY: startY + 100,
+  });
+  assert.equal(state.reviewDraftAdjustment, null);
+  assert.equal(startTimers().length, 0);
+  globalThis.retiredCorner = retiredCorner;
+`);
+enqueueFetch(response({ json: reviewPayload("item-b", "image-b", { rotationDegrees: 7, zoom: 1, panX: 0, panY: 0, crop: null, perspective: null }) }));
+await run(`
+  state.currentItem = { id: "item-b", images: [{ id: "image-b" }], cleanupWarnings: [] };
+  renderImages(state.currentItem.images, []);
+  await elements.imageGrid.children[0].children[4].children[0].dispatch("click");
+`);
+enqueueFetch(response());
+await flushTimers();
+await run(`
+  await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
+  await findByClass(elements.imageReviewStage, "source-guide-frame").children[0].dispatch("load");
 `);
 
 const lateReset = deferred();
