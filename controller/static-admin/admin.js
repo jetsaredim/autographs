@@ -17,8 +17,8 @@ const endpoints = {
     `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}`,
   imageReplace: (id, imageId) =>
     `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}`,
-  imagePreview: (id, imageId) =>
-    `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/preview`,
+  imagePreview: (id, imageId, mediaRevision) =>
+    `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/preview?mediaRevision=${encodeURIComponent(mediaRevision)}`,
   imageDraftPreview: (id, imageId) =>
     `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/preview/draft`,
   imageSourcePreview: (id, imageId) =>
@@ -58,6 +58,7 @@ const copy = {
   adjustmentSaved:
     "Adjustments saved privately. Publish changes when this image is ready for the public site.",
   assistUnavailable: "Auto correction could not find reliable edges. Adjust the corners manually.",
+  mediaChanged: "Image media changed. Reopen the review.",
   resetAdjustment:
     "Reset adjustments: Clear saved crop, rotation, pan, and perspective correction for this image? The original upload stays unchanged.",
   discardImageEdits: "Discard unsaved image edits and return to the item editor?",
@@ -1280,15 +1281,32 @@ function fillDatalist(id, values = []) {
   );
 }
 
+function reconcileAdminItemResponse(item) {
+  let reviewInvalidated = false;
+  if (state.reviewSession) {
+    const reviewedImage = item?.images?.find(
+      (image) => image.id === state.reviewSession.imageId
+    );
+    if (
+      !reviewedImage ||
+      !state.reviewSession.mediaRevision ||
+      reviewedImage.mediaRevision !== state.reviewSession.mediaRevision
+    ) {
+      clearImageReviewState();
+      reviewInvalidated = true;
+      elements.imageMessage.textContent = copy.mediaChanged;
+    }
+  }
+  state.currentItem = item;
+  return { item, reviewInvalidated };
+}
+
 function renderEditor(item = null) {
   if (state.reviewSession && state.reviewMutationPending) {
     blockReviewEgressWhileMutationPending();
     return false;
   }
-  if (state.reviewSession && state.reviewSession.itemId !== item?.id) {
-    clearImageReviewState();
-  }
-  state.currentItem = item;
+  reconcileAdminItemResponse(item);
   state.dirty = false;
   elements.itemForm.reset();
   elements.discardUnsaved.hidden = true;
@@ -1388,8 +1406,9 @@ function renderImagePreviewFrame(itemId, image) {
   let attempt = 0;
   const loadPreview = () => {
     const preview = document.createElement("img");
-    const separator = endpoints.imagePreview(itemId, image.id).includes("?") ? "&" : "?";
-    preview.src = `${endpoints.imagePreview(itemId, image.id)}${separator}retry=${attempt}`;
+    const previewUrl = endpoints.imagePreview(itemId, image.id, image.mediaRevision);
+    const separator = previewUrl.includes("?") ? "&" : "?";
+    preview.src = `${previewUrl}${separator}retry=${attempt}`;
     preview.alt = image.altText || "Private autograph image preview";
     preview.loading = "lazy";
     preview.addEventListener("error", () => {
@@ -1611,14 +1630,14 @@ function clearImageReviewState() {
   syncPublishAvailability();
 }
 
-function beginReviewSession(itemId, imageId) {
+function beginReviewSession(itemId, imageId, mediaRevision = null) {
   invalidateReviewOutputRender();
   disconnectPerspectiveProjection();
   cancelReviewPreviewRequest();
   revokeReviewPreviewUrl();
   state.reviewStageRenderDeferred = false;
   state.reviewSessionRevision += 1;
-  state.reviewSession = { revision: state.reviewSessionRevision, itemId, imageId };
+  state.reviewSession = { revision: state.reviewSessionRevision, itemId, imageId, mediaRevision };
   return { ...state.reviewSession };
 }
 
@@ -1628,8 +1647,22 @@ function isCurrentReviewSession(session) {
       state.reviewSession &&
       session.revision === state.reviewSession.revision &&
       session.itemId === state.reviewSession.itemId &&
-      session.imageId === state.reviewSession.imageId
+      session.imageId === state.reviewSession.imageId &&
+      session.mediaRevision === state.reviewSession.mediaRevision
   );
+}
+
+function handleMediaRevisionConflict(error) {
+  if (error?.status !== 409 || error?.body?.code !== "mediaRevisionConflict") {
+    return false;
+  }
+  clearImageReviewState();
+  elements.imageMessage.textContent = copy.mediaChanged;
+  setView("add-item-view");
+  if (state.currentItem) {
+    renderImages(state.currentItem.images || [], state.currentItem.cleanupWarnings || []);
+  }
+  return true;
 }
 
 function markReviewDraftChanged({ schedulePreview = true } = {}) {
@@ -1678,7 +1711,10 @@ async function loadDraftPreview(revision, draftRevision, session) {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(submittedAdjustment),
+      body: JSON.stringify({
+        mediaRevision: session.mediaRevision,
+        adjustment: submittedAdjustment,
+      }),
       signal: controller.signal,
     });
     if (response.status === 401) {
@@ -1686,7 +1722,12 @@ async function loadDraftPreview(revision, draftRevision, session) {
       throw new Error(copy.sessionExpired);
     }
     if (!response.ok) {
-      throw new Error(copy.previewError);
+      const contentType = response.headers.get("content-type") || "";
+      const body = contentType.includes("application/json") ? await response.json() : null;
+      const error = new Error(copy.previewError);
+      error.status = response.status;
+      error.body = body;
+      throw error;
     }
     const blob = await response.blob();
     if (
@@ -1703,6 +1744,9 @@ async function loadDraftPreview(revision, draftRevision, session) {
     state.reviewDisplayedRevision = null;
     renderImageReview();
   } catch (error) {
+    if (handleMediaRevisionConflict(error)) {
+      return;
+    }
     if (
       error.name === "AbortError" ||
       revision !== state.reviewPreviewRevision ||
@@ -1727,10 +1771,22 @@ async function openImageReview(imageId) {
     return;
   }
   const itemId = state.currentItem.id;
-  const session = beginReviewSession(itemId, imageId);
+  const itemImage = state.currentItem.images?.find((image) => image.id === imageId);
+  if (!itemImage?.mediaRevision) {
+    elements.imageMessage.textContent = copy.previewError;
+    return;
+  }
+  const session = beginReviewSession(itemId, imageId, itemImage.mediaRevision);
   try {
     const review = await request(endpoints.imageReview(itemId, imageId));
     if (!isCurrentReviewSession(session) || state.currentItem?.id !== itemId) {
+      return;
+    }
+    if (review.mediaRevision !== session.mediaRevision) {
+      handleMediaRevisionConflict({
+        status: 409,
+        body: { code: "mediaRevisionConflict" },
+      });
       return;
     }
     state.reviewImage = review;
@@ -1749,6 +1805,9 @@ async function openImageReview(imageId) {
     renderImageReview();
     scheduleDraftPreview({ immediate: true });
   } catch (error) {
+    if (handleMediaRevisionConflict(error)) {
+      return;
+    }
     if (isCurrentReviewSession(session) && error.status !== 401) {
       elements.imageMessage.textContent = copy.previewError;
     }
@@ -2414,7 +2473,11 @@ async function detectImageEdges() {
   const session = state.reviewSession ? { ...state.reviewSession } : null;
   const draftRevision = state.reviewDraftRevision;
   try {
-    const proposal = await request(endpoints.imageAdjustmentAssist(itemId, imageId), { method: "POST" });
+    const proposal = await jsonRequest(
+      endpoints.imageAdjustmentAssist(itemId, imageId),
+      "POST",
+      { mediaRevision: session.mediaRevision }
+    );
     if (
       !isCurrentReviewSession(session) ||
       draftRevision !== state.reviewDraftRevision ||
@@ -2432,6 +2495,9 @@ async function detectImageEdges() {
     state.reviewMessage = copy.assistUnavailable;
     elements.imageReviewMessage.textContent = state.reviewMessage;
   } catch (error) {
+    if (handleMediaRevisionConflict(error)) {
+      return;
+    }
     if (
       isCurrentReviewSession(session) &&
       draftRevision === state.reviewDraftRevision &&
@@ -2458,14 +2524,17 @@ async function saveImageAdjustments() {
     const item = await jsonRequest(
       endpoints.imageAdjustment(itemId, imageId),
       "PATCH",
-      submittedAdjustment
+      { mediaRevision: session.mediaRevision, adjustment: submittedAdjustment }
     );
     if (!isCurrentReviewMutation(mutation)) {
       return;
     }
     const returnedAdjustment = item.images?.find((image) => image.id === imageId)?.adjustment;
     const savedAdjustment = canonicalReviewAdjustment(returnedAdjustment ?? submittedAdjustment);
-    state.currentItem = item;
+    const { reviewInvalidated } = reconcileAdminItemResponse(item);
+    if (reviewInvalidated || !isCurrentReviewMutation(mutation)) {
+      return;
+    }
     state.reviewSavedAdjustment = savedAdjustment;
     if (state.reviewDraftRevision === submittedRevision) {
       state.reviewDraftAdjustment = cloneAdjustment(savedAdjustment);
@@ -2474,6 +2543,9 @@ async function saveImageAdjustments() {
     state.reviewMessage = copy.adjustmentSaved;
     elements.imageReviewMessage.textContent = state.reviewMessage;
   } catch (error) {
+    if (handleMediaRevisionConflict(error)) {
+      return;
+    }
     if (isCurrentReviewMutation(mutation) && error.status !== 401) {
       state.reviewMessage =
         "Adjustments did not save. Keep this page open, review the controls, and try again.";
@@ -2513,14 +2585,18 @@ async function resetImageAdjustments() {
   const { itemId, imageId } = state.reviewImage;
   const mutation = beginReviewMutation("reset", session, itemId, imageId);
   try {
-    const item = await request(
+    const item = await jsonRequest(
       endpoints.imageAdjustment(itemId, imageId),
-      { method: "DELETE" }
+      "DELETE",
+      { mediaRevision: session.mediaRevision }
     );
     if (!isCurrentReviewMutation(mutation)) {
       return;
     }
-    state.currentItem = item;
+    const { reviewInvalidated } = reconcileAdminItemResponse(item);
+    if (reviewInvalidated || !isCurrentReviewMutation(mutation)) {
+      return;
+    }
     state.reviewSavedAdjustment = identityReviewAdjustment();
     if (state.reviewDraftRevision === submittedRevision) {
       state.reviewDraftAdjustment = identityReviewAdjustment();
@@ -2530,6 +2606,9 @@ async function resetImageAdjustments() {
     state.reviewMessage = "Adjustments cleared. The original upload is unchanged.";
     scheduleDraftPreview({ immediate: true });
   } catch (error) {
+    if (handleMediaRevisionConflict(error)) {
+      return;
+    }
     if (isCurrentReviewMutation(mutation) && error.status !== 401) {
       state.reviewMessage = error.message;
       elements.imageReviewMessage.textContent = state.reviewMessage;
@@ -2667,7 +2746,7 @@ async function saveItem(event) {
   const selectedAltText = elements.itemForm.elements.altText.value.trim();
   try {
     const item = await jsonRequest(id ? endpoints.item(id) : endpoints.items, id ? "PATCH" : "POST", formPayload());
-    state.currentItem = item;
+    reconcileAdminItemResponse(item);
     if (selectedFiles.length) {
       state.dirty = false;
       elements.discardUnsaved.hidden = true;
@@ -2709,7 +2788,7 @@ async function uploadImages(
         method: "POST",
         body: upload,
       });
-      state.currentItem = item;
+      reconcileAdminItemResponse(item);
     }
     elements.imageFiles.value = "";
     renderEditor(state.currentItem);
@@ -2732,7 +2811,6 @@ async function markPrimary(imageId) {
   }
   try {
     const item = await request(endpoints.imagePrimary(state.currentItem.id, imageId), { method: "POST" });
-    state.currentItem = item;
     renderEditor(item);
   } catch (error) {
     if (error.status !== 401) {
@@ -2750,7 +2828,6 @@ async function removeImage(imageId) {
   }
   try {
     const item = await request(endpoints.imageDelete(state.currentItem.id, imageId), { method: "DELETE" });
-    state.currentItem = item;
     renderEditor(item);
   } catch (error) {
     if (error.status === 409 && error.body?.cleanupWarning) {
@@ -2782,7 +2859,6 @@ async function replaceImage(imageId) {
       method: "PUT",
       body: upload,
     });
-    state.currentItem = item;
     elements.replacementImage.value = "";
     renderEditor(item);
   } catch (error) {
@@ -2805,7 +2881,6 @@ async function retryCleanup(imageId) {
   try {
     const item = await request(endpoints.cleanupRetry(state.currentItem.id, imageId), { method: "POST" });
     if (item) {
-      state.currentItem = item;
       renderEditor(item);
     } else {
       elements.imageMessage.textContent = "Cleanup retry succeeded.";

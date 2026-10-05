@@ -238,8 +238,8 @@ const context = vm.createContext({
 const source = fs.readFileSync(new URL("../static-admin/admin.js", import.meta.url), "utf8");
 vm.runInContext(source, context, { filename: "admin.js" });
 const run = async (code) => vm.runInContext(`(async () => { ${code} })()`, context);
-const reviewPayload = (itemId, imageId, adjustment = null) => ({
-  itemId, imageId, adjustment, canComparePublicCurrent: true,
+const reviewPayload = (itemId, imageId, adjustment = null, mediaRevision = `revision-${imageId}`) => ({
+  itemId, imageId, mediaRevision, adjustment, canComparePublicCurrent: true,
   publicCurrentPreviewUrl: `/media/${imageId}-public.webp`,
   privatePreviewUrl: `/admin/api/items/${itemId}/images/${imageId}/preview`,
   draftPreviewUrl: `/admin/api/items/${itemId}/images/${imageId}/preview/draft`,
@@ -255,7 +255,7 @@ await run(`
 
 enqueueFetch(response({ json: reviewPayload("item-a", "image-a") }));
 await run(`
-  state.currentItem = { id: "item-a", images: [{ id: "image-a", altText: "A" }], cleanupWarnings: [] };
+  state.currentItem = { id: "item-a", images: [{ id: "image-a", mediaRevision: "revision-image-a", altText: "A" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
   await elements.imageGrid.children[0].children[4].children[0].dispatch("click");
   assert.equal(state.reviewImage.imageId, "image-a");
@@ -273,7 +273,7 @@ await run(`
   assert.equal(elements.imageReviewSave.disabled, true);
 `);
 
-enqueueFetch(response({ json: { id: "item-a", images: [{ id: "image-a", adjustment: null }] } }));
+enqueueFetch(response({ json: { id: "item-a", images: [{ id: "image-a", mediaRevision: "revision-image-a", adjustment: null }] } }));
 await run(`
   await elements.imageReviewReset.dispatch("click");
   assert.equal(fetchCalls.at(-1).options.method, "DELETE");
@@ -300,7 +300,8 @@ await flushTimers();
 assert.equal(fetchQueue.length, 0, "rotation preview response should be consumed");
 await run(`
   const draftRequest = fetchCalls.at(-1);
-  assert.equal(JSON.parse(draftRequest.options.body).rotationDegrees, 3);
+  assert.equal(JSON.parse(draftRequest.options.body).adjustment.rotationDegrees, 3);
+  assert.equal(JSON.parse(draftRequest.options.body).mediaRevision, "revision-image-a");
   assert.equal(elements.imageReviewSave.disabled, true);
   await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
   assert.equal(elements.imageReviewSave.disabled, false);
@@ -407,12 +408,13 @@ await run(`
 `);
 saveResponse.resolve(response({ json: {
   id: "item-a",
-  images: [{ id: "image-a", adjustment: { rotationDegrees: 5, zoom: 1, panX: 0, panY: 0, crop: null, perspective: null } }],
+  images: [{ id: "image-a", mediaRevision: "revision-image-a", adjustment: { rotationDegrees: 5, zoom: 1, panX: 0, panY: 0, crop: null, perspective: null } }],
 } }));
 await savePromise;
 await run(`
   const patch = fetchCalls.findLast((call) => call.options.method === "PATCH");
-  assert.equal(JSON.parse(patch.options.body).rotationDegrees, 5);
+  assert.equal(JSON.parse(patch.options.body).adjustment.rotationDegrees, 5);
+  assert.equal(JSON.parse(patch.options.body).mediaRevision, "revision-image-a");
   assert.equal(state.reviewSavedAdjustment.rotationDegrees, 5);
   assert.equal(state.reviewDraftAdjustment.rotationDegrees, 5);
   assert.equal(state.reviewDirty, false);
@@ -454,14 +456,14 @@ const reviewA = deferred();
 const reviewB = deferred();
 enqueueFetch(reviewA.promise);
 const openA = run(`
-  state.currentItem = { id: "item-a", images: [{ id: "image-a" }], cleanupWarnings: [] };
+  state.currentItem = { id: "item-a", images: [{ id: "image-a", mediaRevision: "revision-image-a" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
   return elements.imageGrid.children[0].children[4].children[0].dispatch("click");
 `);
 await Promise.resolve();
 enqueueFetch(reviewB.promise);
 const openB = run(`
-  state.currentItem = { id: "item-b", images: [{ id: "image-b" }], cleanupWarnings: [] };
+  state.currentItem = { id: "item-b", images: [{ id: "image-b", mediaRevision: "revision-image-b" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
   return elements.imageGrid.children[0].children[4].children[0].dispatch("click");
 `);
@@ -479,7 +481,7 @@ await Promise.resolve();
 await run(`await elements.imageReviewDiscard.dispatch("click");`);
 enqueueFetch(response({ json: reviewPayload("item-b", "image-b") }));
 await run(`
-  state.currentItem = { id: "item-b", images: [{ id: "image-b" }], cleanupWarnings: [] };
+  state.currentItem = { id: "item-b", images: [{ id: "image-b", mediaRevision: "revision-image-b" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
   await elements.imageGrid.children[0].children[4].children[0].dispatch("click");
 `);
@@ -587,7 +589,7 @@ await Promise.all(dragPreviewPromises);
 await run(`
   assert.equal(fetchCalls.length, dragFetchCount + 1);
   const request = fetchCalls.at(-1);
-  const submittedCorner = JSON.parse(request.options.body).perspective.corners[0];
+  const submittedCorner = JSON.parse(request.options.body).adjustment.perspective.corners[0];
   assert.equal(Math.abs(submittedCorner.x - 0.2) < 1e-9, true);
   assert.equal(Math.abs(submittedCorner.y - 0.2) < 1e-9, true);
   await findByClass(elements.imageReviewStage, "review-image-latest").dispatch("load");
@@ -985,7 +987,7 @@ await run(`
 `);
 enqueueFetch(response({ json: reviewPayload("item-b", "image-b", { rotationDegrees: 7, zoom: 1, panX: 0, panY: 0, crop: null, perspective: null }) }));
 await run(`
-  state.currentItem = { id: "item-b", images: [{ id: "image-b" }], cleanupWarnings: [] };
+  state.currentItem = { id: "item-b", images: [{ id: "image-b", mediaRevision: "revision-image-b" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
   await elements.imageGrid.children[0].children[4].children[0].dispatch("click");
 `);
@@ -1013,7 +1015,7 @@ await run(`
   assert.equal(fetchCalls.length, beforeEgress);
   assert.match(elements.imageReviewMessage.textContent, /Reset is still in progress/);
 `);
-lateReset.resolve(response({ json: { id: "item-b", images: [{ id: "image-b", adjustment: null }] } }));
+lateReset.resolve(response({ json: { id: "item-b", images: [{ id: "image-b", mediaRevision: "revision-image-b", adjustment: null }] } }));
 await resetPromise;
 await run(`
   assert.equal(state.reviewImage.imageId, "image-b");
@@ -1062,7 +1064,7 @@ await run(`await elements.imageReviewDiscard.dispatch("click");`);
 const lateReview = deferred();
 enqueueFetch(lateReview.promise);
 const lateOpen = run(`
-  state.currentItem = { id: "item-a", images: [{ id: "image-a" }], cleanupWarnings: [] };
+  state.currentItem = { id: "item-a", images: [{ id: "image-a", mediaRevision: "revision-image-a" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
   return elements.imageGrid.children[0].children[4].children[0].dispatch("click");
 `);
@@ -1073,6 +1075,37 @@ await lateOpen;
 await run(`
   assert.equal(state.currentView, "publish-view");
   assert.equal(state.reviewImage, null);
+`);
+
+await run(`
+  state.currentItem = { id: "item-a", images: [{ id: "image-a", mediaRevision: "revision-old" }], cleanupWarnings: [] };
+  beginReviewSession("item-a", "image-a", "revision-old");
+  state.reviewImage = { itemId: "item-a", imageId: "image-a", mediaRevision: "revision-old", adjustment: null };
+  const exact = reconcileAdminItemResponse({ id: "item-a", images: [{ id: "image-a", mediaRevision: "revision-old" }], cleanupWarnings: [] });
+  assert.equal(exact.reviewInvalidated, false);
+  assert.equal(state.reviewSession.mediaRevision, "revision-old");
+
+  const changed = reconcileAdminItemResponse({ id: "item-a", images: [{ id: "image-a", mediaRevision: "revision-new" }], cleanupWarnings: [] });
+  assert.equal(changed.reviewInvalidated, true);
+  assert.equal(state.reviewSession, null);
+  assert.equal(state.reviewImage, null);
+  assert.equal(state.currentItem.images[0].mediaRevision, "revision-new");
+  assert.match(elements.imageMessage.textContent, /Image media changed/);
+
+  beginReviewSession("item-a", "image-a", "revision-new");
+  state.reviewImage = { itemId: "item-a", imageId: "image-a", mediaRevision: "revision-new", adjustment: null };
+  const missing = reconcileAdminItemResponse({ id: "item-a", images: [], cleanupWarnings: [] });
+  assert.equal(missing.reviewInvalidated, true);
+  assert.equal(state.reviewSession, null);
+  assert.equal(state.currentItem.images.length, 0);
+
+  beginReviewSession("item-a", "image-a", "revision-new");
+  state.reviewImage = { itemId: "item-a", imageId: "image-a", mediaRevision: "revision-new", adjustment: null };
+  assert.equal(handleMediaRevisionConflict({ status: 409, body: { code: "mediaRevisionConflict" } }), true);
+  assert.equal(state.reviewSession, null);
+  assert.equal(state.reviewPreviewAbortController, null);
+  assert.equal(state.reviewMutationPending, null);
+  assert.match(elements.imageMessage.textContent, /Reopen the review/);
 `);
 
 console.log("static admin behavior tests passed");

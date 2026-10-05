@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Instant};
 use axum::{
     Json, Router,
     body::Bytes,
-    extract::{DefaultBodyLimit, Multipart, Path, State},
+    extract::{DefaultBodyLimit, Multipart, Path, Query, State},
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{delete, get, patch, post},
@@ -17,8 +17,9 @@ use crate::{
     auth::{AuthState, LoginError},
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
-        CleanupStatus, CleanupWarning, ImageCleanupEvent, ImageReplacementInput,
-        MemoryCatalogRepository, PublicationStatus, REQUIRED_FIELDS_ERROR, now_epoch_seconds,
+        CleanupStatus, CleanupWarning, ImageAdjustmentUpdateError, ImageCleanupEvent,
+        ImageReplacementInput, MemoryCatalogRepository, PublicationStatus, REQUIRED_FIELDS_ERROR,
+        now_epoch_seconds,
     },
     config::ControllerConfig,
     derivatives::DerivativeVariant,
@@ -768,6 +769,7 @@ async fn set_primary_image(
 async fn preview_image(
     State(state): State<AppState>,
     Path((id, image_id)): Path<(String, String)>,
+    Query(query): Query<MediaRevisionQuery>,
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
@@ -778,11 +780,16 @@ async fn preview_image(
         Ok(loaded) => loaded,
         Err(error) => return image_lookup_error_response("preview", &id, &image_id, error),
     };
+    let expected_revision = query.media_revision.as_deref().unwrap_or_default();
+    if !admin_image_revision_matches(&loaded.image, expected_revision) {
+        return media_revision_conflict_response();
+    }
     image_preview_response(
         &state,
         loaded.item_id,
         loaded.image_id,
         &loaded.image,
+        expected_revision,
         loaded.image.adjustment.as_ref(),
     )
     .await
@@ -799,22 +806,26 @@ async fn preview_image_draft(
         tracing::warn!(status = %status, "rejected draft image preview request");
         return status.into_response();
     }
+    let Ok(input) = serde_json::from_slice::<AdminImageAdjustmentRequest>(&body) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    if input.adjustment.validate().is_err() {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
     let loaded = match load_admin_image(&state, &id, &image_id).await {
         Ok(loaded) => loaded,
         Err(error) => return image_lookup_error_response("draft preview", &id, &image_id, error),
     };
-    let Ok(input) = serde_json::from_slice::<AdminImageAdjustmentRequest>(&body) else {
-        return StatusCode::BAD_REQUEST.into_response();
-    };
-    if input.0.validate().is_err() {
-        return StatusCode::BAD_REQUEST.into_response();
+    if !admin_image_revision_matches(&loaded.image, &input.media_revision) {
+        return media_revision_conflict_response();
     }
-    let adjustment = input.0.into_canonical();
+    let adjustment = input.adjustment.into_canonical();
     image_preview_response(
         &state,
         loaded.item_id,
         loaded.image_id,
         &loaded.image,
+        &input.media_revision,
         adjustment.as_ref(),
     )
     .await
@@ -823,6 +834,7 @@ async fn preview_image_draft(
 async fn preview_image_source(
     State(state): State<AppState>,
     Path((id, image_id)): Path<(String, String)>,
+    Query(query): Query<MediaRevisionQuery>,
     headers: HeaderMap,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
@@ -835,7 +847,19 @@ async fn preview_image_source(
             return image_lookup_error_response("source guide preview", &id, &image_id, error);
         }
     };
-    image_preview_response(&state, loaded.item_id, loaded.image_id, &loaded.image, None).await
+    let expected_revision = query.media_revision.as_deref().unwrap_or_default();
+    if !admin_image_revision_matches(&loaded.image, expected_revision) {
+        return media_revision_conflict_response();
+    }
+    image_preview_response(
+        &state,
+        loaded.item_id,
+        loaded.image_id,
+        &loaded.image,
+        expected_revision,
+        None,
+    )
+    .await
 }
 
 async fn image_preview_response(
@@ -843,42 +867,41 @@ async fn image_preview_response(
     item_id: Uuid,
     image_id: Uuid,
     image: &AutographImage,
+    expected_revision: &str,
     adjustment: Option<&ImageAdjustment>,
 ) -> Response {
-    let source = match state.media.read(&image.object_key).await {
-        Ok(source) => source,
+    let operation = match state.media.read(&image.object_key).await {
+        Ok(source) => {
+            match generate_adjusted_derivative(&source, DerivativeVariant::Detail, adjustment) {
+                Ok(derivative) => Ok(derivative.bytes),
+                Err(error) => {
+                    tracing::error!(%item_id, %image_id, error_kind = classify_media_error(&error), "failed to generate private image preview");
+                    Err("Private image preview is unavailable. Check controller logs for details.")
+                }
+            }
+        }
         Err(error) => {
             tracing::error!(%item_id, %image_id, error_kind = classify_media_error(&error), "failed to read private image for preview");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Private image preview is unavailable. Check controller logs for details.",
-            )
-                .into_response();
+            Err("Private image preview is unavailable. Check controller logs for details.")
         }
     };
-    let derivative = match generate_adjusted_derivative(
-        &source,
-        DerivativeVariant::Detail,
-        adjustment,
-    ) {
-        Ok(derivative) => derivative,
-        Err(error) => {
-            tracing::error!(%item_id, %image_id, error_kind = classify_media_error(&error), "failed to generate private image preview");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Private image preview is unavailable. Check controller logs for details.",
-            )
-                .into_response();
-        }
-    };
-    (
-        [
-            (header::CONTENT_TYPE, HeaderValue::from_static("image/webp")),
-            (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
-        ],
-        derivative.bytes,
-    )
-        .into_response()
+    if let Some(response) =
+        terminal_media_revision_response(state, item_id, image_id, expected_revision, "preview")
+            .await
+    {
+        return response;
+    }
+    match operation {
+        Ok(bytes) => (
+            [
+                (header::CONTENT_TYPE, HeaderValue::from_static("image/webp")),
+                (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Err(message) => (StatusCode::INTERNAL_SERVER_ERROR, message).into_response(),
+    }
 }
 
 async fn review_image(
@@ -947,20 +970,33 @@ async fn review_image(
             "Private image only. Publish when this item is ready for the public catalog.",
         ),
     };
+    let media_revision = admin_image_revision(&loaded.image);
+    if let Some(response) = terminal_media_revision_response(
+        &state,
+        loaded.item_id,
+        loaded.image_id,
+        &media_revision,
+        "review",
+    )
+    .await
+    {
+        return response;
+    }
     Json(AdminImageReviewResponse {
         item_id: loaded.item_id,
         image_id: loaded.image_id,
+        media_revision: media_revision.clone(),
         private_preview_url: format!(
-            "/admin/api/items/{}/images/{}/preview",
-            loaded.item_id, loaded.image_id
+            "/admin/api/items/{}/images/{}/preview?mediaRevision={media_revision}",
+            loaded.item_id, loaded.image_id,
         ),
         draft_preview_url: format!(
             "/admin/api/items/{}/images/{}/preview/draft",
             loaded.item_id, loaded.image_id
         ),
         source_guide_preview_url: format!(
-            "/admin/api/items/{}/images/{}/preview/source",
-            loaded.item_id, loaded.image_id
+            "/admin/api/items/{}/images/{}/preview/source?mediaRevision={media_revision}",
+            loaded.item_id, loaded.image_id,
         ),
         can_compare_public_current: public_current_preview_url.is_some(),
         public_current_preview_url,
@@ -990,7 +1026,7 @@ async fn save_image_adjustment(
     let Ok(input) = serde_json::from_slice::<AdminImageAdjustmentRequest>(&body) else {
         return StatusCode::BAD_REQUEST.into_response();
     };
-    if input.0.validate().is_err() {
+    if input.adjustment.validate().is_err() {
         return StatusCode::BAD_REQUEST.into_response();
     }
     let loaded = match load_admin_image(&state, &id, &image_id_text).await {
@@ -999,8 +1035,22 @@ async fn save_image_adjustment(
             return image_lookup_error_response("adjustment save", &id, &image_id_text, error);
         }
     };
-    let adjustment = input.0.into_canonical();
+    if !admin_image_revision_matches(&loaded.image, &input.media_revision) {
+        return media_revision_conflict_response();
+    }
+    let adjustment = input.adjustment.into_canonical();
     if loaded.image.adjustment == adjustment {
+        if let Some(response) = terminal_media_revision_response(
+            &state,
+            loaded.item_id,
+            loaded.image_id,
+            &input.media_revision,
+            "adjustment save",
+        )
+        .await
+        {
+            return response;
+        }
         return Json(AdminImageAdjustmentResponse(
             item_response_with_state(&state, loaded.item).await,
         ))
@@ -1008,14 +1058,14 @@ async fn save_image_adjustment(
     }
     match state
         .repository
-        .update_image_adjustment(item_id, image_id, adjustment)
+        .update_image_adjustment(item_id, image_id, &loaded.image.object_key, adjustment)
         .await
     {
         Ok(item) => Json(AdminImageAdjustmentResponse(
             item_response_with_state(&state, item).await,
         ))
         .into_response(),
-        Err(error) => repository_update_error_status(&error).into_response(),
+        Err(error) => image_adjustment_update_error_response(error),
     }
 }
 
@@ -1024,6 +1074,7 @@ async fn reset_image_adjustment(
     Path((id, image_id)): Path<(String, String)>,
     method: Method,
     headers: HeaderMap,
+    body: Bytes,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         tracing::warn!(status = %status, "rejected image adjustment reset request");
@@ -1034,13 +1085,30 @@ async fn reset_image_adjustment(
     else {
         return StatusCode::BAD_REQUEST.into_response();
     };
+    let Ok(input) = serde_json::from_slice::<MediaRevisionRequest>(&body) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
     let loaded = match load_admin_image(&state, &id, &image_id_text).await {
         Ok(loaded) => loaded,
         Err(error) => {
             return image_lookup_error_response("adjustment reset", &id, &image_id_text, error);
         }
     };
+    if !admin_image_revision_matches(&loaded.image, &input.media_revision) {
+        return media_revision_conflict_response();
+    }
     if loaded.image.adjustment.is_none() {
+        if let Some(response) = terminal_media_revision_response(
+            &state,
+            loaded.item_id,
+            loaded.image_id,
+            &input.media_revision,
+            "adjustment reset",
+        )
+        .await
+        {
+            return response;
+        }
         return Json(AdminImageAdjustmentResponse(
             item_response_with_state(&state, loaded.item).await,
         ))
@@ -1048,14 +1116,14 @@ async fn reset_image_adjustment(
     }
     match state
         .repository
-        .update_image_adjustment(item_id, image_id, None)
+        .update_image_adjustment(item_id, image_id, &loaded.image.object_key, None)
         .await
     {
         Ok(item) => Json(AdminImageAdjustmentResponse(
             item_response_with_state(&state, item).await,
         ))
         .into_response(),
-        Err(error) => repository_update_error_status(&error).into_response(),
+        Err(error) => image_adjustment_update_error_response(error),
     }
 }
 
@@ -1064,36 +1132,124 @@ async fn assist_image_adjustment(
     Path((id, image_id)): Path<(String, String)>,
     method: Method,
     headers: HeaderMap,
+    body: Bytes,
 ) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         tracing::warn!(status = %status, "rejected image adjustment assist request");
         return status.into_response();
     }
+    let Ok(input) = serde_json::from_slice::<MediaRevisionRequest>(&body) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
     let loaded = match load_admin_image(&state, &id, &image_id).await {
         Ok(loaded) => loaded,
         Err(error) => {
             return image_lookup_error_response("adjustment assist", &id, &image_id, error);
         }
     };
+    if !admin_image_revision_matches(&loaded.image, &input.media_revision) {
+        return media_revision_conflict_response();
+    }
     let item_id = loaded.item_id;
     let image_id = loaded.image_id;
     let image = loaded.image;
-    let source = match state.media.read(&image.object_key).await {
-        Ok(source) => source,
+    let operation = match state.media.read(&image.object_key).await {
+        Ok(source) => match propose_image_adjustment(&source) {
+            Ok(proposal) => Ok(proposal),
+            Err(error) => {
+                tracing::error!(%item_id, %image_id, error_kind = classify_media_error(&error), "failed to propose private image adjustment");
+                Err(())
+            }
+        },
         Err(error) => {
             tracing::error!(%item_id, %image_id, error_kind = classify_media_error(&error), "failed to read private image for adjustment assist");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            Err(())
         }
     };
-    match propose_image_adjustment(&source) {
+    if let Some(response) = terminal_media_revision_response(
+        &state,
+        item_id,
+        image_id,
+        &input.media_revision,
+        "adjustment assist",
+    )
+    .await
+    {
+        return response;
+    }
+    match operation {
         Ok(proposal) => Json(AdminImageAssistResponse {
             status: proposal.status,
             corners: proposal.corners,
             message: proposal.message,
         })
         .into_response(),
-        Err(error) => {
-            tracing::error!(%item_id, %image_id, error_kind = classify_media_error(&error), "failed to propose private image adjustment");
+        Err(()) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+fn admin_image_revision(image: &AutographImage) -> String {
+    let mut digest = Sha256::new();
+    digest.update(b"autographs-admin-media-revision-v1");
+    for field in [
+        image.id.to_string(),
+        image.object_key.clone(),
+        image.checksum.clone().unwrap_or_default(),
+        image.etag.clone().unwrap_or_default(),
+        image.content_type.clone(),
+        image.byte_size.to_string(),
+    ] {
+        digest.update((field.len() as u64).to_be_bytes());
+        digest.update(field.as_bytes());
+    }
+    digest
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn admin_image_revision_matches(image: &AutographImage, expected_revision: &str) -> bool {
+    !expected_revision.is_empty() && admin_image_revision(image) == expected_revision
+}
+
+fn media_revision_conflict_response() -> Response {
+    (
+        StatusCode::CONFLICT,
+        Json(MediaRevisionConflictResponse {
+            code: "mediaRevisionConflict",
+            message: "Image media changed. Reopen the review.",
+        }),
+    )
+        .into_response()
+}
+
+async fn terminal_media_revision_response(
+    state: &AppState,
+    item_id: Uuid,
+    image_id: Uuid,
+    expected_revision: &str,
+    operation: &'static str,
+) -> Option<Response> {
+    match load_admin_image(state, &item_id.to_string(), &image_id.to_string()).await {
+        Ok(loaded) if admin_image_revision_matches(&loaded.image, expected_revision) => None,
+        Ok(_) => Some(media_revision_conflict_response()),
+        Err(error) => Some(image_lookup_error_response(
+            operation,
+            &item_id.to_string(),
+            &image_id.to_string(),
+            error,
+        )),
+    }
+}
+
+fn image_adjustment_update_error_response(error: ImageAdjustmentUpdateError) -> Response {
+    match error {
+        ImageAdjustmentUpdateError::MediaRevisionConflict => media_revision_conflict_response(),
+        ImageAdjustmentUpdateError::NotFound => StatusCode::NOT_FOUND.into_response(),
+        ImageAdjustmentUpdateError::Validation(_) => StatusCode::BAD_REQUEST.into_response(),
+        ImageAdjustmentUpdateError::Repository(error) => {
+            tracing::error!(error = %error, "failed to update image adjustment");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
@@ -2095,6 +2251,7 @@ pub(super) struct ItemResponse {
 struct AdminImageReviewResponse {
     item_id: Uuid,
     image_id: Uuid,
+    media_revision: String,
     private_preview_url: String,
     draft_preview_url: String,
     source_guide_preview_url: String,
@@ -2106,8 +2263,30 @@ struct AdminImageReviewResponse {
 }
 
 #[derive(Deserialize)]
-#[serde(transparent)]
-struct AdminImageAdjustmentRequest(ImageAdjustment);
+#[serde(rename_all = "camelCase")]
+struct AdminImageAdjustmentRequest {
+    media_revision: String,
+    adjustment: ImageAdjustment,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MediaRevisionRequest {
+    media_revision: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MediaRevisionQuery {
+    media_revision: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MediaRevisionConflictResponse {
+    code: &'static str,
+    message: &'static str,
+}
 
 #[derive(Serialize)]
 #[serde(transparent)]
@@ -2135,6 +2314,7 @@ struct SignerCreditResponse {
 #[serde(rename_all = "camelCase")]
 struct ImageResponse {
     id: Uuid,
+    media_revision: String,
     content_type: String,
     byte_size: usize,
     is_primary: bool,
@@ -2339,14 +2519,18 @@ impl ItemResponse {
             images: item
                 .images
                 .into_iter()
-                .map(|image| ImageResponse {
-                    id: image.id,
-                    content_type: image.content_type,
-                    byte_size: image.byte_size,
-                    is_primary: image.is_primary,
-                    sort_order: image.sort_order,
-                    alt_text: image.alt_text,
-                    adjustment: image.adjustment,
+                .map(|image| {
+                    let media_revision = admin_image_revision(&image);
+                    ImageResponse {
+                        id: image.id,
+                        media_revision,
+                        content_type: image.content_type,
+                        byte_size: image.byte_size,
+                        is_primary: image.is_primary,
+                        sort_order: image.sort_order,
+                        alt_text: image.alt_text,
+                        adjustment: image.adjustment,
+                    }
                 })
                 .collect(),
             pending_changes: None,

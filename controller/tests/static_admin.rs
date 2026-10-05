@@ -657,12 +657,15 @@ fn static_admin_image_review_uses_dom_nodes_and_same_origin_endpoints() {
     );
     for expected in [
         "document.createElement(\"img\")",
-        "endpoints.imagePreview(itemId, image.id)",
+        "endpoints.imagePreview(itemId, image.id, image.mediaRevision)",
         "preview.alt = image.altText || \"Private autograph image preview\";",
         "buttonNode(\"Retry preview\"",
         "element.textContent = text;",
         "request(endpoints.imageReview(itemId, imageId))",
-        "request(endpoints.imageAdjustmentAssist(itemId, imageId), { method: \"POST\" })",
+        "endpoints.imageAdjustmentAssist(itemId, imageId)",
+        "{ mediaRevision: session.mediaRevision }",
+        "reconcileAdminItemResponse(item)",
+        "reviewedImage.mediaRevision !== state.reviewSession.mediaRevision",
         "fetch(draftPreviewUrl",
         "canonicalReviewAdjustment(state.reviewDraftAdjustment)",
         "publicCurrentPreviewUrl",
@@ -689,7 +692,11 @@ fn static_admin_image_review_uses_dom_nodes_and_same_origin_endpoints() {
         "imageAdjustment",
         "imageAdjustmentAssist",
     ] {
-        let marker = format!("{endpoint}: (id, imageId) =>");
+        let marker = if endpoint == "imagePreview" {
+            format!("{endpoint}: (id, imageId, mediaRevision) =>")
+        } else {
+            format!("{endpoint}: (id, imageId) =>")
+        };
         let start = javascript
             .find(&marker)
             .unwrap_or_else(|| panic!("missing endpoint {endpoint}"));

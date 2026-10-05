@@ -3,7 +3,10 @@ mod live {
     use std::{env, time::Duration};
 
     use autographs_controller::{
-        catalog::{AutographImage, CatalogRepository, EditEventKind, ImageReplacementInput},
+        catalog::{
+            AutographImage, CatalogRepository, EditEventKind, ImageAdjustmentUpdateError,
+            ImageReplacementInput,
+        },
         image_adjustments::ImageAdjustment,
         media::PrivateMediaStore,
         oci_media::OciInstancePrincipalMediaStore,
@@ -449,10 +452,25 @@ mod live {
         let before_updated_at = item_updated_at(connection, item_id);
         let before_adjustment_events =
             edit_event_count(connection, item_id, "imageAdjustmentChanged");
+        let expected_object_key = repository
+            .get(item_uuid)
+            .await
+            .expect("load live Oracle item for adjustment authority")
+            .expect("live Oracle item exists")
+            .images
+            .into_iter()
+            .find(|image| image.id == target_image_uuid)
+            .expect("live Oracle target image exists")
+            .object_key;
 
         let adjustment = ImageAdjustment::identity();
         let saved = repository
-            .update_image_adjustment(item_uuid, target_image_uuid, Some(adjustment.clone()))
+            .update_image_adjustment(
+                item_uuid,
+                target_image_uuid,
+                &expected_object_key,
+                Some(adjustment.clone()),
+            )
             .await
             .expect("save live Oracle image adjustment");
         assert_eq!(
@@ -476,7 +494,7 @@ mod live {
         );
 
         let reset = repository
-            .update_image_adjustment(item_uuid, target_image_uuid, None)
+            .update_image_adjustment(item_uuid, target_image_uuid, &expected_object_key, None)
             .await
             .expect("reset live Oracle image adjustment");
         assert_eq!(
@@ -505,11 +523,12 @@ mod live {
                     .update_image_adjustment(
                         wrong_item_id,
                         wrong_image_id,
+                        &expected_object_key,
                         Some(ImageAdjustment::identity()),
                     )
                     .await
                     .expect_err("wrong adjustment identifiers must fail"),
-                "autograph image was not found"
+                ImageAdjustmentUpdateError::NotFound
             );
         }
         assert_eq!(
@@ -521,6 +540,7 @@ mod live {
             .update_image_adjustment(
                 item_uuid,
                 target_image_uuid,
+                &expected_object_key,
                 Some(ImageAdjustment::identity()),
             )
             .await
@@ -632,13 +652,16 @@ mod live {
             .update_image_adjustment(
                 Uuid::parse_str(item_id).expect("parse smoke item id"),
                 Uuid::parse_str(target_image_id).expect("parse smoke target image id"),
+                &image_object_key(connection, item_id, target_image_id),
                 Some(ImageAdjustment::identity()),
             )
             .await
             .expect_err("malformed sibling adjustment must reject the mutation");
         assert_eq!(
             error,
-            "read Oracle catalog image adjustment metadata: invalid adjustment JSON"
+            ImageAdjustmentUpdateError::Repository(
+                "read Oracle catalog image adjustment metadata: invalid adjustment JSON".to_owned()
+            )
         );
 
         let target_adjustment: Option<String> = connection
@@ -683,6 +706,17 @@ mod live {
             .expect("read live image adjustment JSON")
             .get(0)
             .expect("decode live image adjustment JSON")
+    }
+
+    fn image_object_key(connection: &Connection, item_id: &str, image_id: &str) -> String {
+        connection
+            .query_row(
+                "select object_key from autograph_images where item_id = :1 and id = :2",
+                &[&item_id, &image_id],
+            )
+            .expect("read image object key")
+            .get(0)
+            .expect("decode image object key")
     }
 
     fn item_updated_at(connection: &Connection, item_id: &str) -> String {

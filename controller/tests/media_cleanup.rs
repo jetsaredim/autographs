@@ -12,10 +12,11 @@ use async_trait::async_trait;
 use autographs_controller::{
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
-        CleanupStatus, CleanupWarning, ImageCleanupEvent, ImageReplacementInput, ItemOrigin,
-        MemoryCatalogRepository, PublicationStatus,
+        CleanupStatus, CleanupWarning, ImageAdjustmentUpdateError, ImageCleanupEvent,
+        ImageReplacementInput, ItemOrigin, MemoryCatalogRepository, PublicationStatus,
     },
     config::ControllerConfig,
+    image_adjustments::ImageAdjustment,
     media::{LocalMediaStore, PrivateMediaStore},
     routes::router_with_stores,
     storage_keys::build_original_object_key,
@@ -689,6 +690,19 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
     let old_key = repository.get(item.id).await.unwrap().unwrap().images[0]
         .object_key
         .clone();
+    let saved_adjustment = ImageAdjustment {
+        rotation_degrees: 3.0,
+        ..ImageAdjustment::identity()
+    };
+    repository
+        .update_image_adjustment(
+            item.id,
+            old_image_id,
+            &old_key,
+            Some(saved_adjustment.clone()),
+        )
+        .await
+        .unwrap();
     media.fail_deletes(true);
 
     let replaced = app
@@ -713,6 +727,7 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
     assert_eq!(rolled_back.images.len(), 1);
     assert_eq!(rolled_back.images[0].id, old_image_id);
     assert_eq!(rolled_back.images[0].object_key, old_key);
+    assert_eq!(rolled_back.images[0].adjustment, Some(saved_adjustment));
 }
 
 #[tokio::test]
@@ -1212,6 +1227,18 @@ impl CatalogRepository for FailingCleanupEventRepository {
     ) -> Result<AutographItem, String> {
         self.inner
             .replace_image_metadata(item_id, image_id, input)
+            .await
+    }
+
+    async fn update_image_adjustment(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+        expected_object_key: &str,
+        adjustment: Option<ImageAdjustment>,
+    ) -> Result<AutographItem, ImageAdjustmentUpdateError> {
+        self.inner
+            .update_image_adjustment(item_id, image_id, expected_object_key, adjustment)
             .await
     }
 

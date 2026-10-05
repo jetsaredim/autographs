@@ -857,12 +857,13 @@ async fn memory_repository_saves_and_resets_image_adjustment_history() {
         .await
         .unwrap();
     let image_id = uuid::Uuid::new_v4();
+    let object_key = "originals/private/adjustable.png";
     repository
         .attach_image(
             item.id,
             AutographImage {
                 id: image_id,
-                object_key: "originals/private/adjustable.png".to_owned(),
+                object_key: object_key.to_owned(),
                 original_filename: "private-adjustable.png".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: 128,
@@ -879,7 +880,7 @@ async fn memory_repository_saves_and_resets_image_adjustment_history() {
     let adjustment = test_adjustment();
 
     let saved = repository
-        .update_image_adjustment(item.id, image_id, Some(adjustment.clone()))
+        .update_image_adjustment(item.id, image_id, object_key, Some(adjustment.clone()))
         .await
         .unwrap();
 
@@ -894,7 +895,7 @@ async fn memory_repository_saves_and_resets_image_adjustment_history() {
     }));
 
     let reset = repository
-        .update_image_adjustment(item.id, image_id, None)
+        .update_image_adjustment(item.id, image_id, object_key, None)
         .await
         .unwrap();
 
@@ -999,18 +1000,17 @@ async fn authenticated_admin_image_preview_is_no_store_webp_and_redacts_failures
     let media = Arc::new(LocalMediaStore::new(media_root.path()));
     media.write(&object_key, &png_fixture()).await.unwrap();
     let app = router_with_stores(ControllerConfig::for_test(false), repository, media);
+    let cookie = admin_cookie(&app).await;
+    let review = image_review(&app, item.id, image_id, &cookie).await;
 
     let preview = app
         .clone()
         .oneshot(
-            Request::get(format!(
-                "/admin/api/items/{}/images/{image_id}/preview",
-                item.id
-            ))
-            .header(header::COOKIE, admin_cookie(&app).await)
-            .header(header::ORIGIN, "https://autographs.example.test")
-            .body(Body::empty())
-            .unwrap(),
+            Request::get(review["privatePreviewUrl"].as_str().unwrap())
+                .header(header::COOKIE, &cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -1021,14 +1021,11 @@ async fn authenticated_admin_image_preview_is_no_store_webp_and_redacts_failures
     let source_guide = app
         .clone()
         .oneshot(
-            Request::get(format!(
-                "/admin/api/items/{}/images/{image_id}/preview/source",
-                item.id
-            ))
-            .header(header::COOKIE, admin_cookie(&app).await)
-            .header(header::ORIGIN, "https://autographs.example.test")
-            .body(Body::empty())
-            .unwrap(),
+            Request::get(review["sourceGuidePreviewUrl"].as_str().unwrap())
+                .header(header::COOKIE, &cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -1064,17 +1061,22 @@ async fn authenticated_admin_image_preview_is_no_store_webp_and_redacts_failures
         failing_repository,
         Arc::new(LeakyFailingReadMediaStore),
     );
+    let failing_cookie = admin_cookie(&failing_app).await;
+    let failing_review = image_review(
+        &failing_app,
+        failing_item.id,
+        failing_image_id,
+        &failing_cookie,
+    )
+    .await;
     let failure = failing_app
         .clone()
         .oneshot(
-            Request::get(format!(
-                "/admin/api/items/{}/images/{failing_image_id}/preview",
-                failing_item.id
-            ))
-            .header(header::COOKIE, admin_cookie(&failing_app).await)
-            .header(header::ORIGIN, "https://autographs.example.test")
-            .body(Body::empty())
-            .unwrap(),
+            Request::get(failing_review["privatePreviewUrl"].as_str().unwrap())
+                .header(header::COOKIE, &failing_cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -1085,6 +1087,164 @@ async fn authenticated_admin_image_preview_is_no_store_webp_and_redacts_failures
         "Private image preview is unavailable. Check controller logs for details."
     );
     assert_redacted(&body);
+}
+
+#[tokio::test]
+async fn media_revision_conflict_supersedes_in_flight_preview_and_is_opaque() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Revision Race Item",
+            "Carrie Fisher",
+            "Photos",
+            vec!["rebel"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    let old_key = build_original_object_key(item.id, image_id);
+    let image = test_image(image_id, old_key.clone(), "same.png");
+    repository
+        .attach_image(item.id, image.clone())
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let media = Arc::new(BlockingReadMediaStore::new(media_root.path()));
+    media.write(&old_key, &png_fixture()).await.unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(false),
+        repository.clone(),
+        media.clone(),
+    );
+    let cookie = admin_cookie(&app).await;
+    let review = image_review(&app, item.id, image_id, &cookie).await;
+    let old_revision = review["mediaRevision"].as_str().unwrap().to_owned();
+    assert_eq!(old_revision.len(), 64);
+    assert!(!review.to_string().contains(&old_key));
+    assert!(!review.to_string().contains("checksum"));
+
+    let preview_app = app.clone();
+    let preview_url = review["privatePreviewUrl"].as_str().unwrap().to_owned();
+    let preview_cookie = cookie.clone();
+    let preview = tokio::spawn(async move {
+        preview_app
+            .oneshot(
+                Request::get(preview_url)
+                    .header(header::COOKIE, preview_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+    });
+    media.wait_for_blocked_read().await;
+
+    let new_key = build_original_object_key(item.id, uuid::Uuid::new_v4());
+    let mut replacement = image;
+    replacement.object_key = new_key;
+    replacement.adjustment = None;
+    repository
+        .replace_image_metadata(
+            item.id,
+            image_id,
+            ImageReplacementInput { image: replacement },
+        )
+        .await
+        .unwrap();
+    media.delete(&old_key).await.unwrap();
+    media.release_read();
+
+    let preview = preview.await.unwrap();
+    assert_eq!(preview.status(), StatusCode::CONFLICT);
+    let conflict = response_json(preview).await;
+    assert_eq!(conflict["code"], "mediaRevisionConflict");
+    assert_eq!(
+        conflict["message"],
+        "Image media changed. Reopen the review."
+    );
+    assert_redacted(&conflict.to_string());
+
+    let changed_review = image_review(&app, item.id, image_id, &cookie).await;
+    assert_ne!(changed_review["mediaRevision"], old_revision);
+
+    let stale_save = app
+        .clone()
+        .oneshot(
+            Request::patch(format!(
+                "/admin/api/items/{}/images/{image_id}/adjustment",
+                item.id
+            ))
+            .header(header::COOKIE, &cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({
+                    "mediaRevision": old_revision,
+                    "adjustment": test_adjustment(),
+                })
+                .to_string(),
+            ))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(stale_save.status(), StatusCode::CONFLICT);
+    assert_eq!(
+        response_json(stale_save).await["code"],
+        "mediaRevisionConflict"
+    );
+}
+
+#[tokio::test]
+async fn adjustment_compare_and_set_distinguishes_conflict_from_not_found() {
+    use autographs_controller::catalog::ImageAdjustmentUpdateError;
+
+    let repository = MemoryCatalogRepository::default();
+    let item = repository
+        .create(test_item_input(
+            "Adjustment Authority Item",
+            "Mark Hamill",
+            "Photos",
+            vec!["jedi"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    let object_key = build_original_object_key(item.id, image_id);
+    repository
+        .attach_image(
+            item.id,
+            test_image(image_id, object_key.clone(), "authority.png"),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        repository
+            .update_image_adjustment(
+                item.id,
+                image_id,
+                "stale-private-object-key",
+                Some(test_adjustment()),
+            )
+            .await
+            .unwrap_err(),
+        ImageAdjustmentUpdateError::MediaRevisionConflict
+    );
+    assert_eq!(
+        repository
+            .update_image_adjustment(
+                item.id,
+                uuid::Uuid::new_v4(),
+                &object_key,
+                Some(test_adjustment()),
+            )
+            .await
+            .unwrap_err(),
+        ImageAdjustmentUpdateError::NotFound
+    );
 }
 
 #[tokio::test]
@@ -1110,7 +1270,7 @@ async fn portrait_source_guide_stays_unadjusted_while_output_uses_saved_transfor
         .await
         .unwrap();
     repository
-        .update_image_adjustment(item.id, image_id, Some(test_adjustment()))
+        .update_image_adjustment(item.id, image_id, &object_key, Some(test_adjustment()))
         .await
         .unwrap();
     let media_root = tempfile::tempdir().unwrap();
@@ -1121,30 +1281,25 @@ async fn portrait_source_guide_stays_unadjusted_while_output_uses_saved_transfor
         .unwrap();
     let app = router_with_stores(ControllerConfig::for_test(false), repository, media);
     let cookie = admin_cookie(&app).await;
+    let review = image_review(&app, item.id, image_id, &cookie).await;
 
     let source = app
         .clone()
         .oneshot(
-            Request::get(format!(
-                "/admin/api/items/{}/images/{image_id}/preview/source",
-                item.id
-            ))
-            .header(header::COOKIE, &cookie)
-            .body(Body::empty())
-            .unwrap(),
+            Request::get(review["sourceGuidePreviewUrl"].as_str().unwrap())
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
     let adjusted = app
         .clone()
         .oneshot(
-            Request::get(format!(
-                "/admin/api/items/{}/images/{image_id}/preview",
-                item.id
-            ))
-            .header(header::COOKIE, &cookie)
-            .body(Body::empty())
-            .unwrap(),
+            Request::get(review["privatePreviewUrl"].as_str().unwrap())
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -1215,6 +1370,7 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
         .unwrap();
     assert_eq!(review.status(), StatusCode::OK);
     let review = response_json(review).await;
+    let confident_revision = review["mediaRevision"].as_str().unwrap().to_owned();
     assert_eq!(review["imageId"], confident_id.to_string());
     assert!(
         review["privatePreviewUrl"]
@@ -1232,7 +1388,7 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
         review["sourceGuidePreviewUrl"]
             .as_str()
             .unwrap()
-            .ends_with("/preview/source")
+            .contains("/preview/source?mediaRevision=")
     );
     assert_eq!(review["canComparePublicCurrent"], false);
 
@@ -1246,7 +1402,13 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
             .header(header::COOKIE, &cookie)
             .header(header::ORIGIN, "https://autographs.example.test")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(serde_json::to_vec(&test_adjustment()).unwrap()))
+            .body(Body::from(
+                json!({
+                    "mediaRevision": confident_revision,
+                    "adjustment": test_adjustment(),
+                })
+                .to_string(),
+            ))
             .unwrap(),
         )
         .await
@@ -1261,13 +1423,10 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
     let saved_preview = app
         .clone()
         .oneshot(
-            Request::get(format!(
-                "/admin/api/items/{}/images/{confident_id}/preview",
-                item.id
-            ))
-            .header(header::COOKIE, &cookie)
-            .body(Body::empty())
-            .unwrap(),
+            Request::get(review["privatePreviewUrl"].as_str().unwrap())
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -1285,7 +1444,13 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
             .header(header::COOKIE, &cookie)
             .header(header::ORIGIN, "https://autographs.example.test")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(serde_json::to_vec(&test_adjustment()).unwrap()))
+            .body(Body::from(
+                json!({
+                    "mediaRevision": confident_revision,
+                    "adjustment": test_adjustment(),
+                })
+                .to_string(),
+            ))
             .unwrap(),
         )
         .await
@@ -1314,7 +1479,13 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
             .header(header::COOKIE, &cookie)
             .header(header::ORIGIN, "https://autographs.example.test")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(serde_json::to_vec(&test_adjustment()).unwrap()))
+            .body(Body::from(
+                json!({
+                    "mediaRevision": confident_revision,
+                    "adjustment": test_adjustment(),
+                })
+                .to_string(),
+            ))
             .unwrap(),
         )
         .await
@@ -1329,6 +1500,8 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
         .count();
     assert_eq!(adjustment_events_after_noop, adjustment_events_before_noop);
 
+    let unavailable_review = image_review(&app, item.id, unavailable_id, &cookie).await;
+    let unavailable_revision = unavailable_review["mediaRevision"].as_str().unwrap();
     let identity_save = app
         .clone()
         .oneshot(
@@ -1341,17 +1514,20 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(
                 json!({
-                    "rotationDegrees": 0,
-                    "zoom": 1,
-                    "panX": 0,
-                    "panY": 0,
-                    "crop": null,
-                    "perspective": { "corners": [
-                        { "x": 0, "y": 0 },
-                        { "x": 1, "y": 0 },
-                        { "x": 1, "y": 1 },
-                        { "x": 0, "y": 1 }
-                    ] }
+                    "mediaRevision": unavailable_revision,
+                    "adjustment": {
+                        "rotationDegrees": 0,
+                        "zoom": 1,
+                        "panX": 0,
+                        "panY": 0,
+                        "crop": null,
+                        "perspective": { "corners": [
+                            { "x": 0, "y": 0 },
+                            { "x": 1, "y": 0 },
+                            { "x": 1, "y": 1 },
+                            { "x": 0, "y": 1 }
+                        ] }
+                    }
                 })
                 .to_string(),
             ))
@@ -1374,10 +1550,11 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
         adjustment_events_after_noop
     );
 
-    let confident = image_assist(&app, item.id, confident_id, &cookie).await;
+    let confident = image_assist(&app, item.id, confident_id, &confident_revision, &cookie).await;
     assert_eq!(confident["status"], "confident");
     assert_eq!(confident["corners"].as_array().unwrap().len(), 4);
-    let unavailable = image_assist(&app, item.id, unavailable_id, &cookie).await;
+    let unavailable =
+        image_assist(&app, item.id, unavailable_id, unavailable_revision, &cookie).await;
     assert_eq!(unavailable["status"], "unavailable");
     assert_eq!(
         unavailable["message"],
@@ -1393,7 +1570,10 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
             ))
             .header(header::COOKIE, &cookie)
             .header(header::ORIGIN, "https://autographs.example.test")
-            .body(Body::empty())
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({ "mediaRevision": confident_revision }).to_string(),
+            ))
             .unwrap(),
         )
         .await
@@ -1473,6 +1653,7 @@ async fn image_review_resolves_the_active_public_derivative_and_reports_private_
             .unwrap()
             .starts_with("/media/")
     );
+    let media_revision = review["mediaRevision"].as_str().unwrap();
 
     let save = app
         .clone()
@@ -1484,7 +1665,13 @@ async fn image_review_resolves_the_active_public_derivative_and_reports_private_
             .header(header::COOKIE, &cookie)
             .header(header::ORIGIN, "https://autographs.example.test")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(serde_json::to_vec(&test_adjustment()).unwrap()))
+            .body(Body::from(
+                json!({
+                    "mediaRevision": media_revision,
+                    "adjustment": test_adjustment(),
+                })
+                .to_string(),
+            ))
             .unwrap(),
         )
         .await
@@ -1600,6 +1787,11 @@ async fn image_read_routes_report_repository_failures_as_internal_errors() {
         ("GET", "review"),
         ("POST", "adjustment/assist"),
     ] {
+        let body = if suffix == "adjustment/assist" {
+            Body::from(json!({ "mediaRevision": "expected" }).to_string())
+        } else {
+            Body::empty()
+        };
         let response = app
             .clone()
             .oneshot(
@@ -1610,7 +1802,8 @@ async fn image_read_routes_report_repository_failures_as_internal_errors() {
                     ))
                     .header(header::COOKIE, &cookie)
                     .header(header::ORIGIN, "https://autographs.example.test")
-                    .body(Body::empty())
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(body)
                     .unwrap(),
             )
             .await
@@ -1637,12 +1830,13 @@ async fn replacing_image_preserves_id_and_clears_stale_adjustment() {
         .await
         .unwrap();
     let image_id = uuid::Uuid::new_v4();
+    let object_key = "originals/private/original.png";
     repository
         .attach_image(
             item.id,
             AutographImage {
                 id: image_id,
-                object_key: "originals/private/original.png".to_owned(),
+                object_key: object_key.to_owned(),
                 original_filename: "private-original.png".to_owned(),
                 content_type: "image/png".to_owned(),
                 byte_size: 128,
@@ -1657,7 +1851,7 @@ async fn replacing_image_preserves_id_and_clears_stale_adjustment() {
         .await
         .unwrap();
     repository
-        .update_image_adjustment(item.id, image_id, Some(test_adjustment()))
+        .update_image_adjustment(item.id, image_id, object_key, Some(test_adjustment()))
         .await
         .unwrap();
 
@@ -1677,7 +1871,7 @@ async fn replacing_image_preserves_id_and_clears_stale_adjustment() {
                     is_primary: false,
                     sort_order: 99,
                     alt_text: Some("Replacement image".to_owned()),
-                    adjustment: Some(test_adjustment()),
+                    adjustment: None,
                 },
             },
         )
@@ -3074,6 +3268,7 @@ async fn image_assist(
     app: &axum::Router,
     item_id: uuid::Uuid,
     image_id: uuid::Uuid,
+    media_revision: &str,
     cookie: &str,
 ) -> Value {
     let response = app
@@ -3084,6 +3279,31 @@ async fn image_assist(
             ))
             .header(header::COOKIE, cookie)
             .header(header::ORIGIN, "https://autographs.example.test")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({ "mediaRevision": media_revision }).to_string(),
+            ))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    response_json(response).await
+}
+
+async fn image_review(
+    app: &axum::Router,
+    item_id: uuid::Uuid,
+    image_id: uuid::Uuid,
+    cookie: &str,
+) -> Value {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/admin/api/items/{item_id}/images/{image_id}/review"
+            ))
+            .header(header::COOKIE, cookie)
             .body(Body::empty())
             .unwrap(),
         )

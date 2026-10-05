@@ -45,6 +45,7 @@ fn static_contract_profiles_shapes_and_generates_public_safe_split_artifacts() {
         "storageNamespace",
         "bucketName",
         "objectKey",
+        "mediaRevision",
         "objectstorage",
         "OCI_",
         "private-namespace",
