@@ -1,6 +1,6 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-04T18:51:44Z
+reviewed: 2026-10-05T01:35:28Z
 depth: deep
 files_reviewed: 11
 files_reviewed_list:
@@ -16,16 +16,16 @@ files_reviewed_list:
   - controller/tests/static_admin.rs
   - controller/tests/static_admin_behavior.mjs
 findings:
-  critical: 0
-  warning: 2
+  critical: 1
+  warning: 0
   info: 0
-  total: 2
+  total: 1
 status: issues_found
 ---
 
-# Phase 08: Code Review Report — Pointer Lifecycle Follow-up
+# Phase 08: Code Review Report — Gesture Lifecycle Authority Follow-up
 
-**Reviewed:** 2026-10-04T18:51:44Z
+**Reviewed:** 2026-10-05T01:35:28Z
 **Depth:** deep
 **Files Reviewed:** 11
 **Status:** issues_found
@@ -34,62 +34,45 @@ status: issues_found
 
 ### Summary
 
-Commit `7c11380` keeps the captured handle mounted across ordinary pointer movements, rejects retired-node user delivery, settles one preview on pointer up/cancel/lost capture, and preserves the previously closed mutation, publisher, migration, privacy, and public-output contracts. The interaction is not yet authoritative end to end, however. Asynchronous producers that were already active before `pointerdown` can still replace the captured node, and the inset used to keep a 44px edge target visible is not accounted for when converting pointer movement back to normalized source coordinates.
+Commit `0559c82` closes both pointer-lifecycle findings from the prior review. The centralized stage-render barrier keeps the capture owner connected across current source, preview, adjusted-output, assist, control, resize, and terminal interleavings; the fitted-source grab offset is stable for inset handles, portrait/landscape geometry, and resize rebasing. Focused browser-behavior coverage and the complete Rust verification suite pass.
+
+One image-identity boundary remains outside that authority model. An editor image mutation that crossed the network before the review opened can complete after the review or a drag becomes authoritative. Because the review and gesture identify an image only by stable item/image UUIDs, replacing the bytes under that UUID does not invalidate the old source projection or draft. The old-pixel adjustment can then be previewed and saved against the replacement image.
 
 ### Finding lineage
 
-| Prior finding | Current disposition | Evidence |
+| Prior finding or invariant | Current disposition | Evidence |
 | --- | --- | --- |
-| Post-convergence WR-01: first move replaces the pointer-capture owner | Incomplete fix / sibling-path miss | Ordinary moves now retain the same handle, but source-image load and already-running preview/assist work can still rerender or replace it after `pointerdown` (WR-01). |
-| Round 3 WR-01: normalized geometry and responsive projection | Incomplete fix | Resize projection and full-size edge targets remain correct, but dragging an inset edge target maps its visual center as a new source coordinate, so the model jumps before tracking the intended delta (WR-02). |
-| Round 3 WR-03: browser-faithful DOM coverage | Incomplete fix / test weakness | Disconnected-node delivery is rejected and terminal events are exercised, but the harness starts only after source load, resolves no competing async producer during capture, and moves edge handles directly to the hidden true corner rather than checking a zero/small movement from the visible target (WR-01, WR-02). |
-| Round 3 CR-01: mounted adjusted-output authority | Resolved | Request, render generation, exact node, preview URL/revision, draft revision, item/image, and session still gate output callbacks and Save authorization. |
-| Round 3 WR-02: pending mutation egress | Resolved | Save/Reset remain serialized with review egress through success and failure reconciliation. |
+| Pointer follow-up WR-01: async completion replaces capture owner | Resolved for the inventoried review-stage producers | `renderImageReview()` is the centralized barrier; source load/resize mutate the connected projection in place; source error uses the idempotent terminal path; preview/output/assist/control callbacks follow their approved defer, supersede, reject, or teardown policies. |
+| Pointer follow-up WR-02: inset target changes normalized corner | Resolved | Pointerdown stores normalized fitted-source grab offset, same-coordinate moves are no-ops, resize rebases against the last client coordinates, and all four inset corners plus portrait/landscape deltas execute in the DOM harness. |
+| Round 3 WR-03: browser-faithful lifecycle coverage | Incomplete fix / sibling mutation-path test weakness | Connected-node, disabled-control, async review producer, capture release, and reentrant lost-capture cases now execute, but no test defers an editor image replacement across review open/drag and verifies that source-content identity invalidates the review (CR-01). |
+| Round 2 CR-05 / convergence async authority | Incomplete fix / sibling-path miss | Session, item UUID, image UUID, projection generation, request/render generation, node, and draft checks reject stale review work, but none represents a same-UUID replacement of the private source bytes (CR-01). |
+| Mounted output, Save/Reset egress, promotion, legacy migration, private-original, privacy, and public-output contracts | Resolved / no regression found | Exact mounted-node and blob authority, pending mutation serialization, active-release protection, comparison-map migration, authenticated no-store previews, redacted errors, and public privacy tests all remain green. |
 
-### Inherited closed-contract check
+### Critical Issues
 
-| Contract | Verdict |
-| --- | --- |
-| Mounted adjusted-output authority and blob ownership | Closed for output/Save correctness; WR-01 concerns interruption of an active pointer gesture, not stale output authorization. |
-| Save/Reset repository reconciliation and navigation serialization | Closed for success, failure, and named egress paths. |
-| Publisher promotion and post-promotion cleanup | Closed; full publisher coverage preserves the active release and comparison map. |
-| Legacy active-release migration | Closed; the active legacy artifact remains protected until successful comparison metadata exists. |
-| Private-original and public-output boundaries | Closed; authenticated previews remain private/no-store and public privacy contracts pass. |
+#### CR-01: Same-ID image replacement can leave an old-source review authoritative
 
-### Warnings
+**Classification:** BLOCKER
+**File:** `controller/static-admin/admin.js:1283-1290`
+**Related:** `controller/static-admin/admin.js:1725-1750`, `controller/static-admin/admin.js:2181-2204`, `controller/static-admin/admin.js:2293-2302`, `controller/static-admin/admin.js:2765-2787`, `controller/tests/static_admin_behavior.mjs:482-997`
 
-#### WR-01: Pre-existing async producers can still detach the active pointer-capture owner
+**Issue:** Editor image operations are not represented in the review authority tuple. `replaceImage()` can issue its `PUT` and, before that response settles, the operator can press the still-enabled Review action and begin a perspective drag. Replacement preserves the image UUID while changing the private bytes and clearing the saved adjustment. When the delayed replacement response arrives, `renderEditor(item)` clears the review only when the *item* UUID differs; for the same item it updates `state.currentItem` and leaves the review session, source node, draft, projection generation, and active capture intact. Both the move and terminal checks compare only the same stable item/image UUIDs, so the drag remains authoritative. Its final preview reads the newly replaced bytes using geometry derived from the old image, and Save can persist that stale adjustment onto the replacement image. The same missing operation boundary lets delayed delete/upload/primary completions refresh editor state without deterministically reconciling or invalidating the active review. The behavior harness covers explicit review/session teardown but cannot reproduce this race because it never defers an editor image mutation across review opening and capture.
 
-**Classification:** WARNING
-**File:** `controller/static-admin/admin.js:1759-1763`
-**Related:** `controller/static-admin/admin.js:1668-1694`, `controller/static-admin/admin.js:1819-1832`, `controller/static-admin/admin.js:2216-2235`, `controller/tests/static_admin_behavior.mjs:482-539`
-
-**Issue:** The new drag record guards synchronous controls and keeps the handle mounted while `pointermove` itself mutates the model, but it does not serialize async work that began before the gesture. Handles are created before the source image loads; if the operator presses one and the image then emits `load`, the callback calls `renderPerspectiveHandles()`, removes the captured button, and creates four replacements without ending or transferring the drag. A draft-preview response or adjusted-output error that resolves after `pointerdown` but before the first move can call `renderImageReview()`, and an already-running edge-assist response can call `markReviewDraftChanged()` and do the same because their completion guards do not reject `state.reviewPerspectiveDrag`. Thus one physical gesture can lose its connected capture owner before its first movement or terminal event. The current harness always fires source load before pointerdown and does not resolve any preview, output error, or assist promise while capture is live, so it cannot catch these interleavings.
-
-**Fix:** Make async render authority aware of the active gesture. Do not replace handles on source load (project the existing connected handles, or do not enable/create them until the source is ready), and either defer or reject/reschedule preview, output-error, and assist completions while `reviewPerspectiveDrag` owns the stage. Whichever policy is chosen must preserve the final normalized model and schedule exactly one authoritative preview at the terminal event. Add controlled tests for `pointerdown` followed by source load, assist completion, preview completion, and output error both before and after the first move; the same capture node must remain connected until pointerup/cancel/lost capture or an explicit lifecycle teardown.
-
-#### WR-02: Dragging a visually inset edge handle jumps the normalized corner
-
-**Classification:** WARNING
-**File:** `controller/static-admin/admin.js:2042-2082`
-**Related:** `controller/static-admin/admin.js:2156-2168`, `controller/tests/static_admin_behavior.mjs:502-524`
-
-**Issue:** Edge corners retain their true normalized values while `positionPerspectiveHandle()` clamps each 44px button center 22px inside the frame. The move handler nevertheless converts the pointer's absolute client position directly into a source coordinate. For a full-frame landscape corner, the model is `x = 0` while the visible handle center is at `x = 22px`; the first one-pixel movement from that center writes approximately `23 / frameWidth` instead of a small delta from zero. The corner therefore jumps inward solely because its accessible hit target was inset. The test masks this by moving the pointer from the visible inset center to the invisible mathematical edge (`clientY: 0`) and asserting zero, rather than asserting that a stationary or one-pixel move from the visible center preserves/gradually changes the normalized value.
-
-**Fix:** Record the grab relationship at pointerdown and apply movement as a delta from the starting normalized corner (or subtract a maintained grab offset from the current pointer-to-source projection), including when frame geometry changes during capture. A pointermove at the same client coordinates as pointerdown must leave the corner unchanged, and a one-pixel move must change it by one source pixel's normalized fraction without a target-radius jump. Extend the harness across all four full-frame corners and portrait/landscape frames, including resize during capture.
+**Fix:** Add one editor image-mutation authority/serialization boundary. Track pending image operations before issuing upload, primary, delete, replacement, or cleanup requests; prevent `openImageReview()` while one is pending, and make every successful mutation completion invalidate or reload any review whose item/image content may have changed before applying `renderEditor()`. For replacement specifically, bind review authority to an immutable source-content revision such as checksum/etag returned by the review endpoint, or always terminate and reopen the same-UUID review when replacement settles. The termination must release capture, discard deferred render work, cancel previews, and prevent the old draft from being saved. Add a connected-node test that defers replacement, opens review, starts and moves a drag, then resolves replacement and proves exactly-once teardown, no final old-source preview, no enabled Save, and a fresh replacement-source review; add sibling delete/upload/primary completion cases or a shared-operation test proving they use the same guard.
 
 ## Verification
 
-- `git diff --check origin/main...HEAD` — passed.
 - `node --check controller/static-admin/admin.js` — passed.
-- `node controller/tests/static_admin_behavior.mjs` — passed, but omits the async-capture and inset-grab interleavings described above.
+- `node --check controller/tests/static_admin_behavior.mjs` — passed.
+- `node controller/tests/static_admin_behavior.mjs` — passed.
 - `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
 - `cargo test --manifest-path controller/Cargo.toml --all-targets` — passed; 163 non-ignored tests, with 2 credential-gated live tests ignored.
 - `cargo check --manifest-path controller/Cargo.toml --features production-persistence` — passed.
 - `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings` — passed.
+- Source-only `git diff --check origin/main...HEAD` across all 11 reviewed files — passed. The repository-wide check still reports pre-existing trailing spaces in the planning-only pointer-plan review artifact, which is outside this source-review scope.
 
 ---
 
-_Reviewed: 2026-10-04T18:51:44Z_
+_Reviewed: 2026-10-05T01:35:28Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
