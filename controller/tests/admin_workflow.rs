@@ -3,8 +3,8 @@ use autographs_controller::{
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
         CleanupStatus, EditEventKind, FieldPatch, ImageCleanupEvent, ImageReplacementInput,
-        ItemOrigin, MemoryCatalogRepository, PublicationStatus, SignerCreditInput,
-        SignerProfileUpdateInput,
+        ImageReplacementUpdateError, ItemOrigin, MemoryCatalogRepository, PublicationStatus,
+        SignerCreditInput, SignerProfileUpdateInput,
     },
     config::ControllerConfig,
     image_adjustments::{ImageAdjustment, ImageCrop},
@@ -1148,6 +1148,7 @@ async fn media_revision_conflict_supersedes_in_flight_preview_and_is_opaque() {
         .replace_image_metadata(
             item.id,
             image_id,
+            &old_key,
             ImageReplacementInput { image: replacement },
         )
         .await
@@ -1859,6 +1860,7 @@ async fn replacing_image_preserves_id_and_clears_stale_adjustment() {
         .replace_image_metadata(
             item.id,
             image_id,
+            object_key,
             ImageReplacementInput {
                 image: AutographImage {
                     id: uuid::Uuid::new_v4(),
@@ -1884,6 +1886,21 @@ async fn replacing_image_preserves_id_and_clears_stale_adjustment() {
         "originals/private/replacement.png"
     );
     assert_eq!(replacement.images[0].adjustment, None);
+
+    let conflict = repository
+        .replace_image_metadata(
+            item.id,
+            image_id,
+            object_key,
+            ImageReplacementInput {
+                image: replacement.images[0].clone(),
+            },
+        )
+        .await;
+    assert!(matches!(
+        conflict,
+        Err(ImageReplacementUpdateError::MediaRevisionConflict)
+    ));
 }
 
 #[tokio::test]

@@ -555,6 +555,7 @@ mod live {
             .replace_image_metadata(
                 item_uuid,
                 target_image_uuid,
+                &expected_object_key,
                 ImageReplacementInput {
                     image: AutographImage {
                         id: Uuid::new_v4(),

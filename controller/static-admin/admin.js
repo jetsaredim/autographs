@@ -87,6 +87,10 @@ const state = {
   reviewPreviewAbortController: null,
   reviewPreviewTimer: null,
   reviewPreviewRevision: 0,
+  reviewSourceUrl: null,
+  reviewSourceStatus: "idle",
+  reviewSourceAbortController: null,
+  reviewSourceRequestRevision: 0,
   reviewDisplayedRevision: null,
   reviewOutputRenderGeneration: 0,
   reviewMountedOutput: null,
@@ -96,6 +100,10 @@ const state = {
   reviewSession: null,
   reviewMutationPending: null,
   reviewMutationRevision: 0,
+  reviewAssistRevision: 0,
+  conflictRecoveryGeneration: 0,
+  conflictRecovery: null,
+  navigationRevision: 0,
   reviewPerspectiveGeneration: 0,
   reviewPerspectiveFrame: null,
   reviewPerspectiveImage: null,
@@ -400,6 +408,7 @@ const jsonRequest = (path, method, body) =>
   });
 
 function handleAuthFailure() {
+  invalidateConflictRecovery();
   showLogin(copy.sessionExpired);
   elements.sessionStatus.textContent = state.reviewDirty
     ? `${copy.sessionExpired} Unsaved image edits remain in this page until you log in or close it.`
@@ -422,13 +431,17 @@ function showLogin(message = "") {
   elements.loginMessage.textContent = message;
 }
 
-function setView(viewId) {
+function setView(viewId, { preserveConflictRecovery = false } = {}) {
   if (
     viewId !== "image-review-view" &&
     state.reviewSession &&
     blockReviewEgressWhileMutationPending()
   ) {
     return false;
+  }
+  if (!preserveConflictRecovery && viewId !== state.currentView) {
+    invalidateConflictRecovery();
+    state.navigationRevision += 1;
   }
   state.currentView = viewId;
   for (const view of elements.views) {
@@ -1542,7 +1555,7 @@ function blockReviewEgressWhileMutationPending() {
   return true;
 }
 
-function beginReviewMutation(operation, session, itemId, imageId) {
+function beginReviewMutation(operation, session, itemId, imageId, submittedRevision, submittedAuthority) {
   state.reviewMutationRevision += 1;
   state.reviewMutationPending = {
     operation,
@@ -1550,6 +1563,8 @@ function beginReviewMutation(operation, session, itemId, imageId) {
     session,
     itemId,
     imageId,
+    submittedRevision,
+    submittedAuthority,
   };
   syncReviewDirtyState();
   return state.reviewMutationPending;
@@ -1607,10 +1622,24 @@ function cancelReviewPreviewRequest() {
   }
 }
 
+function cancelReviewSourceRequest() {
+  state.reviewSourceRequestRevision += 1;
+  if (state.reviewSourceAbortController) {
+    state.reviewSourceAbortController.abort();
+    state.reviewSourceAbortController = null;
+  }
+  if (state.reviewSourceUrl) {
+    URL.revokeObjectURL(state.reviewSourceUrl);
+    state.reviewSourceUrl = null;
+  }
+  state.reviewSourceStatus = "idle";
+}
+
 function clearImageReviewState() {
   invalidateReviewOutputRender();
   disconnectPerspectiveProjection();
   cancelReviewPreviewRequest();
+  cancelReviewSourceRequest();
   revokeReviewPreviewUrl();
   state.reviewImage = null;
   state.reviewDraftAdjustment = null;
@@ -1622,6 +1651,7 @@ function clearImageReviewState() {
   state.reviewFocusedCornerIndex = null;
   state.reviewMessage = "";
   state.reviewMutationPending = null;
+  state.reviewAssistRevision += 1;
   state.reviewStageRenderDeferred = false;
   state.reviewOutputPanel = null;
   state.reviewSessionRevision += 1;
@@ -1631,9 +1661,11 @@ function clearImageReviewState() {
 }
 
 function beginReviewSession(itemId, imageId, mediaRevision = null) {
+  invalidateConflictRecovery();
   invalidateReviewOutputRender();
   disconnectPerspectiveProjection();
   cancelReviewPreviewRequest();
+  cancelReviewSourceRequest();
   revokeReviewPreviewUrl();
   state.reviewStageRenderDeferred = false;
   state.reviewSessionRevision += 1;
@@ -1652,15 +1684,86 @@ function isCurrentReviewSession(session) {
   );
 }
 
-function handleMediaRevisionConflict(error) {
-  if (error?.status !== 409 || error?.body?.code !== "mediaRevisionConflict") {
+function invalidateConflictRecovery() {
+  state.conflictRecoveryGeneration += 1;
+  state.conflictRecovery = null;
+}
+
+function isMediaRevisionConflict(error) {
+  return error?.status === 409 && error?.body?.code === "mediaRevisionConflict";
+}
+
+function renderConflictRecoveryRetry(recovery) {
+  elements.imageMessage.replaceChildren(
+    textNode("span", "The current item could not be refreshed. ", "status-warning"),
+    buttonNode("Retry item refresh", "secondary-action", () => {
+      if (state.conflictRecovery === recovery && recovery.status === "retryable") {
+        return recoverConflictedItem(recovery.itemId, recovery.navigationRevision);
+      }
+      return undefined;
+    })
+  );
+}
+
+async function recoverConflictedItem(itemId, navigationRevision) {
+  const generation = state.conflictRecoveryGeneration + 1;
+  state.conflictRecoveryGeneration = generation;
+  const recovery = { itemId, generation, navigationRevision, status: "pending" };
+  state.conflictRecovery = recovery;
+  try {
+    const item = await request(endpoints.item(itemId));
+    if (
+      state.conflictRecovery !== recovery ||
+      generation !== state.conflictRecoveryGeneration ||
+      navigationRevision !== state.navigationRevision ||
+      state.currentView !== "add-item-view"
+    ) {
+      return;
+    }
+    state.conflictRecovery = null;
+    renderEditor(item);
+    elements.imageMessage.textContent = copy.mediaChanged;
+  } catch (error) {
+    if (
+      state.conflictRecovery !== recovery ||
+      generation !== state.conflictRecoveryGeneration ||
+      navigationRevision !== state.navigationRevision
+    ) {
+      return;
+    }
+    if (error.status === 401 || error.status === 403) {
+      invalidateConflictRecovery();
+      handleAuthFailure();
+      return;
+    }
+    if (error.status === 404) {
+      state.conflictRecovery = null;
+      state.currentItem = null;
+      setView("items-view", { preserveConflictRecovery: true });
+      elements.globalMessage.textContent = "This item no longer exists.";
+      return;
+    }
+    recovery.status = "retryable";
+    renderConflictRecoveryRetry(recovery);
+  }
+}
+
+async function handleMediaRevisionConflict(error, authorityIsCurrent, itemId) {
+  if (!isMediaRevisionConflict(error)) {
     return false;
   }
+  if (!authorityIsCurrent?.()) {
+    return true;
+  }
+  const recoveryItemId = itemId || state.reviewSession?.itemId || state.currentItem?.id;
+  const navigationRevision = state.navigationRevision;
   clearImageReviewState();
+  state.currentItem = null;
+  setView("add-item-view", { preserveConflictRecovery: true });
+  renderEditor(null);
   elements.imageMessage.textContent = copy.mediaChanged;
-  setView("add-item-view");
-  if (state.currentItem) {
-    renderImages(state.currentItem.images || [], state.currentItem.cleanupWarnings || []);
+  if (recoveryItemId) {
+    await recoverConflictedItem(recoveryItemId, navigationRevision);
   }
   return true;
 }
@@ -1744,14 +1847,25 @@ async function loadDraftPreview(revision, draftRevision, session) {
     state.reviewDisplayedRevision = null;
     renderImageReview();
   } catch (error) {
-    if (handleMediaRevisionConflict(error)) {
-      return;
-    }
     if (
       error.name === "AbortError" ||
       revision !== state.reviewPreviewRevision ||
       draftRevision !== state.reviewDraftRevision ||
-      !isCurrentReviewSession(session)
+      !isCurrentReviewSession(session) ||
+      state.reviewPreviewAbortController !== controller
+    ) {
+      return;
+    }
+    if (
+      await handleMediaRevisionConflict(
+        error,
+        () =>
+          revision === state.reviewPreviewRevision &&
+          draftRevision === state.reviewDraftRevision &&
+          isCurrentReviewSession(session) &&
+          state.reviewPreviewAbortController === controller,
+        itemId
+      )
     ) {
       return;
     }
@@ -1783,10 +1897,11 @@ async function openImageReview(imageId) {
       return;
     }
     if (review.mediaRevision !== session.mediaRevision) {
-      handleMediaRevisionConflict({
-        status: 409,
-        body: { code: "mediaRevisionConflict" },
-      });
+      await handleMediaRevisionConflict(
+        { status: 409, body: { code: "mediaRevisionConflict" } },
+        () => isCurrentReviewSession(session) && state.currentItem?.id === itemId,
+        itemId
+      );
       return;
     }
     state.reviewImage = review;
@@ -1803,13 +1918,96 @@ async function openImageReview(imageId) {
     state.reviewMessage = review.message || copy.privateOnly;
     setView("image-review-view");
     renderImageReview();
+    loadReviewSource(session, review);
     scheduleDraftPreview({ immediate: true });
   } catch (error) {
-    if (handleMediaRevisionConflict(error)) {
+    if (
+      await handleMediaRevisionConflict(
+        error,
+        () => isCurrentReviewSession(session) && state.currentItem?.id === itemId,
+        itemId
+      )
+    ) {
       return;
     }
     if (isCurrentReviewSession(session) && error.status !== 401) {
       elements.imageMessage.textContent = copy.previewError;
+    }
+  }
+}
+
+async function loadReviewSource(session, review) {
+  cancelReviewSourceRequest();
+  const revision = state.reviewSourceRequestRevision + 1;
+  state.reviewSourceRequestRevision = revision;
+  const controller = new AbortController();
+  state.reviewSourceAbortController = controller;
+  state.reviewSourceStatus = "loading";
+  const sourceUrl =
+    review.sourceGuidePreviewUrl || endpoints.imageSourcePreview(review.itemId, review.imageId);
+  try {
+    const response = await fetch(sourceUrl, {
+      credentials: "same-origin",
+      signal: controller.signal,
+    });
+    if (response.status === 401 || response.status === 403) {
+      handleAuthFailure();
+      return;
+    }
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type") || "";
+      const body = contentType.includes("application/json") ? await response.json() : null;
+      const error = new Error(copy.previewError);
+      error.status = response.status;
+      error.body = body;
+      throw error;
+    }
+    const blob = await response.blob();
+    if (
+      revision !== state.reviewSourceRequestRevision ||
+      state.reviewSourceAbortController !== controller ||
+      !isCurrentReviewSession(session) ||
+      state.reviewImage !== review ||
+      review.mediaRevision !== session.mediaRevision
+    ) {
+      return;
+    }
+    const blobUrl = URL.createObjectURL(blob);
+    if (state.reviewSourceUrl) {
+      URL.revokeObjectURL(state.reviewSourceUrl);
+    }
+    state.reviewSourceUrl = blobUrl;
+    state.reviewSourceStatus = "ready";
+    renderImageReview();
+  } catch (error) {
+    if (
+      error.name === "AbortError" ||
+      revision !== state.reviewSourceRequestRevision ||
+      state.reviewSourceAbortController !== controller ||
+      !isCurrentReviewSession(session) ||
+      state.reviewImage !== review
+    ) {
+      return;
+    }
+    if (
+      await handleMediaRevisionConflict(
+        error,
+        () =>
+          revision === state.reviewSourceRequestRevision &&
+          state.reviewSourceAbortController === controller &&
+          isCurrentReviewSession(session) &&
+          state.reviewImage === review &&
+          review.mediaRevision === session.mediaRevision,
+        review.itemId
+      )
+    ) {
+      return;
+    }
+    state.reviewSourceStatus = "error";
+    renderImageReview();
+  } finally {
+    if (state.reviewSourceAbortController === controller) {
+      state.reviewSourceAbortController = null;
     }
   }
 }
@@ -1841,17 +2039,44 @@ function renderImageReviewNow() {
   sourcePanel.append(textNode("h3", "Unadjusted source guide"));
   const sourceFrame = document.createElement("div");
   sourceFrame.className = "source-guide-frame review-matte";
+  if (state.reviewSourceStatus !== "ready" || !state.reviewSourceUrl) {
+    sourceFrame.append(
+      textNode(
+        "p",
+        state.reviewSourceStatus === "error" ? copy.previewError : "Loading source guide...",
+        state.reviewSourceStatus === "error" ? "status-warning" : "helper-text"
+      )
+    );
+    sourcePanel.append(sourceFrame);
+    const outputPanel = document.createElement("section");
+    outputPanel.className = "review-preview-panel";
+    state.reviewOutputPanel = outputPanel;
+    renderReviewOutputPanel(outputPanel, { invalidate: false });
+    workspace.append(sourcePanel, outputPanel);
+    elements.imageReviewStage.append(workspace);
+    elements.imageReviewMessage.textContent = state.reviewMessage;
+    syncReviewControls();
+    syncReviewDirtyState();
+    syncReviewComparisonButtons();
+    return;
+  }
   const sourceImage = document.createElement("img");
-  sourceImage.src =
-    state.reviewImage.sourceGuidePreviewUrl ||
-    endpoints.imageSourcePreview(state.reviewImage.itemId, state.reviewImage.imageId);
+  const sourceRequestRevision = state.reviewSourceRequestRevision;
+  const sourceBlobUrl = state.reviewSourceUrl;
+  const sourceSession = state.reviewSession ? { ...state.reviewSession } : null;
+  sourceImage.src = sourceBlobUrl;
   sourceImage.alt = "Sanitized unadjusted source used for perspective coordinates";
   const perspectiveGeneration = state.reviewPerspectiveGeneration;
   state.reviewSourceProjectionStatus = "loading";
   state.reviewPerspectiveFrame = sourceFrame;
   state.reviewPerspectiveImage = sourceImage;
   sourceImage.addEventListener("load", () => {
-    if (isCurrentPerspectiveProjection(perspectiveGeneration, sourceFrame, sourceImage)) {
+    if (
+      sourceRequestRevision === state.reviewSourceRequestRevision &&
+      sourceBlobUrl === state.reviewSourceUrl &&
+      isCurrentReviewSession(sourceSession) &&
+      isCurrentPerspectiveProjection(perspectiveGeneration, sourceFrame, sourceImage)
+    ) {
       const bounds = sourceRenderedBounds(sourceFrame, sourceImage);
       if (!sourceImage.naturalWidth || !sourceImage.naturalHeight || !bounds.width || !bounds.height) {
         return;
@@ -1863,7 +2088,12 @@ function renderImageReviewNow() {
     }
   });
   sourceImage.addEventListener("error", () => {
-    if (isCurrentPerspectiveProjection(perspectiveGeneration, sourceFrame, sourceImage)) {
+    if (
+      sourceRequestRevision === state.reviewSourceRequestRevision &&
+      sourceBlobUrl === state.reviewSourceUrl &&
+      isCurrentReviewSession(sourceSession) &&
+      isCurrentPerspectiveProjection(perspectiveGeneration, sourceFrame, sourceImage)
+    ) {
       const terminal = finishPerspectiveDrag({
         settle: true,
         reason: "source-error",
@@ -2472,6 +2702,8 @@ async function detectImageEdges() {
   }
   const session = state.reviewSession ? { ...state.reviewSession } : null;
   const draftRevision = state.reviewDraftRevision;
+  const assistRevision = state.reviewAssistRevision + 1;
+  state.reviewAssistRevision = assistRevision;
   try {
     const proposal = await jsonRequest(
       endpoints.imageAdjustmentAssist(itemId, imageId),
@@ -2481,6 +2713,7 @@ async function detectImageEdges() {
     if (
       !isCurrentReviewSession(session) ||
       draftRevision !== state.reviewDraftRevision ||
+      assistRevision !== state.reviewAssistRevision ||
       state.reviewMutationPending ||
       state.reviewPerspectiveDrag
     ) {
@@ -2495,7 +2728,27 @@ async function detectImageEdges() {
     state.reviewMessage = copy.assistUnavailable;
     elements.imageReviewMessage.textContent = state.reviewMessage;
   } catch (error) {
-    if (handleMediaRevisionConflict(error)) {
+    if (
+      !isCurrentReviewSession(session) ||
+      draftRevision !== state.reviewDraftRevision ||
+      assistRevision !== state.reviewAssistRevision ||
+      state.reviewMutationPending ||
+      state.reviewPerspectiveDrag
+    ) {
+      return;
+    }
+    if (
+      await handleMediaRevisionConflict(
+        error,
+        () =>
+          isCurrentReviewSession(session) &&
+          draftRevision === state.reviewDraftRevision &&
+          assistRevision === state.reviewAssistRevision &&
+          !state.reviewMutationPending &&
+          !state.reviewPerspectiveDrag,
+        itemId
+      )
+    ) {
       return;
     }
     if (
@@ -2519,7 +2772,14 @@ async function saveImageAdjustments() {
   const session = state.reviewSession ? { ...state.reviewSession } : null;
   const submittedRevision = state.reviewDraftRevision;
   const submittedAdjustment = canonicalReviewAdjustment(state.reviewDraftAdjustment);
-  const mutation = beginReviewMutation("save", session, itemId, imageId);
+  const mutation = beginReviewMutation(
+    "save",
+    session,
+    itemId,
+    imageId,
+    submittedRevision,
+    JSON.stringify(submittedAdjustment)
+  );
   try {
     const item = await jsonRequest(
       endpoints.imageAdjustment(itemId, imageId),
@@ -2543,7 +2803,19 @@ async function saveImageAdjustments() {
     state.reviewMessage = copy.adjustmentSaved;
     elements.imageReviewMessage.textContent = state.reviewMessage;
   } catch (error) {
-    if (handleMediaRevisionConflict(error)) {
+    if (!isCurrentReviewMutation(mutation)) {
+      return;
+    }
+    if (
+      await handleMediaRevisionConflict(
+        error,
+        () =>
+          isCurrentReviewMutation(mutation) &&
+          mutation.submittedRevision === submittedRevision &&
+          mutation.submittedAuthority === JSON.stringify(submittedAdjustment),
+        itemId
+      )
+    ) {
       return;
     }
     if (isCurrentReviewMutation(mutation) && error.status !== 401) {
@@ -2583,7 +2855,15 @@ async function resetImageAdjustments() {
   const session = state.reviewSession ? { ...state.reviewSession } : null;
   const submittedRevision = state.reviewDraftRevision;
   const { itemId, imageId } = state.reviewImage;
-  const mutation = beginReviewMutation("reset", session, itemId, imageId);
+  const submittedAuthority = JSON.stringify(canonicalReviewAdjustment(state.reviewSavedAdjustment));
+  const mutation = beginReviewMutation(
+    "reset",
+    session,
+    itemId,
+    imageId,
+    submittedRevision,
+    submittedAuthority
+  );
   try {
     const item = await jsonRequest(
       endpoints.imageAdjustment(itemId, imageId),
@@ -2606,7 +2886,19 @@ async function resetImageAdjustments() {
     state.reviewMessage = "Adjustments cleared. The original upload is unchanged.";
     scheduleDraftPreview({ immediate: true });
   } catch (error) {
-    if (handleMediaRevisionConflict(error)) {
+    if (!isCurrentReviewMutation(mutation)) {
+      return;
+    }
+    if (
+      await handleMediaRevisionConflict(
+        error,
+        () =>
+          isCurrentReviewMutation(mutation) &&
+          mutation.submittedRevision === submittedRevision &&
+          mutation.submittedAuthority === submittedAuthority,
+        itemId
+      )
+    ) {
       return;
     }
     if (isCurrentReviewMutation(mutation) && error.status !== 401) {
@@ -2994,6 +3286,8 @@ const loadItem = async (id, historyFirst = false) => {
   if (!ensureSavedBeforeOpeningAnotherItem()) {
     return;
   }
+  invalidateConflictRecovery();
+  state.navigationRevision += 1;
   try {
     const item = await request(endpoints.item(id));
     renderEditor(item);
@@ -3009,6 +3303,8 @@ const loadItem = async (id, historyFirst = false) => {
 
 function openNewItemEditor() {
   if (ensureSavedBeforeOpeningAnotherItem()) {
+    invalidateConflictRecovery();
+    state.navigationRevision += 1;
     renderEditor();
   }
 }
@@ -3098,6 +3394,8 @@ elements.logout.addEventListener("click", async () => {
   if (state.reviewDirty && !window.confirm(copy.discardImageEditsForNavigation)) {
     return;
   }
+  invalidateConflictRecovery();
+  state.navigationRevision += 1;
   clearImageReviewState();
   try {
     await request(endpoints.logout, { method: "POST" });

@@ -4,7 +4,7 @@ use std::{
     path::Path,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -13,7 +13,8 @@ use autographs_controller::{
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
         CleanupStatus, CleanupWarning, ImageAdjustmentUpdateError, ImageCleanupEvent,
-        ImageReplacementInput, ItemOrigin, MemoryCatalogRepository, PublicationStatus,
+        ImageReplacementInput, ImageReplacementUpdateError, ItemOrigin, MemoryCatalogRepository,
+        PublicationStatus,
     },
     config::ControllerConfig,
     image_adjustments::ImageAdjustment,
@@ -217,7 +218,7 @@ async fn delete_image_failure_keeps_metadata_and_returns_redacted_cleanup_warnin
     )
     .await;
     let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
-    media.fail_deletes(true);
+    media.fail_next_deletes(1);
 
     let deleted = app
         .clone()
@@ -342,7 +343,12 @@ async fn replacement_rolls_back_new_object_when_metadata_swap_fails() {
         created_at_epoch_seconds: 0,
         updated_at_epoch_seconds: 0,
     };
-    let repository = Arc::new(FailingReplaceRepository { item });
+    let repository = Arc::new(FailingReplaceRepository {
+        item,
+        error: ImageReplacementUpdateError::Repository(
+            "forced metadata replacement failure".to_owned(),
+        ),
+    });
     let media = Arc::new(LocalMediaStore::new(root.path()));
     media.write(&old_key, &png_fixture()).await.unwrap();
     let app = router_with_stores(ControllerConfig::for_test(true), repository, media);
@@ -358,6 +364,74 @@ async fn replacement_rolls_back_new_object_when_metadata_swap_fails() {
         .unwrap();
 
     assert_eq!(replaced.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = response_json(replaced).await;
+    assert_eq!(body["code"], "imageRecoveryRequired");
+    assert_eq!(body["message"], "Image recovery needs operator attention.");
+    assert!(Uuid::parse_str(body["recoveryId"].as_str().unwrap()).is_ok());
+    assert!(!body.to_string().contains(&old_key));
+    assert_eq!(file_count(root.path()), 2);
+}
+
+#[tokio::test]
+async fn replacement_not_found_uses_exact_redacted_body_and_removes_proven_candidate() {
+    let root = tempdir().unwrap();
+    let item_id = Uuid::new_v4();
+    let image_id = Uuid::new_v4();
+    let old_key = build_original_object_key(item_id, image_id);
+    let repository = Arc::new(FailingReplaceRepository {
+        item: item_with_image(item_id, image_id, old_key.clone()),
+        error: ImageReplacementUpdateError::NotFound,
+    });
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    media.write(&old_key, &png_fixture()).await.unwrap();
+    let app = router_with_stores(ControllerConfig::for_test(true), repository, media);
+
+    let response = app
+        .clone()
+        .oneshot(replace_request(
+            item_id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let body = response_json(response).await;
+    assert_eq!(body["code"], "imageNotFound");
+    assert_eq!(body["message"], "Image was not found.");
+    assert!(!body.to_string().contains(&old_key));
+    assert_eq!(file_count(root.path()), 1);
+}
+
+#[tokio::test]
+async fn replacement_cas_conflict_uses_stable_body_and_cannot_overwrite_current_image() {
+    let root = tempdir().unwrap();
+    let item_id = Uuid::new_v4();
+    let image_id = Uuid::new_v4();
+    let old_key = build_original_object_key(item_id, image_id);
+    let repository = Arc::new(FailingReplaceRepository {
+        item: item_with_image(item_id, image_id, old_key.clone()),
+        error: ImageReplacementUpdateError::MediaRevisionConflict,
+    });
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    media.write(&old_key, &png_fixture()).await.unwrap();
+    let app = router_with_stores(ControllerConfig::for_test(true), repository, media);
+
+    let response = app
+        .clone()
+        .oneshot(replace_request(
+            item_id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let body = response_json(response).await;
+    assert_eq!(body["code"], "mediaRevisionConflict");
+    assert_eq!(body["message"], "Image media changed. Reopen the review.");
     assert_eq!(file_count(root.path()), 1);
 }
 
@@ -380,7 +454,7 @@ async fn replacement_cleanup_warning_is_visible_and_retryable_by_old_image_id() 
     )
     .await;
     let old_image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
-    media.fail_deletes(true);
+    media.fail_next_deletes(1);
 
     let replaced = app
         .clone()
@@ -703,7 +777,7 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
         )
         .await
         .unwrap();
-    media.fail_deletes(true);
+    media.fail_next_deletes(1);
 
     let replaced = app
         .clone()
@@ -716,6 +790,13 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
         .unwrap();
 
     assert_eq!(replaced.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = response_json(replaced).await;
+    assert_eq!(body["code"], "imageReplacementFailed");
+    assert_eq!(
+        body["message"],
+        "Image replacement failed; the original image remains active."
+    );
+    assert!(body.get("recoveryId").is_none());
     assert!(
         repository
             .cleanup_warnings(item.id)
@@ -728,6 +809,209 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
     assert_eq!(rolled_back.images[0].id, old_image_id);
     assert_eq!(rolled_back.images[0].object_key, old_key);
     assert_eq!(rolled_back.images[0].adjustment, Some(saved_adjustment));
+    assert_eq!(file_count(root.path()), 1);
+}
+
+#[tokio::test]
+async fn verified_rollback_delete_failure_returns_correlated_recovery_and_keeps_objects() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(FailingCleanupEventRepository {
+        inner: MemoryCatalogRepository::default(),
+    });
+    let media = Arc::new(FailingDeleteMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    let original_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+    media.fail_deletes(true);
+
+    let response = app
+        .clone()
+        .oneshot(replace_request(
+            item.id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = response_json(response).await;
+    assert_eq!(body["code"], "imageRecoveryRequired");
+    assert!(Uuid::parse_str(body["recoveryId"].as_str().unwrap()).is_ok());
+    assert!(!body.to_string().contains(&original_key));
+    let restored = repository.get(item.id).await.unwrap().unwrap();
+    assert_eq!(restored.images[0].object_key, original_key);
+    assert_eq!(file_count(root.path()), 2);
+}
+
+#[tokio::test]
+async fn rollback_repository_failure_preserves_referenced_replacement_and_original() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(RollbackFailureRepository {
+        inner: MemoryCatalogRepository::default(),
+        replacement_calls: AtomicUsize::new(0),
+        mode: RollbackFailureMode::Repository,
+        newer_key: None,
+    });
+    let media = Arc::new(FailingDeleteMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    let original_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+    media.fail_next_deletes(1);
+
+    let response = app
+        .clone()
+        .oneshot(replace_request(
+            item.id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = response_json(response).await;
+    assert_eq!(body["code"], "imageRecoveryRequired");
+    assert!(Uuid::parse_str(body["recoveryId"].as_str().unwrap()).is_ok());
+    assert!(!body.to_string().contains(&original_key));
+    let persisted = repository.get(item.id).await.unwrap().unwrap().images[0].clone();
+    assert_ne!(persisted.object_key, original_key);
+    assert!(media.read(&original_key).await.is_ok());
+    assert!(media.read(&persisted.object_key).await.is_ok());
+    assert_eq!(file_count(root.path()), 2);
+}
+
+#[tokio::test]
+async fn rollback_cas_loss_preserves_concurrent_winner_and_all_candidates() {
+    let root = tempdir().unwrap();
+    let newer_key = build_original_object_key(Uuid::new_v4(), Uuid::new_v4());
+    let repository = Arc::new(RollbackFailureRepository {
+        inner: MemoryCatalogRepository::default(),
+        replacement_calls: AtomicUsize::new(0),
+        mode: RollbackFailureMode::ConcurrentWinner,
+        newer_key: Some(newer_key.clone()),
+    });
+    let media = Arc::new(FailingDeleteMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    let original_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+    media.write(&newer_key, &png_fixture()).await.unwrap();
+    media.fail_next_deletes(1);
+
+    let response = app
+        .clone()
+        .oneshot(replace_request(
+            item.id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let body = response_json(response).await;
+    assert_eq!(body["code"], "mediaRevisionConflict");
+    assert_eq!(body["message"], "Image media changed. Reopen the review.");
+    let persisted = repository.get(item.id).await.unwrap().unwrap().images[0].clone();
+    assert_eq!(persisted.object_key, newer_key);
+    assert!(media.read(&original_key).await.is_ok());
+    assert!(media.read(&persisted.object_key).await.is_ok());
+    assert_eq!(file_count(root.path()), 3);
+}
+
+#[tokio::test]
+async fn rollback_verification_mismatch_returns_recovery_and_deletes_nothing() {
+    let root = tempdir().unwrap();
+    let newer_key = build_original_object_key(Uuid::new_v4(), Uuid::new_v4());
+    let repository = Arc::new(RollbackFailureRepository {
+        inner: MemoryCatalogRepository::default(),
+        replacement_calls: AtomicUsize::new(0),
+        mode: RollbackFailureMode::VerificationMismatch,
+        newer_key: Some(newer_key.clone()),
+    });
+    let media = Arc::new(FailingDeleteMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    let original_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+    media.write(&newer_key, &png_fixture()).await.unwrap();
+    media.fail_next_deletes(1);
+
+    let response = app
+        .clone()
+        .oneshot(replace_request(
+            item.id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = response_json(response).await;
+    assert_eq!(body["code"], "imageRecoveryRequired");
+    assert!(Uuid::parse_str(body["recoveryId"].as_str().unwrap()).is_ok());
+    assert!(!body.to_string().contains(&original_key));
+    let persisted = repository.get(item.id).await.unwrap().unwrap().images[0].clone();
+    assert_eq!(persisted.object_key, newer_key);
+    assert!(media.read(&original_key).await.is_ok());
+    assert!(media.read(&persisted.object_key).await.is_ok());
+    assert_eq!(file_count(root.path()), 3);
 }
 
 #[tokio::test]
@@ -1022,6 +1306,7 @@ fn file_count(root: &Path) -> usize {
 struct FailingDeleteMediaStore {
     inner: LocalMediaStore,
     fail_deletes: AtomicBool,
+    remaining_delete_failures: AtomicUsize,
 }
 
 impl FailingDeleteMediaStore {
@@ -1029,11 +1314,17 @@ impl FailingDeleteMediaStore {
         Self {
             inner: LocalMediaStore::new(root.as_ref()),
             fail_deletes: AtomicBool::new(false),
+            remaining_delete_failures: AtomicUsize::new(0),
         }
     }
 
     fn fail_deletes(&self, fail: bool) {
         self.fail_deletes.store(fail, Ordering::SeqCst);
+    }
+
+    fn fail_next_deletes(&self, count: usize) {
+        self.remaining_delete_failures
+            .store(count, Ordering::SeqCst);
     }
 }
 
@@ -1048,7 +1339,13 @@ impl PrivateMediaStore for FailingDeleteMediaStore {
     }
 
     async fn delete(&self, object_key: &str) -> Result<(), String> {
-        if self.fail_deletes.load(Ordering::SeqCst) {
+        let fail_once = self
+            .remaining_delete_failures
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                remaining.checked_sub(1)
+            })
+            .is_ok();
+        if self.fail_deletes.load(Ordering::SeqCst) || fail_once {
             Err(format!("forced delete failure for {object_key}"))
         } else {
             self.inner.delete(object_key).await
@@ -1058,6 +1355,7 @@ impl PrivateMediaStore for FailingDeleteMediaStore {
 
 struct FailingReplaceRepository {
     item: AutographItem,
+    error: ImageReplacementUpdateError,
 }
 
 #[async_trait]
@@ -1110,9 +1408,10 @@ impl CatalogRepository for FailingReplaceRepository {
         &self,
         _item_id: Uuid,
         _image_id: Uuid,
+        _expected_object_key: &str,
         _input: ImageReplacementInput,
-    ) -> Result<AutographItem, String> {
-        Err("forced metadata replacement failure".to_owned())
+    ) -> Result<AutographItem, ImageReplacementUpdateError> {
+        Err(self.error.clone())
     }
 }
 
@@ -1223,10 +1522,11 @@ impl CatalogRepository for FailingCleanupEventRepository {
         &self,
         item_id: Uuid,
         image_id: Uuid,
+        expected_object_key: &str,
         input: ImageReplacementInput,
-    ) -> Result<AutographItem, String> {
+    ) -> Result<AutographItem, ImageReplacementUpdateError> {
         self.inner
-            .replace_image_metadata(item_id, image_id, input)
+            .replace_image_metadata(item_id, image_id, expected_object_key, input)
             .await
     }
 
@@ -1251,5 +1551,118 @@ impl CatalogRepository for FailingCleanupEventRepository {
 
     async fn cleanup_warnings(&self, item_id: Uuid) -> Result<Vec<CleanupWarning>, String> {
         self.inner.cleanup_warnings(item_id).await
+    }
+}
+
+#[derive(Clone, Copy)]
+enum RollbackFailureMode {
+    Repository,
+    ConcurrentWinner,
+    VerificationMismatch,
+}
+
+struct RollbackFailureRepository {
+    inner: MemoryCatalogRepository,
+    replacement_calls: AtomicUsize,
+    mode: RollbackFailureMode,
+    newer_key: Option<String>,
+}
+
+#[async_trait]
+impl CatalogRepository for RollbackFailureRepository {
+    async fn create(&self, input: AutographItemInput) -> Result<AutographItem, String> {
+        self.inner.create(input).await
+    }
+
+    async fn update(&self, id: Uuid, input: AutographItemUpdate) -> Result<AutographItem, String> {
+        self.inner.update(id, input).await
+    }
+
+    async fn get(&self, id: Uuid) -> Result<Option<AutographItem>, String> {
+        self.inner.get(id).await
+    }
+
+    async fn list(&self) -> Result<Vec<AutographItem>, String> {
+        self.inner.list().await
+    }
+
+    async fn attach_image(
+        &self,
+        item_id: Uuid,
+        image: AutographImage,
+    ) -> Result<AutographItem, String> {
+        self.inner.attach_image(item_id, image).await
+    }
+
+    async fn replace_image_metadata(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+        expected_object_key: &str,
+        input: ImageReplacementInput,
+    ) -> Result<AutographItem, ImageReplacementUpdateError> {
+        let call = self.replacement_calls.fetch_add(1, Ordering::SeqCst);
+        if call == 0 {
+            return self
+                .inner
+                .replace_image_metadata(item_id, image_id, expected_object_key, input)
+                .await;
+        }
+        match self.mode {
+            RollbackFailureMode::Repository => Err(ImageReplacementUpdateError::Repository(
+                "forced rollback repository failure".to_owned(),
+            )),
+            RollbackFailureMode::ConcurrentWinner => {
+                let current = self.inner.get(item_id).await.unwrap().unwrap();
+                let current_image = current
+                    .images
+                    .iter()
+                    .find(|image| image.id == image_id)
+                    .unwrap();
+                let mut newer = current_image.clone();
+                newer.object_key = self.newer_key.clone().unwrap();
+                newer.original_filename = "newer.png".to_owned();
+                self.inner
+                    .replace_image_metadata(
+                        item_id,
+                        image_id,
+                        &current_image.object_key,
+                        ImageReplacementInput { image: newer },
+                    )
+                    .await
+                    .unwrap();
+                Err(ImageReplacementUpdateError::MediaRevisionConflict)
+            }
+            RollbackFailureMode::VerificationMismatch => {
+                let restored = self
+                    .inner
+                    .replace_image_metadata(item_id, image_id, expected_object_key, input)
+                    .await?;
+                let restored_image = restored
+                    .images
+                    .iter()
+                    .find(|image| image.id == image_id)
+                    .unwrap();
+                let mut mismatched = restored_image.clone();
+                mismatched.object_key = self.newer_key.clone().unwrap();
+                self.inner
+                    .replace_image_metadata(
+                        item_id,
+                        image_id,
+                        &restored_image.object_key,
+                        ImageReplacementInput { image: mismatched },
+                    )
+                    .await
+                    .unwrap();
+                Ok(restored)
+            }
+        }
+    }
+
+    async fn record_cleanup_event(
+        &self,
+        _event: ImageCleanupEvent,
+    ) -> Result<ImageCleanupEvent, String> {
+        Err("forced cleanup event persistence failure".to_owned())
     }
 }

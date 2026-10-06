@@ -372,6 +372,29 @@ pub struct ImageReplacementInput {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ImageReplacementUpdateError {
+    MediaRevisionConflict,
+    NotFound,
+    Repository(String),
+}
+
+impl fmt::Display for ImageReplacementUpdateError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MediaRevisionConflict => formatter.write_str("image media revision conflict"),
+            Self::NotFound => formatter.write_str("autograph image was not found"),
+            Self::Repository(error) => formatter.write_str(error),
+        }
+    }
+}
+
+impl From<String> for ImageReplacementUpdateError {
+    fn from(error: String) -> Self {
+        Self::Repository(error)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ImageAdjustmentUpdateError {
     MediaRevisionConflict,
     NotFound,
@@ -542,9 +565,12 @@ pub trait CatalogRepository: Send + Sync {
         &self,
         _item_id: Uuid,
         _image_id: Uuid,
+        _expected_object_key: &str,
         _input: ImageReplacementInput,
-    ) -> Result<AutographItem, String> {
-        Err("image metadata replacement is not supported by this repository".to_owned())
+    ) -> Result<AutographItem, ImageReplacementUpdateError> {
+        Err(ImageReplacementUpdateError::Repository(
+            "image metadata replacement is not supported by this repository".to_owned(),
+        ))
     }
 
     async fn update_image_adjustment(
@@ -909,19 +935,23 @@ impl CatalogRepository for MemoryCatalogRepository {
         &self,
         item_id: Uuid,
         image_id: Uuid,
+        expected_object_key: &str,
         input: ImageReplacementInput,
-    ) -> Result<AutographItem, String> {
+    ) -> Result<AutographItem, ImageReplacementUpdateError> {
         let now = now_epoch_seconds();
         let updated = {
             let mut items = self.items.lock().expect("catalog state lock");
             let item = items
                 .get_mut(&item_id)
-                .ok_or_else(|| "autograph item was not found".to_owned())?;
+                .ok_or(ImageReplacementUpdateError::NotFound)?;
             let existing = item
                 .images
                 .iter_mut()
                 .find(|image| image.id == image_id)
-                .ok_or_else(|| "autograph image was not found".to_owned())?;
+                .ok_or(ImageReplacementUpdateError::NotFound)?;
+            if existing.object_key != expected_object_key {
+                return Err(ImageReplacementUpdateError::MediaRevisionConflict);
+            }
             let mut replacement = input.image;
             replacement.id = existing.id;
             replacement.is_primary = existing.is_primary;

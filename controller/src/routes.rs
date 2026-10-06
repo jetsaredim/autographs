@@ -18,8 +18,8 @@ use crate::{
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
         CleanupStatus, CleanupWarning, ImageAdjustmentUpdateError, ImageCleanupEvent,
-        ImageReplacementInput, MemoryCatalogRepository, PublicationStatus, REQUIRED_FIELDS_ERROR,
-        now_epoch_seconds,
+        ImageReplacementInput, ImageReplacementUpdateError, MemoryCatalogRepository,
+        PublicationStatus, REQUIRED_FIELDS_ERROR, now_epoch_seconds,
     },
     config::ControllerConfig,
     derivatives::DerivativeVariant,
@@ -1224,6 +1224,112 @@ fn media_revision_conflict_response() -> Response {
         .into_response()
 }
 
+fn image_not_found_response() -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        Json(ImageOperationErrorResponse {
+            code: "imageNotFound",
+            message: "Image was not found.",
+        }),
+    )
+        .into_response()
+}
+
+fn image_replacement_failed_response() -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ImageOperationErrorResponse {
+            code: "imageReplacementFailed",
+            message: "Image replacement failed; the original image remains active.",
+        }),
+    )
+        .into_response()
+}
+
+fn private_key_fingerprint(object_key: &str) -> String {
+    let mut digest = Sha256::new();
+    digest.update(b"autographs-image-recovery-key-v1");
+    digest.update((object_key.len() as u64).to_be_bytes());
+    digest.update(object_key.as_bytes());
+    digest
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn image_recovery_required_response(
+    item_id: Uuid,
+    image_id: Uuid,
+    transition: &'static str,
+    outcome: &'static str,
+    candidate_keys: &[&str],
+) -> Response {
+    let recovery_id = Uuid::new_v4();
+    let candidate_key_fingerprints = candidate_keys
+        .iter()
+        .map(|key| private_key_fingerprint(key))
+        .collect::<Vec<_>>();
+    tracing::error!(
+        event = "image_replacement_manual_recovery_required",
+        %recovery_id,
+        %item_id,
+        %image_id,
+        transition,
+        outcome,
+        candidate_key_fingerprints = ?candidate_key_fingerprints,
+        "image replacement requires manual recovery"
+    );
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ImageRecoveryRequiredResponse {
+            code: "imageRecoveryRequired",
+            message: "Image recovery needs operator attention.",
+            recovery_id,
+        }),
+    )
+        .into_response()
+}
+
+async fn replacement_candidate_is_unreferenced(
+    state: &AppState,
+    item_id: Uuid,
+    candidate_key: &str,
+) -> Result<bool, ()> {
+    state
+        .repository
+        .get(item_id)
+        .await
+        .map(|item| {
+            item.is_none_or(|item| {
+                item.images
+                    .iter()
+                    .all(|image| image.object_key != candidate_key)
+            })
+        })
+        .map_err(|_| ())
+}
+
+fn replacement_update_error_response(
+    error: ImageReplacementUpdateError,
+    item_id: Uuid,
+    image_id: Uuid,
+    transition: &'static str,
+    candidate_keys: &[&str],
+) -> Response {
+    match error {
+        ImageReplacementUpdateError::MediaRevisionConflict => media_revision_conflict_response(),
+        ImageReplacementUpdateError::NotFound => image_not_found_response(),
+        ImageReplacementUpdateError::Repository(_) => image_recovery_required_response(
+            item_id,
+            image_id,
+            transition,
+            "repository",
+            candidate_keys,
+        ),
+    }
+}
+
 async fn terminal_media_revision_response(
     state: &AppState,
     item_id: Uuid,
@@ -1480,15 +1586,40 @@ async fn replace_image(
         .replace_image_metadata(
             item_id,
             image_id,
+            &existing_image.object_key,
             ImageReplacementInput { image: replacement },
         )
         .await
     {
         Ok(item) => item,
         Err(error) => {
-            tracing::error!(%item_id, %image_id, error = %error, "failed to replace image metadata");
-            let _ = state.media.delete(&replacement_key).await;
-            return repository_update_error_status(&error).into_response();
+            let may_delete_candidate = !matches!(error, ImageReplacementUpdateError::Repository(_));
+            if may_delete_candidate
+                && replacement_candidate_is_unreferenced(&state, item_id, &replacement_key).await
+                    == Ok(true)
+                && let Err(delete_error) = state.media.delete(&replacement_key).await
+            {
+                tracing::warn!(
+                    %item_id,
+                    %image_id,
+                    error_kind = classify_media_error(&delete_error),
+                    "failed to delete unreferenced replacement candidate"
+                );
+                return image_recovery_required_response(
+                    item_id,
+                    image_id,
+                    "deleteInitialCandidate",
+                    "deleteFailure",
+                    &[&existing_image.object_key, &replacement_key],
+                );
+            }
+            return replacement_update_error_response(
+                error,
+                item_id,
+                image_id,
+                "initialReplacement",
+                &[&existing_image.object_key, &replacement_key],
+            );
         }
     };
 
@@ -1511,28 +1642,62 @@ async fn replace_image(
             Ok(warning) => Some(warning),
             Err(error) => {
                 tracing::error!(%item_id, %image_id, error = %error, "failed to persist replacement cleanup warning");
-                if let Err(rollback_error) = state
+                let original_revision = admin_image_revision(&existing_image);
+                let rollback = state
                     .repository
                     .replace_image_metadata(
                         item_id,
                         image_id,
+                        &replacement_key,
                         ImageReplacementInput {
                             image: existing_image.clone(),
                         },
                     )
-                    .await
-                {
-                    tracing::error!(%item_id, %image_id, error = %rollback_error, "failed to roll back replacement metadata after cleanup warning persistence failure");
+                    .await;
+                if let Err(rollback_error) = rollback {
+                    return replacement_update_error_response(
+                        rollback_error,
+                        item_id,
+                        image_id,
+                        "rollbackReplacement",
+                        &[&existing_image.object_key, &replacement_key],
+                    );
+                }
+                let restored = state.repository.get(item_id).await;
+                let verified = restored
+                    .ok()
+                    .flatten()
+                    .and_then(|item| item.images.into_iter().find(|image| image.id == image_id));
+                let restored_exactly = verified.as_ref().is_some_and(|image| {
+                    image.object_key == existing_image.object_key
+                        && admin_image_revision(image) == original_revision
+                        && image.adjustment == existing_image.adjustment
+                });
+                if !restored_exactly {
+                    return image_recovery_required_response(
+                        item_id,
+                        image_id,
+                        "verifyRollback",
+                        "postconditionMismatch",
+                        &[&existing_image.object_key, &replacement_key],
+                    );
                 }
                 if let Err(delete_error) = state.media.delete(&replacement_key).await {
                     tracing::warn!(
                         %item_id,
                         %image_id,
                         error_kind = classify_media_error(&delete_error),
-                        "failed to delete replacement object after cleanup warning persistence failure"
+                        "failed to delete replacement object after verified rollback"
+                    );
+                    return image_recovery_required_response(
+                        item_id,
+                        image_id,
+                        "deleteRolledBackReplacement",
+                        "deleteFailure",
+                        &[&existing_image.object_key, &replacement_key],
                     );
                 }
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                return image_replacement_failed_response();
             }
         }
     } else {
@@ -2286,6 +2451,21 @@ struct MediaRevisionQuery {
 struct MediaRevisionConflictResponse {
     code: &'static str,
     message: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageOperationErrorResponse {
+    code: &'static str,
+    message: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageRecoveryRequiredResponse {
+    code: &'static str,
+    message: &'static str,
+    recovery_id: Uuid,
 }
 
 #[derive(Serialize)]

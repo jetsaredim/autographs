@@ -12,12 +12,13 @@ use uuid::Uuid;
 use crate::catalog::{
     AutographEditEvent, AutographImage, AutographItem, AutographItemInput, AutographItemUpdate,
     CatalogRepository, CleanupStatus, CleanupWarning, EditEventKind, FieldDiff,
-    ImageAdjustmentUpdateError, ImageCleanupEvent, ImageReplacementInput, ItemOrigin,
-    PendingChangeSummary, PublicationStatus, PublishBoundary, SignerCredit, SignerCreditInput,
-    SignerMergeResult, SignerProfile, SignerProfileUpdateInput, SignerSuggestion,
-    TaxonomySuggestions, apply_signer_profile_update, apply_update, event_kind_for_diffs,
-    event_summary, normalize_profile_link, normalize_signer_name, now_epoch_seconds,
-    signer_match_rank, signer_profile_field_diffs, validate_required_fields,
+    ImageAdjustmentUpdateError, ImageCleanupEvent, ImageReplacementInput,
+    ImageReplacementUpdateError, ItemOrigin, PendingChangeSummary, PublicationStatus,
+    PublishBoundary, SignerCredit, SignerCreditInput, SignerMergeResult, SignerProfile,
+    SignerProfileUpdateInput, SignerSuggestion, TaxonomySuggestions, apply_signer_profile_update,
+    apply_update, event_kind_for_diffs, event_summary, normalize_profile_link,
+    normalize_signer_name, now_epoch_seconds, signer_match_rank, signer_profile_field_diffs,
+    validate_required_fields,
 };
 use crate::image_adjustments::ImageAdjustment;
 use crate::oracle_connection::{self, OracleConnectionSettings};
@@ -60,7 +61,7 @@ const REPLACE_IMAGE_METADATA_SQL: &str = "update autograph_images set
     alt_text = :11,
     adjustment_json = :12,
     updated_at = current_timestamp
-where id = :13 and item_id = :14";
+where id = :13 and item_id = :14 and object_key = :15";
 
 const SIGNER_CREDIT_ROWS_FOR_UPDATE_SQL: &str =
     "select signer_id, sort_order, item_role, item_context
@@ -549,18 +550,22 @@ impl CatalogRepository for OracleCatalogRepository {
         &self,
         item_id: Uuid,
         image_id: Uuid,
+        expected_object_key: &str,
         input: ImageReplacementInput,
-    ) -> Result<AutographItem, String> {
+    ) -> Result<AutographItem, ImageReplacementUpdateError> {
         let storage_namespace = self.storage_namespace.clone();
         let bucket_name = self.bucket_name.clone();
+        let expected_object_key = expected_object_key.to_owned();
         self.with_connection(move |connection| {
-            let existing = load_image(&connection, item_id, image_id)?
-                .ok_or_else(|| "autograph image was not found".to_owned())?;
+            let existing = load_image(&connection, item_id, image_id)
+                .map_err(ImageReplacementUpdateError::Repository)?
+                .ok_or(ImageReplacementUpdateError::NotFound)?;
             let item_id_text = item_id.to_string();
             let image_id_text = image_id.to_string();
             let byte_size = input.image.byte_size as i64;
             let is_primary = if existing.is_primary { "Y" } else { "N" };
-            let adjustment_json = serialize_image_adjustment(input.image.adjustment.as_ref())?;
+            let adjustment_json = serialize_image_adjustment(input.image.adjustment.as_ref())
+                .map_err(ImageReplacementUpdateError::Repository)?;
             let statement = connection
                 .execute(
                     REPLACE_IMAGE_METADATA_SQL,
@@ -579,12 +584,22 @@ impl CatalogRepository for OracleCatalogRepository {
                         &adjustment_json,
                         &image_id_text,
                         &item_id_text,
+                        &expected_object_key,
                     ],
                 )
-                .map_err(|error| format!("replace Oracle catalog image metadata: {error}"))?;
+                .map_err(|error| {
+                    ImageReplacementUpdateError::Repository(format!(
+                        "replace Oracle catalog image metadata: {error}"
+                    ))
+                })?;
             let rows_updated = statement.rows_affected();
             if rows_updated == 0 {
-                return Err("autograph image was not found".to_owned());
+                return match load_image(&connection, item_id, image_id)
+                    .map_err(ImageReplacementUpdateError::Repository)?
+                {
+                    Some(_) => Err(ImageReplacementUpdateError::MediaRevisionConflict),
+                    None => Err(ImageReplacementUpdateError::NotFound),
+                };
             }
             connection
                 .execute(
@@ -592,7 +607,9 @@ impl CatalogRepository for OracleCatalogRepository {
                     &[&item_id_text],
                 )
                 .map_err(|error| {
-                    format!("touch Oracle catalog item for image replacement: {error}")
+                    ImageReplacementUpdateError::Repository(format!(
+                        "touch Oracle catalog item for image replacement: {error}"
+                    ))
                 })?;
             let event = AutographEditEvent::new(
                 item_id,
@@ -601,12 +618,16 @@ impl CatalogRepository for OracleCatalogRepository {
                 Vec::new(),
                 now_epoch_seconds(),
             );
-            insert_edit_event(&connection, &event)?;
+            insert_edit_event(&connection, &event)
+                .map_err(ImageReplacementUpdateError::Repository)?;
             let updated =
-                load_item_before_commit(&connection, item_id, "autograph item was not found")?;
-            connection
-                .commit()
-                .map_err(|error| format!("commit Oracle image metadata replacement: {error}"))?;
+                load_item_before_commit(&connection, item_id, "autograph item was not found")
+                    .map_err(ImageReplacementUpdateError::Repository)?;
+            connection.commit().map_err(|error| {
+                ImageReplacementUpdateError::Repository(format!(
+                    "commit Oracle image metadata replacement: {error}"
+                ))
+            })?;
             Ok(updated)
         })
         .await
@@ -2648,6 +2669,7 @@ mod tests {
         assert!(UPDATE_IMAGE_ADJUSTMENT_SQL.contains("adjustment_json = :1"));
         assert!(UPDATE_IMAGE_ADJUSTMENT_SQL.contains("object_key = :4"));
         assert!(REPLACE_IMAGE_METADATA_SQL.contains("adjustment_json = :12"));
+        assert!(REPLACE_IMAGE_METADATA_SQL.contains("object_key = :15"));
     }
 
     #[test]
