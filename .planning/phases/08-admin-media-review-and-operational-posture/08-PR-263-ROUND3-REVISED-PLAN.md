@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: review_required
+status: approved
 depends_on:
   - 08-REVIEW.md
   - 08-PR-263-CONVERGENCE.md
