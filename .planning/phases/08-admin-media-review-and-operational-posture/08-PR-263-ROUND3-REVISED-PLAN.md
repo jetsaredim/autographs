@@ -256,12 +256,12 @@ Map every transition outcome exactly:
 
 | Outcome | HTTP/body contract | Object/evidence behavior |
 |---|---|---|
-| Initial or rollback `Conflict` | 409 `{ code: "mediaRevisionConflict", message: "Image media changed. Retry from the current item." }` | Preserve all candidates until reload proves a candidate unreferenced. Never overwrite the winner. |
+| Initial or rollback `Conflict` | 409 `{ code: "mediaRevisionConflict", message: "Image media changed. Reopen the review." }` | Preserve all candidates until reload proves a candidate unreferenced. Never overwrite the winner. |
 | `NotFound` item/image | 404 `{ code: "imageNotFound", message: "Image was not found." }` | Preserve candidates unless a reload proves they are unreferenced. |
 | Repository failure | 500 `{ code: "imageRecoveryRequired", message: "Image recovery needs operator attention.", recoveryId }` | Preserve all candidates and emit structured private recovery evidence. |
 | Restoration postcondition mismatch | Same redacted 500 recovery body | Treat as integrity/repository failure; delete nothing. |
 | Replacement-object delete failure after verified restoration | Same redacted 500 recovery body | Original snapshot remains authoritative; replacement becomes an orphan candidate for manual cleanup. |
-| Verified restoration and successful replacement deletion | Existing failure response for the original warning-persistence failure; no success-shaped replacement response | Reload has proved original key/revision/adjustment authoritative and replacement unreferenced. |
+| Verified restoration and successful replacement deletion | 500 `{ code: "imageReplacementFailed", message: "Image replacement failed; the original image remains active." }` | Reload has proved original key/revision/adjustment authoritative and replacement unreferenced; no recovery ID is needed because no manual cleanup remains. |
 
 For every `imageRecoveryRequired` response, generate a UUID recovery ID and emit one structured `image_replacement_manual_recovery_required` error event containing the recovery ID, item/image IDs, transition, typed outcome, and SHA-256 fingerprints of candidate keys—not raw object keys, bucket, namespace, or media checksum. The HTTP body exposes only the recovery ID and redacted message. Source-contract/log-capture tests assert the event name and correlation fields; route tests assert status/body/recovery-ID shape and that candidates remain readable as required.
 
