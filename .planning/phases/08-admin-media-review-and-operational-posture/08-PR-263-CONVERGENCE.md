@@ -174,6 +174,12 @@ A media-conflict response is authoritative only for the exact session, request/d
 | Old draft/assist/mutation 409 arrives after a newer review opens | Origin authority check fails; no teardown, message, item refresh, or state mutation occurs. |
 | Current authoritative 409 occurs | Review invalidates once, fresh item is loaded/reconciled under a recovery token, stale revision is replaced, and reopening succeeds immediately. |
 | Conflict recovery fetch resolves after navigation or newer review | Recovery generation/context check rejects the result; current item/review is not overwritten. |
+| Replacement/rollback returns Conflict, NotFound, Repository failure, verification mismatch, or delete failure | Exact redacted mappings are respectively 409, 404, 500, 500, and 500. Every 500 includes a UUID recovery ID correlated to a structured private diagnostic without raw object keys in HTTP. |
+| Source preview returns 409 | Status-bearing fetch-to-blob path checks full source request/session/media authority before recovery; stale response is inert, current response refreshes item. Direct image load/error never has to infer HTTP status. |
+| Conflict refresh returns 404 | Current item and review actions remain cleared; collection view shows non-retryable missing-item guidance. |
+| Conflict refresh returns 500/network error | No stale item/review controls are actionable; only a generation-bound item refresh retry is exposed. |
+| Conflict refresh returns 401/403 | Recovery state invalidates and existing logout/session-expired behavior runs with no retry or stale item. |
+| Recovery retry succeeds or resolves late | Current generation reconciles fresh item and permits reopen; older retry/navigation results are inert. |
 
 ## Revised Plan Requirements
 

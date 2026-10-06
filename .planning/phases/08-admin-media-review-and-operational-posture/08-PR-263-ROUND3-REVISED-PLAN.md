@@ -252,6 +252,19 @@ Make image metadata replacement a typed expected-object-key compare-and-set for 
 
 Extend in-memory and Oracle replacement updates with an expected current object key and typed outcomes: `Updated`, `Conflict`, `NotFound`, and `Repository`. Oracle replacement SQL includes `object_key = :expected_object_key`; zero rows require a reliable reload to distinguish missing from conflict. The route verifies the postcondition after successful restoration before deletion.
 
+Map every transition outcome exactly:
+
+| Outcome | HTTP/body contract | Object/evidence behavior |
+|---|---|---|
+| Initial or rollback `Conflict` | 409 `{ code: "mediaRevisionConflict", message: "Image media changed. Retry from the current item." }` | Preserve all candidates until reload proves a candidate unreferenced. Never overwrite the winner. |
+| `NotFound` item/image | 404 `{ code: "imageNotFound", message: "Image was not found." }` | Preserve candidates unless a reload proves they are unreferenced. |
+| Repository failure | 500 `{ code: "imageRecoveryRequired", message: "Image recovery needs operator attention.", recoveryId }` | Preserve all candidates and emit structured private recovery evidence. |
+| Restoration postcondition mismatch | Same redacted 500 recovery body | Treat as integrity/repository failure; delete nothing. |
+| Replacement-object delete failure after verified restoration | Same redacted 500 recovery body | Original snapshot remains authoritative; replacement becomes an orphan candidate for manual cleanup. |
+| Verified restoration and successful replacement deletion | Existing failure response for the original warning-persistence failure; no success-shaped replacement response | Reload has proved original key/revision/adjustment authoritative and replacement unreferenced. |
+
+For every `imageRecoveryRequired` response, generate a UUID recovery ID and emit one structured `image_replacement_manual_recovery_required` error event containing the recovery ID, item/image IDs, transition, typed outcome, and SHA-256 fingerprints of candidate keys—not raw object keys, bucket, namespace, or media checksum. The HTTP body exposes only the recovery ID and redacted message. Source-contract/log-capture tests assert the event name and correlation fields; route tests assert status/body/recovery-ID shape and that candidates remain readable as required.
+
 Tests must use a repository that succeeds initial replacement and then fails restoration, proving persisted metadata still references a readable replacement object. Add a concurrent newer-replacement fixture proving rollback CAS cannot overwrite the winner and no possibly active object is deleted. Preserve the successful restoration test with non-identity adjustment and exact revision restoration.
 
 ### Scoped conflict authority and recovery
@@ -266,6 +279,8 @@ Replace global unconditional conflict teardown with an async handler that accept
 | Save/Reset | Current mutation token, review session, item/image/media revision, and submitted draft/baseline authority. |
 | Source/output callbacks | Existing session/request/blob/render/node/media-revision tuple; stale node callbacks remain inert. |
 
+The source guide must not use a direct `<img src>` request for revision-bound acquisition. Add a source request revision/abort controller and fetch the authenticated source URL to a blob first. The fetch path can inspect 409 JSON, prove the full open-review session/item/image/media/source-request tuple, and invoke scoped recovery only when current. On 200 it creates an owned blob URL and mounts an `<img>` whose later load/error callbacks remain guarded by source request, blob URL, node, session, and media revision. Superseded source requests abort and revoke their blobs. Output node load/error remains ordinary blob-render authority because draft preview status was already observed by its fetch.
+
 For an authoritative conflict:
 
 1. Capture item ID and increment a dedicated conflict-recovery generation.
@@ -273,19 +288,30 @@ For an authoritative conflict:
 3. Fetch the current admin item from the server.
 4. Before reconciliation, require the recovery generation and intended item/navigation context still match; otherwise discard the response.
 5. Reconcile the fresh item through `reconcileAdminItemResponse`, then show stable “image changed; reopen review” guidance. A fresh Review action uses the refreshed revision and succeeds.
-6. If refresh fails, preserve redacted error/retry guidance without restoring stale review authority. Auth failure follows existing logout behavior.
+6. If refresh fails, follow the explicit recovery-state table below without restoring stale review authority.
 
 Stale conflicts perform none of these steps. The handler must not clear a newer review, overwrite a later item/navigation choice, or issue a recovery fetch.
+
+| Refresh result | Required state and action |
+|---|---|
+| 200 current item | Reconcile before assignment, render editor with current image revision, show reopen guidance, clear recovery state. |
+| 404 | Keep `state.currentItem = null`, clear all review/item-action authority, return to collection view, show non-retryable “item no longer exists” guidance, clear recovery state. |
+| 500/network | Keep `state.currentItem = null`, review cleared, and item/review controls unavailable. Store only `{ itemId, generation, status: "retryable" }` and show a dedicated “Retry item refresh” action. |
+| Retry action | Increment recovery generation, capture item ID plus current navigation context, disable itself while pending, and run the same fetch/reconcile pipeline. Late results from older attempts are inert. |
+| 401/403 | Invalidate recovery generation/state and execute existing logout/session-expired flow; no retry control or stale item remains. |
+| Navigation/new review/logout while recovery pending | Increment/clear recovery generation before changing context; pending result is discarded. |
 
 ### Required regression matrix
 
 - Deferred draft and assist requests from review A return 409 after review B mounts; B's session, nodes, message, and Save state are unchanged and no refresh occurs.
 - Stale Save and Reset conflicts after mutation/session replacement are inert.
 - Current draft, assist, Save, and Reset conflicts invalidate once, fetch/reconcile the current item token, show guidance, and immediate reopen succeeds.
+- Current review-open and fetched-source conflicts follow the same exactly-once refresh/reconcile path; stale open/source 409s cannot affect a newer review. Output blob-node errors remain node-authority errors and never masquerade as 409.
 - Recovery fetch resolves after navigation, different-item load, logout, or newer review open; generation/context checks discard it.
-- Recovery fetch 404/500/auth failure follows explicit redacted behavior and never reinstates stale revision.
+- Recovery 404 clears current item and item actions; recovery 500 exposes only a generation-bound retry with no stale controls; retry success restores fresh item/reopen; auth failure logs out. Late retry results are inert.
 - Initial replacement CAS conflict, restoration success, restoration failure, restoration CAS loss to a newer replacement, verification mismatch, and replacement-object delete failure each assert catalog key/adjustment, object existence, response type, and cleanup evidence.
 - No test permits deletion of `replacement_key` unless a reload first proves metadata points at the exact restored original snapshot.
+- Route tests assert exact 409/404/500 bodies and recovery ID shape. Structured-evidence tests assert the private event/correlation fields and prohibit raw keys/checksums in HTTP responses.
 - Preserve complete media-revision, gesture, output, mutation/egress, publisher, migration, privacy, and public-output suites.
 
 ### Completion criteria
