@@ -1,11 +1,11 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: ready_to_resume
+status: reassessment_required
 trigger_review: 08-REVIEW.md
-assumption_revision_evidence: 08-PR-263-ROUND3-REVISED-PLAN.md#media-revision-authority-addendum
-implementation_plan_review_evidence: 08-PR-263-MEDIA-REVISION-PLAN-REVIEW-ITER2.md
-implementation_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-5996956707
+assumption_revision_evidence: 08-PR-263-ROUND3-REVISED-PLAN.md#media-failure-recovery-authority-addendum
+implementation_plan_review_evidence: pending
+implementation_plan_review_comment: pending
 ---
 
 # PR 263 Review/Fix Convergence Reassessment
@@ -53,6 +53,15 @@ The previously approved plan covered synchronous edit producers but assumed that
 
 The approved gesture plan correctly serialized callbacks inside one review session, but assumed item/image UUIDs identify immutable media. Replacement intentionally preserves the image UUID while changing its object key, checksum, byte size, intrinsic geometry, and adjustment baseline. Review authority must therefore include an opaque media revision and the persistence boundary must enforce it atomically.
 
+### Media failure-recovery lineage
+
+| Finding | Classification | Current state |
+|---|---|---|
+| Media follow-up CR-01: failed rollback deletes referenced replacement object | Incomplete rollback fix / failure-path sibling miss | Open: restoration failure is logged, but replacement cleanup runs unconditionally and can leave committed metadata pointing at deleted private media. |
+| Media follow-up CR-02: unscoped 409 tears down newer review and retains stale reopen token | Conflict-terminal regression / recovery sibling miss | Open: conflict handlers run before operation authority checks; an authoritative conflict clears review without refreshing the item revision, so stale conflicts destroy newer state and current conflicts can loop forever on reopen. |
+
+The media-revision implementation bound normal work to immutable media, but assumed failure cleanup could be best-effort and conflict handling was globally authoritative. Recovery mutations require compare-and-set plus verified postconditions before destructive cleanup, and conflict UI effects require the same per-operation authority tuple as success effects plus an authority-scoped fresh-item recovery.
+
 ## Shared Invariants
 
 ### 1. Mounted-output authority
@@ -79,6 +88,12 @@ An active perspective gesture creates a render barrier around its connected capt
 
 Item ID plus image ID identifies a catalog slot, not the bytes currently occupying it. Every review response, source/draft preview, assist proposal, adjusted-output callback, Save/Reset mutation, and client reconciliation must bind to one opaque media revision derived from server-private media metadata. The opaque token must not reveal an Object Storage key, namespace, bucket, or raw checksum. Adjustment persistence must compare the expected private object key atomically in the repository update so a replacement cannot race between route validation and write.
 
+### 7. Failure recovery preserves the last committed authority
+
+Rollback is a conditional state transition, not a logging side effect. Initial replacement and restoration both compare the object key expected at their mutation boundary. No object may be deleted until a reload proves catalog metadata no longer references it and the intended snapshot is authoritative. A failed or lost rollback preserves all possibly referenced objects and returns a redacted error for manual recovery.
+
+A media-conflict response is authoritative only for the exact session, request/draft revision, assist request, mutation token, item/image, and media revision that issued it. Stale conflict responses are inert. A current conflict invalidates once, then refreshes and reconciles the admin item under a recovery generation before inviting reopen; the old `state.currentItem` token is never reused as recovery state.
+
 ## Complete Consumer and Action Inventory
 
 | Invariant | Producers | Consumers and reporting paths | Mutation / invalidation boundaries | Required tests |
@@ -90,6 +105,8 @@ Item ID plus image ID identifies a catalog slot, not the bytes currently occupyi
 | Gesture isolation | Pointerdown/capture, source-image load, preview fetch response, adjusted-image load/error, assist completion, retry/comparison/overlay/control actions, resize observer | Connected capture owner, source frame, handle projection, preview status/message, settled preview scheduling | Pointer move/up/cancel/lost capture, session/item/image/generation change, stage rerender, async completion, teardown | Async source/preview/error/assist completions before first move and between moves; capture owner stays connected; settlement/teardown flushes or discards deferred work exactly once |
 | Reversible visual projection | Normalized corner, fitted source bounds, 22px visual inset, pointerdown position | Pointer-to-source conversion, handle pixels, labels, preview payload | Edge/corner pointerdown, multiple moves, resize during gesture, cancel/settlement | Grab centered on all four inset edge handles; zero-distance move is a no-op; subsequent deltas change the normalized corner by the same source-space delta without a jump |
 | Immutable media revision | Replacement upload/metadata commit, opaque revision derivation, review response, admin item response | Review session, preview URLs/requests, assist, output callbacks, Save/Reset, editor reconciliation, dirty/publish reporting | Replacement started before/during review, route pre/post validation, atomic repository update, cleanup-warning rollback, review teardown | Same-ID replacement resolves before first move, between moves, during preview/assist, before Save/Reset repository write, and after route validation; stale work returns conflict/invalidates and cannot persist |
+| Rollback object safety | Initial replacement CAS, cleanup warning persistence, rollback CAS, metadata reload, object deletion | Active catalog object, original/replacement/newer-concurrent objects, cleanup warning/manual recovery | Initial replacement race, rollback success/failure/race, verification failure, delete failure | Restoration failure and concurrent replacement preserve every possibly referenced object; deletion follows verified restoration only |
+| Scoped conflict recovery | Captured preview/session/draft/assist/mutation authority, conflict handler, recovery generation, fresh item load/reconciliation | Current review, newer review, current item token, editor message/reopen action | Old 409 after review switch, current 409, recovery request race/navigation/auth failure | Stale conflicts cannot alter newer review; current conflict refreshes token and immediate reopen succeeds; stale recovery result cannot overwrite navigation |
 
 ## Assumption Audit
 
@@ -110,6 +127,10 @@ Item ID plus image ID identifies a catalog slot, not the bytes currently occupyi
 - Revised: the image UUID is a replaceable slot. An opaque media revision binds client work to a specific private-object snapshot, and the repository mutation condition uses the server-private expected object key to close the validation/write race.
 - Rejected: invalidating the UI when the replacement response arrives is sufficient.
 - Revised: client invalidation is required for prompt UX, while server pre/post validation and atomic compare-and-set remain authoritative for concurrent requests, other sessions, and response-order races.
+- Rejected: rollback can attempt restoration, log failure, and still delete the replacement object.
+- Revised: restoration is expected-key CAS followed by exact snapshot reload/verification; destructive cleanup is permitted only after proof that the object is unreferenced. Failure/race preserves objects and returns error.
+- Rejected: every media-revision 409 is globally authoritative and clearing review is sufficient recovery.
+- Revised: conflict handling first proves the originating operation tuple is current. Authoritative conflict recovery invalidates once and fetches/reconciles a fresh item under its own generation before showing reopen guidance.
 
 ## Failure Matrix
 
@@ -146,10 +167,17 @@ Item ID plus image ID identifies a catalog slot, not the bytes currently occupyi
 | Expected object key mismatches / image is absent / item is absent / repository fails | Responses are respectively stable redacted 409 / 404 / 404 / 500; tests prove the classes do not collapse into the string-error fallback. |
 | Replacement uploads byte-identical media with identical public/basic metadata | New private object identity alone changes `mediaRevision`; rolling metadata back to the complete original snapshot restores the original token and adjustment. |
 | Opaque revision is exposed through admin API | Token cannot be reversed into or used as an OCI namespace, bucket, object key, signed URL, or raw media checksum; no token enters public static output. |
+| Initial replacement metadata CAS loses to another replacement | Candidate cannot overwrite the winner; it is deleted only after reload proves it is unreferenced, otherwise it is preserved. |
+| Cleanup-warning persistence fails and restoration succeeds | Reload proves original object plus adjustment are authoritative; only then may replacement object be deleted. |
+| Original-snapshot restoration fails | Replacement and original objects are retained because metadata may reference either; redacted 500 and manual-cleanup evidence are recorded. |
+| Concurrent newer replacement wins before rollback CAS | Rollback cannot overwrite the winner and cannot delete the prior replacement candidate or newer active object. |
+| Old draft/assist/mutation 409 arrives after a newer review opens | Origin authority check fails; no teardown, message, item refresh, or state mutation occurs. |
+| Current authoritative 409 occurs | Review invalidates once, fresh item is loaded/reconciled under a recovery token, stale revision is replaced, and reopening succeeds immediately. |
+| Conflict recovery fetch resolves after navigation or newer review | Recovery generation/context check rejects the result; current item/review is not overwritten. |
 
 ## Revised Plan Requirements
 
-The original coherent implementation and pointer-lifecycle addendum remain historical approved evidence. The latest review exposed an independent sibling mutation boundary, so the plan now contains a `Media Revision Authority Addendum`. The first media-plan review (`08-PR-263-MEDIA-REVISION-PLAN-REVIEW.md`) required three blockers and two warnings to be closed; iteration 2 (`08-PR-263-MEDIA-REVISION-PLAN-REVIEW-ITER2.md`) approved the revised opaque-token contract, terminal conflict precedence, atomic repository compare-and-set, complete rollback, central client reconciliation, privacy boundary, and concurrency matrix with zero findings. Its artifact and PR comment are recorded in frontmatter, so one coherent coder pass may resume.
+The original coherent implementation, pointer-lifecycle addendum, and media-revision addendum remain historical approved evidence. The latest review exposed two failure-recovery sibling paths, so the plan now contains a `Media Failure Recovery Authority Addendum`. No coder work may resume until an independent reviewer approves replacement/rollback CAS, verified deletion rules, scoped conflict predicates, fresh-item recovery generation, and the expanded failure matrix with zero findings; record that artifact/comment in frontmatter first.
 
 ## Resume Criteria
 

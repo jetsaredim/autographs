@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: approved
+status: review_required
 depends_on:
   - 08-REVIEW.md
   - 08-PR-263-CONVERGENCE.md
@@ -237,3 +237,57 @@ Expose `mediaRevision` in authenticated admin image and review responses. Store 
 ### Completion criteria
 
 This addendum may resume only after an independent reviewer approves the opaque token/privacy contract, all route/repository race closures, rollback semantics, client invalidation, and concurrency tests with zero findings. Implementation is complete only when full verification passes and a subsequent lineage-preserving deep source review reports zero Critical, Warning, and Info findings.
+
+## Media Failure Recovery Authority Addendum
+
+### Replacement and rollback state machine
+
+Make image metadata replacement a typed expected-object-key compare-and-set for both initial replacement and recovery restoration.
+
+| Transition | Expected key | New snapshot | Cleanup rule |
+|---|---|---|---|
+| Initial replacement | Original key loaded before upload | Replacement image with adjustment `None` | If CAS loses, reload metadata. Delete the uploaded candidate only when reload proves no catalog row references it; otherwise preserve it and return error/conflict. |
+| Rollback after cleanup-warning persistence failure | Replacement key committed by this request | Complete original `AutographImage`, including saved adjustment | Reload and verify exact original key, revision, and adjustment. Delete replacement object only after verification succeeds. |
+| Rollback failure or CAS loss | Replacement key expected, but repository fails or current key differs | No forced overwrite | Preserve original, replacement, and any newer candidate objects. Return redacted 500 or typed conflict, record manual-cleanup evidence, and never delete an object metadata may reference. |
+
+Extend in-memory and Oracle replacement updates with an expected current object key and typed outcomes: `Updated`, `Conflict`, `NotFound`, and `Repository`. Oracle replacement SQL includes `object_key = :expected_object_key`; zero rows require a reliable reload to distinguish missing from conflict. The route verifies the postcondition after successful restoration before deletion.
+
+Tests must use a repository that succeeds initial replacement and then fails restoration, proving persisted metadata still references a readable replacement object. Add a concurrent newer-replacement fixture proving rollback CAS cannot overwrite the winner and no possibly active object is deleted. Preserve the successful restoration test with non-identity adjustment and exact revision restoration.
+
+### Scoped conflict authority and recovery
+
+Replace global unconditional conflict teardown with an async handler that accepts an explicit operation authority record and target item ID. Each caller evaluates stale/abort rules before allowing recovery:
+
+| Operation | Required current authority before 409 may affect UI |
+|---|---|
+| Draft preview | Captured review session, item/image/media revision, preview request revision, draft revision, and abort-controller ownership. |
+| Review open/source initialization | Captured open-review session plus target item/image and originating current-item revision. |
+| Assist | Captured review session, item/image/media revision, draft revision, and assist request generation. |
+| Save/Reset | Current mutation token, review session, item/image/media revision, and submitted draft/baseline authority. |
+| Source/output callbacks | Existing session/request/blob/render/node/media-revision tuple; stale node callbacks remain inert. |
+
+For an authoritative conflict:
+
+1. Capture item ID and increment a dedicated conflict-recovery generation.
+2. Invalidate review, gesture, preview, assist, and mutation state exactly once without rendering stale `state.currentItem` as recovered truth.
+3. Fetch the current admin item from the server.
+4. Before reconciliation, require the recovery generation and intended item/navigation context still match; otherwise discard the response.
+5. Reconcile the fresh item through `reconcileAdminItemResponse`, then show stable “image changed; reopen review” guidance. A fresh Review action uses the refreshed revision and succeeds.
+6. If refresh fails, preserve redacted error/retry guidance without restoring stale review authority. Auth failure follows existing logout behavior.
+
+Stale conflicts perform none of these steps. The handler must not clear a newer review, overwrite a later item/navigation choice, or issue a recovery fetch.
+
+### Required regression matrix
+
+- Deferred draft and assist requests from review A return 409 after review B mounts; B's session, nodes, message, and Save state are unchanged and no refresh occurs.
+- Stale Save and Reset conflicts after mutation/session replacement are inert.
+- Current draft, assist, Save, and Reset conflicts invalidate once, fetch/reconcile the current item token, show guidance, and immediate reopen succeeds.
+- Recovery fetch resolves after navigation, different-item load, logout, or newer review open; generation/context checks discard it.
+- Recovery fetch 404/500/auth failure follows explicit redacted behavior and never reinstates stale revision.
+- Initial replacement CAS conflict, restoration success, restoration failure, restoration CAS loss to a newer replacement, verification mismatch, and replacement-object delete failure each assert catalog key/adjustment, object existence, response type, and cleanup evidence.
+- No test permits deletion of `replacement_key` unless a reload first proves metadata points at the exact restored original snapshot.
+- Preserve complete media-revision, gesture, output, mutation/egress, publisher, migration, privacy, and public-output suites.
+
+### Completion criteria
+
+Resume only after an independent reviewer approves the typed replacement state machine, verified deletion proof, per-operation conflict authority predicates, recovery-generation reconciliation, and failure tests with zero findings. Close only after implementation passes full all-feature verification and the next lineage-preserving deep review reports zero Critical, Warning, and Info findings.
