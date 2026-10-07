@@ -1,11 +1,11 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: ready_to_resume
+status: reassessment_required
 trigger_review: 08-REVIEW.md
-assumption_revision_evidence: 08-PR-263-ROUND3-REVISED-PLAN.md#media-failure-recovery-authority-addendum
-implementation_plan_review_evidence: 08-PR-263-MEDIA-RECOVERY-PLAN-REVIEW-ITER3.md
-implementation_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6007138175
+assumption_revision_evidence: 08-PR-263-ROUND3-REVISED-PLAN.md#ambiguous-delete-and-exclusive-recovery-addendum
+implementation_plan_review_evidence: pending
+implementation_plan_review_comment: pending
 ---
 
 # PR 263 Review/Fix Convergence Reassessment
@@ -62,6 +62,15 @@ The approved gesture plan correctly serialized callbacks inside one review sessi
 
 The media-revision implementation bound normal work to immutable media, but assumed failure cleanup could be best-effort and conflict handling was globally authoritative. Recovery mutations require compare-and-set plus verified postconditions before destructive cleanup, and conflict UI effects require the same per-operation authority tuple as success effects plus an authority-scoped fresh-item recovery.
 
+### Recovery source-review lineage
+
+| Finding | Classification | Current state |
+|---|---|---|
+| Recovery source CR-01: ambiguous old-object DELETE followed by rollback can restore missing media | Incomplete recovery fix / external-side-effect sibling miss | Open: an OCI delete may apply before returning a transport error. Metadata rollback currently proves only catalog state, not that original bytes still exist and match, then deletes the valid replacement. |
+| Recovery source CR-02: refresh can overwrite same-view editor work | Incomplete conflict recovery / sibling action-path miss | Open: conflict recovery renders an actionable blank editor and accepts a late result based on generation/navigation/view only; same-view edits/save/render paths neither block nor invalidate recovery. |
+
+The reviewed recovery plan assumed an error meant the old object remained and that staying on the same editor view meant no newer user authority existed. Both are false. Destructive rollback requires positive media readability/integrity proof, and recovery must exclusively own an inert UI state or be invalidated by any editor mutation/assignment generation.
+
 ## Shared Invariants
 
 ### 1. Mounted-output authority
@@ -94,6 +103,12 @@ Rollback is a conditional state transition, not a logging side effect. Initial r
 
 A media-conflict response is authoritative only for the exact session, request/draft revision, assist request, mutation token, item/image, and media revision that issued it. Stale conflict responses are inert. A current conflict invalidates once, then refreshes and reconciles the admin item under a recovery generation before inviting reopen; the old `state.currentItem` token is never reused as recovery state.
 
+### 8. External deletion proof and exclusive recovery ownership
+
+An Object Storage delete error is outcome-ambiguous: the object may still exist or may already be gone. Because the replacement is already committed and known readable at that point, it remains authoritative on every delete-error path. The route must not restore original metadata or delete the replacement after an ambiguous delete result.
+
+While conflict refresh is pending or retryable, recovery exclusively owns an inert recovery surface. No editor form input, Save, image action, direct editor render, or item assignment may proceed without first invalidating recovery. A recovery response is current only when its recovery generation, navigation context, editor-authority generation, and inert recovery state all still match.
+
 ## Complete Consumer and Action Inventory
 
 | Invariant | Producers | Consumers and reporting paths | Mutation / invalidation boundaries | Required tests |
@@ -107,6 +122,8 @@ A media-conflict response is authoritative only for the exact session, request/d
 | Immutable media revision | Replacement upload/metadata commit, opaque revision derivation, review response, admin item response | Review session, preview URLs/requests, assist, output callbacks, Save/Reset, editor reconciliation, dirty/publish reporting | Replacement started before/during review, route pre/post validation, atomic repository update, cleanup-warning rollback, review teardown | Same-ID replacement resolves before first move, between moves, during preview/assist, before Save/Reset repository write, and after route validation; stale work returns conflict/invalidates and cannot persist |
 | Rollback object safety | Initial replacement CAS, cleanup warning persistence, rollback CAS, metadata reload, object deletion | Active catalog object, original/replacement/newer-concurrent objects, cleanup warning/manual recovery | Initial replacement race, rollback success/failure/race, verification failure, delete failure | Restoration failure and concurrent replacement preserve every possibly referenced object; deletion follows verified restoration only |
 | Scoped conflict recovery | Captured preview/session/draft/assist/mutation authority, conflict handler, recovery generation, fresh item load/reconciliation | Current review, newer review, current item token, editor message/reopen action | Old 409 after review switch, current 409, recovery request race/navigation/auth failure | Stale conflicts cannot alter newer review; current conflict refreshes token and immediate reopen succeeds; stale recovery result cannot overwrite navigation |
+| Ambiguous delete safety | Old-object delete result, committed replacement snapshot, cleanup-warning persistence, recovery evidence | Catalog snapshot, original and replacement objects, manual cleanup | Delete applied-then-error, delete error-with-object-intact, warning persistence success/failure | Every delete-error path keeps the readable replacement authoritative and never deletes it; warning failure preserves both possible objects and returns recovery evidence |
+| Exclusive recovery ownership | Recovery generation, editor-authority generation, recovery view/state, disabled controls, retry action | Form inputs, Save, renderEditor/reconcile, item/image actions, navigation | Pending refresh, retryable failure, same-view edit/save/render, navigation/logout/new review | Recovery surface is inert; programmatic/user edits cannot proceed; any newer editor assignment invalidates recovery before late response can reconcile |
 
 ## Assumption Audit
 
@@ -131,6 +148,10 @@ A media-conflict response is authoritative only for the exact session, request/d
 - Revised: restoration is expected-key CAS followed by exact snapshot reload/verification; destructive cleanup is permitted only after proof that the object is unreferenced. Failure/race preserves objects and returns error.
 - Rejected: every media-revision 409 is globally authoritative and clearing review is sufficient recovery.
 - Revised: conflict handling first proves the originating operation tuple is current. Authoritative conflict recovery invalidates once and fetches/reconciles a fresh item under its own generation before showing reopen guidance.
+- Rejected: an Object Storage delete error proves the old object remains available for rollback.
+- Revised: delete errors are outcome-ambiguous. Do not roll back metadata after any old-object delete error. Keep the already-committed readable replacement authoritative; persist a cleanup warning when possible, otherwise preserve every candidate and return correlated recovery-required evidence.
+- Rejected: recovery generation plus same route/view is sufficient to protect a pending refresh from editor work.
+- Revised: recovery owns a dedicated inert state and captures editor-authority generation. All edit/save/render/assignment paths block or invalidate recovery, and acceptance requires both generations plus the inert state.
 
 ## Failure Matrix
 
@@ -180,10 +201,15 @@ A media-conflict response is authoritative only for the exact session, request/d
 | Conflict refresh returns 500/network error | No stale item/review controls are actionable; only a generation-bound item refresh retry is exposed. |
 | Conflict refresh returns 401/403 | Recovery state invalidates and existing logout/session-expired behavior runs with no retry or stale item. |
 | Recovery retry succeeds or resolves late | Current generation reconciles fresh item and permits reopen; older retry/navigation results are inert. |
+| Old-object delete applies but returns error | No rollback occurs; replacement metadata and readable replacement object remain authoritative, and cleanup warning/recovery evidence records the ambiguous result. |
+| Old-object delete errors without applying | No rollback occurs; replacement remains authoritative and the old object is retained as a cleanup candidate. |
+| Cleanup-warning persistence also fails after ambiguous delete | Preserve replacement authority and every possibly existing object; return redacted `imageRecoveryRequired` with structured private evidence. |
+| User types, saves, invokes image action, or direct render occurs during recovery | Controls/handlers are inert or the action explicitly invalidates recovery and establishes a newer editor generation before proceeding; pending recovery cannot overwrite it. |
+| Recovery response arrives after same-view editor generation changes | Acceptance fails despite identical route/view/item ID; response is discarded with no form/item mutation. |
 
 ## Revised Plan Requirements
 
-The original coherent implementation, pointer-lifecycle addendum, and media-revision addendum remain historical approved evidence. The latest review exposed two failure-recovery sibling paths, so the plan now contains a `Media Failure Recovery Authority Addendum`. Reviews Iteration 1 and 2 required response/evidence, source transport, recovery-state, and exact-body revisions; Iteration 3 (`08-PR-263-MEDIA-RECOVERY-PLAN-REVIEW-ITER3.md`) approved replacement/rollback CAS, verified deletion rules, scoped conflict predicates, fetch-to-blob source recovery, generation-safe refresh states, privacy, and the failure matrix with zero findings. Its artifact/comment are recorded in frontmatter, so one coherent coder pass may resume.
+The historical addenda remain approved evidence, but the latest source review exposed ambiguous external delete outcome and same-view recovery ownership gaps. The plan now contains an `Ambiguous Delete and Exclusive Recovery Addendum`. No coder work may resume until an independent reviewer approves replacement-authoritative ambiguous-delete handling, inert recovery UI, editor-generation invalidation, the production-safe live validation boundary, and the expanded failure matrix with zero findings; record that artifact/comment in frontmatter first.
 
 ## Resume Criteria
 

@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: approved
+status: review_required
 depends_on:
   - 08-REVIEW.md
   - 08-PR-263-CONVERGENCE.md
@@ -11,6 +11,8 @@ files_modified:
   - controller/tests/static_admin_behavior.mjs
   - controller/tests/static_admin.rs
   - controller/tests/admin_workflow.rs
+  - controller/tests/live_persistence_smoke.rs
+  - docs/static-runtime-runbook.md
 ---
 
 # PR 263 Round 3 Revised Implementation Plan
@@ -317,3 +319,49 @@ Stale conflicts perform none of these steps. The handler must not clear a newer 
 ### Completion criteria
 
 Resume only after an independent reviewer approves the typed replacement state machine, verified deletion proof, per-operation conflict authority predicates, recovery-generation reconciliation, and failure tests with zero findings. Close only after implementation passes full all-feature verification and the next lineage-preserving deep review reports zero Critical, Warning, and Info findings.
+
+## Ambiguous Delete and Exclusive Recovery Addendum
+
+This addendum supersedes only the two unsafe assumptions found by the recovery source review. The earlier authority, CAS, privacy, and response contracts remain in force.
+
+### Replacement-authoritative ambiguous delete handling
+
+After replacement metadata commits, the replacement object is the only object whose readability and catalog authority are known together. An error returned while deleting the old object does not reveal whether the provider applied the delete. Therefore this path must never restore original metadata and must never delete the replacement.
+
+| Old-object delete outcome | Cleanup-warning persistence | Required result |
+|---|---|---|
+| Success | Not needed | Keep replacement authoritative and return normal replacement success. |
+| Error, whether or not delete applied | Success | Keep replacement authoritative, retain the old key only as a cleanup candidate, and return normal replacement success with the persisted warning. |
+| Error, whether or not delete applied | Failure | Keep replacement authoritative, delete neither candidate, and return redacted `imageRecoveryRequired` with a UUID recovery ID and private `old_delete_outcome_ambiguous` evidence. |
+
+The prior rollback branch remains valid only for failures that occur before the old-object delete begins and whose object existence assumptions are proven by that earlier state transition. It is forbidden after an attempted old-object delete returns an error. Deterministic adapters must cover both provider behaviors: delete the old object and then return `Err`, or retain it and return `Err`. In both cases the catalog continues to reference a readable replacement and the replacement is never deleted. Warning-persistence failure additionally proves that all possibly existing objects remain untouched and the recovery response/event contains no raw key or checksum.
+
+### Exclusive recovery surface and editor authority
+
+Add a monotonically increasing editor-authority generation and a dedicated conflict-recovery record containing recovery generation, captured editor generation, item ID, navigation context, request ownership, and status. An authoritative conflict clears current item/review authority and renders a dedicated inert recovery surface; it must not render an actionable blank editor.
+
+While recovery is pending or retryable, ordinary form fields, Save, image actions, publish/review controls, and programmatic handlers are unavailable or reject invocation. Only the generation-bound retry action may be active in retryable state. Any normal item assignment, `renderEditor`, reconciliation, saved-response application, navigation, logout, or new review increments editor authority and invalidates recovery before proceeding.
+
+A recovery response may reconcile only when all of these still match: recovery generation, captured editor generation, item ID, navigation context, request ownership, and the dedicated recovery state. Identical route/view/item identity alone is insufficient.
+
+Required client tests defer the recovery response while attempting user input, programmatic Save, direct editor render, saved-response application, navigation, logout, and a new review. Each attempt must either remain blocked by the inert surface or establish newer editor authority that makes the late response inert. Retry success may restore a fresh item only through the same complete predicate.
+
+### Production-safe live validation
+
+Extend the credential-gated live persistence smoke and `docs/static-runtime-runbook.md` with an explicit media-revision validation mode. It must require the existing live-smoke opt-in plus a second explicit media-revision opt-in, create a uniquely marked disposable draft item, upload small known images with recorded local checksums, and guarantee verified Oracle and Object Storage cleanup using the existing recovery diagnostics.
+
+The live sequence verifies the normal provider boundary without publishing the fixture: obtain revision A, replace A with image B, prove stale-A source/draft/assist/Save/Reset requests return the redacted conflict contract, reload the item, prove revision B succeeds, and confirm responses/logs expose neither object keys nor media checksums. Record item ID, recovery IDs if any, request/result statuses, and cleanup verification without logging credentials or private key material.
+
+Do not simulate an ambiguous OCI delete, database-warning failure, transport fault, or partial provider outage in production. Those failure modes require deterministic local/CI adapters. Production testing is limited to the disposable private happy path, stale-token conflicts, observability, and verified cleanup. The runbook must state prerequisites, exact opt-in commands, expected evidence, abort conditions, and manual recovery steps for interrupted cleanup.
+
+### Verification and workflow gate
+
+- Run the exact CI Clippy command with the repository's current stable toolchain and keep `-D warnings` clean.
+- Run focused replacement, recovery-state, static-admin behavior, route/privacy, and live-smoke compile tests.
+- Run the full production-feature test/coverage command used by CI.
+- Compile the credential-gated live smoke locally without credentials; an actual production execution requires operator credentials and an explicit opt-in outside ordinary PR CI.
+- Treat the existing GitHub Clippy failure as unresolved until a new run passes or a diagnostic is captured and fixed; the prior run's tests and coverage passed, and the same Clippy command currently passes locally.
+
+### Completion criteria
+
+Resume coder work only after an independent reviewer approves this addendum with zero findings and its artifact/comment are recorded in the convergence frontmatter. Implementation closes only after the new deterministic failure tests, production-safe smoke contract, exact CI gates, and a lineage-preserving deep source review all pass with zero Critical, Warning, and Info findings.
