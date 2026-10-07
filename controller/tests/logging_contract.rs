@@ -58,6 +58,31 @@ fn controller_route_tracing_does_not_log_private_or_secret_terms() {
     }
 }
 
+#[test]
+fn image_replacement_recovery_event_is_correlated_and_fingerprint_only() {
+    let source = read_repo("controller/src/routes.rs");
+    let event = tracing_blocks(&source)
+        .into_iter()
+        .find(|block| block.contains("image_replacement_manual_recovery_required"))
+        .expect("manual image recovery event");
+    for required in [
+        "%recovery_id",
+        "%item_id",
+        "%image_id",
+        "transition",
+        "outcome",
+        "candidate_key_fingerprints",
+    ] {
+        assert!(
+            event.contains(required),
+            "recovery event missing {required}"
+        );
+    }
+    for denied in ["object_key", "checksum", "bucket", "namespace"] {
+        assert!(!event.contains(denied), "recovery event leaks {denied}");
+    }
+}
+
 fn tracing_blocks(source: &str) -> Vec<String> {
     let mut blocks = Vec::new();
     let mut current = String::new();

@@ -338,6 +338,72 @@
           </form>
         </section>
 
+        <section id="image-review-view" class="view-panel" aria-labelledby="image-review-title" hidden>
+          <div class="view-heading">
+            <div>
+              <h2 id="image-review-title">Review image</h2>
+              <p class="helper-text">Review the private latest image, compare states, and save non-destructive corrections.</p>
+            </div>
+          </div>
+
+          <div class="review-layout">
+            <div id="image-review-stage" class="review-stage review-matte" aria-live="polite"></div>
+            <div id="image-review-controls" class="review-controls">
+              <fieldset>
+                <legend>Comparison</legend>
+                <div class="inline-actions">
+                  <button type="button" class="secondary-action" data-review-mode="latest" aria-pressed="true">Latest</button>
+                  <button type="button" class="secondary-action" data-review-mode="before-after" aria-pressed="false">Before / After</button>
+                  <button type="button" class="secondary-action" data-review-mode="split" aria-pressed="false">Split</button>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>Overlays</legend>
+                <div class="review-toggle-grid">
+                  <div class="checkbox-field"><input id="review-overlay-grid" type="checkbox" data-review-overlay="grid"><label for="review-overlay-grid">Grid</label></div>
+                  <div class="checkbox-field"><input id="review-overlay-centerline" type="checkbox" data-review-overlay="centerline"><label for="review-overlay-centerline">Centerline</label></div>
+                  <div class="checkbox-field"><input id="review-overlay-edges" type="checkbox" data-review-overlay="edges" checked><label for="review-overlay-edges">Edges</label></div>
+                </div>
+              </fieldset>
+
+              <div class="review-control-grid">
+                <div class="field">
+                  <label for="review-rotation">Rotation</label>
+                  <input id="review-rotation" type="range" min="-15" max="15" step="0.1" value="0" data-adjustment-field="rotationDegrees">
+                </div>
+                <div class="field">
+                  <label for="review-rotation-number">Rotation degrees</label>
+                  <input id="review-rotation-number" type="number" min="-15" max="15" step="0.1" value="0" data-adjustment-field="rotationDegrees">
+                </div>
+                <div class="field">
+                  <label for="review-zoom">Zoom</label>
+                  <input id="review-zoom" type="range" min="1" max="3" step="0.01" value="1" data-adjustment-field="zoom">
+                </div>
+                <div class="field">
+                  <label for="review-pan-x">Pan horizontally</label>
+                  <input id="review-pan-x" type="range" min="-1" max="1" step="0.01" value="0" data-adjustment-field="panX">
+                </div>
+                <div class="field">
+                  <label for="review-pan-y">Pan vertically</label>
+                  <input id="review-pan-y" type="range" min="-1" max="1" step="0.01" value="0" data-adjustment-field="panY">
+                </div>
+              </div>
+              <button id="image-review-detect" type="button" class="secondary-action">Detect edges</button>
+            </div>
+          </div>
+
+          <p id="image-review-message" class="status-message" role="status" tabindex="-1"></p>
+          <div id="image-review-dirty-band" class="dirty-adjustment-band" hidden>
+            <p>Adjustment edits stay private and local until saved.</p>
+          </div>
+          <div class="inline-actions image-review-actions">
+            <button id="image-review-save" type="button" class="primary-action" disabled>Save adjustments</button>
+            <button id="image-review-discard" type="button" class="secondary-action">Back to item editor</button>
+            <button id="image-review-reset" type="button" class="destructive">Reset adjustments</button>
+          </div>
+        </section>
+
         <section id="items-view" class="view-panel" aria-labelledby="items-title" hidden>
           <div class="view-heading">
             <div>

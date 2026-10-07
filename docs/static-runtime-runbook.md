@@ -634,4 +634,43 @@ AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true \
 Do not record this as passed unless it ran with real Oracle, private Object
 Storage, deployed controller, Caddy static preview, and a runtime admin password.
 
+### Private media-revision live smoke
+
+Run this only against a disposable private draft in the live-smoke tenancy. It
+requires both opt-ins; the second flag alone must never exercise Oracle or OCI:
+
+```bash
+AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE=true \
+AUTOGRAPHS_LIVE_MEDIA_REVISION_SMOKE=true \
+  cargo test --manifest-path controller/Cargo.toml \
+  --features live-persistence --test live_persistence_smoke \
+  -- --ignored --nocapture
+```
+
+Prerequisites are the normal Oracle wallet/database and OCI instance-principal
+media settings, a bucket intended for disposable private smoke data, and an
+operator who can immediately perform the cleanup recovery below. The smoke
+creates a uniquely identified draft, writes small known A and B payloads with
+checksums held locally, obtains revision A, and replaces A with B. It proves
+stale-A source, draft preview, assist, Save, and Reset requests all return the
+typed redacted conflict, reloads revision B, proves current-B Reset succeeds,
+reads B through the provider boundary, and then verifies that both objects plus
+all Oracle item, image, and edit-event rows are absent. It never publishes the
+fixture.
+
+Expected evidence contains the item UUID, `stale_save=409`,
+`current_reset=200`, and final cleanup completion. It must not contain object
+keys, media checksums, credentials, or wallet material. This production-safe
+mode does not inject delete ambiguity, warning persistence failure, transport
+failure, or partial provider outage; those remain deterministic CI coverage.
+
+Abort immediately on an unexpected non-conflict result, unreadable B object,
+privacy-bearing output, or cleanup error. Do not publish or retry mutations on
+the fixture. If interrupted, copy only the printed item UUID, run the existing
+`AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_IDS` cleanup mode, and use the
+protected operator-side object inventory to supply any residual keys through
+`AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS`. Verify zero Oracle rows and
+object absence before closing the recovery record; never paste private keys or
+checksums into an issue, PR, or CI log.
+
 ## Full Rebuild

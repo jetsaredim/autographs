@@ -7,6 +7,7 @@ use std::{
 use async_trait::async_trait;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
+use std::fmt;
 use uuid::Uuid;
 
 use crate::image_adjustments::ImageAdjustment;
@@ -370,6 +371,53 @@ pub struct ImageReplacementInput {
     pub image: AutographImage,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ImageReplacementUpdateError {
+    MediaRevisionConflict,
+    NotFound,
+    Repository(String),
+}
+
+impl fmt::Display for ImageReplacementUpdateError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MediaRevisionConflict => formatter.write_str("image media revision conflict"),
+            Self::NotFound => formatter.write_str("autograph image was not found"),
+            Self::Repository(error) => formatter.write_str(error),
+        }
+    }
+}
+
+impl From<String> for ImageReplacementUpdateError {
+    fn from(error: String) -> Self {
+        Self::Repository(error)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ImageAdjustmentUpdateError {
+    MediaRevisionConflict,
+    NotFound,
+    Validation(String),
+    Repository(String),
+}
+
+impl fmt::Display for ImageAdjustmentUpdateError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MediaRevisionConflict => formatter.write_str("image media revision conflict"),
+            Self::NotFound => formatter.write_str("autograph image was not found"),
+            Self::Validation(error) | Self::Repository(error) => formatter.write_str(error),
+        }
+    }
+}
+
+impl From<String> for ImageAdjustmentUpdateError {
+    fn from(error: String) -> Self {
+        Self::Repository(error)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldDiff {
@@ -517,18 +565,24 @@ pub trait CatalogRepository: Send + Sync {
         &self,
         _item_id: Uuid,
         _image_id: Uuid,
+        _expected_object_key: &str,
         _input: ImageReplacementInput,
-    ) -> Result<AutographItem, String> {
-        Err("image metadata replacement is not supported by this repository".to_owned())
+    ) -> Result<AutographItem, ImageReplacementUpdateError> {
+        Err(ImageReplacementUpdateError::Repository(
+            "image metadata replacement is not supported by this repository".to_owned(),
+        ))
     }
 
     async fn update_image_adjustment(
         &self,
         _item_id: Uuid,
         _image_id: Uuid,
+        _expected_object_key: &str,
         _adjustment: Option<ImageAdjustment>,
-    ) -> Result<AutographItem, String> {
-        Err("image adjustment updates are not supported by this repository".to_owned())
+    ) -> Result<AutographItem, ImageAdjustmentUpdateError> {
+        Err(ImageAdjustmentUpdateError::Repository(
+            "image adjustment updates are not supported by this repository".to_owned(),
+        ))
     }
 
     async fn record_cleanup_event(
@@ -881,24 +935,27 @@ impl CatalogRepository for MemoryCatalogRepository {
         &self,
         item_id: Uuid,
         image_id: Uuid,
+        expected_object_key: &str,
         input: ImageReplacementInput,
-    ) -> Result<AutographItem, String> {
+    ) -> Result<AutographItem, ImageReplacementUpdateError> {
         let now = now_epoch_seconds();
         let updated = {
             let mut items = self.items.lock().expect("catalog state lock");
             let item = items
                 .get_mut(&item_id)
-                .ok_or_else(|| "autograph item was not found".to_owned())?;
+                .ok_or(ImageReplacementUpdateError::NotFound)?;
             let existing = item
                 .images
                 .iter_mut()
                 .find(|image| image.id == image_id)
-                .ok_or_else(|| "autograph image was not found".to_owned())?;
+                .ok_or(ImageReplacementUpdateError::NotFound)?;
+            if existing.object_key != expected_object_key {
+                return Err(ImageReplacementUpdateError::MediaRevisionConflict);
+            }
             let mut replacement = input.image;
             replacement.id = existing.id;
             replacement.is_primary = existing.is_primary;
             replacement.sort_order = existing.sort_order;
-            replacement.adjustment = None;
             *existing = replacement;
             item.updated_at_epoch_seconds = now;
             item.clone()
@@ -920,36 +977,48 @@ impl CatalogRepository for MemoryCatalogRepository {
         &self,
         item_id: Uuid,
         image_id: Uuid,
+        expected_object_key: &str,
         adjustment: Option<ImageAdjustment>,
-    ) -> Result<AutographItem, String> {
+    ) -> Result<AutographItem, ImageAdjustmentUpdateError> {
         if let Some(adjustment) = adjustment.as_ref() {
-            adjustment.validate()?;
+            adjustment
+                .validate()
+                .map_err(ImageAdjustmentUpdateError::Validation)?;
         }
+        let adjustment = adjustment.and_then(ImageAdjustment::into_canonical);
         let now = now_epoch_seconds();
-        let updated = {
+        let (updated, changed) = {
             let mut items = self.items.lock().expect("catalog state lock");
             let item = items
                 .get_mut(&item_id)
-                .ok_or_else(|| "autograph item was not found".to_owned())?;
+                .ok_or(ImageAdjustmentUpdateError::NotFound)?;
             let image = item
                 .images
                 .iter_mut()
                 .find(|image| image.id == image_id)
-                .ok_or_else(|| "autograph image was not found".to_owned())?;
-            image.adjustment = adjustment;
-            item.updated_at_epoch_seconds = now;
-            item.clone()
+                .ok_or(ImageAdjustmentUpdateError::NotFound)?;
+            if image.object_key != expected_object_key {
+                return Err(ImageAdjustmentUpdateError::MediaRevisionConflict);
+            }
+            let changed = image.adjustment != adjustment;
+            if changed {
+                image.adjustment = adjustment;
+                item.updated_at_epoch_seconds = now;
+            }
+            (item.clone(), changed)
         };
-        self.events
-            .lock()
-            .expect("catalog event lock")
-            .push(AutographEditEvent::new(
-                item_id,
-                EditEventKind::ImageAdjustmentChanged,
-                "Image adjustments changed",
-                Vec::new(),
-                now,
-            ));
+        if changed {
+            self.events
+                .lock()
+                .expect("catalog event lock")
+                .push(AutographEditEvent::new(
+                    item_id,
+                    EditEventKind::ImageAdjustmentChanged,
+                    "Image adjustments changed",
+                    Vec::new(),
+                    now,
+                ));
+        }
         Ok(updated)
     }
 

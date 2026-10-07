@@ -246,8 +246,10 @@ Plans:
   6. Static publishing applies saved image adjustments to generated public derivatives, includes adjustment metadata in derivative cache invalidation, and keeps privacy/static contract validation intact.
   7. The admin media UI and supporting docs/tests are polished enough that image review and correction feel like part of the normal collection workflow rather than a maintenance workaround.
 
-**Plans**: 5/8 plans executed
+**Plans**: 6/9 plans executed
 Plans:
+- [ ] 08-PR-261-WR-05-REVISED-PLAN.md
+
 **Wave 1**
 
 - [x] 08-01-PLAN.md - Repair the production security patching scanner and operator verification path.
@@ -270,7 +272,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 08-06-PLAN.md - Add authenticated private preview APIs and the focused static-admin image review UI.
+- [x] 08-06-PLAN.md - Add authenticated private preview APIs and the focused static-admin image review UI.
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
@@ -328,6 +330,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Static Runtime Migration Foundation | 7/7 | Complete | 2026-06-20 |
 | 6. Admin Collection Workflow | 9/9 | Complete | 2026-07-02 |
 | 7. Metadata Taxonomy and Public Facets | 5/5 | Complete    | 2026-07-11 |
-| 8. Admin Media Review and Operational Posture | 5/8 | In Progress|  |
+| 8. Admin Media Review and Operational Posture | 6/9 | In Progress|  |
 | 9. Taxonomy Media Cues | 0/TBD | Not started | - |
 | 10. Advisory AI-Assisted Ingest | 0/TBD | Not started | - |
