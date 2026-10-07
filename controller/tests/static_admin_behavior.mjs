@@ -1188,6 +1188,83 @@ await run(`
   assert.equal(state.reviewSession, null);
 `);
 
+const lateRecovery = deferred();
+enqueueFetch(lateRecovery.promise);
+const exclusiveRecovery = run(`
+  state.currentItem = { id: "item-exclusive", images: [{ id: "image-exclusive", mediaRevision: "revision-old" }], cleanupWarnings: [] };
+  beginReviewSession("item-exclusive", "image-exclusive", "revision-old");
+  state.reviewImage = { itemId: "item-exclusive", imageId: "image-exclusive", mediaRevision: "revision-old" };
+  state.currentView = "image-review-view";
+  return handleMediaRevisionConflict(
+    { status: 409, body: { code: "mediaRevisionConflict" } },
+    () => true,
+    "item-exclusive"
+  );
+`);
+await Promise.resolve();
+await run(`
+  assert.equal(elements.itemForm.inert, true);
+  assert.equal(elements.itemForm.hidden, true);
+  assert.equal(elements.imageGrid.hidden, true);
+  const before = fetchCalls.length;
+  markDirty({ target: { name: "title" } });
+  await saveItem({ preventDefault() {} });
+  assert.equal(await uploadImages("item-exclusive", [{ name: "blocked.png" }], "blocked", { allowDirty: true }), false);
+  assert.equal(state.dirty, false);
+  assert.equal(fetchCalls.length, before);
+
+  renderEditor({ id: "item-new-authority", images: [], cleanupWarnings: [] });
+  assert.equal(elements.itemForm.inert, false);
+  assert.equal(elements.itemForm.hidden, false);
+  assert.equal(state.currentItem.id, "item-new-authority");
+`);
+lateRecovery.resolve(response({ json: { id: "item-exclusive", images: [{ id: "image-exclusive", mediaRevision: "revision-fresh" }], cleanupWarnings: [] } }));
+await exclusiveRecovery;
+await run(`
+  assert.equal(state.currentItem.id, "item-new-authority");
+  assert.equal(state.conflictRecovery, null);
+`);
+
+const navigatedRecovery = deferred();
+enqueueFetch(navigatedRecovery.promise);
+const navigationConflict = run(`
+  state.currentView = "image-review-view";
+  return handleMediaRevisionConflict(
+    { status: 409, body: { code: "mediaRevisionConflict" } },
+    () => true,
+    "item-navigation"
+  );
+`);
+await Promise.resolve();
+await run(`
+  setView("publish-view");
+  assert.equal(state.conflictRecovery, null);
+  assert.equal(elements.itemForm.inert, false);
+`);
+navigatedRecovery.resolve(response({ json: { id: "item-navigation", images: [], cleanupWarnings: [] } }));
+await navigationConflict;
+await run(`assert.equal(state.currentView, "publish-view");`);
+
+const supersededRecovery = deferred();
+enqueueFetch(supersededRecovery.promise);
+const newReviewConflict = run(`
+  state.currentView = "image-review-view";
+  return handleMediaRevisionConflict(
+    { status: 409, body: { code: "mediaRevisionConflict" } },
+    () => true,
+    "item-old-review"
+  );
+`);
+await Promise.resolve();
+await run(`
+  const newer = beginReviewSession("item-new-review", "image-new-review", "revision-new-review");
+  assert.equal(state.conflictRecovery, null);
+  assert.equal(state.reviewSession.revision, newer.revision);
+`);
+supersededRecovery.resolve(response({ json: { id: "item-old-review", images: [], cleanupWarnings: [] } }));
+await newReviewConflict;
+await run(`assert.equal(state.reviewSession.itemId, "item-new-review");`);
+
 await run(`
   state.currentItem = { id: "item-gone", images: [{ id: "image-gone", mediaRevision: "revision-gone" }], cleanupWarnings: [] };
   beginReviewSession("item-gone", "image-gone", "revision-gone");

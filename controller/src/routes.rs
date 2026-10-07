@@ -1235,17 +1235,6 @@ fn image_not_found_response() -> Response {
         .into_response()
 }
 
-fn image_replacement_failed_response() -> Response {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ImageOperationErrorResponse {
-            code: "imageReplacementFailed",
-            message: "Image replacement failed; the original image remains active.",
-        }),
-    )
-        .into_response()
-}
-
 fn private_key_fingerprint(object_key: &str) -> String {
     let mut digest = Sha256::new();
     digest.update(b"autographs-image-recovery-key-v1");
@@ -1642,62 +1631,13 @@ async fn replace_image(
             Ok(warning) => Some(warning),
             Err(error) => {
                 tracing::error!(%item_id, %image_id, error = %error, "failed to persist replacement cleanup warning");
-                let original_revision = admin_image_revision(&existing_image);
-                let rollback = state
-                    .repository
-                    .replace_image_metadata(
-                        item_id,
-                        image_id,
-                        &replacement_key,
-                        ImageReplacementInput {
-                            image: existing_image.clone(),
-                        },
-                    )
-                    .await;
-                if let Err(rollback_error) = rollback {
-                    return replacement_update_error_response(
-                        rollback_error,
-                        item_id,
-                        image_id,
-                        "rollbackReplacement",
-                        &[&existing_image.object_key, &replacement_key],
-                    );
-                }
-                let restored = state.repository.get(item_id).await;
-                let verified = restored
-                    .ok()
-                    .flatten()
-                    .and_then(|item| item.images.into_iter().find(|image| image.id == image_id));
-                let restored_exactly = verified.as_ref().is_some_and(|image| {
-                    image.object_key == existing_image.object_key
-                        && admin_image_revision(image) == original_revision
-                        && image.adjustment == existing_image.adjustment
-                });
-                if !restored_exactly {
-                    return image_recovery_required_response(
-                        item_id,
-                        image_id,
-                        "verifyRollback",
-                        "postconditionMismatch",
-                        &[&existing_image.object_key, &replacement_key],
-                    );
-                }
-                if let Err(delete_error) = state.media.delete(&replacement_key).await {
-                    tracing::warn!(
-                        %item_id,
-                        %image_id,
-                        error_kind = classify_media_error(&delete_error),
-                        "failed to delete replacement object after verified rollback"
-                    );
-                    return image_recovery_required_response(
-                        item_id,
-                        image_id,
-                        "deleteRolledBackReplacement",
-                        "deleteFailure",
-                        &[&existing_image.object_key, &replacement_key],
-                    );
-                }
-                return image_replacement_failed_response();
+                return image_recovery_required_response(
+                    item_id,
+                    image_id,
+                    "persistCleanupWarning",
+                    "old_delete_outcome_ambiguous",
+                    &[&existing_image.object_key, &replacement_key],
+                );
             }
         }
     } else {

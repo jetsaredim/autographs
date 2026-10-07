@@ -735,6 +735,18 @@ fn static_admin_review_behavior_executes_against_a_dom_harness() {
 }
 
 #[test]
+fn static_admin_conflict_recovery_is_exclusive_and_generation_scoped() {
+    let source = include_str!("../static-admin/admin.js");
+
+    assert!(source.contains("editorAuthorityGeneration"));
+    assert!(source.contains("requestOwner"));
+    assert!(source.contains("conflictRecoveryAccepts"));
+    assert!(source.contains("elements.itemForm.inert = true"));
+    assert!(source.contains("elements.itemForm.hidden = true"));
+    assert!(source.contains("state.conflictRecovery || elements.itemForm.inert"));
+}
+
+#[test]
 fn static_admin_review_layout_has_a_narrow_viewport_override() {
     let css = static_admin_file("admin.css");
     let columns = css_property_values(&css, ".review-layout", "grid-template-columns");

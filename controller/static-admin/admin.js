@@ -103,6 +103,7 @@ const state = {
   reviewAssistRevision: 0,
   conflictRecoveryGeneration: 0,
   conflictRecovery: null,
+  editorAuthorityGeneration: 0,
   navigationRevision: 0,
   reviewPerspectiveGeneration: 0,
   reviewPerspectiveFrame: null,
@@ -408,7 +409,7 @@ const jsonRequest = (path, method, body) =>
   });
 
 function handleAuthFailure() {
-  invalidateConflictRecovery();
+  invalidateEditorAuthority();
   showLogin(copy.sessionExpired);
   elements.sessionStatus.textContent = state.reviewDirty
     ? `${copy.sessionExpired} Unsaved image edits remain in this page until you log in or close it.`
@@ -440,7 +441,7 @@ function setView(viewId, { preserveConflictRecovery = false } = {}) {
     return false;
   }
   if (!preserveConflictRecovery && viewId !== state.currentView) {
-    invalidateConflictRecovery();
+    invalidateEditorAuthority();
     state.navigationRevision += 1;
   }
   state.currentView = viewId;
@@ -1295,6 +1296,7 @@ function fillDatalist(id, values = []) {
 }
 
 function reconcileAdminItemResponse(item) {
+  invalidateEditorAuthority();
   let reviewInvalidated = false;
   if (state.reviewSession) {
     const reviewedImage = item?.images?.find(
@@ -1320,6 +1322,7 @@ function renderEditor(item = null) {
     return false;
   }
   reconcileAdminItemResponse(item);
+  leaveConflictRecoverySurface();
   state.dirty = false;
   elements.itemForm.reset();
   elements.discardUnsaved.hidden = true;
@@ -1661,7 +1664,7 @@ function clearImageReviewState() {
 }
 
 function beginReviewSession(itemId, imageId, mediaRevision = null) {
-  invalidateConflictRecovery();
+  invalidateEditorAuthority();
   invalidateReviewOutputRender();
   disconnectPerspectiveProjection();
   cancelReviewPreviewRequest();
@@ -1685,8 +1688,48 @@ function isCurrentReviewSession(session) {
 }
 
 function invalidateConflictRecovery() {
+  state.conflictRecovery?.requestOwner?.abort();
   state.conflictRecoveryGeneration += 1;
   state.conflictRecovery = null;
+}
+
+function leaveConflictRecoverySurface() {
+  elements.itemForm.inert = false;
+  elements.itemForm.hidden = false;
+  elements.imageGrid.hidden = false;
+}
+
+function invalidateEditorAuthority({ preserveRecoverySurface = false } = {}) {
+  state.editorAuthorityGeneration += 1;
+  invalidateConflictRecovery();
+  if (!preserveRecoverySurface) {
+    leaveConflictRecoverySurface();
+  }
+}
+
+function enterConflictRecoverySurface() {
+  elements.itemForm.inert = true;
+  elements.itemForm.hidden = true;
+  elements.imageGrid.hidden = true;
+  elements.imageMessage.textContent = copy.mediaChanged;
+}
+
+function conflictRecoveryAccepts(recovery) {
+  return Boolean(
+    recovery &&
+      state.conflictRecovery === recovery &&
+      recovery.generation === state.conflictRecoveryGeneration &&
+      recovery.editorAuthorityGeneration === state.editorAuthorityGeneration &&
+      recovery.navigationRevision === state.navigationRevision &&
+      recovery.requestOwner &&
+      recovery.status === "pending" &&
+      state.currentView === "add-item-view" &&
+      elements.itemForm.inert
+  );
+}
+
+function conflictRecoveryIsExclusive() {
+  return Boolean(state.conflictRecovery || elements.itemForm.inert);
 }
 
 function isMediaRevisionConflict(error) {
@@ -1708,27 +1751,26 @@ function renderConflictRecoveryRetry(recovery) {
 async function recoverConflictedItem(itemId, navigationRevision) {
   const generation = state.conflictRecoveryGeneration + 1;
   state.conflictRecoveryGeneration = generation;
-  const recovery = { itemId, generation, navigationRevision, status: "pending" };
+  const requestOwner = new AbortController();
+  const recovery = {
+    itemId,
+    generation,
+    navigationRevision,
+    editorAuthorityGeneration: state.editorAuthorityGeneration,
+    requestOwner,
+    status: "pending",
+  };
   state.conflictRecovery = recovery;
   try {
-    const item = await request(endpoints.item(itemId));
-    if (
-      state.conflictRecovery !== recovery ||
-      generation !== state.conflictRecoveryGeneration ||
-      navigationRevision !== state.navigationRevision ||
-      state.currentView !== "add-item-view"
-    ) {
+    const item = await request(endpoints.item(itemId), { signal: requestOwner.signal });
+    if (!conflictRecoveryAccepts(recovery)) {
       return;
     }
     state.conflictRecovery = null;
     renderEditor(item);
     elements.imageMessage.textContent = copy.mediaChanged;
   } catch (error) {
-    if (
-      state.conflictRecovery !== recovery ||
-      generation !== state.conflictRecoveryGeneration ||
-      navigationRevision !== state.navigationRevision
-    ) {
+    if (!conflictRecoveryAccepts(recovery)) {
       return;
     }
     if (error.status === 401 || error.status === 403) {
@@ -1739,6 +1781,7 @@ async function recoverConflictedItem(itemId, navigationRevision) {
     if (error.status === 404) {
       state.conflictRecovery = null;
       state.currentItem = null;
+      leaveConflictRecoverySurface();
       setView("items-view", { preserveConflictRecovery: true });
       elements.globalMessage.textContent = "This item no longer exists.";
       return;
@@ -1760,8 +1803,8 @@ async function handleMediaRevisionConflict(error, authorityIsCurrent, itemId) {
   clearImageReviewState();
   state.currentItem = null;
   setView("add-item-view", { preserveConflictRecovery: true });
-  renderEditor(null);
-  elements.imageMessage.textContent = copy.mediaChanged;
+  invalidateEditorAuthority({ preserveRecoverySurface: true });
+  enterConflictRecoverySurface();
   if (recoveryItemId) {
     await recoverConflictedItem(recoveryItemId, navigationRevision);
   }
@@ -1881,7 +1924,7 @@ async function loadDraftPreview(revision, draftRevision, session) {
 }
 
 async function openImageReview(imageId) {
-  if (!state.currentItem?.id || !ensureSavedBeforeImageChange()) {
+  if (conflictRecoveryIsExclusive() || !state.currentItem?.id || !ensureSavedBeforeImageChange()) {
     return;
   }
   const itemId = state.currentItem.id;
@@ -3033,6 +3076,9 @@ const optionalValue = (value) => {
 
 async function saveItem(event) {
   event.preventDefault();
+  if (state.conflictRecovery || elements.itemForm.inert) {
+    return;
+  }
   const id = elements.itemForm.elements.itemId.value.trim();
   const selectedFiles = Array.from(elements.imageFiles.files);
   const selectedAltText = elements.itemForm.elements.altText.value.trim();
@@ -3064,6 +3110,9 @@ async function uploadImages(
   altText = elements.itemForm.elements.altText.value.trim(),
   options = {}
 ) {
+  if (conflictRecoveryIsExclusive()) {
+    return false;
+  }
   if (!options.allowDirty && !ensureSavedBeforeImageChange()) {
     return false;
   }
@@ -3095,7 +3144,7 @@ async function uploadImages(
 }
 
 async function markPrimary(imageId) {
-  if (!state.currentItem?.id) {
+  if (conflictRecoveryIsExclusive() || !state.currentItem?.id) {
     return;
   }
   if (!ensureSavedBeforeImageChange()) {
@@ -3112,7 +3161,7 @@ async function markPrimary(imageId) {
 }
 
 async function removeImage(imageId) {
-  if (!state.currentItem?.id || !window.confirm(copy.removeImage)) {
+  if (conflictRecoveryIsExclusive() || !state.currentItem?.id || !window.confirm(copy.removeImage)) {
     return;
   }
   if (!ensureSavedBeforeImageChange()) {
@@ -3132,7 +3181,7 @@ async function removeImage(imageId) {
 }
 
 async function replaceImage(imageId) {
-  if (!state.currentItem?.id) {
+  if (conflictRecoveryIsExclusive() || !state.currentItem?.id) {
     return;
   }
   if (!ensureSavedBeforeImageChange()) {
@@ -3164,7 +3213,7 @@ async function replaceImage(imageId) {
 }
 
 async function retryCleanup(imageId) {
-  if (!state.currentItem?.id) {
+  if (conflictRecoveryIsExclusive() || !state.currentItem?.id) {
     return;
   }
   if (!ensureSavedBeforeImageChange()) {
@@ -3186,6 +3235,9 @@ async function retryCleanup(imageId) {
 }
 
 function ensureSavedBeforePublish() {
+  if (conflictRecoveryIsExclusive()) {
+    return false;
+  }
   if (blockReviewEgressWhileMutationPending()) {
     return false;
   }
@@ -3286,7 +3338,7 @@ const loadItem = async (id, historyFirst = false) => {
   if (!ensureSavedBeforeOpeningAnotherItem()) {
     return;
   }
-  invalidateConflictRecovery();
+  invalidateEditorAuthority();
   state.navigationRevision += 1;
   try {
     const item = await request(endpoints.item(id));
@@ -3303,13 +3355,16 @@ const loadItem = async (id, historyFirst = false) => {
 
 function openNewItemEditor() {
   if (ensureSavedBeforeOpeningAnotherItem()) {
-    invalidateConflictRecovery();
+    invalidateEditorAuthority();
     state.navigationRevision += 1;
     renderEditor();
   }
 }
 
 const markDirty = (event) => {
+  if (state.conflictRecovery || elements.itemForm.inert) {
+    return;
+  }
   if (uploadOnlyFieldNames.has(event?.target?.name)) {
     return;
   }
@@ -3394,7 +3449,7 @@ elements.logout.addEventListener("click", async () => {
   if (state.reviewDirty && !window.confirm(copy.discardImageEditsForNavigation)) {
     return;
   }
-  invalidateConflictRecovery();
+  invalidateEditorAuthority();
   state.navigationRevision += 1;
   clearImageReviewState();
   try {

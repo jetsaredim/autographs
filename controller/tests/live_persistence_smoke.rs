@@ -1,21 +1,29 @@
 #[cfg(feature = "live-persistence")]
 mod live {
-    use std::{env, time::Duration};
+    use std::{env, sync::Arc, time::Duration};
 
     use autographs_controller::{
         catalog::{
             AutographImage, CatalogRepository, EditEventKind, ImageAdjustmentUpdateError,
             ImageReplacementInput,
         },
+        config::ControllerConfig,
         image_adjustments::ImageAdjustment,
         media::PrivateMediaStore,
         oci_media::OciInstancePrincipalMediaStore,
         oracle_catalog::OracleCatalogRepository,
         oracle_connection,
+        routes::router_with_stores,
         storage_keys::build_original_object_key,
     };
+    use axum::{
+        body::{Body, to_bytes},
+        http::{Request, StatusCode, header},
+    };
     use oracledb::Connection;
+    use serde_json::{Value, json};
     use sha2::{Digest, Sha256};
+    use tower::ServiceExt;
     use uuid::Uuid;
 
     #[tokio::test]
@@ -50,6 +58,8 @@ mod live {
             );
             return;
         }
+        let media_revision_smoke =
+            env::var("AUTOGRAPHS_LIVE_MEDIA_REVISION_SMOKE").as_deref() == Ok("true");
 
         let oracle_user = required("ORACLE_DB_USER");
         let oracle_password = required("ORACLE_DB_PASSWORD");
@@ -73,29 +83,40 @@ mod live {
         assert!(!object_key.contains(source_filename));
         assert!(!object_key.contains(".jpg"));
         println!("live smoke item id: {item_id}");
-        println!("live smoke object key: {object_key}");
+        if !media_revision_smoke {
+            println!("live smoke object key: {object_key}");
+        }
 
         let item_id = item_id.to_string();
         let image_id = image_id.to_string();
+        let smoke_title = if media_revision_smoke {
+            format!("Live Media Revision Smoke {item_id}")
+        } else {
+            "Live Smoke Signed Item".to_owned()
+        };
         let mut cleanup = LivePersistenceSmokeCleanup {
             connection: &connection,
             media: media.clone(),
             item_id: item_id.clone(),
-            object_key: object_key.clone(),
+            object_keys: vec![object_key.clone()],
             cleaned: false,
         };
         connection
             .execute(
                 "insert into autograph_items (id, title, signer, category, publication_status) values (:1, :2, :3, :4, :5)",
-                &[&item_id, &"Live Smoke Signed Item", &"Live Smoke Signer", &"Smoke", &"draft"],
+                &[&item_id, &smoke_title, &"Live Smoke Signer", &"Smoke", &"draft"],
             )
             .expect("insert live smoke item");
         connection.commit().expect("commit smoke item");
 
-        let body = vec![
-            0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe, 0xfd, 0x80, 0x81,
-            0x82, 0x83,
-        ];
+        let body = if media_revision_smoke {
+            tiny_png()
+        } else {
+            vec![
+                0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe, 0xfd, 0x80, 0x81,
+                0x82, 0x83,
+            ]
+        };
         media
             .write(&object_key, &body)
             .await
@@ -125,7 +146,7 @@ mod live {
             .expect("read live smoke item row values")
             .get(0)
             .expect("read live smoke item title");
-        assert_eq!(title, "Live Smoke Signed Item");
+        assert_eq!(title, smoke_title);
         assert!(rows.next().is_none());
 
         let mut image_rows = connection
@@ -144,23 +165,247 @@ mod live {
         assert_eq!(stored_filename, "live secret source.jpg");
         assert!(image_rows.next().is_none());
 
-        assert_oracle_adjustment_contract(
-            &connection,
-            OracleCatalogRepository::new(
-                oracle_user,
-                oracle_password,
-                oracle_connect_string,
-                storage_namespace,
-                bucket_name,
-            ),
-            &item_id,
-            &image_id,
-        )
-        .await;
+        let repository = OracleCatalogRepository::new(
+            oracle_user,
+            oracle_password,
+            oracle_connect_string,
+            storage_namespace,
+            bucket_name,
+        );
+        if media_revision_smoke {
+            assert_media_revision_contract(
+                Arc::new(repository),
+                Arc::new(media.clone()),
+                &item_id,
+                &image_id,
+                &object_key,
+                &mut cleanup,
+            )
+            .await;
+        } else {
+            assert_oracle_adjustment_contract(&connection, repository, &item_id, &image_id).await;
+        }
         cleanup
             .cleanup_and_verify()
             .await
             .expect("clean and verify live persistence smoke fixtures");
+    }
+
+    async fn assert_media_revision_contract(
+        repository: Arc<OracleCatalogRepository>,
+        media: Arc<OciInstancePrincipalMediaStore>,
+        item_id: &str,
+        image_id: &str,
+        original_key: &str,
+        cleanup: &mut LivePersistenceSmokeCleanup<'_>,
+    ) {
+        let item_id = Uuid::parse_str(item_id).expect("parse media revision smoke item id");
+        let image_id = Uuid::parse_str(image_id).expect("parse media revision smoke image id");
+        let mut image_b = tiny_png();
+        image_b.extend_from_slice(b"revision-b");
+        let checksum_a = Sha256::digest(
+            media
+                .read(original_key)
+                .await
+                .expect("read media revision image A"),
+        );
+        let checksum_b = Sha256::digest(&image_b);
+        assert_ne!(checksum_a.as_slice(), checksum_b.as_slice());
+        let app = router_with_stores(
+            ControllerConfig::for_test(true),
+            repository.clone(),
+            media.clone(),
+        );
+        let cookie = live_admin_cookie(&app).await;
+        let review_a = live_json(
+            app.clone()
+                .oneshot(
+                    Request::get(format!(
+                        "/admin/api/items/{item_id}/images/{image_id}/review"
+                    ))
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+                )
+                .await
+                .expect("request revision A review"),
+        )
+        .await;
+        let revision_a = review_a["mediaRevision"]
+            .as_str()
+            .expect("revision A token")
+            .to_owned();
+        assert!(!review_a.to_string().contains(original_key));
+        let replaced_response = app
+            .clone()
+            .oneshot(live_replace_request(item_id, image_id, &cookie, &image_b))
+            .await
+            .expect("replace revision A with image B");
+        assert_eq!(replaced_response.status(), StatusCode::OK);
+        let replaced = repository.get(item_id).await.unwrap().unwrap();
+        let image_b_key = replaced
+            .images
+            .iter()
+            .find(|image| image.id == image_id)
+            .unwrap()
+            .object_key
+            .clone();
+        cleanup.object_keys.push(image_b_key.clone());
+
+        for (method, suffix, body) in [
+            (
+                "POST",
+                "preview/draft",
+                json!({"mediaRevision": revision_a, "adjustment": ImageAdjustment::identity()}),
+            ),
+            (
+                "POST",
+                "adjustment/assist",
+                json!({"mediaRevision": revision_a}),
+            ),
+            (
+                "PATCH",
+                "adjustment",
+                json!({"mediaRevision": revision_a, "adjustment": ImageAdjustment::identity()}),
+            ),
+            ("DELETE", "adjustment", json!({"mediaRevision": revision_a})),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(format!(
+                            "/admin/api/items/{item_id}/images/{image_id}/{suffix}"
+                        ))
+                        .header(header::COOKIE, &cookie)
+                        .header(header::ORIGIN, "https://autographs.example.test")
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .body(Body::from(body.to_string()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_redacted_live_conflict(response, original_key, &format!("{checksum_a:x}")).await;
+        }
+        let source = app.clone().oneshot(
+            Request::get(format!("/admin/api/items/{item_id}/images/{image_id}/preview/source?mediaRevision={revision_a}"))
+                .header(header::COOKIE, &cookie).body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_redacted_live_conflict(source, original_key, &format!("{checksum_a:x}")).await;
+
+        let review_b = live_json(
+            app.clone()
+                .oneshot(
+                    Request::get(format!(
+                        "/admin/api/items/{item_id}/images/{image_id}/review"
+                    ))
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+                )
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_ne!(review_b["mediaRevision"], revision_a);
+        assert!(!review_b.to_string().contains(&image_b_key));
+        let revision_b = review_b["mediaRevision"].as_str().unwrap();
+        let current_reset = app
+            .clone()
+            .oneshot(
+                Request::delete(format!(
+                    "/admin/api/items/{item_id}/images/{image_id}/adjustment"
+                ))
+                .header(header::COOKIE, &cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({"mediaRevision": revision_b}).to_string()))
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(current_reset.status(), StatusCode::OK);
+        assert_eq!(
+            media
+                .read(&image_b_key)
+                .await
+                .expect("read media revision image B"),
+            image_b
+        );
+        println!(
+            "media revision smoke complete: item_id={item_id} stale_save=409 current_reset=200 cleanup=pending"
+        );
+    }
+
+    async fn assert_redacted_live_conflict(
+        response: axum::response::Response,
+        key: &str,
+        checksum: &str,
+    ) {
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let value = live_json(response).await;
+        assert_eq!(value["code"], "mediaRevisionConflict");
+        let encoded = value.to_string();
+        assert!(!encoded.contains(key));
+        assert!(!encoded.contains(checksum));
+    }
+
+    async fn live_json(response: axum::response::Response) -> Value {
+        serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap()
+    }
+
+    async fn live_admin_cookie(app: &axum::Router) -> String {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/admin/api/login")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"password":"local-test-password"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        response
+            .headers()
+            .get(header::SET_COOKIE)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .to_owned()
+    }
+
+    fn live_replace_request(
+        item_id: Uuid,
+        image_id: Uuid,
+        cookie: &str,
+        image: &[u8],
+    ) -> Request<Body> {
+        let boundary = "live-media-revision-boundary";
+        let mut body = Vec::new();
+        body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"revision-b.png\"\r\nContent-Type: image/png\r\n\r\n").as_bytes());
+        body.extend_from_slice(image);
+        body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        Request::put(format!("/admin/api/items/{item_id}/images/{image_id}"))
+            .header(header::COOKIE, cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .header(
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .body(Body::from(body))
+            .unwrap()
+    }
+
+    fn tiny_png() -> Vec<u8> {
+        vec![
+            137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1,
+            8, 2, 0, 0, 0, 144, 119, 83, 222, 0, 0, 0, 12, 73, 68, 65, 84, 8, 215, 99, 248, 207,
+            192, 0, 0, 3, 1, 1, 0, 24, 221, 141, 176, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+        ]
     }
 
     #[derive(Clone, Copy)]
@@ -831,19 +1076,15 @@ mod live {
         object_key: &str,
     ) -> Result<(), String> {
         match tokio::time::timeout(Duration::from_secs(75), media.read(object_key)).await {
-            Err(_) => Err(format!(
-                "timed out confirming cleanup OCI object absence: {object_key}"
-            )),
+            Err(_) => Err("timed out confirming cleanup OCI object absence".to_owned()),
             Ok(Err(error)) if error.contains("returned status 404") => {
-                println!("cleanup confirmed object absent: {object_key}");
+                println!("cleanup confirmed private object absent");
                 Ok(())
             }
             Ok(Err(error)) => Err(format!(
-                "could not confirm cleanup OCI object absence: {object_key}: {error}"
+                "could not confirm cleanup OCI object absence: {error}"
             )),
-            Ok(Ok(_)) => Err(format!(
-                "cleanup OCI object still exists after delete: {object_key}"
-            )),
+            Ok(Ok(_)) => Err("cleanup OCI object still exists after delete".to_owned()),
         }
     }
 
@@ -1057,24 +1298,24 @@ mod live {
         connection: &'a Connection,
         media: OciInstancePrincipalMediaStore,
         item_id: String,
-        object_key: String,
+        object_keys: Vec<String>,
         cleaned: bool,
     }
 
     impl LivePersistenceSmokeCleanup<'_> {
         async fn cleanup_and_verify(&mut self) -> Result<(), String> {
-            tokio::time::timeout(Duration::from_secs(75), self.media.delete(&self.object_key))
-                .await
-                .map_err(|_| {
-                    format!(
-                        "timed out deleting live smoke OCI object: {}",
-                        self.object_key
-                    )
-                })?
-                .map_err(|error| {
-                    format!("delete live smoke OCI object {}: {error}", self.object_key)
-                })?;
-            verify_oci_object_absent(&self.media, &self.object_key).await?;
+            for object_key in &self.object_keys {
+                let delete_result =
+                    tokio::time::timeout(Duration::from_secs(75), self.media.delete(object_key))
+                        .await
+                        .map_err(|_| "timed out deleting live smoke OCI object".to_owned())?;
+                if let Err(error) = delete_result
+                    && !is_oci_not_found(&error)
+                {
+                    return Err(format!("delete live smoke OCI object: {error}"));
+                }
+                verify_oci_object_absent(&self.media, object_key).await?;
+            }
 
             let statement = self
                 .connection
@@ -1127,8 +1368,8 @@ mod live {
 
         fn report_recovery_required(&self, step: &str, error: impl std::fmt::Display) {
             eprintln!(
-                "LIVE_PERSISTENCE_RECOVERY_REQUIRED item_id={} object_key={} step={} error={error}",
-                self.item_id, self.object_key, step
+                "LIVE_PERSISTENCE_RECOVERY_REQUIRED item_id={} step={} error={error}",
+                self.item_id, step
             );
         }
     }
@@ -1141,24 +1382,29 @@ mod live {
 
             let media_result = std::thread::scope(|scope| {
                 let media = self.media.clone();
-                let object_key = self.object_key.clone();
+                let object_keys = self.object_keys.clone();
                 scope
                     .spawn(move || -> Result<(), String> {
                         let runtime = tokio::runtime::Builder::new_current_thread()
                             .enable_all()
                             .build()
                             .map_err(|error| format!("build fallback cleanup runtime: {error}"))?;
-                        runtime
-                            .block_on(async {
-                                tokio::time::timeout(
+                        runtime.block_on(async {
+                            for object_key in object_keys {
+                                let delete_result = tokio::time::timeout(
                                     Duration::from_secs(75),
                                     media.delete(&object_key),
                                 )
                                 .await
-                            })
-                            .map_err(|_| {
-                                format!("timed out deleting fallback OCI object {object_key}")
-                            })?
+                                .map_err(|_| "timed out deleting fallback OCI object".to_owned())?;
+                                if let Err(error) = delete_result
+                                    && !is_oci_not_found(&error)
+                                {
+                                    return Err(format!("delete fallback OCI object: {error}"));
+                                }
+                            }
+                            Ok(())
+                        })
                     })
                     .join()
             });
@@ -1179,6 +1425,23 @@ mod live {
                 self.report_recovery_required("oracle-commit", error);
             }
         }
+    }
+
+    fn is_oci_not_found(error: &str) -> bool {
+        error.contains("returned status 404")
+    }
+
+    #[test]
+    fn live_cleanup_accepts_only_provider_not_found_errors() {
+        assert!(is_oci_not_found(
+            "delete OCI private media object returned status 404 Not Found:"
+        ));
+        assert!(!is_oci_not_found(
+            "delete OCI private media object returned status 403 Forbidden:"
+        ));
+        assert!(!is_oci_not_found(
+            "delete OCI private media object: timeout"
+        ));
     }
 
     fn required(name: &str) -> String {
