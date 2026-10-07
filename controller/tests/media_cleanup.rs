@@ -1341,7 +1341,7 @@ impl PrivateMediaStore for FailingDeleteMediaStore {
     async fn delete(&self, object_key: &str) -> Result<(), String> {
         let fail_once = self
             .remaining_delete_failures
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
                 remaining.checked_sub(1)
             })
             .is_ok();
