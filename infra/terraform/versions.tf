@@ -1,10 +1,10 @@
 terraform {
-  required_version = ">= 1.16.3, < 1.17.0"
+  required_version = ">= 1.16.5, < 1.17.0"
 
   required_providers {
     oci = {
       source  = "oracle/oci"
-      version = "~> 9.2"
+      version = "~> 9.9"
     }
 
     porkbun = {
