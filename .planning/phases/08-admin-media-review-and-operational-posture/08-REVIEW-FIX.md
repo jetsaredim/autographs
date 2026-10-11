@@ -1,67 +1,100 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-fixed_at: 2026-10-07T00:00:00Z
+fixed_at: 2026-10-11T14:14:52Z
 review_path: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
-iteration: 8
-findings_in_scope: 2
-fixed: 2
+iteration: 9
+findings_in_scope: 3
+finding_families: 3
+fixed: 3
 skipped: 0
+reassessment_required: false
 status: all_fixed
 ---
 
 # Phase 08: Code Review Fix Report
 
-**Fixed at:** 2026-10-07T00:00:00Z
+**Fixed at:** 2026-10-11T14:14:52Z
 **Source review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md`
-**Iteration:** 8 — approved Ambiguous Delete and Exclusive Recovery Addendum
+**Convergence evidence:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CONVERGENCE.md` at `fa67260`
+**Approved plan:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-RECOVERY-SURFACE-CLEANUP-REVISED-PLAN.md`
+**Plan review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-RECOVERY-SURFACE-CLEANUP-PLAN-REVIEW.md`
+**Iteration:** 9 — single authorized post-convergence coder pass
 
-**Summary:**
+## Outcome
 
-- Findings in scope: 2
-- Fixed: 2
+The three in-scope findings were implemented as one recovery-authority contract change. Exclusive recovery now remains visible and operable while ordinary editor authority is inactive; every live-smoke cleanup path discovers object identities before destructive row cleanup; and all cleanup evidence uses domain-separated fingerprints and safe status categories rather than raw private identifiers or provider-controlled text.
+
+- Findings in scope: 3
+- Fixed: 3
 - Skipped: 0
-- Implementation commit: `2378cb5`
-- PR fix comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6037912329
+- Commit: `d61a38e`
+- Status: `all_fixed`
 
-## Fixed Issues
+## Finding Lineage and Fixes
 
-### CR-01: Ambiguous old-object deletion can roll metadata back to a missing object
+### CR-01: Recovery status and retry are descendants of the hidden/inert editor
 
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/src/routes.rs`, `controller/tests/media_cleanup.rs`, `controller/tests/live_persistence_smoke.rs`, `docs/static-runtime-runbook.md`
-**Commit:** `2378cb5`
-**Applied fix:** Once replacement metadata commits and an old-object delete is attempted, the replacement remains authoritative for every returned delete error. Persisted cleanup warnings return normal success; warning-persistence failure returns UUID-correlated, redacted `imageRecoveryRequired` evidence with `old_delete_outcome_ambiguous`, without rollback or candidate deletion. Deterministic retain-then-error and delete-then-error adapters prove the catalog always references a readable replacement. The double-opt-in live smoke exercises real Oracle/OCI revision A→B replacement and stale source/draft/assist/Save/Reset conflicts without production fault injection, then verifies cleanup.
+**Finding family:** `exclusive_conflict_recovery_surface`
+**Lineage:** `sibling_path_miss`
+**Status:** Fixed
+**Commit:** `d61a38e`
+**Files:** `controller/static-admin/index.html`, `controller/static-admin/admin.css`, `controller/static-admin/admin.js`, `controller/tests/static_admin.rs`, `controller/tests/static_admin_behavior.mjs`
 
-### CR-02: Conflict recovery exposes an actionable blank editor and accepts same-view stale results
+**Shared invariant:** Conflict recovery may revoke ordinary editor authority, but pending status and the generation-bound retry must remain perceivable and user-operable outside every hidden or inert ancestor.
 
-**Status:** Fixed — requires human verification
-**Files modified:** `controller/static-admin/admin.js`, `controller/tests/static_admin.rs`, `controller/tests/static_admin_behavior.mjs`
-**Commit:** `2378cb5`
-**Applied fix:** Current conflicts now enter a dedicated inert editor surface rather than rendering a blank editor. Recovery owns an abort controller and a tuple of recovery generation, captured editor-authority generation, item, navigation context, request owner, status, and surface state. All normal reconciliation/render, navigation, logout, and new-review paths advance editor authority and invalidate the owner; Save and dirty handlers reject invocation while inert. Deferred-response tests prove input/Save blocking and late direct-render, navigation, and new-review results are inert, while retry succeeds only through the full predicate.
+**Applied fix:** Added a dedicated live status/action container in `#add-item-view` before and outside `#item-form`. Pending and retryable recovery render only into that container. Existing recovery generation, request owner, editor-authority generation, navigation revision, and current-view checks remain authoritative; invalidation retires and clears the container. The DOM harness now models the real ancestor topology and suppresses user events through disconnected, hidden, inert, and disabled ancestors. Executable cases prove the retry remains visible and operable while editor descendants are inactive and that render, navigation, and new-review authority changes retire late recovery work.
 
-## Invariant and Consumer Audit
+### CR-02: Post-commit replacement failure can leave committed B outside cleanup authority
 
-| Invariant | Producers and mutation boundaries | Consumers and failure paths | Evidence |
+**Finding family:** `live_smoke_cleanup_discovery`
+**Lineage:** `incomplete_fix`
+**Status:** Fixed
+**Commit:** `d61a38e`
+**Files:** `controller/tests/live_persistence_smoke.rs`, `controller/tests/media_cleanup.rs`, `controller/tests/logging_contract.rs`, `docs/static-runtime-runbook.md`
+
+**Shared invariant:** Object identity discovery must complete before any Oracle row capable of revealing a current image key or cleanup-event target is deleted.
+
+**Applied fix:** The live media-revision smoke refreshes cleanup inventory immediately after the replacement response and before asserting its status. Explicit cleanup, the normal guard, and fallback `Drop` now merge and deduplicate locally known candidates, current `autograph_images.object_key` values, and `autograph_cleanup_events.target_object_key` values. They delete and verify every candidate first, then delete the item and verify item, image, edit-event, and cleanup-event counts are zero. Discovery, deletion, or absence-verification failure returns before row deletion so Oracle discovery metadata remains available. Deterministic fixtures cover committed B, duplicate candidates, discovery failure, delete failure, verification failure, already-absent retry, and object-verification-before-row-deletion ordering.
+
+### WR-01: Cleanup transcripts can expose raw private object identities
+
+**Finding family:** `live_smoke_cleanup_evidence_privacy`
+**Lineage:** `sibling_path_miss`
+**Status:** Fixed
+**Commit:** `d61a38e`
+**Files:** `controller/tests/live_persistence_smoke.rs`, `controller/tests/logging_contract.rs`, `docs/static-runtime-runbook.md`
+
+**Shared invariant:** Normal, timeout, panic, provider-failure, verification, and recovery-required cleanup evidence may expose only safe counts, item IDs, status categories, and domain-separated fingerprints.
+
+**Applied fix:** Introduced the same length-prefixed `autographs-image-recovery-key-v1` SHA-256 domain separation used by application recovery evidence. Cleanup progress, timeout, provider failure, absence verification, row verification, panic wrappers, and fallback recovery reports no longer interpolate raw keys, checksums, namespace/bucket values, credentials, or provider text. Tests exercise the actual message builders for success, already absent, timeout, provider failure, verification failure, panic, and fallback-thread-panic output with distinctive forbidden markers, and source contracts enforce discovery/deletion order across manual, normal-guard, and `Drop` paths. The runbook now prefers item-ID discovery and states that privately supplied candidates are consumed but never echoed.
+
+## Consumer and Failure-Path Audit
+
+| Invariant | Producers and mutation boundaries | Consumers / reporting paths | Verified failure behavior |
 |---|---|---|---|
-| Ambiguous deletion never reverses authority | Replacement metadata CAS commits before old delete; delete errors have unknown provider outcome | Warning success/failure, cleanup retry, HTTP recovery evidence | Retain-then-Err and delete-then-Err tests with readable replacement and exact file counts |
-| Recovery assignment is exclusive | Recovery generation, editor generation, item, navigation, owner, status, inert surface | Refresh success/retry, render/reconcile, Save/input, navigation/logout/new review | Deferred DOM cases and static source contract |
-| Live validation is private and disposable | Two explicit opt-ins, draft-only A/B fixture, local checksums | Stale source/draft/assist/Save/Reset and current Reset | Feature compile plus exact runbook cleanup/abort contract |
+| Exclusive usable recovery | Current media conflicts; recovery generation/owner; editor and navigation revisions | Pending status, retry, editor form, render/reconcile, navigation, logout, new review | Hidden/inert ancestors block ordinary user events; the external retry is operable; late recovery loses authority |
+| Discovery before deletion | Replacement response, current image rows, cleanup-event targets, local A/B candidates | Explicit cleanup, normal guard, fallback `Drop`, OCI delete/read, Oracle cascade and count verification | Discovery/delete/verification failure preserves rows; retry is idempotent; committed B is included before response assertion |
+| Opaque evidence | Fingerprint/message builders, provider classification, recovery reporter | Normal progress, already absent, timeout, provider failure, verification, panic, runbook | Forbidden raw markers and provider text are absent; stable fingerprint/status correlation remains |
 
 ## Verification
 
-Verification ran in `/tmp/autographs-pr263-review`, the existing PR worktree on `gsd/phase-08-admin-media-review-and-operational-posture`.
+Verification ran in `/tmp/autographs-pr263-review` on branch `gsd/phase-08-admin-media-review-and-operational-posture` at reviewed base `fa6726015a76aaa4dfbae6b168160739a13eb923` plus these uncommitted fixes. Credential-gated Oracle/OCI tests were compiled but not executed.
 
-- `node --test controller/tests/static_admin_behavior.mjs` — passed.
-- Focused `admin_workflow`, `media_cleanup`, and `static_admin` suites — passed; 75 tests.
-- `cargo test --manifest-path controller/Cargo.toml --features live-persistence --test live_persistence_smoke --no-run` — passed.
-- Focused live cleanup classification test — passed; only provider-confirmed 404 is accepted, followed by normal absence verification.
-- `cargo test --manifest-path controller/Cargo.toml --features production-persistence` — passed; full production-feature suite.
-- Exact CI `cargo clippy --manifest-path controller/Cargo.toml --all-targets --features production-persistence -- -D warnings` — passed.
-- CI coverage command was not runnable locally because `cargo-llvm-cov` is not installed; Cargo returned `no such command: llvm-cov`.
-- `cargo fmt --all -- --check` and `git diff --check` — passed.
+- `node --check controller/static-admin/admin.js` — passed.
+- `node --check controller/tests/static_admin_behavior.mjs` — passed.
+- `node controller/tests/static_admin_behavior.mjs` — passed (`static admin behavior tests passed`).
+- `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin` — passed, 19 tests.
+- `cargo test --manifest-path controller/Cargo.toml --test media_cleanup` — passed, 20 tests.
+- `cargo test --manifest-path controller/Cargo.toml --test logging_contract` — passed, 3 tests.
+- `cargo test --manifest-path controller/Cargo.toml --features live-persistence --test live_persistence_smoke --no-run` — passed; credential-gated test compiled only.
+- `cargo test --manifest-path controller/Cargo.toml --all-targets --all-features` — passed; 2 credential-gated live tests ignored as designed, all executed tests green.
+- `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings` — passed.
+- `git diff --check` — passed.
 
 ---
 
-_Fixed: 2026-10-07T00:00:00Z_
-_Fixer: the agent (gsd-code-fixer)_
-_Iteration: 8_
+_Fixed: 2026-10-11T14:14:52Z_
+_Fixer: gsd-code-fixer_
+_Iteration: 9_
+_Commit: d61a38e_
