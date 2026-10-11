@@ -1,14 +1,86 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: ready_to_resume
+status: reassessment_required
 trigger_review: 08-REVIEW.md
-assumption_revision_evidence: 08-PR-263-ROUND3-REVISED-PLAN.md#ambiguous-delete-and-exclusive-recovery-addendum
-implementation_plan_review_evidence: 08-PR-263-AMBIGUOUS-DELETE-PLAN-REVIEW.md
-implementation_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6037438527
+trigger_review_commit: 305591145bf43957eca6b1e07afa249858f47d62
+trigger_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6104511401
+assumption_revision_evidence: 08-REVIEW.md#convergence-reassessment
+implementation_plan_evidence: 08-PR-263-RECOVERY-SURFACE-CLEANUP-REVISED-PLAN.md
+implementation_plan_review_evidence: null
+implementation_plan_review_comment: null
 ---
 
 # PR 263 Review/Fix Convergence Reassessment
+
+## Resumed Deep Review Reassessment — 2026-10-11
+
+The resumed deep review at implementation commit `6bb44af` and review commit
+`3055911` found two Critical and one Warning issue after the approved ambiguous
+delete/exclusive recovery coder pass. This reopens convergence. The earlier plan
+review remains historical evidence but cannot authorize another coder pass
+because it predates these findings.
+
+| Finding | Stable family | Lineage | Current state |
+|---|---|---|---|
+| CR-01: recovery status and retry are hidden/inert with the editor form | `exclusive_conflict_recovery_surface` | Sibling-path miss | State and handler exclusivity are correct, but the only progress and retry UI is a descendant of the form the recovery path hides and marks inert. |
+| CR-02: post-commit replacement failure can orphan live-smoke B | `live_smoke_cleanup_discovery` | Incomplete fix | Normal cleanup registers B only after a success assertion. A recovery-required response can unwind before registration, then delete the Oracle discovery rows while B remains in Object Storage. |
+| WR-01: manual cleanup emits raw private object keys | `live_smoke_cleanup_evidence_privacy` | Sibling-path miss | Application recovery evidence is fingerprint-only, but the operator cleanup command prints keys and embeds them in timeout/error output. |
+
+### Revised shared invariants
+
+1. **Exclusive recovery is usable:** recovery may disable ordinary editor
+   authority, but its status and sole retry action must stay visible and
+   operable outside every hidden or inert editor ancestor.
+2. **Discovery precedes destruction:** every current image key, cleanup-event
+   target, and locally known candidate must be inventoried before Oracle rows
+   that reveal those identities can be deleted.
+3. **Recovery evidence is opaque end to end:** live-smoke and operator cleanup
+   output may contain item IDs, counts, statuses, recovery IDs, and
+   domain-separated fingerprints, but never raw keys, checksums, credentials,
+   bucket/namespace values, or unsanitized provider text.
+
+### Revised consumer and mutation inventory
+
+| Invariant | Producers | Consumers / mutation boundaries | Reporting / action paths | Required evidence |
+|---|---|---|---|---|
+| Exclusive usable recovery | Current media-revision conflicts, `handleMediaRevisionConflict`, `enterConflictRecoverySurface`, `recoverConflictedItem` | Form hidden/inert state, editor generation, retry generation/owner, render/reconcile, navigation, logout, new review | Dedicated recovery container, pending/retry/missing/auth/success copy | DOM topology test with ancestor hidden/inert semantics plus generation-safe deferred retry cases |
+| Discovery before deletion | Replacement key creation and metadata CAS, ambiguous old DELETE, cleanup-warning persistence | `LivePersistenceSmokeCleanup`, explicit cleanup mode, fallback `Drop`, OCI delete/read, Oracle item/image/cleanup-event deletion | Success, unwind, interrupted-cleanup runbook | Deterministic committed-B/recovery-required fixture proving A/B discovery, deletion, absence, then row cleanup |
+| Opaque cleanup evidence | Key inventory, cleanup fingerprinting, provider outcomes | Normal progress, timeout, panic, provider failure, absence verification | Console/CI transcript and runbook copy/paste | Captured-output assertions for success and every error class; forbidden-value scan |
+
+### Revised assumption audit
+
+- Rejected: writing recovery copy to `#image-message` remains visible after the
+  item form is hidden. The node is a descendant of the hidden/inert form.
+- Rejected: directly dispatching a fake child retry proves browser operability.
+  The current harness does not model ancestor visibility or inert event
+  suppression.
+- Rejected: replacement cannot create a cleanup identity unless it returns 200.
+  B commits before old-object cleanup and warning persistence can return a
+  recovery-required response afterward.
+- Rejected: deleting the Oracle item is safe while object inventory is
+  incomplete. Cascade removal destroys the last automatic lookup for B.
+- Rejected: accepting a private key as cleanup input permits echoing it. The
+  Phase 8 evidence contract applies to tooling and operator transcripts too.
+
+### Revised failure matrix
+
+| Scenario | Required behavior |
+|---|---|
+| Conflict refresh pending | Visible, non-editable recovery status outside the inert editor. |
+| Conflict refresh fails with network/500 | One visible, generation-bound retry; all ordinary editor controls remain inactive. |
+| Recovery completes after authority changes | Late result and retired recovery surface are inert. |
+| Replacement commits B then returns recovery-required | Cleanup discovers B from Oracle before response assertion or row deletion, deletes/verifies all A/B candidates, then removes rows. |
+| Explicit or fallback cleanup runs with current images and cleanup events | Inventory is merged and deduplicated before destructive SQL; absence and zero-row postconditions are verified. |
+| Cleanup succeeds, times out, or receives provider failure | Transcript contains only safe counts, item IDs, statuses, recovery IDs, and domain-separated fingerprints. |
+
+### Revised plan and resume requirements
+
+The coherent implementation plan is
+`08-PR-263-RECOVERY-SURFACE-CLEANUP-REVISED-PLAN.md`. Coder work remains
+forbidden until an independent reviewer approves it with zero Critical,
+Warning, and Info findings. The review artifact and PR comment must replace the
+null evidence fields above before `status` may change to `ready_to_resume`.
 
 ## Trigger
 
