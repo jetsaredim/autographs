@@ -65,6 +65,13 @@ class FakeElement {
     if (!this.isConnected) {
       return { target: this, currentTarget: this, ignoredBecauseDisconnected: true };
     }
+    const blockedAncestor = this.firstBlockedAncestor();
+    if (blockedAncestor?.hidden) {
+      return { target: this, currentTarget: this, ignoredBecauseHidden: true };
+    }
+    if (blockedAncestor?.inert) {
+      return { target: this, currentTarget: this, ignoredBecauseInert: true };
+    }
     if (this.disabled && ["click", "change", "input", "keydown", "pointerdown", "pointermove", "pointerup"].includes(type)) {
       return { target: this, currentTarget: this, ignoredBecauseDisabled: true };
     }
@@ -80,6 +87,14 @@ class FakeElement {
     };
     for (const listener of this.listeners.get(type) || []) await listener(event);
     return event;
+  }
+  firstBlockedAncestor() {
+    let node = this;
+    while (node) {
+      if (node.hidden || node.inert) return node;
+      node = node.parentNode;
+    }
+    return null;
   }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
   removeAttribute(name) { this.attributes.delete(name); }
@@ -134,6 +149,12 @@ const tabButtons = ["hub-view", "publish-view"].map((view) => {
   button.dataset.view = view;
   return button;
 });
+const addItemView = elementForId("add-item-view");
+const itemForm = elementForId("item-form");
+const conflictRecoveryStatus = elementForId("conflict-recovery-status");
+conflictRecoveryStatus.hidden = true;
+addItemView.append(conflictRecoveryStatus, itemForm);
+itemForm.append(elementForId("image-grid"), elementForId("image-message"));
 const document = {
   querySelector(selector) { return selector.startsWith("#") ? elementForId(selector.slice(1)) : new FakeElement(); },
   querySelectorAll(selector) {
@@ -200,6 +221,7 @@ const findAllByClass = (root, className, found = []) => {
   for (const child of root.children || []) findAllByClass(child, className, found);
   return found;
 };
+const isPerceivable = (element) => Boolean(element?.isConnected && !element.firstBlockedAncestor());
 const window = {
   __AUTOGRAPHS_STATIC_ADMIN_TEST__: true,
   location: { pathname: "/admin/", search: "", hash: "", origin: "https://autographs.example.test" },
@@ -225,7 +247,7 @@ class TestUrl extends URL {
 const context = vm.createContext({
   AbortController, Blob, FormData, JSON, Map, Math, Number, Object, Promise, Set, String,
   URL: TestUrl, assert, console, deferred, document, enqueueFetch, fetchCalls, findAllByClass,
-  findByClass, flushTimers, response, resizeObservers, revokedUrls, startTimers,
+  findByClass, flushTimers, isPerceivable, response, resizeObservers, revokedUrls, startTimers,
   ResizeObserver: FakeResizeObserver,
   fetch: async (path, options = {}) => {
     fetchCalls.push({ path, options });
@@ -486,6 +508,7 @@ enqueueFetch(response({ json: reviewPayload("item-b", "image-b") }));
 enqueueFetch(response());
 await run(`
   state.currentItem = { id: "item-b", images: [{ id: "image-b", mediaRevision: "revision-image-b" }], cleanupWarnings: [] };
+  setView("add-item-view");
   renderImages(state.currentItem.images, []);
   await elements.imageGrid.children[0].children[4].children[0].dispatch("click");
 `);
@@ -992,6 +1015,7 @@ await run(`
 enqueueFetch(response({ json: reviewPayload("item-b", "image-b", { rotationDegrees: 7, zoom: 1, panX: 0, panY: 0, crop: null, perspective: null }) }));
 enqueueFetch(response());
 await run(`
+  setView("add-item-view");
   state.currentItem = { id: "item-b", images: [{ id: "image-b", mediaRevision: "revision-image-b" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
   await elements.imageGrid.children[0].children[4].children[0].dispatch("click");
@@ -1145,12 +1169,20 @@ await run(`
   assert.equal(state.currentItem, null);
   assert.equal(state.reviewSession, null);
   assert.equal(state.conflictRecovery.status, "retryable");
-  assert.equal(elements.imageMessage.children[1].textContent, "Retry item refresh");
+  assert.equal(elements.itemForm.inert, true);
+  assert.equal(elements.itemForm.hidden, true);
+  assert.equal(isPerceivable(elements.imageMessage), false);
+  assert.equal(isPerceivable(elements.conflictRecoveryStatus), true);
+  assert.equal(elements.conflictRecoveryStatus.children[1].textContent, "Retry item refresh");
 `);
 enqueueFetch(response({ json: { id: "item-b", images: [{ id: "image-b", mediaRevision: "revision-b-fresh" }], cleanupWarnings: [] } }));
 await run(`
-  await elements.imageMessage.children[1].dispatch("click");
+  const retry = elements.conflictRecoveryStatus.children[1];
+  const blockedEditorEvent = await elements.imageMessage.dispatch("click");
+  assert.equal(blockedEditorEvent.ignoredBecauseHidden, true);
+  await retry.dispatch("click");
   assert.equal(state.conflictRecovery, null);
+  assert.equal(elements.conflictRecoveryStatus.hidden, true);
   assert.equal(state.currentItem.images[0].mediaRevision, "revision-b-fresh");
   assert.match(elements.imageMessage.textContent, /Reopen the review/);
 `);
@@ -1206,6 +1238,8 @@ await run(`
   assert.equal(elements.itemForm.inert, true);
   assert.equal(elements.itemForm.hidden, true);
   assert.equal(elements.imageGrid.hidden, true);
+  assert.equal(isPerceivable(elements.conflictRecoveryStatus), true);
+  assert.match(elements.conflictRecoveryStatus.children[0].textContent, /Refreshing the current item/);
   const before = fetchCalls.length;
   markDirty({ target: { name: "title" } });
   await saveItem({ preventDefault() {} });
@@ -1216,6 +1250,7 @@ await run(`
   renderEditor({ id: "item-new-authority", images: [], cleanupWarnings: [] });
   assert.equal(elements.itemForm.inert, false);
   assert.equal(elements.itemForm.hidden, false);
+  assert.equal(elements.conflictRecoveryStatus.hidden, true);
   assert.equal(state.currentItem.id, "item-new-authority");
 `);
 lateRecovery.resolve(response({ json: { id: "item-exclusive", images: [{ id: "image-exclusive", mediaRevision: "revision-fresh" }], cleanupWarnings: [] } }));
@@ -1240,6 +1275,7 @@ await run(`
   setView("publish-view");
   assert.equal(state.conflictRecovery, null);
   assert.equal(elements.itemForm.inert, false);
+  assert.equal(elements.conflictRecoveryStatus.hidden, true);
 `);
 navigatedRecovery.resolve(response({ json: { id: "item-navigation", images: [], cleanupWarnings: [] } }));
 await navigationConflict;
@@ -1259,6 +1295,7 @@ await Promise.resolve();
 await run(`
   const newer = beginReviewSession("item-new-review", "image-new-review", "revision-new-review");
   assert.equal(state.conflictRecovery, null);
+  assert.equal(elements.conflictRecoveryStatus.hidden, true);
   assert.equal(state.reviewSession.revision, newer.revision);
 `);
 supersededRecovery.resolve(response({ json: { id: "item-old-review", images: [], cleanupWarnings: [] } }));

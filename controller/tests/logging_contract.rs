@@ -83,6 +83,124 @@ fn image_replacement_recovery_event_is_correlated_and_fingerprint_only() {
     }
 }
 
+#[test]
+fn live_cleanup_inventory_and_evidence_contract_is_discovery_first_and_opaque() {
+    let source = read_repo("controller/tests/live_persistence_smoke.rs");
+    for required in [
+        "autographs-image-recovery-key-v1",
+        "select object_key from autograph_images where item_id = :1",
+        "select target_object_key from autograph_cleanup_events where item_id = :1",
+        "delete_and_verify_cleanup_object",
+        "verify_cleanup_rows_absent",
+        "cleanup_object_message",
+        "cleanup_recovery_message",
+        "object_fingerprint=",
+        "LIVE_PERSISTENCE_RECOVERY_REQUIRED item_id={item_id} step={step}",
+    ] {
+        assert!(
+            source.contains(required),
+            "live cleanup contract missing {required}"
+        );
+    }
+    let cleanup_start = source
+        .find("async fn run_cleanup")
+        .expect("manual cleanup exists");
+    let cleanup_end = source[cleanup_start..]
+        .find("async fn audit_image_checksums")
+        .map(|offset| cleanup_start + offset)
+        .expect("checksum audit follows cleanup evidence paths");
+    let guard_paths_start = source
+        .find("struct LivePersistenceSmokeCleanup")
+        .expect("live cleanup guard exists");
+    let guard_paths_end = source[guard_paths_start..]
+        .find("fn required")
+        .map(|offset| guard_paths_start + offset)
+        .expect("required-env helper follows cleanup guard paths");
+    let cleanup_source = format!(
+        "{}{}",
+        &source[cleanup_start..cleanup_end],
+        &source[guard_paths_start..guard_paths_end]
+    );
+    for denied in [
+        "cleanup deleting OCI object key",
+        "timed out deleting cleanup OCI object: {object_key}",
+        "error={error}",
+        "object_key={}",
+    ] {
+        assert!(
+            !cleanup_source.contains(denied),
+            "live cleanup evidence must not contain {denied}"
+        );
+    }
+
+    let manual = &source[cleanup_start
+        ..source[cleanup_start..]
+            .find("fn cleanup_object_fingerprint")
+            .map(|offset| cleanup_start + offset)
+            .expect("fingerprint helper follows manual cleanup")];
+    assert_ordered(
+        manual,
+        &[
+            "discover_cleanup_object_keys",
+            "delete_and_verify_cleanup_object",
+            "delete_cleanup_item_rows",
+            "verify_cleanup_rows_absent",
+        ],
+        "manual cleanup",
+    );
+
+    let guard_start = source
+        .find("async fn cleanup_and_verify(&mut self)")
+        .expect("live cleanup guard exists");
+    let guard_end = source[guard_start..]
+        .find("fn report_recovery_required")
+        .map(|offset| guard_start + offset)
+        .expect("recovery reporter follows cleanup guard");
+    let guard = &source[guard_start..guard_end];
+    assert_ordered(
+        guard,
+        &[
+            "self.refresh_inventory()",
+            "delete_and_verify_cleanup_object",
+            "delete_cleanup_item_rows",
+            "verify_cleanup_rows_absent",
+        ],
+        "live cleanup guard",
+    );
+
+    let drop_start = source
+        .find("impl Drop for LivePersistenceSmokeCleanup")
+        .expect("fallback Drop cleanup exists");
+    let drop_end = source[drop_start..]
+        .find("fn delete_cleanup_item_rows")
+        .map(|offset| drop_start + offset)
+        .expect("row helper follows Drop cleanup");
+    assert_ordered(
+        &source[drop_start..drop_end],
+        &[
+            "self.refresh_inventory()",
+            "delete_and_verify_cleanup_object",
+            "delete_cleanup_item_rows",
+            "verify_cleanup_rows_absent",
+        ],
+        "fallback Drop cleanup",
+    );
+
+    let runbook = read_repo("docs/static-runtime-runbook.md");
+    assert!(runbook.contains("consumes but never echoes"));
+    assert!(runbook.contains("object fingerprints"));
+}
+
+fn assert_ordered(source: &str, needles: &[&str], label: &str) {
+    let mut offset = 0;
+    for needle in needles {
+        let found = source[offset..]
+            .find(needle)
+            .unwrap_or_else(|| panic!("{label} missing {needle}"));
+        offset += found + needle.len();
+    }
+}
+
 fn tracing_blocks(source: &str) -> Vec<String> {
     let mut blocks = Vec::new();
     let mut current = String::new();

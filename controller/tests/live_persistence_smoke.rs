@@ -1,6 +1,6 @@
 #[cfg(feature = "live-persistence")]
 mod live {
-    use std::{env, sync::Arc, time::Duration};
+    use std::{collections::BTreeSet, env, sync::Arc, time::Duration};
 
     use autographs_controller::{
         catalog::{
@@ -84,7 +84,10 @@ mod live {
         assert!(!object_key.contains(".jpg"));
         println!("live smoke item id: {item_id}");
         if !media_revision_smoke {
-            println!("live smoke object key: {object_key}");
+            println!(
+                "live smoke private object fingerprint: {}",
+                cleanup_object_fingerprint(&object_key)
+            );
         }
 
         let item_id = item_id.to_string();
@@ -241,6 +244,9 @@ mod live {
             .oneshot(live_replace_request(item_id, image_id, &cookie, &image_b))
             .await
             .expect("replace revision A with image B");
+        cleanup
+            .refresh_inventory()
+            .expect("inventory live smoke cleanup candidates after replacement response");
         assert_eq!(replaced_response.status(), StatusCode::OK);
         let replaced = repository.get(item_id).await.unwrap().unwrap();
         let image_b_key = replaced
@@ -1001,74 +1007,133 @@ mod live {
 
         let connection =
             oracle_connection::connect(&oracle_user, &oracle_password, &oracle_connect_string)
-                .expect("connect to Oracle Autonomous Database for cleanup");
-        assert_static_runtime_schema(&connection);
+                .unwrap_or_else(|_| {
+                    panic!("connect to Oracle Autonomous Database for cleanup failed")
+                });
+        assert_cleanup_schema(&connection);
         let media =
             OciInstancePrincipalMediaStore::new(storage_namespace.clone(), bucket_name.clone())
-                .expect("configure OCI instance-principal media store for cleanup");
+                .unwrap_or_else(|_| panic!("configure OCI media store for cleanup failed"));
 
-        for item_id in item_ids {
-            println!("cleanup deleting Oracle rows for item id: {item_id}");
-            connection
-                .execute(
-                    "delete from autograph_cleanup_events where item_id = :1",
-                    &[&item_id],
-                )
-                .expect("delete cleanup event rows");
-            connection
-                .execute(
-                    "delete from autograph_images where item_id = :1",
-                    &[&item_id],
-                )
-                .expect("delete cleanup image rows");
-            connection
-                .execute(
-                    "delete from autograph_item_tags where item_id = :1",
-                    &[&item_id],
-                )
-                .expect("delete cleanup tag rows");
-            connection
-                .execute("delete from autograph_items where id = :1", &[&item_id])
-                .expect("delete cleanup item row");
-            connection.commit().expect("commit cleanup item deletes");
-            assert_count_zero(
-                &connection,
-                "select count(*) from autograph_items where id = :1",
-                &item_id,
-                "cleanup item rows",
-            );
-            assert_count_zero(
-                &connection,
-                "select count(*) from autograph_images where item_id = :1",
-                &item_id,
-                "cleanup image rows",
-            );
-            assert_count_zero(
-                &connection,
-                "select count(*) from autograph_item_tags where item_id = :1",
-                &item_id,
-                "cleanup tag rows",
-            );
-            assert_count_zero(
-                &connection,
-                "select count(*) from autograph_cleanup_events where item_id = :1",
-                &item_id,
-                "cleanup event rows",
-            );
+        let candidates = discover_cleanup_object_keys(&connection, &item_ids, object_keys)
+            .unwrap_or_else(|error| panic!("live persistence cleanup failed: {error}"));
+        for object_key in &candidates {
+            delete_and_verify_cleanup_object(&media, object_key, "manual")
+                .await
+                .unwrap_or_else(|error| panic!("live persistence cleanup failed: {error}"));
         }
 
-        for object_key in object_keys {
-            println!("cleanup deleting OCI object key: {object_key}");
-            tokio::time::timeout(Duration::from_secs(75), media.delete(&object_key))
-                .await
-                .unwrap_or_else(|_| panic!("timed out deleting cleanup OCI object: {object_key}"))
-                .expect("delete cleanup OCI Object Storage object");
-            verify_oci_object_absent(&media, &object_key)
-                .await
-                .unwrap_or_else(|error| panic!("{error}"));
+        for item_id in &item_ids {
+            println!("cleanup deleting Oracle rows for item id: {item_id}");
+            delete_cleanup_item_rows(&connection, item_id)
+                .unwrap_or_else(|error| panic!("live persistence cleanup failed: {error}"));
+            verify_cleanup_rows_absent(&connection, item_id)
+                .unwrap_or_else(|error| panic!("live persistence cleanup failed: {error}"));
         }
 
         println!("live persistence cleanup complete");
+    }
+
+    fn cleanup_object_fingerprint(object_key: &str) -> String {
+        let mut digest = Sha256::new();
+        digest.update(b"autographs-image-recovery-key-v1");
+        digest.update((object_key.len() as u64).to_be_bytes());
+        digest.update(object_key.as_bytes());
+        digest
+            .finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    }
+
+    fn cleanup_object_evidence(step: &str, object_key: &str) -> String {
+        format!(
+            "step={step} object_fingerprint={}",
+            cleanup_object_fingerprint(object_key)
+        )
+    }
+
+    fn cleanup_object_message(action: &str, step: &str, object_key: &str) -> String {
+        format!("{action}: {}", cleanup_object_evidence(step, object_key))
+    }
+
+    fn cleanup_recovery_message(item_id: &str, step: &str) -> String {
+        format!("LIVE_PERSISTENCE_RECOVERY_REQUIRED item_id={item_id} step={step}")
+    }
+
+    fn assert_cleanup_schema(connection: &Connection) {
+        let row = connection
+            .query_row(
+                "select count(*) from user_tab_columns where (table_name = 'AUTOGRAPH_IMAGES' and column_name = 'OBJECT_KEY') or (table_name = 'AUTOGRAPH_CLEANUP_EVENTS' and column_name = 'TARGET_OBJECT_KEY')",
+                &[],
+            )
+            .unwrap_or_else(|_| panic!("inspect cleanup discovery schema failed"));
+        let count: i64 = row
+            .get(0)
+            .unwrap_or_else(|_| panic!("decode cleanup discovery schema count failed"));
+        assert_eq!(
+            count, 2,
+            "cleanup discovery schema is missing required object identity columns"
+        );
+    }
+
+    fn discover_cleanup_object_keys(
+        connection: &Connection,
+        item_ids: &[String],
+        known_candidates: Vec<String>,
+    ) -> Result<Vec<String>, String> {
+        let mut candidates = known_candidates.into_iter().collect::<BTreeSet<_>>();
+        for item_id in item_ids {
+            for sql in [
+                "select object_key from autograph_images where item_id = :1",
+                "select target_object_key from autograph_cleanup_events where item_id = :1",
+            ] {
+                let rows = connection
+                    .query(sql, &[item_id])
+                    .map_err(|_| format!("object inventory query failed for item_id={item_id}"))?;
+                for row in rows {
+                    let row = row.map_err(|_| {
+                        format!("object inventory row read failed for item_id={item_id}")
+                    })?;
+                    let object_key: String = row.get(0).map_err(|_| {
+                        format!("object inventory decode failed for item_id={item_id}")
+                    })?;
+                    candidates.insert(object_key);
+                }
+            }
+        }
+        println!(
+            "cleanup inventory complete: item_count={} object_count={}",
+            item_ids.len(),
+            candidates.len()
+        );
+        Ok(candidates.into_iter().collect())
+    }
+
+    async fn delete_and_verify_cleanup_object(
+        media: &OciInstancePrincipalMediaStore,
+        object_key: &str,
+        context: &str,
+    ) -> Result<(), String> {
+        println!(
+            "{}",
+            cleanup_object_message("cleanup deleting private object", context, object_key)
+        );
+        let delete_result = tokio::time::timeout(Duration::from_secs(75), media.delete(object_key))
+            .await
+            .map_err(|_| {
+                cleanup_object_message("private object delete timed out", context, object_key)
+            })?;
+        if let Err(error) = delete_result
+            && !is_oci_not_found(&error)
+        {
+            return Err(cleanup_object_message(
+                "private object delete failed",
+                context,
+                object_key,
+            ));
+        }
+        verify_oci_object_absent(media, object_key).await
     }
 
     async fn verify_oci_object_absent(
@@ -1076,15 +1141,32 @@ mod live {
         object_key: &str,
     ) -> Result<(), String> {
         match tokio::time::timeout(Duration::from_secs(75), media.read(object_key)).await {
-            Err(_) => Err("timed out confirming cleanup OCI object absence".to_owned()),
+            Err(_) => Err(cleanup_object_message(
+                "private object absence check timed out",
+                "absence-verification",
+                object_key,
+            )),
             Ok(Err(error)) if error.contains("returned status 404") => {
-                println!("cleanup confirmed private object absent");
+                println!(
+                    "{}",
+                    cleanup_object_message(
+                        "cleanup confirmed private object absent",
+                        "absence-verification",
+                        object_key,
+                    )
+                );
                 Ok(())
             }
-            Ok(Err(error)) => Err(format!(
-                "could not confirm cleanup OCI object absence: {error}"
+            Ok(Err(_)) => Err(cleanup_object_message(
+                "private object absence check failed",
+                "absence-verification",
+                object_key,
             )),
-            Ok(Ok(_)) => Err("cleanup OCI object still exists after delete".to_owned()),
+            Ok(Ok(_)) => Err(cleanup_object_message(
+                "private object still exists after delete",
+                "absence-verification",
+                object_key,
+            )),
         }
     }
 
@@ -1129,10 +1211,14 @@ mod live {
             let image_id: Option<String> = row.get(3).expect("read smoke image id");
             let object_key: Option<String> = row.get(4).expect("read smoke object key");
             let cleanup_warnings: i64 = row.get(5).expect("read smoke cleanup warning count");
+            let object_fingerprint = object_key
+                .as_deref()
+                .map(cleanup_object_fingerprint)
+                .unwrap_or_else(|| "<none>".to_owned());
             println!(
-                "item_id={item_id} status={status} title={title:?} image_id={} object_key={} cleanup_warnings={cleanup_warnings}",
+                "item_id={item_id} status={status} title={title:?} image_id={} object_fingerprint={} cleanup_warnings={cleanup_warnings}",
                 image_id.as_deref().unwrap_or("<none>"),
-                object_key.as_deref().unwrap_or("<none>")
+                object_fingerprint
             );
         }
         if !found {
@@ -1303,80 +1389,41 @@ mod live {
     }
 
     impl LivePersistenceSmokeCleanup<'_> {
+        fn refresh_inventory(&mut self) -> Result<(), String> {
+            self.object_keys = discover_cleanup_object_keys(
+                self.connection,
+                std::slice::from_ref(&self.item_id),
+                std::mem::take(&mut self.object_keys),
+            )?;
+            Ok(())
+        }
+
         async fn cleanup_and_verify(&mut self) -> Result<(), String> {
+            self.refresh_inventory()?;
             for object_key in &self.object_keys {
-                let delete_result =
-                    tokio::time::timeout(Duration::from_secs(75), self.media.delete(object_key))
-                        .await
-                        .map_err(|_| "timed out deleting live smoke OCI object".to_owned())?;
-                if let Err(error) = delete_result
-                    && !is_oci_not_found(&error)
-                {
-                    return Err(format!("delete live smoke OCI object: {error}"));
-                }
-                verify_oci_object_absent(&self.media, object_key).await?;
+                delete_and_verify_cleanup_object(&self.media, object_key, "live-smoke").await?;
             }
 
-            let statement = self
-                .connection
-                .execute(
-                    "delete from autograph_items where id = :1",
-                    &[&self.item_id],
-                )
-                .map_err(|error| format!("delete live smoke Oracle item: {error}"))?;
-            if statement.rows_affected() != 1 {
-                return Err(format!(
-                    "delete live smoke Oracle item affected {} rows instead of 1",
-                    statement.rows_affected()
-                ));
-            }
-            self.connection
-                .commit()
-                .map_err(|error| format!("commit live smoke Oracle cleanup: {error}"))?;
-
-            for (sql, label) in [
-                (
-                    "select count(*) from autograph_items where id = :1",
-                    "item rows",
-                ),
-                (
-                    "select count(*) from autograph_images where item_id = :1",
-                    "image rows",
-                ),
-                (
-                    "select count(*) from autograph_edit_events where item_id = :1",
-                    "edit-event rows",
-                ),
-            ] {
-                let count: i64 = self
-                    .connection
-                    .query_row(sql, &[&self.item_id])
-                    .map_err(|error| format!("verify live smoke cleanup {label}: {error}"))?
-                    .get(0)
-                    .map_err(|error| format!("decode live smoke cleanup {label}: {error}"))?;
-                if count != 0 {
-                    return Err(format!(
-                        "live smoke cleanup left {count} {label} for item {}",
-                        self.item_id
-                    ));
-                }
-            }
+            delete_cleanup_item_rows(self.connection, &self.item_id)?;
+            verify_cleanup_rows_absent(self.connection, &self.item_id)?;
 
             self.cleaned = true;
             Ok(())
         }
 
-        fn report_recovery_required(&self, step: &str, error: impl std::fmt::Display) {
-            eprintln!(
-                "LIVE_PERSISTENCE_RECOVERY_REQUIRED item_id={} step={} error={error}",
-                self.item_id, step
-            );
+        fn report_recovery_required(&self, step: &str) {
+            eprintln!("{}", cleanup_recovery_message(&self.item_id, step));
         }
     }
 
     impl Drop for LivePersistenceSmokeCleanup<'_> {
         fn drop(&mut self) {
             if self.cleaned {
+                return;
+            }
+
+            if self.refresh_inventory().is_err() {
+                self.report_recovery_required("object-inventory");
                 return;
             }
 
@@ -1391,17 +1438,8 @@ mod live {
                             .map_err(|error| format!("build fallback cleanup runtime: {error}"))?;
                         runtime.block_on(async {
                             for object_key in object_keys {
-                                let delete_result = tokio::time::timeout(
-                                    Duration::from_secs(75),
-                                    media.delete(&object_key),
-                                )
-                                .await
-                                .map_err(|_| "timed out deleting fallback OCI object".to_owned())?;
-                                if let Err(error) = delete_result
-                                    && !is_oci_not_found(&error)
-                                {
-                                    return Err(format!("delete fallback OCI object: {error}"));
-                                }
+                                delete_and_verify_cleanup_object(&media, &object_key, "fallback")
+                                    .await?;
                             }
                             Ok(())
                         })
@@ -1410,21 +1448,65 @@ mod live {
             });
             match media_result {
                 Ok(Ok(())) => {}
-                Ok(Err(error)) => self.report_recovery_required("oci-delete", error),
-                Err(_) => self.report_recovery_required("oci-delete", "fallback thread panicked"),
+                Ok(Err(_)) => {
+                    self.report_recovery_required("object-delete-or-verify");
+                    return;
+                }
+                Err(_) => {
+                    self.report_recovery_required("fallback-thread-panic");
+                    return;
+                }
             }
 
-            if let Err(error) = self.connection.execute(
-                "delete from autograph_items where id = :1",
-                &[&self.item_id],
-            ) {
-                self.report_recovery_required("oracle-delete", error);
+            if delete_cleanup_item_rows(self.connection, &self.item_id).is_err() {
+                self.report_recovery_required("oracle-delete-or-commit");
                 return;
             }
-            if let Err(error) = self.connection.commit() {
-                self.report_recovery_required("oracle-commit", error);
+            if verify_cleanup_rows_absent(self.connection, &self.item_id).is_err() {
+                self.report_recovery_required("oracle-verify");
             }
         }
+    }
+
+    fn delete_cleanup_item_rows(connection: &Connection, item_id: &str) -> Result<(), String> {
+        connection
+            .execute("delete from autograph_items where id = :1", &[&item_id])
+            .map_err(|_| format!("Oracle row deletion failed for item_id={item_id}"))?;
+        connection
+            .commit()
+            .map_err(|_| format!("Oracle row deletion commit failed for item_id={item_id}"))?;
+        Ok(())
+    }
+
+    fn verify_cleanup_rows_absent(connection: &Connection, item_id: &str) -> Result<(), String> {
+        for (sql, label) in [
+            ("select count(*) from autograph_items where id = :1", "item"),
+            (
+                "select count(*) from autograph_images where item_id = :1",
+                "image",
+            ),
+            (
+                "select count(*) from autograph_edit_events where item_id = :1",
+                "edit-event",
+            ),
+            (
+                "select count(*) from autograph_cleanup_events where item_id = :1",
+                "cleanup-event",
+            ),
+        ] {
+            let row = connection.query_row(sql, &[&item_id]).map_err(|_| {
+                format!("Oracle {label} row verification failed for item_id={item_id}")
+            })?;
+            let count: i64 = row.get(0).map_err(|_| {
+                format!("Oracle {label} row count decode failed for item_id={item_id}")
+            })?;
+            if count != 0 {
+                return Err(format!(
+                    "Oracle cleanup retained {count} {label} row(s) for item_id={item_id}"
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn is_oci_not_found(error: &str) -> bool {
@@ -1442,6 +1524,65 @@ mod live {
         assert!(!is_oci_not_found(
             "delete OCI private media object: timeout"
         ));
+    }
+
+    #[test]
+    fn cleanup_evidence_is_domain_separated_and_private() {
+        let object_key =
+            "originals/private-key-marker/namespace-marker/bucket-marker/raw-checksum-marker";
+        let checksum = "raw-checksum-marker";
+        let provider_error = format!("provider failed for {object_key} checksum={checksum}");
+        let captured_output = [
+            cleanup_object_message("cleanup deleting private object", "normal", object_key),
+            cleanup_object_message(
+                "cleanup confirmed private object absent",
+                "already-absent",
+                object_key,
+            ),
+            cleanup_object_message("private object delete timed out", "timeout", object_key),
+            cleanup_object_message(
+                "private object delete failed",
+                "provider-failure",
+                object_key,
+            ),
+            cleanup_object_message(
+                "private object absence check failed",
+                "verification-failure",
+                object_key,
+            ),
+            format!(
+                "live persistence cleanup failed: {}",
+                cleanup_object_message("private object delete failed", "panic", object_key)
+            ),
+            cleanup_recovery_message(&Uuid::nil().to_string(), "fallback-thread-panic"),
+        ]
+        .join("\n");
+
+        assert!(captured_output.contains(&cleanup_object_fingerprint(object_key)));
+        for required in [
+            "normal",
+            "already-absent",
+            "timeout",
+            "provider-failure",
+            "verification-failure",
+            "panic",
+            "fallback-thread-panic",
+        ] {
+            assert!(captured_output.contains(required));
+        }
+        for denied in [
+            object_key,
+            checksum,
+            "private-key-marker",
+            "namespace-marker",
+            "bucket-marker",
+            &provider_error,
+        ] {
+            assert!(
+                !captured_output.contains(denied),
+                "cleanup evidence leaked {denied}"
+            );
+        }
     }
 
     fn required(name: &str) -> String {
@@ -1462,17 +1603,6 @@ mod live {
         } else {
             Some(values)
         }
-    }
-
-    fn assert_count_zero(connection: &Connection, sql: &str, value: &str, label: &str) {
-        let row = connection
-            .query_row(sql, &[&value])
-            .unwrap_or_else(|error| panic!("verify {label}: {error}"));
-        let count: i64 = row
-            .get(0)
-            .unwrap_or_else(|error| panic!("decode {label} count: {error}"));
-        assert_eq!(count, 0, "{label} still present for {value}");
-        println!("verified {label}: 0");
     }
 
     fn assert_static_runtime_schema(connection: &Connection) {

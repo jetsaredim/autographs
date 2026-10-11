@@ -231,6 +231,18 @@ h4 {
   display: none;
 }
 
+.conflict-recovery-status {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  margin-bottom: 16px;
+  border: 1px solid #9a6700;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff8e6;
+  color: #5f3f00;
+}
+
 .admin-tabs {
   display: flex;
   flex-wrap: wrap;

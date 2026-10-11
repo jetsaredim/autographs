@@ -737,6 +737,7 @@ fn static_admin_review_behavior_executes_against_a_dom_harness() {
 #[test]
 fn static_admin_conflict_recovery_is_exclusive_and_generation_scoped() {
     let source = include_str!("../static-admin/admin.js");
+    let html = include_str!("../static-admin/index.html");
 
     assert!(source.contains("editorAuthorityGeneration"));
     assert!(source.contains("requestOwner"));
@@ -744,6 +745,27 @@ fn static_admin_conflict_recovery_is_exclusive_and_generation_scoped() {
     assert!(source.contains("elements.itemForm.inert = true"));
     assert!(source.contains("elements.itemForm.hidden = true"));
     assert!(source.contains("state.conflictRecovery || elements.itemForm.inert"));
+    assert!(source.contains("conflictRecoveryStatus: $(\"#conflict-recovery-status\")"));
+    assert!(source.contains("!elements.conflictRecoveryStatus.hidden"));
+    assert!(source.contains("elements.conflictRecoveryStatus.replaceChildren("));
+
+    let recovery = html
+        .find("id=\"conflict-recovery-status\"")
+        .expect("dedicated conflict recovery status exists");
+    let form = html
+        .find("<form id=\"item-form\"")
+        .expect("item editor form exists");
+    assert!(
+        recovery < form,
+        "conflict recovery status must be outside and before the hidden/inert item form"
+    );
+    let recovery_markup = &html[recovery..form];
+    for expected in ["role=\"status\"", "aria-live=\"polite\"", "hidden"] {
+        assert!(
+            recovery_markup.contains(expected),
+            "conflict recovery status is missing {expected}"
+        );
+    }
 }
 
 #[test]

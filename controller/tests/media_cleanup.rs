@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     fs,
     io::Cursor,
     path::Path,
@@ -894,6 +895,123 @@ async fn delete_then_error_with_warning_failure_keeps_readable_replacement() {
     assert!(media.read(&original_key).await.is_err());
     assert!(media.read(&persisted.images[0].object_key).await.is_ok());
     assert_eq!(file_count(root.path()), 1);
+}
+
+#[derive(Clone, Copy, Debug)]
+enum CleanupFixtureFailure {
+    Discovery,
+    Delete,
+    Verification,
+}
+
+#[derive(Debug)]
+struct CleanupAuthorityFixture {
+    local_candidates: Vec<String>,
+    current_image_keys: Vec<String>,
+    cleanup_event_targets: Vec<String>,
+    existing_objects: BTreeSet<String>,
+    discovery_rows_retained: bool,
+    trace: Vec<&'static str>,
+}
+
+impl CleanupAuthorityFixture {
+    fn cleanup(&mut self, failure: Option<CleanupFixtureFailure>) -> Result<(), &'static str> {
+        self.trace.push("inventory");
+        if matches!(failure, Some(CleanupFixtureFailure::Discovery)) {
+            return Err("discovery failed");
+        }
+        let candidates = self
+            .local_candidates
+            .iter()
+            .chain(&self.current_image_keys)
+            .chain(&self.cleanup_event_targets)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+
+        for candidate in candidates {
+            self.trace.push("delete-object");
+            if matches!(failure, Some(CleanupFixtureFailure::Delete)) {
+                return Err("delete failed");
+            }
+            self.existing_objects.remove(&candidate);
+            self.trace.push("verify-object");
+            if matches!(failure, Some(CleanupFixtureFailure::Verification)) {
+                return Err("verification failed");
+            }
+            assert!(!self.existing_objects.contains(&candidate));
+        }
+
+        self.trace.push("delete-rows");
+        self.discovery_rows_retained = false;
+        self.trace.push("verify-rows");
+        Ok(())
+    }
+}
+
+fn committed_replacement_cleanup_fixture() -> CleanupAuthorityFixture {
+    CleanupAuthorityFixture {
+        local_candidates: vec!["candidate-a".to_owned()],
+        current_image_keys: vec!["committed-b".to_owned(), "committed-b".to_owned()],
+        cleanup_event_targets: vec!["candidate-a".to_owned()],
+        existing_objects: ["candidate-a".to_owned(), "committed-b".to_owned()]
+            .into_iter()
+            .collect(),
+        discovery_rows_retained: true,
+        trace: Vec::new(),
+    }
+}
+
+#[test]
+fn recovery_required_cleanup_discovers_committed_replacement_before_deleting_rows() {
+    let mut fixture = committed_replacement_cleanup_fixture();
+
+    fixture.cleanup(None).expect("cleanup succeeds");
+
+    assert!(fixture.existing_objects.is_empty());
+    assert!(!fixture.discovery_rows_retained);
+    let last_object_verification = fixture
+        .trace
+        .iter()
+        .rposition(|step| *step == "verify-object")
+        .expect("object verification recorded");
+    let row_delete = fixture
+        .trace
+        .iter()
+        .position(|step| *step == "delete-rows")
+        .expect("row deletion recorded");
+    assert!(last_object_verification < row_delete);
+    assert_eq!(
+        fixture
+            .trace
+            .iter()
+            .filter(|step| **step == "delete-object")
+            .count(),
+        2,
+        "local, current-image, and cleanup-event candidates must deduplicate"
+    );
+}
+
+#[test]
+fn cleanup_partial_failures_retain_discovery_rows_and_retry_idempotently() {
+    for failure in [
+        CleanupFixtureFailure::Discovery,
+        CleanupFixtureFailure::Delete,
+        CleanupFixtureFailure::Verification,
+    ] {
+        let mut fixture = committed_replacement_cleanup_fixture();
+        assert!(fixture.cleanup(Some(failure)).is_err());
+        assert!(
+            fixture.discovery_rows_retained,
+            "rows deleted after {failure:?}"
+        );
+        assert!(!fixture.trace.contains(&"delete-rows"));
+
+        fixture
+            .cleanup(None)
+            .expect("partial cleanup retry succeeds");
+        assert!(fixture.existing_objects.is_empty());
+        assert!(!fixture.discovery_rows_retained);
+    }
 }
 
 #[tokio::test]

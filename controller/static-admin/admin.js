@@ -142,6 +142,7 @@ const elements = {
   imageFiles: $("#image-files"),
   replacementImage: $("#replacement-image"),
   imageMessage: $("#image-message"),
+  conflictRecoveryStatus: $("#conflict-recovery-status"),
   historyList: $("#history-list"),
   diagnosticsOutput: $("#diagnostics-output"),
   hubDiagnostics: $("#hub-diagnostics"),
@@ -1697,6 +1698,8 @@ function leaveConflictRecoverySurface() {
   elements.itemForm.inert = false;
   elements.itemForm.hidden = false;
   elements.imageGrid.hidden = false;
+  elements.conflictRecoveryStatus.hidden = true;
+  elements.conflictRecoveryStatus.replaceChildren();
 }
 
 function invalidateEditorAuthority({ preserveRecoverySurface = false } = {}) {
@@ -1711,7 +1714,10 @@ function enterConflictRecoverySurface() {
   elements.itemForm.inert = true;
   elements.itemForm.hidden = true;
   elements.imageGrid.hidden = true;
-  elements.imageMessage.textContent = copy.mediaChanged;
+  elements.conflictRecoveryStatus.replaceChildren(
+    textNode("span", "Image media changed. Refreshing the current item before review can reopen.")
+  );
+  elements.conflictRecoveryStatus.hidden = false;
 }
 
 function conflictRecoveryAccepts(recovery) {
@@ -1724,7 +1730,8 @@ function conflictRecoveryAccepts(recovery) {
       recovery.requestOwner &&
       recovery.status === "pending" &&
       state.currentView === "add-item-view" &&
-      elements.itemForm.inert
+      elements.itemForm.inert &&
+      !elements.conflictRecoveryStatus.hidden
   );
 }
 
@@ -1737,7 +1744,7 @@ function isMediaRevisionConflict(error) {
 }
 
 function renderConflictRecoveryRetry(recovery) {
-  elements.imageMessage.replaceChildren(
+  elements.conflictRecoveryStatus.replaceChildren(
     textNode("span", "The current item could not be refreshed. ", "status-warning"),
     buttonNode("Retry item refresh", "secondary-action", () => {
       if (state.conflictRecovery === recovery && recovery.status === "retryable") {
@@ -1746,6 +1753,7 @@ function renderConflictRecoveryRetry(recovery) {
       return undefined;
     })
   );
+  elements.conflictRecoveryStatus.hidden = false;
 }
 
 async function recoverConflictedItem(itemId, navigationRevision) {
