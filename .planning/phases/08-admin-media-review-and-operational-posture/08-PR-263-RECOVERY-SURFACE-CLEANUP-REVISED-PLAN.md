@@ -1,13 +1,15 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: proposed
+status: approved
 trigger_review: 08-REVIEW.md
 findings:
   - CR-01
   - CR-02
   - WR-01
 review_required: true
+review_evidence: 08-PR-263-RECOVERY-SURFACE-CLEANUP-PLAN-REVIEW.md
+review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6109798191
 ---
 
 # PR 263 Recovery Surface and Cleanup Authority Revised Plan
