@@ -162,12 +162,18 @@ impl OracleConnectionAttemptError {
 fn is_invalid_credential_error_kind(kind: &ErrorKind) -> bool {
     matches!(
         kind,
-        ErrorKind::DbError(message)
-            if message
-                .trim_start()
-                .split_once(':')
-                .is_some_and(|(code, _)| code == "ORA-01017")
+        ErrorKind::DbError(db_error) if is_invalid_credential_message(db_error.message())
     )
+}
+
+/// `ErrorKind::DbError` carries an opaque `oracledb::DbError` (it has no public
+/// constructor), so the message parsing lives here where it can be unit tested
+/// with plain strings.
+fn is_invalid_credential_message(message: &str) -> bool {
+    message
+        .trim_start()
+        .split_once(':')
+        .is_some_and(|(code, _)| code == "ORA-01017")
 }
 
 async fn connect_with_recovery_using<T, Connect, ConnectFuture>(
@@ -323,18 +329,18 @@ mod tests {
 
     #[test]
     fn only_exact_ora_01017_database_errors_are_invalid_credentials() {
-        assert!(is_invalid_credential_error_kind(&ErrorKind::DbError(
-            "ORA-01017: invalid credential or not authorized; logon denied".to_owned()
-        )));
-        assert!(is_invalid_credential_error_kind(&ErrorKind::DbError(
-            "  ORA-01017: invalid credential\nHelp: example".to_owned()
-        )));
-        assert!(!is_invalid_credential_error_kind(&ErrorKind::DbError(
-            "ORA-01017x: invalid credential".to_owned()
-        )));
-        assert!(!is_invalid_credential_error_kind(&ErrorKind::DbError(
-            "wrapper: ORA-01017: invalid credential".to_owned()
-        )));
+        assert!(is_invalid_credential_message(
+            "ORA-01017: invalid credential or not authorized; logon denied"
+        ));
+        assert!(is_invalid_credential_message(
+            "  ORA-01017: invalid credential\nHelp: example"
+        ));
+        assert!(!is_invalid_credential_message(
+            "ORA-01017x: invalid credential"
+        ));
+        assert!(!is_invalid_credential_message(
+            "wrapper: ORA-01017: invalid credential"
+        ));
         assert!(!is_invalid_credential_error_kind(&ErrorKind::NoCredentials));
     }
 
