@@ -1,17 +1,34 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: ready_to_resume
+status: reassessment_required
 trigger_review: 08-REVIEW.md
-trigger_review_commit: 305591145bf43957eca6b1e07afa249858f47d62
-trigger_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6104511401
+trigger_review_commit: daef9efba4b96d02281b8ce1c4c0d01ea32367db
+trigger_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115511490
 assumption_revision_evidence: 08-REVIEW.md#convergence-reassessment
-implementation_plan_evidence: 08-PR-263-RECOVERY-SURFACE-CLEANUP-REVISED-PLAN.md
-implementation_plan_review_evidence: 08-PR-263-RECOVERY-SURFACE-CLEANUP-PLAN-REVIEW.md
-implementation_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6109798191
+implementation_plan_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md
+implementation_plan_review_evidence: null
+implementation_plan_review_comment: null
 ---
 
 # PR 263 Review/Fix Convergence Reassessment
+
+## Post-Fix Candidate Ownership Reassessment — 2026-10-12
+
+The iteration-10 deep review at implementation head `91fad0c`, recorded by
+`daef9ef` and PR comment `6115511490`, closes CR-01 and WR-01 but keeps CR-02
+open as an `incomplete_fix`. The discovery-first contract is correct on success,
+yet `refresh_inventory()` transfers the guard's local candidate vector into a
+fallible query with `mem::take`. A failed query therefore mutates durable
+cleanup authority by erasing the only in-process record of an old object.
+
+The complete lineage, shared invariants, consumer inventory, assumption audit,
+and failure matrix are durable in `08-REVIEW.md#convergence-reassessment`.
+The revised implementation plan is
+`08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md`. No source change may begin
+until an independent reviewer approves that plan with zero Critical, Warning,
+and Info findings and both evidence references replace the null review fields
+above. Only then may this status return to `ready_to_resume`.
 
 ## Resumed Deep Review Reassessment — 2026-10-11
 
