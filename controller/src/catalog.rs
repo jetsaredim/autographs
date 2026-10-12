@@ -360,6 +360,10 @@ pub struct CleanupWarning {
     pub admin_message: String,
 }
 
+pub fn is_actionable_cleanup_operation(operation: &str) -> bool {
+    matches!(operation, "delete" | "replace")
+}
+
 #[derive(Clone, Debug)]
 pub struct ImageCleanupOutcome {
     pub item: AutographItem,
@@ -1049,7 +1053,11 @@ impl CatalogRepository for MemoryCatalogRepository {
             .lock()
             .expect("cleanup event lock")
             .iter()
-            .filter(|event| event.item_id == item_id && event.status == CleanupStatus::DeleteFailed)
+            .filter(|event| {
+                event.item_id == item_id
+                    && event.status == CleanupStatus::DeleteFailed
+                    && is_actionable_cleanup_operation(&event.operation)
+            })
             .map(|event| CleanupWarning {
                 image_id: event.image_id,
                 target_object_key: event.target_object_key.clone(),

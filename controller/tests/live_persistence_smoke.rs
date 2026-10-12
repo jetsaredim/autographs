@@ -1,3 +1,13 @@
+fn refresh_cleanup_candidates<E, F>(
+    current_candidates: &[String],
+    discover: F,
+) -> Result<Vec<String>, E>
+where
+    F: FnOnce(Vec<String>) -> Result<Vec<String>, E>,
+{
+    discover(current_candidates.to_vec())
+}
+
 #[cfg(feature = "live-persistence")]
 mod live {
     use std::{collections::BTreeSet, env, sync::Arc, time::Duration};
@@ -25,6 +35,8 @@ mod live {
     use sha2::{Digest, Sha256};
     use tower::ServiceExt;
     use uuid::Uuid;
+
+    const LIVE_PERSISTENCE_SMOKE_GUARD_OPERATION: &str = "livePersistenceSmokeGuard";
 
     #[tokio::test]
     #[ignore = "requires live Oracle wallet and OCI instance-principal media access"]
@@ -111,6 +123,8 @@ mod live {
             )
             .expect("insert live smoke item");
         connection.commit().expect("commit smoke item");
+        register_smoke_cleanup_authority(&connection, &item_id, &image_id, &object_key)
+            .expect("register live smoke cleanup authority before object creation");
 
         let body = if media_revision_smoke {
             tiny_png()
@@ -1110,6 +1124,38 @@ mod live {
         Ok(candidates.into_iter().collect())
     }
 
+    fn register_smoke_cleanup_authority(
+        connection: &Connection,
+        item_id: &str,
+        image_id: &str,
+        object_key: &str,
+    ) -> Result<(), String> {
+        let event_id = Uuid::new_v4().to_string();
+        connection
+            .execute(
+                "insert into autograph_cleanup_events (
+                    id, item_id, image_id, target_object_key, operation, status, admin_message
+                ) values (
+                    :1, :2, :3, :4, :5, 'deleteFailed', :6
+                )",
+                &[
+                    &event_id,
+                    &item_id,
+                    &image_id,
+                    &object_key,
+                    &LIVE_PERSISTENCE_SMOKE_GUARD_OPERATION,
+                    &"Private live-smoke cleanup authority; use item-ID cleanup.",
+                ],
+            )
+            .map_err(|_| {
+                format!("register live smoke cleanup authority failed for item_id={item_id}")
+            })?;
+        connection.commit().map_err(|_| {
+            format!("commit live smoke cleanup authority failed for item_id={item_id}")
+        })?;
+        Ok(())
+    }
+
     async fn delete_and_verify_cleanup_object(
         media: &OciInstancePrincipalMediaStore,
         object_key: &str,
@@ -1191,7 +1237,8 @@ mod live {
                    (select count(*)
                       from autograph_cleanup_events ce
                      where ce.item_id = i.id
-                       and ce.status = 'deleteFailed')
+                       and ce.status = 'deleteFailed'
+                       and ce.operation in ('delete', 'replace'))
                  from autograph_items i
                  left join autograph_images img on img.item_id = i.id
                  where i.title like 'Live Smoke%'
@@ -1390,11 +1437,14 @@ mod live {
 
     impl LivePersistenceSmokeCleanup<'_> {
         fn refresh_inventory(&mut self) -> Result<(), String> {
-            self.object_keys = discover_cleanup_object_keys(
-                self.connection,
-                std::slice::from_ref(&self.item_id),
-                std::mem::take(&mut self.object_keys),
-            )?;
+            let refreshed = super::refresh_cleanup_candidates(&self.object_keys, |candidates| {
+                discover_cleanup_object_keys(
+                    self.connection,
+                    std::slice::from_ref(&self.item_id),
+                    candidates,
+                )
+            })?;
+            self.object_keys = refreshed;
             Ok(())
         }
 
@@ -1678,6 +1728,42 @@ mod live {
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod candidate_refresh_tests {
+    use super::refresh_cleanup_candidates;
+
+    #[test]
+    fn failed_candidate_refresh_preserves_the_complete_current_set() {
+        let current = vec!["candidate-a".to_owned(), "candidate-local".to_owned()];
+        let result = refresh_cleanup_candidates(&current, |mut candidates| {
+            candidates.push("partially-discovered-b".to_owned());
+            Err::<Vec<String>, _>("row decode failed")
+        });
+
+        assert_eq!(result, Err("row decode failed"));
+        assert_eq!(current, ["candidate-a", "candidate-local"]);
+    }
+
+    #[test]
+    fn retry_installs_deduplicated_union_without_forgetting_current_candidates() {
+        let current = vec!["candidate-a".to_owned()];
+        let refreshed = refresh_cleanup_candidates(&current, |candidates| {
+            Ok::<Vec<String>, ()>(
+                candidates
+                    .into_iter()
+                    .chain(["candidate-a".to_owned(), "candidate-b".to_owned()])
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter()
+                    .collect(),
+            )
+        })
+        .unwrap();
+
+        assert_eq!(refreshed, ["candidate-a", "candidate-b"]);
+        assert_eq!(current, ["candidate-a"]);
     }
 }
 

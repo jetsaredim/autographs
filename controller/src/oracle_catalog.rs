@@ -16,9 +16,9 @@ use crate::catalog::{
     ImageReplacementUpdateError, ItemOrigin, PendingChangeSummary, PublicationStatus,
     PublishBoundary, SignerCredit, SignerCreditInput, SignerMergeResult, SignerProfile,
     SignerProfileUpdateInput, SignerSuggestion, TaxonomySuggestions, apply_signer_profile_update,
-    apply_update, event_kind_for_diffs, event_summary, normalize_profile_link,
-    normalize_signer_name, now_epoch_seconds, signer_match_rank, signer_profile_field_diffs,
-    validate_required_fields,
+    apply_update, event_kind_for_diffs, event_summary, is_actionable_cleanup_operation,
+    normalize_profile_link, normalize_signer_name, now_epoch_seconds, signer_match_rank,
+    signer_profile_field_diffs, validate_required_fields,
 };
 use crate::image_adjustments::ImageAdjustment;
 use crate::oracle_connection::{self, OracleConnectionSettings};
@@ -2046,10 +2046,14 @@ fn load_cleanup_warnings(
     let mut warnings = Vec::new();
     for row in &mut rows {
         let row = row.map_err(|error| format!("read Oracle cleanup warning row: {error}"))?;
+        let operation: String = row_value(&row, 2, "cleanup operation")?;
+        if !is_actionable_cleanup_operation(&operation) {
+            continue;
+        }
         warnings.push(CleanupWarning {
             image_id: parse_uuid(&row_value::<String>(&row, 0, "cleanup image id")?)?,
             target_object_key: row_value(&row, 1, "cleanup target object key")?,
-            operation: row_value(&row, 2, "cleanup operation")?,
+            operation,
             status: row_value::<String>(&row, 3, "cleanup status")?.parse::<CleanupStatus>()?,
             admin_message: row_value(&row, 4, "cleanup admin message")?,
         });

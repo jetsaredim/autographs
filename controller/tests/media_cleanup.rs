@@ -15,7 +15,7 @@ use autographs_controller::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
         CleanupStatus, CleanupWarning, ImageAdjustmentUpdateError, ImageCleanupEvent,
         ImageReplacementInput, ImageReplacementUpdateError, ItemOrigin, MemoryCatalogRepository,
-        PublicationStatus,
+        PublicationStatus, is_actionable_cleanup_operation,
     },
     config::ControllerConfig,
     image_adjustments::ImageAdjustment,
@@ -45,6 +45,44 @@ fn cleanup_schema_update_fails_closed_for_unresolved_legacy_targets() {
     assert!(script.contains("raise_application_error"));
     assert!(script.contains("legacy rows without exact target_object_key"));
     assert!(script.contains("from autograph_images images"));
+}
+
+#[test]
+fn cleanup_operation_allowlist_is_explicit_and_fail_closed() {
+    assert!(is_actionable_cleanup_operation("delete"));
+    assert!(is_actionable_cleanup_operation("replace"));
+    for operation in [
+        "livePersistenceSmokeGuard",
+        "",
+        "Delete",
+        "replace ",
+        "futureCleanupOperation",
+    ] {
+        assert!(!is_actionable_cleanup_operation(operation));
+    }
+}
+
+#[test]
+fn oracle_warning_loader_uses_shared_allowlist_while_inventory_stays_inclusive() {
+    let oracle_source = fs::read_to_string(format!(
+        "{}/src/oracle_catalog.rs",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("read Oracle catalog source");
+    assert!(oracle_source.contains("is_actionable_cleanup_operation(&operation)"));
+
+    let smoke_source = fs::read_to_string(format!(
+        "{}/tests/live_persistence_smoke.rs",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("read live persistence smoke source");
+    assert!(
+        smoke_source
+            .contains("select target_object_key from autograph_cleanup_events where item_id = :1")
+    );
+    assert!(!smoke_source.contains(
+        "select target_object_key from autograph_cleanup_events where item_id = :1 and operation"
+    ));
 }
 
 #[tokio::test]
@@ -961,6 +999,69 @@ fn committed_replacement_cleanup_fixture() -> CleanupAuthorityFixture {
     }
 }
 
+#[derive(Default)]
+struct TrackedCandidateCreationFixture {
+    durable_targets: BTreeSet<String>,
+    written_objects: BTreeSet<String>,
+    trace: Vec<&'static str>,
+}
+
+impl TrackedCandidateCreationFixture {
+    fn register_then_write(
+        &mut self,
+        candidate: &str,
+        registration_fails: bool,
+    ) -> Result<(), &'static str> {
+        self.trace.push("register-authority");
+        if registration_fails {
+            return Err("registration failed");
+        }
+        self.durable_targets.insert(candidate.to_owned());
+        self.trace.push("commit-authority");
+        self.trace.push("write-object");
+        self.written_objects.insert(candidate.to_owned());
+        Ok(())
+    }
+}
+
+#[test]
+fn live_smoke_candidate_registration_commits_before_object_creation() {
+    let mut fixture = TrackedCandidateCreationFixture::default();
+    fixture
+        .register_then_write("private-raw-candidate-a", false)
+        .unwrap();
+    assert_eq!(
+        fixture.trace,
+        ["register-authority", "commit-authority", "write-object"]
+    );
+    assert!(fixture.durable_targets.contains("private-raw-candidate-a"));
+    assert!(fixture.written_objects.contains("private-raw-candidate-a"));
+
+    let mut failed = TrackedCandidateCreationFixture::default();
+    assert!(
+        failed
+            .register_then_write("private-raw-candidate-b", true)
+            .is_err()
+    );
+    assert_eq!(failed.trace, ["register-authority"]);
+    assert!(failed.durable_targets.is_empty());
+    assert!(failed.written_objects.is_empty());
+
+    let smoke_source = fs::read_to_string(format!(
+        "{}/tests/live_persistence_smoke.rs",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("read live persistence smoke source");
+    let registration = smoke_source
+        .find("register_smoke_cleanup_authority(&connection")
+        .expect("registration call exists");
+    let object_write = smoke_source[registration..]
+        .find(".write(&object_key, &body)")
+        .map(|offset| registration + offset)
+        .expect("object write exists after registration");
+    assert!(registration < object_write);
+}
+
 #[test]
 fn recovery_required_cleanup_discovers_committed_replacement_before_deleting_rows() {
     let mut fixture = committed_replacement_cleanup_fixture();
@@ -1012,6 +1113,43 @@ fn cleanup_partial_failures_retain_discovery_rows_and_retry_idempotently() {
         assert!(fixture.existing_objects.is_empty());
         assert!(!fixture.discovery_rows_retained);
     }
+}
+
+#[test]
+fn fresh_item_cleanup_recovers_durable_candidates_after_guard_destruction() {
+    let mut original_guard = committed_replacement_cleanup_fixture();
+    assert!(
+        original_guard
+            .cleanup(Some(CleanupFixtureFailure::Discovery))
+            .is_err()
+    );
+    assert!(
+        original_guard
+            .cleanup(Some(CleanupFixtureFailure::Discovery))
+            .is_err()
+    );
+    assert!(original_guard.discovery_rows_retained);
+
+    let mut fresh_cleanup = CleanupAuthorityFixture {
+        local_candidates: Vec::new(),
+        current_image_keys: original_guard.current_image_keys.clone(),
+        cleanup_event_targets: original_guard.cleanup_event_targets.clone(),
+        existing_objects: original_guard.existing_objects.clone(),
+        discovery_rows_retained: original_guard.discovery_rows_retained,
+        trace: Vec::new(),
+    };
+    fresh_cleanup.cleanup(None).unwrap();
+
+    assert!(fresh_cleanup.existing_objects.is_empty());
+    assert!(!fresh_cleanup.discovery_rows_retained);
+    assert_eq!(
+        fresh_cleanup
+            .trace
+            .iter()
+            .filter(|step| **step == "delete-object")
+            .count(),
+        2
+    );
 }
 
 #[tokio::test]
@@ -1135,6 +1273,144 @@ async fn cleanup_retry_without_warning_does_not_delete_healthy_image() {
             .unwrap()
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn smoke_guard_authority_is_private_and_not_retryable() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    let object_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+    repository
+        .record_cleanup_event(ImageCleanupEvent::new(
+            item.id,
+            image_id,
+            object_key.clone(),
+            "livePersistenceSmokeGuard",
+            CleanupStatus::DeleteFailed,
+            "Private live-smoke cleanup authority; use item-ID cleanup.",
+            1,
+        ))
+        .await
+        .unwrap();
+
+    assert!(
+        repository
+            .cleanup_warnings(item.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let detail = response_json(
+        app.clone()
+            .oneshot(
+                Request::get(format!("/admin/api/items/{}", item.id))
+                    .header(header::COOKIE, admin_cookie(&app).await)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert!(
+        detail
+            .get("cleanupWarnings")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty)
+    );
+
+    let retried = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/admin/api/items/{}/images/{image_id}/cleanup/retry",
+                item.id
+            ))
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(retried.status(), StatusCode::CONFLICT);
+    assert_eq!(media.read(&object_key).await.unwrap(), png_fixture());
+    assert_eq!(
+        repository.get(item.id).await.unwrap().unwrap().images.len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn cleanup_retry_route_rejects_injected_non_actionable_warning_before_side_effects() {
+    let root = tempdir().unwrap();
+    let item_id = Uuid::new_v4();
+    let image_id = Uuid::new_v4();
+    let object_key = build_original_object_key(item_id, image_id);
+    let authority = ImageCleanupEvent::new(
+        item_id,
+        image_id,
+        object_key.clone(),
+        "livePersistenceSmokeGuard",
+        CleanupStatus::DeleteFailed,
+        "Private live-smoke cleanup authority; use item-ID cleanup.",
+        1,
+    );
+    let repository = Arc::new(FailingRemoveRepository {
+        item: Mutex::new(item_with_image(item_id, image_id, object_key.clone())),
+        cleanup_events: Mutex::new(vec![authority]),
+    });
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    media.write(&object_key, &png_fixture()).await.unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/admin/api/items/{item_id}/images/{image_id}/cleanup/retry"
+            ))
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    assert_eq!(media.read(&object_key).await.unwrap(), png_fixture());
+    assert_eq!(
+        repository.get(item_id).await.unwrap().unwrap().images.len(),
+        1
+    );
+    let events = repository.cleanup_events.lock().expect("cleanup lock");
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].status, CleanupStatus::DeleteFailed);
+    assert_eq!(events[0].operation, "livePersistenceSmokeGuard");
 }
 
 fn item_input() -> AutographItemInput {

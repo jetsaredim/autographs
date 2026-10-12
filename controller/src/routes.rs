@@ -19,7 +19,8 @@ use crate::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
         CleanupStatus, CleanupWarning, ImageAdjustmentUpdateError, ImageCleanupEvent,
         ImageReplacementInput, ImageReplacementUpdateError, MemoryCatalogRepository,
-        PublicationStatus, REQUIRED_FIELDS_ERROR, now_epoch_seconds,
+        PublicationStatus, REQUIRED_FIELDS_ERROR, is_actionable_cleanup_operation,
+        now_epoch_seconds,
     },
     config::ControllerConfig,
     derivatives::DerivativeVariant,
@@ -1693,6 +1694,15 @@ async fn retry_image_cleanup(
         tracing::warn!(%item_id, %image_id, "cleanup retry requested without unresolved cleanup warning");
         return StatusCode::CONFLICT.into_response();
     };
+    if !is_actionable_cleanup_operation(&cleanup_warning.operation) {
+        tracing::warn!(
+            %item_id,
+            %image_id,
+            operation = %cleanup_warning.operation,
+            "cleanup retry requested for non-actionable operation"
+        );
+        return StatusCode::CONFLICT.into_response();
+    }
     if let Err(error) = state.media.delete(&cleanup_warning.target_object_key).await {
         tracing::warn!(
             %item_id,
