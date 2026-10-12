@@ -471,6 +471,7 @@ jobs:
           files: |
             .github/docker-bake.hcl
           push: true
+          provenance: false
 
       - name: Reconcile release manifest
         if: steps.request.outputs.operation != 'rollback'
