@@ -181,6 +181,48 @@ fn auto_assist_finds_dark_card_against_light_background() {
 }
 
 #[test]
+fn auto_assist_abstains_when_low_contrast_card_encloses_dark_content() {
+    let source = bordered_card_with_internal_content_fixture([224, 224, 224]);
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Unavailable);
+    assert!(proposal.corners.is_empty());
+}
+
+#[test]
+fn auto_assist_abstains_when_low_contrast_skewed_slab_encloses_dark_content() {
+    let source = low_contrast_skewed_slab_fixture();
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Unavailable);
+    assert!(proposal.corners.is_empty());
+}
+
+#[test]
+fn auto_assist_abstains_when_border_noise_hides_low_contrast_enclosure() {
+    let source = noisy_border_low_contrast_card_fixture();
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Unavailable);
+    assert!(proposal.corners.is_empty());
+}
+
+#[test]
+fn auto_assist_keeps_outer_card_when_its_border_has_reliable_contrast() {
+    let source = bordered_card_with_internal_content_fixture([190, 190, 190]);
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Confident);
+    assert_detected_corners_near(
+        &proposal.corners,
+        &[(18, 10), (161, 10), (161, 129), (18, 129)],
+        180,
+        140,
+        0.025,
+    );
+}
+
+#[test]
 fn auto_assist_returns_unavailable_copy_for_low_confidence_fixture() {
     let source = fixture_png([128, 128, 128], 96, 72);
     let proposal = propose_image_adjustment(&source).unwrap();
@@ -255,6 +297,81 @@ fn dark_card_fixture() -> Vec<u8> {
         for x in left..right {
             image.put_pixel(x as u32, y, Rgba([24, 28, 32, 255]));
         }
+    }
+    encode_png(image)
+}
+
+fn bordered_card_with_internal_content_fixture(card_color: [u8; 3]) -> Vec<u8> {
+    let mut image = RgbaImage::new(180, 140);
+    for pixel in image.pixels_mut() {
+        *pixel = Rgba([238, 238, 238, 255]);
+    }
+    for y in 10..130 {
+        for x in 18..162 {
+            image.put_pixel(
+                x,
+                y,
+                Rgba([card_color[0], card_color[1], card_color[2], 255]),
+            );
+        }
+    }
+    for y in 30..110 {
+        for x in 44..136 {
+            image.put_pixel(x, y, Rgba([28, 32, 36, 255]));
+        }
+    }
+    encode_png(image)
+}
+
+fn low_contrast_skewed_slab_fixture() -> Vec<u8> {
+    let mut image = RgbaImage::new(180, 140);
+    for pixel in image.pixels_mut() {
+        *pixel = Rgba([242, 242, 242, 255]);
+    }
+    for y in 8..132 {
+        let left = 18i32 - ((y as i32 - 8) / 31);
+        let right = 163i32 + ((y as i32 - 8) / 41);
+        for x in left..right {
+            image.put_pixel(x as u32, y, Rgba([230, 232, 234, 255]));
+        }
+    }
+    for y in 34..116 {
+        let left = 42i32 - ((y as i32 - 34) / 27);
+        let right = 139i32 + ((y as i32 - 34) / 34);
+        for x in left..right {
+            image.put_pixel(x as u32, y, Rgba([34, 38, 42, 255]));
+        }
+    }
+    for y in 15..29 {
+        for x in 55..127 {
+            image.put_pixel(x, y, Rgba([72, 76, 80, 255]));
+        }
+    }
+    encode_png(image)
+}
+
+fn noisy_border_low_contrast_card_fixture() -> Vec<u8> {
+    let mut image = RgbaImage::new(180, 140);
+    for pixel in image.pixels_mut() {
+        *pixel = Rgba([242, 242, 242, 255]);
+    }
+    for y in 10..130 {
+        for x in 18..162 {
+            image.put_pixel(x, y, Rgba([220, 220, 220, 255]));
+        }
+    }
+    for y in 30..110 {
+        for x in 44..136 {
+            image.put_pixel(x, y, Rgba([28, 32, 36, 255]));
+        }
+    }
+    for x in (0..image.width()).step_by(4) {
+        image.put_pixel(x, 0, Rgba([176, 176, 176, 255]));
+        image.put_pixel(x, image.height() - 1, Rgba([176, 176, 176, 255]));
+    }
+    for y in (1..image.height() - 1).step_by(4) {
+        image.put_pixel(0, y, Rgba([176, 176, 176, 255]));
+        image.put_pixel(image.width() - 1, y, Rgba([176, 176, 176, 255]));
     }
     encode_png(image)
 }

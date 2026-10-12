@@ -19,6 +19,9 @@ const AUTO_CORRECTION_MIN_COMPONENT_RATIO: f32 = 0.01;
 const AUTO_CORRECTION_MIN_QUAD_AREA_RATIO: f32 = 0.15;
 const AUTO_CORRECTION_MAX_QUAD_AREA_RATIO: f32 = 0.985;
 const AUTO_CORRECTION_IDENTITY_TOLERANCE: f32 = 0.025;
+const AUTO_CORRECTION_MIN_STABILITY_THRESHOLD: u32 = 8;
+const AUTO_CORRECTION_MAX_STABLE_COMPONENT_GROWTH: f32 = 1.25;
+const AUTO_CORRECTION_MAX_STABLE_AREA_GROWTH: f32 = 0.05;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -236,9 +239,10 @@ pub fn propose_image_adjustment(source: &[u8]) -> Result<ImageAdjustmentProposal
 
     let background = border_median_rgb(&image);
     let threshold = adaptive_color_distance_threshold(&image, background);
-    let Some(corners) = largest_contrast_component_corners(&image, background, threshold) else {
+    let Some(component) = largest_contrast_component(&image, background, threshold) else {
         return Ok(unavailable_proposal());
     };
+    let corners = component.corners;
     let normalized_corners = corners.map(|(x, y)| normalized_point(x, y, width, height));
     let perspective = ImagePerspective {
         corners: normalized_corners,
@@ -250,6 +254,9 @@ pub fn propose_image_adjustment(source: &[u8]) -> Result<ImageAdjustmentProposal
     if !(AUTO_CORRECTION_MIN_QUAD_AREA_RATIO..=AUTO_CORRECTION_MAX_QUAD_AREA_RATIO)
         .contains(&area_ratio)
     {
+        return Ok(unavailable_proposal());
+    }
+    if !component_boundary_is_stable(&image, background, threshold, &component, area_ratio) {
         return Ok(unavailable_proposal());
     }
     if corners_are_near_full_frame(normalized_corners) {
@@ -322,11 +329,11 @@ fn color_distance(color: [u8; 3], background: [u8; 3]) -> u32 {
     (squared as f32).sqrt().round() as u32
 }
 
-fn largest_contrast_component_corners(
+fn largest_contrast_component(
     image: &image::RgbImage,
     background: [u8; 3],
     threshold: u32,
-) -> Option<[(u32, u32); 4]> {
+) -> Option<ContrastComponent> {
     let (width, height) = image.dimensions();
     let total = width as usize * height as usize;
     let foreground = image
@@ -351,11 +358,12 @@ fn largest_contrast_component_corners(
 
     largest.and_then(|component| {
         let ratio = component.count as f32 / total.max(1) as f32;
-        (ratio >= AUTO_CORRECTION_MIN_COMPONENT_RATIO).then_some(component.corners)
+        (ratio >= AUTO_CORRECTION_MIN_COMPONENT_RATIO).then_some(component)
     })
 }
 
 struct ContrastComponent {
+    anchor: usize,
     count: usize,
     corners: [(u32, u32); 4],
 }
@@ -408,7 +416,59 @@ fn trace_contrast_component(
         }
     }
 
-    ContrastComponent { count, corners }
+    ContrastComponent {
+        anchor: start,
+        count,
+        corners,
+    }
+}
+
+fn component_boundary_is_stable(
+    image: &image::RgbImage,
+    background: [u8; 3],
+    threshold: u32,
+    component: &ContrastComponent,
+    area_ratio: f32,
+) -> bool {
+    let (width, height) = image.dimensions();
+    let mut previous_threshold = threshold;
+    for weak_threshold in [
+        threshold.saturating_mul(3) / 4,
+        threshold / 2,
+        threshold / 3,
+        AUTO_CORRECTION_MIN_COLOR_DISTANCE,
+        AUTO_CORRECTION_MIN_COLOR_DISTANCE / 2,
+        AUTO_CORRECTION_MIN_STABILITY_THRESHOLD,
+    ]
+    .map(|value| value.max(AUTO_CORRECTION_MIN_STABILITY_THRESHOLD))
+    {
+        if weak_threshold >= previous_threshold {
+            continue;
+        }
+        previous_threshold = weak_threshold;
+        let foreground = image
+            .pixels()
+            .map(|pixel| color_distance(pixel.0, background) >= weak_threshold)
+            .collect::<Vec<_>>();
+        if !foreground[component.anchor] {
+            return false;
+        }
+        let mut visited = vec![false; foreground.len()];
+        let weak_component =
+            trace_contrast_component(component.anchor, width, height, &foreground, &mut visited);
+        let weak_area_ratio = quadrilateral_area_ratio(
+            weak_component
+                .corners
+                .map(|(x, y)| normalized_point(x, y, width, height)),
+        );
+        let population_growth = weak_component.count as f32 / component.count.max(1) as f32;
+        if population_growth > AUTO_CORRECTION_MAX_STABLE_COMPONENT_GROWTH
+            && weak_area_ratio - area_ratio > AUTO_CORRECTION_MAX_STABLE_AREA_GROWTH
+        {
+            return false;
+        }
+    }
+    true
 }
 
 fn quadrilateral_area_ratio(corners: [ImagePoint; 4]) -> f32 {
