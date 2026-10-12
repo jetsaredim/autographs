@@ -1,15 +1,15 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: review_required
+status: approved
 trigger_review: 08-REVIEW.md
 trigger_review_commit: daef9efba4b96d02281b8ce1c4c0d01ea32367db
 finding: CR-02
 finding_family: live_smoke_cleanup_discovery
 lineage: incomplete_fix
 review_required: true
-review_evidence: null
-review_comment: null
+review_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
+review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115613343
 previous_review_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
 previous_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115555618
 second_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115592186

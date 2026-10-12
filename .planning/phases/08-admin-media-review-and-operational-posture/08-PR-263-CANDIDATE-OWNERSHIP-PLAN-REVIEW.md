@@ -127,3 +127,78 @@ through cleanup retry.
 | CR-01 and WR-01 | Remain closed |
 
 Do not change convergence status to `ready_to_resume` yet.
+
+---
+
+# PR 263 Candidate Ownership Plan Review — Iteration 3
+
+**Reviewed plan:** `08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md`
+**Reviewed commit:** `d60ce68`
+**Verdict:** **APPROVED — 0 Blocker, 0 Warning, 0 Info**
+
+## Verification Passed
+
+The revised plan closes both previous review blockers:
+
+1. Register-before-create gives local A durable private ownership before its
+   object can exist, so final guard destruction cannot erase its only
+   actionable identity.
+2. Reserved operation `livePersistenceSmokeGuard` is excluded from ordinary
+   cleanup-warning and retry consumers while remaining visible to private
+   item-ID inventory.
+
+The plan is implementation-ready for one bounded coder pass after this review
+artifact and its PR comment are recorded in the convergence ledger.
+
+## Terminal ownership and representation
+
+- The disposable item is committed before its authority event, satisfying the
+  existing item foreign key.
+- A's exact target key is inserted and committed before `media.write`;
+  registration or commit failure prevents object creation.
+- The authority row survives discovery, deletion, and verification failures
+  and is removed by cascade only after all candidates are verified absent.
+- Repeated inventory failure followed by guard destruction leaves A
+  discoverable through its durable event. Committed B remains discoverable
+  through current-image or cleanup-event metadata.
+- `livePersistenceSmokeGuard` fits the existing operation column and
+  `deleteFailed` remains valid under the status constraint; operation plus
+  status, not status alone, controls admin actionability.
+
+## Action unreachability and regression safety
+
+- One shared predicate permits only `delete` and `replace`.
+- Memory and Oracle warning loaders apply it, so item/status responses omit
+  smoke authority.
+- The retry route validates it independently before media deletion, metadata
+  mutation, or event resolution.
+- An injected repository bypasses loader filtering to execute the route's
+  defense. Ordinary `delete` and `replace` warnings retain positive regression
+  coverage and their current metadata-removal distinction.
+- Unknown or reserved operations fail closed before side effects.
+
+## Discovery, testing, and privacy
+
+- Item-ID cleanup intentionally reads every cleanup-event target without an
+  operation/status filter, so private recovery remains broader than admin
+  actionability.
+- Candidate inventory is atomic; partial discovery cannot install a partial
+  union; every absence proof precedes destructive SQL.
+- Register-before-create, registration failure, repeated failure plus guard
+  destruction, fresh cleanup, both warning loaders, injected-route defense,
+  and allowed-operation regressions have executable coverage.
+- Oracle source/query contracts supplement rather than replace executable
+  evidence.
+- Raw keys remain private inputs. Browser and recovery evidence remains
+  fingerprint/item/step based, preserving WR-01. The plan does not touch the
+  static-admin recovery surface, preserving CR-01.
+
+## Convergence compliance
+
+CR-02 lineage remains `incomplete_fix`; both prior plan-review findings are
+incorporated; the consumer/failure matrices are executable. A subsequent deep
+source review must still return zero actionable findings before convergence
+closes.
+
+No files, commits, pushes, or PR comments were created by the independent plan
+reviewer.

@@ -1,14 +1,14 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-status: reassessment_required
+status: ready_to_resume
 trigger_review: 08-REVIEW.md
 trigger_review_commit: daef9efba4b96d02281b8ce1c4c0d01ea32367db
 trigger_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115511490
 assumption_revision_evidence: 08-REVIEW.md#convergence-reassessment
 implementation_plan_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md
-implementation_plan_review_evidence: null
-implementation_plan_review_comment: null
+implementation_plan_review_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
+implementation_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115613343
 previous_plan_review_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
 previous_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115555618
 second_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115592186
