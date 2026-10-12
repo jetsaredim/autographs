@@ -71,3 +71,59 @@ re-review. Do not change convergence status to `ready_to_resume` yet.
 
 No source files were reviewed as changed, and no repository state was modified
 by the independent plan reviewer.
+
+---
+
+## ISSUES FOUND — Second Review
+
+**Plan:** `08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md`
+**Reviewed commit:** `bd6deac`
+**Verdict:** **CHANGES REQUIRED — 1 Blocker, 0 Warning, 0 Info**
+
+Register-before-create resolves terminal ownership if its durable row remains
+private and intact. The selected row status introduces a separate destructive
+consumer, however.
+
+### Blocker: Durable smoke authority must not become an actionable application cleanup warning
+
+**Dimension:** Cross-path contract
+
+**Required property:** A recovery-authority row protecting an active smoke
+object must remain private, non-actionable metadata until cleanup verifies the
+object absent and removes the item rows.
+
+**Evidence:** The revised plan uses `deleteFailed`. The Oracle catalog currently
+loads every `deleteFailed` event as an admin cleanup warning. The admin retry
+route selects such a warning by image ID, deletes its target, removes active
+image metadata for any operation other than `replace`, and marks the row
+`retrySucceeded`. That contradicts the plan's requirement to keep the authority
+row intact until final cleanup.
+
+**Source evidence:**
+
+- `controller/src/oracle_catalog.rs`: `load_cleanup_warnings` selects every row
+  where `status = 'deleteFailed'`.
+- `controller/src/routes.rs`: `retry_image_cleanup` acts on the selected warning,
+  deletes its target, conditionally removes metadata, and resolves the row.
+- `controller/db/schema.sql`: no distinct non-actionable authority state exists.
+
+**Required plan change:** Define a non-actionable authority representation or
+exclude the smoke authority operation from all warning/retry consumers. Add
+the required catalog/route scope and executable tests proving the row remains
+discoverable by item-ID cleanup but absent from admin warnings and unreachable
+through cleanup retry.
+
+### Second-review coverage audit
+
+| Area | Result |
+| --- | --- |
+| Register before initial A creation | Covered; commit failure prevents object creation |
+| Final `Drop` destruction | Covered if the durable row remains intact |
+| Fresh item-ID cleanup | Covered: A comes from the authority row; B comes from current-image or cleanup-event metadata |
+| Atomic in-memory refresh | Covered by the shared production transition and failure matrix |
+| Delete/verification failure | Candidate identities and Oracle rows remain |
+| Warning/retry reachability | **Not covered; `deleteFailed` makes the authority row actionable** |
+| Privacy | Covered; raw keys remain private data and output remains fingerprint-only |
+| CR-01 and WR-01 | Remain closed |
+
+Do not change convergence status to `ready_to_resume` yet.
