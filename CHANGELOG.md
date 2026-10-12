@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/jetsaredim/autographs/compare/v0.3.0...v0.4.0) (2026-10-12)
+
+
+### Features
+
+* **admin:** add private image review workflow ([#263](https://github.com/jetsaredim/autographs/issues/263)) ([921a397](https://github.com/jetsaredim/autographs/commit/921a3977a3b17f051dfb8a199033363bb0863d90))
+* **deps:** update oracledb crate ([#270](https://github.com/jetsaredim/autographs/issues/270)) ([74d798b](https://github.com/jetsaredim/autographs/commit/74d798b618feed9bb8d9c98b862a08f76ca81d51))
+* remove container provenance manifest generation ([#271](https://github.com/jetsaredim/autographs/issues/271)) ([1f203b0](https://github.com/jetsaredim/autographs/commit/1f203b0ca260ac5cc98edccd3fc9205b62b4b054))
+* tighten ghcr image cleanup ([#272](https://github.com/jetsaredim/autographs/issues/272)) ([2f93620](https://github.com/jetsaredim/autographs/commit/2f93620e30b97c71a15ed04156934af806008c2f))
+
+
+### Bug Fixes
+
+* **deps:** update routine dependency updates ([#267](https://github.com/jetsaredim/autographs/issues/267)) ([d6e50dd](https://github.com/jetsaredim/autographs/commit/d6e50dd287aa7c6c9a2dc28879af81a7fa78b8a8))
+
 ## [0.3.0](https://github.com/jetsaredim/autographs/compare/v0.2.5...v0.3.0) (2026-10-01)
 
 
