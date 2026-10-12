@@ -1,6 +1,6 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-11T02:08:55Z
+reviewed: 2026-10-12T00:15:20Z
 depth: deep
 files_reviewed: 20
 files_reviewed_list:
@@ -11,6 +11,7 @@ files_reviewed_list:
   - controller/src/oracle_catalog.rs
   - controller/src/publisher.rs
   - controller/src/routes.rs
+  - controller/db/schema.sql
   - controller/static-admin/admin.css
   - controller/static-admin/admin.js
   - controller/static-admin/index.html
@@ -23,27 +24,27 @@ files_reviewed_list:
   - controller/tests/static_admin_behavior.mjs
   - controller/tests/static_contract.rs
   - docs/static-runtime-runbook.md
-  - .github/workflows/ci.yml
 findings:
-  critical: 2
-  warning: 1
+  critical: 1
+  warning: 0
   info: 0
-  total: 3
+  total: 1
 status: issues_found
 convergence:
   status: reassessment_required
-  recurring_critical_warning: 3
+  recurring_critical_warning: 1
   scope_expansion: false
   requires_reassessment: true
   assumptions_evidence: null
   plan_evidence: null
 ---
 
-# Phase 08: PR #263 Deep Code Review — Exclusive Recovery and Live Smoke
+# Phase 08: PR #263 Post-Convergence Deep Code Review
 
-**Reviewed:** 2026-10-11T02:08:55Z
-**Reviewed commit:** `6bb44af1556efd2fdbe7424b4335aa7cb7856594`
-**Base:** `main`
+**Reviewed:** 2026-10-12T00:15:20Z
+**Reviewed commit:** `91fad0cc0a12fbc685742dfdf44ae66e258bdf5a`
+**Implementation commit:** `d61a38e3608a29f4454a1d5c2ec7ec86b293abad`
+**Base:** `main` (`f751364c0856bc82ce229e247341a4c2935f4a53` merge base)
 **Depth:** deep
 **Files Reviewed:** 20
 **Status:** issues_found
@@ -53,156 +54,189 @@ convergence:
 
 ### Summary
 
-This independent review re-read the complete PR issue-comment history, confirmed that the inline review-comment history is empty, and re-verified the interrupted report already posted as PR comment `6038097203` against the current source. All three findings remain reproducible at the reviewed HEAD. No additional actionable finding survived the full producer/consumer, mutation-boundary, reporting-path, and test audit.
+The complete PR diff was reviewed against `main`, with a fresh producer,
+consumer, mutation-boundary, reporting-path, failure-matrix, and test-fidelity
+audit of the single authorized post-convergence coder pass.
 
-The application-side ambiguous-delete fix itself remains sound: once replacement metadata commits, the route keeps the known-readable replacement authoritative after every ambiguous old-object DELETE error, including cleanup-warning persistence failure. The current defects sit in sibling operational surfaces. The exclusive recovery message and retry are inside the form that recovery hides and marks inert; the production live-smoke cleanup guard cannot discover a committed B key before an unexpected post-commit error aborts the test; and the documented manual cleanup command emits the private key it is meant to keep out of evidence.
+CR-01 (`exclusive_conflict_recovery_surface`) is closed. The recovery status
+and retry now live outside the hidden/inert form; pending, retryable, success,
+404, auth, navigation, direct-render, and newer-review paths retain the
+existing generation and editor-authority checks. The updated DOM harness now
+exercises the decisive ancestor hidden/inert behavior.
 
-Because PR #263 is already beyond the mandatory third-review checkpoint and three in-scope Critical/Warning findings remain, AGENTS.md forbids another point-fix round. A durable reassessment and independently reviewed revised plan are required before coder work resumes.
+WR-01 (`live_smoke_cleanup_evidence_privacy`) is also closed. Normal,
+already-absent, timeout, provider-failure, verification, panic, fallback, and
+runbook paths use safe categories and domain-separated fingerprints without
+forwarding raw keys or provider-controlled text.
+
+CR-02 (`live_smoke_cleanup_discovery`) is not closed. The new discovery-first
+guard destructively moves its locally known candidates before running Oracle
+discovery. A transient inventory failure therefore erases the only in-process
+copy of candidates that may not exist in Oracle. If the `Drop` retry then
+succeeds, it can delete the current object and all discovery rows while leaving
+the lost old object orphaned. The deterministic fixture does not execute this
+production state transition and consequently gives false-green retry evidence.
+
+Because this is a recurring Critical finding after the one authorized coder
+pass, the convergence guard requires a new durable reassessment and an
+independently reviewed revised plan before any further code change.
 
 ### Stable finding lineage
 
-| Stable finding | Finding family | Lineage classification | Current disposition |
+| Stable finding | Finding family | Lineage classification | Disposition |
 | --- | --- | --- | --- |
-| CR-01 | `exclusive_conflict_recovery_surface` | `sibling_path_miss` | The prior same-view recovery authority defect is fixed in state/handler logic, but its dedicated presentation is hidden and inert with the editor it disables. |
-| CR-02 | `live_smoke_cleanup_discovery` | `incomplete_fix` | The production-safe live validation has normal-path cleanup, but its guard does not discover route-generated keys before status assertions and cannot clean a post-commit failure. |
-| WR-01 | `live_smoke_cleanup_evidence_privacy` | `sibling_path_miss` | Route diagnostics are fingerprint-only, but the operator cleanup/reporting sibling path prints raw private identifiers. |
+| CR-01 | `exclusive_conflict_recovery_surface` | `sibling_path_miss` | Closed: the dedicated status/action surface is outside `#item-form`, remains perceivable while the form is hidden/inert, and is retired on authority changes. |
+| CR-02 | `live_smoke_cleanup_discovery` | `incomplete_fix` | Open: failed discovery consumes locally known candidates before fallback cleanup retries. |
+| WR-01 | `live_smoke_cleanup_evidence_privacy` | `sibling_path_miss` | Closed: cleanup and runbook evidence is fingerprint-only and provider text is not forwarded. |
 
-Previously reviewed media-revision CAS, source fetch-to-blob authority, gesture lifecycle, mounted-output authority, ambiguous DELETE behavior, publisher promotion, comparison-map migration, and public artifact privacy remain closed in the inspected implementation and regressions.
+Previously closed media-revision CAS, replacement-authoritative ambiguous
+delete behavior, scoped conflict recovery, gesture isolation, mounted-output
+authority, publisher promotion, comparison-map migration, and public-artifact
+privacy remain closed in the inspected implementation and regressions.
 
 ## Critical Issues
 
-### CR-01: Recovery status and retry are descendants of the form that recovery hides and makes inert
+### CR-02: Failed inventory consumes the guard's only copy of locally known cleanup candidates
 
 **Classification:** BLOCKER
-**Finding Family:** `exclusive_conflict_recovery_surface`
-**Lineage:** `sibling_path_miss`
-**File:** `controller/static-admin/admin.js:1710-1748`
-**Related:** `controller/static-admin/index.html:158-316`, `controller/static-admin/admin.css:16-18`, `controller/tests/static_admin_behavior.mjs:1138-1254`
-**Evidence Level:** `source_only`
-
-**Shared invariant:** While conflict recovery owns the editor, ordinary item/image actions must remain inactive, but pending/retryable recovery status and the generation-bound retry action must remain visible and operable outside every hidden or inert ancestor.
-
-**Consumers inspected:** The current-conflict entry path, `enterConflictRecoverySurface`, `recoverConflictedItem` success/404/401/403/500 branches, `renderConflictRecoveryRetry`, retry dispatch, editor-authority invalidation, direct editor render, navigation, logout, new-review invalidation, the `#item-form`/`#image-message` DOM topology, the global `[hidden]` CSS rule, static-admin source contracts, and the executable fake-DOM harness.
-
-**Issue:** `enterConflictRecoverySurface()` sets `itemForm.inert = true` and `itemForm.hidden = true`, then writes the pending message to `imageMessage`. The markup places `#image-message` inside `#item-form`. If the refresh fails, `renderConflictRecoveryRetry()` appends the only retry button to that same hidden, inert descendant. The global `[hidden]` rule removes the form from layout, and inertness prevents descendant interaction even if another style exposed it. A real browser therefore shows neither recovery progress nor an operable retry. The harness directly dispatches to `imageMessage.children[1]` and models each referenced ID as an independent node, so it does not enforce ancestor hidden/inert semantics and produces a false green.
-
-**Fix direction for the revised plan:** Establish a dedicated recovery status/action container outside `#item-form`, or inert/hide only an editor-content wrapper that excludes recovery presentation. Route pending, retryable, missing, auth, and successful recovery states through that surface; hide/retire it on every editor-authority change. Add browser-faithful evidence that the recovery message is perceivable and retry is user-dispatchable while all ordinary editor descendants are inactive.
-
-### CR-02: A post-commit replacement error can leave live-smoke B outside automatic cleanup
-
-**Classification:** BLOCKER
-**Finding Family:** `live_smoke_cleanup_discovery`
+**Finding family:** `live_smoke_cleanup_discovery`
 **Lineage:** `incomplete_fix`
-**File:** `controller/tests/live_persistence_smoke.rs:239-253`
-**Related:** `controller/src/routes.rs:1573-1657`, `controller/tests/live_persistence_smoke.rs:97-103`, `controller/tests/live_persistence_smoke.rs:1297-1425`, `docs/static-runtime-runbook.md:650-674`
-**Evidence Level:** `source_only` (credential-gated live execution was unavailable)
+**File:** `controller/tests/live_persistence_smoke.rs:1391-1398`
+**Related:** `controller/tests/live_persistence_smoke.rs:100-106`, `controller/tests/live_persistence_smoke.rs:247-250`, `controller/tests/live_persistence_smoke.rs:1080-1111`, `controller/tests/live_persistence_smoke.rs:1419-1467`, `controller/tests/media_cleanup.rs:917-1014`
+**Evidence level:** `source_only` (credential-gated live Oracle/OCI execution was unavailable)
 
-**Shared invariant:** Disposable production smoke cleanup must discover and retain every possibly existing private object identity before deleting the Oracle rows that provide that identity, regardless of the HTTP result returned after a storage/metadata mutation.
+**Shared invariant:** Every locally known, current-image, and cleanup-event
+object identity must remain recoverable until object absence is verified and
+only then may Oracle discovery rows be deleted. A failed inventory attempt must
+be non-destructive to the candidate set used by fallback or operator recovery.
 
-**Consumers inspected:** Replacement-object generation/write, memory and Oracle expected-key metadata mutation, ambiguous old-object deletion, cleanup-warning persistence success/failure, exact recovery-required response, the smoke's response assertion and repository reload, the cleanup guard's explicit and `Drop` paths, Oracle cascade deletion, object absence verification, manual cleanup mode, runbook abort procedure, deterministic media-cleanup tests, and the credential-gated live test/CI compile path.
+**Consumers inspected:** Initial A candidate registration, post-replacement B
+inventory, `discover_cleanup_object_keys`, explicit cleanup, `Drop` fallback,
+OCI delete/read and 404 handling, Oracle item cascade/commit/count
+verification, recovery-required reporting, the cleanup authority fixture,
+source-order logging contracts, the runbook, and the replacement route's
+ambiguous-delete/warning-persistence branches.
 
-**Issue:** The cleanup guard starts with A only. The replacement route generates B internally, commits B as the catalog authority, and can then return `imageRecoveryRequired` if old-object DELETE fails and cleanup-warning persistence also fails. The smoke asserts HTTP 200 before reloading Oracle and registering B. That assertion panics on the valid post-commit recovery response; `Drop` then deletes only its known A key and deletes the Oracle item. Cascading row removal destroys the remaining automatic lookup for B, leaving a private orphan. The redacted recovery response intentionally provides only a fingerprint, so it cannot reconstruct the key after metadata deletion.
+**Issue:** `refresh_inventory()` passes
+`std::mem::take(&mut self.object_keys)` into the fallible discovery helper and
+assigns the result back only on `Ok`. If either Oracle query, row read, or
+decode fails, `self.object_keys` remains empty. During the post-replacement
+refresh, that vector contains the original A key, which may be the only record
+of A when the old-object delete outcome is ambiguous and cleanup-warning
+persistence failed. Unwinding invokes `Drop`; if its second inventory attempt
+succeeds, it discovers current B but not A, deletes/verifies B, then deletes the
+item and cascading discovery rows. If the ambiguous DELETE did not apply, A is
+now an orphan with no retained key. If the second attempt also fails, rows are
+retained but the process still loses the local candidate that the guard was
+created to preserve.
 
-**Fix direction for the revised plan:** Make cleanup discovery precede result assertions. The guard should own the disposable item ID, query all current image and cleanup-event targets before any row deletion, merge/deduplicate them with locally known candidates, delete/verify every discovered object, and only then delete Oracle rows. Preserve the response for later contract assertions. Add deterministic failure injection for “B committed, recovery-required returned” and prove unwind cleanup removes B and all rows without log-exposed keys.
+The added fixture cannot catch this. Its `cleanup()` borrows
+`local_candidates` on every retry, so the failure loop at
+`controller/tests/media_cleanup.rs:994-1014` proves behavior stronger than the
+production guard actually implements.
 
-## Warnings
-
-### WR-01: The documented interrupted-cleanup command prints private object keys
-
-**Classification:** WARNING
-**Finding Family:** `live_smoke_cleanup_evidence_privacy`
-**Lineage:** `sibling_path_miss`
-**File:** `controller/tests/live_persistence_smoke.rs:1060-1068`
-**Related:** `controller/tests/live_persistence_smoke.rs:990-1088`, `controller/tests/logging_contract.rs:62-86`, `docs/static-runtime-runbook.md:661-674`
-**Evidence Level:** `source_only`
-
-**Shared invariant:** Production-smoke and recovery transcripts may identify disposable item IDs and domain-separated key fingerprints, but must not emit raw object keys, media checksums, credentials, bucket/namespace data, or provider errors that reproduce those identifiers.
-
-**Consumers inspected:** Cleanup environment parsing, cleanup progress output, timeout panic text, provider delete/read errors, object-absence verification, the operator runbook's expected-evidence and interrupted-recovery instructions, route logging contracts, and current live-smoke tests.
-
-**Issue:** The runbook says expected evidence must not contain object keys, then directs the operator to the cleanup mode that prints `cleanup deleting OCI object key: {object_key}` and embeds the same raw key in its timeout panic. Other provider errors are forwarded into the cleanup transcript without a test proving they are identifier-free. A routine manual recovery capture can therefore violate the phase's explicit evidence-privacy contract.
-
-**Fix direction for the revised plan:** Report counts, item IDs, and domain-separated fingerprints only. Remove raw keys from normal, timeout, panic, and forwarded provider-error output, and add log-capture tests for successful deletion, timeout, provider failure, and absence verification.
+**Fix:** Make inventory failure atomic with respect to locally known
+candidates. Clone or borrow the current candidates, merge discovered values
+into a temporary set, and replace `self.object_keys` only after discovery
+succeeds. Exercise the real state machine (or an extracted shared helper) with
+an injected first-discovery failure followed by success, asserting that A and
+B are both deleted/verified before row deletion. Also cover persistent
+discovery failure and prove the original local candidate remains available for
+recovery evidence/retry.
 
 ## Convergence Reassessment
 
 ### Finding lineage
 
-The last approved ambiguous-delete/exclusive-recovery plan closed two application defects: it stopped rolling metadata back after outcome-ambiguous DELETE and introduced exclusive editor ownership. CR-01 is a sibling presentation omission in that exclusive surface, not a recurrence of the state-generation algorithm. CR-02 and WR-01 are incomplete/sibling operational-validation paths added to prove the same recovery contract in production. None expands Phase 8 scope; all three are within the approved recovery and live-smoke contract.
+The resumed review's CR-02 identified that cleanup could delete Oracle rows
+before discovering a route-generated B. Commit `d61a38e` correctly added
+discovery before destructive row cleanup, but the failure transition of that
+discovery destructively consumes the pre-existing candidate set. This is an
+`incomplete_fix` in the same `live_smoke_cleanup_discovery` family, not an
+independent defect or scope expansion. CR-01 and WR-01 are closed.
 
 ### Shared invariants
 
-1. **Exclusive recovery must be both exclusive and usable.** Disabling ordinary editor authority cannot disable the only recovery status/action path.
-2. **Cleanup discovery must precede destructive metadata cleanup.** Oracle rows are the authoritative discovery source for route-generated object identities and cannot be deleted until all possibly existing private objects are inventoried.
-3. **Private recovery evidence remains opaque.** The fingerprint-only application contract must extend to smoke tools, failure messages, and operator transcripts.
+1. **Candidate ownership survives fallible discovery.** Locally known keys are
+   durable guard state until every candidate is verified absent.
+2. **Discovery precedes destruction.** The union of durable local candidates,
+   current image keys, and cleanup-event targets is complete before any row
+   deletion.
+3. **Failure remains recoverable.** Inventory/delete/verification failure
+   retains both Oracle discovery metadata and all locally held candidates.
+4. **Evidence remains opaque.** Recovery reports continue to expose item IDs,
+   safe steps, and fingerprints only.
 
 ### Complete consumer inventory
 
-| Invariant | Direct producers | Consumers and mutation boundaries | Reporting/action paths | Relevant tests |
+| Boundary | Producers | Consumers / mutations | Failure/reporting paths | Required evidence |
 | --- | --- | --- | --- | --- |
-| Exclusive usable recovery | 409s from review-open/source/draft/assist/Save/Reset; `handleMediaRevisionConflict`; `recoverConflictedItem` | `clearImageReviewState`, `invalidateEditorAuthority`, form inert/hidden state, item assignment/reconciliation, direct render, navigation, logout, new review, retry generation/abort owner | `#image-message`, retry button, global missing/auth messages, add-item view | `static_admin`, `static_admin_behavior.mjs`; current fake DOM omits ancestor semantics |
-| Cleanup discovery before row deletion | replacement key generation/write; memory/Oracle metadata CAS; ambiguous old DELETE; cleanup-warning persistence | smoke status assertion/reload; guard object inventory; explicit cleanup; `Drop`; OCI delete/read; Oracle item delete/cascades; cleanup-event targets | live success/abort output; `LIVE_PERSISTENCE_RECOVERY_REQUIRED`; manual cleanup command/runbook | `media_cleanup` covers route outcomes; live smoke is compile-covered/credential-gated; no deterministic guard failure test |
-| Opaque recovery evidence | route UUID/fingerprint diagnostics; smoke cleanup input; provider errors | normal cleanup output, timeout/panic, absence verification, operator copy/paste into PR/CI | runbook expected evidence and interrupted cleanup | `logging_contract` covers route source only; no cleanup transcript capture |
+| Local candidate ownership | Initial A registration; post-success B registration | `refresh_inventory`, explicit cleanup, `Drop` | Oracle query/row/decode failure; panic unwind | Candidate set unchanged after failed refresh |
+| Oracle discovery | `autograph_images.object_key`; `autograph_cleanup_events.target_object_key` | Merge/deduplicate; object delete/read | Transient and persistent discovery failures | Failure-then-success and persistent-failure tests using production-equivalent state |
+| Object cleanup before rows | Local/discovered union | OCI DELETE, absence GET, item cascade delete, commit, zero-row verification | delete error, timeout, non-404 read error, object still present | Every candidate verified absent before first destructive SQL |
+| Recovery evidence | Safe cleanup message/fingerprint helpers | manual cleanup, guard error, fallback `Drop`, runbook | inventory, delete, verify, runtime/thread, Oracle failures | No raw candidate/provider data and enough safe correlation to retry |
 
 ### Assumption audit
 
 | Assumption | Result | Evidence |
 | --- | --- | --- |
-| Writing to `#image-message` remains visible after hiding the item form | False | `#image-message` is a descendant of the hidden form; `[hidden]` forces `display: none`. |
-| A directly dispatched retry in the fake DOM proves browser operability | False | The harness does not model the real ancestor tree or inert descendant event suppression. |
-| Replacement cannot create a new cleanup identity unless it returns 200 | False | B metadata commits before old-object cleanup and warning persistence; the latter can return a recovery-required 500. |
-| Deleting the Oracle item is safe even when cleanup inventory is incomplete | False | Cascade deletion removes B's discoverable metadata while Object Storage is independent. |
-| Supplying a raw key privately means cleanup may echo it | False | The runbook explicitly prohibits raw keys in smoke/recovery evidence and logs. |
-| Green full-suite and CI results cover these boundaries | False | The live test is credential-gated; the fake DOM omits ancestor semantics; no cleanup log-capture test exists. |
+| `mem::take` is safe because discovery immediately returns all candidates | False | The helper has fallible query, row-read, and decode operations before returning the merged set. |
+| Oracle can always rediscover a lost local candidate | False | In the motivating ambiguous-delete plus warning-persistence-failure path, old A may have no cleanup-event row and B is the current image row. |
+| Retaining Oracle rows alone preserves every cleanup identity | False | The guard's local A candidate can be the only remaining identity for an old object whose delete outcome is ambiguous. |
+| The deterministic fixture proves retry behavior of the guard | False | The fixture re-borrows `local_candidates` on retry and does not model the production `mem::take` transition. |
+| Green targeted/full tests cover this failure | False | The live guard is credential-gated; executed tests use a separate model with stronger retention semantics. |
 
 ### Failure matrix
 
-| Scenario | Required outcome | Current outcome | Finding |
-| --- | --- | --- | --- |
-| Current media conflict; refresh pending | Visible non-editable recovery status; editor inactive | Entire form, including status, is hidden/inert | CR-01 |
-| Current media conflict; refresh returns 500/network | Visible generation-bound retry; editor inactive | Retry is appended inside hidden/inert form | CR-01 |
-| Recovery returns 200/404/auth | Fresh item, missing-item navigation, or logout under generation checks | State transitions are generation-safe; no defect found on these branches | Closed |
-| Replacement commits B, then old DELETE and warning persistence fail | Smoke discovers B before asserting response; unwind deletes A/B then rows | Status assertion panics before B registration; `Drop` deletes A and rows only | CR-02 |
-| Normal replacement returns 200 | Smoke registers B and verifies both objects/rows absent | Works on the inspected path | Closed |
-| Manual cleanup succeeds | Transcript contains only safe counts/IDs/fingerprints | Raw object key is printed | WR-01 |
-| Manual cleanup times out/provider fails | Redacted error with safe correlation | Timeout embeds key; provider text is forwarded without sanitization proof | WR-01 |
+| Scenario | Required outcome | Current outcome |
+| --- | --- | --- |
+| First inventory succeeds | Merge A/B/event targets, delete/verify all, then delete rows | Correct |
+| First inventory fails, `Drop` inventory succeeds | Preserve A, merge rediscovered B, delete/verify both, then delete rows | A is consumed by the first failure; fallback may delete B and rows while orphaning A |
+| First and fallback inventory both fail | Retain rows and local A for later recovery | Rows remain, but local A is lost from guard state/process evidence |
+| Delete or absence verification fails after successful inventory | Retain rows and full candidate set | Correct |
+| Evidence paths run for any failure | Emit only safe item/step/fingerprint data | Correct |
 
 ### Revised plan requirements
 
-1. Define one recovery-surface DOM ownership contract that keeps status/retry outside every hidden/inert editor ancestor and retires it on every authority change.
-2. Define one discovery-first smoke cleanup algorithm, including current image rows, cleanup-event targets, locally known candidates, deduplication, delete/404 handling, verification, and row-deletion ordering for explicit and unwind cleanup.
-3. Define one cleanup evidence contract covering normal progress, timeout, provider failure, panic, and absence-verification messages with fingerprint-only correlation.
-4. Add browser-faithful recovery presentation coverage, deterministic post-commit recovery cleanup coverage, and cleanup transcript capture tests.
-5. Re-audit every direct producer, consumer, mutation boundary, reporting/action path, and test in the inventory above as one coherent contract change; do not split the work into three unrelated point fixes.
+1. Define failed inventory as an atomic, non-mutating operation on the guard's
+   durable local candidate set.
+2. Extract or directly test the production candidate-state transition rather
+   than a parallel fixture that cannot reproduce ownership loss.
+3. Cover first-failure/second-success, repeated failure, partial discovery,
+   duplicate candidates, and successful retry before any row deletion.
+4. Preserve the closed recovery-surface and evidence-privacy contracts without
+   expanding Phase 8 scope.
 
 ### Resume criteria
 
-Coder work may resume only after:
-
-1. A durable revised assumptions/reassessment artifact incorporates this lineage, consumer inventory, assumption audit, and failure matrix.
-2. A revised implementation plan satisfies every requirement above.
-3. An independent plan review approves the revised plan with zero Critical, Warning, and Info findings.
-4. Both new evidence references are recorded in the convergence artifact before its status changes from `reassessment_required` to `ready_to_resume`; a status-only change is invalid.
-5. The prior approved plan evidence is not reused as closure evidence because it predates these three current findings.
-
-No further coder point-fix round is authorized by this report.
+1. Record this recurring finding and revised assumptions as durable convergence
+   evidence on the PR branch and PR audit trail.
+2. Produce a revised implementation plan covering atomic candidate ownership,
+   the complete consumer inventory, and the expanded failure matrix.
+3. Obtain an independent plan review with zero Critical, Warning, and Info
+   findings; record both assumption and plan-review evidence before changing
+   convergence status to `ready_to_resume`.
+4. Only then may another coherent coder pass begin.
+5. A subsequent lineage-preserving deep source review must return zero
+   actionable findings before convergence closes.
 
 ## Verification
 
-- `gh pr view 263 --json ...` — confirmed open, ready-for-review PR #263, base `main`, reviewed HEAD `6bb44af1556efd2fdbe7424b4335aa7cb7856594`.
-- Complete `issues/263/comments` history read; complete `pulls/263/comments` history read (zero inline comments).
-- `gh pr checks 263` — all nine current checks pass.
 - `node --check controller/static-admin/admin.js` — passed.
 - `node --check controller/tests/static_admin_behavior.mjs` — passed.
-- `node controller/tests/static_admin_behavior.mjs` — passed, with the CR-01 fidelity limitation above.
+- `node controller/tests/static_admin_behavior.mjs` — passed.
 - `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
-- `cargo test --manifest-path controller/Cargo.toml --all-targets --all-features` — passed: 230 non-ignored tests; 2 credential-gated live tests ignored.
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin` — passed, 19 tests.
+- `cargo test --manifest-path controller/Cargo.toml --test media_cleanup` — passed, 20 tests; the CR-02 fixture fidelity limitation is described above.
+- `cargo test --manifest-path controller/Cargo.toml --test logging_contract` — passed, 3 tests.
+- `cargo test --manifest-path controller/Cargo.toml --features live-persistence --test live_persistence_smoke --no-run` — passed.
+- `cargo test --manifest-path controller/Cargo.toml --all-targets --all-features` — passed; 2 credential-gated live tests ignored.
 - `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings` — passed.
-- `git diff --check main...HEAD -- controller docs/static-runtime-runbook.md .github/workflows/ci.yml` — passed.
-- The credential-gated production smoke was compile-tested only; it was not executed against live Oracle/OCI.
+- `git diff --check main...HEAD -- controller docs/static-runtime-runbook.md` — passed.
+- Credentialed Oracle/OCI cleanup execution was not available; CR-02 is supported by the guard's deterministic ownership transition in source.
 
 ---
 
-_Reviewed: 2026-10-11T02:08:55Z_
+_Reviewed: 2026-10-12T00:15:20Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: deep_
