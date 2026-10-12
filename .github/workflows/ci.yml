@@ -183,6 +183,7 @@ jobs:
           files: |
             .github/docker-bake.hcl
           push: false
+          provenance: false
 
   terraform-checks:
     name: Terraform checks
