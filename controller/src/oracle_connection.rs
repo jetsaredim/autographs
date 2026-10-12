@@ -335,7 +335,9 @@ mod tests {
         assert!(is_invalid_credential_message(
             "  ORA-01017: invalid credential\nHelp: example"
         ));
-        assert!(!is_invalid_credential_message("ORA-01017x: invalid credential"));
+        assert!(!is_invalid_credential_message(
+            "ORA-01017x: invalid credential"
+        ));
         assert!(!is_invalid_credential_message(
             "wrapper: ORA-01017: invalid credential"
         ));
