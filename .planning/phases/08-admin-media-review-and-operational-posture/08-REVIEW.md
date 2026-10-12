@@ -1,29 +1,15 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-12T00:48:37Z
-depth: deep
-files_reviewed: 20
+reviewed: 2026-10-12T17:06:54Z
+depth: standard
+files_reviewed: 6
 files_reviewed_list:
-  - controller/src/catalog.rs
   - controller/src/image_adjustments.rs
-  - controller/src/media.rs
-  - controller/src/oci_media.rs
-  - controller/src/oracle_catalog.rs
-  - controller/src/publisher.rs
-  - controller/src/routes.rs
-  - controller/db/schema.sql
   - controller/static-admin/admin.css
   - controller/static-admin/admin.js
-  - controller/static-admin/index.html
-  - controller/tests/admin_workflow.rs
-  - controller/tests/live_persistence_smoke.rs
-  - controller/tests/logging_contract.rs
-  - controller/tests/media_cleanup.rs
-  - controller/tests/publisher.rs
+  - controller/tests/image_adjustments.rs
   - controller/tests/static_admin.rs
   - controller/tests/static_admin_behavior.mjs
-  - controller/tests/static_contract.rs
-  - docs/static-runtime-runbook.md
 findings:
   critical: 0
   warning: 0
@@ -35,18 +21,17 @@ convergence:
   recurring_critical_warning: 0
   scope_expansion: false
   requires_reassessment: false
-  assumptions_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CONVERGENCE.md
-  plan_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
+  assumptions_evidence: null
+  plan_evidence: null
 ---
 
-# Phase 08: PR #263 Terminal Ownership Deep Code Review
+# Phase 08: PR #276 Standard Code Review
 
-**Reviewed:** 2026-10-12T00:48:37Z
-**Reviewed commit:** `9439b248d82255db77cd59cfb9a6b29ca6213f3d`
-**Implementation commit:** `c3566008f196aba8a761045e441446483447bd15`
-**Base:** `main` (`f751364c0856bc82ce229e247341a4c2935f4a53` merge base)
-**Depth:** deep
-**Files Reviewed:** 20
+**Reviewed:** 2026-10-12T17:06:54Z
+**Reviewed commit:** `b2d947c60b7ed2e1399570dce90c223f76fb6c0f`
+**Base:** `origin/main`
+**Depth:** standard
+**Files Reviewed:** 6
 **Status:** clean
 **Convergence:** clear
 
@@ -54,98 +39,57 @@ convergence:
 
 ### Summary
 
-The complete PR diff was reviewed against `main`, with iteration-10 CR-02
-(`live_smoke_cleanup_discovery`) traced through the iteration-11 implementation
-as a terminal ownership contract. The review inspected initial candidate
-production, durable registration and commit, object creation, replacement
-candidate production, atomic inventory refresh, normal and fallback cleanup,
-fresh-process recovery, Oracle warning loading, retry-route actionability,
-object verification, row destruction, reporting, privacy, and test fidelity.
+The PR #276 diff was reviewed against `origin/main` across the detector, API
+serialization boundary, browser consumption, per-image review initialization,
+overlay projection, and regression coverage. No actionable Critical, Warning,
+or Info findings were identified.
 
-No actionable Critical, Warning, or Info findings remain. The implementation
-meets the approved revised plan without adding a new capability or expanding
-Phase 8 scope. Credentialed Oracle/OCI execution was unavailable, so live
-provider behavior remains supported by source inspection, compiled ignored
-smoke coverage, and deterministic production-helper/repository/route tests
-rather than `live_cleanup_verified` evidence.
+The detector emits four normalized source-space corners only for confident
+proposals, distinguishes `notNeeded` from `unavailable`, and keeps the existing
+manual-review safety boundary (`controller/src/image_adjustments.rs:67`,
+`controller/src/image_adjustments.rs:226`,
+`controller/src/image_adjustments.rs:255`). The unchanged route maps that
+proposal directly into the response and preserves camelCase enum serialization
+(`controller/src/routes.rs:1131`, `controller/src/routes.rs:1181`,
+`controller/src/routes.rs:2425`).
+
+Each accepted review response initializes a fresh overlay configuration before
+rendering (`controller/static-admin/admin.js:1959`), and the control checkboxes
+are synchronized from that state (`controller/static-admin/admin.js:2773`).
+Grid, centerline, edge segments, and draggable handles are all projected into
+the same rendered source-image bounds; resizing and corner edits re-run that
+projection (`controller/static-admin/admin.js:2329`,
+`controller/static-admin/admin.js:2360`,
+`controller/static-admin/admin.js:2519`). Auto-assist consumption accepts only
+the four-corner confident case and treats `notNeeded` as a non-mutating result
+(`controller/static-admin/admin.js:2822`).
+
+Regression coverage exercises bright and dark cards, unavailable and
+near-identity classifications, exact status serialization, per-image overlay
+reset, checkbox synchronization, letterboxed overlay bounds, and live edge
+movement with the draft perspective corners
+(`controller/tests/image_adjustments.rs:149`,
+`controller/tests/image_adjustments.rs:169`,
+`controller/tests/image_adjustments.rs:197`,
+`controller/tests/static_admin_behavior.mjs:501`,
+`controller/tests/static_admin_behavior.mjs:513`,
+`controller/tests/static_admin_behavior.mjs:557`). The DOM harness is
+deterministic rather than a real-browser proof, but it models the relevant
+state and geometry boundaries for this diff.
 
 All reviewed files meet quality standards. No issues found.
 
-### Stable finding lineage
-
-| Stable finding | Finding family | Historical lineage | Iteration-12 disposition |
-| --- | --- | --- | --- |
-| CR-01 | `exclusive_conflict_recovery_surface` | `sibling_path_miss` | Closed. The status and only retry action remain outside the hidden/inert item form; browser-faithful tests prove perceivability, ancestor inertness, retry, authority replacement, navigation, and stale-result rejection. |
-| CR-02 | `live_smoke_cleanup_discovery` | `incomplete_fix` | Closed. A is durably registered and committed before object creation; fallible refresh cannot consume installed candidates; private item-ID discovery remains inclusive; object absence precedes row deletion; final guard destruction leaves enough Oracle authority for a fresh cleanup process. |
-| WR-01 | `live_smoke_cleanup_evidence_privacy` | `sibling_path_miss` | Closed. Normal, manual, fallback, timeout, provider-failure, verification, registration-failure, and runbook paths expose item/step/count/fingerprint evidence without raw keys or provider-controlled error text. |
-
-Previously closed mounted-output authority, normalized perspective projection,
-mutation/navigation serialization, pointer-capture isolation, immutable media
-revision compare-and-set, replacement-authoritative ambiguous-delete recovery,
-publisher promotion safety, comparison-map migration, and public-artifact
-privacy remain closed in the current source and full regression suite.
-
-### Terminal ownership invariant inventory
-
-| Boundary | Producers | Consumers / mutation boundary | Failure behavior verified |
-| --- | --- | --- | --- |
-| Initial A authority | UUID-derived A key; disposable Oracle item | `register_smoke_cleanup_authority`, Oracle commit, then `media.write` | Insert or commit failure aborts before object creation; errors retain only item/step context. The cleanup event has an item FK but intentionally does not require a pre-existing image row. |
-| Route-generated B authority | Replacement write and metadata CAS; ambiguous old-object deletion; cleanup-event persistence | Current `autograph_images` row or cleanup-event target; smoke inventory | Every response/unwind state that leaves B authoritative keeps it discoverable before destructive item-row cleanup. Replacement regressions retain the readable committed object on ambiguous delete. |
-| Atomic candidate refresh | Installed local set plus image and cleanup-event queries | `refresh_cleanup_candidates`, `discover_cleanup_object_keys`, normal cleanup, `Drop` | Query, row-read, decode, and partial-discovery failure cannot mutate the installed set; retry installs a deduplicated union only on success. |
-| Terminal recovery | Durable A authority; current B image/event rows | Fallback `Drop`; later manual item-ID cleanup | Repeated discovery failure retains Oracle rows. After guard destruction, a fresh cleanup with no local candidates rediscovers A/B, deletes and verifies both, then removes rows. |
-| Actionability boundary | `delete`, `replace`, reserved `livePersistenceSmokeGuard`, unknown future operations | Memory warning loader, Oracle warning loader, item/status responses, cleanup-retry route | One shared allowlist admits exactly `delete` and `replace`; the route rejects an injected reserved warning before object deletion, metadata removal, or event resolution. Ordinary delete/replace retry tests remain green. |
-| Destructive ordering | Complete deduplicated candidate inventory | OCI DELETE, 404/read absence proof, item cascade/commit, zero-row verification | Every candidate is verified absent before the first destructive Oracle row operation; any inventory/delete/verification failure retains discovery rows. |
-| Recovery evidence | Registration, inventory, delete, read, runtime/thread, Oracle cleanup | Console/CI transcript and operator runbook | Output uses safe item IDs, step labels, counts, categories, and domain-separated fingerprints. Raw candidates, checksums, provider strings, namespace, and bucket data are not forwarded. |
-
-### Failure matrix
-
-| Scenario | Required outcome | Reviewed outcome |
-| --- | --- | --- |
-| Authority insert or commit fails | No A object is written | Satisfied: registration is a checked precondition before `media.write`. |
-| A write/image-row insertion fails after authority commit | A remains discoverable and cleanup precedes row deletion | Satisfied: the authority event already owns A and the guard inventories it. |
-| Discovery fails before or after partial row reads | Installed candidates remain unchanged; no object/row destruction begins | Satisfied: discovery receives a clone and assignment occurs only after `Ok`. |
-| First discovery fails and fallback retry succeeds | Preserve A, merge B/event targets, deduplicate, verify all absent, then delete rows | Satisfied by the production helper tests plus cleanup ordering fixture. |
-| Discovery fails again and the original guard is destroyed | Durable rows retain every actionable identity for a fresh item-ID cleanup | Satisfied: A was committed before creation; B remains in current image/event metadata; fresh cleanup coverage starts without local guard state. |
-| Reserved authority reaches normal admin reads | It remains private and non-actionable | Satisfied in Memory and Oracle loaders; item/status behavior omits it. |
-| A repository bypasses loader filtering | Route rejects before every media/catalog/event side effect | Satisfied by injected-repository route coverage. |
-| Ordinary delete or replace warning is retried | Existing deletion/metadata distinction remains reachable | Satisfied by positive delete, replacement, idempotent, and second-replacement regressions. |
-| Candidate is duplicate or already absent | Cleanup is idempotent and rows are deleted only after absence proof | Satisfied by `BTreeSet` inventory and exact provider-404 handling. |
-| Delete, read verification, runtime, thread, or Oracle cleanup fails | Preserve discovery authority and emit opaque recovery evidence | Satisfied in source and deterministic tests; credentialed live execution was not available. |
-
-### Test fidelity assessment
-
-- The decisive atomic-refresh tests call the same
-  `refresh_cleanup_candidates` helper used by `LivePersistenceSmokeCleanup`;
-  they are not a parallel model of the ownership transfer.
-- The terminal fresh-cleanup fixture intentionally begins with no local
-  candidates and reconstructs the union from durable current-image and
-  cleanup-event rows, matching the post-`Drop` recovery claim.
-- The register-before-create fixture is supplemented by a source-order binding
-  to the live smoke. Actual Oracle insert/commit and OCI write remain
-  credential-gated, so this is deterministic/source evidence, not a live proof.
-- The injected warning repository deliberately bypasses both loader filters,
-  making the route-defense test a real side-effect reachability test rather
-  than a filter-only assertion.
-- The admin DOM harness models ancestor `hidden`/`inert` behavior and exercises
-  the dedicated recovery sibling, so CR-01 closure does not rely on direct
-  dispatch to a browser-inoperable descendant.
-
 ## Verification
 
-- `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
-- `cargo test --manifest-path controller/Cargo.toml --test media_cleanup` — passed, 26 tests.
-- `cargo test --manifest-path controller/Cargo.toml --test logging_contract` — passed, 3 tests.
-- `cargo test --manifest-path controller/Cargo.toml --features live-persistence --test live_persistence_smoke` — passed, 4 executed and 1 credential-gated test ignored.
-- `node --check controller/static-admin/admin.js` — passed.
-- `node --check controller/tests/static_admin_behavior.mjs` — passed.
-- `node controller/tests/static_admin_behavior.mjs` — passed.
-- `cargo test --manifest-path controller/Cargo.toml --all-targets --all-features` — passed; 2 credential-gated live tests ignored as designed and all executed tests passed.
-- `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings` — passed.
-- `git diff --check main...HEAD -- controller docs/static-runtime-runbook.md` — passed.
+- `cargo fmt --all -- --check` — passed.
+- `cargo test --test image_adjustments --test static_admin` — passed; 10 and 19 tests respectively.
+- `cargo test --test admin_workflow admin_image_adjustment_routes_save_reset_review_and_assist` — passed.
+- `node --check static-admin/admin.js` — passed.
+- `node --check tests/static_admin_behavior.mjs` — passed.
+- `git diff --check origin/main...HEAD -- src/image_adjustments.rs static-admin/admin.css static-admin/admin.js tests/image_adjustments.rs tests/static_admin.rs tests/static_admin_behavior.mjs` — passed.
 
 ---
 
-_Reviewed: 2026-10-12T00:48:37Z_
+_Reviewed: 2026-10-12T17:06:54Z_
 _Reviewer: Codex (gsd-code-reviewer)_
-_Depth: deep_
-_Iteration: 12_
+_Depth: standard_
