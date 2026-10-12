@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import base64
 import json
 import os
 import sys
@@ -34,8 +35,12 @@ def main() -> int:
     versions = list_package_versions(token, package_info)
     cutoff_time = time.time() - min_age_days * 24 * 60 * 60
 
-    selections = select_versions(versions, status, retain_count, retain_semver_count, cutoff_time, protected_tags)
-    deleted_count = 0
+    resolve_children = make_child_resolver(token, package_info)
+    selections = select_versions(
+        versions, status, retain_count, retain_semver_count, cutoff_time, protected_tags, resolve_children
+    )
+    candidate_count = 0
+    failed_count = 0
     # Print the complete inventory before the first deletion.
     for version, reasons in selections:
         tags = version.get("metadata", {}).get("container", {}).get("tags", [])
@@ -46,11 +51,18 @@ def main() -> int:
         if dry_run:
             print(f"Would delete GHCR version {version['id']}")
         else:
-            delete_package_version(token, package_info, str(version["id"]))
-            print(f"Deleted GHCR version {version['id']}")
-        deleted_count += 1
-    print(f"GHCR cleanup complete for {image_repository}: {deleted_count} {'would delete' if dry_run else 'deleted'}, {len(versions) - deleted_count} kept")
-    return 0
+            if delete_package_version(token, package_info, str(version["id"])):
+                print(f"Deleted GHCR version {version['id']}")
+            else:
+                failed_count += 1
+                print(f"GHCR version {version['id']} returned 404: already deleted, or the token lacks permission to delete it")
+        candidate_count += 1
+    deleted_count = candidate_count - failed_count
+    summary = f"GHCR cleanup complete for {image_repository}: {deleted_count} {'would delete' if dry_run else 'deleted'}, {len(versions) - candidate_count} kept"
+    if failed_count:
+        summary += f", {failed_count} not deleted (404)"
+    print(summary)
+    return 1 if failed_count else 0
 
 
 def read_release_status() -> dict:
@@ -62,24 +74,40 @@ def read_release_status() -> dict:
     return status
 
 
-def select_versions(versions, status, retain_count, retain_semver_count, cutoff_time, protected_tags):
+def select_versions(versions, status, retain_count, retain_semver_count, cutoff_time, protected_tags, resolve_children):
+    """Return (version, keep_reasons) pairs; an empty reasons list means "delete".
+
+    resolve_children(version) returns the digests an image index references
+    (platform images and attestation manifests). Untagged versions are only
+    deleted when no retained version references them.
+    """
     newest_first = sorted(versions, key=lambda version: parse_created_at(version["created_at"]), reverse=True)
+
+    def tags_of(version):
+        return version.get("metadata", {}).get("container", {}).get("tags", [])
+
+    deployed_tag = status.get("deployedControllerVersion", "")
+    if not any(deployed_tag in tags_of(version) for version in versions):
+        raise RuntimeError(f"Deployed controller tag {deployed_tag} was not found in GHCR; refusing to clean up")
+
+    # Rank tagged versions only, so untagged child manifests do not eat into the retention count.
+    tagged_rank = {
+        str(version["id"]): rank
+        for rank, version in enumerate(version for version in newest_first if tags_of(version))
+    }
     newest_semver_ids = {
         str(version["id"])
-        for version in [
-            version
-            for version in newest_first
-            if semver_tags(version.get("metadata", {}).get("container", {}).get("tags", []))
-        ][:retain_semver_count]
+        for version in [version for version in newest_first if semver_tags(tags_of(version))][:retain_semver_count]
     }
+
     selections = []
-    for index, version in enumerate(newest_first):
-        tags = version.get("metadata", {}).get("container", {}).get("tags", [])
+    for version in newest_first:
+        tags = tags_of(version)
         created_at = parse_created_at(version["created_at"])
         keep_reasons = []
 
-        if index < retain_count:
-            keep_reasons.append(f"among {retain_count} newest versions")
+        if tagged_rank.get(str(version["id"]), retain_count) < retain_count:
+            keep_reasons.append(f"among {retain_count} newest tagged versions")
 
         for prefix in ("deployed", "previous"):
             tag = status.get(f"{prefix}ControllerVersion", "")
@@ -98,11 +126,63 @@ def select_versions(versions, status, retain_count, retain_semver_count, cutoff_
 
         if created_at > cutoff_time:
             keep_reasons.append("newer than minimum age")
-        # Untagged platform manifests may be referenced by a retained multi-platform index.
-        if not tags:
-            keep_reasons.append("untagged manifest: dependency reachability not proven")
         selections.append((version, keep_reasons))
+
+    # Anything a retained version points at must survive too. If a manifest cannot be
+    # read, resolve_children raises and the whole run aborts before deleting anything.
+    referenced = {}
+    for version, keep_reasons in selections:
+        if keep_reasons:
+            for child_digest in resolve_children(version):
+                referenced.setdefault(child_digest, version["id"])
+    for version, keep_reasons in selections:
+        if not keep_reasons and version.get("name") in referenced:
+            keep_reasons.append(f"referenced by retained version {referenced[version['name']]}")
     return selections
+
+
+def make_child_resolver(token: str, package_info: dict[str, str]):
+    repo_path = f"{package_info['owner']}/{package_info['package_name']}".lower()
+    actor = os.getenv("GITHUB_ACTOR", "github")
+    cache: dict[str, str] = {}
+    accept = ", ".join([
+        "application/vnd.oci.image.index.v1+json",
+        "application/vnd.docker.distribution.manifest.list.v2+json",
+        "application/vnd.oci.image.manifest.v1+json",
+        "application/vnd.docker.distribution.manifest.v2+json",
+    ])
+
+    def registry_token() -> str:
+        if "token" not in cache:
+            query = urllib.parse.urlencode({"service": "ghcr.io", "scope": f"repository:{repo_path}:pull"})
+            basic = base64.b64encode(f"{actor}:{token}".encode()).decode()
+            status, body = http_get(f"https://ghcr.io/token?{query}", {"Authorization": f"Basic {basic}"})
+            if status != 200:
+                raise RuntimeError(f"Could not get a GHCR registry token: {status} {body}")
+            cache["token"] = json.loads(body)["token"]
+        return cache["token"]
+
+    def child_digests(version: dict) -> list[str]:
+        digest = version["name"]
+        status, body = http_get(
+            f"https://ghcr.io/v2/{repo_path}/manifests/{digest}",
+            {"Authorization": f"Bearer {registry_token()}", "Accept": accept},
+        )
+        if status != 200:
+            raise RuntimeError(f"Could not read manifest {digest} to prove what it references: {status} {body[:200]}")
+        document = json.loads(body)
+        return [entry["digest"] for entry in document.get("manifests", [])]
+
+    return child_digests
+
+
+def http_get(url: str, headers: dict[str, str]) -> tuple[int, str]:
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.status, response.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        return error.code, error.read().decode("utf-8")
 
 
 def require_env(name: str) -> str:
@@ -193,11 +273,14 @@ def paginate(token: str, package_info: dict[str, str], first_page: list[dict], f
     return pages
 
 
-def delete_package_version(token: str, package_info: dict[str, str], version_id: str) -> None:
+def delete_package_version(token: str, package_info: dict[str, str], version_id: str) -> bool:
     status, _, body = github_request(token, package_info, version_id, method="DELETE")
 
-    if status not in (204, 404):
-        raise RuntimeError(f"Failed to delete GHCR version {version_id}: {status} {body}")
+    if status == 204:
+        return True
+    if status == 404:
+        return False
+    raise RuntimeError(f"Failed to delete GHCR version {version_id}: {status} {body}")
 
 
 def github_request(
