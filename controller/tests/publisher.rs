@@ -699,6 +699,7 @@ async fn publisher_changes_public_media_paths_when_image_content_changes() {
         .replace_image_metadata(
             fixture.published.id,
             fixture.private_image_id,
+            &fixture.published.images[0].object_key,
             ImageReplacementInput {
                 image: AutographImage {
                     id: replacement_id,

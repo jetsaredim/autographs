@@ -1,10 +1,11 @@
 use std::{
+    collections::BTreeSet,
     fs,
     io::Cursor,
     path::Path,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -12,10 +13,12 @@ use async_trait::async_trait;
 use autographs_controller::{
     catalog::{
         AutographImage, AutographItem, AutographItemInput, AutographItemUpdate, CatalogRepository,
-        CleanupStatus, CleanupWarning, ImageCleanupEvent, ImageReplacementInput, ItemOrigin,
-        MemoryCatalogRepository, PublicationStatus,
+        CleanupStatus, CleanupWarning, ImageAdjustmentUpdateError, ImageCleanupEvent,
+        ImageReplacementInput, ImageReplacementUpdateError, ItemOrigin, MemoryCatalogRepository,
+        PublicationStatus, is_actionable_cleanup_operation,
     },
     config::ControllerConfig,
+    image_adjustments::ImageAdjustment,
     media::{LocalMediaStore, PrivateMediaStore},
     routes::router_with_stores,
     storage_keys::build_original_object_key,
@@ -42,6 +45,44 @@ fn cleanup_schema_update_fails_closed_for_unresolved_legacy_targets() {
     assert!(script.contains("raise_application_error"));
     assert!(script.contains("legacy rows without exact target_object_key"));
     assert!(script.contains("from autograph_images images"));
+}
+
+#[test]
+fn cleanup_operation_allowlist_is_explicit_and_fail_closed() {
+    assert!(is_actionable_cleanup_operation("delete"));
+    assert!(is_actionable_cleanup_operation("replace"));
+    for operation in [
+        "livePersistenceSmokeGuard",
+        "",
+        "Delete",
+        "replace ",
+        "futureCleanupOperation",
+    ] {
+        assert!(!is_actionable_cleanup_operation(operation));
+    }
+}
+
+#[test]
+fn oracle_warning_loader_uses_shared_allowlist_while_inventory_stays_inclusive() {
+    let oracle_source = fs::read_to_string(format!(
+        "{}/src/oracle_catalog.rs",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("read Oracle catalog source");
+    assert!(oracle_source.contains("is_actionable_cleanup_operation(&operation)"));
+
+    let smoke_source = fs::read_to_string(format!(
+        "{}/tests/live_persistence_smoke.rs",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("read live persistence smoke source");
+    assert!(
+        smoke_source
+            .contains("select target_object_key from autograph_cleanup_events where item_id = :1")
+    );
+    assert!(!smoke_source.contains(
+        "select target_object_key from autograph_cleanup_events where item_id = :1 and operation"
+    ));
 }
 
 #[tokio::test]
@@ -216,7 +257,7 @@ async fn delete_image_failure_keeps_metadata_and_returns_redacted_cleanup_warnin
     )
     .await;
     let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
-    media.fail_deletes(true);
+    media.fail_next_deletes(1);
 
     let deleted = app
         .clone()
@@ -341,7 +382,12 @@ async fn replacement_rolls_back_new_object_when_metadata_swap_fails() {
         created_at_epoch_seconds: 0,
         updated_at_epoch_seconds: 0,
     };
-    let repository = Arc::new(FailingReplaceRepository { item });
+    let repository = Arc::new(FailingReplaceRepository {
+        item,
+        error: ImageReplacementUpdateError::Repository(
+            "forced metadata replacement failure".to_owned(),
+        ),
+    });
     let media = Arc::new(LocalMediaStore::new(root.path()));
     media.write(&old_key, &png_fixture()).await.unwrap();
     let app = router_with_stores(ControllerConfig::for_test(true), repository, media);
@@ -357,6 +403,74 @@ async fn replacement_rolls_back_new_object_when_metadata_swap_fails() {
         .unwrap();
 
     assert_eq!(replaced.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = response_json(replaced).await;
+    assert_eq!(body["code"], "imageRecoveryRequired");
+    assert_eq!(body["message"], "Image recovery needs operator attention.");
+    assert!(Uuid::parse_str(body["recoveryId"].as_str().unwrap()).is_ok());
+    assert!(!body.to_string().contains(&old_key));
+    assert_eq!(file_count(root.path()), 2);
+}
+
+#[tokio::test]
+async fn replacement_not_found_uses_exact_redacted_body_and_removes_proven_candidate() {
+    let root = tempdir().unwrap();
+    let item_id = Uuid::new_v4();
+    let image_id = Uuid::new_v4();
+    let old_key = build_original_object_key(item_id, image_id);
+    let repository = Arc::new(FailingReplaceRepository {
+        item: item_with_image(item_id, image_id, old_key.clone()),
+        error: ImageReplacementUpdateError::NotFound,
+    });
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    media.write(&old_key, &png_fixture()).await.unwrap();
+    let app = router_with_stores(ControllerConfig::for_test(true), repository, media);
+
+    let response = app
+        .clone()
+        .oneshot(replace_request(
+            item_id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let body = response_json(response).await;
+    assert_eq!(body["code"], "imageNotFound");
+    assert_eq!(body["message"], "Image was not found.");
+    assert!(!body.to_string().contains(&old_key));
+    assert_eq!(file_count(root.path()), 1);
+}
+
+#[tokio::test]
+async fn replacement_cas_conflict_uses_stable_body_and_cannot_overwrite_current_image() {
+    let root = tempdir().unwrap();
+    let item_id = Uuid::new_v4();
+    let image_id = Uuid::new_v4();
+    let old_key = build_original_object_key(item_id, image_id);
+    let repository = Arc::new(FailingReplaceRepository {
+        item: item_with_image(item_id, image_id, old_key.clone()),
+        error: ImageReplacementUpdateError::MediaRevisionConflict,
+    });
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    media.write(&old_key, &png_fixture()).await.unwrap();
+    let app = router_with_stores(ControllerConfig::for_test(true), repository, media);
+
+    let response = app
+        .clone()
+        .oneshot(replace_request(
+            item_id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let body = response_json(response).await;
+    assert_eq!(body["code"], "mediaRevisionConflict");
+    assert_eq!(body["message"], "Image media changed. Reopen the review.");
     assert_eq!(file_count(root.path()), 1);
 }
 
@@ -379,7 +493,7 @@ async fn replacement_cleanup_warning_is_visible_and_retryable_by_old_image_id() 
     )
     .await;
     let old_image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
-    media.fail_deletes(true);
+    media.fail_next_deletes(1);
 
     let replaced = app
         .clone()
@@ -457,6 +571,51 @@ async fn replacement_cleanup_warning_is_visible_and_retryable_by_old_image_id() 
     assert_eq!(item_after_retry.images.len(), 1);
     assert_eq!(item_after_retry.images[0].id, old_image_id);
     assert_eq!(item_after_retry.images[0].object_key, replacement_key);
+}
+
+#[tokio::test]
+async fn delete_then_error_with_persisted_warning_keeps_replacement_authoritative() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media = Arc::new(FailingDeleteMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    let original_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+    media.delete_before_error(true);
+    media.fail_next_deletes(1);
+
+    let response = app
+        .clone()
+        .oneshot(replace_request(
+            item.id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_json(response).await;
+    assert_eq!(body["cleanupWarnings"][0]["imageId"], image_id.to_string());
+    let persisted = repository.get(item.id).await.unwrap().unwrap();
+    assert_ne!(persisted.images[0].object_key, original_key);
+    assert!(media.read(&original_key).await.is_err());
+    assert!(media.read(&persisted.images[0].object_key).await.is_ok());
+    assert_eq!(file_count(root.path()), 1);
 }
 
 #[tokio::test]
@@ -666,7 +825,7 @@ async fn second_replacement_cleanup_retry_deletes_previous_replacement_object() 
 }
 
 #[tokio::test]
-async fn replacement_cleanup_warning_persistence_failure_returns_error() {
+async fn ambiguous_old_delete_with_warning_failure_keeps_replacement_authoritative() {
     let root = tempdir().unwrap();
     let repository = Arc::new(FailingCleanupEventRepository {
         inner: MemoryCatalogRepository::default(),
@@ -689,7 +848,7 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
     let old_key = repository.get(item.id).await.unwrap().unwrap().images[0]
         .object_key
         .clone();
-    media.fail_deletes(true);
+    media.fail_next_deletes(1);
 
     let replaced = app
         .clone()
@@ -702,6 +861,11 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
         .unwrap();
 
     assert_eq!(replaced.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = response_json(replaced).await;
+    assert_eq!(body["code"], "imageRecoveryRequired");
+    assert_eq!(body["message"], "Image recovery needs operator attention.");
+    assert!(Uuid::parse_str(body["recoveryId"].as_str().unwrap()).is_ok());
+    assert!(!body.to_string().contains(&old_key));
     assert!(
         repository
             .cleanup_warnings(item.id)
@@ -709,10 +873,283 @@ async fn replacement_cleanup_warning_persistence_failure_returns_error() {
             .unwrap()
             .is_empty()
     );
-    let rolled_back = repository.get(item.id).await.unwrap().unwrap();
-    assert_eq!(rolled_back.images.len(), 1);
-    assert_eq!(rolled_back.images[0].id, old_image_id);
-    assert_eq!(rolled_back.images[0].object_key, old_key);
+    let persisted = repository.get(item.id).await.unwrap().unwrap();
+    assert_eq!(persisted.images.len(), 1);
+    assert_eq!(persisted.images[0].id, old_image_id);
+    assert_ne!(persisted.images[0].object_key, old_key);
+    assert_eq!(persisted.images[0].adjustment, None);
+    assert!(!body.to_string().contains(&persisted.images[0].object_key));
+    assert!(!body.to_string().contains("checksum"));
+    assert!(media.read(&persisted.images[0].object_key).await.is_ok());
+    assert_eq!(file_count(root.path()), 2);
+}
+
+#[tokio::test]
+async fn delete_then_error_with_warning_failure_keeps_readable_replacement() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(FailingCleanupEventRepository {
+        inner: MemoryCatalogRepository::default(),
+    });
+    let media = Arc::new(FailingDeleteMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    let original_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+    media.delete_before_error(true);
+    media.fail_next_deletes(1);
+
+    let response = app
+        .clone()
+        .oneshot(replace_request(
+            item.id,
+            image_id,
+            &admin_cookie(&app).await,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = response_json(response).await;
+    assert_eq!(body["code"], "imageRecoveryRequired");
+    assert!(Uuid::parse_str(body["recoveryId"].as_str().unwrap()).is_ok());
+    assert!(!body.to_string().contains(&original_key));
+    let persisted = repository.get(item.id).await.unwrap().unwrap();
+    assert_ne!(persisted.images[0].object_key, original_key);
+    assert!(!body.to_string().contains(&persisted.images[0].object_key));
+    assert!(!body.to_string().contains("checksum"));
+    assert!(media.read(&original_key).await.is_err());
+    assert!(media.read(&persisted.images[0].object_key).await.is_ok());
+    assert_eq!(file_count(root.path()), 1);
+}
+
+#[derive(Clone, Copy, Debug)]
+enum CleanupFixtureFailure {
+    Discovery,
+    Delete,
+    Verification,
+}
+
+#[derive(Debug)]
+struct CleanupAuthorityFixture {
+    local_candidates: Vec<String>,
+    current_image_keys: Vec<String>,
+    cleanup_event_targets: Vec<String>,
+    existing_objects: BTreeSet<String>,
+    discovery_rows_retained: bool,
+    trace: Vec<&'static str>,
+}
+
+impl CleanupAuthorityFixture {
+    fn cleanup(&mut self, failure: Option<CleanupFixtureFailure>) -> Result<(), &'static str> {
+        self.trace.push("inventory");
+        if matches!(failure, Some(CleanupFixtureFailure::Discovery)) {
+            return Err("discovery failed");
+        }
+        let candidates = self
+            .local_candidates
+            .iter()
+            .chain(&self.current_image_keys)
+            .chain(&self.cleanup_event_targets)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+
+        for candidate in candidates {
+            self.trace.push("delete-object");
+            if matches!(failure, Some(CleanupFixtureFailure::Delete)) {
+                return Err("delete failed");
+            }
+            self.existing_objects.remove(&candidate);
+            self.trace.push("verify-object");
+            if matches!(failure, Some(CleanupFixtureFailure::Verification)) {
+                return Err("verification failed");
+            }
+            assert!(!self.existing_objects.contains(&candidate));
+        }
+
+        self.trace.push("delete-rows");
+        self.discovery_rows_retained = false;
+        self.trace.push("verify-rows");
+        Ok(())
+    }
+}
+
+fn committed_replacement_cleanup_fixture() -> CleanupAuthorityFixture {
+    CleanupAuthorityFixture {
+        local_candidates: vec!["candidate-a".to_owned()],
+        current_image_keys: vec!["committed-b".to_owned(), "committed-b".to_owned()],
+        cleanup_event_targets: vec!["candidate-a".to_owned()],
+        existing_objects: ["candidate-a".to_owned(), "committed-b".to_owned()]
+            .into_iter()
+            .collect(),
+        discovery_rows_retained: true,
+        trace: Vec::new(),
+    }
+}
+
+#[derive(Default)]
+struct TrackedCandidateCreationFixture {
+    durable_targets: BTreeSet<String>,
+    written_objects: BTreeSet<String>,
+    trace: Vec<&'static str>,
+}
+
+impl TrackedCandidateCreationFixture {
+    fn register_then_write(
+        &mut self,
+        candidate: &str,
+        registration_fails: bool,
+    ) -> Result<(), &'static str> {
+        self.trace.push("register-authority");
+        if registration_fails {
+            return Err("registration failed");
+        }
+        self.durable_targets.insert(candidate.to_owned());
+        self.trace.push("commit-authority");
+        self.trace.push("write-object");
+        self.written_objects.insert(candidate.to_owned());
+        Ok(())
+    }
+}
+
+#[test]
+fn live_smoke_candidate_registration_commits_before_object_creation() {
+    let mut fixture = TrackedCandidateCreationFixture::default();
+    fixture
+        .register_then_write("private-raw-candidate-a", false)
+        .unwrap();
+    assert_eq!(
+        fixture.trace,
+        ["register-authority", "commit-authority", "write-object"]
+    );
+    assert!(fixture.durable_targets.contains("private-raw-candidate-a"));
+    assert!(fixture.written_objects.contains("private-raw-candidate-a"));
+
+    let mut failed = TrackedCandidateCreationFixture::default();
+    assert!(
+        failed
+            .register_then_write("private-raw-candidate-b", true)
+            .is_err()
+    );
+    assert_eq!(failed.trace, ["register-authority"]);
+    assert!(failed.durable_targets.is_empty());
+    assert!(failed.written_objects.is_empty());
+
+    let smoke_source = fs::read_to_string(format!(
+        "{}/tests/live_persistence_smoke.rs",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("read live persistence smoke source");
+    let registration = smoke_source
+        .find("register_smoke_cleanup_authority(&connection")
+        .expect("registration call exists");
+    let object_write = smoke_source[registration..]
+        .find(".write(&object_key, &body)")
+        .map(|offset| registration + offset)
+        .expect("object write exists after registration");
+    assert!(registration < object_write);
+}
+
+#[test]
+fn recovery_required_cleanup_discovers_committed_replacement_before_deleting_rows() {
+    let mut fixture = committed_replacement_cleanup_fixture();
+
+    fixture.cleanup(None).expect("cleanup succeeds");
+
+    assert!(fixture.existing_objects.is_empty());
+    assert!(!fixture.discovery_rows_retained);
+    let last_object_verification = fixture
+        .trace
+        .iter()
+        .rposition(|step| *step == "verify-object")
+        .expect("object verification recorded");
+    let row_delete = fixture
+        .trace
+        .iter()
+        .position(|step| *step == "delete-rows")
+        .expect("row deletion recorded");
+    assert!(last_object_verification < row_delete);
+    assert_eq!(
+        fixture
+            .trace
+            .iter()
+            .filter(|step| **step == "delete-object")
+            .count(),
+        2,
+        "local, current-image, and cleanup-event candidates must deduplicate"
+    );
+}
+
+#[test]
+fn cleanup_partial_failures_retain_discovery_rows_and_retry_idempotently() {
+    for failure in [
+        CleanupFixtureFailure::Discovery,
+        CleanupFixtureFailure::Delete,
+        CleanupFixtureFailure::Verification,
+    ] {
+        let mut fixture = committed_replacement_cleanup_fixture();
+        assert!(fixture.cleanup(Some(failure)).is_err());
+        assert!(
+            fixture.discovery_rows_retained,
+            "rows deleted after {failure:?}"
+        );
+        assert!(!fixture.trace.contains(&"delete-rows"));
+
+        fixture
+            .cleanup(None)
+            .expect("partial cleanup retry succeeds");
+        assert!(fixture.existing_objects.is_empty());
+        assert!(!fixture.discovery_rows_retained);
+    }
+}
+
+#[test]
+fn fresh_item_cleanup_recovers_durable_candidates_after_guard_destruction() {
+    let mut original_guard = committed_replacement_cleanup_fixture();
+    assert!(
+        original_guard
+            .cleanup(Some(CleanupFixtureFailure::Discovery))
+            .is_err()
+    );
+    assert!(
+        original_guard
+            .cleanup(Some(CleanupFixtureFailure::Discovery))
+            .is_err()
+    );
+    assert!(original_guard.discovery_rows_retained);
+
+    let mut fresh_cleanup = CleanupAuthorityFixture {
+        local_candidates: Vec::new(),
+        current_image_keys: original_guard.current_image_keys.clone(),
+        cleanup_event_targets: original_guard.cleanup_event_targets.clone(),
+        existing_objects: original_guard.existing_objects.clone(),
+        discovery_rows_retained: original_guard.discovery_rows_retained,
+        trace: Vec::new(),
+    };
+    fresh_cleanup.cleanup(None).unwrap();
+
+    assert!(fresh_cleanup.existing_objects.is_empty());
+    assert!(!fresh_cleanup.discovery_rows_retained);
+    assert_eq!(
+        fresh_cleanup
+            .trace
+            .iter()
+            .filter(|step| **step == "delete-object")
+            .count(),
+        2
+    );
 }
 
 #[tokio::test]
@@ -836,6 +1273,144 @@ async fn cleanup_retry_without_warning_does_not_delete_healthy_image() {
             .unwrap()
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn smoke_guard_authority_is_private_and_not_retryable() {
+    let root = tempdir().unwrap();
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+    let item = repository.create(item_input()).await.unwrap();
+    let uploaded = response_json(
+        app.clone()
+            .oneshot(upload_request(item.id, None, &admin_cookie(&app).await))
+            .await
+            .unwrap(),
+    )
+    .await;
+    let image_id = Uuid::parse_str(uploaded["images"][0]["id"].as_str().unwrap()).unwrap();
+    let object_key = repository.get(item.id).await.unwrap().unwrap().images[0]
+        .object_key
+        .clone();
+    repository
+        .record_cleanup_event(ImageCleanupEvent::new(
+            item.id,
+            image_id,
+            object_key.clone(),
+            "livePersistenceSmokeGuard",
+            CleanupStatus::DeleteFailed,
+            "Private live-smoke cleanup authority; use item-ID cleanup.",
+            1,
+        ))
+        .await
+        .unwrap();
+
+    assert!(
+        repository
+            .cleanup_warnings(item.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let detail = response_json(
+        app.clone()
+            .oneshot(
+                Request::get(format!("/admin/api/items/{}", item.id))
+                    .header(header::COOKIE, admin_cookie(&app).await)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert!(
+        detail
+            .get("cleanupWarnings")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty)
+    );
+
+    let retried = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/admin/api/items/{}/images/{image_id}/cleanup/retry",
+                item.id
+            ))
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(retried.status(), StatusCode::CONFLICT);
+    assert_eq!(media.read(&object_key).await.unwrap(), png_fixture());
+    assert_eq!(
+        repository.get(item.id).await.unwrap().unwrap().images.len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn cleanup_retry_route_rejects_injected_non_actionable_warning_before_side_effects() {
+    let root = tempdir().unwrap();
+    let item_id = Uuid::new_v4();
+    let image_id = Uuid::new_v4();
+    let object_key = build_original_object_key(item_id, image_id);
+    let authority = ImageCleanupEvent::new(
+        item_id,
+        image_id,
+        object_key.clone(),
+        "livePersistenceSmokeGuard",
+        CleanupStatus::DeleteFailed,
+        "Private live-smoke cleanup authority; use item-ID cleanup.",
+        1,
+    );
+    let repository = Arc::new(FailingRemoveRepository {
+        item: Mutex::new(item_with_image(item_id, image_id, object_key.clone())),
+        cleanup_events: Mutex::new(vec![authority]),
+    });
+    let media = Arc::new(LocalMediaStore::new(root.path()));
+    media.write(&object_key, &png_fixture()).await.unwrap();
+    let app = router_with_stores(
+        ControllerConfig::for_test(true),
+        repository.clone(),
+        media.clone(),
+    );
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/admin/api/items/{item_id}/images/{image_id}/cleanup/retry"
+            ))
+            .header(header::COOKIE, admin_cookie(&app).await)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    assert_eq!(media.read(&object_key).await.unwrap(), png_fixture());
+    assert_eq!(
+        repository.get(item_id).await.unwrap().unwrap().images.len(),
+        1
+    );
+    let events = repository.cleanup_events.lock().expect("cleanup lock");
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].status, CleanupStatus::DeleteFailed);
+    assert_eq!(events[0].operation, "livePersistenceSmokeGuard");
 }
 
 fn item_input() -> AutographItemInput {
@@ -1007,6 +1582,8 @@ fn file_count(root: &Path) -> usize {
 struct FailingDeleteMediaStore {
     inner: LocalMediaStore,
     fail_deletes: AtomicBool,
+    delete_before_error: AtomicBool,
+    remaining_delete_failures: AtomicUsize,
 }
 
 impl FailingDeleteMediaStore {
@@ -1014,11 +1591,22 @@ impl FailingDeleteMediaStore {
         Self {
             inner: LocalMediaStore::new(root.as_ref()),
             fail_deletes: AtomicBool::new(false),
+            delete_before_error: AtomicBool::new(false),
+            remaining_delete_failures: AtomicUsize::new(0),
         }
     }
 
     fn fail_deletes(&self, fail: bool) {
         self.fail_deletes.store(fail, Ordering::SeqCst);
+    }
+
+    fn fail_next_deletes(&self, count: usize) {
+        self.remaining_delete_failures
+            .store(count, Ordering::SeqCst);
+    }
+
+    fn delete_before_error(&self, enabled: bool) {
+        self.delete_before_error.store(enabled, Ordering::SeqCst);
     }
 }
 
@@ -1033,7 +1621,16 @@ impl PrivateMediaStore for FailingDeleteMediaStore {
     }
 
     async fn delete(&self, object_key: &str) -> Result<(), String> {
-        if self.fail_deletes.load(Ordering::SeqCst) {
+        let fail_once = self
+            .remaining_delete_failures
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                remaining.checked_sub(1)
+            })
+            .is_ok();
+        if self.fail_deletes.load(Ordering::SeqCst) || fail_once {
+            if self.delete_before_error.load(Ordering::SeqCst) {
+                self.inner.delete(object_key).await?;
+            }
             Err(format!("forced delete failure for {object_key}"))
         } else {
             self.inner.delete(object_key).await
@@ -1043,6 +1640,7 @@ impl PrivateMediaStore for FailingDeleteMediaStore {
 
 struct FailingReplaceRepository {
     item: AutographItem,
+    error: ImageReplacementUpdateError,
 }
 
 #[async_trait]
@@ -1095,9 +1693,10 @@ impl CatalogRepository for FailingReplaceRepository {
         &self,
         _item_id: Uuid,
         _image_id: Uuid,
+        _expected_object_key: &str,
         _input: ImageReplacementInput,
-    ) -> Result<AutographItem, String> {
-        Err("forced metadata replacement failure".to_owned())
+    ) -> Result<AutographItem, ImageReplacementUpdateError> {
+        Err(self.error.clone())
     }
 }
 
@@ -1208,10 +1807,23 @@ impl CatalogRepository for FailingCleanupEventRepository {
         &self,
         item_id: Uuid,
         image_id: Uuid,
+        expected_object_key: &str,
         input: ImageReplacementInput,
-    ) -> Result<AutographItem, String> {
+    ) -> Result<AutographItem, ImageReplacementUpdateError> {
         self.inner
-            .replace_image_metadata(item_id, image_id, input)
+            .replace_image_metadata(item_id, image_id, expected_object_key, input)
+            .await
+    }
+
+    async fn update_image_adjustment(
+        &self,
+        item_id: Uuid,
+        image_id: Uuid,
+        expected_object_key: &str,
+        adjustment: Option<ImageAdjustment>,
+    ) -> Result<AutographItem, ImageAdjustmentUpdateError> {
+        self.inner
+            .update_image_adjustment(item_id, image_id, expected_object_key, adjustment)
             .await
     }
 

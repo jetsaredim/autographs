@@ -265,12 +265,13 @@ the controller's mounted secret directory.
 
 If a live persistence smoke is killed before its `Drop` cleanup runs, use the
 same one-shot image and protected VM env file to remove leftover Oracle rows and
-Object Storage objects. Set one or both cleanup variables; values can be comma
-or newline separated:
+Object Storage objects. Prefer the printed item ID: cleanup discovers current
+image keys and cleanup-event targets from Oracle before deleting any rows. Set
+one or both cleanup variables; values can be comma or newline separated:
 
 ```text
 AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_IDS=3f14e408-d4a7-4ef7-91fe-4ec10b3ea745
-AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS=originals/3f14e408-d4a7-4ef7-91fe-4ec10b3ea745/949a003f-ba09-4fa2-bf7e-285ffdc187b4
+AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS=<private-candidate-key-from-protected-inventory>
 ```
 
 Then run the persistence smoke image normally:
@@ -289,11 +290,16 @@ sudo podman run --rm \
   "${SMOKE_IMAGE}"
 ```
 
-Cleanup mode runs before the normal smoke gate, deletes matching
-`autograph_images`, `autograph_item_tags`, and `autograph_items` rows, deletes
-the listed Object Storage objects through instance principal auth, and verifies
-the database counts are zero. Remove the cleanup variables from the env file
-before running the normal smoke again.
+Cleanup mode runs before the normal smoke gate. It first inventories current
+`autograph_images.object_key` and cleanup-event targets, merges them with any
+privately supplied candidates, deletes and verifies every Object Storage
+object through instance-principal auth, and only then deletes the Oracle item
+and cascading discovery rows. If inventory, deletion, or absence verification
+cannot be proven, it retains the Oracle rows for a retry. Candidate-key input
+is private data that the tooling consumes but never echoes; captured output
+contains item IDs, counts, safe status categories, and domain-separated object
+fingerprints only. Remove the cleanup variables from the env file before
+running the normal smoke again.
 
 ## Live Static Publish Smoke
 
@@ -475,11 +481,13 @@ smoke evidence so the real controller persistence path continues to prove the
 app's UTF-8 catalog behavior.
 If a failed run stops before cleanup, search Oracle for a title beginning with
 `Live Static Smoke`, remove that temporary draft through the available
-operator-maintenance path, and delete its logged `originals/{item-id}/{image-id}`
-object from Object Storage. If the static smoke passes but logs a timeout while
+operator-maintenance path, and use protected operator-side inventory for any
+residual private object. If the static smoke passes but reports a timeout while
 deleting the private original, use the live persistence smoke cleanup mode with
-the logged item ID and object key to confirm the database rows and Object Storage
-object are absent.
+the logged item ID. Let cleanup discover current and pending candidates from
+Oracle; supply an additional key only through the protected environment when
+inventory proves it is not represented there. The cleanup transcript reports
+object fingerprints, never the private candidate itself.
 
 When debugging Object Storage cleanup, use the VM-installed OCI CLI to verify
 that instance-principal policy allows deletes independently from the Rust media
@@ -633,5 +641,46 @@ AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true \
 
 Do not record this as passed unless it ran with real Oracle, private Object
 Storage, deployed controller, Caddy static preview, and a runtime admin password.
+
+### Private media-revision live smoke
+
+Run this only against a disposable private draft in the live-smoke tenancy. It
+requires both opt-ins; the second flag alone must never exercise Oracle or OCI:
+
+```bash
+AUTOGRAPHS_LIVE_PERSISTENCE_SMOKE=true \
+AUTOGRAPHS_LIVE_MEDIA_REVISION_SMOKE=true \
+  cargo test --manifest-path controller/Cargo.toml \
+  --features live-persistence --test live_persistence_smoke \
+  -- --ignored --nocapture
+```
+
+Prerequisites are the normal Oracle wallet/database and OCI instance-principal
+media settings, a bucket intended for disposable private smoke data, and an
+operator who can immediately perform the cleanup recovery below. The smoke
+creates a uniquely identified draft, writes small known A and B payloads with
+checksums held locally, obtains revision A, and replaces A with B. It proves
+stale-A source, draft preview, assist, Save, and Reset requests all return the
+typed redacted conflict, reloads revision B, proves current-B Reset succeeds,
+reads B through the provider boundary, and then verifies that both objects plus
+all Oracle item, image, and edit-event rows are absent. It never publishes the
+fixture.
+
+Expected evidence contains the item UUID, `stale_save=409`,
+`current_reset=200`, and final cleanup completion. It must not contain object
+keys, media checksums, credentials, or wallet material. This production-safe
+mode does not inject delete ambiguity, warning persistence failure, transport
+failure, or partial provider outage; those remain deterministic CI coverage.
+
+Abort immediately on an unexpected non-conflict result, unreadable B object,
+privacy-bearing output, or cleanup error. Do not publish or retry mutations on
+the fixture. If interrupted, copy only the printed item UUID and run the
+existing `AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_ITEM_IDS` cleanup mode. It
+discovers current image and cleanup-event keys before deleting Oracle rows. If
+protected operator-side inventory identifies an additional candidate, supply
+it through `AUTOGRAPHS_LIVE_PERSISTENCE_CLEANUP_OBJECT_KEYS`; the tool consumes
+but never echoes that value. Verify zero Oracle rows, object absence, and only
+fingerprint-based cleanup evidence before closing the recovery record; never
+paste private keys or checksums into an issue, PR, or CI log.
 
 ## Full Rebuild
