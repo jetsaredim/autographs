@@ -1,11 +1,11 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-fixed_at: 2026-10-11T14:14:52Z
+fixed_at: 2026-10-12T00:44:13Z
 review_path: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
-iteration: 9
-findings_in_scope: 3
-finding_families: 3
-fixed: 3
+iteration: 11
+findings_in_scope: 1
+finding_families: 1
+fixed: 1
 skipped: 0
 reassessment_required: false
 status: all_fixed
@@ -13,88 +13,76 @@ status: all_fixed
 
 # Phase 08: Code Review Fix Report
 
-**Fixed at:** 2026-10-11T14:14:52Z
+**Fixed at:** 2026-10-12T00:44:13Z
 **Source review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md`
-**Convergence evidence:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CONVERGENCE.md` at `fa67260`
-**Approved plan:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-RECOVERY-SURFACE-CLEANUP-REVISED-PLAN.md`
-**Plan review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-RECOVERY-SURFACE-CLEANUP-PLAN-REVIEW.md`
-**Iteration:** 9 — single authorized post-convergence coder pass
+**Convergence evidence:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CONVERGENCE.md` at `602a882`
+**Approved plan:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md`
+**Plan review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md`, iteration 3 approved with zero findings
+**Iteration:** 11 — single authorized post-reassessment coder pass
 
 ## Outcome
 
-The three in-scope findings were implemented as one recovery-authority contract change. Exclusive recovery now remains visible and operable while ordinary editor authority is inactive; every live-smoke cleanup path discovers object identities before destructive row cleanup; and all cleanup evidence uses domain-separated fingerprints and safe status categories rather than raw private identifiers or provider-controlled text.
+The remaining CR-02 finding was implemented as one terminal candidate-ownership contract. The live smoke now commits private cleanup authority for initial candidate A before the object can be written, candidate refresh cannot consume the guard's existing set on discovery failure, and the reserved authority operation cannot enter ordinary admin cleanup actions.
 
-- Findings in scope: 3
-- Fixed: 3
+- Findings in scope: 1
+- Finding families: 1
+- Fixed: 1
 - Skipped: 0
-- Commit: `d61a38e`
+- Commit: `c356600`
 - Status: `all_fixed`
 
-## Finding Lineage and Fixes
+## Finding Lineage and Fix
 
-### CR-01: Recovery status and retry are descendants of the hidden/inert editor
-
-**Finding family:** `exclusive_conflict_recovery_surface`
-**Lineage:** `sibling_path_miss`
-**Status:** Fixed
-**Commit:** `d61a38e`
-**Files:** `controller/static-admin/index.html`, `controller/static-admin/admin.css`, `controller/static-admin/admin.js`, `controller/tests/static_admin.rs`, `controller/tests/static_admin_behavior.mjs`
-
-**Shared invariant:** Conflict recovery may revoke ordinary editor authority, but pending status and the generation-bound retry must remain perceivable and user-operable outside every hidden or inert ancestor.
-
-**Applied fix:** Added a dedicated live status/action container in `#add-item-view` before and outside `#item-form`. Pending and retryable recovery render only into that container. Existing recovery generation, request owner, editor-authority generation, navigation revision, and current-view checks remain authoritative; invalidation retires and clears the container. The DOM harness now models the real ancestor topology and suppresses user events through disconnected, hidden, inert, and disabled ancestors. Executable cases prove the retry remains visible and operable while editor descendants are inactive and that render, navigation, and new-review authority changes retire late recovery work.
-
-### CR-02: Post-commit replacement failure can leave committed B outside cleanup authority
+### CR-02: Failed inventory consumes the guard's only copy of locally known cleanup candidates
 
 **Finding family:** `live_smoke_cleanup_discovery`
 **Lineage:** `incomplete_fix`
 **Status:** Fixed
-**Commit:** `d61a38e`
-**Files:** `controller/tests/live_persistence_smoke.rs`, `controller/tests/media_cleanup.rs`, `controller/tests/logging_contract.rs`, `docs/static-runtime-runbook.md`
+**Commit:** `c356600`
+**Files:** `controller/tests/live_persistence_smoke.rs`, `controller/tests/media_cleanup.rs`, `controller/src/catalog.rs`, `controller/src/oracle_catalog.rs`, `controller/src/routes.rs`
 
-**Shared invariant:** Object identity discovery must complete before any Oracle row capable of revealing a current image key or cleanup-event target is deleted.
+**Shared invariant:** Every smoke-created private object has durable Oracle cleanup authority before creation; fallible inventory never mutates the installed candidate set; object absence is verified before discovery rows are deleted; and only application operations `delete` and `replace` may enter admin warning/retry paths.
 
-**Applied fix:** The live media-revision smoke refreshes cleanup inventory immediately after the replacement response and before asserting its status. Explicit cleanup, the normal guard, and fallback `Drop` now merge and deduplicate locally known candidates, current `autograph_images.object_key` values, and `autograph_cleanup_events.target_object_key` values. They delete and verify every candidate first, then delete the item and verify item, image, edit-event, and cleanup-event counts are zero. Discovery, deletion, or absence-verification failure returns before row deletion so Oracle discovery metadata remains available. Deterministic fixtures cover committed B, duplicate candidates, discovery failure, delete failure, verification failure, already-absent retry, and object-verification-before-row-deletion ordering.
+**Applied fix:** The initial A key is registered and committed as a private `livePersistenceSmokeGuard` cleanup event after the item exists and before `media.write`. Registration or commit failure aborts before object creation. The authority row remains available to the inclusive item-ID inventory and is removed only by the final item cascade after all candidates are verified absent. `refresh_inventory` now calls a production helper that copies the installed candidates into a fallible discovery producer and assigns the returned union only on success, so query, row-read, or decode failure cannot empty or partially replace guard state.
 
-### WR-01: Cleanup transcripts can expose raw private object identities
+One shared actionability predicate permits only `delete` and `replace`. The Memory and Oracle cleanup-warning loaders both apply it, and `retry_image_cleanup` checks it again before media deletion, metadata removal, or event resolution. The reserved smoke authority remains discoverable by private item-ID cleanup while staying absent from item/status warning responses and unreachable through cleanup retry.
 
-**Finding family:** `live_smoke_cleanup_evidence_privacy`
-**Lineage:** `sibling_path_miss`
-**Status:** Fixed
-**Commit:** `d61a38e`
-**Files:** `controller/tests/live_persistence_smoke.rs`, `controller/tests/logging_contract.rs`, `docs/static-runtime-runbook.md`
+## Finding Lineage Preserved
 
-**Shared invariant:** Normal, timeout, panic, provider-failure, verification, and recovery-required cleanup evidence may expose only safe counts, item IDs, status categories, and domain-separated fingerprints.
+- Iteration 9 closed CR-01 (`exclusive_conflict_recovery_surface`) and WR-01 (`live_smoke_cleanup_evidence_privacy`); this pass does not modify their UI or evidence surfaces.
+- Iteration 9's CR-02 discovery-first change remains intact: local candidates, current image keys, and every cleanup-event target are inventoried before object deletion and destructive SQL.
+- Iteration 10 reclassified CR-02 as an `incomplete_fix` because `mem::take` erased local candidates on failed discovery. The iteration-11 helper removes that ownership transfer.
+- Plan-review iteration 1's terminal-lifecycle blocker is closed by register-before-create durable authority and fresh item-ID recovery after guard destruction.
+- Plan-review iteration 2's actionability blocker is closed by the shared allowlist at both warning loaders and defense-in-depth at the route.
 
-**Applied fix:** Introduced the same length-prefixed `autographs-image-recovery-key-v1` SHA-256 domain separation used by application recovery evidence. Cleanup progress, timeout, provider failure, absence verification, row verification, panic wrappers, and fallback recovery reports no longer interpolate raw keys, checksums, namespace/bucket values, credentials, or provider text. Tests exercise the actual message builders for success, already absent, timeout, provider failure, verification failure, panic, and fallback-thread-panic output with distinctive forbidden markers, and source contracts enforce discovery/deletion order across manual, normal-guard, and `Drop` paths. The runbook now prefers item-ID discovery and states that privately supplied candidates are consumed but never echoed.
+## Executable Evidence
 
-## Consumer and Failure-Path Audit
-
-| Invariant | Producers and mutation boundaries | Consumers / reporting paths | Verified failure behavior |
-|---|---|---|---|
-| Exclusive usable recovery | Current media conflicts; recovery generation/owner; editor and navigation revisions | Pending status, retry, editor form, render/reconcile, navigation, logout, new review | Hidden/inert ancestors block ordinary user events; the external retry is operable; late recovery loses authority |
-| Discovery before deletion | Replacement response, current image rows, cleanup-event targets, local A/B candidates | Explicit cleanup, normal guard, fallback `Drop`, OCI delete/read, Oracle cascade and count verification | Discovery/delete/verification failure preserves rows; retry is idempotent; committed B is included before response assertion |
-| Opaque evidence | Fingerprint/message builders, provider classification, recovery reporter | Normal progress, already absent, timeout, provider failure, verification, panic, runbook | Forbidden raw markers and provider text are absent; stable fingerprint/status correlation remains |
+| Boundary | Evidence |
+| --- | --- |
+| Register before create | Lifecycle fixture proves authority registration and commit precede object write; forced registration failure performs no write. A source-order assertion binds the fixture to the live smoke call sequence. |
+| Atomic refresh | Pure tests invoke the same helper as `LivePersistenceSmokeCleanup::refresh_inventory`; partial failure preserves the original set and retry installs a deduplicated A/B union. |
+| Terminal recovery | Repeated discovery failure retains rows; a fresh cleanup with no local guard state rediscovers A from cleanup events and B from current-image rows, verifies both absent, then removes rows. |
+| Repository filtering | Memory behavior test omits the reserved event; Oracle source/query contract proves it applies the shared predicate while item-ID inventory remains operation-inclusive. |
+| Route defense | An injected repository deliberately returns a reserved warning; the route returns conflict while the object, image metadata, and unresolved event remain unchanged. |
+| Allowed operations | Shared predicate tests accept exactly `delete` and `replace`; existing delete and replacement retry integration tests remain green. |
+| Privacy | Registration errors contain item/step context without the raw key; existing cleanup evidence tests retain domain-separated fingerprint-only output and reject provider-controlled text. |
 
 ## Verification
 
-Verification ran in `/tmp/autographs-pr263-review` on branch `gsd/phase-08-admin-media-review-and-operational-posture` at reviewed base `fa6726015a76aaa4dfbae6b168160739a13eb923` plus these uncommitted fixes. Credential-gated Oracle/OCI tests were compiled but not executed.
+Verification ran in `/tmp/autographs-pr263-review` on branch `gsd/phase-08-admin-media-review-and-operational-posture` at `602a882` plus these uncommitted fixes. Credential-gated Oracle/OCI smoke cases were compiled but not executed.
 
-- `node --check controller/static-admin/admin.js` — passed.
-- `node --check controller/tests/static_admin_behavior.mjs` — passed.
-- `node controller/tests/static_admin_behavior.mjs` — passed (`static admin behavior tests passed`).
 - `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
-- `cargo test --manifest-path controller/Cargo.toml --test static_admin` — passed, 19 tests.
-- `cargo test --manifest-path controller/Cargo.toml --test media_cleanup` — passed, 20 tests.
+- `cargo test --manifest-path controller/Cargo.toml --test media_cleanup` — passed, 26 tests.
 - `cargo test --manifest-path controller/Cargo.toml --test logging_contract` — passed, 3 tests.
-- `cargo test --manifest-path controller/Cargo.toml --features live-persistence --test live_persistence_smoke --no-run` — passed; credential-gated test compiled only.
+- `cargo test --manifest-path controller/Cargo.toml --features live-persistence --test live_persistence_smoke` — passed, 4 executed and 1 credential-gated test ignored.
 - `cargo test --manifest-path controller/Cargo.toml --all-targets --all-features` — passed; 2 credential-gated live tests ignored as designed, all executed tests green.
 - `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings` — passed.
+- `node controller/tests/static_admin_behavior.mjs` — passed.
 - `git diff --check` — passed.
 
 ---
 
-_Fixed: 2026-10-11T14:14:52Z_
+_Fixed: 2026-10-12T00:44:13Z_
 _Fixer: gsd-code-fixer_
-_Iteration: 9_
-_Commit: d61a38e_
+_Iteration: 11_
+_Commit: c356600_
