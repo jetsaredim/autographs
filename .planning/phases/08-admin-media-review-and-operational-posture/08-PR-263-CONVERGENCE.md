@@ -9,6 +9,8 @@ assumption_revision_evidence: 08-REVIEW.md#convergence-reassessment
 implementation_plan_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md
 implementation_plan_review_evidence: null
 implementation_plan_review_comment: null
+previous_plan_review_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
+previous_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115555618
 ---
 
 # PR 263 Review/Fix Convergence Reassessment
@@ -29,6 +31,12 @@ The revised implementation plan is
 until an independent reviewer approves that plan with zero Critical, Warning,
 and Info findings and both evidence references replace the null review fields
 above. Only then may this status return to `ready_to_resume`.
+
+The first independent review found that transactional in-memory refresh alone
+still loses local-only candidates when the final `Drop` inventory fails. The
+plan now requires durable private registration before an object can be created,
+so guard destruction cannot erase the only actionable identity. That revision
+must be re-reviewed; the findings review remains historical evidence only.
 
 ## Resumed Deep Review Reassessment — 2026-10-11
 

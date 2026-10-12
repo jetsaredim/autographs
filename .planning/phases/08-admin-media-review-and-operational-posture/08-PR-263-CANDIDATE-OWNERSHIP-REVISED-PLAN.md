@@ -10,6 +10,8 @@ lineage: incomplete_fix
 review_required: true
 review_evidence: null
 review_comment: null
+previous_review_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
+previous_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115555618
 ---
 
 # PR 263 Candidate Ownership Revised Plan
@@ -17,10 +19,11 @@ review_comment: null
 ## Objective
 
 Close the remaining CR-02 ownership gap without reopening the closed recovery
-surface or evidence-privacy contracts. A failed Oracle inventory attempt must
-be atomic with respect to the cleanup guard's locally known candidates: the
-guard retains its complete pre-call set until a successfully discovered union
-replaces it.
+surface or evidence-privacy contracts. Candidate ownership has two layers:
+fallible inventory is atomic in memory, and every candidate that could outlive
+the guard is registered in private Oracle recovery metadata before its object
+can be created. Guard destruction therefore cannot erase the only actionable
+identity.
 
 ## Locked invariants
 
@@ -34,8 +37,52 @@ replaces it.
 4. Any discovery, deletion, or verification failure retains Oracle discovery
    rows and the guard's full candidate set for retry or recovery.
 5. Cleanup evidence remains fingerprint-only; CR-01 and WR-01 stay closed.
+6. Before the smoke writes a locally generated object, its exact private key is
+   committed to `autograph_cleanup_events`. If durable registration fails, the
+   object is never written. The row remains until verified object cleanup and
+   final item-row deletion succeed.
 
-## Task 1: Make candidate refresh transactional
+## Task 1: Establish durable terminal ownership
+
+**Files:**
+
+- `controller/tests/live_persistence_smoke.rs`
+- `controller/tests/media_cleanup.rs`
+
+**Implementation:**
+
+- After the disposable item row exists but before writing the initial A object,
+  insert and commit a private cleanup-authority event containing the item ID,
+  image ID, exact target key, a smoke-specific operation, `deleteFailed`
+  status, and a sanitized admin message. Reuse the existing private
+  `autograph_cleanup_events` store; do not log or return its key.
+- Treat registration as a precondition for object creation. Registration or
+  commit failure aborts before `media.write`, so no untracked local-only object
+  can exist.
+- Any future smoke-generated candidate that is not already authoritative in
+  `autograph_images` or `autograph_cleanup_events` must follow the same
+  register-before-create rule. Route-generated B remains covered by current
+  image or cleanup-event metadata before the response returns.
+- Keep the authority event until all candidate objects are verified absent;
+  remove it only through the final item-row cascade after object cleanup. Do
+  not mark it resolved early.
+- If the final `Drop` inventory fails, retain all Oracle rows and report only
+  safe item/step evidence. The destroyed guard is no longer the sole owner:
+  item-ID cleanup can rediscover A and B from the durable rows.
+
+**Tests:**
+
+- Add an executable lifecycle fixture proving registration commits before the
+  first object write and that registration failure prevents the write.
+- Model repeated inventory failure followed by guard destruction, then create
+  a fresh item-ID cleanup authority and prove it rediscovers every candidate
+  from durable rows.
+- Assert the authority row cannot be deleted before every registered candidate
+  is verified absent, and that successful cleanup removes it with the item.
+- Seed distinctive key/provider markers and prove registration, failure, and
+  operator evidence never echo raw private identities.
+
+## Task 2: Make candidate refresh transactional
 
 **Files:**
 
@@ -67,7 +114,7 @@ replaces it.
 | First discovery fails before returning any rows | Existing A remains byte-for-byte in guard state; no delete or SQL cleanup occurs. |
 | First discovery partially reads rows then fails | No partial set is installed; the complete pre-call set remains authoritative. |
 | First discovery fails, fallback retry succeeds with B/event targets | Installed union contains A, B, and targets exactly once; all are deleted and verified before the first row deletion. |
-| Repeated discovery failures | Local candidates and Oracle rows remain; recovery evidence contains only safe step/item data. |
+| Repeated discovery failures, then guard destruction | Durable authority rows retain A/B identities for a fresh item-ID cleanup; recovery evidence contains only safe step/item data. |
 | Successful retry after duplicate/already-absent candidates | Deduplicated union is idempotent and row cleanup occurs only after every absence proof. |
 | Delete or verification fails after successful inventory | The full installed union and Oracle discovery rows remain available for retry. |
 
@@ -91,7 +138,9 @@ replaces it.
 - A first-failure/second-success test fails against `d61a38e` semantics and
   passes using the same state-transition helper invoked by the live guard.
 - Persistent failure proves both local candidates and Oracle rows remain
-  recoverable.
+  recoverable after the original guard is destroyed.
+- A local-only object cannot be written unless its private recovery identity is
+  already committed in Oracle, and fresh item-ID cleanup can rediscover it.
 - CR-01 and WR-01 remain closed, all targeted/full checks pass, and the next
   lineage-preserving deep source review reports zero actionable findings.
 
@@ -114,9 +163,10 @@ tests in the same target must run without credentials.
 ## Plan approval gate
 
 An independent plan reviewer must verify the helper cannot consume durable
-candidates on any error, the tests execute the production transition, every
-explicit/normal/Drop consumer preserves the invariant, destructive SQL remains
-after all absence proofs, and privacy/recovery contracts stay closed. Approval
-requires zero Critical, Warning, and Info findings. Record the review artifact
-and PR comment in the convergence ledger before changing status to
-`ready_to_resume`.
+candidates on any error; register-before-create survives final guard
+destruction; a fresh cleanup process can rediscover all candidates; tests
+execute the production transitions; every explicit/normal/Drop consumer
+preserves the invariant; destructive SQL remains after all absence proofs; and
+privacy/recovery contracts stay closed. Approval requires zero Critical,
+Warning, and Info findings. Record the review artifact and PR comment in the
+convergence ledger before changing status to `ready_to_resume`.
