@@ -208,6 +208,15 @@ fn auto_assist_abstains_when_border_noise_hides_low_contrast_enclosure() {
 }
 
 #[test]
+fn auto_assist_abstains_when_sparse_weak_boundary_encloses_dark_content() {
+    let source = sparse_weak_outer_boundary_fixture();
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Unavailable);
+    assert!(proposal.corners.is_empty());
+}
+
+#[test]
 fn auto_assist_keeps_outer_card_when_its_border_has_reliable_contrast() {
     let source = bordered_card_with_internal_content_fixture([190, 190, 190]);
     let proposal = propose_image_adjustment(&source).unwrap();
@@ -372,6 +381,33 @@ fn noisy_border_low_contrast_card_fixture() -> Vec<u8> {
     for y in (1..image.height() - 1).step_by(4) {
         image.put_pixel(0, y, Rgba([176, 176, 176, 255]));
         image.put_pixel(image.width() - 1, y, Rgba([176, 176, 176, 255]));
+    }
+    encode_png(image)
+}
+
+fn sparse_weak_outer_boundary_fixture() -> Vec<u8> {
+    let mut image = RgbaImage::new(180, 140);
+    for pixel in image.pixels_mut() {
+        *pixel = Rgba([242, 242, 242, 255]);
+    }
+
+    let weak_boundary = Rgba([228, 228, 228, 255]);
+    for x in 18..162 {
+        image.put_pixel(x, 10, weak_boundary);
+        image.put_pixel(x, 129, weak_boundary);
+    }
+    for y in 10..130 {
+        image.put_pixel(18, y, weak_boundary);
+        image.put_pixel(161, y, weak_boundary);
+    }
+    for y in 11..40 {
+        image.put_pixel(90, y, weak_boundary);
+    }
+
+    for y in 40..100 {
+        for x in 50..130 {
+            image.put_pixel(x, y, Rgba([28, 32, 36, 255]));
+        }
     }
     encode_png(image)
 }

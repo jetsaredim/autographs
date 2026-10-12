@@ -463,7 +463,7 @@ fn component_boundary_is_stable(
         );
         let population_growth = weak_component.count as f32 / component.count.max(1) as f32;
         if population_growth > AUTO_CORRECTION_MAX_STABLE_COMPONENT_GROWTH
-            && weak_area_ratio - area_ratio > AUTO_CORRECTION_MAX_STABLE_AREA_GROWTH
+            || weak_area_ratio - area_ratio > AUTO_CORRECTION_MAX_STABLE_AREA_GROWTH
         {
             return false;
         }
