@@ -152,10 +152,32 @@ fn auto_assist_returns_confident_corners_for_high_contrast_skew_fixture() {
 
     assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Confident);
     assert_eq!(proposal.corners.len(), 4);
-    for corner in proposal.corners {
+    for corner in &proposal.corners {
         assert!((0.0..=1.0).contains(&corner.x));
         assert!((0.0..=1.0).contains(&corner.y));
     }
+    assert_detected_corners_near(
+        &proposal.corners,
+        &[(26, 18), (91, 18), (96, 73), (20, 73)],
+        120,
+        90,
+        0.025,
+    );
+}
+
+#[test]
+fn auto_assist_finds_dark_card_against_light_background() {
+    let source = dark_card_fixture();
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Confident);
+    assert_detected_corners_near(
+        &proposal.corners,
+        &[(34, 20), (125, 20), (128, 104), (30, 104)],
+        160,
+        120,
+        0.025,
+    );
 }
 
 #[test]
@@ -169,6 +191,32 @@ fn auto_assist_returns_unavailable_copy_for_low_confidence_fixture() {
         Some("Auto correction could not find reliable edges. Adjust the corners manually.")
     );
     assert!(proposal.corners.is_empty());
+}
+
+#[test]
+fn auto_assist_reports_when_no_meaningful_correction_is_needed() {
+    let source = nearly_full_frame_card_fixture(2);
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::NotNeeded);
+    assert_eq!(
+        proposal.message.as_deref(),
+        Some("No meaningful perspective correction was detected.")
+    );
+    assert!(proposal.corners.is_empty());
+    assert_eq!(
+        serde_json::to_value(&proposal).unwrap()["status"],
+        "notNeeded"
+    );
+}
+
+#[test]
+fn auto_assist_keeps_correction_just_outside_identity_tolerance() {
+    let source = nearly_full_frame_card_fixture(5);
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Confident);
+    assert_eq!(proposal.corners.len(), 4);
 }
 
 fn fixture_png(color: [u8; 3], width: u32, height: u32) -> Vec<u8> {
@@ -196,6 +244,34 @@ fn skewed_card_fixture() -> Vec<u8> {
     encode_png(image)
 }
 
+fn dark_card_fixture() -> Vec<u8> {
+    let mut image = RgbaImage::new(160, 120);
+    for pixel in image.pixels_mut() {
+        *pixel = Rgba([238, 238, 238, 255]);
+    }
+    for y in 20..105 {
+        let left = 34i32 - ((y as i32 - 20) / 21);
+        let right = 126i32 + ((y as i32 - 20) / 28);
+        for x in left..right {
+            image.put_pixel(x as u32, y, Rgba([24, 28, 32, 255]));
+        }
+    }
+    encode_png(image)
+}
+
+fn nearly_full_frame_card_fixture(inset: u32) -> Vec<u8> {
+    let mut image = RgbaImage::new(160, 120);
+    for pixel in image.pixels_mut() {
+        *pixel = Rgba([238, 238, 238, 255]);
+    }
+    for y in inset..image.height() - inset {
+        for x in inset..image.width() - inset {
+            image.put_pixel(x, y, Rgba([24, 28, 32, 255]));
+        }
+    }
+    encode_png(image)
+}
+
 fn encode_png(image: RgbaImage) -> Vec<u8> {
     let mut bytes = Vec::new();
     DynamicImage::ImageRgba8(image)
@@ -208,6 +284,28 @@ fn normalized_test_point(x: u32, y: u32, width: u32, height: u32) -> ImagePoint 
     ImagePoint {
         x: x as f32 / width.saturating_sub(1).max(1) as f32,
         y: y as f32 / height.saturating_sub(1).max(1) as f32,
+    }
+}
+
+fn assert_detected_corners_near(
+    actual: &[ImagePoint],
+    expected_pixels: &[(u32, u32); 4],
+    width: u32,
+    height: u32,
+    tolerance: f32,
+) {
+    assert_eq!(actual.len(), expected_pixels.len());
+    for (actual, &(x, y)) in actual.iter().zip(expected_pixels) {
+        let expected = normalized_test_point(x, y, width, height);
+        assert!(
+            (actual.x - expected.x).abs() <= tolerance
+                && (actual.y - expected.y).abs() <= tolerance,
+            "expected corner near ({:.3}, {:.3}), got ({:.3}, {:.3})",
+            expected.x,
+            expected.y,
+            actual.x,
+            actual.y,
+        );
     }
 }
 

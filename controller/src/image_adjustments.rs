@@ -3,12 +3,22 @@ use imageproc::geometric_transformations::{
     Border, Interpolation, Projection, rotate_about_center, warp,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 
 use crate::derivatives::{DerivativeVariant, GeneratedDerivative};
 
 pub const IMAGE_ADJUSTMENT_TRANSFORM_VERSION: &str = "image-adjustment-transform-01";
 pub const AUTO_CORRECTION_UNAVAILABLE_MESSAGE: &str =
     "Auto correction could not find reliable edges. Adjust the corners manually.";
+pub const AUTO_CORRECTION_NOT_NEEDED_MESSAGE: &str =
+    "No meaningful perspective correction was detected.";
+
+const AUTO_CORRECTION_MAX_DIMENSION: u32 = 640;
+const AUTO_CORRECTION_MIN_COLOR_DISTANCE: u32 = 32;
+const AUTO_CORRECTION_MIN_COMPONENT_RATIO: f32 = 0.01;
+const AUTO_CORRECTION_MIN_QUAD_AREA_RATIO: f32 = 0.15;
+const AUTO_CORRECTION_MAX_QUAD_AREA_RATIO: f32 = 0.985;
+const AUTO_CORRECTION_IDENTITY_TOLERANCE: f32 = 0.025;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,9 +63,10 @@ pub struct ImageAdjustmentProposal {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum ImageAdjustmentProposalStatus {
     Confident,
+    NotNeeded,
     Unavailable,
 }
 
@@ -215,49 +226,215 @@ pub fn apply_image_adjustment(
 pub fn propose_image_adjustment(source: &[u8]) -> Result<ImageAdjustmentProposal, String> {
     let decoded = image::load_from_memory(source)
         .map_err(|error| format!("decode private original for auto correction: {error}"))?;
-    let gray = decoded.to_luma8();
-    let (width, height) = gray.dimensions();
+    let image = decoded
+        .thumbnail(AUTO_CORRECTION_MAX_DIMENSION, AUTO_CORRECTION_MAX_DIMENSION)
+        .to_rgb8();
+    let (width, height) = image.dimensions();
     if width == 0 || height == 0 {
         return Ok(unavailable_proposal());
     }
 
-    let mut min_x = width;
-    let mut min_y = height;
-    let mut max_x = 0;
-    let mut max_y = 0;
-    let mut bright_count = 0usize;
-    for (x, y, pixel) in gray.enumerate_pixels() {
-        if pixel[0] >= 210 {
-            min_x = min_x.min(x);
-            min_y = min_y.min(y);
-            max_x = max_x.max(x);
-            max_y = max_y.max(y);
-            bright_count += 1;
-        }
+    let background = border_median_rgb(&image);
+    let threshold = adaptive_color_distance_threshold(&image, background);
+    let Some(corners) = largest_contrast_component_corners(&image, background, threshold) else {
+        return Ok(unavailable_proposal());
+    };
+    let normalized_corners = corners.map(|(x, y)| normalized_point(x, y, width, height));
+    let perspective = ImagePerspective {
+        corners: normalized_corners,
+    };
+    if perspective.validate().is_err() {
+        return Ok(unavailable_proposal());
     }
-
-    let total = (width as usize).saturating_mul(height as usize);
-    let bright_ratio = bright_count as f32 / total.max(1) as f32;
-    let box_width = max_x.saturating_sub(min_x).saturating_add(1);
-    let box_height = max_y.saturating_sub(min_y).saturating_add(1);
-    if bright_count == 0
-        || !(0.18..=0.85).contains(&bright_ratio)
-        || box_width < width / 4
-        || box_height < height / 4
+    let area_ratio = quadrilateral_area_ratio(normalized_corners);
+    if !(AUTO_CORRECTION_MIN_QUAD_AREA_RATIO..=AUTO_CORRECTION_MAX_QUAD_AREA_RATIO)
+        .contains(&area_ratio)
     {
         return Ok(unavailable_proposal());
+    }
+    if corners_are_near_full_frame(normalized_corners) {
+        return Ok(not_needed_proposal());
     }
 
     Ok(ImageAdjustmentProposal {
         status: ImageAdjustmentProposalStatus::Confident,
-        corners: vec![
-            normalized_point(min_x, min_y, width, height),
-            normalized_point(max_x, min_y, width, height),
-            normalized_point(max_x, max_y, width, height),
-            normalized_point(min_x, max_y, width, height),
-        ],
+        corners: normalized_corners.to_vec(),
         message: None,
     })
+}
+
+fn border_median_rgb(image: &image::RgbImage) -> [u8; 3] {
+    let (width, height) = image.dimensions();
+    let mut channels = [Vec::new(), Vec::new(), Vec::new()];
+    for x in 0..width {
+        for y in [0, height.saturating_sub(1)] {
+            let pixel = image.get_pixel(x, y);
+            for channel in 0..3 {
+                channels[channel].push(pixel[channel]);
+            }
+        }
+    }
+    for y in 1..height.saturating_sub(1) {
+        for x in [0, width.saturating_sub(1)] {
+            let pixel = image.get_pixel(x, y);
+            for channel in 0..3 {
+                channels[channel].push(pixel[channel]);
+            }
+        }
+    }
+    for values in &mut channels {
+        values.sort_unstable();
+    }
+    channels.map(|values| values[values.len() / 2])
+}
+
+fn adaptive_color_distance_threshold(image: &image::RgbImage, background: [u8; 3]) -> u32 {
+    let (width, height) = image.dimensions();
+    let mut distances = Vec::with_capacity((width + height).saturating_mul(2) as usize);
+    for x in 0..width {
+        distances.push(color_distance(image.get_pixel(x, 0).0, background));
+        distances.push(color_distance(
+            image.get_pixel(x, height.saturating_sub(1)).0,
+            background,
+        ));
+    }
+    for y in 1..height.saturating_sub(1) {
+        distances.push(color_distance(image.get_pixel(0, y).0, background));
+        distances.push(color_distance(
+            image.get_pixel(width.saturating_sub(1), y).0,
+            background,
+        ));
+    }
+    distances.sort_unstable();
+    let background_noise = distances[distances.len().saturating_mul(9) / 10];
+    AUTO_CORRECTION_MIN_COLOR_DISTANCE.max(background_noise.saturating_mul(2).saturating_add(8))
+}
+
+fn color_distance(color: [u8; 3], background: [u8; 3]) -> u32 {
+    let squared = color
+        .into_iter()
+        .zip(background)
+        .map(|(value, reference)| {
+            let delta = i32::from(value) - i32::from(reference);
+            (delta * delta) as u32
+        })
+        .sum::<u32>();
+    (squared as f32).sqrt().round() as u32
+}
+
+fn largest_contrast_component_corners(
+    image: &image::RgbImage,
+    background: [u8; 3],
+    threshold: u32,
+) -> Option<[(u32, u32); 4]> {
+    let (width, height) = image.dimensions();
+    let total = width as usize * height as usize;
+    let foreground = image
+        .pixels()
+        .map(|pixel| color_distance(pixel.0, background) >= threshold)
+        .collect::<Vec<_>>();
+    let mut visited = vec![false; total];
+    let mut largest = None;
+
+    for index in 0..total {
+        if visited[index] || !foreground[index] {
+            continue;
+        }
+        let component = trace_contrast_component(index, width, height, &foreground, &mut visited);
+        if largest
+            .as_ref()
+            .is_none_or(|current: &ContrastComponent| component.count > current.count)
+        {
+            largest = Some(component);
+        }
+    }
+
+    largest.and_then(|component| {
+        let ratio = component.count as f32 / total.max(1) as f32;
+        (ratio >= AUTO_CORRECTION_MIN_COMPONENT_RATIO).then_some(component.corners)
+    })
+}
+
+struct ContrastComponent {
+    count: usize,
+    corners: [(u32, u32); 4],
+}
+
+fn trace_contrast_component(
+    start: usize,
+    width: u32,
+    height: u32,
+    foreground: &[bool],
+    visited: &mut [bool],
+) -> ContrastComponent {
+    let mut queue = VecDeque::from([start]);
+    visited[start] = true;
+    let mut count = 0usize;
+    let mut corners = [(0, 0); 4];
+    let mut scores = [i64::MAX, i64::MIN, i64::MIN, i64::MAX];
+
+    while let Some(index) = queue.pop_front() {
+        count += 1;
+        let x = index as u32 % width;
+        let y = index as u32 / width;
+        let sum = i64::from(x) + i64::from(y);
+        let difference = i64::from(x) - i64::from(y);
+        for (corner, score, candidate, prefer_lower) in [
+            (0, sum, sum, true),
+            (1, difference, difference, false),
+            (2, sum, sum, false),
+            (3, difference, difference, true),
+        ] {
+            if (prefer_lower && candidate < scores[corner])
+                || (!prefer_lower && candidate > scores[corner])
+            {
+                scores[corner] = score;
+                corners[corner] = (x, y);
+            }
+        }
+
+        let min_x = x.saturating_sub(1);
+        let max_x = (x + 1).min(width.saturating_sub(1));
+        let min_y = y.saturating_sub(1);
+        let max_y = (y + 1).min(height.saturating_sub(1));
+        for neighbor_y in min_y..=max_y {
+            for neighbor_x in min_x..=max_x {
+                let neighbor = (neighbor_y * width + neighbor_x) as usize;
+                if !visited[neighbor] && foreground[neighbor] {
+                    visited[neighbor] = true;
+                    queue.push_back(neighbor);
+                }
+            }
+        }
+    }
+
+    ContrastComponent { count, corners }
+}
+
+fn quadrilateral_area_ratio(corners: [ImagePoint; 4]) -> f32 {
+    corners
+        .iter()
+        .zip(corners.iter().cycle().skip(1))
+        .take(4)
+        .map(|(left, right)| left.x * right.y - right.x * left.y)
+        .sum::<f32>()
+        .abs()
+        / 2.0
+}
+
+fn corners_are_near_full_frame(corners: [ImagePoint; 4]) -> bool {
+    corners
+        .into_iter()
+        .zip([
+            ImagePoint { x: 0.0, y: 0.0 },
+            ImagePoint { x: 1.0, y: 0.0 },
+            ImagePoint { x: 1.0, y: 1.0 },
+            ImagePoint { x: 0.0, y: 1.0 },
+        ])
+        .all(|(corner, full_frame)| {
+            (corner.x - full_frame.x).abs() <= AUTO_CORRECTION_IDENTITY_TOLERANCE
+                && (corner.y - full_frame.y).abs() <= AUTO_CORRECTION_IDENTITY_TOLERANCE
+        })
 }
 
 pub fn generate_adjusted_derivative(
@@ -354,5 +531,13 @@ fn unavailable_proposal() -> ImageAdjustmentProposal {
         status: ImageAdjustmentProposalStatus::Unavailable,
         corners: Vec::new(),
         message: Some(AUTO_CORRECTION_UNAVAILABLE_MESSAGE.to_owned()),
+    }
+}
+
+fn not_needed_proposal() -> ImageAdjustmentProposal {
+    ImageAdjustmentProposal {
+        status: ImageAdjustmentProposalStatus::NotNeeded,
+        corners: Vec::new(),
+        message: Some(AUTO_CORRECTION_NOT_NEEDED_MESSAGE.to_owned()),
     }
 }

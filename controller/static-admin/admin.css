@@ -827,13 +827,43 @@ h4 {
 }
 
 .review-overlay {
-  inset: 0;
+  z-index: 2;
   pointer-events: none;
 }
 
-.review-overlay-grid {
-  inset: 33%;
-  border: 1px solid #ffffff88;
+.review-overlay-grid-line {
+  position: absolute;
+  background: #ffffff88;
+}
+
+.review-overlay-grid-line:nth-child(1),
+.review-overlay-grid-line:nth-child(2) {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.review-overlay-grid-line:nth-child(1) {
+  left: 33.333%;
+}
+
+.review-overlay-grid-line:nth-child(2) {
+  left: 66.667%;
+}
+
+.review-overlay-grid-line:nth-child(3),
+.review-overlay-grid-line:nth-child(4) {
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+
+.review-overlay-grid-line:nth-child(3) {
+  top: 33.333%;
+}
+
+.review-overlay-grid-line:nth-child(4) {
+  top: 66.667%;
 }
 
 .review-overlay-centerline::before,
@@ -858,8 +888,14 @@ h4 {
 }
 
 .review-overlay-edges {
-  inset: 8%;
-  border: 2px dashed #ffffffcc;
+  overflow: visible;
+}
+
+.review-overlay-edge-segment {
+  position: absolute;
+  height: 0;
+  border-top: 2px dashed #ffffffcc;
+  transform-origin: 0 50%;
 }
 
 .corner-handle {

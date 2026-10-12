@@ -582,6 +582,7 @@ fn static_admin_image_review_contract_is_private_accessible_and_draft_local() {
         "Private image only. Publish when this item is ready for the public catalog.",
         "Adjustments saved privately. Publish changes when this image is ready for the public site.",
         "Auto correction could not find reliable edges. Adjust the corners manually.",
+        "No meaningful perspective correction was detected.",
         "Top left corner",
         "Top right corner",
         "Bottom right corner",
@@ -790,6 +791,25 @@ fn static_admin_review_layout_has_a_narrow_viewport_override() {
         css_property_values(&css, ".corner-handle", "height"),
         vec!["44px"],
         "perspective controls must retain a 44px vertical hit target"
+    );
+    assert!(
+        !css.contains(".review-overlay-grid {\n  inset: 33%;"),
+        "the grid overlay must not regress to a single inset box"
+    );
+    for selector in [
+        ".review-overlay-grid-line:nth-child(1)",
+        ".review-overlay-grid-line:nth-child(2)",
+        ".review-overlay-grid-line:nth-child(3)",
+        ".review-overlay-grid-line:nth-child(4)",
+    ] {
+        assert!(
+            css.contains(selector),
+            "the grid overlay must render the rule-of-thirds line {selector}"
+        );
+    }
+    assert!(
+        !css.contains(".review-overlay-edges {\n  inset: 8%;"),
+        "the edge overlay must be projected from the current perspective corners"
     );
 }
 

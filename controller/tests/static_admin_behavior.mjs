@@ -134,6 +134,7 @@ const adjustmentControls = [
 const overlayToggles = ["grid", "centerline", "edges"].map((name) => {
   const toggle = elementForId(`review-overlay-${name}`);
   toggle.dataset.reviewOverlay = name;
+  toggle.checked = name === "edges";
   return toggle;
 });
 const comparisonButtons = ["latest", "before-after", "split"].map((mode) => {
@@ -359,8 +360,11 @@ await run(`
   await firstMountedOutput.dispatch("load");
   assert.equal(state.reviewPreviewStatus, "ready");
   const grid = document.querySelector("#review-overlay-grid");
+  const edges = document.querySelector("#review-overlay-edges");
   grid.checked = true;
   await grid.dispatch("change");
+  edges.checked = false;
+  await edges.dispatch("change");
   const replacementOutput = findByClass(elements.imageReviewStage, "review-image-latest");
   assert.notEqual(replacementOutput, firstMountedOutput);
   assert.notEqual(state.reviewMountedOutput.node, firstMountedOutput);
@@ -497,7 +501,25 @@ await run(`assert.equal(state.reviewImage, null);`);
 enqueueFetch(response());
 reviewB.resolve(response({ json: reviewPayload("item-b", "image-b", { rotationDegrees: 7, zoom: 1, panX: 0, panY: 0, crop: null, perspective: null }) }));
 await openB;
-await run(`assert.equal(state.reviewImage.imageId, "image-b");`);
+await run(`
+  assert.equal(state.reviewImage.imageId, "image-b");
+  assert.equal(state.reviewOverlays.grid, false);
+  assert.equal(state.reviewOverlays.edges, true);
+  assert.equal(document.querySelector("#review-overlay-grid").checked, false);
+  assert.equal(document.querySelector("#review-overlay-edges").checked, true);
+`);
+
+enqueueFetch(response({ json: {
+  status: "notNeeded", corners: [], message: "No meaningful perspective correction was detected.",
+} }));
+await run(`
+  const revisionBeforeAssist = state.reviewDraftRevision;
+  await document.querySelector("#image-review-detect").dispatch("click");
+  assert.equal(state.reviewDraftRevision, revisionBeforeAssist);
+  assert.equal(state.reviewDirty, false);
+  assert.equal(state.reviewDraftAdjustment.perspective, null);
+  assert.equal(state.reviewMessage, "No meaningful perspective correction was detected.");
+`);
 
 const assist = deferred();
 enqueueFetch(assist.promise);
@@ -532,6 +554,16 @@ await run(`
   assert.equal(state.reviewPerspectiveDrag, null);
   await sourceImage.dispatch("load");
   handles = findAllByClass(sourceFrame, "corner-handle");
+  let edgeOverlay = findByClass(sourceFrame, "review-overlay-edges");
+  assert.ok(edgeOverlay);
+  assert.equal(edgeOverlay.style.left, "125px");
+  assert.equal(edgeOverlay.style.top, "0px");
+  assert.equal(edgeOverlay.style.width, "150px");
+  assert.equal(edgeOverlay.style.height, "300px");
+  assert.equal(edgeOverlay.children.length, 4);
+  assert.equal(edgeOverlay.children[0].style.left, "0px");
+  assert.equal(edgeOverlay.children[0].style.top, "0px");
+  assert.equal(edgeOverlay.children[0].style.width, "150px");
   assert.equal(handles.every((handle) => !handle.disabled), true);
   assert.equal(handles[0].style.left, "125px");
   assert.equal(handles[0].style.top, "22px");
@@ -583,6 +615,10 @@ await run(`
   await handle.dispatch("pointermove", { pointerId: 9, clientX: 140, clientY: 52 });
   assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].x - 0.1) < 1e-9, true);
   assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].y - 0.1) < 1e-9, true);
+  edgeOverlay = findByClass(sourceFrame, "review-overlay-edges");
+  assert.equal(edgeOverlay.children[0].style.left, "15px");
+  assert.equal(edgeOverlay.children[0].style.top, "30px");
+  assert.notEqual(edgeOverlay.children[0].style.width, "150px");
   sourceFrame.rect = { left: 0, top: 0, width: 300, height: 400 };
   resizeObservers.findLast((observer) => !observer.disconnected).trigger(sourceFrame);
   assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].x - 0.1) < 1e-9, true);
