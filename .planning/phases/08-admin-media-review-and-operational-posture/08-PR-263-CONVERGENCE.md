@@ -11,6 +11,7 @@ implementation_plan_review_evidence: null
 implementation_plan_review_comment: null
 previous_plan_review_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
 previous_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115555618
+second_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115592186
 ---
 
 # PR 263 Review/Fix Convergence Reassessment
@@ -37,6 +38,13 @@ still loses local-only candidates when the final `Drop` inventory fails. The
 plan now requires durable private registration before an object can be created,
 so guard destruction cannot erase the only actionable identity. That revision
 must be re-reviewed; the findings review remains historical evidence only.
+
+The second review confirmed terminal ownership but found that an unfiltered
+`deleteFailed` row would enter ordinary admin warning/retry consumers. The plan
+now defines a non-actionable operation class: durable smoke authority remains
+discoverable to item-ID cleanup while catalog warning loaders and the retry
+route use one explicit `delete`/`replace` allowlist. This revision also requires
+executable unreachability tests and must be independently re-reviewed.
 
 ## Resumed Deep Review Reassessment — 2026-10-11
 

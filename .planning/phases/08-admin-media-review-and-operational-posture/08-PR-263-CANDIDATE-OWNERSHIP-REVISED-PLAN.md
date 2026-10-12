@@ -12,6 +12,7 @@ review_evidence: null
 review_comment: null
 previous_review_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
 previous_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115555618
+second_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115592186
 ---
 
 # PR 263 Candidate Ownership Revised Plan
@@ -41,6 +42,9 @@ identity.
    committed to `autograph_cleanup_events`. If durable registration fails, the
    object is never written. The row remains until verified object cleanup and
    final item-row deletion succeed.
+7. Smoke authority uses a reserved non-actionable operation. Only the existing
+   application cleanup operations `delete` and `replace` may become admin
+   warnings or reach the cleanup-retry mutation path.
 
 ## Task 1: Establish durable terminal ownership
 
@@ -48,6 +52,9 @@ identity.
 
 - `controller/tests/live_persistence_smoke.rs`
 - `controller/tests/media_cleanup.rs`
+- `controller/src/catalog.rs`
+- `controller/src/oracle_catalog.rs`
+- `controller/src/routes.rs`
 
 **Implementation:**
 
@@ -56,6 +63,12 @@ identity.
   image ID, exact target key, a smoke-specific operation, `deleteFailed`
   status, and a sanitized admin message. Reuse the existing private
   `autograph_cleanup_events` store; do not log or return its key.
+- Give that row the reserved operation `livePersistenceSmokeGuard`. Define one
+  shared actionability predicate that allows only the existing `delete` and
+  `replace` operations. Apply it in both memory and Oracle cleanup-warning
+  loaders, and enforce it again at the cleanup-retry route before any media or
+  metadata mutation. Do not rely on the synthetic row merely being absent from
+  the UI.
 - Treat registration as a precondition for object creation. Registration or
   commit failure aborts before `media.write`, so no untracked local-only object
   can exist.
@@ -69,6 +82,9 @@ identity.
 - If the final `Drop` inventory fails, retain all Oracle rows and report only
   safe item/step evidence. The destroyed guard is no longer the sole owner:
   item-ID cleanup can rediscover A and B from the durable rows.
+- Item-ID cleanup discovery continues to read every cleanup-event target,
+  including non-actionable smoke authority. The actionability filter applies
+  only to admin warning/retry consumers, never to cleanup inventory.
 
 **Tests:**
 
@@ -81,6 +97,16 @@ identity.
   is verified absent, and that successful cleanup removes it with the item.
 - Seed distinctive key/provider markers and prove registration, failure, and
   operator evidence never echo raw private identities.
+- Insert a `livePersistenceSmokeGuard` event into the memory repository and
+  prove item/status responses omit it, the cleanup-retry endpoint returns
+  conflict without calling media delete or metadata removal, and the row stays
+  unresolved. Separately inject a repository that deliberately returns the
+  reserved warning and prove the route's defense-in-depth check rejects it
+  before media deletion, metadata mutation, or event resolution. Companion
+  tests must prove ordinary `delete` and `replace` warnings remain actionable.
+- Add an Oracle source/query contract plus the shared-predicate unit tests to
+  prove both repository implementations apply the same allowlist. The
+  executable route test is the decisive reachability evidence.
 
 ## Task 2: Make candidate refresh transactional
 
@@ -115,6 +141,8 @@ identity.
 | First discovery partially reads rows then fails | No partial set is installed; the complete pre-call set remains authoritative. |
 | First discovery fails, fallback retry succeeds with B/event targets | Installed union contains A, B, and targets exactly once; all are deleted and verified before the first row deletion. |
 | Repeated discovery failures, then guard destruction | Durable authority rows retain A/B identities for a fresh item-ID cleanup; recovery evidence contains only safe step/item data. |
+| Admin item/status reads while smoke authority exists | Reserved authority row is absent from cleanup warnings but remains present for private item-ID discovery. |
+| Cleanup retry is requested for the authority image | Route rejects it before media deletion, metadata mutation, or event resolution. |
 | Successful retry after duplicate/already-absent candidates | Deduplicated union is idempotent and row cleanup occurs only after every absence proof. |
 | Delete or verification fails after successful inventory | The full installed union and Oracle discovery rows remain available for retry. |
 
@@ -141,6 +169,9 @@ identity.
   recoverable after the original guard is destroyed.
 - A local-only object cannot be written unless its private recovery identity is
   already committed in Oracle, and fresh item-ID cleanup can rediscover it.
+- The authority row is non-actionable through both repository warning loaders
+  and defense-in-depth route validation; ordinary delete/replace retries retain
+  their existing behavior.
 - CR-01 and WR-01 remain closed, all targeted/full checks pass, and the next
   lineage-preserving deep source review reports zero actionable findings.
 
@@ -166,7 +197,9 @@ An independent plan reviewer must verify the helper cannot consume durable
 candidates on any error; register-before-create survives final guard
 destruction; a fresh cleanup process can rediscover all candidates; tests
 execute the production transitions; every explicit/normal/Drop consumer
-preserves the invariant; destructive SQL remains after all absence proofs; and
-privacy/recovery contracts stay closed. Approval requires zero Critical,
+preserves the invariant; the reserved operation is excluded from both warning
+loaders and rejected by the route before side effects; ordinary delete/replace
+actions remain reachable; destructive SQL remains after all absence proofs;
+and privacy/recovery contracts stay closed. Approval requires zero Critical,
 Warning, and Info findings. Record the review artifact and PR comment in the
 convergence ledger before changing status to `ready_to_resume`.
