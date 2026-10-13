@@ -1,8 +1,8 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-fixed_at: 2026-10-12T00:44:13Z
+fixed_at: 2026-10-12T23:44:04Z
 review_path: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
-iteration: 11
+iteration: 1
 findings_in_scope: 1
 finding_families: 1
 fixed: 1
@@ -13,76 +13,51 @@ status: all_fixed
 
 # Phase 08: Code Review Fix Report
 
-**Fixed at:** 2026-10-12T00:44:13Z
+**Fixed at:** 2026-10-12T23:44:04Z
 **Source review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md`
-**Convergence evidence:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CONVERGENCE.md` at `602a882`
-**Approved plan:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md`
-**Plan review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md`, iteration 3 approved with zero findings
-**Iteration:** 11 — single authorized post-reassessment coder pass
+**Iteration:** 1
 
-## Outcome
-
-The remaining CR-02 finding was implemented as one terminal candidate-ownership contract. The live smoke now commits private cleanup authority for initial candidate A before the object can be written, candidate refresh cannot consume the guard's existing set on discovery failure, and the reserved authority operation cannot enter ordinary admin cleanup actions.
-
+**Summary:**
 - Findings in scope: 1
 - Finding families: 1
 - Fixed: 1
 - Skipped: 0
-- Commit: `c356600`
-- Status: `all_fixed`
 
-## Finding Lineage and Fix
+## Fixed Issues
 
-### CR-02: Failed inventory consumes the guard's only copy of locally known cleanup candidates
+### WR-01: Sparse weak outer boundaries can still leave an internal region `Confident`
 
-**Finding family:** `live_smoke_cleanup_discovery`
+**Finding family:** `auto_assist_outer_boundary_confidence`
 **Lineage:** `incomplete_fix`
-**Status:** Fixed
-**Commit:** `c356600`
-**Files:** `controller/tests/live_persistence_smoke.rs`, `controller/tests/media_cleanup.rs`, `controller/src/catalog.rs`, `controller/src/oracle_catalog.rs`, `controller/src/routes.rs`
+**Shared invariant:** A `Confident` proposal must remain the same outer item boundary under weaker contrast evidence; material quadrilateral expansion alone invalidates confidence even when component population grows by less than 25%.
+**Files modified:** `controller/src/image_adjustments.rs`, `controller/tests/image_adjustments.rs`
+**Commit:** `85db903`
+**Applied fix:** Changed multi-threshold boundary stability so either excessive component population growth or material quadrilateral-area growth forces safe abstention. Added a non-private 180x140 sparse weak-enclosure fixture with a one-pixel outer rectangle and bridge around dense dark internal content. The regression failed as `Confident` before the production change and now returns `Unavailable` with no corners.
 
-**Shared invariant:** Every smoke-created private object has durable Oracle cleanup authority before creation; fallible inventory never mutates the installed candidate set; object absence is verified before discovery rows are deleted; and only application operations `delete` and `replace` may enter admin warning/retry paths.
+## Boundary Inventory
 
-**Applied fix:** The initial A key is registered and committed as a private `livePersistenceSmokeGuard` cleanup event after the item exists and before `media.write`. Registration or commit failure aborts before object creation. The authority row remains available to the inclusive item-ID inventory and is removed only by the final item cascade after all candidates are verified absent. `refresh_inventory` now calls a production helper that copies the installed candidates into a fallible discovery producer and assigns the returned union only on success, so query, row-read, or decode failure cannot empty or partially replace guard state.
-
-One shared actionability predicate permits only `delete` and `replace`. The Memory and Oracle cleanup-warning loaders both apply it, and `retry_image_cleanup` checks it again before media deletion, metadata removal, or event resolution. The reserved smoke authority remains discoverable by private item-ID cleanup while staying absent from item/status warning responses and unreachable through cleanup retry.
-
-## Finding Lineage Preserved
-
-- Iteration 9 closed CR-01 (`exclusive_conflict_recovery_surface`) and WR-01 (`live_smoke_cleanup_evidence_privacy`); this pass does not modify their UI or evidence surfaces.
-- Iteration 9's CR-02 discovery-first change remains intact: local candidates, current image keys, and every cleanup-event target are inventoried before object deletion and destructive SQL.
-- Iteration 10 reclassified CR-02 as an `incomplete_fix` because `mem::take` erased local candidates on failed discovery. The iteration-11 helper removes that ownership transfer.
-- Plan-review iteration 1's terminal-lifecycle blocker is closed by register-before-create durable authority and fresh item-ID recovery after guard destruction.
-- Plan-review iteration 2's actionability blocker is closed by the shared allowlist at both warning loaders and defense-in-depth at the route.
-
-## Executable Evidence
-
-| Boundary | Evidence |
-| --- | --- |
-| Register before create | Lifecycle fixture proves authority registration and commit precede object write; forced registration failure performs no write. A source-order assertion binds the fixture to the live smoke call sequence. |
-| Atomic refresh | Pure tests invoke the same helper as `LivePersistenceSmokeCleanup::refresh_inventory`; partial failure preserves the original set and retry installs a deduplicated A/B union. |
-| Terminal recovery | Repeated discovery failure retains rows; a fresh cleanup with no local guard state rediscovers A from cleanup events and B from current-image rows, verifies both absent, then removes rows. |
-| Repository filtering | Memory behavior test omits the reserved event; Oracle source/query contract proves it applies the shared predicate while item-ID inventory remains operation-inclusive. |
-| Route defense | An injected repository deliberately returns a reserved warning; the route returns conflict while the object, image metadata, and unresolved event remain unchanged. |
-| Allowed operations | Shared predicate tests accept exactly `delete` and `replace`; existing delete and replacement retry integration tests remain green. |
-| Privacy | Registration errors contain item/step context without the raw key; existing cleanup evidence tests retain domain-separated fingerprint-only output and reject provider-controlled text. |
+- **Producer:** `propose_image_adjustment` selects the largest adaptive-threshold component, validates its quadrilateral and area, then delegates confidence to `component_boundary_is_stable`.
+- **Threshold sequence:** Relative and fixed probes remain strictly descending through `previous_threshold`; fixed low probes still expose weak enclosures hidden by an inflated adaptive threshold.
+- **Anchor continuity:** The original row-major foreground anchor remains the trace seed at every weaker threshold, so the comparison follows mergers of the same selected component rather than selecting an unrelated component.
+- **Comparisons:** Population growth and quadrilateral-area growth are now independent instability signals. The prior conjunction was the incomplete fix.
+- **Route consumer:** `assist_image_adjustment` serializes the proposal without manufacturing corners and rechecks the media revision after detection.
+- **UI consumer:** `detectImageEdges` mutates the draft only for `status === "confident"` with exactly four corners; `unavailable`, `notNeeded`, unexpected, error, and stale results remain non-mutating.
+- **Tests:** Existing high-contrast skew, dark-card, reliable outer border, filled enclosure, noisy-border enclosure, low-confidence, near-identity, route, and browser behavior cases remain green alongside the new sparse-enclosure regression.
 
 ## Verification
 
-Verification ran in `/tmp/autographs-pr263-review` on branch `gsd/phase-08-admin-media-review-and-operational-posture` at `602a882` plus these uncommitted fixes. Credential-gated Oracle/OCI smoke cases were compiled but not executed.
+Verification ran in the main checkout on branch `fix/image-review-ui-state` because `.planning/config.json` sets `workflow.use_worktrees` to `false`.
 
-- `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
-- `cargo test --manifest-path controller/Cargo.toml --test media_cleanup` — passed, 26 tests.
-- `cargo test --manifest-path controller/Cargo.toml --test logging_contract` — passed, 3 tests.
-- `cargo test --manifest-path controller/Cargo.toml --features live-persistence --test live_persistence_smoke` — passed, 4 executed and 1 credential-gated test ignored.
-- `cargo test --manifest-path controller/Cargo.toml --all-targets --all-features` — passed; 2 credential-gated live tests ignored as designed, all executed tests green.
-- `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings` — passed.
+- Pre-fix regression: `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_abstains_when_sparse_weak_boundary_encloses_dark_content -- --nocapture` — failed as expected: `Confident` vs `Unavailable`.
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments -- --nocapture` — passed, 15 tests.
+- `cargo test --manifest-path controller/Cargo.toml --test admin_workflow admin_image_adjustment_routes_save_reset_review_and_assist -- --nocapture` — passed, 1 focused route test.
 - `node controller/tests/static_admin_behavior.mjs` — passed.
-- `git diff --check` — passed.
+- `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
+- `node --check controller/static-admin/admin.js` — passed.
+- `git diff --check -- controller/src/image_adjustments.rs controller/tests/image_adjustments.rs` — passed.
 
 ---
 
-_Fixed: 2026-10-12T00:44:13Z_
-_Fixer: gsd-code-fixer_
-_Iteration: 11_
-_Commit: c356600_
+_Fixed: 2026-10-12T23:44:04Z_
+_Fixer: Codex (gsd-code-fixer)_
+_Iteration: 1_
