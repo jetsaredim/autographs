@@ -14,6 +14,8 @@ decisions:
   - D-08-29
 assumptions: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-ASSUMPTIONS.md
 source_review: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
+reassessment_iteration: 2
+prior_independent_review: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
 independent_review: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
 ---
 
@@ -22,9 +24,10 @@ independent_review: .planning/phases/08-admin-media-review-and-operational-postu
 ## Objective
 
 Replace the `85db903` scalar population/area `||` decision with one coherent
-outer-boundary support decision that rejects a supported sparse or filled
-enclosure while retaining an accurate card whose weak-threshold component is
-connected only to noise-driven extrema.
+boundary-change decision that rejects sparse, filled, and non-nested-extrema
+slab boundaries while retaining an accurate card whose weak-threshold component
+is connected only to noise-driven extrema. Cross-threshold identity is proven
+by retained anchor-component pixels, never extrema-quadrilateral containment.
 
 This is not a Phase 8 replan. The only production behavior in scope is the
 private Rust detector. The existing route, API shape, browser authority,
@@ -33,11 +36,12 @@ unchanged per D-08-25, D-08-26, and D-08-29.
 
 ## Mandatory execution gate
 
-Independent review of this plan and
-`08-PR-276-DETECTOR-ASSUMPTIONS.md` passed with no findings in
-`08-PR-276-DETECTOR-PLAN-REVIEW.md`. The evidence paths are recorded in both
-artifacts and the canonical review, so the third-review checkpoint is
-`ready_to_resume`.
+The prior independent review is superseded by execution evidence: its strict
+quadrilateral-containment prerequisite skipped coherence analysis for the known
+`20240415_225421.jpg` slab failure. The attempted implementation was rolled
+back without a source commit. This second revision and its assumptions passed
+fresh independent review in `08-PR-276-DETECTOR-PLAN-REVIEW.md`; the evidence
+path is recorded in frontmatter, so the checkpoint is `ready_to_resume`.
 
 This planning artifact does not authorize a commit, push, PR comment, private
 asset copy, or deployment.
@@ -68,142 +72,144 @@ No dependency or package-file change is permitted.
 
 ## Ordered implementation tasks
 
-### Task 1 — RED: bind the paired morphologies and capture the head baseline
+### Task 1 — RED/CHARACTERIZE: bind noise, sparse perimeter, and non-nested slab morphologies
 
 **Files:** `controller/tests/image_adjustments.rs`; read-only private inputs;
 temporary evaluator under `/tmp`.
 
-**Preconditions:** HEAD is `85db903d4dd0ef70887816c9849101fac2827c7a` or
-the production detector is byte-equivalent; the exact diagnostic exists; the
-corpus directory contains exactly 116 JPEGs; both planning artifacts have been
-independently approved.
+**Preconditions:** Production detector code is byte-equivalent to `85db903`; the
+exact diagnostic exists; the corpus directory contains exactly 116 JPEGs; this
+second revision has passed independent review.
 
 **Actions:**
 
-1. Before changing production code, use an external temporary Cargo program
-   with a path dependency on `controller/` to evaluate the exact diagnostic and
-   the sorted 116-image corpus. Record only outside Git:
-   `confident`/`unavailable`/`notNeeded` counts, every Confident filename and
-   corners, the four known internal-region cases
-   `20240415_225421.jpg`, `20251109_164543.jpg`,
-   `20251231_002432.jpg`, and `20260317_232446.jpg`, and the conservative
-   screen of any Confident proposal that fails to approach every image side
-   within 12%. This is the measured `85db903` baseline; do not substitute the
-   earlier 19/97/0 evidence from a different detector state.
-2. Add `dark_card_with_connected_weak_noise_fixture`, a fully generated,
-   non-private 180x140 PNG. Use the existing light-background/skewed dark-card
-   geometry, then add low-contrast one-pixel tendrils and deterministic sparse
-   branches from that card to distant extrema. The weak pixels must be absent
-   from the primary threshold, present at a fixed weak probe, connected to the
-   card, and too sparse to form any continuous four-sided outer perimeter.
-   This fixture represents the supplied diagnostic's low-threshold
-   noise/background connectivity without copying any private pixel.
-3. Add
+1. Before production edits, run an external temporary Cargo evaluator against
+   the exact diagnostic and the sorted 116-image corpus. Record outside Git the
+   three status counts, every Confident filename/corners, the four known
+   internal-region cases, and the 12%-side-proximity screen. Record
+   `20240415_225421.jpg` separately with the known rejected internal coordinates.
+   Use this measured head baseline; do not reuse counts from another detector.
+2. Re-add the fully generated, non-private
+   `dark_card_with_connected_weak_noise_fixture` and
    `auto_assist_keeps_accurate_dark_card_when_weak_noise_connects_to_extrema`.
-   It must require `Confident`, exactly four corners, and the original dark-card
+   Weak tendrils must join the accurate dark card to distant extrema without
+   forming a continuous four-sided perimeter. Require accurate `Confident`
    corners within the existing 0.025 normalized tolerance.
-4. Keep
-   `auto_assist_abstains_when_sparse_weak_boundary_encloses_dark_content` as the
-   paired negative oracle: `Unavailable` with no corners. Do not weaken or
-   replace the existing filled/noisy enclosure, skew, reliable-card,
-   flat-dark-card, or near-identity assertions.
-5. Run the new positive test against unmodified `85db903` and capture the
-   expected RED result: current `||` behavior returns `Unavailable`. Run the
-   sparse test separately and capture that it remains green. If the new fixture
-   does not fail for the demonstrated reason—material extrema growth without a
-   coherent enclosing perimeter—stop and revise the fixture/assumption evidence
-   before touching production.
+3. Add `non_nested_weak_slab_fixture`, a deterministic generated PNG containing
+   high-contrast internal content inside a weak, coherent, asymmetrically
+   tapered slab. At the primary threshold the internal region is `C0`; at a
+   fixed weak probe, `Ct` retains every `C0` pixel, materially increases
+   quadrilateral area, and supports all four slab sides, while the chord polygon
+   through `Qt` leaves at least one `Q0` corner outside. Validate those facts
+   with temporary trace output before accepting the fixture; commit only the
+   generated fixture function and behavior assertion, not trace output.
+4. Add
+   `auto_assist_abstains_when_coherent_weak_slab_extrema_are_not_quad_nested`.
+   Require `Unavailable` with no corners. Preserve the existing sparse, filled,
+   noisy-border, skew, reliable-card, flat-dark-card, and near-identity tests.
+5. Establish the two-stage RED evidence. On unmodified head, the noisy accurate
+   card must fail as `Unavailable`, while the sparse and non-nested slab
+   negatives remain safely `Unavailable` under the broad `||`. Then recreate
+   the prior containment-gated four-side decision only as an uncommitted
+   intermediate: the noisy card and sparse perimeter must pass, while the new
+   non-nested slab test must fail as `Confident`. If that second RED does not
+   reproduce the observed containment bypass, stop before the revised GREEN
+   implementation.
 
-**RED verification:**
+**RED/characterization verification:**
 
-- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_keeps_accurate_dark_card_when_weak_noise_connects_to_extrema -- --nocapture` — must fail on unmodified `85db903` as `Unavailable` versus `Confident`.
-- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_abstains_when_sparse_weak_boundary_encloses_dark_content -- --nocapture` — must pass on unmodified `85db903`.
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_keeps_accurate_dark_card_when_weak_noise_connects_to_extrema -- --nocapture` — RED on unmodified head.
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_abstains_when_sparse_weak_boundary_encloses_dark_content -- --nocapture` — green on head and the intermediate model.
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_abstains_when_coherent_weak_slab_extrema_are_not_quad_nested -- --nocapture` — green on broad head behavior, RED as `Confident` on the containment-gated intermediate.
 
-**Done:** The paired sanitized oracles discriminate the same branch: the sparse
-enclosing perimeter is negative, the noise-connected accurate card is
-positive, and a measured private/corpus head baseline exists outside Git.
+**Done:** Three sanitized morphologies bind both failed assumptions, the exact
+containment-bypass RED is reproduced without private pixels, and a fresh
+head/corpus baseline exists only outside Git.
 
-### Task 2 — GREEN/REFACTOR: replace the `85db903` boolean with coherent perimeter support
+### Task 2 — GREEN/REFACTOR: use component retention, not quadrilateral containment
 
 **Files:** `controller/src/image_adjustments.rs`,
 `controller/tests/image_adjustments.rs`.
 
 **Actions:**
 
-1. Preserve primary component selection, the original anchor, and the existing
-   descending relative/fixed threshold schedule. Reuse the fresh `visited`
-   bitmap from each anchor trace as membership for that weak component.
-2. Implement the coherent outer-boundary support model exactly as specified in
-   `08-PR-276-DETECTOR-ASSUMPTIONS.md`: material enclosure check; four
-   supercover-rasterized sides; two-pixel component corridor; in-bounds
-   outward-normal background witness at offsets three through five; per-side
-   coverage of at least 70%; longest unsupported run at most 20%; all four sides
-   required.
-3. Replace lines 465-466's population-growth-or-area-growth rejection. Delete
-   that `||` decision rather than leaving it in front of or behind the new
-   support check. Remove `AUTO_CORRECTION_MAX_STABLE_COMPONENT_GROWTH` and the
-   independent population veto. Rename the area-growth constant so it expresses
-   its remaining role as the material-enclosure trigger. Population may be
-   retained only as non-decisive local diagnostic data; remove it if unused.
-4. A weak probe now invalidates the primary boundary only when it supplies a
-   materially larger, coherently supported enclosure. Material extrema growth
-   without coherent side support is treated as noise/background connectivity
-   and does not reject the original accurate boundary. Anchor disappearance,
-   invalid geometry, or an actual supported enclosure remains fail-closed.
-5. Keep the proposal/public types and status ordering unchanged: projection and
-   area validity, stability, near-identity `NotNeeded`, then four-corner
-   `Confident`. Add no API fields, dependency, alternate detector, or UI flag.
-6. Run the paired tests first. Then run the entire image-adjustment suite. If a
-   support constant must move to make only one private image pass, stop; the
-   paired structural model and corpus, not per-image tuning, control the change.
+1. Preserve primary selection, the original anchor, and the descending
+   relative/fixed threshold schedule. Extend `ContrastComponent` to retain its
+   exact member indices while tracing. This is necessary because the scan-wide
+   `visited` bitmap used by `largest_contrast_component` contains every traced
+   foreground component and cannot represent `M0`.
+2. For each weaker anchor trace, build/use exact `Mt` membership and assert that
+   every primary member index is present. A retention failure makes stability
+   fail closed. This `M0 ⊆ Mt` check is the only cross-threshold identity
+   prerequisite.
+3. Preserve the reviewed four-side support implementation: supercover sides,
+   two-pixel `Mt` corridor, in-bounds outward non-`Mt` witness at offsets three
+   through five, at least 70% support per side, no unsupported run above 20%,
+   and all four sides coherent.
+4. Run that support measurement whenever the weak quadrilateral area grows by
+   more than the existing 0.05 material amount. Do not require `Qt` to contain
+   `Q0`, do not require all `Q0` corners to be inside `Qt`, and do not replace
+   containment with an image-specific centroid/corner exception. When retained
+   membership, material area growth, and coherent four-side support are all
+   present, reject the primary boundary as `Unavailable`.
+5. Delete the `85db903` independent population/area `||`, the independent
+   population veto, and the rolled-back strict-containment prerequisite. Keep
+   area growth only as a support-analysis trigger; population may be retained
+   only as non-decisive diagnostics or removed if unused.
+6. Keep proposal types and ordering unchanged: projection/area validity,
+   stability, near-identity `NotNeeded`, then four-corner `Confident`. Add no API
+   field, dependency, alternate detector, UI flag, or private-image special case.
+7. Make the three morphology tests green, then run the full detector suite. As a
+   causal guard, temporarily reinsert strict quadrilateral containment and
+   prove only the non-nested slab regression returns to `Confident`; restore the
+   component-retention implementation and rerun green. If support constants or
+   the 0.05 trigger need per-image adjustment, stop.
 
 **GREEN verification:**
 
 - `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_keeps_accurate_dark_card_when_weak_noise_connects_to_extrema -- --nocapture`
 - `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_abstains_when_sparse_weak_boundary_encloses_dark_content -- --nocapture`
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_abstains_when_coherent_weak_slab_extrema_are_not_quad_nested -- --nocapture`
 - `cargo test --manifest-path controller/Cargo.toml --test image_adjustments -- --nocapture`
 - `cargo fmt --manifest-path controller/Cargo.toml --all -- --check`
 - `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings`
 
-**Done:** The noisy accurate fixture is accurate `Confident`; sparse, filled,
-and noisy-border enclosures are `Unavailable`; skew/reliable card and
-near-identity cases retain their exact classifications; and the old independent
-`||` behavior no longer exists in the decision path.
+**Done:** The accurate noisy card is accurate `Confident`; sparse, filled,
+noisy-border, and non-nested coherent slabs are `Unavailable`; high-contrast and
+near-identity classifications remain unchanged; and neither the old `||` nor
+strict quadrilateral containment is in the stability decision.
 
-### Task 3 — VALIDATE: prove private positive control, held-out safety, and unchanged consumers
+### Task 3 — VALIDATE: prove the exact positive, failed slab, full corpus, and consumers
 
-**Files:** production/test files above; verification-only route/browser/test
+**Files:** the two implementation files; verification-only route/browser/test
 files; read-only private inputs; temporary `/tmp` evaluator.
 
 **Actions:**
 
-1. Re-run the same temporary evaluator on the exact supplied WEBP. Require
-   `Confident` with four finite normalized corners accurate to the established
-   diagnostic oracle, approximately `(0.061,0.061)`, `(0.925,0.056)`,
-   `(0.939,0.934)`, `(0.057,0.933)`, with at most 0.03 normalized error per
-   coordinate. `Unavailable`, `NotNeeded`, empty corners, or a materially
-   different quadrilateral fails acceptance.
-2. Re-run all 116 sorted corpus images. Require zero Confident results for the
-   four known internal-region cases unless direct visual review proves the new
-   corners follow the outer item boundary, and require zero Confident proposals
-   from the 12%-side-proximity screen that remain internal-region selections on
-   inspection. Preserve the two already-safe slab siblings
-   `20240415_225356.jpg` and `20240415_225455.jpg` as non-confident unless an
-   accurate outer-boundary result is explicitly demonstrated.
-3. Produce a before/after table with all three status counts and the exact list
-   of images whose status or corners changed. Assess every confidence-count
-   change: decreases are not automatically safe, increases are not
-   automatically improvements, and no aggregate count can override a known or
-   screened internal-region proposal. Keep this evidence out of Git; after
-   authorization it belongs in the coder/reviewer PR audit-trail comment.
-4. Run the focused route and browser contracts to prove camelCase status/corner
-   serialization, authentication/media-revision authority, stale-session and
-   draft-revision rejection, non-mutating `Unavailable`/`NotNeeded` behavior,
-   and manual fallback. `controller/src/routes.rs` and
-   `controller/static-admin/admin.js` must remain unchanged.
-5. Run the full adjacent Rust/static-admin guardrails. Delete the temporary
-   evaluator directory and verify that Git contains neither private media nor
-   evaluator/output artifacts before any commit is considered.
+1. Run the exact private WEBP. Require `Confident` with four finite corners near
+   `(0.061,0.061)`, `(0.925,0.056)`, `(0.939,0.934)`, `(0.057,0.933)`, with at
+   most 0.03 normalized error per coordinate.
+2. Run `20240415_225421.jpg` before the rest of the corpus. It must be
+   `Unavailable`; the recorded internal quadrilateral around
+   `(0.186441,0.306729)` through `(0.188862,0.879499)` is explicitly forbidden.
+   Stop immediately if it is `Confident`, even when paired synthetic and private
+   positive controls pass.
+3. Re-run all 116 sorted originals. Require zero known or screened
+   internal-region confident proposals. Keep the other three named internal
+   cases and two safe slab siblings non-confident unless a separately inspected
+   result demonstrably follows the outer item boundary.
+4. Produce a before/after table with all three status counts and every filename
+   whose status or corners changed. Assess changes image by image; aggregate
+   abstention/confidence counts cannot override geometry safety. Keep evaluator
+   code/output outside Git; after authorization the final evidence belongs in
+   the coder/reviewer PR audit-trail comment.
+5. Run route/browser/static contracts to preserve camelCase serialization,
+   authentication and terminal `mediaRevision`, stale session/draft/assist
+   rejection, non-mutating `Unavailable`/`NotNeeded`, explicit Save, and manual
+   fallback. Verification-only files must remain unchanged.
+6. Run full adjacent Rust checks. Delete the temporary evaluator and verify no
+   private input, absolute private executable-test path, evaluator, per-image
+   output, or generated derivative appears in Git.
 
 **Verification commands:**
 
@@ -218,19 +224,21 @@ files; read-only private inputs; temporary `/tmp` evaluator.
 - `git diff --check -- controller/src/image_adjustments.rs controller/tests/image_adjustments.rs`
 - `git diff --exit-code -- controller/src/routes.rs controller/static-admin/admin.js controller/tests/admin_workflow.rs controller/tests/static_admin_behavior.mjs controller/tests/static_admin.rs`
 
-**Done:** The exact private diagnostic is accurately `Confident`; the corpus
-has zero known/screened internal-region confident proposals; before/after counts
-and every changed result have an explicit assessment; all consumer/authority
-and manual-fallback gates pass; and no private/evaluator artifact is present in
-the repository.
+**Done:** The exact diagnostic is accurately `Confident`;
+`20240415_225421.jpg` and every known/screened internal-region case are not
+Confident; complete count/corner changes are assessed; all consumer/manual
+fallback gates pass; and no private/evaluator artifact enters the repository.
 
 ## Acceptance criteria
 
-- The paired sanitized fixture contract is green: coherent sparse outer
+- The three sanitized fixture contract is green: coherent sparse outer
   perimeter => `Unavailable`; noise-connected accurate dark card => accurate
-  `Confident`.
+  `Confident`; coherent larger slab whose extrema quadrilateral is not nested =>
+  `Unavailable`.
 - The exact supplied dark-card diagnostic returns accurate `Confident` corners
   within the stated coordinate tolerance.
+- `20240415_225421.jpg` is `Unavailable` and never returns the recorded internal
+  quadrilateral from the rolled-back attempt.
 - All 116 held-out images are evaluated; no known or screened internal-region
   proposal remains Confident; confidence-count changes are enumerated and
   assessed rather than treated as a score.
@@ -245,7 +253,8 @@ the repository.
 - Private originals remain unchanged and drafts require explicit Save per
   D-08-25 and D-08-29.
 - `85db903`'s independent `population_growth || area_growth` behavior is
-  replaced, not supplemented by another scalar/boolean point gate.
+  replaced, not supplemented by another scalar/boolean point gate; `M0 ⊆ Mt`
+  replaces strict `Qt`-contains-`Q0` as the cross-threshold identity contract.
 - Only `controller/src/image_adjustments.rs` and
   `controller/tests/image_adjustments.rs` differ from the pre-execution source
   scope, and no private image, absolute private test path, evaluator, binary,
@@ -256,13 +265,18 @@ the repository.
 Stop and return to `reassessment_required` without another point-fix round if
 any condition below occurs:
 
-- the sanitized noisy accurate fixture is not RED on `85db903` for the same
-  material-extrema/no-coherent-perimeter mechanism;
+- the sanitized noisy accurate fixture is not RED on `85db903`, or the
+  non-nested slab fixture does not reproduce a RED false confidence under the
+  containment-gated intermediate;
 - the sparse, filled, or noisy-border enclosure becomes `Confident`;
+- the sanitized non-nested slab or `20240415_225421.jpg` is `Confident`;
 - the exact diagnostic is not accurate `Confident`;
 - any known or screened internal-region corpus proposal is `Confident`;
 - a support constant needs image-specific tuning or another population/area
   boolean is proposed around the coherent model;
+- strict quadrilateral containment, a special case for the named corpus image,
+  or coordinate-specific logic appears in the decision path;
+- any primary member is absent from a weaker anchor-connected component;
 - route/UI changes appear necessary to make detector tests pass;
 - API serialization, session/revision authority, non-mutating fallback, manual
   controls, privacy, formatting, production-persistence, or Clippy gates fail;
@@ -285,9 +299,10 @@ new coder round.
 | D-08-29 | Assist changes only a current unsaved draft; persistence still requires Save. | 3 |
 | RESEARCH auto-assist constraint | Deterministic bounded Rust heuristic, no OCR/AI/OpenCV, with high-contrast confident and ambiguous unavailable fixtures. | 1-2 |
 | REVIEW shared invariants/failure matrix | All four invariants and every detector/API/UI outcome are bound by tests and held-out evaluation. | 1-3 |
-| Round-3 revised requirement: coherent support, not scalar tweak | The four-side support model replaces the `||`. | 2 |
-| Paired sanitized fixtures | Sparse perimeter negative and noise-connected accurate card positive. | 1-2 |
-| Exact diagnostic and 116-image corpus | Accurate diagnostic, zero known/screened internal-region confidence, count-change assessment. | 1, 3 |
+| Round-3 revised requirement: coherent support, not scalar tweak | Four-side support replaces the `||`; exact component retention replaces extrema-polygon containment. | 2 |
+| First paired sanitized fixtures | Sparse perimeter negative and noise-connected accurate card positive remain binding. | 1-2 |
+| Second reassessment morphology | A coherent larger slab with non-nested extrema quadrilateral is explicitly `Unavailable`. | 1-2 |
+| Exact diagnostic, failed slab, and 116-image corpus | Accurate diagnostic, `20240415_225421.jpg` unavailable, zero known/screened internal-region confidence, count-change assessment. | 1, 3 |
 | Deferred AI/advanced enhancement | Excluded; no OCR/AI, content-aware correction, batch correction, or broad admin redesign. | Scope fence |
 
 No source item is intentionally deferred within this surgical convergence
@@ -299,6 +314,7 @@ is not a gap in this PR #276 detector plan.
 | Likely failure | Early detector | Mitigation already in plan |
 | --- | --- | --- |
 | The sanitized positive does not reproduce the real regression. | It is green on unmodified `85db903` or fails for a different reason. | Task 1 halts before production changes and requires RED plus morphology evidence. |
-| The support model merely trades false abstention for renewed false confidence. | Exact diagnostic passes but sparse/corpus screen fails, or counts improve without geometry safety. | Paired tests plus exact diagnostic plus full 116-image before/after screen are jointly binding. |
+| Extrema-polygon containment silently bypasses a real weak boundary again. | The non-nested slab stays `Confident` while the original pair passes. | Task 1 reproduces that exact intermediate RED; Task 2 uses `M0 ⊆ Mt`, bans containment, and mutation-checks the new regression. |
+| The support model merely trades false abstention for renewed false confidence. | Exact diagnostic passes but the named slab/corpus screen fails, or counts improve without geometry safety. | Three morphology tests, exact diagnostic, named slab, and full 116-image before/after screen are jointly binding. |
 | Consumer safety regresses despite a detector-only edit. | Route/browser/authority suites fail or verification-only files change. | Task 3 runs focused consumer tests and requires zero diff in those files. |
 

@@ -1,76 +1,99 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 276
+reviewed_at: 2026-10-13T10:05:41Z
 reviewed_head: 85db903d4dd0ef70887816c9849101fac2827c7a
+reassessment_iteration: 2
 reviewed_assumptions: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-ASSUMPTIONS.md
 reviewed_plan: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-PLAN.md
 source_review: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
+prior_review_result: superseded_by_stop_condition
 status: passed
 blockers: 0
 warnings: 0
 info: 0
 ---
 
-# PR #276 Detector Convergence Plan Review
+# PR #276 Detector Convergence Plan Review — Second Reassessment
 
 ## VERIFICATION PASSED
 
-**Scope:** Surgical detector-convergence work for PR #276  
-**Artifacts reviewed:** Detector assumptions and revised implementation plan  
-**Status:** Both artifacts are implementation-ready; no blocker, warning, or advisory remains.
+**Verdict:** PASS — the second reassessment and revised plan are
+implementation-ready.
 
-## Goal-backward verdict
+**Issues:** 0 Blocker, 0 Warning, 0 Info.
+**Authorization boundary:** This review clears planning only. Execution remains
+bound by every RED/characterization, GREEN, private-control, corpus, consumer,
+privacy, rollback, and stop gate in the revised plan.
 
-The assumptions and plan jointly satisfy the round-3 resume criteria in
-`08-REVIEW.md`. They replace the failed global population/area scalar model
-with one coherent boundary-support criterion, bind the negative and positive
-morphologies that defeated the prior `&&` and `||` arrangements, require the
-private positive control and complete held-out corpus evaluation, preserve all
-consumer and mutation invariants, and fence the work to the two detector/test
-files.
+## Goal-backward conclusion
 
-Coder work may resume after the convergence artifacts record this review as
-their independent-review evidence. That evidence update must retain the
-existing rule that a status-only edit is invalid.
+The first reviewed coherence plan correctly replaced the global scalar
+`&&`/`||` model, but execution proved that its strict
+`Qt`-contains-`Q0` prerequisite could bypass coherence analysis for a real
+larger slab. The second reassessment identifies the failed assumption precisely:
+anchor-connected pixel membership is monotone as the threshold weakens, while
+the quadrilateral joining four extrema is only a lossy summary and is not
+polygon-set-monotone.
 
-## Required-property coverage
+The revised contract therefore uses exact `M0 ⊆ Mt` membership as the sole
+cross-threshold identity prerequisite, retains material area growth only as a
+trigger, and lets the already reviewed four-side localized-support test decide
+whether the weak component exposes a coherent replacement boundary. This is a
+coherent correction to the model, not another image-specific scalar or Boolean
+patch.
 
-| Required property | Evidence in assumptions/plan | Result |
+## Required-property verification
+
+| Required property | Evidence | Result |
 | --- | --- | --- |
-| The failed `population_growth &&/|| area_growth` model is replaced rather than wrapped. | Assumptions reject both Boolean arrangements in R-03/R-06. Task 2 deletes the independent population veto and old `||`, keeps area growth only as a material-enclosure trigger, and makes coherent four-side support the deciding signal. | Pass |
-| The signal distinguishes sparse enclosing perimeter support from noise-driven extrema. | The model measures the anchor-connected component bitmap along supercover-rasterized candidate sides, requires a two-pixel component corridor, an in-bounds exterior witness, at least 70% coverage, at most a 20% unsupported run, and all four sides. The morphology table explains that a connected sparse rectangle supplies distributed support while tendrils/speckles merely pulling extrema do not. | Pass |
-| Paired sanitized negative and positive fixtures are binding. | Task 1 preserves the sparse enclosure as `Unavailable`, adds a generated non-private noisy dark-card analogue that must be accurate `Confident`, requires the positive to fail RED on `85db903`, and stops before production changes if the fixture does not reproduce the claimed mechanism. Task 2 makes both GREEN before the full suite. | Pass |
-| The exact private diagnostic is accurate `Confident`. | Task 3 requires four finite corners near the recorded oracle, with at most 0.03 normalized error per coordinate. `Unavailable`, `NotNeeded`, empty corners, or a materially different quadrilateral explicitly fails acceptance. | Pass |
-| The 116-image corpus has zero known or screened internal-region confident proposals. | Tasks 1 and 3 require a fresh baseline and rerun of all 116 sorted JPEGs, explicit treatment of the four known failures, a 12%-side-proximity geometry screen, inspection of flagged confidence, preservation/assessment of safe slab siblings, before/after counts, and image-by-image assessment of every changed result. Aggregate abstention counts cannot substitute for geometry safety. | Pass |
-| Producers, consumers, mutation boundaries, reporting paths, and tests are inventoried. | The assumptions inventory covers border/adaptive/weak-threshold producers, primary selection, anchor trace/membership, stability, proposal classification, route reporting, browser/session authority, draft mutation, persistence/publication, detector regressions, route/browser/static contracts, and held-out inputs. Source inspection confirms these are the direct paths in the supplied Rust and JavaScript files. | Pass |
-| Tasks are executable and ordered with exact files and red/green proof. | The plan orders RED fixture/baseline work, GREEN/REFACTOR implementation, then private/corpus/consumer VALIDATE work. Each task names files, actions, commands, expected outcomes, and done conditions. The hardest discriminator is proven before production code changes. | Pass |
-| Failure and rollback behavior is explicit. | The stop list covers morphology mismatch, enclosure regression, private-control failure, corpus false confidence, per-image tuning, consumer/scope drift, verification failures, unexplained corpus changes, and private-artifact leakage. Rollback is limited to the two in-scope edits while preserving unrelated work and evidence. | Pass |
-| Private evidence cannot enter commits. | The plan makes the WEBP and corpus read-only, keeps the evaluator and outputs under `/tmp`/outside Git, forbids absolute private paths in executable tests, deletes temporary evaluation material, checks the diff/status before commit consideration, and permits only generated sanitized fixtures in the repository. | Pass |
-| Shared invariants and Phase 8 boundaries are preserved. | The assumptions carry forward all four review invariants. The plan freezes API shapes, authorization, terminal media revision, browser authority, unsaved-draft semantics, manual controls, private originals, save/publication boundaries, dependencies, and verification-only consumer files. It excludes OpenCV, AI/OCR, new services, taxonomy/media cues, batch correction, and broad admin redesign. | Pass |
+| Preserve finding lineage and react correctly to the prior stop condition. | Both artifacts record the rolled-back uncommitted attempt as `incomplete_fix` / `test_weakness`, preserve the earlier review as superseded evidence rather than authorization, identify `20240415_225421.jpg` as the stopping case, and require a fresh review before resumption. | Pass |
+| Use a valid cross-threshold identity relationship. | A lower threshold cannot remove a `C0` foreground pixel; tracing the retained anchor at the weaker threshold must therefore include every exact primary member in `Mt`. The plan explicitly retains primary member indices because the scan-wide primary `visited` bitmap includes other components and is not valid `M0`. Any membership-retention violation fails closed. | Pass |
+| Remove the invalid extrema-polygon containment assumption. | R-07 rejects `Qt` containing every `Q0` corner as a prerequisite. Task 2 bans that predicate and any centroid/corner substitute, while a causal mutation check temporarily restores containment and requires only the non-nested slab to regress. | Pass |
+| Preserve the discriminating spatial signal. | The plan retains supercover side sampling, the two-pixel `Mt` corridor, in-bounds outward non-`Mt` witnesses at offsets 3–5, per-side coverage ≥70%, maximum unsupported run ≤20%, and all-four-sides coherence. These thresholds already passed the sparse negative, noisy-card positive, and exact private positive; the revision does not retune them. | Pass |
+| Bind every observed morphology without private pixels. | Task 1 restores the noisy accurate positive, preserves sparse/filled/noisy-border negatives, and adds a deterministic asymmetric slab whose `M0` is retained, area grows materially, four sides are supported, and extrema polygons are non-nested. It requires the exact containment-gated intermediate to fail `Confident` before GREEN work. | Pass |
+| Make the known failed private case a hard causal gate. | Task 3 runs `20240415_225421.jpg` before the remaining corpus, requires `Unavailable`, explicitly forbids the recorded internal quadrilateral, and stops immediately on any `Confident` result even if all synthetic and positive controls pass. | Pass |
+| Preserve useful positive assistance, not merely maximize abstention. | The sanitized noisy card and exact private WEBP must both be accurate `Confident`; the exact WEBP has a four-corner oracle and 0.03 per-coordinate tolerance. Existing high-contrast, reliable-card, and near-identity contracts remain binding. | Pass |
+| Screen the complete held-out corpus for false confidence. | The plan measures a fresh head baseline, evaluates all 116 sorted images, requires zero known or screened internal-region confident proposals, preserves named safe cases unless an accurate outer boundary is demonstrated, lists every status/corner change, and requires image-by-image assessment rather than aggregate-count scoring. | Pass |
+| Keep producer, consumer, mutation, and reporting boundaries complete. | The reassessment inventories background/threshold generation, primary selection, exact component tracing, stability, proposal classification, route reporting and terminal revision authority, browser session/draft/assist authority, draft mutation, explicit persistence, publication, detector/route/browser/static tests, and held-out evidence. | Pass |
+| Be executable, ordered, and reversible. | Tasks proceed through head characterization and two-stage RED, component-membership GREEN/refactor, then named-private/full-corpus/consumer validation. Exact files, commands, expected outcomes, done criteria, causal mutation, stop conditions, and rollback to the reviewed head are specified. | Pass |
+| Preserve privacy and Phase 8 scope. | Only `image_adjustments.rs` and its integration test may change. Private inputs are read-only; evaluator code/output stays under `/tmp` and outside Git; absolute private paths are forbidden in executable tests. No dependency, API, route, UI, storage, public artifact, AI/OCR, OpenCV, service, or broad Phase 8 change is authorized. | Pass |
 
-## Constraint, failure, and reversibility assessment
+## Feasibility and ambiguity assessment
 
-The hardest constraint is not implementing raster support; it is proving that
-the same rule rejects a coherent weak enclosure without losing the noisy but
-accurate card. The plan addresses that constraint first with paired RED oracles
-and then treats the exact private diagnostic and corpus geometry screen as
-independent acceptance gates. Its pre-mortem covers the three material failure
-modes: an unfaithful sanitized positive, renewed internal false confidence, and
-consumer-authority regression.
+The implementation path matches the current source structure. Extending
+`ContrastComponent` with exact member indices is sufficient to retain `M0` and
+construct `Mt`; no new dependency or architectural layer is required. The
+existing descending probe schedule and retained anchor make the subset check
+deterministic. The plan also avoids a subtle implementation trap by stating
+that `largest_contrast_component`'s scan-wide `visited` vector is not primary
+membership.
 
-The production decision is local and reversible: only
-`controller/src/image_adjustments.rs` changes, and rollback restores the last
-reviewed detector state. Tests change only to encode the missing paired
-morphology. No schema, response contract, dependency, persistent data, or
-public artifact format changes.
+The geometry rules are concrete enough to implement and test: rasterization,
+corridor metric, exterior-witness offsets, coverage, gap limit, and four-side
+requirement are all fixed. The new fixture must prove its structural premises
+with temporary trace evidence before it is accepted, and the intermediate
+containment model plus mutation check distinguishes a causal regression from a
+test that passes only because the broad head `||` abstains.
 
-## Plan summary
+The remaining false-positive and false-negative risks are bounded rather than
+assumed away. The exact positive prevents indiscriminate abstention; the new
+slab and existing enclosure cases prevent renewed internal confidence; the
+named private failure is checked first; and the complete corpus geometry screen
+is a mandatory stop gate. A new morphology that defeats the 0.05 trigger or
+support model explicitly requires another reassessment, not threshold tuning.
 
-| Task | Purpose | Modified files | Acceptance boundary |
-| --- | --- | --- | --- |
-| 1 | Bind paired morphology and measure the actual head | `controller/tests/image_adjustments.rs` | Positive RED for the demonstrated reason; sparse negative remains green; private/corpus baseline stays outside Git |
-| 2 | Implement coherent perimeter support | `controller/src/image_adjustments.rs`, `controller/tests/image_adjustments.rs` | Paired tests and complete detector suite green; old independent scalar veto absent |
-| 3 | Validate held-out safety and unchanged consumers | No additional files may change | Accurate private diagnostic; zero known/screened internal confidence across 116 images; route/UI/static/full Rust gates green; no private artifacts |
+## Convergence-guard decision
+
+This revision satisfies the third-review reassessment contract:
+
+- finding lineage and the failed assumption are durable;
+- shared invariants and the complete consumer inventory remain explicit;
+- the failure matrix includes the newly observed non-nested slab class;
+- assumptions and implementation steps changed coherently before coder work;
+- this fresh review records both reviewed artifact paths; and
+- both artifacts now reference this review before moving to
+  `ready_to_resume`.
 
 ## Structured issues
 
@@ -78,10 +101,9 @@ public artifact format changes.
 issues: []
 ```
 
-## Resume recommendation
+## Resume authorization
 
-The convergence review is clean. Record this file as the independent review
-evidence in both convergence artifacts, then change their state from
-`reassessment_required` to `ready_to_resume` in the same evidence-bearing
-update. Execution must continue to honor every RED/GREEN/VALIDATE gate and stop
-condition in the revised plan.
+PASS. The assumptions and revised plan are `ready_to_resume` with this file as
+their independent-review evidence. If any stated stop condition fires,
+execution must roll back the two in-scope edits and return to
+`reassessment_required`; it must not begin another point-fix round.
