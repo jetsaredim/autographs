@@ -15,12 +15,14 @@ findings:
   total: 1
 status: issues_found
 convergence:
-  status: ready_to_resume
+  status: reassessment_required
   recurring_critical_warning: 1
   scope_expansion: false
-  requires_reassessment: false
+  requires_reassessment: true
   assumptions_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-ASSUMPTIONS.md
-  plan_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
+  plan_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-PLAN.md
+  prior_plan_review: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
+  independent_review_evidence: pending
 ---
 
 # Phase 08: PR #276 Deep Code Review — Round 3 Convergence Checkpoint
@@ -188,17 +190,45 @@ Coder work may resume only when all of the following are true:
 
 Until then, convergence status remains `reassessment_required`.
 
-## Resume Authorization — 2026-10-13
+## Superseded Resume Authorization — 2026-10-13
 
-The revised assumptions are recorded in
-`08-PR-276-DETECTOR-ASSUMPTIONS.md`, and the implementation-ready plan is
-recorded in `08-PR-276-DETECTOR-REVISED-PLAN.md`. Independent review in
+The iteration-2 revised assumptions were recorded in
+`08-PR-276-DETECTOR-ASSUMPTIONS.md`, and its implementation-ready plan formerly
+occupied `08-PR-276-DETECTOR-REVISED-PLAN.md`; that path now contains the
+iteration-3 design-spike gate. Independent review in
 `08-PR-276-DETECTOR-PLAN-REVIEW.md` passed with zero Blocker, Warning, or Info
-findings. The required evidence paths are now present in frontmatter, so the
-convergence status is `ready_to_resume`. Execution remains bound by the paired
-RED/GREEN morphology tests, exact private diagnostic, 116-image held-out
-screen, consumer verification, privacy fence, and stop conditions in the
-reviewed plan.
+findings. That authorization was valid for the reviewed iteration, but it is now
+superseded by the second implementation attempt's explicit stop condition. The
+review file remains lineage evidence and does not authorize a third coder round.
+
+## Second Implementation Stop — 2026-10-13
+
+The authorized `M0 ⊆ Mt` implementation kept the reviewed four-side
+coherence/witness logic. It passed all three sanitized morphologies, including
+the containment-bypass slab, passed all 17 detector tests, and returned target
+`Confident` corners for the exact private
+`b9912131-8781-4047-a44c-03e5ca1e56a9.webp` positive. The exact held-out
+`20240415_225421.jpg` nevertheless returned the forbidden internal
+`Confident` quadrilateral near `(0.186441,0.306729)`,
+`(0.825666,0.286385)`, `(0.738499,0.870110)`, and
+`(0.188862,0.879499)`.
+
+This is an `incomplete_fix` / `assumption_failure` / `test_weakness`, not a new
+independent finding. Removing quadrilateral containment was insufficient; the
+four-side extrema-chord support abstraction itself does not capture the real
+slab. Two follow-on diagnostic agents were terminated after becoming
+unresponsive and produced no trustworthy per-side trace. The attempted source
+changes were rolled back without a commit, leaving the worktree source-clean.
+
+Convergence is therefore `reassessment_required`. Before any third coder round,
+a bounded detector-design spike must inspect the actual threshold masks,
+anchor-connected component masks, component contours/boundary runs, failed-model
+per-side diagnostics, and local-gradient evidence on both the exact positive
+and named slab. Actual-contour and local-gradient rectangular-boundary models
+are recommended investigation directions, not approved algorithms. A
+privacy-safe spike report, diagnostic-derived sanitized RED, revised coherent
+contract, new implementation plan, and fresh independent review are all required
+before status may return to `ready_to_resume`.
 
 ## Verification
 
