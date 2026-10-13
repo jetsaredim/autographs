@@ -2,8 +2,8 @@
 phase: 08-admin-media-review-and-operational-posture
 pr: 276
 head: 85db903d4dd0ef70887816c9849101fac2827c7a
-status: reassessment_required
-scope: detector-design-spike-only
+status: ready_to_resume
+scope: detector-convergence-only
 requirements:
   - MEDIA-06
   - ADMIN-06
@@ -15,294 +15,432 @@ decisions:
 assumptions: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-ASSUMPTIONS.md
 source_review: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
 reassessment_iteration: 3
-prior_independent_review: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
-independent_review: pending
+checker_review: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
+checker_status: passed_cycle_2
+independent_review: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
+spike_evidence:
+  - .planning/spikes/008-detector-mask-contour-diagnostics/README.md
+  - .planning/spikes/009-a-actual-contour-boundary/README.md
+  - .planning/spikes/009-b-local-gradient-rectangle/README.md
+pr_evidence: https://github.com/jetsaredim/autographs/pull/276#issuecomment-6156047878
 ---
 
-# PR #276 Detector Convergence Revised Plan — Design Spike Gate
+# PR #276 Detector Convergence Revised Implementation Plan — Iteration 3
 
 ## Objective
 
-Determine why the real `20240415_225421.jpg` slab defeats the four-side
-extrema-chord coherence/witness abstraction even though all three sanitized
-morphologies, all 17 detector tests, and the exact positive diagnostic pass.
-Produce enough privacy-safe intermediate evidence to select and review one
-coherent detector contract before any third coder round.
+Replace the current independent weak-mask
+`population_growth || area_growth` stability veto with the spike-validated,
+bounded local-gradient/Hough conservative veto. Preserve the existing primary
+component and its corners; return `Unavailable` only when a materially larger
+rectangle has independently localized edge and signed contrast support.
 
-This artifact is deliberately not an implementation-ready detector plan. It
-invalidates the authorization granted by the second independent review after
-that reviewed plan hit its named stop condition. It authorizes read-only
-diagnostics and planning evidence only—no production-code or committed-test
-change, commit, push, PR comment, private-asset copy, or deployment.
+This is a surgical detector correction, not a Phase 8 replan. Route, API,
+browser authority, manual adjustment, persistence, derivative, and publication
+contracts remain unchanged per D-08-25, D-08-26, and D-08-29.
 
-## Why the second plan is superseded
+## Mandatory execution gate
 
-The second implementation replaced `Qt`-contains-`Q0` with exact `M0 ⊆ Mt`
-and retained the reviewed four-side support measurement. It produced all of the
-expected intermediate green signals:
+Spikes 008 and 009 establish design feasibility, not production authorization.
+The iteration-2 review approved a different algorithm and was superseded by its
+named stop condition. Fresh iteration-3 checker cycle 2 passed this plan and the
+linked assumptions with zero actionable concerns in
+`08-PR-276-DETECTOR-PLAN-REVIEW.md`; its evidence path is recorded in
+frontmatter, so detector/test execution is `ready_to_resume` under every gate
+below. This authorization does not itself permit a commit, push, PR comment,
+private-asset copy, or deployment.
 
-- sparse enclosing perimeter => `Unavailable`;
-- noise-connected accurate card => accurate `Confident`;
-- sanitized containment-bypass slab => `Unavailable`;
-- all 17 detector tests => pass; and
-- exact `b9912131-8781-4047-a44c-03e5ca1e56a9.webp` => `Confident` with target
-  corners.
+## Evidence basis
 
-Despite that, the exact `20240415_225421.jpg` again returned the forbidden
-internal quadrilateral near `(0.186441,0.306729)`, `(0.825666,0.286385)`,
-`(0.738499,0.870110)`, `(0.188862,0.879499)`. Removing containment was therefore
-insufficient. The unchanged extrema-chord coherence/witness abstraction itself
-is unvalidated for the real slab. Two follow-on diagnostic agents produced no
-usable deeper trace before they were terminated as unresponsive. The changes
-were rolled back and the worktree remained source-clean.
+- Spike 008 showed that the named slab's border-median component floods the
+  frame before a usable physical outer contour appears, while local Canny/Hough
+  boundary evidence remains visible.
+- Spike 009a invalidated contour-only behavior: ignoring flood trusts the
+  internal primary and abstaining on all floods rejects the exact positive.
+- Spike 009b froze a local-gradient/Hough contract before running the exact
+  controls or corpus. It retained the exact positive, rejected the named slab
+  with four valid sides, produced 79 accurate primary confidences and 37 safe
+  abstentions across 116 images, and left zero known/screened internal proposals.
+- The spike evaluator processed two prepared thumbnails in `0.21s` with about
+  `8.2 MiB` peak resident memory. That is feasibility evidence, not the
+  production rollback baseline; the plan establishes a warmed identical
+  public-path workload against head before source changes. `imageproc 0.27`
+  already exists in the controller, so no dependency change is needed.
 
-## Authorization and file boundaries
+## Exact file scope
 
-### Current spike: read-only repository inputs
+### Files allowed to change after fresh review
 
-- `controller/src/image_adjustments.rs`
 - `controller/tests/image_adjustments.rs`
+- `controller/src/image_adjustments.rs`
+
+### Verification-only files that must remain byte-unchanged
+
+- `controller/Cargo.toml`
+- `controller/Cargo.lock`
 - `controller/src/routes.rs`
 - `controller/static-admin/admin.js`
 - `controller/tests/admin_workflow.rs`
 - `controller/tests/static_admin_behavior.mjs`
 - `controller/tests/static_admin.rs`
 
-No repository source or test file may be modified during this spike. An
-ephemeral harness, masks, contours, overlays, trace output, and binaries must
-live only under `/tmp/autographs-pr276-detector-spike.*` and be removed after a
-privacy-safe summary is captured.
+### Read-only evidence outside Git
 
-### Read-only private controls
+- the exact `b991...webp` positive control;
+- the exact `20240415_225421.jpg` negative control;
+- the other 115 originals in the held-out corpus; and
+- a temporary production-detector evaluator and its reports under
+  `/tmp/autographs-pr276-detector-eval.*`.
 
-- `/home/jgreenwa/Downloads/b9912131-8781-4047-a44c-03e5ca1e56a9.webp`
-- `/home/jgreenwa/Downloads/PHIL/autographs-3-001/autographs/20240415_225421.jpg`
-- the remaining 115 JPEG originals in that corpus only after the paired
-  positive/slab analysis produces a candidate explanation
+Do not place private paths, images, masks, overlays, contact sheets, evaluator
+source/binaries, per-image output, or generated derivatives in Git.
 
-### Future implementation scope, not currently authorized
+## Frozen implementation contract
 
-Any later reviewed coder plan remains limited to:
+### Preserve the primary
 
-- `controller/src/image_adjustments.rs`
-- `controller/tests/image_adjustments.rs`
+Keep the current 640-pixel thumbnail, border median, adaptive threshold, largest
+qualifying 8-connected component, extrema corner order, normalized projection
+validation, primary area bounds, near-identity decision, and returned primary
+corners. The gradient candidate is never returned or applied.
 
-Route, API, browser, persistence, publication, package, and dependency changes
-remain out of scope. That two-file fence does not grant permission to edit those
-files before the resume gate is satisfied.
+Delete the weak-threshold stability loop and its component-growth/area-growth
+constants. The new veto replaces that behavior; it must not run before, after,
+or inside the old scalar veto.
 
-## Ordered reassessment tasks
+### Generate bounded independent candidates
 
-### Task 1 — Build a bounded, ephemeral geometry diagnostic
+Use focused private helpers in `image_adjustments.rs` to implement the complete
+009b contract on the same thumbnail:
 
-**Repository files:** read-only `controller/src/image_adjustments.rs` and
+1. Convert the RGB thumbnail to luma; run Canny at `20/60`.
+2. Detect Hough lines with vote threshold `min(width, height) / 3` and
+   suppression radius `8`.
+3. Group vertical lines at `0..=15` or `165..180` degrees and horizontal lines
+   at `75..=105` degrees.
+4. Measure each in-frame infinite line using a two-pixel edge corridor. Keep
+   lines with full-line support `>= 0.25` and longest unsupported gap `<= 0.55`.
+5. Rank by `support - 0.25 * longest_gap`, truncate to at most 12 lines per
+   axis, then sort by mid-frame position.
+6. Enumerate no more than 66 pairs per axis and 4,356 rectangle combinations.
+   Require pair span `>= 0.50` of the corresponding image dimension.
+7. Intersect the four lines in imageproc's continuous geometric coordinates.
+   The geometric image boundary is `[0,width] × [0,height]`; pixel centers end
+   at `width - 1` and `height - 1`. Port the spike's exact inclusive condition:
+   every corner satisfies `x >= -4`, `y >= -4`, `x <= width + 4`, and
+   `y <= height + 4`. This extends four coordinate units beyond the geometric
+   image boundary, not four units beyond the final pixel center. Require
+   candidate area `> max(0.50, primary_area + 0.05)`.
+8. On each finite side, require edge support `>= 0.35`, maximum gap `<= 0.40`,
+   mean absolute luma contrast `>= 5`, and contrast-sign coherence `>= 0.60`.
+   Edge support uses the two-pixel corridor; contrast samples are four pixels
+   inward and outward along the center-facing normal.
+9. Rank candidates first by valid-side count, then by
+   `area * mean_side_support * valid_side_fraction`. A candidate with at least
+   three valid sides triggers `Unavailable` with no corners.
+
+No constant may change after exact-control or corpus evaluation. Do not add
+containment, centroid, population, weak-threshold, filename, orientation, or
+coordinate special cases around this contract.
+
+## Ordered implementation tasks
+
+### Task 1 — RED/CHARACTERIZE: bind the mechanism with sanitized fixtures
+
+**Files:** `controller/tests/image_adjustments.rs`; temporary read-only
+diagnostics under `/tmp`.
+
+**Preconditions:** Production detector code is byte-equivalent to reviewed head
+`85db903`; this iteration has passed fresh independent review; all private
+evidence is available read-only outside Git.
+
+**Actions:**
+
+1. Before any source or committed-test edit, create a temporary release
+   evaluator under `/tmp` that reads each original, then measures only the call
+   to public `propose_image_adjustment` with `Instant`. Freeze a workload
+   manifest containing the exact positive, exact named slab, then all 116 corpus
+   originals in bytewise-sorted filename order; retain the slab's corpus entry,
+   so both baseline and post-change measurements execute the same 118 calls.
+   Build the evaluator once against `85db903`, run the already-built binary once
+   over the complete manifest as an unrecorded warm-up, then run the binary
+   directly under `/usr/bin/time` to capture per-image, summed total, p50, p95,
+   maximum, and maximum RSS. Keep the manifest, source, binary, and output under
+   `/tmp`; do not use `cargo run` for the measured pass.
+2. Preserve the 15 existing detector tests. Treat
+   `auto_assist_keeps_outer_card_when_its_border_has_reliable_contrast` as the
+   reliable-positive gradient contract: it must remain accurately `Confident`
+   because no materially larger supported rectangle exists.
+3. Add a deterministic low-contrast physical-slab fixture enclosing a
+   high-contrast internal card. Its slab-to-background RGB distance must stay
+   below the primary color-distance threshold while its local luma transition
+   yields four long outer Canny/Hough sides. The primary component and corners
+   must be the internal card; the outer candidate must exceed both area gates
+   and have at least three valid sides.
+4. Add
+   `auto_assist_abstains_when_gradient_rectangle_encloses_stable_internal_primary`.
+   The committed expectation is `Unavailable` with no corners. Before accepting
+   the fixture, use the temporary harness to record that bypassing the new veto
+   would return `Confident` at the internal-card corners.
+5. Add a Hough-rich/noisy accurate-card fixture. Place long/dashed line evidence
+   outside the accurate primary with alternating inside/outside polarity or
+   discontinuities so raw Hough pairs exist but fewer than three candidate sides
+   satisfy the complete localized support/gap/contrast/sign contract.
+6. Add
+   `auto_assist_keeps_accurate_primary_when_hough_lines_lack_localized_coherent_contrast`.
+   Require accurate `Confident` primary corners within the existing 0.025
+   normalized tolerance. This proves line abundance alone cannot veto.
+7. Establish two-stage RED evidence. On `85db903`, require the noisy accurate
+   test to fail if the scalar weak-mask `||` sees its expansion. Then temporarily
+   remove/bypass the old stability decision without adding the gradient veto:
+   the physical slab test must fail as `Confident` at the internal primary while
+   the reliable and noisy accurate positives remain accurate. If the slab does
+   not expose the internal primary in this intermediate, reject the fixture and
+   stop rather than accepting a final-status-only test.
+
+**RED/characterization verification:**
+
+- `cargo build --release --manifest-path /tmp/autographs-pr276-detector-eval/Cargo.toml`
+- `/tmp/autographs-pr276-detector-eval/target/release/autographs-pr276-detector-eval --manifest "$PR276_WORKLOAD" --warm-up`
+- `/usr/bin/time -v -o /tmp/autographs-pr276-detector-baseline.time /tmp/autographs-pr276-detector-eval/target/release/autographs-pr276-detector-eval --manifest "$PR276_WORKLOAD" --metrics /tmp/autographs-pr276-detector-baseline.json`
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_keeps_outer_card_when_its_border_has_reliable_contrast -- --nocapture`
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_abstains_when_gradient_rectangle_encloses_stable_internal_primary -- --nocapture`
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_keeps_accurate_primary_when_hough_lines_lack_localized_coherent_contrast -- --nocapture`
+
+**Done:** The three sanitized contracts exist; the low-contrast slab's causal
+internal-primary RED is observed without the gradient veto; and no private or
+diagnostic artifact is committed.
+
+### Task 2 — GREEN/REFACTOR: replace scalar stability with the bounded gradient veto
+
+**Files:** `controller/src/image_adjustments.rs`,
 `controller/tests/image_adjustments.rs`.
 
-**Ephemeral files:** `/tmp/autographs-pr276-detector-spike.*` only.
+**Actions:**
+
+1. Import only the existing `imageproc` luma/Canny/Hough primitives needed by
+   the contract. Add no crate, feature, manifest, lockfile, API type, or public
+   function.
+2. Remove `AUTO_CORRECTION_MIN_STABILITY_THRESHOLD`,
+   `AUTO_CORRECTION_MAX_STABLE_COMPONENT_GROWTH`, the old stability use of
+   `AUTO_CORRECTION_MAX_STABLE_AREA_GROWTH`, and
+   `component_boundary_is_stable`. Remove the component anchor if it becomes
+   unused; retain component population for the existing minimum-component gate.
+3. Before implementing the bounds helper, add a private `#[cfg(test)]` unit test
+   named `gradient_candidate_bounds_match_imageproc_geometric_coordinates`.
+   For representative `width` and `height`, require acceptance at `x = -4`,
+   `y = -4`, `x = width + 4`, and `y = height + 4`, including `x = width` and
+   `y = height` as geometric-boundary coordinates; require rejection just below
+   `-4` and just above `width + 4` / `height + 4`. The test and helper must use
+   inclusive comparisons and must not derive the upper bound from
+   `width - 1` / `height - 1`.
+4. Add small private types/helpers for bounded axis lines, points, side
+   evidence, intersections, polygon area, full-line/finite-side edge sampling,
+   local signed contrast, axis selection, exact geometric-bounds admission, and
+   candidate search. Port the frozen contract exactly; keep rendering, file I/O,
+   labels, JSON, and spike report structures out of production.
+5. Truncate each axis group to 12 before pair enumeration. Keep the maximum
+   search at 4,356 rectangle combinations and sample only the bounded 640-pixel
+   thumbnail. Add `debug_assert!` guards around line caps and the derived
+   candidate ceiling so later refactors cannot silently make the search
+   unbounded.
+6. After existing projection and primary-area validation, call a boolean helper
+   equivalent to `has_materially_larger_gradient_boundary(image, area_ratio)`.
+   If true, return the ordinary `Unavailable` response. Otherwise continue to
+   the existing near-identity and original-primary `Confident` paths.
+7. Never copy candidate corners into `normalized_corners`, response corners, an
+   `ImagePerspective`, or any adjustment. The detector's only new observable
+   behavior is a conservative status change from primary confidence to
+   `Unavailable`.
+8. Make the three mechanism tests, exact geometric-bounds unit test, and all
+   existing detector tests green. Then
+   perform the causal mutation: temporarily force the gradient helper to return
+   false or bypass its call and rerun the physical-slab test. It must fail with
+   the internal `Confident` primary. Restore the real veto and rerun green. If a
+   constant must change to pass, stop and reassess instead of tuning.
+
+**GREEN verification:**
+
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_keeps_outer_card_when_its_border_has_reliable_contrast -- --nocapture`
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_abstains_when_gradient_rectangle_encloses_stable_internal_primary -- --nocapture`
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments auto_assist_keeps_accurate_primary_when_hough_lines_lack_localized_coherent_contrast -- --nocapture`
+- `cargo test --manifest-path controller/Cargo.toml --lib gradient_candidate_bounds_match_imageproc_geometric_coordinates -- --nocapture`
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments -- --nocapture`
+- `cargo fmt --manifest-path controller/Cargo.toml --all -- --check`
+- `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings`
+
+**Done:** The old population/area stability loop is absent; the frozen bounded
+gradient veto is the sole outer-boundary ambiguity decision; sanitized slab and
+noise cases are causally green; original primary corners remain the only
+possible confident output.
+
+### Task 3 — VALIDATE: exact controls, complete corpus, boundedness, consumers, and privacy
+
+**Files:** the two allowed implementation files; verification-only consumer and
+contract files; private inputs and evaluator under `/tmp`.
 
 **Actions:**
 
-1. Reuse the detector's actual border median, adaptive threshold, descending
-   relative/fixed probe order, anchor, and 8-connected tracing semantics in a
-   temporary harness. Do not change production visibility or add diagnostic
-   branches to the repository.
-2. Run the exact positive, exact named slab, and three sanitized morphology
-   controls through the same thumbnail and threshold path.
-3. At the primary threshold and every actual weaker probe, emit the threshold
-   mask, exact anchor-component mask, population, extrema, extrema-quadrilateral
-   area, and retained-primary membership.
-4. Extract the actual component boundary. An ordered contour is preferred; if
-   contour ordering is the open design problem, emit all boundary pixels and
-   connected boundary runs without pretending they are an ordered polygon.
-5. Instrument the failed model as diagnostics: rasterized extrema chords,
-   component corridor hits, outward-witness hits, per-side coverage, longest
-   gaps, and the exact trigger/check that allows the named slab to remain
-   `Confident`.
-6. Record contour perimeter/runs and contour-to-candidate-side distances. Also
-   sample local image-gradient or color-transition strength and continuity on
-   both sides of plausible rectangular boundary segments. These are observations
-   for model comparison, not new thresholds or production logic.
-7. Keep private images and all derived visual or per-image artifacts outside
-   Git. Do not include executable absolute private paths in repository files.
+1. Build an ephemeral evaluator that calls the production
+   `propose_image_adjustment`; do not copy the spike classifier. Run the exact
+   positive first. Require `Confident` primary corners near
+   `(0.061,0.061)`, `(0.925,0.056)`, `(0.939,0.934)`, `(0.057,0.933)` with at
+   most 0.03 normalized error per coordinate.
+2. Run the exact named slab second. Require `Unavailable`. Any `Confident`
+   result stops execution, especially the forbidden internal quadrilateral near
+   `(0.186441,0.306729)`, `(0.825666,0.286385)`, `(0.738499,0.870110)`,
+   `(0.188862,0.879499)`.
+3. Only after both exact gates pass, evaluate all 116 sorted originals with the
+   unchanged production constants. Expected counts are 79 `Confident`, 37
+   `Unavailable`, and 0 `NotNeeded`. A count difference is acceptable only when
+   every changed image is geometry-inspected and the reason is recorded; zero
+   known or screened internal-region `Confident` results is non-negotiable.
+4. Visually inspect every production `Confident` overlay. Repeat the 12%-side
+   proximity screen; `20251231_011140` may remain the sole exception only if its
+   full-image geometry still follows the outer rotated card. Require all three
+   graded-slab siblings to remain `Unavailable`.
+5. Produce an outside-Git before/after table for every status or primary-corner
+   change relative to the spike result and reviewed head. Counts alone cannot
+   accept geometry. Do not post or commit that output until the normal reviewed
+   PR audit-trail workflow authorizes it.
+6. Rebuild the unchanged temporary evaluator once after implementation, run its
+   already-built binary once as an unrecorded warm-up on the frozen 118-call
+   manifest, then measure the binary directly under `/usr/bin/time` using the
+   identical manifest, order, host, output mode, and per-call timer placement as
+   the head baseline. Capture per-image, summed total, p50, p95, maximum, and
+   maximum RSS. Compilation and cache population are excluded from both sides.
+   Require post p95 `<= 1.0s` and `<= 3.0×` head p95; post maximum `<= 2.0s`
+   and `<= 3.0×` head maximum; summed total `<= 3.0×` head total; and max
+   RSS `<= max(1.5× head RSS, head RSS + 32 MiB)`. These are mandatory rollback
+   gates: the absolute latency limits protect the synchronous admin action,
+   while the relative and RSS limits allow bounded Canny/Hough work without
+   accepting pathological enumeration or working-set growth. Record p50 and all
+   per-image deltas for assessment even though tail/total/RSS drive the gate.
+   Independently confirm 12-per-axis truncation precedes nested pairing and the
+   candidate ceiling is 4,356.
+7. Run route/browser/static contracts and full controller checks. Confirm
+   route/UI/manifest/lockfile diffs are empty, then delete the temporary
+   evaluator and private outputs.
 
-**Verification:**
+**Private evaluator invocation shape:**
 
-- The paired exact controls each have a complete probe-by-probe trace with masks,
-  component boundary evidence, failed-model per-side values, and gradient data.
-- The three sanitized controls have the same schema so explanations can be
-  compared rather than inferred from final statuses.
-- `git diff --exit-code -- controller/src/image_adjustments.rs controller/tests/image_adjustments.rs controller/src/routes.rs controller/static-admin/admin.js controller/tests/admin_workflow.rs controller/tests/static_admin_behavior.mjs controller/tests/static_admin.rs`
-- `git status --short` contains no private input, mask, overlay, evaluator,
-  binary, trace, or generated derivative.
+- `cargo build --release --manifest-path /tmp/autographs-pr276-detector-eval/Cargo.toml`
+- `/tmp/autographs-pr276-detector-eval/target/release/autographs-pr276-detector-eval --manifest "$PR276_WORKLOAD" --warm-up`
+- `/usr/bin/time -v -o /tmp/autographs-pr276-detector-post.time /tmp/autographs-pr276-detector-eval/target/release/autographs-pr276-detector-eval --manifest "$PR276_WORKLOAD" --metrics /tmp/autographs-pr276-detector-post.json`
 
-**Stop:** If the harness does not reproduce the exact positive target corners
-and exact slab internal corners through the same detector path, fix the harness
-only; do not draw a detector-design conclusion or edit production code.
+The evaluator source and manifest are identical between baseline and post
+measurements; only the path dependency's detector implementation changes. The
+task-specific variable is operator-local and must not be written into a
+repository file. Measured commands invoke the evaluator binary, never Cargo.
 
-**Done:** The missing intermediate evidence exists privately and the exact check
-that lets the real slab escape is measured rather than hypothesized.
+**Consumer/controller verification:**
 
-### Task 2 — Compare spatial design hypotheses and create a privacy-safe report
+- `cargo test --manifest-path controller/Cargo.toml --test admin_workflow admin_image_adjustment_routes_save_reset_review_and_assist -- --nocapture`
+- `node controller/tests/static_admin_behavior.mjs`
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin -- --nocapture`
+- `node --check controller/static-admin/admin.js`
+- `cargo test --manifest-path controller/Cargo.toml --all-features`
+- `cargo check --manifest-path controller/Cargo.toml --features production-persistence`
+- `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings`
+- `cargo fmt --manifest-path controller/Cargo.toml --all -- --check`
+- `git diff --check -- controller/src/image_adjustments.rs controller/tests/image_adjustments.rs`
+- `git diff --exit-code -- controller/Cargo.toml controller/Cargo.lock controller/src/routes.rs controller/static-admin/admin.js controller/tests/admin_workflow.rs controller/tests/static_admin_behavior.mjs controller/tests/static_admin.rs`
 
-**Repository output:** a new linked planning report may be created only as
-`.planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-DESIGN-SPIKE.md`.
+**Done:** Production passes both exact controls, the complete corpus has no
+internal confidence and all changes are assessed, bounded release performance
+is preserved, all consumer/controller/privacy gates pass, and only the two
+allowed files differ.
 
-**Actions:**
+## Acceptance criteria
 
-1. Compare at least two design families against every row of the failure matrix:
-   actual component-contour evidence and local-gradient rectangular-boundary
-   evidence. A contour-derived hull or multi-threshold contour persistence may
-   be included, but four extrema chords alone are the failed baseline, not a
-   candidate presumed valid.
-2. For each family, state what measured property separates the exact positive
-   from the named slab, which sanitized cases support or contradict it, and what
-   false-confidence and false-abstention risks it creates.
-3. Prefer investigation of the actual anchor-component contour or boundary runs:
-   determine whether the slab exposes a sustained enclosing boundary that the
-   extrema chords cut across, while the accurate card's weak tendrils remain
-   discontinuous or non-rectangular. Independently assess whether local image
-   transitions provide four sustained rectangular sides on the slab but not the
-   noise-connected positive.
-4. Do not select numeric constants from one private image. If a design cannot be
-   stated in normalized/geometric terms and reproduced in sanitized inputs,
-   reject it or leave it unresolved.
-5. Specify a sanitized generated RED fixture derived from the measured bypass,
-   including which intermediate facts it must assert. It must reproduce the
-   real failure mechanism, not merely resemble the slab or finish with the same
-   status.
-6. Record only privacy-safe aggregate facts and normalized geometry. Do not
-   embed private pixels, masks, thumbnails, complete per-image traces, or machine
-   paths beyond the already documented read-only controls.
+- The old `population_growth || area_growth` stability behavior and its weak
+  threshold loop are replaced, not layered with or around the gradient veto.
+- The fixed 009b contract is ported exactly: Canny `20/60`; Hough vote
+  `min-dimension/3`, suppression `8`; 15-degree axis grouping; 12 lines per
+  axis; full-line support/gap `0.25/0.55`; pair span `0.50`; candidate area
+  floor `0.50` and growth `0.05`; side support/gap `0.35/0.40`; mean contrast
+  `5`; sign coherence `0.60`; at least three valid sides; two-pixel edge
+  corridor and four-pixel contrast offset. Candidate corners use imageproc's
+  geometric image boundary `[0,width] × [0,height]` and the exact inclusive
+  spike interval `[-4,width+4] × [-4,height+4]`; this is four coordinate units
+  beyond the geometric boundary, not beyond the last pixel center.
+- Candidate enumeration is capped at 4,356 rectangles after line truncation.
+- Gradient candidates can only veto. Every `Confident` or `NotNeeded`
+  classification still derives from the original primary corners.
+- The reliable-positive, physical-slab/internal-primary, and Hough-rich/noisy
+  accurate-card contracts pass, and bypassing the veto causally restores the
+  slab's forbidden internal confidence.
+- Existing high-contrast skew, dark card, sparse/filled/noisy enclosures,
+  low-confidence, transformation, serialization, and inset-2/inset-5 behaviors
+  retain their contracts.
+- The exact positive is accurate `Confident`; the exact named slab and all three
+  slab siblings are `Unavailable`.
+- All 116 images are evaluated with unchanged constants. Expected counts are
+  79 `Confident`, 37 `Unavailable`, 0 `NotNeeded`; any justified difference is
+  individually recorded, and zero internal `Confident` is mandatory.
+- Every retained primary is visually screened, including the accurate
+  `20251231_011140` side-distance exception.
+- The already-built production-path evaluator uses the identical warmed
+  118-call workload before and after, excluding build/cache work. Post p95 is
+  `<= 1.0s` and `<= 3.0×` baseline, post max is `<= 2.0s` and `<= 3.0×`
+  baseline, total is `<= 3.0×` baseline, and max RSS is
+  `<= max(1.5× baseline, baseline + 32 MiB)`.
+- Authentication, terminal `mediaRevision`, camelCase serialization,
+  session/draft/assist authority, non-mutating unavailable/unexpected behavior,
+  explicit Save, private-original immutability, and manual corner fallback are
+  unchanged.
+- Only `controller/src/image_adjustments.rs` and
+  `controller/tests/image_adjustments.rs` change; no dependency or private
+  artifact enters Git.
 
-**Verification:**
+## Stop and rollback conditions
 
-- The report answers where the named slab first diverges, why the four-side
-  model misses it, and what property does or does not separate it from the exact
-  positive.
-- Every design family is assessed against accurate dark card, sparse enclosure,
-  sanitized containment-bypass slab, exact slab, high-contrast card/skew,
-  near-identity, and prior corpus risks.
-- The report explicitly says `no approved algorithm` unless one coherent model
-  is supported by both exact controls and reproducible sanitized evidence.
+Stop, restore only the two in-scope files to the last reviewed state, preserve
+unrelated worktree changes, and return to `reassessment_required` if:
 
-**Stop:** If neither design family discriminates the paired exact controls, or
-if the explanation depends on filename, exact coordinates, or per-image
-constants, record the negative result and keep `reassessment_required`.
+- fresh independent review has not approved both artifacts;
+- the mechanism-derived slab does not expose internal primary confidence when
+  the gradient veto is bypassed;
+- the Hough-rich accurate-card fixture is vetoed merely because lines exist;
+- any frozen constant, line cap, candidate ceiling, or scoring order must change
+  after exact or corpus evaluation;
+- the scalar weak-mask veto remains in any production decision path;
+- gradient candidate corners reach response or adjustment data;
+- the exact positive is not accurate `Confident` or the exact slab is
+  `Confident`;
+- any known/screened corpus proposal selects an internal region;
+- a 79/37/0 difference is not individually inspected and recorded;
+- any slab sibling becomes `Confident` or the side-distance exception is no
+  longer geometrically accurate;
+- the bounded search expands beyond 12 lines per axis or 4,356 candidates;
+- geometric bounds differ from the exact inclusive
+  `[-4,width+4] × [-4,height+4]` interval under imageproc's
+  `[0,width] × [0,height]` boundary convention;
+- the warmed already-built evaluator's p95, maximum, total, or max RSS exceeds
+  any mandatory absolute or relative guardrail;
+- route/UI/API/persistence/dependency changes appear necessary;
+- any consumer, formatting, production-persistence, Clippy, or privacy gate
+  fails; or
+- any private/evaluator artifact appears in Git.
 
-**Done:** A durable, privacy-safe report narrows or rejects the design options
-without claiming implementation authorization.
+Do not start another point-fix round from a stop condition. Record the new
+evidence and revise the shared contract first.
 
-### Task 3 — Revise and independently review before coder work
+## Surgical source coverage audit
 
-**Files:** this artifact, the assumptions artifact, the design-spike report, and
-a new independent review artifact or an explicitly versioned new review section.
+| Source item | Coverage | Task |
+| --- | --- | --- |
+| MEDIA-06 / ADMIN-06 / D-08-26 | Useful primary assistance remains; independently supported larger boundaries abstain; manual controls remain authoritative. | 1-3 |
+| MEDIA-05 / D-08-25 | Private originals and evaluator artifacts remain outside Git and are never mutated. | 3 |
+| D-08-29 | Detector output remains draft-local and persistence requires explicit Save. | 3 |
+| Four convergence invariants | Original outer-primary confidence, physical-boundary discrimination, positive usability, and non-mutating fallback are jointly tested. | 1-3 |
+| Spike 008 diagnosis | Contour flood explains why component contours are not the production boundary source. | Contract |
+| Spike 009a invalidation | Contour-only/flood policies stay excluded. | Contract, stop gates |
+| Spike 009b validation | Frozen bounded local-gradient/Hough veto is ported and revalidated against production. | 1-3 |
+| Exact controls and 116-image corpus | Positive first, slab second, then 79/37/0 expectation, zero internal confidence, complete visual/change review. | 3 |
+| Consumer and privacy boundaries | Route/browser/static checks and no-diff gates preserve authority, fallback, and private identifiers. | 3 |
+| Deferred AI/advanced enhancement | Excluded; no OCR/AI, content-aware replacement corners, service, dependency, or admin redesign. | Scope fence |
 
-**Actions:**
-
-1. Update the assumptions from measured spike evidence. Preserve all five
-   finding-lineage rounds, four shared invariants, producer/consumer/mutation
-   inventory, and full failure matrix.
-2. Only if the spike identifies a coherent discriminating model, replace this
-   spike gate with a new test-first implementation plan. It must specify the
-   diagnostic-derived sanitized RED, exact positive, exact named slab, full
-   116-image screen, count/corner-change assessment, consumer contracts,
-   rollback, and source/privacy fences.
-3. Require independent review of both updated assumptions and the new
-   implementation plan. The review must assess the spike evidence and must not
-   reuse the iteration-2 `passed` verdict as authorization.
-4. Change status to `ready_to_resume` only after both reviewed artifact paths are
-   recorded. A status-only edit is invalid.
-
-**Verification:**
-
-- Frontmatter remains `status: reassessment_required` and
-  `independent_review: pending` until a fresh review actually passes.
-- `08-REVIEW.md` records that the iteration-2 authorization is superseded by its
-  stop condition.
-- The reviewed plan's future implementation scope is exactly
-  `controller/src/image_adjustments.rs` and
-  `controller/tests/image_adjustments.rs`.
-
-**Done:** Either fresh evidence and review authorize a third coder round, or the
-detector remains durably blocked with the unresolved design question recorded.
-
-## Acceptance criteria for this reassessment stage
-
-- The exact positive and named slab have comparable probe-by-probe masks,
-  component contours/boundaries, failed-model per-side diagnostics, and local
-  transition evidence.
-- The real slab's escape mechanism is identified with measured evidence; the
-  absence of traces from the two terminated diagnostic attempts is not filled by
-  inference.
-- Actual-contour and local-gradient boundary families are compared at design
-  level; no algorithm or constants are pre-approved.
-- A future sanitized RED is specified from the observed mechanism before
-  production edits.
-- The four shared invariants remain binding: outer-boundary confidence,
-  enclosure-versus-noise discrimination, useful positive assistance with safe
-  abstention, and non-mutating unavailable/unexpected UI outcomes.
-- The future plan retains high-contrast skew/card, reliable-card,
-  near-identity, API serialization, authentication and terminal media-revision,
-  browser session/draft/assist authority, explicit Save, manual fallback, and
-  private-original immutability.
-- The full 116-image later evaluation still requires zero known/screened
-  internal-region confident proposals and explicit assessment of every status or
-  corner change; counts alone cannot establish safety.
-- No private image, mask, overlay, evaluator, binary, per-image output,
-  generated derivative, or executable absolute private path enters Git.
-- No source/test edit, commit, push, or PR comment occurs during this stage.
-
-## Stop and guardrail conditions
-
-Keep or restore `reassessment_required` immediately if:
-
-- any production or committed test edit begins before the spike and independent
-  review gates complete;
-- the exact positive or exact slab cannot be reproduced by the harness;
-- a proposed model preserves the failed extrema-chord abstraction and merely
-  layers another threshold, Boolean, containment, centroid, or coordinate gate;
-- a proposed contour/gradient rule is selected before its distinguishing
-  evidence is observed on both exact controls and reproduced in sanitized data;
-- the named slab, any known/screened corpus case, or a sanitized enclosure is
-  allowed internal `Confident` geometry;
-- the exact positive is sacrificed merely to increase abstention;
-- route/UI changes are proposed to hide a detector failure;
-- the two-file future implementation scope expands without a new reviewed
-  reassessment; or
-- private/evaluator artifacts appear in Git status.
-
-## Resume criteria
-
-A third coder round may begin only after all of these are true:
-
-1. the bounded harness completed on the exact positive, exact slab, and required
-   sanitized fixtures;
-2. a durable privacy-safe spike report explains the measured bypass and compares
-   at least the actual-contour and local-gradient design families;
-3. a diagnostic-derived sanitized RED binds the real mechanism;
-4. updated assumptions state one coherent candidate contract, or explicitly
-   remain inconclusive;
-5. a new implementation-ready plan preserves the two-file scope, all consumer
-   and privacy constraints, the exact paired controls, and the 116-image screen;
-6. an independent reviewer passes those updated artifacts and the new evidence
-   paths are recorded in frontmatter; and
-7. no source/test change has preceded that authorization.
-
-Until then, the status is `reassessment_required`; the iteration-2 plan review
-is historical evidence only and cannot authorize implementation.
-
-## Source coverage audit
-
-| Source item | Current coverage |
-| --- | --- |
-| MEDIA-06 / ADMIN-06 / D-08-26 | The spike preserves useful bounded assistance and manual fallback while investigating the unresolved confidence boundary. |
-| MEDIA-05 / D-08-25 | Private originals and derived diagnostics stay read-only/outside Git. |
-| D-08-29 | Detector diagnostics do not mutate or persist browser drafts; explicit Save remains authoritative. |
-| Round-3 convergence guard | Authorization is revoked after a named stop condition; lineage, assumptions, inventory, matrix, and fresh-review gate remain durable. |
-| Round-5 evidence | All synthetic tests and the positive control passing no longer count as sufficient evidence because the exact slab still fails. |
-| Two-file implementation boundary | Preserved as future scope, with no current source modification authorized. |
-| Deferred AI/advanced enhancement | Still excluded; no OCR/AI, service, broad admin redesign, or package addition is proposed. |
-
-No source item is intentionally deferred inside this reassessment. Detector
-implementation is intentionally unauthorized because the necessary design
-evidence does not yet exist.
+No in-scope source item is deferred. Execution remains unauthorized until a
+fresh checker passes this iteration and both artifact frontmatters record that
+evidence.

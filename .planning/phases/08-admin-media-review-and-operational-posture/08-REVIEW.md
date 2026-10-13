@@ -15,14 +15,21 @@ findings:
   total: 1
 status: issues_found
 convergence:
-  status: reassessment_required
+  status: ready_to_resume
   recurring_critical_warning: 1
   scope_expansion: false
   requires_reassessment: true
   assumptions_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-ASSUMPTIONS.md
   plan_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-PLAN.md
-  prior_plan_review: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
-  independent_review_evidence: pending
+  checker_review: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
+  checker_status: passed_cycle_2
+  independent_review_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
+  reassessment_iteration: 3
+  design_spike_evidence:
+    - .planning/spikes/008-detector-mask-contour-diagnostics/README.md
+    - .planning/spikes/009-a-actual-contour-boundary/README.md
+    - .planning/spikes/009-b-local-gradient-rectangle/README.md
+  pr_evidence: https://github.com/jetsaredim/autographs/pull/276#issuecomment-6156047878
 ---
 
 # Phase 08: PR #276 Deep Code Review — Round 3 Convergence Checkpoint
@@ -64,7 +71,7 @@ review checkpoint, so another point-fix round is not authorized.
 growth sufficient to reject the new sparse enclosure, but it also makes weak
 background/noise extrema sufficient to reject a correct outer-card component.
 Running the current compiled detector on the exact local diagnostic
-`/home/jgreenwa/Downloads/b9912131-8781-4047-a44c-03e5ca1e56a9.webp`
+`b9912131-8781-4047-a44c-03e5ca1e56a9.webp` outside the repository
 returns `Unavailable` with no corners. The prior held-out evidence recorded
 this 914x1280 dark card as accurate and `Confident` through threshold 8, with
 only 24.91% population growth; preserving that control was part of the stated
@@ -229,6 +236,94 @@ are recommended investigation directions, not approved algorithms. A
 privacy-safe spike report, diagnostic-derived sanitized RED, revised coherent
 contract, new implementation plan, and fresh independent review are all required
 before status may return to `ready_to_resume`.
+
+## Completed Detector Design Spike — 2026-10-13
+
+The required bounded investigation is now complete and recorded in spikes 008,
+009a, and 009b plus PR comment `6156047878`.
+
+- Spike 008 reproduced the exact controls and showed that the named slab's
+  border-median component floods the frame before a usable physical outer
+  contour appears. Local Canny/Hough edge evidence remains visible.
+- Spike 009a invalidated contour-only classification: ignoring flood trusts the
+  internal slab primary, while abstaining on every flood also rejects the exact
+  accurate positive.
+- Spike 009b froze its constants before exact-control/corpus evaluation and
+  validated a bounded local-gradient/Hough rectangle as a conservative veto on
+  the existing primary. It does not promote gradient corners.
+- The exact positive retained accurate primary corners; the exact named slab
+  exposed a materially larger candidate with four valid localized sides and
+  became `Unavailable`.
+- Across all 116 originals with unchanged constants, 79 primaries were retained,
+  37 cases safely abstained, and none returned `NotNeeded`. Visual inspection
+  found zero internal retained proposals. `20251231_011140` was the sole repeat
+  of the prior 12%-side-distance screen and was confirmed accurate. All three
+  slab siblings abstained.
+- The two-control optimized smoke measured `0.21s` and about `8.2 MiB` peak RSS.
+  The existing `imageproc 0.27` dependency supplies the required primitives.
+
+The iteration-3 assumptions and plan now replace the current
+`population_growth || area_growth` decision with that complete frozen veto,
+preserve primary selection/corners, require three mechanism-derived sanitized
+contracts and a causal bypass mutation, and bind exact/corpus/performance,
+consumer, no-diff, and privacy gates. This design evidence establishes
+feasibility only. Convergence remains `reassessment_required` until a fresh
+independent checker approves both updated artifacts and its evidence path is
+recorded; the iteration-2 plan review cannot authorize this algorithm.
+
+## Iteration-3 Checker Block Revision — 2026-10-13
+
+The fresh iteration-3 checker review in
+`08-PR-276-DETECTOR-PLAN-REVIEW.md` returned two Blockers while confirming that
+all other coverage was complete. The assumptions and revised plan now address
+those Blockers without changing the spike-validated detector behavior:
+
+1. Candidate intersection bounds now use one exact coordinate contract.
+   imageproc's continuous geometric image boundary is
+   `[0,width] × [0,height]`, while pixel centers end at `width - 1` and
+   `height - 1`. The spike's inclusive admission interval is exactly
+   `x >= -4`, `y >= -4`, `x <= width + 4`, `y <= height + 4`—four coordinate
+   units beyond the geometric boundary, not four units beyond the final pixel
+   center. A private-helper unit test binds both inclusive endpoints and rejects
+   values immediately outside them.
+2. The prepared-thumbnail spike smoke is now advisory only. Before source
+   changes, a temporary release evaluator is built once against head, warmed,
+   then its already-built binary directly measures public
+   `propose_image_adjustment` calls over a frozen 118-call manifest: exact
+   positive, exact slab, and the 116 sorted originals. After implementation it
+   is rebuilt once, warmed once, and measured identically. Both sides capture
+   per-image, total, p50, p95, max, and max RSS without Cargo/build/cache time.
+   Mandatory gates are p95 `<= 1.0s` and `<= 3×` baseline, max `<= 2.0s` and
+   `<= 3×` baseline, total `<= 3×` baseline, and RSS
+   `<= max(1.5× baseline, baseline + 32 MiB)`.
+
+The checker verdict itself remains unchanged and authoritative for the reviewed
+version. Status stays `reassessment_required` and checker linkage is
+`blocked_pending_re_review` until a focused re-review passes the revised
+contracts.
+
+## Iteration-3 Cycle-2 Resume Authorization — 2026-10-13
+
+Focused independent re-review in
+`08-PR-276-DETECTOR-PLAN-REVIEW.md` verified that both iteration-3 Blockers are
+fully resolved and found zero additional Blocker, Warning, or Info issues.
+
+- Candidate bounds now bind the exact inclusive spike inequalities
+  `[-4,width+4] × [-4,height+4]` under the stated continuous geometric image
+  boundary, with a private endpoint unit test.
+- Performance now compares warmed, already-built binaries over the identical
+  118-call public production path before and after, excludes Cargo/build/cache
+  time, and applies explicit absolute/relative latency, total, and RSS gates.
+- The checker revalidated scalar-veto replacement, veto-only gradient corners,
+  bounded 4,356-candidate search, frozen constants, causal sanitized fixtures,
+  exact/corpus/slab gates, consumer/no-diff/privacy boundaries, full Cargo
+  checks, and stop/rollback behavior.
+
+The current assumptions, revised plan, and fresh independent-review evidence
+paths are recorded in convergence frontmatter. Convergence is therefore
+`ready_to_resume`. Execution remains bound by every task, acceptance criterion,
+and stop condition in the reviewed iteration-3 plan; any stop condition returns
+the family to `reassessment_required` before another coder round.
 
 ## Verification
 

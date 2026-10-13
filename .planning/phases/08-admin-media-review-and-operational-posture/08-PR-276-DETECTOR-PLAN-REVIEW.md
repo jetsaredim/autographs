@@ -1,99 +1,92 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 276
-reviewed_at: 2026-10-13T10:05:41Z
+reviewed_at: 2026-10-13T22:16:21Z
 reviewed_head: 85db903d4dd0ef70887816c9849101fac2827c7a
-reassessment_iteration: 2
+reassessment_iteration: 3
+review_cycle: 2
 reviewed_assumptions: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-ASSUMPTIONS.md
 reviewed_plan: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-PLAN.md
 source_review: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
-prior_review_result: superseded_by_stop_condition
+prior_cycle_result: blocked_2
 status: passed
 blockers: 0
 warnings: 0
 info: 0
 ---
 
-# PR #276 Detector Convergence Plan Review — Second Reassessment
+# PR #276 Detector Convergence Plan Review — Iteration 3, Cycle 2
 
 ## VERIFICATION PASSED
 
-**Verdict:** PASS — the second reassessment and revised plan are
-implementation-ready.
+**Verdict:** PASS
 
-**Issues:** 0 Blocker, 0 Warning, 0 Info.
-**Authorization boundary:** This review clears planning only. Execution remains
-bound by every RED/characterization, GREEN, private-control, corpus, consumer,
-privacy, rollback, and stop gate in the revised plan.
+**Issues:** 0 Blocker, 0 Warning, 0 Info
 
-## Goal-backward conclusion
+Both cycle-1 blockers are resolved, the iteration-3 gradient/Hough plan remains
+goal-complete, and no previously passing coverage regressed. The assumptions,
+revised plan, and convergence record may move to `ready_to_resume` with this
+file as the fresh independent-review evidence.
 
-The first reviewed coherence plan correctly replaced the global scalar
-`&&`/`||` model, but execution proved that its strict
-`Qt`-contains-`Q0` prerequisite could bypass coherence analysis for a real
-larger slab. The second reassessment identifies the failed assumption precisely:
-anchor-connected pixel membership is monotone as the threshold weakens, while
-the quadrilateral joining four extrema is only a lossy summary and is not
-polygon-set-monotone.
+## Blocker resolution
 
-The revised contract therefore uses exact `M0 ⊆ Mt` membership as the sole
-cross-threshold identity prerequisite, retains material area growth only as a
-trigger, and lets the already reviewed four-side localized-support test decide
-whether the weak component exposes a coherent replacement boundary. This is a
-coherent correction to the model, not another image-specific scalar or Boolean
-patch.
+### 1. Exact geometric bounds — resolved
 
-## Required-property verification
+The assumptions and plan now use one exact coordinate contract matching spike
+009b source rather than the ambiguous phrase “four pixels outside.” Candidate
+intersections use imageproc continuous geometric image coordinates with image
+boundary `[0,width] × [0,height]` and inclusive admission interval
+`[-4,width+4] × [-4,height+4]`. The text explicitly distinguishes that boundary
+from pixel centers ending at `width-1` / `height-1`.
 
-| Required property | Evidence | Result |
+Task 2 adds the private unit test
+`gradient_candidate_bounds_match_imageproc_geometric_coordinates`, which binds
+acceptance at `-4`, `width`, `height`, `width+4`, and `height+4`, rejects values
+immediately outside the interval, requires inclusive comparisons, and forbids
+deriving the upper bound from the final pixel center. The acceptance and stop
+sections repeat the identical inequalities. There is no remaining choice for
+an executor to make.
+
+### 2. Comparable performance verification — resolved
+
+The spike’s `0.21s` / `8.2 MiB` prepared-thumbnail smoke is now explicitly
+advisory and is not used as a rollback baseline. Task 1 establishes a head
+baseline before source changes using a temporary release evaluator that reads
+original bytes and invokes public `propose_image_adjustment` exactly 118 times:
+the exact positive, exact slab, then all 116 bytewise-sorted originals, retaining
+the slab’s corpus occurrence.
+
+Both head and post-change measurements use the same evaluator source, workload
+manifest, call order, output mode, timer placement, host, and production path.
+Each evaluator is built once, run once as an unrecorded complete warm-up, then
+its already-built binary is timed directly; `cargo run`, compilation, and cache
+population are excluded. Per-image durations, total, p50, p95, maximum, and
+binary maximum RSS are captured.
+
+The mandatory gates are explicit and meaningful:
+
+- post p95 ≤ 1.0s and ≤ 3× head p95;
+- post maximum ≤ 2.0s and ≤ 3× head maximum;
+- post summed proposal time ≤ 3× head total; and
+- post maximum RSS ≤ `max(1.5× head RSS, head RSS + 32 MiB)`.
+
+These combine synchronous-interaction absolute ceilings with identical-workload
+relative limits and a bounded memory allowance. The stop section requires a new
+reassessment if any gate fails without an accepted measurement explanation.
+
+## Regression check of previously passing coverage
+
+| Required property | Cycle-2 evidence | Result |
 | --- | --- | --- |
-| Preserve finding lineage and react correctly to the prior stop condition. | Both artifacts record the rolled-back uncommitted attempt as `incomplete_fix` / `test_weakness`, preserve the earlier review as superseded evidence rather than authorization, identify `20240415_225421.jpg` as the stopping case, and require a fresh review before resumption. | Pass |
-| Use a valid cross-threshold identity relationship. | A lower threshold cannot remove a `C0` foreground pixel; tracing the retained anchor at the weaker threshold must therefore include every exact primary member in `Mt`. The plan explicitly retains primary member indices because the scan-wide primary `visited` bitmap includes other components and is not valid `M0`. Any membership-retention violation fails closed. | Pass |
-| Remove the invalid extrema-polygon containment assumption. | R-07 rejects `Qt` containing every `Q0` corner as a prerequisite. Task 2 bans that predicate and any centroid/corner substitute, while a causal mutation check temporarily restores containment and requires only the non-nested slab to regress. | Pass |
-| Preserve the discriminating spatial signal. | The plan retains supercover side sampling, the two-pixel `Mt` corridor, in-bounds outward non-`Mt` witnesses at offsets 3–5, per-side coverage ≥70%, maximum unsupported run ≤20%, and all-four-sides coherence. These thresholds already passed the sparse negative, noisy-card positive, and exact private positive; the revision does not retune them. | Pass |
-| Bind every observed morphology without private pixels. | Task 1 restores the noisy accurate positive, preserves sparse/filled/noisy-border negatives, and adds a deterministic asymmetric slab whose `M0` is retained, area grows materially, four sides are supported, and extrema polygons are non-nested. It requires the exact containment-gated intermediate to fail `Confident` before GREEN work. | Pass |
-| Make the known failed private case a hard causal gate. | Task 3 runs `20240415_225421.jpg` before the remaining corpus, requires `Unavailable`, explicitly forbids the recorded internal quadrilateral, and stops immediately on any `Confident` result even if all synthetic and positive controls pass. | Pass |
-| Preserve useful positive assistance, not merely maximize abstention. | The sanitized noisy card and exact private WEBP must both be accurate `Confident`; the exact WEBP has a four-corner oracle and 0.03 per-coordinate tolerance. Existing high-contrast, reliable-card, and near-identity contracts remain binding. | Pass |
-| Screen the complete held-out corpus for false confidence. | The plan measures a fresh head baseline, evaluates all 116 sorted images, requires zero known or screened internal-region confident proposals, preserves named safe cases unless an accurate outer boundary is demonstrated, lists every status/corner change, and requires image-by-image assessment rather than aggregate-count scoring. | Pass |
-| Keep producer, consumer, mutation, and reporting boundaries complete. | The reassessment inventories background/threshold generation, primary selection, exact component tracing, stability, proposal classification, route reporting and terminal revision authority, browser session/draft/assist authority, draft mutation, explicit persistence, publication, detector/route/browser/static tests, and held-out evidence. | Pass |
-| Be executable, ordered, and reversible. | Tasks proceed through head characterization and two-stage RED, component-membership GREEN/refactor, then named-private/full-corpus/consumer validation. Exact files, commands, expected outcomes, done criteria, causal mutation, stop conditions, and rollback to the reviewed head are specified. | Pass |
-| Preserve privacy and Phase 8 scope. | Only `image_adjustments.rs` and its integration test may change. Private inputs are read-only; evaluator code/output stays under `/tmp` and outside Git; absolute private paths are forbidden in executable tests. No dependency, API, route, UI, storage, public artifact, AI/OCR, OpenCV, service, or broad Phase 8 change is authorized. | Pass |
-
-## Feasibility and ambiguity assessment
-
-The implementation path matches the current source structure. Extending
-`ContrastComponent` with exact member indices is sufficient to retain `M0` and
-construct `Mt`; no new dependency or architectural layer is required. The
-existing descending probe schedule and retained anchor make the subset check
-deterministic. The plan also avoids a subtle implementation trap by stating
-that `largest_contrast_component`'s scan-wide `visited` vector is not primary
-membership.
-
-The geometry rules are concrete enough to implement and test: rasterization,
-corridor metric, exterior-witness offsets, coverage, gap limit, and four-side
-requirement are all fixed. The new fixture must prove its structural premises
-with temporary trace evidence before it is accepted, and the intermediate
-containment model plus mutation check distinguishes a causal regression from a
-test that passes only because the broad head `||` abstains.
-
-The remaining false-positive and false-negative risks are bounded rather than
-assumed away. The exact positive prevents indiscriminate abstention; the new
-slab and existing enclosure cases prevent renewed internal confidence; the
-named private failure is checked first; and the complete corpus geometry screen
-is a mandatory stop gate. A new morphology that defeats the 0.05 trigger or
-support model explicitly requires another reassessment, not threshold tuning.
-
-## Convergence-guard decision
-
-This revision satisfies the third-review reassessment contract:
-
-- finding lineage and the failed assumption are durable;
-- shared invariants and the complete consumer inventory remain explicit;
-- the failure matrix includes the newly observed non-nested slab class;
-- assumptions and implementation steps changed coherently before coder work;
-- this fresh review records both reviewed artifact paths; and
-- both artifacts now reference this review before moving to
-  `ready_to_resume`.
+| Replace rather than layer the scalar veto. | Task 2 removes the weak-threshold loop, `component_boundary_is_stable`, and its population/area constants. The gradient helper is the sole outer-boundary ambiguity veto after primary validation. | Pass |
+| Gradient candidates remain veto-only. | Candidate corners cannot enter normalized primary corners, `ImagePerspective`, response data, draft state, persistence, derivatives, or publication. A qualifying candidate only returns ordinary `Unavailable`. | Pass |
+| Frozen spike constants and bounded search remain exact. | Canny/Hough, angle groups, line support/gap/rank, 12-per-axis truncation, 66 pairs per axis, 4,356 rectangles, span/area, finite-side evidence, score, and three-side threshold remain unchanged; only the previously ambiguous bounds prose was made exact. | Pass |
+| Sanitized fixtures remain causal. | Reliable primary, physical slab/internal card, and Hough-rich/no-localized-contrast fixtures remain binding. The intermediate scalar bypass and final forced-false gradient mutation must restore forbidden internal confidence for the slab. | Pass |
+| Exact controls and corpus remain binding. | Exact `b991...` must be accurate `Confident`; exact `20240415_225421.jpg` and all three slab siblings must be `Unavailable`; expected corpus result is 79/37/0; every retained overlay and every changed outcome is assessed; zero internal confidence is mandatory; the rotated side-distance exception is reinspected. | Pass |
+| Two-file scope and privacy remain intact. | Only detector source and integration tests may change. Manifest, lockfile, route, browser, and consumer tests are no-diff. Private inputs, paths, evaluator source/binary, masks, overlays, contact sheets, and per-image output remain under `/tmp` and outside Git. | Pass |
+| Consumer/session/manual fallback contracts remain complete. | Authentication, initial/terminal media revision, camelCase response, current session/draft/assist authority, mutation/drag guards, non-mutating fallback, manual handles, explicit Save, private-original immutability, and publication boundaries remain unchanged and verified. | Pass |
+| Full verification remains complete. | Focused detector/mechanism/bounds tests, route/browser/static contracts, all-feature tests, production-persistence check, Clippy, formatting, diff checks, exact controls, corpus review, performance, and cleanup all remain required. | Pass |
+| Stop and rollback satisfy convergence guard. | Any mechanism, exact, corpus, count-review, frozen-constant, candidate-cap, performance, scope, consumer, privacy, or artifact failure restores only the two in-scope files and returns to reassessment before another coder round. | Pass |
 
 ## Structured issues
 
@@ -103,7 +96,7 @@ issues: []
 
 ## Resume authorization
 
-PASS. The assumptions and revised plan are `ready_to_resume` with this file as
-their independent-review evidence. If any stated stop condition fires,
-execution must roll back the two in-scope edits and return to
-`reassessment_required`; it must not begin another point-fix round.
+PASS. The cycle-2 review closes both prior blockers with zero actionable
+concerns. Execution may resume only under the complete reviewed task order and
+all stated stop conditions; any stop returns convergence to
+`reassessment_required` rather than authorizing a point fix.
