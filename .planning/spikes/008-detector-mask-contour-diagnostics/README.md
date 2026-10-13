@@ -43,6 +43,10 @@ cargo run --manifest-path .planning/spikes/008-detector-mask-contour-diagnostics
 Then open `/tmp/autographs-detector-diagnostics/index.html` locally. The command
 prints that path when it succeeds.
 
+Use `--compact` for a corpus handoff to a comparison spike. Compact mode keeps
+only source thumbnails and redacted component metrics, skipping diagnostic
+overlays and the three redundant Canny/Hough passes.
+
 ## What to Expect
 
 Each labelled input receives a source thumbnail, primary mask and overlay,

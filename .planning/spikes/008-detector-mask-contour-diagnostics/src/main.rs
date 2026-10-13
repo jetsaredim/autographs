@@ -81,10 +81,13 @@ struct Component {
 fn main() -> Result<(), String> {
     let mut args = env::args().skip(1);
     let mut output = None;
+    let mut compact = false;
     let mut inputs = Vec::new();
     while let Some(arg) = args.next() {
         if arg == "--output" {
             output = args.next().map(PathBuf::from);
+        } else if arg == "--compact" {
+            compact = true;
         } else if let Some((label, path)) = arg.split_once('=') {
             if label.is_empty()
                 || !label
@@ -108,7 +111,7 @@ fn main() -> Result<(), String> {
     let mut images = Vec::new();
     for (label, path) in inputs {
         events.push(event("input", format!("started {label}")));
-        images.push(analyze(&label, &path, &output)?);
+        images.push(analyze(&label, &path, &output, compact)?);
         events.push(event("input", format!("completed {label}")));
     }
     let report = Report {
@@ -127,7 +130,7 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn analyze(label: &str, path: &Path, output: &Path) -> Result<ImageReport, String> {
+fn analyze(label: &str, path: &Path, output: &Path, compact: bool) -> Result<ImageReport, String> {
     let bytes = fs::read(path).map_err(|error| format!("read {label}: {error}"))?;
     let decoded =
         image::load_from_memory(&bytes).map_err(|error| format!("decode {label}: {error}"))?;
@@ -145,13 +148,17 @@ fn analyze(label: &str, path: &Path, output: &Path) -> Result<ImageReport, Strin
     let primary = largest_component(width, height, &primary_foreground)
         .ok_or_else(|| format!("no primary component for {label}"))?;
     let primary_mask = component_mask(width, height, &primary.members);
-    primary_mask
-        .save(label_dir.join("primary-mask.png"))
-        .map_err(|error| format!("write primary mask: {error}"))?;
+    if !compact {
+        primary_mask
+            .save(label_dir.join("primary-mask.png"))
+            .map_err(|error| format!("write primary mask: {error}"))?;
+    }
     let primary_contour = largest_outer_contour(&primary_mask);
-    render_component_overlay(&source, &primary, &primary_contour)
-        .save(label_dir.join("primary-overlay.png"))
-        .map_err(|error| format!("write primary overlay: {error}"))?;
+    if !compact {
+        render_component_overlay(&source, &primary, &primary_contour)
+            .save(label_dir.join("primary-overlay.png"))
+            .map_err(|error| format!("write primary overlay: {error}"))?;
+    }
     let primary_metrics = component_metrics(width, height, &primary, &primary_contour);
 
     let mut probes = Vec::new();
@@ -183,12 +190,14 @@ fn analyze(label: &str, path: &Path, output: &Path) -> Result<ImageReport, Strin
         );
         let weak_mask = component_mask(width, height, &weak.members);
         let contour = largest_outer_contour(&weak_mask);
-        weak_mask
-            .save(label_dir.join(format!("threshold-{threshold}-mask.png")))
-            .map_err(|error| format!("write threshold mask: {error}"))?;
-        render_component_overlay(&source, &weak, &contour)
-            .save(label_dir.join(format!("threshold-{threshold}-overlay.png")))
-            .map_err(|error| format!("write threshold overlay: {error}"))?;
+        if !compact {
+            weak_mask
+                .save(label_dir.join(format!("threshold-{threshold}-mask.png")))
+                .map_err(|error| format!("write threshold mask: {error}"))?;
+            render_component_overlay(&source, &weak, &contour)
+                .save(label_dir.join(format!("threshold-{threshold}-overlay.png")))
+                .map_err(|error| format!("write threshold overlay: {error}"))?;
+        }
         let metrics = component_metrics(width, height, &weak, &contour);
         probes.push(ProbeMetrics {
             threshold,
@@ -205,29 +214,31 @@ fn analyze(label: &str, path: &Path, output: &Path) -> Result<ImageReport, Strin
         });
     }
 
-    let gray = DynamicImage::ImageRgb8(source.clone()).to_luma8();
     let mut edge_sets = Vec::new();
-    for (low, high) in [(10.0, 30.0), (20.0, 60.0), (40.0, 120.0)] {
-        let edges = canny(&gray, low, high);
-        let lines = detect_lines(
-            &edges,
-            LineDetectionOptions {
-                vote_threshold: width.min(height).max(1) / 3,
-                suppression_radius: 8,
-            },
-        );
-        edges
-            .save(label_dir.join(format!("canny-{low:.0}-{high:.0}.png")))
-            .map_err(|error| format!("write canny image: {error}"))?;
-        draw_polar_lines(&source, &lines, Rgb([255, 0, 255]))
-            .save(label_dir.join(format!("hough-{low:.0}-{high:.0}.png")))
-            .map_err(|error| format!("write hough image: {error}"))?;
-        edge_sets.push(EdgeMetrics {
-            low,
-            high,
-            edge_pixels: edges.pixels().filter(|pixel| pixel.0[0] != 0).count(),
-            hough_lines: lines.len(),
-        });
+    if !compact {
+        let gray = DynamicImage::ImageRgb8(source.clone()).to_luma8();
+        for (low, high) in [(10.0, 30.0), (20.0, 60.0), (40.0, 120.0)] {
+            let edges = canny(&gray, low, high);
+            let lines = detect_lines(
+                &edges,
+                LineDetectionOptions {
+                    vote_threshold: width.min(height).max(1) / 3,
+                    suppression_radius: 8,
+                },
+            );
+            edges
+                .save(label_dir.join(format!("canny-{low:.0}-{high:.0}.png")))
+                .map_err(|error| format!("write canny image: {error}"))?;
+            draw_polar_lines(&source, &lines, Rgb([255, 0, 255]))
+                .save(label_dir.join(format!("hough-{low:.0}-{high:.0}.png")))
+                .map_err(|error| format!("write hough image: {error}"))?;
+            edge_sets.push(EdgeMetrics {
+                low,
+                high,
+                edge_pixels: edges.pixels().filter(|pixel| pixel.0[0] != 0).count(),
+                hough_lines: lines.len(),
+            });
+        }
     }
 
     Ok(ImageReport {
