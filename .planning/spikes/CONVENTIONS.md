@@ -41,3 +41,17 @@ reuse, composition, or direct contract testing justifies a module constant.
 Performance cleanup requires a workload and baseline. Keep the separate CI
 semantic-check and release-image proofs; defer pooling, async rewrites, and base
 image changes until measurements show a material constraint.
+
+## Image Detector Exploration
+
+Keep private originals, rendered masks, overlays, and per-image evaluator output
+under `/tmp`; commit only reusable spike code and redacted aggregate findings.
+Freeze structural constants before exact-control and corpus evaluation. Require
+exact positive and negative controls before a full held-out screen, and visually
+inspect every proposed confidence result rather than treating counts as quality.
+
+For outer-boundary ambiguity, use local-gradient/Hough rectangle evidence as a
+conservative veto on an existing primary candidate. Do not promote the gradient
+rectangle to replacement corners without separate evidence. Border-median
+component contours are diagnostic/supporting evidence only when the weak mask
+has not flooded the frame.
