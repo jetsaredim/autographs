@@ -852,6 +852,21 @@ fn static_admin_css_keeps_hidden_sections_hidden() {
 }
 
 #[test]
+fn static_admin_disabled_affordance_targets_actual_readonly_inputs() {
+    let css = static_admin_file("admin.css");
+    assert!(
+        css.contains(
+            "button:disabled,\ninput[readonly] {\n  color: #626862;\n  cursor: not-allowed;\n}"
+        ),
+        "disabled affordance should target inputs with the readonly attribute"
+    );
+    assert!(
+        !css.contains("input:read-only"),
+        "enabled checkboxes and range controls must not receive read-only styling"
+    );
+}
+
+#[test]
 fn static_admin_taxonomy_styles_and_accessibility_states_are_present() {
     let source = static_admin_source();
     let css = static_admin_file("admin.css");

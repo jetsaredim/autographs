@@ -70,7 +70,7 @@ button {
 }
 
 button:disabled,
-input:read-only {
+input[readonly] {
   color: #626862;
   cursor: not-allowed;
 }
