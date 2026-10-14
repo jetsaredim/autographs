@@ -1,27 +1,22 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 276
-reviewed: 2026-10-14T10:23:36Z
-reviewed_head: ec7a6bd6796851329480845d8ff903ac1be5f184
+reviewed: 2026-10-14T23:00:25Z
+reviewed_head: c8e9fa3867c2a063c5ba67c8d1cf3121d7d5272d
 depth: deep
-review_round: final-status
-files_reviewed: 9
+review_round: post-fix-final
+files_reviewed: 4
 files_reviewed_list:
-  - controller/src/image_adjustments.rs
-  - controller/src/routes.rs
   - controller/static-admin/index.html
   - controller/static-admin/admin.css
   - controller/static-admin/admin.js
-  - controller/tests/image_adjustments.rs
-  - controller/tests/admin_workflow.rs
   - controller/tests/static_admin.rs
-  - controller/tests/static_admin_behavior.mjs
 findings:
   critical: 0
-  warning: 1
+  warning: 0
   info: 1
-  total: 2
-status: issues_found
+  total: 1
+status: clean
 convergence:
   status: clear
   recurring_critical_warning: 0
@@ -32,121 +27,92 @@ convergence:
   backlog_issue: https://github.com/jetsaredim/autographs/issues/277
 ---
 
-# Phase 08: PR #276 Final Deep Code Review
+# Phase 08: PR #276 Post-Fix Final Code Review
 
-**Reviewed:** 2026-10-14T10:23:36Z
-**Reviewed commit:** `ec7a6bd6796851329480845d8ff903ac1be5f184`
+**Reviewed:** 2026-10-14T23:00:25Z
+**Reviewed commit:** `c8e9fa3867c2a063c5ba67c8d1cf3121d7d5272d`
 **PR base:** `origin/main`
-**Depth:** deep
-**Status:** issues found — one Warning; one accepted Info-level limitation
+**Depth:** deep, focused post-fix verification
+**Status:** clean — no actionable findings; one accepted Info-level limitation
 
 ## Summary
 
-The detector, route, and browser authority boundaries are coherent at the
-current head. The gradient/Hough search is bounded, its candidate corners are
-veto-only, the route rechecks `mediaRevision`, and auto-detect changes only the
-current unsaved draft. Saving and publishing remain separate explicit actions.
-The review-state reset, rule-of-thirds grid, projected edge segments, current
-corner focus, stale-response guards, and no-op detection outcome are covered by
-the deterministic DOM harness and focused integration tests.
+WR-02 is fully fixed at the current head. Commit `85a6434` replaces the broad
+`input:read-only` selector with `input[readonly]`. The prohibited cursor and
+muted color therefore apply only to the two markup inputs that actually carry
+the `readonly` attribute (`item-id` and `publication-note`) plus disabled
+buttons. The Grid, Centerline, and Edges checkboxes and the enabled rotation,
+zoom, and pan controls carry neither `readonly` nor a matching selector, so
+they retain their interactive cursor.
 
-The test rename at `ec7a6bd` is truthful: the committed fixture and test now
-describe a filled slab, and neither claims to cover the deferred one-pixel
-sparse outline. The thin-outline behavior is accurately preserved as an
-accepted Info-level limitation in issue #277 and in the superseding disposition
-at the top of the detector assumptions and revised plan.
+The regression assertion is appropriately scoped to this contract: it requires
+the combined `button:disabled` / `input[readonly]` affordance rule and rejects
+any reintroduction of `input:read-only`. The existing markup and DOM behavior
+checks cover the direct producers and consumers: readonly field markup, overlay
+and adjustment control markup, JavaScript enable/disable ownership, and review
+control event handling. No sibling prohibited-cursor path remains in the
+review controls.
 
-One actionable UI defect remains. The global CSS applies disabled styling to
-every checkbox and range input through `input:read-only`, so enabled overlay
-checkboxes still display a `not-allowed` cursor. This directly reproduces the
-misleading cursor reported during image-review UAT and is not covered by the
-current static overlay tests.
+No actionable Critical, Warning, or Info findings remain. The thin sparse
+outline detector behavior remains an explicitly accepted Info-level limitation
+deferred to issue #277; this review does not reopen it or claim it is fixed.
 
-## Narrative Findings (AI reviewer)
+## Resolved finding
 
-## Warnings
+### WR-02: Enabled overlay controls received the disabled cursor — fixed
 
-### WR-02: Enabled overlay checkboxes receive the disabled cursor
-
-**File:** `controller/static-admin/admin.css:72-75`
+**Files:** `controller/static-admin/admin.css`,
+`controller/static-admin/index.html`, `controller/static-admin/admin.js`,
+`controller/tests/static_admin.rs`
 **Finding family:** `overlay_control_affordance`
-**Lineage:** `independent`
+**Lineage:** `independent, fixed by 85a6434`
 **Shared invariant:** An enabled interactive review control must present an
-interactive affordance; disabled/read-only styling must apply only to controls
+interactive affordance; disabled/read-only styling applies only to controls
 that are actually unavailable.
-**Consumers inspected:** overlay checkbox markup in
-`controller/static-admin/index.html`; `syncReviewDirtyState` enable/disable
-ownership; overlay `change` handlers and state synchronization in `admin.js`;
-the CSS overlay and form-control rules; static source checks and the DOM behavior
-harness.
-**Evidence level:** `source_only`
+**Evidence level:** `source_and_test`
 
-**Issue:** The selector `input:read-only` matches inputs for which the HTML
-`readonly` attribute is not applicable, including `checkbox` and `range`.
-Consequently the Grid, Centerline, and Edges checkboxes match this rule even
-when enabled and clickable, receiving `cursor: not-allowed` and muted text
-color. This explains the prohibited cursor observed during UAT while the
-checkboxes still toggle normally. The same rule also affects enabled review
-sliders.
+The selector now targets the literal HTML attribute. The only matching inputs
+are the intended readonly item ID and publication-note fields. Overlay
+checkboxes and adjustment ranges remain enabled except while the JavaScript
+review mutation/drag guard explicitly sets `disabled`; the CSS rule does not
+misclassify their ordinary enabled state. The focused regression test passes.
 
-**Fix:** Target the actual attribute instead of the broad pseudo-class and bind
-the behavior in the static CSS contract:
+## Accepted Info-level limitation
 
-```css
-button:disabled,
-input[readonly] {
-  color: #626862;
-  cursor: not-allowed;
-}
-```
+### IN-01: Thin sparse enclosure remains deferred to #277
 
-Add a focused assertion that the stylesheet uses `input[readonly]` and does
-not reintroduce `input:read-only` for this disabled affordance.
+A one-pixel, 14-luma-level enclosing outline can remain below the frozen Canny
+threshold and allow the internal primary to be reported as `Confident`. This is
+not an actionable PR finding under the explicit Phase 8 product-scope decision:
+auto-detect is advisory, changes only the unsaved draft, requires explicit
+Save, retains the manual four-corner editor, and the morphology was absent from
+the 116-image corpus. GitHub issue #277 retains the exact reproduction and
+future acceptance gates.
 
-## Info
-
-### IN-01: Thin sparse enclosure remains an explicitly accepted limitation
-
-**File:** `controller/src/image_adjustments.rs:22-23`
-**Issue:** A one-pixel, 14-luma-level enclosing outline can remain below the
-frozen Canny threshold and allow the internal primary to be reported as
-`Confident`. This is not an actionable PR finding under the operator's explicit
-Phase 8 scope decision: auto-detect is advisory, applies only to the unsaved
-draft, requires explicit Save, retains the manual four-corner editor, and the
-morphology was absent from the 116-image corpus. The exact reproduction and
-future acceptance gates remain open in GitHub issue #277.
-**Fix:** Deferred to #277; do not tune a detector threshold in this PR.
-
-## Invariant and failure-path audit
+## Producer/consumer verification
 
 | Boundary | Evidence | Assessment |
 | --- | --- | --- |
-| Detector producer | Adaptive border/component primary plus bounded Canny/Hough ambiguity veto | Gradient corners never become output; 12 lines per axis cap pairing at 4,356 candidates. |
-| API authority | Authenticated assist route, private media read, initial and terminal `mediaRevision` checks | Stale or replaced media cannot authoritatively return a proposal. |
-| Browser authority | Session, draft, assist, mutation, and drag revisions | Only a current four-corner `confident` response changes the unsaved draft. |
-| Persistence/publish | Separate Save and publish actions with dirty-state gates | Detect alone neither persists nor publishes. |
-| Cross-item state | `beginReviewSession`, `clearImageReviewState`, per-open overlay defaults, control synchronization | Grid resets off and Edges resets on for each image; stale async responses are rejected. |
-| Overlay geometry | Source-image object-fit bounds, four rule-of-thirds lines, current-corner edge segments | Overlay geometry is source-space aligned and updates during manual corner movement. |
-| Failure/recovery | Abort/revision checks, preview retry, media-conflict exclusive recovery | Late completions and conflict refreshes do not mutate a newer review authority. |
-| Accepted detector gap | Exact reproduction and acceptance gates in #277 | Accurately documented and deferred, not claimed as fixed by the renamed filled-slab test. |
+| CSS producer | `button:disabled, input[readonly]` | Prohibited cursor is limited to disabled buttons and literal readonly inputs. |
+| Readonly markup | `item-id` and `publication-note` carry `readonly` | Intended readonly styling remains active. |
+| Overlay markup | Three checkbox inputs have `data-review-overlay` and no `readonly` | Enabled overlays do not match the prohibited-cursor rule. |
+| Adjustment markup | Rotation, zoom, and pan ranges have `data-adjustment-field` and no `readonly` | Enabled sliders do not match the prohibited-cursor rule. |
+| Runtime ownership | `syncReviewDirtyState` toggles `disabled` during mutation/drag; event handlers retain ordinary interaction | Runtime state and styling remain coherent. |
+| Regression contract | Static test requires `input[readonly]` and rejects `input:read-only` | The reported regression is directly bound without broad unrelated assertions. |
 
 ## Verification
 
-- `cargo test --manifest-path controller/Cargo.toml --all-features` — passed:
-  253 tests passed; 2 credentialed live tests ignored by contract.
-- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments --test static_admin -- --nocapture`
-  — passed: 17 detector tests and 19 static-admin tests.
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin -- --nocapture`
+  — passed: 20 tests, 0 failed.
 - `node controller/tests/static_admin_behavior.mjs` — passed.
 - `node --check controller/static-admin/admin.js` — passed.
-- `cargo check --manifest-path controller/Cargo.toml --features production-persistence`
-  — passed.
-- `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings`
-  — passed.
+- `node --check controller/tests/static_admin_behavior.mjs` — passed.
 - `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
+- Focused selector/markup scan — passed: no `input:read-only`; exactly two
+  intended inputs carry `readonly`; overlay checkboxes and adjustment ranges do
+  not.
 - Changed-source `git diff --check` — passed.
-- PR #276 required checks — all nine reported checks passed at `ec7a6bd`.
-- PR review threads — all three are resolved; #277 remains open as accepted
-  backlog scope.
+- PR #276 head matches `c8e9fa3`; all nine reported CI checks passed.
 
 ## Changed Paths
 
@@ -156,6 +122,6 @@ No production or test source was modified by this review.
 
 ---
 
-_Reviewed: 2026-10-14T10:23:36Z_
+_Reviewed: 2026-10-14T23:00:25Z_
 _Reviewer: Codex (gsd-code-reviewer)_
 _Depth: deep_
