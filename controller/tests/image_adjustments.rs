@@ -182,7 +182,7 @@ fn auto_assist_finds_dark_card_against_light_background() {
 
 #[test]
 fn auto_assist_abstains_when_low_contrast_card_encloses_dark_content() {
-    let source = bordered_card_with_internal_content_fixture([224, 224, 224]);
+    let source = low_contrast_physical_slab_fixture();
     let proposal = propose_image_adjustment(&source).unwrap();
 
     assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Unavailable);
@@ -192,6 +192,15 @@ fn auto_assist_abstains_when_low_contrast_card_encloses_dark_content() {
 #[test]
 fn auto_assist_abstains_when_low_contrast_skewed_slab_encloses_dark_content() {
     let source = low_contrast_skewed_slab_fixture();
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Unavailable);
+    assert!(proposal.corners.is_empty());
+}
+
+#[test]
+fn auto_assist_abstains_when_gradient_rectangle_encloses_stable_internal_primary() {
+    let source = low_contrast_physical_slab_fixture();
     let proposal = propose_image_adjustment(&source).unwrap();
 
     assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Unavailable);
@@ -225,6 +234,21 @@ fn auto_assist_keeps_outer_card_when_its_border_has_reliable_contrast() {
     assert_detected_corners_near(
         &proposal.corners,
         &[(18, 10), (161, 10), (161, 129), (18, 129)],
+        180,
+        140,
+        0.025,
+    );
+}
+
+#[test]
+fn auto_assist_keeps_accurate_primary_when_hough_lines_lack_localized_coherent_contrast() {
+    let source = hough_rich_accurate_card_fixture();
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Confident);
+    assert_detected_corners_near(
+        &proposal.corners,
+        &[(35, 30), (144, 30), (144, 109), (35, 109)],
         180,
         140,
         0.025,
@@ -332,30 +356,43 @@ fn bordered_card_with_internal_content_fixture(card_color: [u8; 3]) -> Vec<u8> {
     encode_png(image)
 }
 
+fn low_contrast_physical_slab_fixture() -> Vec<u8> {
+    let mut image = RgbaImage::new(180, 140);
+    for pixel in image.pixels_mut() {
+        *pixel = Rgba([242, 242, 242, 255]);
+    }
+    for y in 10..130 {
+        for x in 18..162 {
+            image.put_pixel(x, y, Rgba([210, 210, 210, 255]));
+        }
+    }
+    for y in 30..110 {
+        for x in 44..136 {
+            image.put_pixel(x, y, Rgba([28, 32, 36, 255]));
+        }
+    }
+    add_adaptive_threshold_border_noise(&mut image);
+    encode_png(image)
+}
+
 fn low_contrast_skewed_slab_fixture() -> Vec<u8> {
     let mut image = RgbaImage::new(180, 140);
     for pixel in image.pixels_mut() {
         *pixel = Rgba([242, 242, 242, 255]);
     }
-    for y in 8..132 {
-        let left = 18i32 - ((y as i32 - 8) / 31);
-        let right = 163i32 + ((y as i32 - 8) / 41);
-        for x in left..right {
-            image.put_pixel(x as u32, y, Rgba([230, 232, 234, 255]));
+    for y in 10..130 {
+        let shift = (((y - 10) as f32) * 0.08).round() as u32;
+        for x in 12 + shift..156 + shift {
+            image.put_pixel(x, y, Rgba([210, 210, 210, 255]));
         }
     }
-    for y in 34..116 {
-        let left = 42i32 - ((y as i32 - 34) / 27);
-        let right = 139i32 + ((y as i32 - 34) / 34);
-        for x in left..right {
-            image.put_pixel(x as u32, y, Rgba([34, 38, 42, 255]));
+    for y in 35..105 {
+        let shift = (((y - 35) as f32) * 0.08).round() as u32;
+        for x in 45 + shift..135 + shift {
+            image.put_pixel(x, y, Rgba([28, 32, 36, 255]));
         }
     }
-    for y in 15..29 {
-        for x in 55..127 {
-            image.put_pixel(x, y, Rgba([72, 76, 80, 255]));
-        }
-    }
+    add_adaptive_threshold_border_noise(&mut image);
     encode_png(image)
 }
 
@@ -366,7 +403,7 @@ fn noisy_border_low_contrast_card_fixture() -> Vec<u8> {
     }
     for y in 10..130 {
         for x in 18..162 {
-            image.put_pixel(x, y, Rgba([220, 220, 220, 255]));
+            image.put_pixel(x, y, Rgba([210, 210, 210, 255]));
         }
     }
     for y in 30..110 {
@@ -391,23 +428,51 @@ fn sparse_weak_outer_boundary_fixture() -> Vec<u8> {
         *pixel = Rgba([242, 242, 242, 255]);
     }
 
-    let weak_boundary = Rgba([228, 228, 228, 255]);
-    for x in 18..162 {
-        image.put_pixel(x, 10, weak_boundary);
-        image.put_pixel(x, 129, weak_boundary);
-    }
     for y in 10..130 {
-        image.put_pixel(18, y, weak_boundary);
-        image.put_pixel(161, y, weak_boundary);
-    }
-    for y in 11..40 {
-        image.put_pixel(90, y, weak_boundary);
+        for x in 18..162 {
+            image.put_pixel(x, y, Rgba([210, 210, 210, 255]));
+        }
     }
 
     for y in 40..100 {
         for x in 50..130 {
             image.put_pixel(x, y, Rgba([28, 32, 36, 255]));
         }
+    }
+    add_adaptive_threshold_border_noise(&mut image);
+    encode_png(image)
+}
+
+fn add_adaptive_threshold_border_noise(image: &mut RgbaImage) {
+    for x in (0..image.width()).step_by(4) {
+        image.put_pixel(x, 0, Rgba([176, 176, 176, 255]));
+        image.put_pixel(x, image.height() - 1, Rgba([176, 176, 176, 255]));
+    }
+    for y in (1..image.height() - 1).step_by(4) {
+        image.put_pixel(0, y, Rgba([176, 176, 176, 255]));
+        image.put_pixel(image.width() - 1, y, Rgba([176, 176, 176, 255]));
+    }
+}
+
+fn hough_rich_accurate_card_fixture() -> Vec<u8> {
+    let mut image = RgbaImage::new(180, 140);
+    for pixel in image.pixels_mut() {
+        *pixel = Rgba([238, 238, 238, 255]);
+    }
+    for y in 30..110 {
+        for x in 35..145 {
+            image.put_pixel(x, y, Rgba([40, 44, 48, 255]));
+        }
+    }
+    for x in 10..170 {
+        let color = if (x / 8) % 2 == 0 { 80 } else { 250 };
+        image.put_pixel(x, 8, Rgba([color, color, color, 255]));
+        image.put_pixel(x, 131, Rgba([color, color, color, 255]));
+    }
+    for y in 8..132 {
+        let color = if (y / 8) % 2 == 0 { 80 } else { 250 };
+        image.put_pixel(10, y, Rgba([color, color, color, 255]));
+        image.put_pixel(169, y, Rgba([color, color, color, 255]));
     }
     encode_png(image)
 }

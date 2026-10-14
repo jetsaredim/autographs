@@ -1,9 +1,13 @@
-use image::{DynamicImage, Rgba, RgbaImage, imageops};
+use image::{DynamicImage, GrayImage, Rgba, RgbaImage, imageops};
 use imageproc::geometric_transformations::{
     Border, Interpolation, Projection, rotate_about_center, warp,
 };
+use imageproc::{
+    edges::canny,
+    hough::{LineDetectionOptions, PolarLine, detect_lines, intersection_points},
+};
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use std::{cmp::Ordering, collections::VecDeque};
 
 use crate::derivatives::{DerivativeVariant, GeneratedDerivative};
 
@@ -19,9 +23,18 @@ const AUTO_CORRECTION_MIN_COMPONENT_RATIO: f32 = 0.01;
 const AUTO_CORRECTION_MIN_QUAD_AREA_RATIO: f32 = 0.15;
 const AUTO_CORRECTION_MAX_QUAD_AREA_RATIO: f32 = 0.985;
 const AUTO_CORRECTION_IDENTITY_TOLERANCE: f32 = 0.025;
-const AUTO_CORRECTION_MIN_STABILITY_THRESHOLD: u32 = 8;
-const AUTO_CORRECTION_MAX_STABLE_COMPONENT_GROWTH: f32 = 1.25;
-const AUTO_CORRECTION_MAX_STABLE_AREA_GROWTH: f32 = 0.05;
+const GRADIENT_EDGE_LOW: f32 = 20.0;
+const GRADIENT_EDGE_HIGH: f32 = 60.0;
+const GRADIENT_EDGE_CORRIDOR: i32 = 2;
+const GRADIENT_MAX_LINES_PER_AXIS: usize = 12;
+const GRADIENT_MIN_LINE_SUPPORT: f32 = 0.25;
+const GRADIENT_MAX_LINE_GAP: f32 = 0.55;
+const GRADIENT_MIN_PAIR_SPAN: f32 = 0.50;
+const GRADIENT_MIN_MATERIAL_AREA_GROWTH: f32 = 0.05;
+const GRADIENT_MIN_SIDE_SUPPORT: f32 = 0.35;
+const GRADIENT_MAX_SIDE_GAP: f32 = 0.40;
+const GRADIENT_MIN_SIDE_CONTRAST: f32 = 5.0;
+const GRADIENT_MIN_SIGN_COHERENCE: f32 = 0.60;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -256,7 +269,7 @@ pub fn propose_image_adjustment(source: &[u8]) -> Result<ImageAdjustmentProposal
     {
         return Ok(unavailable_proposal());
     }
-    if !component_boundary_is_stable(&image, background, threshold, &component, area_ratio) {
+    if has_materially_larger_gradient_boundary(&image, area_ratio) {
         return Ok(unavailable_proposal());
     }
     if corners_are_near_full_frame(normalized_corners) {
@@ -363,7 +376,6 @@ fn largest_contrast_component(
 }
 
 struct ContrastComponent {
-    anchor: usize,
     count: usize,
     corners: [(u32, u32); 4],
 }
@@ -416,59 +428,337 @@ fn trace_contrast_component(
         }
     }
 
-    ContrastComponent {
-        anchor: start,
-        count,
-        corners,
+    ContrastComponent { count, corners }
+}
+
+#[derive(Clone, Copy)]
+struct GradientPoint {
+    x: f32,
+    y: f32,
+}
+
+#[derive(Clone)]
+struct GradientAxisLine {
+    line: PolarLine,
+    position: f32,
+    support: f32,
+    longest_gap: f32,
+}
+
+struct GradientSideEvidence {
+    support: f32,
+    longest_gap: f32,
+    mean_contrast: f32,
+    sign_coherence: f32,
+}
+
+fn has_materially_larger_gradient_boundary(
+    image: &image::RgbImage,
+    primary_area_ratio: f32,
+) -> bool {
+    let gray = DynamicImage::ImageRgb8(image.clone()).to_luma8();
+    let edges = canny(&gray, GRADIENT_EDGE_LOW, GRADIENT_EDGE_HIGH);
+    let lines = detect_lines(
+        &edges,
+        LineDetectionOptions {
+            vote_threshold: image.width().min(image.height()).max(1) / 3,
+            suppression_radius: 8,
+        },
+    );
+    let vertical = select_gradient_axis_lines(&edges, &lines, true);
+    let horizontal = select_gradient_axis_lines(&edges, &lines, false);
+    debug_assert!(vertical.len() <= GRADIENT_MAX_LINES_PER_AXIS);
+    debug_assert!(horizontal.len() <= GRADIENT_MAX_LINES_PER_AXIS);
+    let mut combinations = 0usize;
+    let mut best_candidate = None::<(usize, f32)>;
+    for left_index in 0..vertical.len() {
+        for right_index in left_index + 1..vertical.len() {
+            let left = &vertical[left_index];
+            let right = &vertical[right_index];
+            if (right.position - left.position) / (image.width().max(1) as f32)
+                < GRADIENT_MIN_PAIR_SPAN
+            {
+                continue;
+            }
+            for top_index in 0..horizontal.len() {
+                for bottom_index in top_index + 1..horizontal.len() {
+                    combinations += 1;
+                    debug_assert!(combinations <= 4_356);
+                    let top = &horizontal[top_index];
+                    let bottom = &horizontal[bottom_index];
+                    if (bottom.position - top.position) / (image.height().max(1) as f32)
+                        < GRADIENT_MIN_PAIR_SPAN
+                    {
+                        continue;
+                    }
+                    let Some(corners) = gradient_quad_intersections(left, right, top, bottom)
+                    else {
+                        continue;
+                    };
+                    if !gradient_candidate_corners_in_bounds(corners, image.width(), image.height())
+                    {
+                        continue;
+                    }
+                    let area_ratio = gradient_polygon_area(corners)
+                        / (image.width().max(1) * image.height().max(1)) as f32;
+                    if area_ratio
+                        <= (primary_area_ratio + GRADIENT_MIN_MATERIAL_AREA_GROWTH).max(0.50)
+                    {
+                        continue;
+                    }
+                    let center = GradientPoint {
+                        x: corners.iter().map(|point| point.x).sum::<f32>() / 4.0,
+                        y: corners.iter().map(|point| point.y).sum::<f32>() / 4.0,
+                    };
+                    let sides = [
+                        gradient_side_evidence(&gray, &edges, corners[0], corners[1], center),
+                        gradient_side_evidence(&gray, &edges, corners[1], corners[2], center),
+                        gradient_side_evidence(&gray, &edges, corners[2], corners[3], center),
+                        gradient_side_evidence(&gray, &edges, corners[3], corners[0], center),
+                    ];
+                    let valid_sides = sides
+                        .iter()
+                        .filter(|side| {
+                            side.support >= GRADIENT_MIN_SIDE_SUPPORT
+                                && side.longest_gap <= GRADIENT_MAX_SIDE_GAP
+                                && side.mean_contrast >= GRADIENT_MIN_SIDE_CONTRAST
+                                && side.sign_coherence >= GRADIENT_MIN_SIGN_COHERENCE
+                        })
+                        .count();
+                    let score = area_ratio * sides.iter().map(|side| side.support).sum::<f32>()
+                        / 4.0
+                        * (valid_sides as f32 / 4.0);
+                    if best_candidate.is_none_or(|(best_sides, best_score)| {
+                        valid_sides > best_sides
+                            || (valid_sides == best_sides && score > best_score)
+                    }) {
+                        best_candidate = Some((valid_sides, score));
+                    }
+                }
+            }
+        }
+    }
+    best_candidate.is_some_and(|(valid_sides, _)| valid_sides >= 3)
+}
+
+fn select_gradient_axis_lines(
+    edges: &GrayImage,
+    lines: &[PolarLine],
+    vertical: bool,
+) -> Vec<GradientAxisLine> {
+    let (width, height) = edges.dimensions();
+    let mut selected = lines
+        .iter()
+        .filter(|line| {
+            if vertical {
+                line.angle_in_degrees <= 15 || line.angle_in_degrees >= 165
+            } else {
+                (75..=105).contains(&line.angle_in_degrees)
+            }
+        })
+        .filter_map(|line| {
+            let position = if vertical {
+                gradient_line_position_at_y(*line, height as f32 / 2.0)
+            } else {
+                gradient_line_position_at_x(*line, width as f32 / 2.0)
+            }?;
+            let (support, longest_gap) = gradient_full_line_support(edges, *line)?;
+            (support >= GRADIENT_MIN_LINE_SUPPORT && longest_gap <= GRADIENT_MAX_LINE_GAP)
+                .then_some(GradientAxisLine {
+                    line: *line,
+                    position,
+                    support,
+                    longest_gap,
+                })
+        })
+        .collect::<Vec<_>>();
+    selected.sort_by(|left, right| {
+        let left_score = left.support - left.longest_gap * 0.25;
+        let right_score = right.support - right.longest_gap * 0.25;
+        right_score
+            .partial_cmp(&left_score)
+            .unwrap_or(Ordering::Equal)
+    });
+    selected.truncate(GRADIENT_MAX_LINES_PER_AXIS);
+    selected.sort_by(|left, right| {
+        left.position
+            .partial_cmp(&right.position)
+            .unwrap_or(Ordering::Equal)
+    });
+    selected
+}
+
+fn gradient_full_line_support(edges: &GrayImage, line: PolarLine) -> Option<(f32, f32)> {
+    let (start, end) = intersection_points(line, edges.width(), edges.height())?;
+    gradient_sample_edge_support(
+        edges,
+        GradientPoint {
+            x: start.0,
+            y: start.1,
+        },
+        GradientPoint { x: end.0, y: end.1 },
+    )
+}
+
+fn gradient_quad_intersections(
+    left: &GradientAxisLine,
+    right: &GradientAxisLine,
+    top: &GradientAxisLine,
+    bottom: &GradientAxisLine,
+) -> Option<[GradientPoint; 4]> {
+    Some([
+        gradient_intersection(left.line, top.line)?,
+        gradient_intersection(right.line, top.line)?,
+        gradient_intersection(right.line, bottom.line)?,
+        gradient_intersection(left.line, bottom.line)?,
+    ])
+}
+
+fn gradient_intersection(left: PolarLine, right: PolarLine) -> Option<GradientPoint> {
+    let left_angle = (left.angle_in_degrees as f32).to_radians();
+    let right_angle = (right.angle_in_degrees as f32).to_radians();
+    let (left_sin, left_cos) = left_angle.sin_cos();
+    let (right_sin, right_cos) = right_angle.sin_cos();
+    let determinant = left_cos * right_sin - right_cos * left_sin;
+    if determinant.abs() < 0.0001 {
+        return None;
+    }
+    Some(GradientPoint {
+        x: (left.r * right_sin - right.r * left_sin) / determinant,
+        y: (left_cos * right.r - right_cos * left.r) / determinant,
+    })
+}
+
+fn gradient_line_position_at_y(line: PolarLine, y: f32) -> Option<f32> {
+    let angle = (line.angle_in_degrees as f32).to_radians();
+    let (sin, cos) = angle.sin_cos();
+    (cos.abs() > 0.0001).then_some((line.r - y * sin) / cos)
+}
+
+fn gradient_line_position_at_x(line: PolarLine, x: f32) -> Option<f32> {
+    let angle = (line.angle_in_degrees as f32).to_radians();
+    let (sin, cos) = angle.sin_cos();
+    (sin.abs() > 0.0001).then_some((line.r - x * cos) / sin)
+}
+
+fn gradient_candidate_corners_in_bounds(
+    corners: [GradientPoint; 4],
+    width: u32,
+    height: u32,
+) -> bool {
+    corners.iter().all(|point| {
+        point.x >= -4.0
+            && point.y >= -4.0
+            && point.x <= width as f32 + 4.0
+            && point.y <= height as f32 + 4.0
+    })
+}
+
+fn gradient_polygon_area(corners: [GradientPoint; 4]) -> f32 {
+    corners
+        .iter()
+        .zip(corners.iter().cycle().skip(1))
+        .take(4)
+        .map(|(left, right)| left.x * right.y - right.x * left.y)
+        .sum::<f32>()
+        .abs()
+        / 2.0
+}
+
+fn gradient_sample_edge_support(
+    edges: &GrayImage,
+    start: GradientPoint,
+    end: GradientPoint,
+) -> Option<(f32, f32)> {
+    let length = (end.x - start.x).hypot(end.y - start.y);
+    let samples = length.ceil() as usize + 1;
+    if samples < 2 {
+        return None;
+    }
+    let mut supported = 0usize;
+    let mut current_gap = 0usize;
+    let mut longest_gap = 0usize;
+    for index in 0..samples {
+        let fraction = index as f32 / (samples - 1) as f32;
+        let x = start.x + (end.x - start.x) * fraction;
+        let y = start.y + (end.y - start.y) * fraction;
+        if gradient_edge_near(edges, x.round() as i32, y.round() as i32) {
+            supported += 1;
+            current_gap = 0;
+        } else {
+            current_gap += 1;
+            longest_gap = longest_gap.max(current_gap);
+        }
+    }
+    Some((
+        supported as f32 / samples as f32,
+        longest_gap as f32 / samples as f32,
+    ))
+}
+
+fn gradient_edge_near(edges: &GrayImage, x: i32, y: i32) -> bool {
+    (-GRADIENT_EDGE_CORRIDOR..=GRADIENT_EDGE_CORRIDOR).any(|offset_y| {
+        (-GRADIENT_EDGE_CORRIDOR..=GRADIENT_EDGE_CORRIDOR).any(|offset_x| {
+            let sample_x = x + offset_x;
+            let sample_y = y + offset_y;
+            sample_x >= 0
+                && sample_y >= 0
+                && sample_x < edges.width() as i32
+                && sample_y < edges.height() as i32
+                && edges.get_pixel(sample_x as u32, sample_y as u32).0[0] != 0
+        })
+    })
+}
+
+fn gradient_side_evidence(
+    gray: &GrayImage,
+    edges: &GrayImage,
+    start: GradientPoint,
+    end: GradientPoint,
+    center: GradientPoint,
+) -> GradientSideEvidence {
+    let (support, longest_gap) =
+        gradient_sample_edge_support(edges, start, end).unwrap_or((0.0, 1.0));
+    let length = (end.x - start.x).hypot(end.y - start.y);
+    let samples = length.ceil() as usize + 1;
+    let middle = GradientPoint {
+        x: (start.x + end.x) / 2.0,
+        y: (start.y + end.y) / 2.0,
+    };
+    let toward_x = center.x - middle.x;
+    let toward_y = center.y - middle.y;
+    let toward_length = toward_x.hypot(toward_y).max(0.001);
+    let normal_x = toward_x / toward_length;
+    let normal_y = toward_y / toward_length;
+    let mut differences = Vec::new();
+    for index in 0..samples {
+        let fraction = index as f32 / (samples - 1).max(1) as f32;
+        let x = start.x + (end.x - start.x) * fraction;
+        let y = start.y + (end.y - start.y) * fraction;
+        let inside = gradient_sample_gray(gray, x + normal_x * 4.0, y + normal_y * 4.0);
+        let outside = gradient_sample_gray(gray, x - normal_x * 4.0, y - normal_y * 4.0);
+        if let (Some(inside), Some(outside)) = (inside, outside) {
+            differences.push(inside - outside);
+        }
+    }
+    let mean_contrast =
+        differences.iter().map(|value| value.abs()).sum::<f32>() / differences.len().max(1) as f32;
+    let positive = differences.iter().filter(|value| **value >= 0.0).count();
+    let negative = differences.len().saturating_sub(positive);
+    let sign_coherence = positive.max(negative) as f32 / differences.len().max(1) as f32;
+    GradientSideEvidence {
+        support,
+        longest_gap,
+        mean_contrast,
+        sign_coherence,
     }
 }
 
-fn component_boundary_is_stable(
-    image: &image::RgbImage,
-    background: [u8; 3],
-    threshold: u32,
-    component: &ContrastComponent,
-    area_ratio: f32,
-) -> bool {
-    let (width, height) = image.dimensions();
-    let mut previous_threshold = threshold;
-    for weak_threshold in [
-        threshold.saturating_mul(3) / 4,
-        threshold / 2,
-        threshold / 3,
-        AUTO_CORRECTION_MIN_COLOR_DISTANCE,
-        AUTO_CORRECTION_MIN_COLOR_DISTANCE / 2,
-        AUTO_CORRECTION_MIN_STABILITY_THRESHOLD,
-    ]
-    .map(|value| value.max(AUTO_CORRECTION_MIN_STABILITY_THRESHOLD))
-    {
-        if weak_threshold >= previous_threshold {
-            continue;
-        }
-        previous_threshold = weak_threshold;
-        let foreground = image
-            .pixels()
-            .map(|pixel| color_distance(pixel.0, background) >= weak_threshold)
-            .collect::<Vec<_>>();
-        if !foreground[component.anchor] {
-            return false;
-        }
-        let mut visited = vec![false; foreground.len()];
-        let weak_component =
-            trace_contrast_component(component.anchor, width, height, &foreground, &mut visited);
-        let weak_area_ratio = quadrilateral_area_ratio(
-            weak_component
-                .corners
-                .map(|(x, y)| normalized_point(x, y, width, height)),
-        );
-        let population_growth = weak_component.count as f32 / component.count.max(1) as f32;
-        if population_growth > AUTO_CORRECTION_MAX_STABLE_COMPONENT_GROWTH
-            || weak_area_ratio - area_ratio > AUTO_CORRECTION_MAX_STABLE_AREA_GROWTH
-        {
-            return false;
-        }
-    }
-    true
+fn gradient_sample_gray(gray: &GrayImage, x: f32, y: f32) -> Option<f32> {
+    let x = x.round() as i32;
+    let y = y.round() as i32;
+    (x >= 0 && y >= 0 && x < gray.width() as i32 && y < gray.height() as i32)
+        .then(|| gray.get_pixel(x as u32, y as u32).0[0] as f32)
 }
 
 fn quadrilateral_area_ratio(corners: [ImagePoint; 4]) -> f32 {
@@ -599,5 +889,48 @@ fn not_needed_proposal() -> ImageAdjustmentProposal {
         status: ImageAdjustmentProposalStatus::NotNeeded,
         corners: Vec::new(),
         message: Some(AUTO_CORRECTION_NOT_NEEDED_MESSAGE.to_owned()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GradientPoint, gradient_candidate_corners_in_bounds};
+
+    #[test]
+    fn gradient_candidate_bounds_match_imageproc_geometric_coordinates() {
+        let width = 120;
+        let height = 90;
+        let corners = |x, y| [GradientPoint { x, y }; 4];
+
+        assert!(gradient_candidate_corners_in_bounds(
+            corners(-4.0, -4.0),
+            width,
+            height
+        ));
+        assert!(gradient_candidate_corners_in_bounds(
+            corners(width as f32, height as f32),
+            width,
+            height
+        ));
+        assert!(gradient_candidate_corners_in_bounds(
+            corners(width as f32 + 4.0, height as f32 + 4.0),
+            width,
+            height
+        ));
+        assert!(!gradient_candidate_corners_in_bounds(
+            corners(-4.001, 0.0),
+            width,
+            height
+        ));
+        assert!(!gradient_candidate_corners_in_bounds(
+            corners(width as f32 + 4.001, 0.0),
+            width,
+            height
+        ));
+        assert!(!gradient_candidate_corners_in_bounds(
+            corners(0.0, height as f32 + 4.001),
+            width,
+            height
+        ));
     }
 }
