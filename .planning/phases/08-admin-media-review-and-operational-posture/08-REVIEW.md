@@ -1,343 +1,235 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-12T23:50:25Z
+pr: 276
+reviewed: 2026-10-14T10:00:15Z
+reviewed_head: 2e2dc2356a9c8a4b3a9ccb6ba9b97056da19b63e
 depth: deep
-files_reviewed: 4
+review_round: post-reassessment
+files_reviewed: 2
 files_reviewed_list:
   - controller/src/image_adjustments.rs
   - controller/tests/image_adjustments.rs
-  - controller/src/routes.rs
-  - controller/static-admin/admin.js
 findings:
   critical: 0
-  warning: 1
-  info: 0
+  warning: 0
+  info: 1
   total: 1
-status: issues_found
+status: clean
 convergence:
-  status: ready_to_resume
+  status: accepted_risk_deferred
   recurring_critical_warning: 1
   scope_expansion: false
-  requires_reassessment: true
+  requires_reassessment: false
   assumptions_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-ASSUMPTIONS.md
   plan_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-PLAN.md
   checker_review: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
-  checker_status: passed_cycle_2
+  checker_status: passed_cycle_2_then_invalidated_by_implementation_regression
   independent_review_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
   reassessment_iteration: 3
   design_spike_evidence:
-    - .planning/spikes/008-detector-mask-contour-diagnostics/README.md
-    - .planning/spikes/009-a-actual-contour-boundary/README.md
     - .planning/spikes/009-b-local-gradient-rectangle/README.md
-  pr_evidence: https://github.com/jetsaredim/autographs/pull/276#issuecomment-6156047878
+  pr_evidence: https://github.com/jetsaredim/autographs/pull/276#discussion_r4269355141
+  backlog_issue: https://github.com/jetsaredim/autographs/issues/277
 ---
 
-# Phase 08: PR #276 Deep Code Review — Round 3 Convergence Checkpoint
+# Phase 08: PR #276 Deep Code Review — Post-Reassessment Gradient Detector
 
-**Reviewed:** 2026-10-12T23:50:25Z
-**Reviewed commit:** `85db903d4dd0ef70887816c9849101fac2827c7a`
-**Incremental base:** `36946e74357d49f764df0de46a79f8b423c6a3ec`
+**Reviewed:** 2026-10-14T10:00:15Z
+**Reviewed commit:** `2e2dc2356a9c8a4b3a9ccb6ba9b97056da19b63e`
+**Approved-contract base:** `af6c769`
+**Prior detector checkpoint:** `85db903`
 **PR base:** `origin/main` (`60eb329df15ca76106298325cd02bed523ac3ad3`)
 **Depth:** deep
-**Files Reviewed:** 4
-**Status:** issues found
-**Convergence:** reassessment required
+**Status:** clean with one accepted advisory-detector limitation
+**Convergence:** accepted risk deferred to #277
+
+## Product disposition — 2026-10-14
+
+The operator accepted WR-01's thin sparse-outline morphology as out of scope
+for Phase 8 and deferred it to GitHub issue #277. Auto-detect only mutates an
+unsaved review draft, requires operator inspection and an explicit Save, and
+has a manual four-corner fallback. The limitation was not observed in the
+116-image production corpus; the exact supplied positive and named slab still
+pass their gates.
+
+The finding remains preserved below as audit history, but is reclassified from
+an in-scope Warning to an Info-level accepted limitation. PR #276 is not blocked
+on further detector research. The misleading sparse-test name and fixture name
+were changed to describe the filled slab they actually exercise; the deferred
+issue retains the exact one-pixel reproduction and future acceptance criteria.
 
 ## Summary
 
-The `&&` to `||` change closes round-2 WR-01 for the sparse synthetic
-enclosure, and that fixture faithfully exercises the reported low-population,
-large-area branch. However, the broader independent area tripwire regresses the
-held-out accurate dark-card control that the detector hardening was explicitly
-required to preserve. The exact supplied diagnostic now returns `Unavailable`
-at `85db903`, whereas the prior detector returned an accurate material
-`Confident` quadrilateral. This is a recurring Warning at the mandatory third
-review checkpoint, so another point-fix round is not authorized.
+The implementation ports spike 009b's frozen gradient/Hough constants and
+geometry faithfully, removes the obsolete scalar weak-mask veto, keeps the
+search bounded to 12 lines per axis and 4,356 pair combinations, and never
+promotes gradient candidate corners into a proposal. The exact private positive
+still returns accurate `Confident` corners and the named slab returns
+`Unavailable`; the committed detector, coordinate-bound, browser-consumer,
+formatting, and strict Clippy checks pass.
 
-## Narrative Findings (AI reviewer)
+However, the implementation regresses the original sparse-enclosure case that
+caused round-2 WR-01. The committed test retains the old name but replaces its
+one-pixel weak outer rectangle with a filled low-contrast slab. Re-running the
+exact prior fixture through production `propose_image_adjustment` at `2e2dc23`
+returns `Confident` on the dark internal region. This violates the approved
+acceptance requirement to preserve the sparse enclosure as `Unavailable` and
+recurs in the same false-confidence family after reassessment. Another local
+constant adjustment is not authorized; the assumptions and coherent detector
+contract must be reassessed with the original morphology restored as a binding
+regression.
 
-## Warnings
+## Narrative Findings
 
-### WR-01: Independent area growth rejects the known accurate dark-card control
+## Accepted limitations
 
-**File:** `controller/src/image_adjustments.rs:465-466`
+### INFO-01 (formerly WR-01): Thin sparse enclosure can return internal `Confident`
+
+**File:** `controller/tests/image_adjustments.rs:425`
 **Finding family:** `auto_assist_outer_boundary_confidence`
-**Lineage:** `fix_regression` (continuation of round-2 WR-01)
-**Shared invariant:** Auto-assist must abstain when weaker evidence reveals a different enclosing item boundary while retaining material confident corners for the known accurate dark-card control; low-threshold background noise alone must not invalidate an otherwise stable outer boundary.
-**Consumers inspected:** `propose_image_adjustment`; adaptive/relative/fixed threshold production; anchor-connected component tracing; route serialization and terminal media-revision check; browser `confident`/`unavailable` handling and draft mutation; sparse, filled-enclosure, noisy-border, dark-card, high-contrast, and near-identity tests.
+**Lineage:** `recurrence` / `fix_regression` / `test_weakness` (not an independent finding)
+**Shared invariant:** A `Confident` proposal must represent the stable outer
+item boundary, never a higher-contrast internal region; the previously bound
+sparse outer enclosure must remain `Unavailable` even when its weak edge is
+too thin or low-contrast to form a filled slab.
+**Consumers inspected:** primary adaptive component and corner production;
+gradient/Hough line selection and candidate veto; proposal classification;
+unchanged route serialization and terminal media-revision guard; unchanged
+browser current-session/current-draft/four-corner confidence gate; detector,
+route, and browser regressions.
 **Evidence level:** `deterministic_test`
 
-**Issue:** The `||` at lines 465-466 correctly makes material quadrilateral
-growth sufficient to reject the new sparse enclosure, but it also makes weak
-background/noise extrema sufficient to reject a correct outer-card component.
-Running the current compiled detector on the exact local diagnostic
-`b9912131-8781-4047-a44c-03e5ca1e56a9.webp` outside the repository
-returns `Unavailable` with no corners. The prior held-out evidence recorded
-this 914x1280 dark card as accurate and `Confident` through threshold 8, with
-only 24.91% population growth; preserving that control was part of the stated
-acceptance boundary. The committed `dark_card_fixture` at
-`controller/tests/image_adjustments.rs:168-181` is a flat synthetic card and
-does not reproduce the diagnostic's low-threshold background connectivity, so
-it stays green while the real control regresses.
+**Issue:** At `85db903`, `sparse_weak_outer_boundary_fixture` consisted of a
+one-pixel `[228,228,228]` rectangle from `(18,10)` through `(161,129)`, a
+one-pixel bridge to the internal component, and dense dark content from
+`(50,40)` through `(129,99)`. At `2e2dc23`, lines 431-442 replace that sparse
+geometry with a fully filled `[210,210,210]` slab plus adaptive-threshold border
+noise. The renamed body is therefore another filled physical-slab case, not the
+required sparse regression. It also substantially overlaps the fixture already
+used by both low-contrast slab tests at lines 183-208.
 
-The sparse regression itself is faithful: its one-pixel weak outer rectangle
-and bridge add well under 25% population while materially expanding the
-anchor-connected quadrilateral (`controller/tests/image_adjustments.rs:210-217`,
-`controller/tests/image_adjustments.rs:388-413`). It proves the old conjunction
-was insufficient, but it does not prove that every material weak-mask area
-expansion represents an enclosing object rather than noise.
+Running the exact `85db903` fixture bytes through the current public
+`propose_image_adjustment` path deterministically returns `Confident` with the
+internal corners approximately `(0.275430,0.279678)`,
+`(0.719875,0.279678)`, `(0.719875,0.712274)`, and
+`(0.273865,0.712274)`. The original outer transition is only 14 luma levels,
+below the frozen Canny low threshold of 20, so the new veto has no qualifying
+outer gradient rectangle while the primary producer still selects the dark
+internal component. The green test at lines 219-225 therefore masks rather
+than prevents the original false-confidence behavior.
 
-**Fix:** Stop point-fixing the boolean or thresholds. Revise the detector
-assumptions and implementation plan around a discriminating boundary-support
-signal that separates a coherent sparse enclosing perimeter from isolated
-weak-mask/background extrema. The revised plan must bind both the sparse
-enclosure (`Unavailable`) and a sanitized analogue of the accurate noisy
-dark-card diagnostic (`Confident` with accurate corners), then re-run the
-held-out diagnostic and corpus before implementation resumes.
+This directly contradicts the reviewed plan's requirements to preserve all 15
+existing detector tests, retain the sparse/filled/noisy enclosure contracts,
+and keep the sparse enclosure `Unavailable`. It also demonstrates that the
+79/37 corpus result does not cover this already-known morphology.
 
-## Convergence Reassessment
+**Disposition:** Accepted as an advisory-detector limitation for Phase 8 and
+deferred to GitHub issue #277. Any future correction must restore the original
+sparse fixture as a binding regression and satisfy the complete issue gates;
+do not tune a frozen threshold in isolation.
 
-### Finding lineage
+**PR audit trail:** [inline review comment](https://github.com/jetsaredim/autographs/pull/276#discussion_r4269355141)
 
-| Round | Head | Lineage | Result |
+## Finding Lineage
+
+| Stage | Head/evidence | Lineage | Result |
 | --- | --- | --- | --- |
-| 1 | `b2d947c` | Evidence gap | Standard review was clean, but the 116-image corpus later exposed systematic internal-region false confidence. |
-| 2 | `36946e7` | `incomplete_fix` | WR-01 showed that the population-and-area conjunction still trusted sparse enclosing boundaries. |
-| 3 | `85db903` | `fix_regression` | `||` closes the sparse branch but makes the known accurate dark-card diagnostic `Unavailable`. |
+| Round 1 | `b2d947c` | evidence gap | The 116-image corpus invalidated the initial clean synthetic review. |
+| Round 2 | `36946e7` | `incomplete_fix` | Population and area joined by `&&` trusted the sparse one-pixel enclosure. |
+| Round 3 | `85db903` | `fix_regression` | `||` closed sparse confidence but falsely abstained on the exact dark-card positive, triggering mandatory reassessment. |
+| Reassessment iteration 3 | assumptions, plan, checker, spike 009b | approved redesign | Frozen local-gradient/Hough veto approved with sparse/filled/noisy preservation explicitly required. |
+| Post-reassessment review | `2e2dc23` | `recurrence` / `fix_regression` / `test_weakness` | Exact prior sparse fixture again returns internal `Confident`; committed fixture was changed into a filled slab. |
 
-This is the mandatory third-review checkpoint. The recurring Warning keeps the
-family in `reassessment_required`; no additional local boolean/threshold tweak
-should proceed without revised assumptions and a reviewed plan.
+WR-01 is not a new independent algorithm concern. It is recurrence of the
+same shared invariant and a test-coverage regression introduced while porting
+the approved redesign.
 
-### Shared invariants
+## Shared Invariant Audit
 
-1. A `Confident` proposal represents the stable outer item boundary, not a
-   higher-contrast internal region.
-2. Weak-mask evidence must distinguish coherent enclosing geometry from
-   background/noise connectivity; either may expand component population or
-   extrema.
-3. Safe abstention is preferred for ambiguity, but known accurate material
-   cases remain usable; the supplied dark-card diagnostic is an explicit
-   positive control.
-4. `Unavailable` and unexpected outcomes never mutate the browser draft;
-   only a current four-corner `Confident` response may do so.
-
-### Complete consumer inventory
-
-| Boundary | Inspected evidence | Assessment |
+| Boundary | Evidence | Assessment |
 | --- | --- | --- |
-| Background/threshold producer | Border median, adaptive minimum 32, relative probes, fixed 32/16/8 (`image_adjustments.rs:271-321`, `435-448`) | Probe ordering is strictly descending after deduplication. When a later fixed probe is skipped, a weaker mask was already evaluated. |
-| Primary component producer | Largest 8-connected contrast component, row-major anchor, corner extrema (`image_adjustments.rs:323-423`) | Anchor is guaranteed to remain foreground as thresholds weaken and correctly tracks mergers of the original candidate. |
-| Stability decision | Independent population or area rejection (`image_adjustments.rs:426-471`) | Sparse false confidence is closed, but noise-driven area growth now causes the demonstrated false abstention. |
-| Proposal classification | Projection/area validation, stability, near-identity classification (`image_adjustments.rs:229-269`) | Ordering remains fail-closed and internally consistent. |
-| API reporting | Authenticated assist route, source read, terminal revision recheck, camelCase serialization (`routes.rs:1131-1188`, `routes.rs:2425-2432`) | Safe; it does not manufacture or retain corners for `Unavailable`. |
-| Browser action/mutation | Session/draft/assist revision guards and four-corner confident gate (`admin.js:2822-2856`) | Safe; `Unavailable`, `notNeeded`, stale, error, and unexpected responses do not mutate the draft. |
-| Save/publish boundary | Assist only changes the unsaved draft; normal preview and explicit save gates still apply (`admin.js:2892-2960`) | No automatic persistence or publication from detector output. |
-| Regression tests | 15 image-adjustment tests plus route and static-admin behavior suites | Sparse/filled negative cases and flat positive cases pass; the held-out noisy dark-card positive control is not represented. |
+| Primary producer | Border median, adaptive threshold, largest 8-connected component, extrema corners, projection and area validation remain unchanged. | Correct for the approved primary contract, but still selects the dark internal component in the sparse fixture. |
+| Gradient producer | Canny `20/60`; Hough vote `min-dimension/3`; suppression `8`; approved axis windows. | Exact frozen constants. The sparse 14-level transition is absent by construction. |
+| Line/candidate bounds | Full-line `0.25/0.55`, 12-per-axis truncation before pairing, pair span `0.50`, inclusive `[-4,width+4] × [-4,height+4]`, area `> max(0.50, primary+0.05)`. | Exact and bounded; coordinate unit test passes. |
+| Side classifier | Two-pixel corridor, four-pixel contrast offset, side `0.35/0.40/5/0.60`, at least three valid sides. | Matches spike 009b. No candidate exists for the prior sparse case. |
+| Proposal authority | Gradient helper only returns a boolean veto; original primary corners remain the only confident output. | Correctly veto-only, but the missing sparse signal lets the internal primary escape as `Confident`. |
+| API/browser consumer | Route and admin JavaScript are unchanged from the reviewed authority contract. | Safe consumption: `Unavailable` has no corners and only a current four-corner `Confident` response mutates the unsaved draft. This limits consequence but does not make false confidence acceptable. |
+| Regression tests | 17 committed tests pass. | Incomplete: the sparse test name remains but its defining morphology was deleted; two tests use the same slab fixture. |
 
-### Assumption audit
+## Failure Matrix
+
+| Input/outcome | Required | `2e2dc23` |
+| --- | --- | --- |
+| Exact `b991...webp` positive | Accurate `Confident` near the approved corners | Pass: `(0.0614,0.0610)`, `(0.9254,0.0563)`, `(0.9386,0.9343)`, `(0.0570,0.9327)`. |
+| Exact `20240415_225421.jpg` slab | `Unavailable`, no corners | Pass. |
+| Committed filled physical slab | `Unavailable`, no corners | Pass. |
+| Committed Hough-rich accurate card | Accurate `Confident` | Pass. |
+| Original one-pixel sparse enclosure from `85db903` | `Unavailable`, no corners | **Fail: internal `Confident`.** |
+| Near-identity inset 2 / inset 5 | `NotNeeded` / `Confident` | Pass in committed tests. |
+| `Unavailable` API/UI consumption | No applied corners; manual fallback | Unchanged and passing. |
+| Bounded search/performance | 12 lines per axis, ≤4,356 combinations; approved benchmark gates | Static bounds pass; PR evidence reports baseline/post gates passing. |
+
+## Assumption Audit
 
 | Assumption | Evidence | Verdict |
 | --- | --- | --- |
-| Material weak-mask area expansion always indicates a different outer item boundary. | Sparse fixture supports it, but the accurate dark-card diagnostic now abstains after area becomes an independent tripwire. | Rejected. |
-| The flat `dark_card_fixture` represents the positive dark-card class sufficiently. | It has a uniform card and background, while the held-out diagnostic gains low-threshold background/noise connectivity. | Rejected. |
-| Population growth and area growth can be classified independently with global scalar thresholds. | `&&` misses sparse enclosures; `||` rejects the known accurate noisy control. | Unproven and currently contradicted by the paired controls. |
-| Threshold ordering or anchor discontinuity caused the regression. | Thresholds are monotonically weakened/deduplicated, and the original foreground anchor is retained. | Eliminated. |
-| False abstention is harmless under the safe-abstention policy. | Manual fallback is safe, but the task explicitly requires retaining the known accurate dark-card behavior and the fix report claims it is preserved. | Rejected as an acceptance argument. |
+| Spike 009b's frozen gradient signal covers every previously required sparse/filled/noisy enclosure. | It covers filled/slab corpus cases, but the exact prior one-pixel sparse fixture returns internal `Confident`. | Rejected. |
+| Preserving the sparse test name preserves its contract. | The fixture implementation changed from a one-pixel rectangle and bridge to a filled slab. | Rejected. |
+| Corpus equality 79/37/0 is sufficient regression evidence. | The production corpus is valuable and exact controls pass, but the known sanitized sparse morphology is outside that result. | Rejected as a complete acceptance argument. |
+| Gradient candidates remain veto-only and bounded. | Direct source trace and coordinate/boundedness checks. | Accepted. |
+| Route/UI safety contains false-confidence impact. | Assist only mutates an unsaved draft and persistence requires explicit Save. | Accepted for containment, not detector correctness. |
 
-### Failure matrix
+## Deferred follow-up criteria (#277)
 
-| Input/outcome | Required result | Head `85db903` |
-| --- | --- | --- |
-| Filled low-contrast enclosure around dark content | `Unavailable` | Pass. |
-| Noisy-border filled enclosure | `Unavailable` | Pass. |
-| Sparse connected weak outer enclosure | `Unavailable` | Pass; WR-01 negative regression is faithful. |
-| High-contrast skewed item | Accurate `Confident` | Pass in synthetic test. |
-| Reliable high-contrast outer card | Accurate `Confident` | Pass in synthetic test. |
-| Flat synthetic dark card | Accurate `Confident` | Pass, but does not bind the real noise path. |
-| Supplied accurate dark-card diagnostic | Accurate `Confident` | **Fail: `Unavailable`, no corners.** |
-| Near-identity inset 2 / inset 5 | `notNeeded` / `Confident` | Pass in tests. |
-| `Unavailable` API/UI consumption | No corners applied; manual adjustment remains available | Pass by source and behavior tests. |
-
-### Revised plan requirements
-
-1. Write a revised detector assumption describing what evidence establishes a
-   coherent outer boundary across thresholds, including sparse transparent
-   enclosures and noisy/background-connected accurate cards.
-2. Replace the paired global-scalar boolean choice with a coherent boundary
-   model or support criterion. The plan must explain why it distinguishes the
-   two held-out morphologies before code changes begin.
-3. Add two paired, sanitized derived-oracle fixtures: the current sparse
-   enclosure must abstain, and a fixture reproducing the supplied diagnostic's
-   low-threshold noise/extrema behavior must remain accurately confident.
-4. Preserve high-contrast skew/card and near-identity classifications, API
-   serialization, session/revision authority, non-mutating `Unavailable`
-   behavior, and manual fallback.
-5. Re-run the exact supplied dark-card diagnostic and all 116 corpus images.
-   Record confidence/unavailability counts plus a false-confidence geometry
-   screen; counts alone are not acceptance evidence.
-6. Obtain review of both the revised assumptions and revised implementation
-   plan before resuming coder work. Record those paths in this artifact when
-   they have actually been reviewed; a status-only change is invalid.
-
-### Explicit resume criteria
-
-Coder work may resume only when all of the following are true:
-
-- durable revised-assumption evidence and revised-plan evidence exist, have
-  been independently reviewed, and are referenced in frontmatter;
-- the plan binds both paired derived-oracle fixtures and explains the
-  discriminating signal;
-- the exact supplied diagnostic is required to return accurate `Confident`
-  corners and the sparse enclosure is required to return `Unavailable`;
-- held-out corpus evaluation requires zero known/screened internal-region
-  confident proposals, with any confidence-count change explicitly assessed;
-- existing image-adjustment, route, browser behavior, formatting,
-  production-persistence, and Clippy gates remain required.
-
-Until then, convergence status remains `reassessment_required`.
-
-## Superseded Resume Authorization — 2026-10-13
-
-The iteration-2 revised assumptions were recorded in
-`08-PR-276-DETECTOR-ASSUMPTIONS.md`, and its implementation-ready plan formerly
-occupied `08-PR-276-DETECTOR-REVISED-PLAN.md`; that path now contains the
-iteration-3 design-spike gate. Independent review in
-`08-PR-276-DETECTOR-PLAN-REVIEW.md` passed with zero Blocker, Warning, or Info
-findings. That authorization was valid for the reviewed iteration, but it is now
-superseded by the second implementation attempt's explicit stop condition. The
-review file remains lineage evidence and does not authorize a third coder round.
-
-## Second Implementation Stop — 2026-10-13
-
-The authorized `M0 ⊆ Mt` implementation kept the reviewed four-side
-coherence/witness logic. It passed all three sanitized morphologies, including
-the containment-bypass slab, passed all 17 detector tests, and returned target
-`Confident` corners for the exact private
-`b9912131-8781-4047-a44c-03e5ca1e56a9.webp` positive. The exact held-out
-`20240415_225421.jpg` nevertheless returned the forbidden internal
-`Confident` quadrilateral near `(0.186441,0.306729)`,
-`(0.825666,0.286385)`, `(0.738499,0.870110)`, and
-`(0.188862,0.879499)`.
-
-This is an `incomplete_fix` / `assumption_failure` / `test_weakness`, not a new
-independent finding. Removing quadrilateral containment was insufficient; the
-four-side extrema-chord support abstraction itself does not capture the real
-slab. Two follow-on diagnostic agents were terminated after becoming
-unresponsive and produced no trustworthy per-side trace. The attempted source
-changes were rolled back without a commit, leaving the worktree source-clean.
-
-Convergence is therefore `reassessment_required`. Before any third coder round,
-a bounded detector-design spike must inspect the actual threshold masks,
-anchor-connected component masks, component contours/boundary runs, failed-model
-per-side diagnostics, and local-gradient evidence on both the exact positive
-and named slab. Actual-contour and local-gradient rectangular-boundary models
-are recommended investigation directions, not approved algorithms. A
-privacy-safe spike report, diagnostic-derived sanitized RED, revised coherent
-contract, new implementation plan, and fresh independent review are all required
-before status may return to `ready_to_resume`.
-
-## Completed Detector Design Spike — 2026-10-13
-
-The required bounded investigation is now complete and recorded in spikes 008,
-009a, and 009b plus PR comment `6156047878`.
-
-- Spike 008 reproduced the exact controls and showed that the named slab's
-  border-median component floods the frame before a usable physical outer
-  contour appears. Local Canny/Hough edge evidence remains visible.
-- Spike 009a invalidated contour-only classification: ignoring flood trusts the
-  internal slab primary, while abstaining on every flood also rejects the exact
-  accurate positive.
-- Spike 009b froze its constants before exact-control/corpus evaluation and
-  validated a bounded local-gradient/Hough rectangle as a conservative veto on
-  the existing primary. It does not promote gradient corners.
-- The exact positive retained accurate primary corners; the exact named slab
-  exposed a materially larger candidate with four valid localized sides and
-  became `Unavailable`.
-- Across all 116 originals with unchanged constants, 79 primaries were retained,
-  37 cases safely abstained, and none returned `NotNeeded`. Visual inspection
-  found zero internal retained proposals. `20251231_011140` was the sole repeat
-  of the prior 12%-side-distance screen and was confirmed accurate. All three
-  slab siblings abstained.
-- The two-control optimized smoke measured `0.21s` and about `8.2 MiB` peak RSS.
-  The existing `imageproc 0.27` dependency supplies the required primitives.
-
-The iteration-3 assumptions and plan now replace the current
-`population_growth || area_growth` decision with that complete frozen veto,
-preserve primary selection/corners, require three mechanism-derived sanitized
-contracts and a causal bypass mutation, and bind exact/corpus/performance,
-consumer, no-diff, and privacy gates. This design evidence establishes
-feasibility only. Convergence remains `reassessment_required` until a fresh
-independent checker approves both updated artifacts and its evidence path is
-recorded; the iteration-2 plan review cannot authorize this algorithm.
-
-## Iteration-3 Checker Block Revision — 2026-10-13
-
-The fresh iteration-3 checker review in
-`08-PR-276-DETECTOR-PLAN-REVIEW.md` returned two Blockers while confirming that
-all other coverage was complete. The assumptions and revised plan now address
-those Blockers without changing the spike-validated detector behavior:
-
-1. Candidate intersection bounds now use one exact coordinate contract.
-   imageproc's continuous geometric image boundary is
-   `[0,width] × [0,height]`, while pixel centers end at `width - 1` and
-   `height - 1`. The spike's inclusive admission interval is exactly
-   `x >= -4`, `y >= -4`, `x <= width + 4`, `y <= height + 4`—four coordinate
-   units beyond the geometric boundary, not four units beyond the final pixel
-   center. A private-helper unit test binds both inclusive endpoints and rejects
-   values immediately outside them.
-2. The prepared-thumbnail spike smoke is now advisory only. Before source
-   changes, a temporary release evaluator is built once against head, warmed,
-   then its already-built binary directly measures public
-   `propose_image_adjustment` calls over a frozen 118-call manifest: exact
-   positive, exact slab, and the 116 sorted originals. After implementation it
-   is rebuilt once, warmed once, and measured identically. Both sides capture
-   per-image, total, p50, p95, max, and max RSS without Cargo/build/cache time.
-   Mandatory gates are p95 `<= 1.0s` and `<= 3×` baseline, max `<= 2.0s` and
-   `<= 3×` baseline, total `<= 3×` baseline, and RSS
-   `<= max(1.5× baseline, baseline + 32 MiB)`.
-
-The checker verdict itself remains unchanged and authoritative for the reviewed
-version. Status stays `reassessment_required` and checker linkage is
-`blocked_pending_re_review` until a focused re-review passes the revised
-contracts.
-
-## Iteration-3 Cycle-2 Resume Authorization — 2026-10-13
-
-Focused independent re-review in
-`08-PR-276-DETECTOR-PLAN-REVIEW.md` verified that both iteration-3 Blockers are
-fully resolved and found zero additional Blocker, Warning, or Info issues.
-
-- Candidate bounds now bind the exact inclusive spike inequalities
-  `[-4,width+4] × [-4,height+4]` under the stated continuous geometric image
-  boundary, with a private endpoint unit test.
-- Performance now compares warmed, already-built binaries over the identical
-  118-call public production path before and after, excludes Cargo/build/cache
-  time, and applies explicit absolute/relative latency, total, and RSS gates.
-- The checker revalidated scalar-veto replacement, veto-only gradient corners,
-  bounded 4,356-candidate search, frozen constants, causal sanitized fixtures,
-  exact/corpus/slab gates, consumer/no-diff/privacy boundaries, full Cargo
-  checks, and stop/rollback behavior.
-
-The current assumptions, revised plan, and fresh independent-review evidence
-paths are recorded in convergence frontmatter. Convergence is therefore
-`ready_to_resume`. Execution remains bound by every task, acceptance criterion,
-and stop condition in the reviewed iteration-3 plan; any stop condition returns
-the family to `reassessment_required` before another coder round.
+1. Restore the exact one-pixel sparse enclosure and bridge morphology as a
+   committed regression; do not reuse the filled slab fixture for that test.
+2. Revise the detector assumptions to include coherent physical boundaries
+   whose local contrast is below the frozen Canny threshold but whose topology
+   previously demonstrated an enclosing item boundary.
+3. Produce one coherent revised design that separates this sparse enclosure
+   from the exact accurate dark-card positive; do not append a scalar exception
+   or tune one frozen constant against the fixture.
+4. Re-run the exact positive, named slab, all three slab siblings, Hough-rich
+   accurate primary, restored sparse regression, all retained overlays, frozen
+   corpus, and warmed 118-call performance gates.
+5. Obtain fresh review of the revised assumptions and implementation plan
+   before future detector source work resumes. These are backlog acceptance
+   criteria, not blockers for PR #276.
 
 ## Verification
 
-- `cargo test --test image_adjustments --quiet` — passed, 15 tests.
-- `cargo test --test admin_workflow admin_image_adjustment_routes_save_reset_review_and_assist --quiet` — passed, 1 focused route test.
-- `node tests/static_admin_behavior.mjs` — passed.
-- `cargo fmt --all -- --check` — passed.
-- `cargo check --features production-persistence --quiet` — passed.
-- `cargo clippy --all-targets --all-features -- -D warnings` — passed.
-- `git diff --check 36946e7..85db903 -- src/image_adjustments.rs tests/image_adjustments.rs` — passed.
-- Current compiled detector against the exact supplied dark-card diagnostic — returned `Unavailable` with empty corners; expected accurate `Confident`.
+- Exact prior sparse fixture through public `propose_image_adjustment` at
+  `2e2dc23` — **failed**: internal `Confident` with four corners.
+- Exact private `b991...webp` positive — passed with target accurate
+  `Confident` corners.
+- Exact private `20240415_225421.jpg` slab — passed as `Unavailable` with no
+  corners.
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments -- --nocapture`
+  — passed, 17 tests.
+- `cargo test --manifest-path controller/Cargo.toml --lib gradient_candidate_bounds_match_imageproc_geometric_coordinates -- --nocapture`
+  — passed, 1 focused test.
+- `node --test controller/tests/static_admin_behavior.mjs` — passed.
+- `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
+- `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings`
+  — passed.
+- No-diff check for manifest, lockfile, route, admin JavaScript, and consumer
+  tests from `85db903..2e2dc23` — passed.
+- PR implementation evidence reports the frozen 116-image result `79/37/0`
+  and all warmed release performance gates passing; this does not override the
+  deterministic sparse regression.
+
+## Changed Paths
+
+- `.planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md`
+- `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-ASSUMPTIONS.md`
+- `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-PLAN.md`
+- `controller/tests/image_adjustments.rs`
+
+No production detector code was modified by this disposition. The test-only
+change removes a misleading sparse-coverage claim; it does not change behavior.
 
 ---
 
-_Reviewed: 2026-10-12T23:50:25Z_
+_Reviewed: 2026-10-14T10:00:15Z_
 _Reviewer: Codex (gsd-code-reviewer)_
-_Depth: deep, round 3 convergence checkpoint_
+_Depth: deep, post-reassessment gradient detector review_

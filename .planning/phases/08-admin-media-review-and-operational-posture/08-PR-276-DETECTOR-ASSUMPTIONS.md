@@ -3,7 +3,7 @@ phase: 08-admin-media-review-and-operational-posture
 pr: 276
 reviewed_head: 85db903d4dd0ef70887816c9849101fac2827c7a
 finding_family: auto_assist_outer_boundary_confidence
-status: ready_to_resume
+status: implemented_with_accepted_limitation
 source_review: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
 revised_plan: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-PLAN.md
 reassessment_iteration: 3
@@ -15,9 +15,26 @@ spike_evidence:
   - .planning/spikes/009-a-actual-contour-boundary/README.md
   - .planning/spikes/009-b-local-gradient-rectangle/README.md
 pr_evidence: https://github.com/jetsaredim/autographs/pull/276#issuecomment-6156047878
+accepted_limitation: https://github.com/jetsaredim/autographs/issues/277
 ---
 
 # PR #276 Detector Assumption Reassessment — Post-Spike Iteration 3
+
+## Superseding product-scope decision — 2026-10-14
+
+The post-implementation review confirmed that a synthetic one-pixel,
+14-luma-level enclosing outline can still produce a confident internal primary.
+The operator explicitly accepted that morphology as an advisory-detector
+limitation for Phase 8 and deferred further detector research to GitHub issue
+#277. Auto-detection only changes the unsaved review draft; the operator must
+inspect and explicitly save it, and the manual four-corner editor remains
+available.
+
+This decision supersedes the earlier requirement that the thin sparse outline
+must be solved before PR #276 can proceed. It does not weaken the exact supplied
+positive, named slab, 116-image corpus, privacy, performance, or manual-editor
+contracts. The filled-slab test is named for the morphology it actually covers;
+the repository no longer claims that it covers the deferred thin outline.
 
 ## Scope and checkpoint state
 

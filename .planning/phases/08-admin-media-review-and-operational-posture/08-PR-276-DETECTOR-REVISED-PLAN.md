@@ -2,7 +2,7 @@
 phase: 08-admin-media-review-and-operational-posture
 pr: 276
 head: 85db903d4dd0ef70887816c9849101fac2827c7a
-status: ready_to_resume
+status: implemented_with_accepted_limitation
 scope: detector-convergence-only
 requirements:
   - MEDIA-06
@@ -23,9 +23,25 @@ spike_evidence:
   - .planning/spikes/009-a-actual-contour-boundary/README.md
   - .planning/spikes/009-b-local-gradient-rectangle/README.md
 pr_evidence: https://github.com/jetsaredim/autographs/pull/276#issuecomment-6156047878
+accepted_limitation: https://github.com/jetsaredim/autographs/issues/277
 ---
 
 # PR #276 Detector Convergence Revised Implementation Plan — Iteration 3
+
+## Post-implementation scope disposition — 2026-10-14
+
+Implementation at `2e2dc23` satisfies the frozen gradient/Hough controls,
+corpus, performance, and consumer gates. A post-implementation review found
+that the earlier one-pixel, sub-Canny-contrast outline remains outside this
+detector contract. The operator accepted that advisory-mode limitation for
+Phase 8 and deferred it to GitHub issue #277 rather than extending this PR into
+another computer-vision research cycle.
+
+Auto-detect remains an unsaved proposal: it neither saves nor publishes an
+adjustment, and the manual four-corner editor is the supported fallback. The
+misnamed filled-slab regression is corrected to describe its actual morphology.
+Issue #277 preserves the original sparse reproduction and the complete gates
+required before any future detector change.
 
 ## Objective
 

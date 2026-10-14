@@ -217,8 +217,8 @@ fn auto_assist_abstains_when_border_noise_hides_low_contrast_enclosure() {
 }
 
 #[test]
-fn auto_assist_abstains_when_sparse_weak_boundary_encloses_dark_content() {
-    let source = sparse_weak_outer_boundary_fixture();
+fn auto_assist_abstains_when_filled_slab_encloses_compact_dark_content() {
+    let source = filled_slab_with_compact_dark_content_fixture();
     let proposal = propose_image_adjustment(&source).unwrap();
 
     assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Unavailable);
@@ -422,7 +422,7 @@ fn noisy_border_low_contrast_card_fixture() -> Vec<u8> {
     encode_png(image)
 }
 
-fn sparse_weak_outer_boundary_fixture() -> Vec<u8> {
+fn filled_slab_with_compact_dark_content_fixture() -> Vec<u8> {
     let mut image = RgbaImage::new(180, 140);
     for pixel in image.pixels_mut() {
         *pixel = Rgba([242, 242, 242, 255]);
