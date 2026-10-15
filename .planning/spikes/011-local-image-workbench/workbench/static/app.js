@@ -76,7 +76,10 @@ async function start() {
 async function selectImage(id) {
   selectedId = Number(id);
   $("#image-select").value = selectedId;
-  $("#source-image").src = `/api/images/${selectedId}/source?fresh=${Date.now()}`;
+  const sourceImage = $("#source-image");
+  sourceImage.classList.add("is-loading");
+  $("#source-loading").hidden = false;
+  sourceImage.src = `/api/images/${selectedId}/source?fresh=${Date.now()}`;
   adjustment = identity();
   await loadFixture(false);
   syncAll();
@@ -142,7 +145,16 @@ function bindControls() {
   }
   $("#show-grid").addEventListener("change", syncGrid);
   $("#show-center").addEventListener("change", syncGrid);
-  $("#source-image").addEventListener("load", positionOverlays);
+  $("#source-image").addEventListener("load", () => {
+    $("#source-image").classList.remove("is-loading");
+    $("#source-loading").hidden = true;
+    positionOverlays();
+    status("Full source loaded. Adjust the draft or run edge detection.");
+  });
+  $("#source-image").addEventListener("error", () => {
+    $("#source-loading").hidden = true;
+    status("The source image could not be loaded.", "error");
+  });
   $("#preview-image").addEventListener("load", positionOverlays);
   window.addEventListener("resize", positionOverlays);
   const overlay = $("#source-overlay");
@@ -250,11 +262,15 @@ function positionOverlays() {
 
 function positionOverlay(frame, image, overlay) {
   const frameRect = frame.getBoundingClientRect();
-  const imageRect = image.getBoundingClientRect();
-  if (!imageRect.width || !imageRect.height) return;
+  const sourceWidth = Number(image.naturalWidth);
+  const sourceHeight = Number(image.naturalHeight);
+  if (!frameRect.width || !frameRect.height || !sourceWidth || !sourceHeight) return;
+  const scale = Math.min(frameRect.width / sourceWidth, frameRect.height / sourceHeight);
+  const width = sourceWidth * scale;
+  const height = sourceHeight * scale;
   Object.assign(overlay.style, {
-    left: `${imageRect.left - frameRect.left}px`, top: `${imageRect.top - frameRect.top}px`,
-    width: `${imageRect.width}px`, height: `${imageRect.height}px`, right: "auto", bottom: "auto",
+    left: `${(frameRect.width - width) / 2}px`, top: `${(frameRect.height - height) / 2}px`,
+    width: `${width}px`, height: `${height}px`, right: "auto", bottom: "auto",
   });
 }
 

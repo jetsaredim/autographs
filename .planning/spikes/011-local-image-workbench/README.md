@@ -37,7 +37,7 @@ workspace.
 
 ```bash
 mkdir -p /tmp/autographs-image-workbench
-cargo run --manifest-path .planning/spikes/011-local-image-workbench/workbench/Cargo.toml -- \
+cargo run --release --manifest-path .planning/spikes/011-local-image-workbench/workbench/Cargo.toml -- \
   --source /path/to/private/images \
   --workspace /tmp/autographs-image-workbench
 ```
@@ -68,8 +68,14 @@ JSON. Saving a fixture does not alter the original.
 - Passed three workbench contract tests, strict Clippy, Rust formatting, the
   shared crate test, JavaScript syntax validation, and repository diff checks.
 - The browser experience is running on loopback for the required operator
-  checkpoint; no supported browser surface was available to the automation
-  session, so visual usability remains intentionally unclaimed.
+  checkpoint. Automated headless checks cover layout and loading, while overall
+  usability remains intentionally unclaimed until the operator retest.
+- The first operator check exposed progressive JPEG scanlines as an apparently
+  clipped top portion. The UI now hides partial browser paints behind an
+  explicit source-loading state, gives both image elements fixed contain boxes,
+  and computes overlays from the actual letterboxed bounds. A headless browser
+  check confirmed the complete portrait and preview are visible. The runbook
+  uses an optimized build so full-resolution transforms complete promptly.
 
 ## Results
 
