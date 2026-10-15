@@ -55,3 +55,7 @@ conservative veto on an existing primary candidate. Do not promote the gradient
 rectangle to replacement corners without separate evidence. Border-median
 component contours are diagnostic/supporting evidence only when the weak mask
 has not flooded the frame.
+
+Extract a project-local crate only when a coherent deterministic capability has
+a real second consumer. Keep compatibility re-exports at the controller boundary
+so extraction does not force unrelated route, persistence, or test churn.
