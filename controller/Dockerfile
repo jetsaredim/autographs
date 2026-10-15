@@ -15,6 +15,7 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS builder
 
 COPY --from=planner /workspace/recipe.json ./recipe.json
+COPY controller/image-processing ./image-processing
 
 RUN cargo chef cook --release --features production-persistence --recipe-path recipe.json \
     && rm -rf src

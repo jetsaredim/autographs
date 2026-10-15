@@ -3,8 +3,12 @@ pub mod catalog;
 pub mod catalog_admin;
 pub mod config;
 pub mod contracts;
-pub mod derivatives;
-pub mod image_adjustments;
+pub mod derivatives {
+    pub use autographs_image_processing::derivatives::*;
+}
+pub mod image_adjustments {
+    pub use autographs_image_processing::image_adjustments::*;
+}
 pub mod media;
 #[cfg(any(feature = "production-persistence", feature = "production-oci"))]
 pub mod oci_auth;

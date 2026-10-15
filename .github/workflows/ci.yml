@@ -115,7 +115,8 @@ jobs:
           ast-grep scan \
             --error=unused-suppression \
             --error=no-suppress-all \
-            controller/src
+            controller/src \
+            controller/image-processing/src
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -135,12 +136,18 @@ jobs:
             ~/.cargo/git
             ~/.cargo/registry
             controller/target
-          key: cargo-controller-${{ runner.os }}-${{ hashFiles('controller/Cargo.lock') }}
+            controller/image-processing/target
+          key: cargo-controller-${{ runner.os }}-${{ hashFiles('controller/Cargo.lock', 'controller/image-processing/Cargo.toml') }}
           restore-keys: |
             cargo-controller-${{ runner.os }}-
 
       - name: Check formatting
-        run: cargo fmt --manifest-path controller/Cargo.toml --check
+        run: |
+          cargo fmt --manifest-path controller/Cargo.toml --check
+          cargo fmt --manifest-path controller/image-processing/Cargo.toml --check
+
+      - name: Test shared image processing crate
+        run: cargo test --manifest-path controller/image-processing/Cargo.toml
 
       - name: Validate runtime persistence artifacts
         run: bash scripts/validate-runtime.sh
@@ -155,6 +162,10 @@ jobs:
 
       - name: Run Clippy
         run: |
+          cargo clippy \
+            --manifest-path controller/image-processing/Cargo.toml \
+            --all-targets \
+            -- -D warnings
           cargo clippy \
             --manifest-path controller/Cargo.toml \
             --all-targets \
