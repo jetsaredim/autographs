@@ -3,6 +3,7 @@ FROM rust:1.99-bookworm AS builder
 WORKDIR /workspace
 
 COPY controller/Cargo.toml controller/Cargo.lock ./
+COPY controller/image-processing ./image-processing
 COPY controller/src ./src
 COPY controller/db ./db
 COPY controller/tests ./tests
