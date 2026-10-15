@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Autographs image workbench</title>
+    <link rel="stylesheet" href="/app.css">
+  </head>
+  <body>
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">Local development instrument</p>
+        <h1>Image geometry workbench</h1>
+        <p class="lede">Production transforms, private local fixtures, no admin environment.</p>
+      </div>
+      <div class="privacy-badge"><span></span> Loopback only</div>
+    </header>
+
+    <main>
+      <section class="toolbar" aria-label="Image selection and fixture actions">
+        <label class="image-picker">Image
+          <select id="image-select"></select>
+        </label>
+        <div class="actions">
+          <button id="previous" class="quiet" type="button">Previous</button>
+          <button id="next" class="quiet" type="button">Next</button>
+          <button id="detect" type="button">Detect edges</button>
+          <button id="save" class="accent" type="button">Save fixture</button>
+          <button id="reload" class="quiet" type="button">Reload fixture</button>
+        </div>
+      </section>
+
+      <p id="status" class="status" role="status">Loading images…</p>
+
+      <section class="visuals" aria-label="Image comparison">
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="kicker">Input</p><h2>Original + source quad</h2></div>
+            <p class="hint">Drag a corner. Arrow keys nudge 0.1%; Shift nudges 1%.</p>
+          </div>
+          <div id="source-frame" class="image-frame">
+            <img id="source-image" alt="Selected immutable source">
+            <svg id="source-overlay" class="source-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="Perspective corner selection">
+              <polygon id="source-polygon"></polygon>
+              <g id="corner-handles"></g>
+            </svg>
+          </div>
+        </article>
+
+        <article class="panel preview-panel">
+          <div class="panel-heading">
+            <div><p class="kicker">Output</p><h2>Adjusted preview</h2></div>
+            <div class="overlay-toggles">
+              <label><input id="show-grid" type="checkbox" checked> Grid</label>
+              <label><input id="show-center" type="checkbox" checked> Center</label>
+            </div>
+          </div>
+          <div id="preview-frame" class="image-frame preview-frame">
+            <img id="preview-image" alt="Adjusted preview from the shared production crate">
+            <div id="preview-grid" class="preview-grid" aria-hidden="true"></div>
+            <div id="preview-center" class="preview-center" aria-hidden="true"></div>
+            <div id="rendering" class="rendering" hidden>Rendering production transform…</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="work-area">
+        <article class="panel controls-panel">
+          <div class="panel-heading">
+            <div><p class="kicker">Adjustment</p><h2>Numerical controls</h2></div>
+            <button id="reset" class="quiet" type="button">Reset</button>
+          </div>
+          <div class="control-grid">
+            <label>Rotation (°)<input id="rotation" type="number" min="-15" max="15" step="0.05"></label>
+            <label>Zoom<input id="zoom" type="number" min="1" max="3" step="0.01"></label>
+            <label>Pan X<input id="pan-x" type="number" min="-1" max="1" step="0.01"></label>
+            <label>Pan Y<input id="pan-y" type="number" min="-1" max="1" step="0.01"></label>
+          </div>
+          <h3>Perspective corners <span>normalized source coordinates</span></h3>
+          <div id="corner-inputs" class="corner-inputs"></div>
+          <details>
+            <summary>Exact adjustment JSON</summary>
+            <textarea id="json" rows="11" spellcheck="false"></textarea>
+            <button id="apply-json" class="quiet" type="button">Apply JSON</button>
+          </details>
+        </article>
+
+        <aside class="panel diagnostics-panel">
+          <div class="panel-heading"><div><p class="kicker">Readout</p><h2>Geometry diagnostics</h2></div></div>
+          <div id="geometry" class="geometry"></div>
+          <div class="grid-controls">
+            <h3>Preview grid</h3>
+            <label>Spacing <input id="grid-spacing" type="range" min="24" max="160" value="64"><output id="grid-spacing-value">64 px</output></label>
+            <label>X offset <input id="grid-x" type="range" min="-80" max="80" value="0"><output id="grid-x-value">0 px</output></label>
+            <label>Y offset <input id="grid-y" type="range" min="-80" max="80" value="0"><output id="grid-y-value">0 px</output></label>
+          </div>
+          <div class="event-log">
+            <h3>Session log</h3>
+            <ol id="events"></ol>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
