@@ -1,151 +1,127 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-12T00:48:37Z
+pr: 276
+reviewed: 2026-10-14T23:00:25Z
+reviewed_head: c8e9fa3867c2a063c5ba67c8d1cf3121d7d5272d
 depth: deep
-files_reviewed: 20
+review_round: post-fix-final
+files_reviewed: 4
 files_reviewed_list:
-  - controller/src/catalog.rs
-  - controller/src/image_adjustments.rs
-  - controller/src/media.rs
-  - controller/src/oci_media.rs
-  - controller/src/oracle_catalog.rs
-  - controller/src/publisher.rs
-  - controller/src/routes.rs
-  - controller/db/schema.sql
+  - controller/static-admin/index.html
   - controller/static-admin/admin.css
   - controller/static-admin/admin.js
-  - controller/static-admin/index.html
-  - controller/tests/admin_workflow.rs
-  - controller/tests/live_persistence_smoke.rs
-  - controller/tests/logging_contract.rs
-  - controller/tests/media_cleanup.rs
-  - controller/tests/publisher.rs
   - controller/tests/static_admin.rs
-  - controller/tests/static_admin_behavior.mjs
-  - controller/tests/static_contract.rs
-  - docs/static-runtime-runbook.md
 findings:
   critical: 0
   warning: 0
-  info: 0
-  total: 0
+  info: 1
+  total: 1
 status: clean
 convergence:
   status: clear
   recurring_critical_warning: 0
   scope_expansion: false
   requires_reassessment: false
-  assumptions_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CONVERGENCE.md
-  plan_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
+  assumptions_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-ASSUMPTIONS.md
+  plan_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-PLAN.md
+  backlog_issue: https://github.com/jetsaredim/autographs/issues/277
 ---
 
-# Phase 08: PR #263 Terminal Ownership Deep Code Review
+# Phase 08: PR #276 Post-Fix Final Code Review
 
-**Reviewed:** 2026-10-12T00:48:37Z
-**Reviewed commit:** `9439b248d82255db77cd59cfb9a6b29ca6213f3d`
-**Implementation commit:** `c3566008f196aba8a761045e441446483447bd15`
-**Base:** `main` (`f751364c0856bc82ce229e247341a4c2935f4a53` merge base)
-**Depth:** deep
-**Files Reviewed:** 20
-**Status:** clean
-**Convergence:** clear
+**Reviewed:** 2026-10-14T23:00:25Z
+**Reviewed commit:** `c8e9fa3867c2a063c5ba67c8d1cf3121d7d5272d`
+**PR base:** `origin/main`
+**Depth:** deep, focused post-fix verification
+**Status:** clean — no actionable findings; one accepted Info-level limitation
 
-## Narrative Findings (AI reviewer)
+## Summary
 
-### Summary
+WR-02 is fully fixed at the current head. Commit `85a6434` replaces the broad
+`input:read-only` selector with `input[readonly]`. The prohibited cursor and
+muted color therefore apply only to the two markup inputs that actually carry
+the `readonly` attribute (`item-id` and `publication-note`) plus disabled
+buttons. The Grid, Centerline, and Edges checkboxes and the enabled rotation,
+zoom, and pan controls carry neither `readonly` nor a matching selector, so
+they retain their interactive cursor.
 
-The complete PR diff was reviewed against `main`, with iteration-10 CR-02
-(`live_smoke_cleanup_discovery`) traced through the iteration-11 implementation
-as a terminal ownership contract. The review inspected initial candidate
-production, durable registration and commit, object creation, replacement
-candidate production, atomic inventory refresh, normal and fallback cleanup,
-fresh-process recovery, Oracle warning loading, retry-route actionability,
-object verification, row destruction, reporting, privacy, and test fidelity.
+The regression assertion is appropriately scoped to this contract: it requires
+the combined `button:disabled` / `input[readonly]` affordance rule and rejects
+any reintroduction of `input:read-only`. The existing markup and DOM behavior
+checks cover the direct producers and consumers: readonly field markup, overlay
+and adjustment control markup, JavaScript enable/disable ownership, and review
+control event handling. No sibling prohibited-cursor path remains in the
+review controls.
 
-No actionable Critical, Warning, or Info findings remain. The implementation
-meets the approved revised plan without adding a new capability or expanding
-Phase 8 scope. Credentialed Oracle/OCI execution was unavailable, so live
-provider behavior remains supported by source inspection, compiled ignored
-smoke coverage, and deterministic production-helper/repository/route tests
-rather than `live_cleanup_verified` evidence.
+No actionable Critical, Warning, or Info findings remain. The thin sparse
+outline detector behavior remains an explicitly accepted Info-level limitation
+deferred to issue #277; this review does not reopen it or claim it is fixed.
 
-All reviewed files meet quality standards. No issues found.
+## Resolved finding
 
-### Stable finding lineage
+### WR-02: Enabled overlay controls received the disabled cursor — fixed
 
-| Stable finding | Finding family | Historical lineage | Iteration-12 disposition |
-| --- | --- | --- | --- |
-| CR-01 | `exclusive_conflict_recovery_surface` | `sibling_path_miss` | Closed. The status and only retry action remain outside the hidden/inert item form; browser-faithful tests prove perceivability, ancestor inertness, retry, authority replacement, navigation, and stale-result rejection. |
-| CR-02 | `live_smoke_cleanup_discovery` | `incomplete_fix` | Closed. A is durably registered and committed before object creation; fallible refresh cannot consume installed candidates; private item-ID discovery remains inclusive; object absence precedes row deletion; final guard destruction leaves enough Oracle authority for a fresh cleanup process. |
-| WR-01 | `live_smoke_cleanup_evidence_privacy` | `sibling_path_miss` | Closed. Normal, manual, fallback, timeout, provider-failure, verification, registration-failure, and runbook paths expose item/step/count/fingerprint evidence without raw keys or provider-controlled error text. |
+**Files:** `controller/static-admin/admin.css`,
+`controller/static-admin/index.html`, `controller/static-admin/admin.js`,
+`controller/tests/static_admin.rs`
+**Finding family:** `overlay_control_affordance`
+**Lineage:** `independent, fixed by 85a6434`
+**Shared invariant:** An enabled interactive review control must present an
+interactive affordance; disabled/read-only styling applies only to controls
+that are actually unavailable.
+**Evidence level:** `source_and_test`
 
-Previously closed mounted-output authority, normalized perspective projection,
-mutation/navigation serialization, pointer-capture isolation, immutable media
-revision compare-and-set, replacement-authoritative ambiguous-delete recovery,
-publisher promotion safety, comparison-map migration, and public-artifact
-privacy remain closed in the current source and full regression suite.
+The selector now targets the literal HTML attribute. The only matching inputs
+are the intended readonly item ID and publication-note fields. Overlay
+checkboxes and adjustment ranges remain enabled except while the JavaScript
+review mutation/drag guard explicitly sets `disabled`; the CSS rule does not
+misclassify their ordinary enabled state. The focused regression test passes.
 
-### Terminal ownership invariant inventory
+## Accepted Info-level limitation
 
-| Boundary | Producers | Consumers / mutation boundary | Failure behavior verified |
-| --- | --- | --- | --- |
-| Initial A authority | UUID-derived A key; disposable Oracle item | `register_smoke_cleanup_authority`, Oracle commit, then `media.write` | Insert or commit failure aborts before object creation; errors retain only item/step context. The cleanup event has an item FK but intentionally does not require a pre-existing image row. |
-| Route-generated B authority | Replacement write and metadata CAS; ambiguous old-object deletion; cleanup-event persistence | Current `autograph_images` row or cleanup-event target; smoke inventory | Every response/unwind state that leaves B authoritative keeps it discoverable before destructive item-row cleanup. Replacement regressions retain the readable committed object on ambiguous delete. |
-| Atomic candidate refresh | Installed local set plus image and cleanup-event queries | `refresh_cleanup_candidates`, `discover_cleanup_object_keys`, normal cleanup, `Drop` | Query, row-read, decode, and partial-discovery failure cannot mutate the installed set; retry installs a deduplicated union only on success. |
-| Terminal recovery | Durable A authority; current B image/event rows | Fallback `Drop`; later manual item-ID cleanup | Repeated discovery failure retains Oracle rows. After guard destruction, a fresh cleanup with no local candidates rediscovers A/B, deletes and verifies both, then removes rows. |
-| Actionability boundary | `delete`, `replace`, reserved `livePersistenceSmokeGuard`, unknown future operations | Memory warning loader, Oracle warning loader, item/status responses, cleanup-retry route | One shared allowlist admits exactly `delete` and `replace`; the route rejects an injected reserved warning before object deletion, metadata removal, or event resolution. Ordinary delete/replace retry tests remain green. |
-| Destructive ordering | Complete deduplicated candidate inventory | OCI DELETE, 404/read absence proof, item cascade/commit, zero-row verification | Every candidate is verified absent before the first destructive Oracle row operation; any inventory/delete/verification failure retains discovery rows. |
-| Recovery evidence | Registration, inventory, delete, read, runtime/thread, Oracle cleanup | Console/CI transcript and operator runbook | Output uses safe item IDs, step labels, counts, categories, and domain-separated fingerprints. Raw candidates, checksums, provider strings, namespace, and bucket data are not forwarded. |
+### IN-01: Thin sparse enclosure remains deferred to #277
 
-### Failure matrix
+A one-pixel, 14-luma-level enclosing outline can remain below the frozen Canny
+threshold and allow the internal primary to be reported as `Confident`. This is
+not an actionable PR finding under the explicit Phase 8 product-scope decision:
+auto-detect is advisory, changes only the unsaved draft, requires explicit
+Save, retains the manual four-corner editor, and the morphology was absent from
+the 116-image corpus. GitHub issue #277 retains the exact reproduction and
+future acceptance gates.
 
-| Scenario | Required outcome | Reviewed outcome |
+## Producer/consumer verification
+
+| Boundary | Evidence | Assessment |
 | --- | --- | --- |
-| Authority insert or commit fails | No A object is written | Satisfied: registration is a checked precondition before `media.write`. |
-| A write/image-row insertion fails after authority commit | A remains discoverable and cleanup precedes row deletion | Satisfied: the authority event already owns A and the guard inventories it. |
-| Discovery fails before or after partial row reads | Installed candidates remain unchanged; no object/row destruction begins | Satisfied: discovery receives a clone and assignment occurs only after `Ok`. |
-| First discovery fails and fallback retry succeeds | Preserve A, merge B/event targets, deduplicate, verify all absent, then delete rows | Satisfied by the production helper tests plus cleanup ordering fixture. |
-| Discovery fails again and the original guard is destroyed | Durable rows retain every actionable identity for a fresh item-ID cleanup | Satisfied: A was committed before creation; B remains in current image/event metadata; fresh cleanup coverage starts without local guard state. |
-| Reserved authority reaches normal admin reads | It remains private and non-actionable | Satisfied in Memory and Oracle loaders; item/status behavior omits it. |
-| A repository bypasses loader filtering | Route rejects before every media/catalog/event side effect | Satisfied by injected-repository route coverage. |
-| Ordinary delete or replace warning is retried | Existing deletion/metadata distinction remains reachable | Satisfied by positive delete, replacement, idempotent, and second-replacement regressions. |
-| Candidate is duplicate or already absent | Cleanup is idempotent and rows are deleted only after absence proof | Satisfied by `BTreeSet` inventory and exact provider-404 handling. |
-| Delete, read verification, runtime, thread, or Oracle cleanup fails | Preserve discovery authority and emit opaque recovery evidence | Satisfied in source and deterministic tests; credentialed live execution was not available. |
-
-### Test fidelity assessment
-
-- The decisive atomic-refresh tests call the same
-  `refresh_cleanup_candidates` helper used by `LivePersistenceSmokeCleanup`;
-  they are not a parallel model of the ownership transfer.
-- The terminal fresh-cleanup fixture intentionally begins with no local
-  candidates and reconstructs the union from durable current-image and
-  cleanup-event rows, matching the post-`Drop` recovery claim.
-- The register-before-create fixture is supplemented by a source-order binding
-  to the live smoke. Actual Oracle insert/commit and OCI write remain
-  credential-gated, so this is deterministic/source evidence, not a live proof.
-- The injected warning repository deliberately bypasses both loader filters,
-  making the route-defense test a real side-effect reachability test rather
-  than a filter-only assertion.
-- The admin DOM harness models ancestor `hidden`/`inert` behavior and exercises
-  the dedicated recovery sibling, so CR-01 closure does not rely on direct
-  dispatch to a browser-inoperable descendant.
+| CSS producer | `button:disabled, input[readonly]` | Prohibited cursor is limited to disabled buttons and literal readonly inputs. |
+| Readonly markup | `item-id` and `publication-note` carry `readonly` | Intended readonly styling remains active. |
+| Overlay markup | Three checkbox inputs have `data-review-overlay` and no `readonly` | Enabled overlays do not match the prohibited-cursor rule. |
+| Adjustment markup | Rotation, zoom, and pan ranges have `data-adjustment-field` and no `readonly` | Enabled sliders do not match the prohibited-cursor rule. |
+| Runtime ownership | `syncReviewDirtyState` toggles `disabled` during mutation/drag; event handlers retain ordinary interaction | Runtime state and styling remain coherent. |
+| Regression contract | Static test requires `input[readonly]` and rejects `input:read-only` | The reported regression is directly bound without broad unrelated assertions. |
 
 ## Verification
 
-- `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
-- `cargo test --manifest-path controller/Cargo.toml --test media_cleanup` — passed, 26 tests.
-- `cargo test --manifest-path controller/Cargo.toml --test logging_contract` — passed, 3 tests.
-- `cargo test --manifest-path controller/Cargo.toml --features live-persistence --test live_persistence_smoke` — passed, 4 executed and 1 credential-gated test ignored.
+- `cargo test --manifest-path controller/Cargo.toml --test static_admin -- --nocapture`
+  — passed: 20 tests, 0 failed.
+- `node controller/tests/static_admin_behavior.mjs` — passed.
 - `node --check controller/static-admin/admin.js` — passed.
 - `node --check controller/tests/static_admin_behavior.mjs` — passed.
-- `node controller/tests/static_admin_behavior.mjs` — passed.
-- `cargo test --manifest-path controller/Cargo.toml --all-targets --all-features` — passed; 2 credential-gated live tests ignored as designed and all executed tests passed.
-- `cargo clippy --manifest-path controller/Cargo.toml --all-targets --all-features -- -D warnings` — passed.
-- `git diff --check main...HEAD -- controller docs/static-runtime-runbook.md` — passed.
+- `cargo fmt --manifest-path controller/Cargo.toml --all -- --check` — passed.
+- Focused selector/markup scan — passed: no `input:read-only`; exactly two
+  intended inputs carry `readonly`; overlay checkboxes and adjustment ranges do
+  not.
+- Changed-source `git diff --check` — passed.
+- PR #276 head matches `c8e9fa3`; all nine reported CI checks passed.
+
+## Changed Paths
+
+- `.planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md`
+
+No production or test source was modified by this review.
 
 ---
 
-_Reviewed: 2026-10-12T00:48:37Z_
+_Reviewed: 2026-10-14T23:00:25Z_
 _Reviewer: Codex (gsd-code-reviewer)_
 _Depth: deep_
-_Iteration: 12_

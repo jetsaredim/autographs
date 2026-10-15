@@ -58,6 +58,7 @@ const copy = {
   adjustmentSaved:
     "Adjustments saved privately. Publish changes when this image is ready for the public site.",
   assistUnavailable: "Auto correction could not find reliable edges. Adjust the corners manually.",
+  assistNotNeeded: "No meaningful perspective correction was detected.",
   mediaChanged: "Image media changed. Reopen the review.",
   resetAdjustment:
     "Reset adjustments: Clear saved crop, rotation, pan, and perspective correction for this image? The original upload stays unchanged.",
@@ -2159,6 +2160,7 @@ function renderImageReviewNow() {
     }
   });
   sourceFrame.append(sourceImage);
+  renderReviewOverlays(sourceFrame, sourceImage);
   renderPerspectiveHandles(sourceFrame, sourceImage);
   observePerspectiveProjection(perspectiveGeneration, sourceFrame, sourceImage);
   sourcePanel.append(sourceFrame);
@@ -2274,14 +2276,6 @@ function renderReviewOutputPanel(outputPanel, { invalidate = true } = {}) {
     } else {
       frame.append(latestImage);
     }
-    for (const [overlay, enabled] of Object.entries(state.reviewOverlays)) {
-      if (enabled) {
-        const layer = document.createElement("div");
-        layer.className = `review-overlay review-overlay-${overlay}`;
-        layer.setAttribute("aria-hidden", "true");
-        frame.append(layer);
-      }
-    }
     outputPanel.append(frame);
   }
   elements.imageReviewMessage.textContent = state.reviewMessage;
@@ -2330,6 +2324,81 @@ function reviewComparisonPane(image, label) {
   caption.textContent = label;
   pane.append(image, caption);
   return pane;
+}
+
+function renderReviewOverlays(frame, sourceImage) {
+  for (const existing of [...frame.children].filter((child) =>
+    child.className?.split(/\s+/).includes("review-overlay")
+  )) {
+    existing.remove();
+  }
+  for (const [overlay, enabled] of Object.entries(state.reviewOverlays)) {
+    if (!enabled) {
+      continue;
+    }
+    const layer = document.createElement("div");
+    layer.className = `review-overlay review-overlay-${overlay}`;
+    layer.setAttribute("aria-hidden", "true");
+    if (overlay === "grid") {
+      for (let index = 0; index < 4; index += 1) {
+        const line = document.createElement("span");
+        line.className = "review-overlay-grid-line";
+        layer.append(line);
+      }
+    } else if (overlay === "edges") {
+      for (let index = 0; index < 4; index += 1) {
+        const segment = document.createElement("span");
+        segment.className = "review-overlay-edge-segment";
+        layer.append(segment);
+      }
+    }
+    frame.append(layer);
+  }
+  projectReviewOverlays(frame, sourceImage);
+}
+
+function projectReviewOverlays(frame, sourceImage) {
+  if (!frame || !sourceImage) {
+    return;
+  }
+  const frameBounds = frame.getBoundingClientRect();
+  const imageBounds = sourceRenderedBounds(frame, sourceImage);
+  if (!frameBounds.width || !frameBounds.height || !imageBounds.width || !imageBounds.height) {
+    return;
+  }
+  const overlays = [...frame.children].filter((child) =>
+    child.className?.split(/\s+/).includes("review-overlay")
+  );
+  for (const overlay of overlays) {
+    overlay.style.left = `${imageBounds.left - frameBounds.left}px`;
+    overlay.style.top = `${imageBounds.top - frameBounds.top}px`;
+    overlay.style.width = `${imageBounds.width}px`;
+    overlay.style.height = `${imageBounds.height}px`;
+    if (overlay.className.split(/\s+/).includes("review-overlay-edges")) {
+      const corners = currentPerspectiveCorners();
+      const segments = [...overlay.children];
+      segments.forEach((segment, index) => {
+        positionReviewEdgeSegment(
+          segment,
+          corners[index],
+          corners[(index + 1) % corners.length],
+          imageBounds.width,
+          imageBounds.height
+        );
+      });
+    }
+  }
+}
+
+function positionReviewEdgeSegment(segment, start, end, width, height) {
+  const startX = start.x * width;
+  const startY = start.y * height;
+  const deltaX = (end.x - start.x) * width;
+  const deltaY = (end.y - start.y) * height;
+  segment.style.left = `${startX}px`;
+  segment.style.top = `${startY}px`;
+  segment.style.width = `${Math.hypot(deltaX, deltaY)}px`;
+  segment.style.transform = `rotate(${Math.atan2(deltaY, deltaX)}rad)`;
 }
 
 function renderPerspectiveHandles(frame, sourceImage) {
@@ -2412,6 +2481,7 @@ function projectPerspectiveHandles() {
       positionPerspectiveHandle(handle, corners[index], frame, sourceImage);
     }
   });
+  projectReviewOverlays(frame, sourceImage);
 }
 
 function movePerspectiveHandle(index, event) {
@@ -2714,6 +2784,9 @@ function syncReviewControls() {
       control.value = value;
     }
   }
+  for (const toggle of document.querySelectorAll("[data-review-overlay]")) {
+    toggle.checked = Boolean(state.reviewOverlays[toggle.dataset.reviewOverlay]);
+  }
 }
 
 function setReviewComparisonMode(mode) {
@@ -2772,11 +2845,14 @@ async function detectImageEdges() {
     }
     if (proposal.status === "confident" && proposal.corners?.length === 4) {
       state.reviewDraftAdjustment.perspective = { corners: cloneAdjustment(proposal.corners) };
+      state.reviewOverlays.edges = true;
       state.reviewMessage = "Detected edges applied. Review the corners before saving.";
       markReviewDraftChanged();
       return;
     }
-    state.reviewMessage = copy.assistUnavailable;
+    state.reviewMessage = proposal.status === "notNeeded"
+      ? (proposal.message || copy.assistNotNeeded)
+      : copy.assistUnavailable;
     elements.imageReviewMessage.textContent = state.reviewMessage;
   } catch (error) {
     if (
