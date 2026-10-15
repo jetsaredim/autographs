@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/jetsaredim/autographs/compare/v0.4.1...v0.4.2) (2026-10-15)
+
+
+### Miscellaneous Chores
+
+* **controller:** extract shared image processing crate ([#279](https://github.com/jetsaredim/autographs/issues/279)) ([38fa9c3](https://github.com/jetsaredim/autographs/commit/38fa9c3e706562c00889b1ddb1ff6ed89b02b05a))
+
 ## [0.4.1](https://github.com/jetsaredim/autographs/compare/v0.4.0...v0.4.1) (2026-10-15)
 
 
