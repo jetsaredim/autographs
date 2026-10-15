@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/jetsaredim/autographs/compare/v0.4.0...v0.4.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* isolate image review state and overlays ([#276](https://github.com/jetsaredim/autographs/issues/276)) ([0f80f41](https://github.com/jetsaredim/autographs/commit/0f80f41143824c2a07b9cc3a44b1c2f7b81f5a00))
+
 ## [0.4.0](https://github.com/jetsaredim/autographs/compare/v0.3.0...v0.4.0) (2026-10-12)
 
 
