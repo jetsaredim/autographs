@@ -42,8 +42,11 @@ cargo run --release --manifest-path .planning/spikes/011-local-image-workbench/w
   --workspace /tmp/autographs-image-workbench
 ```
 
-Then open `http://127.0.0.1:8787`. An alternate loopback port can be supplied
-with `--port 8788`.
+Then open `http://127.0.0.1:8788`. This is the single standard workbench port.
+Stop the running instance before rebuilding or restarting it; if the bind fails
+because 8788 is occupied, stop that instance rather than selecting another port.
+The UI displays its active address, and shell assets use `Cache-Control: no-store`
+so a restarted workbench cannot silently reuse an earlier revision.
 
 ## What to Expect
 
@@ -76,6 +79,10 @@ JSON. Saving a fixture does not alter the original.
   and computes overlays from the actual letterboxed bounds. A headless browser
   check confirmed the complete portrait and preview are visible. The runbook
   uses an optimized build so full-resolution transforms complete promptly.
+- A follow-up retest exposed four simultaneously running workbench revisions on
+  ports 8787 through 8790. All were stopped, 8788 became the sole default and
+  documented port, and the runtime now identifies its address in the UI. Port
+  hopping is no longer part of the workbench test procedure.
 
 ## Results
 

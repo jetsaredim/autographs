@@ -57,6 +57,7 @@ async function api(path, options = {}) {
 
 async function start() {
   try {
+    $("#instance-address").textContent = location.host;
     images = await (await api("/api/images")).json();
     const select = $("#image-select");
     for (const image of images) {

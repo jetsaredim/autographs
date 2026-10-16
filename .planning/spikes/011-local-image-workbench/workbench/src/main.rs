@@ -96,18 +96,30 @@ fn app(state: AppState) -> Router {
 
 async fn index() -> impl IntoResponse {
     (
-        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
         INDEX_HTML,
     )
 }
 
 async fn css() -> impl IntoResponse {
-    ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], APP_CSS)
+    (
+        [
+            (header::CONTENT_TYPE, "text/css; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        APP_CSS,
+    )
 }
 
 async fn js() -> impl IntoResponse {
     (
-        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        [
+            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
         APP_JS,
     )
 }
@@ -314,7 +326,7 @@ impl Config {
     fn parse(args: impl Iterator<Item = String>) -> Result<Self, String> {
         let mut source = None;
         let mut workspace = None;
-        let mut port = 8787;
+        let mut port = 8788;
         let mut args = args.peekable();
         while let Some(argument) = args.next() {
             match argument.as_str() {
@@ -329,7 +341,7 @@ impl Config {
                 }
                 "--help" | "-h" => {
                     return Err(
-                        "usage: autographs-image-workbench --source PATH --workspace PATH [--port 8787]"
+                        "usage: autographs-image-workbench --source PATH --workspace PATH [--port 8788]"
                             .to_owned(),
                     );
                 }
@@ -406,5 +418,21 @@ mod tests {
             .map(str::to_owned),
         );
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn uses_the_single_documented_default_port() {
+        let config = Config::parse(
+            [
+                "--source",
+                "/private/images",
+                "--workspace",
+                "/tmp/image-workbench",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .expect("config");
+        assert_eq!(config.port, 8788);
     }
 }
