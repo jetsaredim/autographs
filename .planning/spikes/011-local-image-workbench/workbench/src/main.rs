@@ -7,8 +7,8 @@ use std::{
 };
 
 use autographs_image_processing::image_adjustments::{
-    ImageAdjustment, ImageAdjustmentProposalStatus, apply_image_adjustment,
-    propose_image_adjustment,
+    ImageAdjustment, ImageBoundaryDetectionStatus, apply_image_adjustment,
+    detect_image_boundary, propose_image_adjustment,
 };
 use axum::{
     Json, Router,
@@ -168,13 +168,13 @@ async fn render_image(
         .write_to(&mut output, ImageFormat::WebP)
         .map_err(internal("encode preview"))?;
     let preview = output.into_inner();
-    let analysis = propose_image_adjustment(&preview).ok();
+    let analysis = detect_image_boundary(&preview).ok();
     let analysis_status = analysis
         .as_ref()
-        .map(|proposal| match proposal.status {
-            ImageAdjustmentProposalStatus::Confident => "confident",
-            ImageAdjustmentProposalStatus::NotNeeded => "notNeeded",
-            ImageAdjustmentProposalStatus::Unavailable => "unavailable",
+        .map(|boundary| match boundary.status {
+            ImageBoundaryDetectionStatus::Reliable => "reliable",
+            ImageBoundaryDetectionStatus::Tentative => "tentative",
+            ImageBoundaryDetectionStatus::Unavailable => "unavailable",
         })
         .unwrap_or("error");
     let analysis_corners = serde_json::to_string(
@@ -430,6 +430,48 @@ mod tests {
                 .contains_key("x-workbench-boundary-status")
         );
         assert_eq!(std::fs::read(&source_path).expect("read after"), before);
+    }
+
+    #[tokio::test]
+    async fn render_reports_detected_boundary_for_output_measurement() {
+        let source_dir = tempdir().expect("source tempdir");
+        let workspace = tempdir().expect("workspace tempdir");
+        let source_path = source_dir.path().join("card.png");
+        let mut image = RgbImage::from_pixel(160, 120, Rgb([190, 190, 190]));
+        for y in 15..105 {
+            for x in 20..140 {
+                image.put_pixel(x, y, Rgb([24, 28, 32]));
+            }
+        }
+        DynamicImage::ImageRgb8(image)
+            .save(&source_path)
+            .expect("save source");
+        let state = AppState {
+            images: Arc::new(discover_images(&source_path).expect("discover")),
+            workspace: Arc::new(workspace.path().to_path_buf()),
+        };
+
+        let response = render_image(
+            State(state),
+            AxumPath(0),
+            Bytes::from(ImageAdjustment::identity().to_json().expect("json")),
+        )
+        .await
+        .expect("render");
+
+        assert_eq!(
+            response.headers()["x-workbench-boundary-status"],
+            "reliable"
+        );
+        let corners = response.headers()["x-workbench-boundary-corners"]
+            .to_str()
+            .expect("corners header");
+        assert_eq!(
+            serde_json::from_str::<Vec<serde_json::Value>>(corners)
+                .expect("corners json")
+                .len(),
+            4
+        );
     }
 
     #[test]

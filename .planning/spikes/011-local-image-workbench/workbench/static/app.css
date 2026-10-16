@@ -59,6 +59,7 @@ select, input, textarea { background: #0c100f; color: var(--ink); padding: .55re
 .measurement-overlay line.good { stroke: var(--green); }
 .measurement-overlay line.warn { stroke: var(--amber); }
 .measurement-overlay line.bad { stroke: var(--red); }
+.measurement-overlay.tentative line { stroke-dasharray: 8 5; }
 .measurement-overlay circle { pointer-events: all; cursor: grab; fill: #ff9f43; stroke: #160d04; stroke-width: 3; vector-effect: non-scaling-stroke; }
 .measurement-overlay circle:focus { fill: white; stroke: #ff9f43; outline: none; }
 .rendering { position: absolute; z-index: 3; inset: auto 1rem 1rem; padding: .65rem; background: #0e1311dd; color: var(--accent); text-align: center; }

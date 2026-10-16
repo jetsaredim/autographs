@@ -22,7 +22,8 @@ let dragIndex = null;
 let measurementCorners = defaultMeasurementCorners();
 let measurementTouched = new Set();
 let measurementDragIndex = null;
-let measurementOrigin = "manual";
+let measurementOrigin = "automatic";
+let detectedBoundary = { status: "unavailable", corners: [] };
 
 function defaultMeasurementCorners() {
   return [
@@ -88,6 +89,7 @@ async function start() {
 async function selectImage(id) {
   selectedId = Number(id);
   history.replaceState(null, "", `?image=${selectedId}`);
+  detectedBoundary = { status: "unavailable", corners: [] };
   loadMeasurement();
   $("#image-select").value = selectedId;
   const sourceImage = $("#source-image");
@@ -286,13 +288,13 @@ function measurementStorageKey() {
 function loadMeasurement() {
   measurementCorners = defaultMeasurementCorners();
   measurementTouched = new Set();
-  measurementOrigin = "manual";
+  measurementOrigin = "automatic";
   try {
     const saved = JSON.parse(localStorage.getItem(measurementStorageKey()) || "null");
-    if (saved?.corners?.length === 4) {
+    if (saved?.origin === "manual" && saved?.corners?.length === 4) {
       measurementCorners = saved.corners;
       measurementTouched = new Set(saved.touched || []);
-      measurementOrigin = saved.origin || "manual";
+      measurementOrigin = "manual";
     }
   } catch (_error) {
     // A malformed browser-only measurement never affects the saved adjustment.
@@ -300,6 +302,7 @@ function loadMeasurement() {
 }
 
 function saveMeasurement() {
+  if (measurementOrigin !== "manual") return;
   try {
     localStorage.setItem(measurementStorageKey(), JSON.stringify({
       corners: measurementCorners,
@@ -319,13 +322,14 @@ function resetMeasurement() {
   }
   measurementCorners = defaultMeasurementCorners();
   measurementTouched = new Set();
-  measurementOrigin = "manual";
-  syncMeasurementOverlay();
+  measurementOrigin = "automatic";
   syncOutputGeometry();
-  log("Reset output measurement");
+  log("Returned output measurement to automatic boundary detection");
 }
 
 function syncMeasurementOverlay() {
+  const overlay = $("#measurement-overlay");
+  overlay.classList.toggle("tentative", measurementOrigin === "automatic" && detectedBoundary.status === "tentative");
   const edgeGroup = $("#measurement-edges");
   const handleGroup = $("#measurement-handles");
   if (edgeGroup.children.length !== 4) {
@@ -454,8 +458,9 @@ async function renderPreview() {
     if (generation !== renderGeneration) return;
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = URL.createObjectURL(blob);
+    detectedBoundary = { status: boundaryStatus, corners: boundaryCorners };
     $("#preview-image").src = previewUrl;
-    syncOutputGeometry(boundaryStatus, boundaryCorners);
+    syncOutputGeometry();
   } catch (error) {
     if (generation === renderGeneration) status(error.message, "error");
   } finally {
@@ -599,28 +604,32 @@ function renderGeometryMetrics(host, metrics, scored) {
   });
 }
 
-function syncOutputGeometry(boundaryStatus, boundaryCorners = []) {
+function syncOutputGeometry() {
   const host = $("#output-geometry");
-  if (
-    measurementTouched.size === 0 &&
-    boundaryStatus === "confident" &&
-    boundaryCorners.length === 4
-  ) {
-    measurementCorners = boundaryCorners;
-    measurementTouched = new Set([0, 1, 2, 3]);
-    measurementOrigin = "detector initialized";
-    saveMeasurement();
-    syncMeasurementOverlay();
+  if (measurementOrigin === "automatic") {
+    if (
+      ["reliable", "tentative"].includes(detectedBoundary.status) &&
+      detectedBoundary.corners.length === 4
+    ) {
+      measurementCorners = detectedBoundary.corners.map((point) => ({ ...point }));
+      measurementTouched = new Set([0, 1, 2, 3]);
+    } else {
+      measurementCorners = defaultMeasurementCorners();
+      measurementTouched = new Set();
+    }
   }
+  syncMeasurementOverlay();
   if (measurementTouched.size < 4) {
-    const remaining = 4 - measurementTouched.size;
-    host.innerHTML = `<p class="analysis-pending">Position all four orange output handles on the card corners to begin measurement. ${remaining} corner${remaining === 1 ? " remains" : "s remain"}.</p>`;
+    host.innerHTML = '<p class="analysis-pending">No preview boundary was detected. Position all four orange handles on the card corners to measure it manually.</p>';
     return;
   }
   renderGeometryMetrics(host, outputGeometryMetrics(measurementCorners, imageAspect("#preview-image")), true);
   const method = document.createElement("p");
   method.className = "measurement-method";
-  method.textContent = `Measurement source: ${measurementOrigin}. This does not change the saved image adjustment.`;
+  const source = measurementOrigin === "manual"
+    ? "manual override"
+    : `${detectedBoundary.status} preview boundary detection`;
+  method.textContent = `Measurement source: ${source}. This does not change the saved image adjustment.`;
   host.prepend(method);
 }
 

@@ -16,6 +16,8 @@ pub const AUTO_CORRECTION_UNAVAILABLE_MESSAGE: &str =
     "Auto correction could not find reliable edges. Adjust the corners manually.";
 pub const AUTO_CORRECTION_NOT_NEEDED_MESSAGE: &str =
     "No meaningful perspective correction was detected.";
+pub const IMAGE_BOUNDARY_TENTATIVE_MESSAGE: &str =
+    "A possible boundary was detected but did not pass automatic-correction safety checks.";
 
 const AUTO_CORRECTION_MAX_DIMENSION: u32 = 640;
 const AUTO_CORRECTION_MIN_COLOR_DISTANCE: u32 = 32;
@@ -76,6 +78,23 @@ pub struct ImageAdjustmentProposal {
     pub corners: Vec<ImagePoint>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageBoundaryDetection {
+    pub status: ImageBoundaryDetectionStatus,
+    pub corners: Vec<ImagePoint>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ImageBoundaryDetectionStatus {
+    Reliable,
+    Tentative,
+    Unavailable,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -240,36 +259,16 @@ pub fn apply_image_adjustment(
 }
 
 pub fn propose_image_adjustment(source: &[u8]) -> Result<ImageAdjustmentProposal, String> {
-    let decoded = image::load_from_memory(source)
-        .map_err(|error| format!("decode private original for auto correction: {error}"))?;
-    let image = decoded
-        .thumbnail(AUTO_CORRECTION_MAX_DIMENSION, AUTO_CORRECTION_MAX_DIMENSION)
-        .to_rgb8();
-    let (width, height) = image.dimensions();
-    if width == 0 || height == 0 {
-        return Ok(unavailable_proposal());
-    }
-
-    let background = border_median_rgb(&image);
-    let threshold = adaptive_color_distance_threshold(&image, background);
-    let Some(component) = largest_contrast_component(&image, background, threshold) else {
+    let Some(candidate) = locate_image_boundary_candidate(source)? else {
         return Ok(unavailable_proposal());
     };
-    let corners = component.corners;
-    let normalized_corners = corners.map(|(x, y)| normalized_point(x, y, width, height));
-    let perspective = ImagePerspective {
-        corners: normalized_corners,
-    };
-    if perspective.validate().is_err() {
-        return Ok(unavailable_proposal());
-    }
-    let area_ratio = quadrilateral_area_ratio(normalized_corners);
+    let normalized_corners = candidate.corners;
     if !(AUTO_CORRECTION_MIN_QUAD_AREA_RATIO..=AUTO_CORRECTION_MAX_QUAD_AREA_RATIO)
-        .contains(&area_ratio)
+        .contains(&candidate.area_ratio)
     {
         return Ok(unavailable_proposal());
     }
-    if has_materially_larger_gradient_boundary(&image, area_ratio) {
+    if candidate.larger_gradient_corners.is_some() {
         return Ok(unavailable_proposal());
     }
     if corners_are_near_full_frame(normalized_corners) {
@@ -280,6 +279,114 @@ pub fn propose_image_adjustment(source: &[u8]) -> Result<ImageAdjustmentProposal
         status: ImageAdjustmentProposalStatus::Confident,
         corners: normalized_corners.to_vec(),
         message: None,
+    })
+}
+
+pub fn detect_image_boundary(source: &[u8]) -> Result<ImageBoundaryDetection, String> {
+    let Some(candidate) = locate_image_boundary_candidate(source)? else {
+        if let Some(corners) = locate_gradient_image_boundary(source)? {
+            return Ok(ImageBoundaryDetection {
+                status: ImageBoundaryDetectionStatus::Reliable,
+                corners: corners.to_vec(),
+                message: None,
+            });
+        }
+        return Ok(ImageBoundaryDetection {
+            status: ImageBoundaryDetectionStatus::Unavailable,
+            corners: Vec::new(),
+            message: Some(AUTO_CORRECTION_UNAVAILABLE_MESSAGE.to_owned()),
+        });
+    };
+    if let Some(corners) = candidate.larger_gradient_corners {
+        return Ok(ImageBoundaryDetection {
+            status: ImageBoundaryDetectionStatus::Reliable,
+            corners: corners.to_vec(),
+            message: None,
+        });
+    }
+    let tentative = candidate.area_ratio < AUTO_CORRECTION_MIN_QUAD_AREA_RATIO;
+    Ok(ImageBoundaryDetection {
+        status: if tentative {
+            ImageBoundaryDetectionStatus::Tentative
+        } else {
+            ImageBoundaryDetectionStatus::Reliable
+        },
+        corners: candidate.corners.to_vec(),
+        message: tentative.then(|| IMAGE_BOUNDARY_TENTATIVE_MESSAGE.to_owned()),
+    })
+}
+
+struct ImageBoundaryCandidate {
+    corners: [ImagePoint; 4],
+    area_ratio: f32,
+    larger_gradient_corners: Option<[ImagePoint; 4]>,
+}
+
+fn locate_image_boundary_candidate(
+    source: &[u8],
+) -> Result<Option<ImageBoundaryCandidate>, String> {
+    let decoded = image::load_from_memory(source)
+        .map_err(|error| format!("decode private original for auto correction: {error}"))?;
+    let image = decoded
+        .thumbnail(AUTO_CORRECTION_MAX_DIMENSION, AUTO_CORRECTION_MAX_DIMENSION)
+        .to_rgb8();
+    let (width, height) = image.dimensions();
+    if width == 0 || height == 0 {
+        return Ok(None);
+    }
+
+    let background = border_median_rgb(&image);
+    let threshold = adaptive_color_distance_threshold(&image, background);
+    let Some(component) = largest_contrast_component(&image, background, threshold) else {
+        return Ok(None);
+    };
+    let corners = component.corners;
+    let normalized_corners = corners.map(|(x, y)| normalized_point(x, y, width, height));
+    let perspective = ImagePerspective {
+        corners: normalized_corners,
+    };
+    if perspective.validate().is_err() {
+        return Ok(None);
+    }
+    let area_ratio = quadrilateral_area_ratio(normalized_corners);
+    let larger_gradient_corners = strongest_gradient_boundary(
+        &image,
+        (area_ratio + GRADIENT_MIN_MATERIAL_AREA_GROWTH).max(0.50),
+    )
+    .map(|corners| normalize_gradient_corners(corners, width, height));
+    Ok(Some(ImageBoundaryCandidate {
+        corners: normalized_corners,
+        area_ratio,
+        larger_gradient_corners,
+    }))
+}
+
+fn locate_gradient_image_boundary(source: &[u8]) -> Result<Option<[ImagePoint; 4]>, String> {
+    let decoded = image::load_from_memory(source)
+        .map_err(|error| format!("decode private original for boundary detection: {error}"))?;
+    let image = decoded
+        .thumbnail(AUTO_CORRECTION_MAX_DIMENSION, AUTO_CORRECTION_MAX_DIMENSION)
+        .to_rgb8();
+    let (width, height) = image.dimensions();
+    if width == 0 || height == 0 {
+        return Ok(None);
+    }
+    Ok(
+        strongest_gradient_boundary(&image, AUTO_CORRECTION_MIN_QUAD_AREA_RATIO)
+            .map(|corners| normalize_gradient_corners(corners, width, height)),
+    )
+}
+
+fn normalize_gradient_corners(
+    corners: [GradientPoint; 4],
+    width: u32,
+    height: u32,
+) -> [ImagePoint; 4] {
+    let x_scale = width.saturating_sub(1).max(1) as f32;
+    let y_scale = height.saturating_sub(1).max(1) as f32;
+    corners.map(|point| ImagePoint {
+        x: (point.x / x_scale).clamp(0.0, 1.0),
+        y: (point.y / y_scale).clamp(0.0, 1.0),
     })
 }
 
@@ -452,10 +559,10 @@ struct GradientSideEvidence {
     sign_coherence: f32,
 }
 
-fn has_materially_larger_gradient_boundary(
+fn strongest_gradient_boundary(
     image: &image::RgbImage,
-    primary_area_ratio: f32,
-) -> bool {
+    minimum_area_ratio: f32,
+) -> Option<[GradientPoint; 4]> {
     let gray = DynamicImage::ImageRgb8(image.clone()).to_luma8();
     let edges = canny(&gray, GRADIENT_EDGE_LOW, GRADIENT_EDGE_HIGH);
     let lines = detect_lines(
@@ -470,7 +577,7 @@ fn has_materially_larger_gradient_boundary(
     debug_assert!(vertical.len() <= GRADIENT_MAX_LINES_PER_AXIS);
     debug_assert!(horizontal.len() <= GRADIENT_MAX_LINES_PER_AXIS);
     let mut combinations = 0usize;
-    let mut best_candidate = None::<(usize, f32)>;
+    let mut best_candidate = None::<(usize, f32, [GradientPoint; 4])>;
     for left_index in 0..vertical.len() {
         for right_index in left_index + 1..vertical.len() {
             let left = &vertical[left_index];
@@ -501,9 +608,7 @@ fn has_materially_larger_gradient_boundary(
                     }
                     let area_ratio = gradient_polygon_area(corners)
                         / (image.width().max(1) * image.height().max(1)) as f32;
-                    if area_ratio
-                        <= (primary_area_ratio + GRADIENT_MIN_MATERIAL_AREA_GROWTH).max(0.50)
-                    {
+                    if area_ratio <= minimum_area_ratio {
                         continue;
                     }
                     let center = GradientPoint {
@@ -528,17 +633,17 @@ fn has_materially_larger_gradient_boundary(
                     let score = area_ratio * sides.iter().map(|side| side.support).sum::<f32>()
                         / 4.0
                         * (valid_sides as f32 / 4.0);
-                    if best_candidate.is_none_or(|(best_sides, best_score)| {
+                    if best_candidate.is_none_or(|(best_sides, best_score, _)| {
                         valid_sides > best_sides
                             || (valid_sides == best_sides && score > best_score)
                     }) {
-                        best_candidate = Some((valid_sides, score));
+                        best_candidate = Some((valid_sides, score, corners));
                     }
                 }
             }
         }
     }
-    best_candidate.is_some_and(|(valid_sides, _)| valid_sides >= 3)
+    best_candidate.and_then(|(valid_sides, _, corners)| (valid_sides >= 3).then_some(corners))
 }
 
 fn select_gradient_axis_lines(

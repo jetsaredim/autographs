@@ -56,11 +56,15 @@ coordinates, supports fine keyboard stepping, draws configurable alignment
 overlays on the preview, and saves or reloads the exact production adjustment
 JSON. Saving a fixture does not alter the original.
 
-The corrected preview also provides a browser-local measurement quadrilateral.
-Move all four orange handles to the card corners to compare its edges with the
-fixed horizontal and vertical grid axes. Measurements persist in browser storage
-per image but remain separate from adjustment fixtures and production data. A
-specific image can be reopened with `?image=N` using its zero-based list index.
+The corrected preview also provides a measurement quadrilateral initialized from
+boundary detection on every rendered preview. Its edges are compared with the
+fixed horizontal and vertical grid axes. A dashed quadrilateral identifies a
+tentative boundary that is useful for measurement but did not satisfy the safer
+automatic-correction contract. Dragging any orange handle switches that image to
+a browser-local manual override; **Use automatic detection** discards the override
+and resumes measurement from each render. Measurements remain separate from
+adjustment fixtures and production data. A specific image can be reopened with
+`?image=N` using its zero-based list index.
 
 ## Investigation Trail
 
@@ -103,6 +107,11 @@ specific image can be reopened with `?image=N` using its zero-based list index.
   keyboard-nudgeable output handles color each edge against the fixed grid axes
   and report aspect-correct edge, corner, and opposite-side alignment without
   changing the saved production adjustment.
+- Preview measurement now uses a separate shared-crate boundary-location
+  contract. Unlike the production correction proposal, it returns near-identity
+  boundaries and exposes lower-confidence candidates as tentative. The orange
+  quadrilateral therefore follows each new preview automatically while the
+  stricter production auto-correction abstention behavior remains unchanged.
 
 ## Results
 

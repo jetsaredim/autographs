@@ -1,8 +1,9 @@
 use autographs_controller::{
     derivatives::{DerivativeVariant, generate_derivative},
     image_adjustments::{
-        ImageAdjustment, ImageAdjustmentProposalStatus, ImageCrop, ImagePerspective, ImagePoint,
-        generate_adjusted_derivative, propose_image_adjustment,
+        ImageAdjustment, ImageAdjustmentProposalStatus, ImageBoundaryDetectionStatus, ImageCrop,
+        ImagePerspective, ImagePoint, detect_image_boundary, generate_adjusted_derivative,
+        propose_image_adjustment,
     },
 };
 use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
@@ -283,6 +284,56 @@ fn auto_assist_reports_when_no_meaningful_correction_is_needed() {
         serde_json::to_value(&proposal).unwrap()["status"],
         "notNeeded"
     );
+}
+
+#[test]
+fn boundary_detection_returns_near_frame_corners_even_when_correction_is_not_needed() {
+    let source = nearly_full_frame_card_fixture(2);
+    let boundary = detect_image_boundary(&source).unwrap();
+
+    assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Reliable);
+    assert_detected_corners_near(
+        &boundary.corners,
+        &[(2, 2), (157, 2), (157, 117), (2, 117)],
+        160,
+        120,
+        0.025,
+    );
+}
+
+#[test]
+fn boundary_detection_exposes_outer_gradient_boundary_without_weakening_auto_assist() {
+    let source = low_contrast_physical_slab_fixture();
+    let boundary = detect_image_boundary(&source).unwrap();
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Reliable);
+    assert_eq!(boundary.corners.len(), 4);
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Unavailable);
+    assert!(proposal.corners.is_empty());
+}
+
+#[test]
+fn boundary_detection_remains_unavailable_without_a_contrast_component() {
+    let source = fixture_png([128, 128, 128], 96, 72);
+    let boundary = detect_image_boundary(&source).unwrap();
+
+    assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Unavailable);
+    assert!(boundary.corners.is_empty());
+}
+
+#[test]
+fn boundary_detection_marks_a_small_contrast_candidate_tentative() {
+    let mut image = RgbaImage::from_pixel(100, 80, Rgba([190, 190, 190, 255]));
+    for y in 28..52 {
+        for x in 35..65 {
+            image.put_pixel(x, y, Rgba([24, 28, 32, 255]));
+        }
+    }
+    let boundary = detect_image_boundary(&encode_png(image)).unwrap();
+
+    assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Tentative);
+    assert_eq!(boundary.corners.len(), 4);
 }
 
 #[test]
