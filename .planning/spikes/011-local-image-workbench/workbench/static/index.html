@@ -88,7 +88,16 @@
 
         <aside class="panel diagnostics-panel">
           <div class="panel-heading"><div><p class="kicker">Readout</p><h2>Geometry diagnostics</h2></div></div>
-          <div id="geometry" class="geometry"></div>
+          <section class="diagnostic-group">
+            <h3>Source selection geometry</h3>
+            <p class="diagnostic-help">These values describe the correction requested by your source quadrilateral. Larger values mean more perspective correction—not necessarily a worse selection.</p>
+            <div id="source-geometry" class="geometry"></div>
+          </section>
+          <section class="diagnostic-group output-diagnostics">
+            <h3>Corrected output alignment</h3>
+            <p class="diagnostic-help">Measured from a reliable boundary detected in the rendered preview. These scores assess the output, so smaller values are better.</p>
+            <div id="output-geometry" class="geometry"><p class="analysis-pending">Waiting for preview analysis…</p></div>
+          </section>
           <div class="grid-controls">
             <h3>Preview grid</h3>
             <label>Spacing <input id="grid-spacing" type="range" min="24" max="160" value="64"><output id="grid-spacing-value">64 px</output></label>

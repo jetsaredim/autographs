@@ -7,13 +7,14 @@ use std::{
 };
 
 use autographs_image_processing::image_adjustments::{
-    ImageAdjustment, apply_image_adjustment, propose_image_adjustment,
+    ImageAdjustment, ImageAdjustmentProposalStatus, apply_image_adjustment,
+    propose_image_adjustment,
 };
 use axum::{
     Json, Router,
     body::Bytes,
     extract::{Path as AxumPath, State},
-    http::{StatusCode, header},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -166,14 +167,35 @@ async fn render_image(
     adjusted
         .write_to(&mut output, ImageFormat::WebP)
         .map_err(internal("encode preview"))?;
-    Ok((
-        [
-            (header::CONTENT_TYPE, "image/webp"),
-            (header::CACHE_CONTROL, "no-store"),
-        ],
-        output.into_inner(),
+    let preview = output.into_inner();
+    let analysis = propose_image_adjustment(&preview).ok();
+    let analysis_status = analysis
+        .as_ref()
+        .map(|proposal| match proposal.status {
+            ImageAdjustmentProposalStatus::Confident => "confident",
+            ImageAdjustmentProposalStatus::NotNeeded => "notNeeded",
+            ImageAdjustmentProposalStatus::Unavailable => "unavailable",
+        })
+        .unwrap_or("error");
+    let analysis_corners = serde_json::to_string(
+        &analysis
+            .as_ref()
+            .map(|proposal| proposal.corners.as_slice())
+            .unwrap_or_default(),
     )
-        .into_response())
+    .map_err(internal("serialize output analysis"))?;
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("image/webp"));
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(
+        "x-workbench-boundary-status",
+        HeaderValue::from_static(analysis_status),
+    );
+    headers.insert(
+        "x-workbench-boundary-corners",
+        HeaderValue::from_str(&analysis_corners).map_err(internal("encode output analysis"))?,
+    );
+    Ok((headers, preview).into_response())
 }
 
 async fn detect_edges(
@@ -402,6 +424,11 @@ mod tests {
         .await
         .expect("render");
         assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            response
+                .headers()
+                .contains_key("x-workbench-boundary-status")
+        );
         assert_eq!(std::fs::read(&source_path).expect("read after"), before);
     }
 

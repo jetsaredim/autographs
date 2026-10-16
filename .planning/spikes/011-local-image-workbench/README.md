@@ -68,7 +68,7 @@ JSON. Saving a fixture does not alter the original.
   fixture-load endpoints against a real corpus image. The rendered response was
   a valid WebP, and the source SHA-256 remained identical before and after the
   fixture round trip.
-- Passed three workbench contract tests, strict Clippy, Rust formatting, the
+- Passed four workbench contract tests, strict Clippy, Rust formatting, the
   shared crate test, JavaScript syntax validation, and repository diff checks.
 - The browser experience is running on loopback for the required operator
   checkpoint. Automated headless checks cover layout and loading, while overall
@@ -83,6 +83,13 @@ JSON. Saving a fixture does not alter the original.
   ports 8787 through 8790. All were stopped, 8788 became the sole default and
   documented port, and the runtime now identifies its address in the UI. Port
   hopping is no longer part of the workbench test procedure.
+- Operator feedback showed that the original geometry colors were easy to read
+  as an output-quality score even though they described only the source
+  quadrilateral and ignored the subsequent rotation. The readout now separates
+  neutral source-selection geometry (including the applied rotation) from
+  corrected-output alignment. Output scores appear only when the shared detector
+  finds a reliable boundary in the rendered preview; otherwise the UI explicitly
+  defers to visual grid alignment rather than manufacturing a score.
 
 ## Results
 

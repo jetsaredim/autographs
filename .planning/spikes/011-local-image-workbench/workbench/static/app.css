@@ -71,8 +71,12 @@ summary { cursor: pointer; color: var(--muted); }
 textarea { width: 100%; margin: .7rem 0; resize: vertical; font: .75rem/1.45 ui-monospace, monospace; }
 .geometry { display: grid; gap: .4rem; padding: 1rem; }
 .metric { display: grid; grid-template-columns: 1fr auto; gap: .75rem; padding: .55rem .65rem; background: var(--panel-2); border-left: 3px solid var(--line); }
+.metric.info { border-color: var(--cyan); }
 .metric.good { border-color: var(--green); }.metric.warn { border-color: var(--amber); }.metric.bad { border-color: var(--red); }
 .metric span { color: var(--muted); }.metric strong { font: 700 .8rem ui-monospace, monospace; }
+.diagnostic-group + .diagnostic-group { border-top: 1px solid var(--line); padding-top: .6rem; }
+.diagnostic-help, .analysis-pending { margin: .35rem 1rem 0; color: var(--muted); font-size: .75rem; line-height: 1.45; }
+.analysis-pending { margin: 0; padding: .65rem; background: var(--panel-2); }
 .grid-controls { border-top: 1px solid var(--line); padding: .7rem 0; }
 .grid-controls label { grid-template-columns: 5rem 1fr 3.5rem; align-items: center; margin: .6rem 1rem; }
 .grid-controls input { padding: 0; }.grid-controls output { text-align: right; font: .7rem ui-monospace, monospace; }

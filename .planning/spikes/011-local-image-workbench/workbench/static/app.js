@@ -283,16 +283,25 @@ function scheduleRender(delay = 140) {
 async function renderPreview() {
   const generation = ++renderGeneration;
   $("#rendering").hidden = false;
+  $("#output-geometry").innerHTML = '<p class="analysis-pending">Analyzing rendered boundary…</p>';
   try {
     const response = await api(`/api/images/${selectedId}/render`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify(canonicalAdjustment()),
     });
+    const boundaryStatus = response.headers.get("x-workbench-boundary-status") || "error";
+    let boundaryCorners = [];
+    try {
+      boundaryCorners = JSON.parse(response.headers.get("x-workbench-boundary-corners") || "[]");
+    } catch (_error) {
+      boundaryCorners = [];
+    }
     const blob = await response.blob();
     if (generation !== renderGeneration) return;
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = URL.createObjectURL(blob);
     $("#preview-image").src = previewUrl;
+    syncOutputGeometry(boundaryStatus, boundaryCorners);
   } catch (error) {
     if (generation === renderGeneration) status(error.message, "error");
   } finally {
@@ -354,7 +363,12 @@ function syncGrid() {
 }
 
 function syncGeometry() {
-  const points = corners();
+  const metrics = geometryMetrics(corners());
+  metrics.push(["Rotation applied after perspective", adjustment.rotationDegrees, "°"]);
+  renderGeometryMetrics($("#source-geometry"), metrics, false);
+}
+
+function geometryMetrics(points) {
   const edges = points.map((point, index) => {
     const next = points[(index + 1) % points.length];
     return { x: next.x - point.x, y: next.y - point.y };
@@ -375,20 +389,40 @@ function syncGeometry() {
   const widthBottom = Math.hypot(edges[2].x, edges[2].y);
   const heightRight = Math.hypot(edges[1].x, edges[1].y);
   const heightLeft = Math.hypot(edges[3].x, edges[3].y);
-  const metrics = [
+  return [
     ["Worst edge axis deviation", Math.max(...deviations), "°", 0.5, 1.5],
     ["Worst corner from square", Math.max(...angles.map((angle) => Math.abs(90 - angle))), "°", 0.5, 1.5],
     ["Top / bottom width delta", Math.abs(widthTop - widthBottom) * 100, "% frame", 0.5, 2],
     ["Left / right height delta", Math.abs(heightLeft - heightRight) * 100, "% frame", 0.5, 2],
   ];
-  const host = $("#geometry");
+}
+
+function renderGeometryMetrics(host, metrics, scored) {
   host.replaceChildren();
   metrics.forEach(([label, value, unit, good, warn]) => {
     const row = document.createElement("div");
-    row.className = `metric ${value <= good ? "good" : value <= warn ? "warn" : "bad"}`;
-    row.innerHTML = `<span>${label}</span><strong>${Number.isFinite(value) ? value.toFixed(2) : "—"}${unit}</strong>`;
+    const scoreClass = scored
+      ? (Math.abs(value) <= good ? "good" : Math.abs(value) <= warn ? "warn" : "bad")
+      : "info";
+    row.className = `metric ${scoreClass}`;
+    const formatted = Number.isFinite(value) ? value.toFixed(2) : "—";
+    row.innerHTML = `<span>${label}</span><strong>${formatted}${unit}</strong>`;
     host.append(row);
   });
+}
+
+function syncOutputGeometry(boundaryStatus, boundaryCorners) {
+  const host = $("#output-geometry");
+  if (boundaryStatus === "confident" && boundaryCorners.length === 4) {
+    renderGeometryMetrics(host, geometryMetrics(boundaryCorners), true);
+    return;
+  }
+  const message = boundaryStatus === "notNeeded"
+    ? "The detector considers the rendered boundary effectively full-frame, but does not return exact corners to score. Use the preview grid for the final visual check."
+    : boundaryStatus === "unavailable"
+      ? "No reliable boundary was detected in the rendered preview. The output remains available for visual grid alignment; no score is shown."
+      : "Output boundary analysis failed. The preview is still valid, but no alignment score is available.";
+  host.innerHTML = `<p class="analysis-pending">${message}</p>`;
 }
 
 start();
