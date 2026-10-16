@@ -80,6 +80,11 @@ future fixture-driven workbench can consume without copying behavior.
   Git and must not require the admin environment.
 - Other crate candidates may be documented, but only capabilities with a real
   second consumer and a coherent deterministic contract should be extracted.
+- The local workbench must bind to loopback, treat source images as immutable,
+  and keep adjustment fixtures and generated output in an explicit directory
+  outside Git.
+- The workbench must exercise the shared crate directly without requiring the
+  controller, admin authentication, catalog persistence, Oracle, or OCI.
 
 ## Spikes
 
@@ -96,3 +101,4 @@ future fixture-driven workbench can consume without copying behavior.
 | 009a | outer-boundary-detection | actual-contour-boundary | comparison | Given the diagnostic masks and actual component contours, when contour-derived quadrilateral candidates are scored, then the positive outer card is retained while the slab's internal card is rejected without per-image tuning. | INVALIDATED | rust, imageproc, contours, detector |
 | 009b | outer-boundary-detection | local-gradient-rectangle | comparison | Given the same controls and corpus, when Canny/Hough rectangular-boundary evidence is scored, then it outperforms or falsifies the contour approach under the same acceptance gates. | VALIDATED | rust, imageproc, canny, hough, detector |
 | 010 | shared-image-processing | shared-image-processing-crate | standard | Given the existing adjustment and derivative code, when it is extracted into a project-local crate, then the controller compiles and passes unchanged behavior contracts through stable re-exports while a future workbench can depend on the same crate. | VALIDATED | rust, image-processing, crate, architecture, regression |
+| 011 | shared-image-processing | local-image-workbench | standard | Given a local image file or directory and an external workspace, when the workbench runs on loopback, then an operator can detect, numerically adjust, preview, and persist the exact production adjustment JSON through the shared crate without an admin, catalog, or cloud environment. | PENDING | rust, image-processing, workbench, fixtures, localhost, privacy |

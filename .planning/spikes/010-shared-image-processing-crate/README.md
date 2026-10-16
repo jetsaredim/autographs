@@ -80,5 +80,6 @@ future fixture-driven workbench can use by path dependency. The existing public
 controller module paths, adjustment JSON/cache contract, detector behavior,
 derivative generation, routes, persistence adapters, and tests remain intact.
 
-Production deployment and operator smoke validation are the next gate. Spikes
-011 and 012 remain paused until that deployed baseline is confirmed healthy.
+The extracted crate shipped in controller v0.4.2. Production deployment,
+authenticated editor use, and an incremental publish all completed successfully,
+so the deployed-baseline gate for Spike 011 is satisfied.
