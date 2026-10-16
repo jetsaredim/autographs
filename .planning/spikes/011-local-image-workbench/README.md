@@ -56,6 +56,12 @@ coordinates, supports fine keyboard stepping, draws configurable alignment
 overlays on the preview, and saves or reloads the exact production adjustment
 JSON. Saving a fixture does not alter the original.
 
+The corrected preview also provides a browser-local measurement quadrilateral.
+Move all four orange handles to the card corners to compare its edges with the
+fixed horizontal and vertical grid axes. Measurements persist in browser storage
+per image but remain separate from adjustment fixtures and production data. A
+specific image can be reopened with `?image=N` using its zero-based list index.
+
 ## Investigation Trail
 
 - Spike 010's extracted crate shipped in v0.4.2 and passed authenticated editor
@@ -90,6 +96,13 @@ JSON. Saving a fixture does not alter the original.
   corrected-output alignment. Output scores appear only when the shared detector
   finds a reliable boundary in the rendered preview; otherwise the UI explicitly
   defers to visual grid alignment rather than manufacturing a score.
+- The saved `wb-1.png` reference resolved to index 7 (`20251109_165005.jpg`) and
+  fixture `0007-adjustment.json`. Because its rendered boundary remained below
+  the conservative detector's confidence gate, the preview now supports a
+  persistent manual measurement quadrilateral. Four independently draggable or
+  keyboard-nudgeable output handles color each edge against the fixed grid axes
+  and report aspect-correct edge, corner, and opposite-side alignment without
+  changing the saved production adjustment.
 
 ## Results
 

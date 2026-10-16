@@ -19,6 +19,16 @@ let renderTimer = null;
 let renderGeneration = 0;
 let previewUrl = null;
 let dragIndex = null;
+let measurementCorners = defaultMeasurementCorners();
+let measurementTouched = new Set();
+let measurementDragIndex = null;
+let measurementOrigin = "manual";
+
+function defaultMeasurementCorners() {
+  return [
+    { x: .05, y: .03 }, { x: .95, y: .03 }, { x: .95, y: .97 }, { x: .05, y: .97 },
+  ];
+}
 
 function corners() {
   return adjustment.perspective?.corners || fullCorners();
@@ -68,7 +78,8 @@ async function start() {
     }
     buildCornerInputs();
     bindControls();
-    await selectImage(0);
+    const requestedId = Number(new URLSearchParams(location.search).get("image"));
+    await selectImage(Number.isInteger(requestedId) && images[requestedId] ? requestedId : 0);
   } catch (error) {
     status(error.message, "error");
   }
@@ -76,6 +87,8 @@ async function start() {
 
 async function selectImage(id) {
   selectedId = Number(id);
+  history.replaceState(null, "", `?image=${selectedId}`);
+  loadMeasurement();
   $("#image-select").value = selectedId;
   const sourceImage = $("#source-image");
   sourceImage.classList.add("is-loading");
@@ -146,22 +159,33 @@ function bindControls() {
   }
   $("#show-grid").addEventListener("change", syncGrid);
   $("#show-center").addEventListener("change", syncGrid);
+  $("#show-measurement").addEventListener("change", syncGrid);
+  $("#reset-measurement").addEventListener("click", resetMeasurement);
   $("#source-image").addEventListener("load", () => {
     $("#source-image").classList.remove("is-loading");
     $("#source-loading").hidden = true;
     positionOverlays();
+    syncGeometry();
     status("Full source loaded. Adjust the draft or run edge detection.");
   });
   $("#source-image").addEventListener("error", () => {
     $("#source-loading").hidden = true;
     status("The source image could not be loaded.", "error");
   });
-  $("#preview-image").addEventListener("load", positionOverlays);
+  $("#preview-image").addEventListener("load", () => {
+    positionOverlays();
+    syncMeasurementOverlay();
+    syncOutputGeometry();
+  });
   window.addEventListener("resize", positionOverlays);
   const overlay = $("#source-overlay");
   overlay.addEventListener("pointermove", dragCorner);
   overlay.addEventListener("pointerup", endDrag);
   overlay.addEventListener("pointercancel", endDrag);
+  const measurementOverlay = $("#measurement-overlay");
+  measurementOverlay.addEventListener("pointermove", dragMeasurementCorner);
+  measurementOverlay.addEventListener("pointerup", endMeasurementDrag);
+  measurementOverlay.addEventListener("pointercancel", endMeasurementDrag);
 }
 
 function syncAll() {
@@ -175,7 +199,9 @@ function syncAll() {
   });
   $("#json").value = JSON.stringify(canonicalAdjustment(), null, 2);
   syncSourceOverlay();
+  syncMeasurementOverlay();
   syncGeometry();
+  syncOutputGeometry();
   syncGrid();
   scheduleRender(0);
 }
@@ -253,12 +279,140 @@ function setCorner(index, x, y) {
   draftChanged();
 }
 
+function measurementStorageKey() {
+  return `autographs-output-measurement:${images[selectedId]?.name || selectedId}`;
+}
+
+function loadMeasurement() {
+  measurementCorners = defaultMeasurementCorners();
+  measurementTouched = new Set();
+  measurementOrigin = "manual";
+  try {
+    const saved = JSON.parse(localStorage.getItem(measurementStorageKey()) || "null");
+    if (saved?.corners?.length === 4) {
+      measurementCorners = saved.corners;
+      measurementTouched = new Set(saved.touched || []);
+      measurementOrigin = saved.origin || "manual";
+    }
+  } catch (_error) {
+    // A malformed browser-only measurement never affects the saved adjustment.
+  }
+}
+
+function saveMeasurement() {
+  try {
+    localStorage.setItem(measurementStorageKey(), JSON.stringify({
+      corners: measurementCorners,
+      touched: [...measurementTouched],
+      origin: measurementOrigin,
+    }));
+  } catch (_error) {
+    // Measurement persistence is optional and never blocks image adjustment.
+  }
+}
+
+function resetMeasurement() {
+  try {
+    localStorage.removeItem(measurementStorageKey());
+  } catch (_error) {
+    // Continue with an in-memory reset when browser storage is unavailable.
+  }
+  measurementCorners = defaultMeasurementCorners();
+  measurementTouched = new Set();
+  measurementOrigin = "manual";
+  syncMeasurementOverlay();
+  syncOutputGeometry();
+  log("Reset output measurement");
+}
+
+function syncMeasurementOverlay() {
+  const edgeGroup = $("#measurement-edges");
+  const handleGroup = $("#measurement-handles");
+  if (edgeGroup.children.length !== 4) {
+    edgeGroup.replaceChildren();
+    handleGroup.replaceChildren();
+    cornerNames.forEach((name, index) => {
+      const edge = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      edgeGroup.append(edge);
+      const handle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      handle.setAttribute("r", 16);
+      handle.setAttribute("tabindex", "0");
+      handle.setAttribute("role", "slider");
+      handle.setAttribute("aria-label", `Output ${name}`);
+      handle.dataset.index = index;
+      handle.addEventListener("pointerdown", beginMeasurementDrag);
+      handle.addEventListener("keydown", nudgeMeasurementCorner);
+      handleGroup.append(handle);
+    });
+  }
+  const deviations = edgeAxisDeviations(measurementCorners, imageAspect("#preview-image"));
+  measurementCorners.forEach((point, index) => {
+    const next = measurementCorners[(index + 1) % 4];
+    const edge = edgeGroup.children[index];
+    edge.setAttribute("x1", point.x * 1000);
+    edge.setAttribute("y1", point.y * 1000);
+    edge.setAttribute("x2", next.x * 1000);
+    edge.setAttribute("y2", next.y * 1000);
+    edge.setAttribute(
+      "class",
+      measurementTouched.size < 4 ? "" : deviations[index] <= .5 ? "good" : deviations[index] <= 1.5 ? "warn" : "bad"
+    );
+    const handle = handleGroup.children[index];
+    handle.setAttribute("cx", point.x * 1000);
+    handle.setAttribute("cy", point.y * 1000);
+  });
+  positionOverlays();
+}
+
+function beginMeasurementDrag(event) {
+  measurementDragIndex = Number(event.currentTarget.dataset.index);
+  event.currentTarget.setPointerCapture(event.pointerId);
+  event.preventDefault();
+}
+
+function dragMeasurementCorner(event) {
+  if (measurementDragIndex === null || !(event.buttons & 1)) return;
+  const rect = $("#measurement-overlay").getBoundingClientRect();
+  setMeasurementCorner(
+    measurementDragIndex,
+    (event.clientX - rect.left) / rect.width,
+    (event.clientY - rect.top) / rect.height
+  );
+}
+
+function endMeasurementDrag() {
+  if (measurementDragIndex !== null) log(`Measured output ${cornerNames[measurementDragIndex]} corner`);
+  measurementDragIndex = null;
+}
+
+function nudgeMeasurementCorner(event) {
+  const directions = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  const direction = directions[event.key];
+  if (!direction) return;
+  event.preventDefault();
+  const index = Number(event.currentTarget.dataset.index);
+  const step = event.shiftKey ? .01 : .001;
+  const point = measurementCorners[index];
+  setMeasurementCorner(index, point.x + direction[0] * step, point.y + direction[1] * step);
+  requestAnimationFrame(() => $(`#measurement-handles circle:nth-child(${index + 1})`)?.focus());
+}
+
+function setMeasurementCorner(index, x, y) {
+  measurementCorners[index] = { x: clamp(x), y: clamp(y) };
+  measurementTouched.add(index);
+  measurementOrigin = "manual";
+  saveMeasurement();
+  syncMeasurementOverlay();
+  syncOutputGeometry();
+}
+
 function clamp(value) { return Math.max(0, Math.min(1, value)); }
 
 function positionOverlays() {
   positionOverlay($("#source-frame"), $("#source-image"), $("#source-overlay"));
   positionOverlay($("#preview-frame"), $("#preview-image"), $("#preview-grid"));
   positionOverlay($("#preview-frame"), $("#preview-image"), $("#preview-center"));
+  positionOverlay($("#preview-frame"), $("#preview-image"), $("#measurement-overlay"));
 }
 
 function positionOverlay(frame, image, overlay) {
@@ -357,28 +511,46 @@ function syncGrid() {
   grid.style.backgroundSize = `${spacing}px ${spacing}px`;
   grid.style.backgroundPosition = `${x}px ${y}px`;
   $("#preview-center").hidden = !$("#show-center").checked;
+  $("#measurement-overlay").hidden = !$("#show-measurement").checked;
   $("#grid-spacing-value").value = `${spacing} px`;
   $("#grid-x-value").value = `${x} px`;
   $("#grid-y-value").value = `${y} px`;
 }
 
 function syncGeometry() {
-  const metrics = geometryMetrics(corners());
+  const metrics = geometryMetrics(corners(), imageAspect("#source-image"));
   metrics.push(["Rotation applied after perspective", adjustment.rotationDegrees, "°"]);
   renderGeometryMetrics($("#source-geometry"), metrics, false);
 }
 
-function geometryMetrics(points) {
-  const edges = points.map((point, index) => {
+function imageAspect(selector) {
+  const image = $(selector);
+  return image?.naturalWidth && image?.naturalHeight ? image.naturalWidth / image.naturalHeight : 1;
+}
+
+function edgeAxisOffsets(points, aspectRatio = 1) {
+  return points.map((point, index) => {
     const next = points[(index + 1) % points.length];
+    const angle = Math.atan2(next.y - point.y, (next.x - point.x) * aspectRatio) * 180 / Math.PI;
+    const target = index % 2 === 0
+      ? Math.round(angle / 180) * 180
+      : Math.round((angle - 90) / 180) * 180 + 90;
+    return angle - target;
+  });
+}
+
+function edgeAxisDeviations(points, aspectRatio = 1) {
+  return edgeAxisOffsets(points, aspectRatio).map(Math.abs);
+}
+
+function geometryMetrics(points, aspectRatio = 1) {
+  const scaledPoints = points.map((point) => ({ x: point.x * aspectRatio, y: point.y }));
+  const edges = scaledPoints.map((point, index) => {
+    const next = scaledPoints[(index + 1) % scaledPoints.length];
     return { x: next.x - point.x, y: next.y - point.y };
   });
-  const deviations = edges.map((edge, index) => {
-    const angle = Math.atan2(edge.y, edge.x) * 180 / Math.PI;
-    const target = index % 2 === 0 ? Math.round(angle / 180) * 180 : Math.round((angle - 90) / 180) * 180 + 90;
-    return Math.abs(angle - target);
-  });
-  const angles = points.map((_, index) => {
+  const deviations = edgeAxisDeviations(points, aspectRatio);
+  const angles = scaledPoints.map((_, index) => {
     const before = edges[(index + 3) % 4];
     const after = edges[index];
     const dot = (-before.x * after.x) + (-before.y * after.y);
@@ -392,37 +564,64 @@ function geometryMetrics(points) {
   return [
     ["Worst edge axis deviation", Math.max(...deviations), "°", 0.5, 1.5],
     ["Worst corner from square", Math.max(...angles.map((angle) => Math.abs(90 - angle))), "°", 0.5, 1.5],
-    ["Top / bottom width delta", Math.abs(widthTop - widthBottom) * 100, "% frame", 0.5, 2],
-    ["Left / right height delta", Math.abs(heightLeft - heightRight) * 100, "% frame", 0.5, 2],
+    ["Top / bottom length delta", Math.abs(widthTop - widthBottom) / ((widthTop + widthBottom) / 2) * 100, "%", 0.5, 2],
+    ["Left / right length delta", Math.abs(heightLeft - heightRight) / ((heightLeft + heightRight) / 2) * 100, "%", 0.5, 2],
+  ];
+}
+
+function outputGeometryMetrics(points, aspectRatio = 1) {
+  const offsets = edgeAxisOffsets(points, aspectRatio);
+  const base = geometryMetrics(points, aspectRatio);
+  return [
+    ["Top edge vs horizontal", offsets[0], "°", 0.5, 1.5, true],
+    ["Right edge vs vertical", offsets[1], "°", 0.5, 1.5, true],
+    ["Bottom edge vs horizontal", offsets[2], "°", 0.5, 1.5, true],
+    ["Left edge vs vertical", offsets[3], "°", 0.5, 1.5, true],
+    ["Horizontal-edge parallelism", Math.abs(offsets[0] - offsets[2]), "°", 0.5, 1.5],
+    ["Vertical-edge parallelism", Math.abs(offsets[1] - offsets[3]), "°", 0.5, 1.5],
+    base[1],
   ];
 }
 
 function renderGeometryMetrics(host, metrics, scored) {
   host.replaceChildren();
-  metrics.forEach(([label, value, unit, good, warn]) => {
+  metrics.forEach(([label, value, unit, good, warn, signed = false]) => {
     const row = document.createElement("div");
     const scoreClass = scored
       ? (Math.abs(value) <= good ? "good" : Math.abs(value) <= warn ? "warn" : "bad")
       : "info";
     row.className = `metric ${scoreClass}`;
-    const formatted = Number.isFinite(value) ? value.toFixed(2) : "—";
+    const formatted = Number.isFinite(value)
+      ? `${signed && value > 0 ? "+" : ""}${value.toFixed(2)}`
+      : "—";
     row.innerHTML = `<span>${label}</span><strong>${formatted}${unit}</strong>`;
     host.append(row);
   });
 }
 
-function syncOutputGeometry(boundaryStatus, boundaryCorners) {
+function syncOutputGeometry(boundaryStatus, boundaryCorners = []) {
   const host = $("#output-geometry");
-  if (boundaryStatus === "confident" && boundaryCorners.length === 4) {
-    renderGeometryMetrics(host, geometryMetrics(boundaryCorners), true);
+  if (
+    measurementTouched.size === 0 &&
+    boundaryStatus === "confident" &&
+    boundaryCorners.length === 4
+  ) {
+    measurementCorners = boundaryCorners;
+    measurementTouched = new Set([0, 1, 2, 3]);
+    measurementOrigin = "detector initialized";
+    saveMeasurement();
+    syncMeasurementOverlay();
+  }
+  if (measurementTouched.size < 4) {
+    const remaining = 4 - measurementTouched.size;
+    host.innerHTML = `<p class="analysis-pending">Position all four orange output handles on the card corners to begin measurement. ${remaining} corner${remaining === 1 ? " remains" : "s remain"}.</p>`;
     return;
   }
-  const message = boundaryStatus === "notNeeded"
-    ? "The detector considers the rendered boundary effectively full-frame, but does not return exact corners to score. Use the preview grid for the final visual check."
-    : boundaryStatus === "unavailable"
-      ? "No reliable boundary was detected in the rendered preview. The output remains available for visual grid alignment; no score is shown."
-      : "Output boundary analysis failed. The preview is still valid, but no alignment score is available.";
-  host.innerHTML = `<p class="analysis-pending">${message}</p>`;
+  renderGeometryMetrics(host, outputGeometryMetrics(measurementCorners, imageAspect("#preview-image")), true);
+  const method = document.createElement("p");
+  method.className = "measurement-method";
+  method.textContent = `Measurement source: ${measurementOrigin}. This does not change the saved image adjustment.`;
+  host.prepend(method);
 }
 
 start();

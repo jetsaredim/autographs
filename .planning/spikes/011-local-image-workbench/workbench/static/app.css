@@ -54,6 +54,13 @@ select, input, textarea { background: #0c100f; color: var(--ink); padding: .55re
 .preview-center::before, .preview-center::after { content: ""; position: absolute; background: #61d6d099; }
 .preview-center::before { width: 1px; inset-block: 0; left: 50%; }
 .preview-center::after { height: 1px; inset-inline: 0; top: 50%; }
+.measurement-overlay { position: absolute; z-index: 3; pointer-events: none; }
+.measurement-overlay line { stroke: var(--amber); stroke-width: 3; vector-effect: non-scaling-stroke; }
+.measurement-overlay line.good { stroke: var(--green); }
+.measurement-overlay line.warn { stroke: var(--amber); }
+.measurement-overlay line.bad { stroke: var(--red); }
+.measurement-overlay circle { pointer-events: all; cursor: grab; fill: #ff9f43; stroke: #160d04; stroke-width: 3; vector-effect: non-scaling-stroke; }
+.measurement-overlay circle:focus { fill: white; stroke: #ff9f43; outline: none; }
 .rendering { position: absolute; z-index: 3; inset: auto 1rem 1rem; padding: .65rem; background: #0e1311dd; color: var(--accent); text-align: center; }
 .overlay-toggles { display: flex; gap: .7rem; color: var(--muted); font-size: .78rem; }
 .work-area { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(19rem, .75fr); gap: 1rem; margin-top: 1rem; }
@@ -77,6 +84,8 @@ textarea { width: 100%; margin: .7rem 0; resize: vertical; font: .75rem/1.45 ui-
 .diagnostic-group + .diagnostic-group { border-top: 1px solid var(--line); padding-top: .6rem; }
 .diagnostic-help, .analysis-pending { margin: .35rem 1rem 0; color: var(--muted); font-size: .75rem; line-height: 1.45; }
 .analysis-pending { margin: 0; padding: .65rem; background: var(--panel-2); }
+.measurement-reset { margin: .65rem 1rem 0; padding: .45rem .65rem; font-size: .75rem; }
+.measurement-method { margin: 0; padding: .35rem .65rem; color: var(--muted); font-size: .7rem; line-height: 1.4; }
 .grid-controls { border-top: 1px solid var(--line); padding: .7rem 0; }
 .grid-controls label { grid-template-columns: 5rem 1fr 3.5rem; align-items: center; margin: .6rem 1rem; }
 .grid-controls input { padding: 0; }.grid-controls output { text-align: right; font: .7rem ui-monospace, monospace; }

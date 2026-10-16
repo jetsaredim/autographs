@@ -54,12 +54,17 @@
             <div class="overlay-toggles">
               <label><input id="show-grid" type="checkbox" checked> Grid</label>
               <label><input id="show-center" type="checkbox" checked> Center</label>
+              <label><input id="show-measurement" type="checkbox" checked> Measure</label>
             </div>
           </div>
           <div id="preview-frame" class="image-frame preview-frame">
             <img id="preview-image" alt="Adjusted preview from the shared production crate">
             <div id="preview-grid" class="preview-grid" aria-hidden="true"></div>
             <div id="preview-center" class="preview-center" aria-hidden="true"></div>
+            <svg id="measurement-overlay" class="measurement-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="Corrected output measurement">
+              <g id="measurement-edges"></g>
+              <g id="measurement-handles"></g>
+            </svg>
             <div id="rendering" class="rendering" hidden>Rendering production transform…</div>
           </div>
         </article>
@@ -95,8 +100,9 @@
           </section>
           <section class="diagnostic-group output-diagnostics">
             <h3>Corrected output alignment</h3>
-            <p class="diagnostic-help">Measured from a reliable boundary detected in the rendered preview. These scores assess the output, so smaller values are better.</p>
-            <div id="output-geometry" class="geometry"><p class="analysis-pending">Waiting for preview analysis…</p></div>
+            <p class="diagnostic-help">Place the four orange preview handles on the card corners. Edges are compared with the fixed grid axes; green is aligned, amber is close, and red needs correction.</p>
+            <button id="reset-measurement" class="measurement-reset quiet" type="button">Reset output measurement</button>
+            <div id="output-geometry" class="geometry"><p class="analysis-pending">Position all four output handles to begin measurement.</p></div>
           </section>
           <div class="grid-controls">
             <h3>Preview grid</h3>
