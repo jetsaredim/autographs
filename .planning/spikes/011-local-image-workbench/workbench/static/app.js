@@ -21,7 +21,9 @@ const cornerInsets = [
 
 let images = [];
 let selectedId = 0;
-const capability = new URLSearchParams(location.search).get("cap") || "";
+const capability = typeof location === "undefined"
+  ? ""
+  : new URLSearchParams(location.search).get("cap") || "";
 let adjustment = identity();
 let renderTimer = null;
 let renderGeneration = 0;
@@ -42,6 +44,57 @@ let framingUndoAdjustment = null;
 let manualFramingSupport = null;
 let manualFramingSignature = null;
 let manualFramingReassessAfterRender = false;
+
+function createOperationAuthority(readState) {
+  let generation = 0;
+  const controllers = new Set();
+  return {
+    invalidate() {
+      generation += 1;
+      for (const controller of controllers) controller.abort();
+      controllers.clear();
+    },
+    capture({ matchAdjustment = true } = {}) {
+      const state = readState();
+      return {
+        imageId: state.imageId,
+        generation,
+        adjustmentSignature: matchAdjustment ? state.adjustmentSignature : null,
+      };
+    },
+    owns(owner) {
+      const state = readState();
+      return owner.generation === generation &&
+        owner.imageId === state.imageId &&
+        (owner.adjustmentSignature === null || owner.adjustmentSignature === state.adjustmentSignature);
+    },
+    controller(owner) {
+      if (!this.owns(owner)) return null;
+      const controller = new AbortController();
+      controllers.add(controller);
+      return controller;
+    },
+    release(controller) {
+      controllers.delete(controller);
+    },
+  };
+}
+
+const operationAuthority = createOperationAuthority(() => ({
+  imageId: selectedId,
+  adjustmentSignature: JSON.stringify(canonicalAdjustment()),
+}));
+
+function invalidateAsyncOperations() {
+  clearTimeout(renderTimer);
+  renderTimer = null;
+  renderGeneration += 1;
+  operationAuthority.invalidate();
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError";
+}
 
 function defaultMeasurementCorners() {
   return [
@@ -99,6 +152,20 @@ async function api(path, options = {}) {
   return response;
 }
 
+async function ownedApi(owner, path, options = {}) {
+  const controller = operationAuthority.controller(owner);
+  if (!controller) return null;
+  try {
+    const response = await api(path, { ...options, signal: controller.signal });
+    return operationAuthority.owns(owner) ? response : null;
+  } catch (error) {
+    if (isAbortError(error) || !operationAuthority.owns(owner)) return null;
+    throw error;
+  } finally {
+    operationAuthority.release(controller);
+  }
+}
+
 async function start() {
   try {
     $("#instance-address").textContent = location.host;
@@ -120,6 +187,7 @@ async function start() {
 }
 
 async function selectImage(id) {
+  invalidateAsyncOperations();
   selectedId = Number(id);
   history.replaceState(null, "", `?cap=${encodeURIComponent(capability)}&image=${selectedId}`);
   detectedBoundary = { status: "unavailable", corners: [], edges: [], framingSupport: null };
@@ -136,27 +204,42 @@ async function selectImage(id) {
   $("#source-loading").hidden = false;
   sourceImage.src = `/api/images/${selectedId}/source?cap=${encodeURIComponent(capability)}&fresh=${Date.now()}`;
   adjustment = identity();
-  await loadFixture(false);
-  syncAll();
-  log(`Selected ${images[selectedId].name}`);
+  const owner = operationAuthority.capture();
+  try {
+    const loaded = await loadFixture(selectedId, owner);
+    if (!loaded || !operationAuthority.owns(owner)) return;
+    adjustment = loaded.adjustment;
+    syncAll();
+    log(`Selected ${images[selectedId].name}`);
+  } catch (error) {
+    if (operationAuthority.owns(owner) && !isAbortError(error)) status(error.message, "error");
+  }
 }
 
-async function loadFixture(announce = true) {
+async function loadFixture(imageId, owner) {
+  const response = await ownedApi(owner, `/api/images/${imageId}/fixture`);
+  if (!response) return null;
+  if (response.status === 204) return { adjustment: identity(), hasFixture: false };
+  const loadedAdjustment = await response.json();
+  if (!operationAuthority.owns(owner)) return null;
+  return { adjustment: loadedAdjustment, hasFixture: true };
+}
+
+async function reloadFixture() {
+  const owner = operationAuthority.capture();
   try {
-    const response = await api(`/api/images/${selectedId}/fixture`);
-    if (response.status === 204) {
-      adjustment = identity();
-      if (announce) status("No saved fixture; reset to identity adjustment.");
-      return;
-    }
-    if (!response.ok) throw new Error(await response.text());
-    adjustment = await response.json();
-    if (announce) {
+    const loaded = await loadFixture(selectedId, owner);
+    if (!loaded || !operationAuthority.owns(owner)) return;
+    adjustment = loaded.adjustment;
+    draftChanged();
+    if (loaded.hasFixture) {
       status("Fixture reloaded from the external workspace.", "success");
       log("Reloaded fixture");
+    } else {
+      status("No saved fixture; reset to identity adjustment.");
     }
   } catch (error) {
-    status(error.message, "error");
+    if (!isAbortError(error)) status(error.message, "error");
   }
 }
 
@@ -192,8 +275,8 @@ function bindControls() {
   $("#next").addEventListener("click", () => selectImage((selectedId + 1) % images.length));
   $("#detect").addEventListener("click", detect);
   $("#save").addEventListener("click", saveFixture);
-  $("#reload").addEventListener("click", async () => { await loadFixture(); syncAll(); });
-  $("#reset").addEventListener("click", () => { adjustment = identity(); syncAll(); log("Reset draft"); });
+  $("#reload").addEventListener("click", reloadFixture);
+  $("#reset").addEventListener("click", () => { adjustment = identity(); draftChanged(); log("Reset draft"); });
   $("#apply-json").addEventListener("click", applyJson);
   for (const [selector, property] of [["#rotation", "rotationDegrees"], ["#zoom", "zoom"], ["#pan-x", "panX"], ["#pan-y", "panY"]]) {
     $(selector).addEventListener("input", (event) => {
@@ -281,6 +364,7 @@ function syncAll() {
 }
 
 function draftChanged({ preserveFramingUndo = false, reassessManualFraming = false } = {}) {
+  invalidateAsyncOperations();
   alignmentSuppression = null;
   framingProposal = null;
   framingPreviewVisible = false;
@@ -390,6 +474,7 @@ function saveMeasurement() {
 }
 
 function resetMeasurement() {
+  invalidateAsyncOperations();
   try {
     localStorage.removeItem(measurementStorageKey());
   } catch (_error) {
@@ -478,6 +563,7 @@ function nudgeMeasurementCorner(event) {
 }
 
 function setMeasurementCorner(index, x, y) {
+  invalidateAsyncOperations();
   measurementCorners[index] = { x: clamp(x), y: clamp(y) };
   measurementTouched.add(index);
   measurementOrigin = "manual";
@@ -530,15 +616,17 @@ function publishPreviewResult(result) {
 
 async function renderPreview({ publish = true } = {}) {
   const generation = ++renderGeneration;
+  const owner = operationAuthority.capture();
   if (publish) {
     $("#rendering").hidden = false;
     $("#output-geometry").innerHTML = '<p class="analysis-pending">Analyzing rendered boundary…</p>';
   }
   try {
-    const response = await api(`/api/images/${selectedId}/render`, {
+    const response = await ownedApi(owner, `/api/images/${owner.imageId}/render`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify(canonicalAdjustment()),
     });
+    if (!response) return false;
     const boundaryStatus = response.headers.get("x-workbench-boundary-status") || "error";
     let boundaryCorners = [];
     let boundaryEdges = [];
@@ -553,7 +641,7 @@ async function renderPreview({ publish = true } = {}) {
       framingSupport = null;
     }
     const blob = await response.blob();
-    if (generation !== renderGeneration) return false;
+    if (generation !== renderGeneration || !operationAuthority.owns(owner)) return false;
     const result = {
       blob,
       boundary: { status: boundaryStatus, corners: boundaryCorners, edges: boundaryEdges, framingSupport },
@@ -570,47 +658,64 @@ async function renderPreview({ publish = true } = {}) {
     }
     return result;
   } catch (error) {
-    if (generation === renderGeneration) status(error.message, "error");
+    if (generation === renderGeneration && operationAuthority.owns(owner) && !isAbortError(error)) {
+      status(error.message, "error");
+    }
     return false;
   } finally {
-    if (publish && generation === renderGeneration) $("#rendering").hidden = true;
+    if (publish && generation === renderGeneration && operationAuthority.owns(owner)) {
+      $("#rendering").hidden = true;
+    }
   }
 }
 
 async function detect() {
+  const owner = operationAuthority.capture();
   status("Running the production edge detector…");
   try {
-    const proposal = await (await api(`/api/images/${selectedId}/detect`, { method: "POST" })).json();
+    const response = await ownedApi(owner, `/api/images/${owner.imageId}/detect`, { method: "POST" });
+    if (!response) return;
+    const proposal = await response.json();
+    if (!operationAuthority.owns(owner)) return;
     if (proposal.status === "confident" && proposal.corners?.length === 4) {
       adjustment.perspective = { corners: proposal.corners };
-      syncAll();
+      draftChanged();
       status("Confident proposal applied to the draft. Review before saving.", "success");
     } else {
       status(proposal.message || `Detector result: ${proposal.status}`);
     }
     log(`Detector: ${proposal.status}`);
-  } catch (error) { status(error.message, "error"); }
+  } catch (error) {
+    if (operationAuthority.owns(owner) && !isAbortError(error)) status(error.message, "error");
+  }
 }
 
 async function saveFixture() {
+  const owner = operationAuthority.capture();
   try {
-    adjustment = await (await api(`/api/images/${selectedId}/fixture`, {
+    const response = await ownedApi(owner, `/api/images/${owner.imageId}/fixture`, {
       method: "PUT", headers: { "content-type": "application/json" },
       body: JSON.stringify(canonicalAdjustment()),
-    })).json();
-    images[selectedId].hasFixture = true;
-    $("#image-select").options[selectedId].textContent = `${images[selectedId].name} • fixture`;
-    syncAll();
+    });
+    if (!response) return;
+    const savedAdjustment = await response.json();
+    if (!operationAuthority.owns(owner)) return;
+    adjustment = savedAdjustment;
+    images[owner.imageId].hasFixture = true;
+    $("#image-select").options[owner.imageId].textContent = `${images[owner.imageId].name} • fixture`;
+    draftChanged();
     status("Fixture saved outside Git. Original image was not modified.", "success");
     log("Saved fixture");
-  } catch (error) { status(error.message, "error"); }
+  } catch (error) {
+    if (operationAuthority.owns(owner) && !isAbortError(error)) status(error.message, "error");
+  }
 }
 
 function applyJson() {
   try {
     const parsed = JSON.parse($("#json").value);
     adjustment = parsed;
-    syncAll();
+    draftChanged();
     status("JSON applied to the draft.", "success");
     log("Applied JSON draft");
   } catch (error) { status(`Invalid JSON: ${error.message}`, "error"); }
@@ -857,13 +962,14 @@ function appendFramingButton(host, label, className, action) {
 async function assessManualFraming() {
   if (measurementOrigin !== "manual" || measurementTouched.size < 4) return;
   const signature = manualFramingKey();
+  const owner = operationAuthority.capture();
   const button = $("#assess-manual-framing");
   if (button) {
     button.disabled = true;
     button.textContent = "Assessing manual boundary…";
   }
   try {
-    const response = await api(`/api/images/${selectedId}/framing`, {
+    const response = await ownedApi(owner, `/api/images/${owner.imageId}/framing`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -871,15 +977,19 @@ async function assessManualFraming() {
         corners: measurementCorners,
       }),
     });
-    if (signature !== manualFramingKey()) return;
-    manualFramingSupport = await response.json();
+    if (!response) return;
+    const support = await response.json();
+    if (!operationAuthority.owns(owner) || signature !== manualFramingKey()) return;
+    manualFramingSupport = support;
     manualFramingSignature = signature;
     syncOutputGeometry();
     status("Background framing assessed from the confirmed manual boundary.", "success");
     log("Confirmed manual output boundary for background framing");
   } catch (error) {
-    status(error.message, "error");
-    syncOutputGeometry();
+    if (operationAuthority.owns(owner) && !isAbortError(error)) {
+      status(error.message, "error");
+      syncOutputGeometry();
+    }
   }
 }
 
@@ -1244,6 +1354,7 @@ function alignmentScore(boundary, aspectRatio, kind, measurement = "coarse") {
 
 async function applySuggestedAlignment() {
   if (!alignmentSuggestion || alignmentApplying) return;
+  const owner = operationAuthority.capture({ matchAdjustment: false });
   alignmentApplying = true;
   alignmentSuppression = null;
   framingProposal = null;
@@ -1282,9 +1393,11 @@ async function applySuggestedAlignment() {
       status(`Auto-aligning preview… pass ${pass} of 8`);
       alignmentSuggestion = null;
       let rendered = await renderPreview({ publish: false });
+      if (!operationAuthority.owns(owner)) return;
       if (!rendered || detectedBoundary.status !== "reliable") {
         adjustment = previousAdjustment;
         finalResult = await renderPreview({ publish: false });
+        if (!operationAuthority.owns(owner)) return;
         stopReason = "boundary detection became unreliable; retained the last reliable result";
         break;
       }
@@ -1315,6 +1428,7 @@ async function applySuggestedAlignment() {
             if (seen.has(backedOffSignature)) continue;
             seen.add(backedOffSignature);
             const candidate = await renderPreview({ publish: false });
+            if (!operationAuthority.owns(owner)) return;
             if (!candidate || detectedBoundary.status !== "reliable") continue;
             const candidateScore = alignmentScore(detectedBoundary, aspectRatio, suggestion.kind, suggestion.measurement);
             if (candidateScore < previousScore - .005) {
@@ -1329,6 +1443,7 @@ async function applySuggestedAlignment() {
         if (!backedOff) {
           adjustment = previousAdjustment;
           finalResult = await renderPreview({ publish: false });
+          if (!operationAuthority.owns(owner)) return;
           stopReason = "the next pass worsened alignment; retained the better result";
           break;
         }
@@ -1360,15 +1475,19 @@ async function applySuggestedAlignment() {
     log(`Auto-alignment completed after ${acceptedPasses} improving pass${acceptedPasses === 1 ? "" : "es"}`);
     status(`Auto-alignment complete: ${stopReason}.`, "success");
   } catch (error) {
-    adjustment = lastAcceptedAdjustment;
-    status(`Auto-alignment stopped: ${error.message}`, "error");
+    if (operationAuthority.owns(owner) && !isAbortError(error)) {
+      adjustment = lastAcceptedAdjustment;
+      status(`Auto-alignment stopped: ${error.message}`, "error");
+    }
   } finally {
     alignmentApplying = false;
-    $("#rendering").hidden = true;
-    if (finalResult) {
-      publishPreviewResult(finalResult);
-    } else {
-      syncOutputGeometry();
+    if (operationAuthority.owns(owner)) {
+      $("#rendering").hidden = true;
+      if (finalResult) {
+        publishPreviewResult(finalResult);
+      } else {
+        syncOutputGeometry();
+      }
     }
   }
 }
@@ -1581,4 +1700,9 @@ function syncOutputGeometry() {
   host.prepend(method);
 }
 
-start();
+if (typeof module !== "undefined") {
+  module.exports = { createOperationAuthority };
+}
+if (typeof document !== "undefined") {
+  start();
+}
