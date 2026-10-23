@@ -65,6 +65,10 @@
               <g id="measurement-edges"></g>
               <g id="measurement-handles"></g>
             </svg>
+            <svg id="framing-overlay" class="framing-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="Suggested framing crop" hidden>
+              <path id="framing-dim" fill-rule="evenodd"></path>
+              <rect id="framing-crop"></rect>
+            </svg>
             <div id="rendering" class="rendering" hidden>Rendering production transform…</div>
           </div>
         </article>
@@ -82,7 +86,7 @@
             <label>Pan X<input id="pan-x" type="number" min="-1" max="1" step="0.01"></label>
             <label>Pan Y<input id="pan-y" type="number" min="-1" max="1" step="0.01"></label>
           </div>
-          <h3>Perspective corners <span>normalized source coordinates</span></h3>
+          <h3>Perspective corners <span>normalized inward distance from each adjacent source edge</span></h3>
           <div id="corner-inputs" class="corner-inputs"></div>
           <details>
             <summary>Exact adjustment JSON</summary>
@@ -100,9 +104,20 @@
           </section>
           <section class="diagnostic-group output-diagnostics">
             <h3>Corrected output alignment</h3>
-            <p class="diagnostic-help">The orange quadrilateral follows the boundary detected in each rendered preview. Its edges are compared with the fixed grid axes; green is aligned, amber is close, and red needs correction. Drag a handle only when detection needs a manual override.</p>
-            <button id="reset-measurement" class="measurement-reset quiet" type="button">Use automatic detection</button>
+            <p class="diagnostic-help">The orange quadrilateral follows the boundary detected in each rendered preview. Sub-degree line fits compare its edges with the fixed grid axes. Straightness and bow residuals show where the visible edge does not behave like one straight line. Green is aligned, amber is close, and red needs correction. Drag a handle only when detection needs a manual override.</p>
+            <button id="reset-measurement" class="measurement-reset quiet" type="button">Reset measurement to automatic</button>
             <div id="output-geometry" class="geometry"><p class="analysis-pending">Detecting the rendered preview boundary…</p></div>
+            <div id="alignment-advice" class="alignment-advice"><p class="analysis-pending">Waiting for a reliable alignment assessment…</p></div>
+          </section>
+          <section class="diagnostic-group framing-diagnostics">
+            <h3>Background framing</h3>
+            <p class="diagnostic-help">These measurements compare the detected item with photographed pixels that remain after alignment. Margins are normalized against the item’s shorter edge so portrait and landscape images use the same visual scale. When detection fails, place all four orange handles on the item corners and explicitly confirm that manual boundary here.</p>
+            <label class="framing-target">Background target
+              <span><input id="framing-target" type="number" min="1" max="12" step="0.5" value="4">% of item short edge</span>
+            </label>
+            <div id="framing-geometry" class="geometry"><p class="analysis-pending">Waiting for a detected item boundary…</p></div>
+            <p id="framing-summary" class="framing-summary"></p>
+            <div id="framing-actions" class="framing-actions"></div>
           </section>
           <div class="grid-controls">
             <h3>Preview grid</h3>

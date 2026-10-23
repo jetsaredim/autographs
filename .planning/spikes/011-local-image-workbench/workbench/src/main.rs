@@ -7,7 +7,7 @@ use std::{
 };
 
 use autographs_image_processing::image_adjustments::{
-    ImageAdjustment, ImageBoundaryDetectionStatus, apply_image_adjustment,
+    ImageAdjustment, ImageBoundaryDetectionStatus, ImagePoint, apply_image_adjustment,
     detect_image_boundary, propose_image_adjustment,
 };
 use axum::{
@@ -18,8 +18,8 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use image::{ImageFormat, ImageReader};
-use serde::Serialize;
+use image::{ImageFormat, ImageReader, RgbaImage};
+use serde::{Deserialize, Serialize};
 use tokio::fs;
 
 const INDEX_HTML: &str = include_str!("../static/index.html");
@@ -46,6 +46,32 @@ struct ImageSummary {
     id: usize,
     name: String,
     has_fixture: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FramingSupportAnalysis {
+    item_short_edge_pixels: f32,
+    margins_pixels: FramingMargins,
+    max_symmetric_margin_pixels: f32,
+    item_intersects_invalid_pixels: bool,
+    limited_by_existing_crop: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FramingMargins {
+    top: f32,
+    right: f32,
+    bottom: f32,
+    left: f32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ManualFramingRequest {
+    adjustment: ImageAdjustment,
+    corners: Vec<ImagePoint>,
 }
 
 type ApiError = (StatusCode, String);
@@ -87,6 +113,7 @@ fn app(state: AppState) -> Router {
         .route("/api/images", get(list_images))
         .route("/api/images/{id}/source", get(source_image))
         .route("/api/images/{id}/render", post(render_image))
+        .route("/api/images/{id}/framing", post(manual_framing))
         .route("/api/images/{id}/detect", post(detect_edges))
         .route(
             "/api/images/{id}/fixture",
@@ -184,6 +211,28 @@ async fn render_image(
             .unwrap_or_default(),
     )
     .map_err(internal("serialize output analysis"))?;
+    let analysis_edges = serde_json::to_string(
+        &analysis
+            .as_ref()
+            .map(|boundary| boundary.edges.as_slice())
+            .unwrap_or_default(),
+    )
+    .map_err(internal("serialize output edge measurements"))?;
+    let framing = analysis
+        .as_ref()
+        .filter(|boundary| boundary.corners.len() == 4)
+        .and_then(|boundary| {
+            analyze_framing_support(
+                &adjusted.to_rgba8(),
+                boundary.corners.as_slice(),
+                adjustment.crop.is_some()
+                    || adjustment.zoom > 1.0
+                    || adjustment.pan_x != 0.0
+                    || adjustment.pan_y != 0.0,
+            )
+        });
+    let framing_json =
+        serde_json::to_string(&framing).map_err(internal("serialize framing support analysis"))?;
     let mut headers = HeaderMap::new();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("image/webp"));
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -195,7 +244,231 @@ async fn render_image(
         "x-workbench-boundary-corners",
         HeaderValue::from_str(&analysis_corners).map_err(internal("encode output analysis"))?,
     );
+    headers.insert(
+        "x-workbench-boundary-edges",
+        HeaderValue::from_str(&analysis_edges)
+            .map_err(internal("encode output edge measurements"))?,
+    );
+    headers.insert(
+        "x-workbench-framing-support",
+        HeaderValue::from_str(&framing_json)
+            .map_err(internal("encode framing support analysis"))?,
+    );
     Ok((headers, preview).into_response())
+}
+
+async fn manual_framing(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<usize>,
+    Json(request): Json<ManualFramingRequest>,
+) -> ApiResult<Json<FramingSupportAnalysis>> {
+    if request.corners.len() != 4
+        || request
+            .corners
+            .iter()
+            .any(|point| !point.x.is_finite() || !point.y.is_finite())
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "manual framing requires four finite preview corners".to_owned(),
+        ));
+    }
+    let image = image_entry(&state, id)?;
+    let source = fs::read(&image.path)
+        .await
+        .map_err(internal("read source image"))?;
+    let decoded = image::load_from_memory(&source).map_err(bad_request("decode source image"))?;
+    let adjusted = apply_image_adjustment(decoded, &request.adjustment)
+        .map_err(bad_request("apply adjustment"))?;
+    let limited_by_existing_crop = request.adjustment.crop.is_some()
+        || request.adjustment.zoom > 1.0
+        || request.adjustment.pan_x != 0.0
+        || request.adjustment.pan_y != 0.0;
+    let analysis = analyze_framing_support(
+        &adjusted.to_rgba8(),
+        request.corners.as_slice(),
+        limited_by_existing_crop,
+    )
+    .ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "manual boundary cannot be measured for framing".to_owned(),
+        )
+    })?;
+    Ok(Json(analysis))
+}
+
+#[derive(Clone, Copy)]
+struct PixelRect {
+    left: u32,
+    top: u32,
+    right: u32,
+    bottom: u32,
+}
+
+fn analyze_framing_support(
+    image: &RgbaImage,
+    corners: &[autographs_image_processing::image_adjustments::ImagePoint],
+    limited_by_existing_crop: bool,
+) -> Option<FramingSupportAnalysis> {
+    if corners.len() != 4 || image.width() < 2 || image.height() < 2 {
+        return None;
+    }
+    let width_scale = image.width().saturating_sub(1) as f32;
+    let height_scale = image.height().saturating_sub(1) as f32;
+    let points = corners
+        .iter()
+        .map(|point| (point.x * width_scale, point.y * height_scale))
+        .collect::<Vec<_>>();
+    let edge_lengths = (0..4)
+        .map(|index| {
+            let next = (index + 1) % 4;
+            (points[next].0 - points[index].0).hypot(points[next].1 - points[index].1)
+        })
+        .collect::<Vec<_>>();
+    let item_width = (edge_lengths[0] + edge_lengths[2]) / 2.0;
+    let item_height = (edge_lengths[1] + edge_lengths[3]) / 2.0;
+    let item_short_edge_pixels = item_width.min(item_height);
+    if !item_short_edge_pixels.is_finite() || item_short_edge_pixels < 1.0 {
+        return None;
+    }
+
+    let left = points
+        .iter()
+        .map(|point| point.0)
+        .fold(f32::INFINITY, f32::min)
+        .floor()
+        .clamp(0.0, image.width().saturating_sub(1) as f32) as u32;
+    let top = points
+        .iter()
+        .map(|point| point.1)
+        .fold(f32::INFINITY, f32::min)
+        .floor()
+        .clamp(0.0, image.height().saturating_sub(1) as f32) as u32;
+    let right = (points
+        .iter()
+        .map(|point| point.0)
+        .fold(f32::NEG_INFINITY, f32::max)
+        .ceil() as u32)
+        .saturating_add(1)
+        .clamp(left.saturating_add(1), image.width());
+    let bottom = (points
+        .iter()
+        .map(|point| point.1)
+        .fold(f32::NEG_INFINITY, f32::max)
+        .ceil() as u32)
+        .saturating_add(1)
+        .clamp(top.saturating_add(1), image.height());
+    let item = PixelRect {
+        left,
+        top,
+        right,
+        bottom,
+    };
+    let invalid_integral = invalid_alpha_integral(image);
+    let stride = image.width() as usize + 1;
+    let item_intersects_invalid_pixels = invalid_count(&invalid_integral, stride, item) > 0;
+    let margin = |side| {
+        maximum_valid_margin(
+            &invalid_integral,
+            stride,
+            image.width(),
+            image.height(),
+            item,
+            side,
+        ) as f32
+    };
+    Some(FramingSupportAnalysis {
+        item_short_edge_pixels,
+        margins_pixels: FramingMargins {
+            top: margin(0),
+            right: margin(1),
+            bottom: margin(2),
+            left: margin(3),
+        },
+        max_symmetric_margin_pixels: margin(4),
+        item_intersects_invalid_pixels,
+        limited_by_existing_crop,
+    })
+}
+
+fn invalid_alpha_integral(image: &RgbaImage) -> Vec<u32> {
+    let stride = image.width() as usize + 1;
+    let mut integral = vec![0_u32; stride * (image.height() as usize + 1)];
+    for y in 0..image.height() as usize {
+        let mut row_invalid = 0_u32;
+        for x in 0..image.width() as usize {
+            row_invalid += u32::from(image.get_pixel(x as u32, y as u32)[3] < 250);
+            integral[(y + 1) * stride + x + 1] = integral[y * stride + x + 1] + row_invalid;
+        }
+    }
+    integral
+}
+
+fn invalid_count(integral: &[u32], stride: usize, rect: PixelRect) -> u32 {
+    let left = rect.left as usize;
+    let top = rect.top as usize;
+    let right = rect.right as usize;
+    let bottom = rect.bottom as usize;
+    integral[bottom * stride + right] + integral[top * stride + left]
+        - integral[top * stride + right]
+        - integral[bottom * stride + left]
+}
+
+fn maximum_valid_margin(
+    integral: &[u32],
+    stride: usize,
+    width: u32,
+    height: u32,
+    item: PixelRect,
+    side: u8,
+) -> u32 {
+    let limit = match side {
+        0 => item.top,
+        1 => width - item.right,
+        2 => height - item.bottom,
+        3 => item.left,
+        _ => item
+            .top
+            .min(width - item.right)
+            .min(height - item.bottom)
+            .min(item.left),
+    };
+    let expanded = |margin: u32| match side {
+        0 => PixelRect {
+            top: item.top - margin,
+            ..item
+        },
+        1 => PixelRect {
+            right: item.right + margin,
+            ..item
+        },
+        2 => PixelRect {
+            bottom: item.bottom + margin,
+            ..item
+        },
+        3 => PixelRect {
+            left: item.left - margin,
+            ..item
+        },
+        _ => PixelRect {
+            left: item.left - margin,
+            top: item.top - margin,
+            right: item.right + margin,
+            bottom: item.bottom + margin,
+        },
+    };
+    let mut low = 0;
+    let mut high = limit;
+    while low < high {
+        let middle = low + (high - low).div_ceil(2);
+        if invalid_count(integral, stride, expanded(middle)) == 0 {
+            low = middle;
+        } else {
+            high = middle - 1;
+        }
+    }
+    low
 }
 
 async fn detect_edges(
@@ -429,6 +702,16 @@ mod tests {
                 .headers()
                 .contains_key("x-workbench-boundary-status")
         );
+        assert!(
+            response
+                .headers()
+                .contains_key("x-workbench-boundary-edges")
+        );
+        assert!(
+            response
+                .headers()
+                .contains_key("x-workbench-framing-support")
+        );
         assert_eq!(std::fs::read(&source_path).expect("read after"), before);
     }
 
@@ -472,6 +755,46 @@ mod tests {
                 .len(),
             4
         );
+        let edges = response.headers()["x-workbench-boundary-edges"]
+            .to_str()
+            .expect("edges header");
+        assert_eq!(
+            serde_json::from_str::<Vec<serde_json::Value>>(edges)
+                .expect("edges json")
+                .len(),
+            4
+        );
+    }
+
+    #[tokio::test]
+    async fn manual_boundary_can_drive_real_pixel_framing_support() {
+        let source_dir = tempdir().expect("source tempdir");
+        let workspace = tempdir().expect("workspace tempdir");
+        let source_path = source_dir.path().join("slab.png");
+        let image = RgbImage::from_pixel(120, 100, Rgb([180, 180, 180]));
+        DynamicImage::ImageRgb8(image)
+            .save(&source_path)
+            .expect("save source");
+        let state = AppState {
+            images: Arc::new(discover_images(&source_path).expect("discover")),
+            workspace: Arc::new(workspace.path().to_path_buf()),
+        };
+        let request = ManualFramingRequest {
+            adjustment: ImageAdjustment::identity(),
+            corners: vec![
+                ImagePoint { x: 0.10, y: 0.15 },
+                ImagePoint { x: 0.90, y: 0.15 },
+                ImagePoint { x: 0.90, y: 0.85 },
+                ImagePoint { x: 0.10, y: 0.85 },
+            ],
+        };
+
+        let Json(analysis) = manual_framing(State(state), AxumPath(0), Json(request))
+            .await
+            .expect("manual framing");
+
+        assert!(analysis.max_symmetric_margin_pixels > 9.0);
+        assert!(!analysis.item_intersects_invalid_pixels);
     }
 
     #[test]
@@ -503,5 +826,76 @@ mod tests {
         )
         .expect("config");
         assert_eq!(config.port, 8788);
+    }
+
+    #[test]
+    fn workbench_exposes_operator_controlled_alignment_suggestions() {
+        assert!(INDEX_HTML.contains("id=\"alignment-advice\""));
+        assert!(APP_JS.contains("Suggested next experiment"));
+        assert!(APP_JS.contains("Auto-align to tolerance"));
+        assert!(APP_JS.contains("for (let pass = 1; pass <= 8; pass += 1)"));
+        assert!(APP_JS.contains("a repeated adjustment was avoided"));
+        assert!(APP_JS.contains("the next pass worsened alignment"));
+        assert!(APP_JS.contains("the rejected proposal is no longer actionable"));
+        assert!(APP_JS.contains("alignmentSuppression?.adjustment"));
+        assert!(APP_JS.contains("renderPreview({ publish: false })"));
+        assert!(APP_JS.contains("publishPreviewResult(finalResult)"));
+        assert!(APP_JS.contains("the reliable coarse boundary"));
+        assert!(APP_JS.contains("kind === \"rotation\""));
+        assert!(APP_JS.contains("coarse alignment complete"));
+        assert!(INDEX_HTML.contains("Background framing"));
+        assert!(APP_JS.contains("Top ${marginLabel}"));
+        assert!(APP_JS.contains("pp off center"));
+        assert!(APP_JS.contains("Worst corner from square (${cornerNames[worstCornerIndex]})"));
+        assert!(INDEX_HTML.contains("normalized inward distance"));
+        assert!(APP_JS.contains("Suggestions use the reliable coarse boundary instead"));
+        assert!(APP_JS.contains("fittedEdgesAreStable"));
+        assert!(INDEX_HTML.contains("Reset measurement to automatic"));
+        assert!(INDEX_HTML.contains("Background target"));
+        assert!(APP_JS.contains("Maximum symmetric real-pixel band"));
+        assert!(APP_JS.contains("Retake recommended"));
+        assert!(APP_JS.contains("does not change crop, zoom, or pan"));
+        assert!(INDEX_HTML.contains("id=\"framing-overlay\""));
+        assert!(APP_JS.contains("Preview crop"));
+        assert!(APP_JS.contains("Apply to draft"));
+        assert!(APP_JS.contains("Undo framing"));
+        assert!(APP_JS.contains("Assess using manual boundary"));
+        assert!(APP_JS.contains("/framing`"));
+        assert!(APP_JS.contains("Confirmed manual boundary."));
+        assert!(APP_JS.contains("Apply recentering"));
+        assert!(APP_JS.contains("The existing thin border can still be recentered"));
+        assert!(APP_JS.contains("reassessManualFraming: preserveManualBoundary"));
+        assert!(APP_CSS.contains(
+            ".measurement-overlay[hidden], .framing-overlay[hidden] { display: none !important; }"
+        ));
+        assert!(APP_JS.contains("overlay.toggleAttribute(\"hidden\", !visible)"));
+        assert!(APP_JS.contains("$(\"#measurement-overlay\").toggleAttribute("));
+        assert!(
+            APP_JS.contains("Applied ${appliedBand.toFixed(1)}% framing crop to the unsaved draft")
+        );
+    }
+
+    #[test]
+    fn framing_support_uses_real_alpha_clearance() {
+        let mut image = RgbaImage::from_pixel(100, 80, image::Rgba([20, 30, 40, 255]));
+        for y in 0..80 {
+            for x in 0..8 {
+                image.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
+            }
+        }
+        let corners = [
+            autographs_image_processing::image_adjustments::ImagePoint { x: 0.20, y: 0.25 },
+            autographs_image_processing::image_adjustments::ImagePoint { x: 0.80, y: 0.25 },
+            autographs_image_processing::image_adjustments::ImagePoint { x: 0.80, y: 0.75 },
+            autographs_image_processing::image_adjustments::ImagePoint { x: 0.20, y: 0.75 },
+        ];
+
+        let analysis = analyze_framing_support(&image, &corners, false).expect("analysis");
+
+        assert!(analysis.margins_pixels.left >= 11.0);
+        assert!(analysis.margins_pixels.left <= 12.0);
+        assert!(analysis.max_symmetric_margin_pixels >= 11.0);
+        assert!(analysis.max_symmetric_margin_pixels <= 12.0);
+        assert!(!analysis.item_intersects_invalid_pixels);
     }
 }

@@ -299,6 +299,8 @@ fn boundary_detection_returns_near_frame_corners_even_when_correction_is_not_nee
         120,
         0.025,
     );
+    assert_eq!(boundary.edges.len(), 4);
+    assert!(boundary.edges.iter().all(|edge| edge.coverage >= 0.35));
 }
 
 #[test]
@@ -309,6 +311,7 @@ fn boundary_detection_exposes_outer_gradient_boundary_without_weakening_auto_ass
 
     assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Reliable);
     assert_eq!(boundary.corners.len(), 4);
+    assert_eq!(boundary.edges.len(), 4);
     assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Unavailable);
     assert!(proposal.corners.is_empty());
 }
@@ -334,6 +337,26 @@ fn boundary_detection_marks_a_small_contrast_candidate_tentative() {
 
     assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Tentative);
     assert_eq!(boundary.corners.len(), 4);
+}
+
+#[test]
+fn boundary_detection_refines_subdegree_edge_angles() {
+    let mut image = RgbaImage::from_pixel(480, 360, Rgba([190, 190, 190, 255]));
+    for x in 45..435 {
+        let offset = ((x - 45) * 2) / 390;
+        let top = 40 + offset;
+        let bottom = 320 + offset;
+        for y in top..=bottom {
+            image.put_pixel(x, y, Rgba([24, 28, 32, 255]));
+        }
+    }
+    let boundary = detect_image_boundary(&encode_png(image)).unwrap();
+
+    assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Reliable);
+    assert_eq!(boundary.edges.len(), 4);
+    assert!(boundary.edges[0].axis_deviation_degrees.abs() > 0.10);
+    assert!(boundary.edges[0].axis_deviation_degrees.abs() < 0.60);
+    assert!(boundary.edges[0].coverage >= 0.75);
 }
 
 #[test]

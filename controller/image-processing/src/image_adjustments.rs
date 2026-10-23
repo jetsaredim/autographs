@@ -37,6 +37,9 @@ const GRADIENT_MIN_SIDE_SUPPORT: f32 = 0.35;
 const GRADIENT_MAX_SIDE_GAP: f32 = 0.40;
 const GRADIENT_MIN_SIDE_CONTRAST: f32 = 5.0;
 const GRADIENT_MIN_SIGN_COHERENCE: f32 = 0.60;
+const BOUNDARY_REFINEMENT_BINS: usize = 48;
+const BOUNDARY_REFINEMENT_CORRIDOR: f32 = 6.0;
+const BOUNDARY_REFINEMENT_MIN_COVERAGE: f32 = 0.35;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,8 +88,19 @@ pub struct ImageAdjustmentProposal {
 pub struct ImageBoundaryDetection {
     pub status: ImageBoundaryDetectionStatus,
     pub corners: Vec<ImagePoint>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edges: Vec<ImageBoundaryEdgeMeasurement>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageBoundaryEdgeMeasurement {
+    pub axis_deviation_degrees: f32,
+    pub straightness_rms: f32,
+    pub bow_deviation: f32,
+    pub coverage: f32,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -285,34 +299,56 @@ pub fn propose_image_adjustment(source: &[u8]) -> Result<ImageAdjustmentProposal
 pub fn detect_image_boundary(source: &[u8]) -> Result<ImageBoundaryDetection, String> {
     let Some(candidate) = locate_image_boundary_candidate(source)? else {
         if let Some(corners) = locate_gradient_image_boundary(source)? {
-            return Ok(ImageBoundaryDetection {
-                status: ImageBoundaryDetectionStatus::Reliable,
-                corners: corners.to_vec(),
-                message: None,
-            });
+            return measured_image_boundary(
+                source,
+                ImageBoundaryDetectionStatus::Reliable,
+                corners,
+                None,
+            );
         }
         return Ok(ImageBoundaryDetection {
             status: ImageBoundaryDetectionStatus::Unavailable,
             corners: Vec::new(),
+            edges: Vec::new(),
             message: Some(AUTO_CORRECTION_UNAVAILABLE_MESSAGE.to_owned()),
         });
     };
     if let Some(corners) = candidate.larger_gradient_corners {
-        return Ok(ImageBoundaryDetection {
-            status: ImageBoundaryDetectionStatus::Reliable,
-            corners: corners.to_vec(),
-            message: None,
-        });
+        return measured_image_boundary(
+            source,
+            ImageBoundaryDetectionStatus::Reliable,
+            corners,
+            None,
+        );
     }
     let tentative = candidate.area_ratio < AUTO_CORRECTION_MIN_QUAD_AREA_RATIO;
-    Ok(ImageBoundaryDetection {
-        status: if tentative {
+    measured_image_boundary(
+        source,
+        if tentative {
             ImageBoundaryDetectionStatus::Tentative
         } else {
             ImageBoundaryDetectionStatus::Reliable
         },
-        corners: candidate.corners.to_vec(),
-        message: tentative.then(|| IMAGE_BOUNDARY_TENTATIVE_MESSAGE.to_owned()),
+        candidate.corners,
+        tentative.then(|| IMAGE_BOUNDARY_TENTATIVE_MESSAGE.to_owned()),
+    )
+}
+
+fn measured_image_boundary(
+    source: &[u8],
+    status: ImageBoundaryDetectionStatus,
+    corners: [ImagePoint; 4],
+    message: Option<String>,
+) -> Result<ImageBoundaryDetection, String> {
+    let refinement = refine_image_boundary(source, corners)?;
+    let (corners, edges) = refinement
+        .map(|refinement| (refinement.corners.to_vec(), refinement.edges.to_vec()))
+        .unwrap_or_else(|| (corners.to_vec(), Vec::new()));
+    Ok(ImageBoundaryDetection {
+        status,
+        corners,
+        edges,
+        message,
     })
 }
 
@@ -388,6 +424,249 @@ fn normalize_gradient_corners(
         x: (point.x / x_scale).clamp(0.0, 1.0),
         y: (point.y / y_scale).clamp(0.0, 1.0),
     })
+}
+
+struct RefinedImageBoundary {
+    corners: [ImagePoint; 4],
+    edges: [ImageBoundaryEdgeMeasurement; 4],
+}
+
+#[derive(Clone, Copy)]
+struct FittedBoundaryLine {
+    horizontal: bool,
+    slope: f32,
+    intercept: f32,
+    measurement: ImageBoundaryEdgeMeasurement,
+}
+
+fn refine_image_boundary(
+    source: &[u8],
+    corners: [ImagePoint; 4],
+) -> Result<Option<RefinedImageBoundary>, String> {
+    let decoded = image::load_from_memory(source)
+        .map_err(|error| format!("decode private original for boundary refinement: {error}"))?;
+    let image = decoded
+        .thumbnail(AUTO_CORRECTION_MAX_DIMENSION, AUTO_CORRECTION_MAX_DIMENSION)
+        .to_rgb8();
+    let (width, height) = image.dimensions();
+    if width < 2 || height < 2 {
+        return Ok(None);
+    }
+    let gray = DynamicImage::ImageRgb8(image).to_luma8();
+    let edge_map = canny(&gray, GRADIENT_EDGE_LOW, GRADIENT_EDGE_HIGH);
+    let pixel_corners = corners.map(|point| GradientPoint {
+        x: point.x * width.saturating_sub(1) as f32,
+        y: point.y * height.saturating_sub(1) as f32,
+    });
+    let mut lines = Vec::with_capacity(4);
+    for index in 0..4 {
+        let Some(line) = fit_boundary_line(
+            &edge_map,
+            pixel_corners[index],
+            pixel_corners[(index + 1) % 4],
+            index % 2 == 0,
+        ) else {
+            return Ok(None);
+        };
+        lines.push(line);
+    }
+    let pixel_intersections = [
+        fitted_line_intersection(lines[3], lines[0]),
+        fitted_line_intersection(lines[0], lines[1]),
+        fitted_line_intersection(lines[1], lines[2]),
+        fitted_line_intersection(lines[2], lines[3]),
+    ];
+    let Some(pixel_corners) = pixel_intersections.into_iter().collect::<Option<Vec<_>>>() else {
+        return Ok(None);
+    };
+    let refined_corners = std::array::from_fn(|index| ImagePoint {
+        x: (pixel_corners[index].x / width.saturating_sub(1) as f32).clamp(0.0, 1.0),
+        y: (pixel_corners[index].y / height.saturating_sub(1) as f32).clamp(0.0, 1.0),
+    });
+    if (ImagePerspective {
+        corners: refined_corners,
+    })
+    .validate()
+    .is_err()
+    {
+        return Ok(None);
+    }
+    Ok(Some(RefinedImageBoundary {
+        corners: refined_corners,
+        edges: std::array::from_fn(|index| lines[index].measurement),
+    }))
+}
+
+fn fit_boundary_line(
+    edges: &GrayImage,
+    start: GradientPoint,
+    end: GradientPoint,
+    horizontal: bool,
+) -> Option<FittedBoundaryLine> {
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    let length_squared = dx * dx + dy * dy;
+    let length = length_squared.sqrt();
+    if length < 1.0 {
+        return None;
+    }
+    let min_x = (start.x.min(end.x) - BOUNDARY_REFINEMENT_CORRIDOR)
+        .floor()
+        .max(0.0) as u32;
+    let max_x = (start.x.max(end.x) + BOUNDARY_REFINEMENT_CORRIDOR)
+        .ceil()
+        .min(edges.width().saturating_sub(1) as f32) as u32;
+    let min_y = (start.y.min(end.y) - BOUNDARY_REFINEMENT_CORRIDOR)
+        .floor()
+        .max(0.0) as u32;
+    let max_y = (start.y.max(end.y) + BOUNDARY_REFINEMENT_CORRIDOR)
+        .ceil()
+        .min(edges.height().saturating_sub(1) as f32) as u32;
+    let mut bins = [None::<(GradientPoint, f32, f32)>; BOUNDARY_REFINEMENT_BINS];
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            if edges.get_pixel(x, y)[0] == 0 {
+                continue;
+            }
+            let point = GradientPoint {
+                x: x as f32,
+                y: y as f32,
+            };
+            let relative_x = point.x - start.x;
+            let relative_y = point.y - start.y;
+            let position = (relative_x * dx + relative_y * dy) / length_squared;
+            if !(0.10..=0.90).contains(&position) {
+                continue;
+            }
+            let distance = (dx * relative_y - dy * relative_x).abs() / length;
+            if distance > BOUNDARY_REFINEMENT_CORRIDOR {
+                continue;
+            }
+            let bin = (((position - 0.10) / 0.80) * BOUNDARY_REFINEMENT_BINS as f32)
+                .floor()
+                .clamp(0.0, BOUNDARY_REFINEMENT_BINS.saturating_sub(1) as f32)
+                as usize;
+            if bins[bin].is_none_or(|(_, _, current_distance)| distance < current_distance) {
+                bins[bin] = Some((point, position, distance));
+            }
+        }
+    }
+    let points = bins
+        .into_iter()
+        .flatten()
+        .map(|(point, position, _)| (point, position))
+        .collect::<Vec<_>>();
+    let coverage = points.len() as f32 / BOUNDARY_REFINEMENT_BINS as f32;
+    if coverage < BOUNDARY_REFINEMENT_MIN_COVERAGE || points.len() < 8 {
+        return None;
+    }
+    let independent_mean = points
+        .iter()
+        .map(|(point, _)| if horizontal { point.x } else { point.y })
+        .sum::<f32>()
+        / points.len() as f32;
+    let dependent_mean = points
+        .iter()
+        .map(|(point, _)| if horizontal { point.y } else { point.x })
+        .sum::<f32>()
+        / points.len() as f32;
+    let covariance = points
+        .iter()
+        .map(|(point, _)| {
+            let independent = if horizontal { point.x } else { point.y };
+            let dependent = if horizontal { point.y } else { point.x };
+            (independent - independent_mean) * (dependent - dependent_mean)
+        })
+        .sum::<f32>();
+    let variance = points
+        .iter()
+        .map(|(point, _)| {
+            let independent = if horizontal { point.x } else { point.y };
+            (independent - independent_mean).powi(2)
+        })
+        .sum::<f32>();
+    if variance <= f32::EPSILON {
+        return None;
+    }
+    let slope = covariance / variance;
+    let intercept = dependent_mean - slope * independent_mean;
+    let residuals = points
+        .iter()
+        .map(|(point, position)| {
+            let independent = if horizontal { point.x } else { point.y };
+            let dependent = if horizontal { point.y } else { point.x };
+            (position, dependent - (slope * independent + intercept))
+        })
+        .collect::<Vec<_>>();
+    let rms_pixels = (residuals
+        .iter()
+        .map(|(_, residual)| residual * residual)
+        .sum::<f32>()
+        / residuals.len() as f32)
+        .sqrt();
+    let center_residuals = residuals
+        .iter()
+        .filter(|(position, _)| (0.40..=0.60).contains(*position))
+        .map(|(_, residual)| *residual)
+        .collect::<Vec<_>>();
+    let outer_residuals = residuals
+        .iter()
+        .filter(|(position, _)| {
+            (0.10..=0.30).contains(*position) || (0.70..=0.90).contains(*position)
+        })
+        .map(|(_, residual)| *residual)
+        .collect::<Vec<_>>();
+    let bow_pixels = if center_residuals.is_empty() || outer_residuals.is_empty() {
+        0.0
+    } else {
+        (center_residuals.iter().sum::<f32>() / center_residuals.len() as f32
+            - outer_residuals.iter().sum::<f32>() / outer_residuals.len() as f32)
+            .abs()
+    };
+    let perpendicular_scale = if horizontal {
+        edges.height().saturating_sub(1).max(1) as f32
+    } else {
+        edges.width().saturating_sub(1).max(1) as f32
+    };
+    Some(FittedBoundaryLine {
+        horizontal,
+        slope,
+        intercept,
+        measurement: ImageBoundaryEdgeMeasurement {
+            axis_deviation_degrees: if horizontal {
+                slope.atan().to_degrees()
+            } else {
+                -slope.atan().to_degrees()
+            },
+            straightness_rms: rms_pixels / perpendicular_scale,
+            bow_deviation: bow_pixels / perpendicular_scale,
+            coverage,
+        },
+    })
+}
+
+fn fitted_line_intersection(
+    first: FittedBoundaryLine,
+    second: FittedBoundaryLine,
+) -> Option<GradientPoint> {
+    let (first_a, first_b, first_c) = fitted_line_coefficients(first);
+    let (second_a, second_b, second_c) = fitted_line_coefficients(second);
+    let determinant = first_a * second_b - second_a * first_b;
+    if determinant.abs() <= f32::EPSILON {
+        return None;
+    }
+    Some(GradientPoint {
+        x: (first_b * second_c - second_b * first_c) / determinant,
+        y: (first_c * second_a - second_c * first_a) / determinant,
+    })
+}
+
+fn fitted_line_coefficients(line: FittedBoundaryLine) -> (f32, f32, f32) {
+    if line.horizontal {
+        (-line.slope, 1.0, -line.intercept)
+    } else {
+        (1.0, -line.slope, -line.intercept)
+    }
 }
 
 fn border_median_rgb(image: &image::RgbImage) -> [u8; 3] {
