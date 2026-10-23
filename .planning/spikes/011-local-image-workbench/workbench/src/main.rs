@@ -21,6 +21,7 @@ use axum::{
 };
 use image::{ImageFormat, ImageReader, RgbaImage};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio::fs;
 
 const INDEX_HTML: &str = include_str!("../static/index.html");
@@ -40,7 +41,29 @@ struct ImageEntry {
     name: String,
     path: PathBuf,
     fixture_name: String,
+    source_identity: FixtureSourceIdentity,
     content_type: &'static str,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FixtureSourceIdentity {
+    relative_path: String,
+    sha256: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FixtureDocument {
+    version: u8,
+    source: FixtureSourceIdentity,
+    adjustment: ImageAdjustment,
+}
+
+enum FixtureRead {
+    Missing,
+    IdentityMismatch,
+    Matched(FixtureDocument),
 }
 
 #[derive(Serialize)]
@@ -220,9 +243,7 @@ async fn list_images(State(state): State<AppState>) -> ApiResult<Json<Vec<ImageS
         summaries.push(ImageSummary {
             id,
             name: image.name.clone(),
-            has_fixture: fs::try_exists(fixture_path(&state, image))
-                .await
-                .map_err(internal("inspect fixture"))?,
+            has_fixture: matches!(read_fixture(&state, image).await?, FixtureRead::Matched(_)),
         });
     }
     Ok(Json(summaries))
@@ -542,18 +563,14 @@ async fn load_fixture(
     AxumPath(id): AxumPath<usize>,
 ) -> ApiResult<Response> {
     let image = image_entry(&state, id)?;
-    let path = fixture_path(&state, image);
-    if !fs::try_exists(&path)
-        .await
-        .map_err(internal("inspect fixture"))?
-    {
-        return Ok(StatusCode::NO_CONTENT.into_response());
+    match read_fixture(&state, image).await? {
+        FixtureRead::Missing => Ok(StatusCode::NO_CONTENT.into_response()),
+        FixtureRead::IdentityMismatch => Err((
+            StatusCode::CONFLICT,
+            "fixture source identity does not match the selected private original".to_owned(),
+        )),
+        FixtureRead::Matched(document) => Ok(Json(document.adjustment).into_response()),
     }
-    let json = fs::read_to_string(path)
-        .await
-        .map_err(internal("read fixture"))?;
-    let adjustment = ImageAdjustment::from_json(json.trim()).map_err(internal("parse fixture"))?;
-    Ok(Json(adjustment).into_response())
 }
 
 async fn save_fixture(
@@ -563,11 +580,14 @@ async fn save_fixture(
 ) -> ApiResult<Response> {
     let image = image_entry(&state, id)?;
     let adjustment = parse_adjustment(&body)?;
+    let document = FixtureDocument {
+        version: 1,
+        source: image.source_identity.clone(),
+        adjustment: adjustment.clone(),
+    };
     let json = format!(
         "{}\n",
-        adjustment
-            .to_json()
-            .map_err(bad_request("serialize fixture"))?
+        serde_json::to_string(&document).map_err(bad_request("serialize fixture"))?
     );
     let destination = fixture_path(&state, image);
     let temporary = destination.with_extension("json.tmp");
@@ -601,6 +621,29 @@ fn fixture_path(state: &AppState, image: &ImageEntry) -> PathBuf {
     state.workspace.join(&image.fixture_name)
 }
 
+async fn read_fixture(state: &AppState, image: &ImageEntry) -> ApiResult<FixtureRead> {
+    let path = fixture_path(state, image);
+    if !fs::try_exists(&path)
+        .await
+        .map_err(internal("inspect fixture"))?
+    {
+        return Ok(FixtureRead::Missing);
+    }
+    let json = fs::read_to_string(path)
+        .await
+        .map_err(internal("read fixture"))?;
+    let document = serde_json::from_str::<FixtureDocument>(json.trim())
+        .map_err(internal("parse fixture document"))?;
+    document
+        .adjustment
+        .validate()
+        .map_err(internal("validate fixture adjustment"))?;
+    if document.version != 1 || document.source != image.source_identity {
+        return Ok(FixtureRead::IdentityMismatch);
+    }
+    Ok(FixtureRead::Matched(document))
+}
+
 fn discover_images(source: &Path) -> Result<Vec<ImageEntry>, String> {
     let metadata = std::fs::metadata(source)
         .map_err(|error| format!("inspect source {}: {error}", source.display()))?;
@@ -617,10 +660,14 @@ fn discover_images(source: &Path) -> Result<Vec<ImageEntry>, String> {
         return Err("source must be an image file or directory".to_owned());
     };
     paths.sort();
+    let source_root = if metadata.is_dir() {
+        source
+    } else {
+        source.parent().unwrap_or_else(|| Path::new("."))
+    };
     paths
         .into_iter()
-        .enumerate()
-        .map(|(id, path)| {
+        .map(|path| {
             let content_type = image_content_type(&path)
                 .ok_or_else(|| format!("unsupported source image: {}", path.display()))?;
             ImageReader::open(&path)
@@ -632,14 +679,31 @@ fn discover_images(source: &Path) -> Result<Vec<ImageEntry>, String> {
                 .and_then(|name| name.to_str())
                 .unwrap_or("image")
                 .to_owned();
+            let relative_path = normalized_relative_path(source_root, &path);
+            let source_bytes = std::fs::read(&path)
+                .map_err(|error| format!("read source image {}: {error}", path.display()))?;
+            let path_digest = format!("{:x}", Sha256::digest(relative_path.as_bytes()));
             Ok(ImageEntry {
                 name,
                 path,
-                fixture_name: format!("{id:04}-adjustment.json"),
+                fixture_name: format!("{path_digest}-adjustment.json"),
+                source_identity: FixtureSourceIdentity {
+                    relative_path,
+                    sha256: format!("{:x}", Sha256::digest(source_bytes)),
+                },
                 content_type,
             })
         })
         .collect()
+}
+
+fn normalized_relative_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 fn image_content_type(path: &Path) -> Option<&'static str> {
@@ -736,7 +800,12 @@ mod tests {
         assert_eq!(images.len(), 2);
         assert_eq!(images[0].name, "a.jpg");
         assert_eq!(images[1].name, "z.webp");
-        assert_eq!(images[0].fixture_name, "0000-adjustment.json");
+        assert_eq!(images[0].source_identity.relative_path, "a.jpg");
+        assert_ne!(images[0].fixture_name, images[1].fixture_name);
+        assert_eq!(
+            images[0].fixture_name,
+            discover_images(directory.path()).expect("rescan")[0].fixture_name
+        );
     }
 
     #[tokio::test]
@@ -1057,7 +1126,12 @@ mod tests {
             .await
             .expect("response");
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
-        assert!(!workspace.path().join("0000-adjustment.json").exists());
+        assert!(
+            std::fs::read_dir(workspace.path())
+                .expect("workspace entries")
+                .next()
+                .is_none()
+        );
 
         let response = router
             .oneshot(
@@ -1072,5 +1146,79 @@ mod tests {
             .expect("response");
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+    }
+
+    #[tokio::test]
+    async fn fixtures_follow_source_identity_across_rescans_and_fail_closed_on_mismatch() {
+        let source_dir = tempdir().expect("source tempdir");
+        let moved_source_dir = tempdir().expect("moved source tempdir");
+        let workspace = tempdir().expect("workspace tempdir");
+        let save_png = |path: &Path, color| {
+            DynamicImage::ImageRgb8(RgbImage::from_pixel(24, 16, Rgb(color)))
+                .save(path)
+                .expect("save source");
+        };
+        save_png(&source_dir.path().join("b.png"), [90, 100, 110]);
+        save_png(&source_dir.path().join("c.png"), [120, 130, 140]);
+
+        let initial = discover_images(source_dir.path()).expect("initial discovery");
+        let initial_b = initial
+            .iter()
+            .position(|image| image.name == "b.png")
+            .unwrap();
+        let fixture_name = initial[initial_b].fixture_name.clone();
+        let identity = initial[initial_b].source_identity.clone();
+        let state = test_state(initial, workspace.path());
+        save_fixture(
+            State(state),
+            AxumPath(initial_b),
+            Bytes::from(ImageAdjustment::identity().to_json().expect("json")),
+        )
+        .await
+        .expect("save fixture");
+
+        save_png(&source_dir.path().join("a.png"), [10, 20, 30]);
+        let rescanned = discover_images(source_dir.path()).expect("rescan");
+        let rescanned_b = rescanned
+            .iter()
+            .position(|image| image.name == "b.png")
+            .unwrap();
+        assert_ne!(initial_b, rescanned_b);
+        assert_eq!(rescanned[rescanned_b].fixture_name, fixture_name);
+        assert_eq!(rescanned[rescanned_b].source_identity, identity);
+        let rescanned_state = test_state(rescanned, workspace.path());
+        assert!(matches!(
+            read_fixture(&rescanned_state, &rescanned_state.images[rescanned_b])
+                .await
+                .expect("reload fixture"),
+            FixtureRead::Matched(_)
+        ));
+
+        std::fs::copy(
+            source_dir.path().join("b.png"),
+            moved_source_dir.path().join("b.png"),
+        )
+        .expect("copy source");
+        let moved = discover_images(moved_source_dir.path()).expect("moved discovery");
+        assert_eq!(moved[0].fixture_name, fixture_name);
+        assert_eq!(moved[0].source_identity, identity);
+
+        save_png(&source_dir.path().join("b.png"), [200, 30, 40]);
+        let changed = discover_images(source_dir.path()).expect("changed discovery");
+        let changed_b = changed
+            .iter()
+            .position(|image| image.name == "b.png")
+            .unwrap();
+        let changed_state = test_state(changed, workspace.path());
+        assert!(matches!(
+            read_fixture(&changed_state, &changed_state.images[changed_b])
+                .await
+                .expect("inspect mismatched fixture"),
+            FixtureRead::IdentityMismatch
+        ));
+        let load_error = load_fixture(State(changed_state), AxumPath(changed_b))
+            .await
+            .expect_err("identity mismatch must fail closed");
+        assert_eq!(load_error.0, StatusCode::CONFLICT);
     }
 }
