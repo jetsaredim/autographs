@@ -4,7 +4,7 @@ idea: shared-image-processing
 name: local-image-workbench
 type: standard
 validates: "Given a local image file or directory and an external workspace, when the workbench runs on loopback, then an operator can detect, numerically adjust, preview, and persist the exact production adjustment JSON through the shared crate without an admin, catalog, or cloud environment."
-verdict: PENDING
+verdict: VALIDATED
 related: [008, 009a, 009b, 010]
 tags: [rust, image-processing, workbench, fixtures, localhost, privacy]
 ---
@@ -66,6 +66,27 @@ and resumes measurement from each render. Measurements remain separate from
 adjustment fixtures and production data. A specific image can be reopened with
 `?image=N` using its zero-based list index.
 
+For reliable automatic boundaries, the framing panel measures photographed
+background in rendered pixels and normalizes each side against the item's
+shorter edge. It reports opposite-side allocation, the maximum symmetric band
+that remains inside real pixel support, and an advisory status using an initial
+4% target. Weak refined edges remain provisional. When automatic detection is
+unsuitable, an operator can position all four orange handles and explicitly
+confirm that manual boundary for real-pixel framing assessment. Changing the
+boundary or adjustment invalidates the confirmation. Framing assessment never
+changes crop, zoom, pan, corners, or the saved fixture.
+
+When reliable support can improve the framing, **Preview crop** draws a cyan
+rectangle and dims the pixels that would be removed without changing the draft.
+**Apply to draft** records one explicit crop after perspective and rotation,
+while **Undo framing** restores the complete prior draft. Adjustable images use
+the configured target. A constrained thin-border image cannot be described as
+meeting that target, but materially uneven opposite margins can still offer
+explicit **Preview recentering** and **Apply recentering** actions. Recentering
+preserves the limiting real-pixel border, remaps a confirmed manual boundary
+through the crop, and automatically refreshes the assessment. Saving the
+fixture remains a separate operator action.
+
 ## Investigation Trail
 
 - Spike 010's extracted crate shipped in v0.4.2 and passed authenticated editor
@@ -78,7 +99,7 @@ adjustment fixtures and production data. A specific image can be reopened with
   fixture-load endpoints against a real corpus image. The rendered response was
   a valid WebP, and the source SHA-256 remained identical before and after the
   fixture round trip.
-- Passed four workbench contract tests, strict Clippy, Rust formatting, the
+- Passed eight workbench contract tests, strict Clippy, Rust formatting, the
   shared crate test, JavaScript syntax validation, and repository diff checks.
 - The browser experience is running on loopback for the required operator
   checkpoint. Automated headless checks cover layout and loading, while overall
@@ -100,8 +121,8 @@ adjustment fixtures and production data. A specific image can be reopened with
   corrected-output alignment. Output scores appear only when the shared detector
   finds a reliable boundary in the rendered preview; otherwise the UI explicitly
   defers to visual grid alignment rather than manufacturing a score.
-- The saved `wb-1.png` reference resolved to index 7 (`20251109_165005.jpg`) and
-  fixture `0007-adjustment.json`. Because its rendered boundary remained below
+- The saved `wb-1.png` reference resolved to corpus index 7 and fixture
+  `0007-adjustment.json`. Because its rendered boundary remained below
   the conservative detector's confidence gate, the preview now supports a
   persistent manual measurement quadrilateral. Four independently draggable or
   keyboard-nudgeable output handles color each edge against the fixed grid axes
@@ -112,8 +133,36 @@ adjustment fixtures and production data. A specific image can be reopened with
   boundaries and exposes lower-confidence candidates as tentative. The orange
   quadrilateral therefore follows each new preview automatically while the
   stricter production auto-correction abstention behavior remains unchanged.
+- Source-supported framing assessment now distinguishes photographed pixels
+  from transparent wedges created by geometric transforms. The initial UAT
+  model uses a configurable 4% target, a 3–6% trial range, and a 45/55 balance
+  threshold, while keeping crop application out of scope until the assessment
+  proves useful across representative images.
+- After representative assessment UAT, the workbench gained an explicit crop
+  preview/apply/undo loop. The overlay and dismissal are non-mutating, applied
+  crops remain unsaved drafts, and constrained images use one pixel less than
+  the measured maximum symmetric band to avoid transform-edge rounding.
+- Operator testing found that SVG overlays could remain painted after hiding or
+  applying a crop. The workbench now reflects hidden state explicitly, clears
+  stale proposals synchronously, and covers the behavior with a contract test.
+- Slab testing established the accepted manual fallback: explicitly confirmed
+  output handles can drive real-pixel framing without being mistaken for
+  automatic geometry, and any unrelated geometry change invalidates them.
+- Thin-border testing established that insufficient background prevents a claim
+  of target framing but does not prevent conservative recentering. The final
+  workflow preserves the limiting border, trims only excess real pixels, carries
+  the confirmed boundary through the crop, and reassesses automatically.
+- The final release workbench was relaunched with all eight tests passing on
+  2026-10-18. The operator accepted the experiment after exercising alignment,
+  automatic and manual framing, crop overlays, constrained cases, slab fallback,
+  and the final thin-border recentering behavior.
 
 ## Results
 
-PENDING. Build, automated contract verification, and an operator experience
-checkpoint remain required before the spike can be validated.
+VALIDATED. The shared image-processing crate supports a private, loopback-only
+workbench for automatic and manual alignment, honest boundary diagnostics,
+real-pixel framing assessment, explicit crop/recentering previews, draft-local
+application, undo, and exact adjustment fixtures without an admin, catalog, or
+cloud environment. The detector intentionally abstains on uncertain subjects;
+the validated operator fallback handles those cases without weakening privacy
+or claiming that cropping can create missing background.
