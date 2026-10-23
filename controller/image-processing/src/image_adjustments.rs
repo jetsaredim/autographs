@@ -345,34 +345,40 @@ pub fn propose_image_adjustment(source: &[u8]) -> Result<ImageAdjustmentProposal
     let Some(candidate) = locate_image_boundary_candidate(source)? else {
         return Ok(unavailable_proposal());
     };
+    Ok(proposal_from_candidate(candidate))
+}
+
+fn proposal_from_candidate(candidate: ImageBoundaryCandidate) -> ImageAdjustmentProposal {
     let normalized_corners = candidate.corners;
     if !(AUTO_CORRECTION_MIN_QUAD_AREA_RATIO..=AUTO_CORRECTION_MAX_QUAD_AREA_RATIO)
         .contains(&candidate.area_ratio)
     {
-        return Ok(unavailable_proposal());
+        return unavailable_proposal();
     }
-    if candidate.larger_gradient_corners.is_some() {
-        return Ok(unavailable_proposal());
+    if candidate.larger_gradient_boundary.is_some() {
+        return unavailable_proposal();
     }
     if corners_are_near_full_frame(normalized_corners) {
-        return Ok(not_needed_proposal());
+        return not_needed_proposal();
     }
 
-    Ok(ImageAdjustmentProposal {
+    ImageAdjustmentProposal {
         status: ImageAdjustmentProposalStatus::Confident,
         corners: normalized_corners.to_vec(),
         message: None,
-    })
+    }
 }
 
 pub fn detect_image_boundary(source: &[u8]) -> Result<ImageBoundaryDetection, String> {
     let Some(candidate) = locate_image_boundary_candidate(source)? else {
-        if let Some(corners) = locate_gradient_image_boundary(source)? {
+        if let Some(boundary) = locate_gradient_image_boundary(source)? {
+            let status = gradient_boundary_status(boundary.valid_sides);
             return measured_image_boundary(
                 source,
-                ImageBoundaryDetectionStatus::Reliable,
-                corners,
-                None,
+                status,
+                boundary.corners,
+                (status == ImageBoundaryDetectionStatus::Tentative)
+                    .then(|| IMAGE_BOUNDARY_TENTATIVE_MESSAGE.to_owned()),
             );
         }
         return Ok(ImageBoundaryDetection {
@@ -382,12 +388,14 @@ pub fn detect_image_boundary(source: &[u8]) -> Result<ImageBoundaryDetection, St
             message: Some(AUTO_CORRECTION_UNAVAILABLE_MESSAGE.to_owned()),
         });
     };
-    if let Some(corners) = candidate.larger_gradient_corners {
+    if let Some(boundary) = candidate.larger_gradient_boundary {
+        let status = gradient_boundary_status(boundary.valid_sides);
         return measured_image_boundary(
             source,
-            ImageBoundaryDetectionStatus::Reliable,
-            corners,
-            None,
+            status,
+            boundary.corners,
+            (status == ImageBoundaryDetectionStatus::Tentative)
+                .then(|| IMAGE_BOUNDARY_TENTATIVE_MESSAGE.to_owned()),
         );
     }
     let tentative = candidate.area_ratio < AUTO_CORRECTION_MIN_QUAD_AREA_RATIO;
@@ -424,7 +432,12 @@ fn measured_image_boundary(
 struct ImageBoundaryCandidate {
     corners: [ImagePoint; 4],
     area_ratio: f32,
-    larger_gradient_corners: Option<[ImagePoint; 4]>,
+    larger_gradient_boundary: Option<NormalizedGradientBoundary>,
+}
+
+struct NormalizedGradientBoundary {
+    corners: [ImagePoint; 4],
+    valid_sides: usize,
 }
 
 fn locate_image_boundary_candidate(
@@ -454,19 +467,24 @@ fn locate_image_boundary_candidate(
         return Ok(None);
     }
     let area_ratio = quadrilateral_area_ratio(normalized_corners);
-    let larger_gradient_corners = strongest_gradient_boundary(
+    let larger_gradient_boundary = strongest_gradient_boundary(
         &image,
         (area_ratio + GRADIENT_MIN_MATERIAL_AREA_GROWTH).max(0.50),
     )
-    .map(|corners| normalize_gradient_corners(corners, width, height));
+    .map(|boundary| NormalizedGradientBoundary {
+        corners: normalize_gradient_corners(boundary.corners, width, height),
+        valid_sides: boundary.valid_sides,
+    });
     Ok(Some(ImageBoundaryCandidate {
         corners: normalized_corners,
         area_ratio,
-        larger_gradient_corners,
+        larger_gradient_boundary,
     }))
 }
 
-fn locate_gradient_image_boundary(source: &[u8]) -> Result<Option<[ImagePoint; 4]>, String> {
+fn locate_gradient_image_boundary(
+    source: &[u8],
+) -> Result<Option<NormalizedGradientBoundary>, String> {
     let decoded = image::load_from_memory(source)
         .map_err(|error| format!("decode private original for boundary detection: {error}"))?;
     let image = decoded
@@ -477,9 +495,21 @@ fn locate_gradient_image_boundary(source: &[u8]) -> Result<Option<[ImagePoint; 4
         return Ok(None);
     }
     Ok(
-        strongest_gradient_boundary(&image, AUTO_CORRECTION_MIN_QUAD_AREA_RATIO)
-            .map(|corners| normalize_gradient_corners(corners, width, height)),
+        strongest_gradient_boundary(&image, AUTO_CORRECTION_MIN_QUAD_AREA_RATIO).map(|boundary| {
+            NormalizedGradientBoundary {
+                corners: normalize_gradient_corners(boundary.corners, width, height),
+                valid_sides: boundary.valid_sides,
+            }
+        }),
     )
+}
+
+fn gradient_boundary_status(valid_sides: usize) -> ImageBoundaryDetectionStatus {
+    if valid_sides == 4 {
+        ImageBoundaryDetectionStatus::Reliable
+    } else {
+        ImageBoundaryDetectionStatus::Tentative
+    }
 }
 
 fn normalize_gradient_corners(
@@ -907,10 +937,15 @@ struct GradientSideEvidence {
     sign_coherence: f32,
 }
 
+struct GradientBoundaryCandidate {
+    corners: [GradientPoint; 4],
+    valid_sides: usize,
+}
+
 fn strongest_gradient_boundary(
     image: &image::RgbImage,
     minimum_area_ratio: f32,
-) -> Option<[GradientPoint; 4]> {
+) -> Option<GradientBoundaryCandidate> {
     let gray = DynamicImage::ImageRgb8(image.clone()).to_luma8();
     let edges = canny(&gray, GRADIENT_EDGE_LOW, GRADIENT_EDGE_HIGH);
     let lines = detect_lines(
@@ -991,7 +1026,12 @@ fn strongest_gradient_boundary(
             }
         }
     }
-    best_candidate.and_then(|(valid_sides, _, corners)| (valid_sides >= 3).then_some(corners))
+    best_candidate.and_then(|(valid_sides, _, corners)| {
+        (valid_sides >= 3).then_some(GradientBoundaryCandidate {
+            corners,
+            valid_sides,
+        })
+    })
 }
 
 fn select_gradient_axis_lines(
@@ -1347,7 +1387,13 @@ fn not_needed_proposal() -> ImageAdjustmentProposal {
 
 #[cfg(test)]
 mod tests {
-    use super::{GradientPoint, gradient_candidate_corners_in_bounds};
+    use super::{
+        GradientPoint, ImageAdjustmentProposalStatus, ImageBoundaryCandidate,
+        ImageBoundaryDetectionStatus, ImagePoint, NormalizedGradientBoundary,
+        gradient_boundary_status, gradient_candidate_corners_in_bounds, normalize_gradient_corners,
+        proposal_from_candidate, strongest_gradient_boundary,
+    };
+    use image::{Rgb, RgbImage};
 
     #[test]
     fn gradient_candidate_bounds_match_imageproc_geometric_coordinates() {
@@ -1385,5 +1431,48 @@ mod tests {
             width,
             height
         ));
+    }
+
+    #[test]
+    fn three_sided_gradient_boundary_is_tentative_not_reliable() {
+        let mut image = RgbImage::from_pixel(240, 180, Rgb([245, 245, 245]));
+        for y in 24..180 {
+            for x in 28..212 {
+                image.put_pixel(x, y, Rgb([175, 175, 175]));
+            }
+        }
+        for x in 28..212 {
+            image.put_pixel(x, 148, Rgb([30, 30, 30]));
+        }
+
+        let boundary = strongest_gradient_boundary(&image, 0.40).expect("gradient candidate");
+
+        assert_eq!(boundary.valid_sides, 3);
+        assert_eq!(
+            gradient_boundary_status(boundary.valid_sides),
+            ImageBoundaryDetectionStatus::Tentative
+        );
+        assert_eq!(
+            gradient_boundary_status(4),
+            ImageBoundaryDetectionStatus::Reliable
+        );
+        let normalized = normalize_gradient_corners(boundary.corners, 240, 180);
+        let candidate = ImageBoundaryCandidate {
+            corners: [
+                ImagePoint { x: 0.25, y: 0.25 },
+                ImagePoint { x: 0.75, y: 0.25 },
+                ImagePoint { x: 0.75, y: 0.75 },
+                ImagePoint { x: 0.25, y: 0.75 },
+            ],
+            area_ratio: 0.25,
+            larger_gradient_boundary: Some(NormalizedGradientBoundary {
+                corners: normalized,
+                valid_sides: boundary.valid_sides,
+            }),
+        };
+        assert_eq!(
+            proposal_from_candidate(candidate).status,
+            ImageAdjustmentProposalStatus::Unavailable
+        );
     }
 }
