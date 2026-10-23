@@ -3,7 +3,7 @@ use autographs_controller::{
     image_adjustments::{
         ImageAdjustment, ImageAdjustmentProposalStatus, ImageBoundaryDetectionStatus, ImageCrop,
         ImagePerspective, ImagePoint, detect_image_boundary, generate_adjusted_derivative,
-        propose_image_adjustment,
+        propose_image_adjustment, validate_ordered_convex_quad,
     },
 };
 use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
@@ -53,7 +53,7 @@ fn adjustment_validation_rejects_unbounded_values() {
             ImagePoint { x: 0.0, y: 1.0 },
         ],
     });
-    assert!(perspective.validate().unwrap_err().contains("perspective"));
+    assert!(perspective.validate().unwrap_err().contains("normalized"));
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn adjustment_validation_rejects_degenerate_perspective_corners() {
             ImagePoint { x: 0.1, y: 0.9 },
         ],
     });
-    assert!(duplicate.validate().unwrap_err().contains("projection"));
+    assert!(duplicate.validate().unwrap_err().contains("quadrilateral"));
 
     let mut collinear = ImageAdjustment::identity();
     collinear.perspective = Some(ImagePerspective {
@@ -78,7 +78,68 @@ fn adjustment_validation_rejects_degenerate_perspective_corners() {
             ImagePoint { x: 0.1, y: 0.9 },
         ],
     });
-    assert!(collinear.validate().unwrap_err().contains("projection"));
+    assert!(collinear.validate().unwrap_err().contains("quadrilateral"));
+}
+
+#[test]
+fn ordered_quad_validation_rejects_invalid_topology_and_accepts_skew() {
+    let bow_tie = [
+        ImagePoint { x: 0.1, y: 0.1 },
+        ImagePoint { x: 0.9, y: 0.9 },
+        ImagePoint { x: 0.9, y: 0.1 },
+        ImagePoint { x: 0.1, y: 0.9 },
+    ];
+    let concave = [
+        ImagePoint { x: 0.1, y: 0.1 },
+        ImagePoint { x: 0.9, y: 0.1 },
+        ImagePoint { x: 0.4, y: 0.4 },
+        ImagePoint { x: 0.1, y: 0.9 },
+    ];
+    let reversed = [
+        ImagePoint { x: 0.1, y: 0.1 },
+        ImagePoint { x: 0.1, y: 0.9 },
+        ImagePoint { x: 0.9, y: 0.9 },
+        ImagePoint { x: 0.9, y: 0.1 },
+    ];
+    let wrong_start = [
+        ImagePoint { x: 0.9, y: 0.1 },
+        ImagePoint { x: 0.9, y: 0.9 },
+        ImagePoint { x: 0.1, y: 0.9 },
+        ImagePoint { x: 0.1, y: 0.1 },
+    ];
+    let near_zero = [
+        ImagePoint { x: 0.1, y: 0.1 },
+        ImagePoint { x: 0.1001, y: 0.1 },
+        ImagePoint {
+            x: 0.1001,
+            y: 0.1001,
+        },
+        ImagePoint { x: 0.1, y: 0.1001 },
+    ];
+    let out_of_range = [
+        ImagePoint { x: -0.1, y: 0.1 },
+        ImagePoint { x: 0.9, y: 0.1 },
+        ImagePoint { x: 0.9, y: 0.9 },
+        ImagePoint { x: 0.1, y: 0.9 },
+    ];
+    for invalid in [
+        bow_tie,
+        concave,
+        reversed,
+        wrong_start,
+        near_zero,
+        out_of_range,
+    ] {
+        assert!(validate_ordered_convex_quad(&invalid).is_err());
+    }
+
+    let valid_skew = [
+        ImagePoint { x: 0.12, y: 0.08 },
+        ImagePoint { x: 0.91, y: 0.16 },
+        ImagePoint { x: 0.84, y: 0.93 },
+        ImagePoint { x: 0.07, y: 0.82 },
+    ];
+    validate_ordered_convex_quad(&valid_skew).expect("valid skewed TL/TR/BR/BL quad");
 }
 
 #[test]

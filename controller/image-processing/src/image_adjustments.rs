@@ -40,6 +40,9 @@ const GRADIENT_MIN_SIGN_COHERENCE: f32 = 0.60;
 const BOUNDARY_REFINEMENT_BINS: usize = 48;
 const BOUNDARY_REFINEMENT_CORRIDOR: f32 = 6.0;
 const BOUNDARY_REFINEMENT_MIN_COVERAGE: f32 = 0.35;
+const MIN_QUAD_EDGE_LENGTH: f32 = 0.001;
+const MIN_QUAD_AREA: f32 = 0.0001;
+const MIN_QUAD_TURN: f32 = 0.00001;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -210,20 +213,7 @@ impl ImageCrop {
 
 impl ImagePerspective {
     fn validate(&self) -> Result<(), String> {
-        for corner in self.corners {
-            validate_f32(
-                corner.x,
-                0.0,
-                1.0,
-                "perspective corner x must be normalized",
-            )?;
-            validate_f32(
-                corner.y,
-                0.0,
-                1.0,
-                "perspective corner y must be normalized",
-            )?;
-        }
+        validate_ordered_convex_quad(&self.corners)?;
         perspective_projection(self.normalized_source_points(), unit_target_points())?;
         Ok(())
     }
@@ -241,6 +231,85 @@ impl ImagePerspective {
                 ImagePoint { x: 0.0, y: 1.0 },
             ]
     }
+}
+
+pub fn validate_ordered_convex_quad(corners: &[ImagePoint]) -> Result<(), String> {
+    if corners.len() != 4 {
+        return Err("quadrilateral requires four TL/TR/BR/BL corners".to_owned());
+    }
+    for corner in corners {
+        validate_f32(
+            corner.x,
+            0.0,
+            1.0,
+            "quadrilateral corner x must be finite and normalized",
+        )?;
+        validate_f32(
+            corner.y,
+            0.0,
+            1.0,
+            "quadrilateral corner y must be finite and normalized",
+        )?;
+    }
+    for index in 0..4 {
+        let next = (index + 1) % 4;
+        let edge = (corners[next].x - corners[index].x).hypot(corners[next].y - corners[index].y);
+        if edge < MIN_QUAD_EDGE_LENGTH {
+            return Err("quadrilateral edges must have meaningful length".to_owned());
+        }
+    }
+    if segments_intersect(corners[0], corners[1], corners[2], corners[3])
+        || segments_intersect(corners[1], corners[2], corners[3], corners[0])
+    {
+        return Err("quadrilateral edges must not intersect".to_owned());
+    }
+    for index in 0..4 {
+        let first = corners[index];
+        let second = corners[(index + 1) % 4];
+        let third = corners[(index + 2) % 4];
+        if cross_product(first, second, third) <= MIN_QUAD_TURN {
+            return Err(
+                "quadrilateral must be convex and ordered clockwise as TL/TR/BR/BL".to_owned(),
+            );
+        }
+    }
+    let signed_area = signed_quadrilateral_area(corners);
+    if signed_area < MIN_QUAD_AREA {
+        return Err("quadrilateral must have meaningful positive area".to_owned());
+    }
+    if corners[0].y + corners[1].y >= corners[2].y + corners[3].y
+        || corners[0].x + corners[3].x >= corners[1].x + corners[2].x
+    {
+        return Err("quadrilateral corners must be ordered TL/TR/BR/BL".to_owned());
+    }
+    Ok(())
+}
+
+fn cross_product(first: ImagePoint, second: ImagePoint, third: ImagePoint) -> f32 {
+    (second.x - first.x) * (third.y - second.y) - (second.y - first.y) * (third.x - second.x)
+}
+
+fn signed_quadrilateral_area(corners: &[ImagePoint]) -> f32 {
+    corners
+        .iter()
+        .zip(corners.iter().cycle().skip(1))
+        .take(4)
+        .map(|(left, right)| left.x * right.y - right.x * left.y)
+        .sum::<f32>()
+        / 2.0
+}
+
+fn segments_intersect(
+    first_start: ImagePoint,
+    first_end: ImagePoint,
+    second_start: ImagePoint,
+    second_end: ImagePoint,
+) -> bool {
+    let first_side = cross_product(first_start, first_end, second_start);
+    let second_side = cross_product(first_start, first_end, second_end);
+    let third_side = cross_product(second_start, second_end, first_start);
+    let fourth_side = cross_product(second_start, second_end, first_end);
+    first_side * second_side < 0.0 && third_side * fourth_side < 0.0
 }
 
 pub fn apply_image_adjustment(

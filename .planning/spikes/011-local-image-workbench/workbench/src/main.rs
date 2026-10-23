@@ -8,7 +8,7 @@ use std::{
 
 use autographs_image_processing::image_adjustments::{
     ImageAdjustment, ImageBoundaryDetectionStatus, ImagePoint, apply_image_adjustment,
-    detect_image_boundary, propose_image_adjustment,
+    detect_image_boundary, propose_image_adjustment, validate_ordered_convex_quad,
 };
 use axum::{
     Json, Router,
@@ -324,17 +324,8 @@ async fn manual_framing(
     AxumPath(id): AxumPath<usize>,
     Json(request): Json<ManualFramingRequest>,
 ) -> ApiResult<Json<FramingSupportAnalysis>> {
-    if request.corners.len() != 4
-        || request
-            .corners
-            .iter()
-            .any(|point| !point.x.is_finite() || !point.y.is_finite())
-    {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "manual framing requires four finite preview corners".to_owned(),
-        ));
-    }
+    validate_ordered_convex_quad(&request.corners)
+        .map_err(bad_request("validate manual framing boundary"))?;
     let image = image_entry(&state, id)?;
     let source = fs::read(&image.path)
         .await
@@ -868,6 +859,53 @@ mod tests {
 
         assert!(analysis.max_symmetric_margin_pixels > 9.0);
         assert!(!analysis.item_intersects_invalid_pixels);
+    }
+
+    #[tokio::test]
+    async fn manual_boundary_rejects_invalid_quadrilateral_topology() {
+        let source_dir = tempdir().expect("source tempdir");
+        let workspace = tempdir().expect("workspace tempdir");
+        let source_path = source_dir.path().join("slab.png");
+        DynamicImage::ImageRgb8(RgbImage::from_pixel(120, 100, Rgb([180, 180, 180])))
+            .save(&source_path)
+            .expect("save source");
+        let state = test_state(
+            discover_images(&source_path).expect("discover"),
+            workspace.path(),
+        );
+        let invalid_boundaries = [
+            vec![
+                ImagePoint { x: 0.1, y: 0.1 },
+                ImagePoint { x: 0.9, y: 0.9 },
+                ImagePoint { x: 0.9, y: 0.1 },
+                ImagePoint { x: 0.1, y: 0.9 },
+            ],
+            vec![
+                ImagePoint { x: 0.1, y: 0.1 },
+                ImagePoint { x: 0.9, y: 0.1 },
+                ImagePoint { x: 0.4, y: 0.4 },
+                ImagePoint { x: 0.1, y: 0.9 },
+            ],
+            vec![
+                ImagePoint { x: 0.1, y: 0.1 },
+                ImagePoint { x: 0.1, y: 0.9 },
+                ImagePoint { x: 0.9, y: 0.9 },
+                ImagePoint { x: 0.9, y: 0.1 },
+            ],
+        ];
+
+        for corners in invalid_boundaries {
+            let result = manual_framing(
+                State(state.clone()),
+                AxumPath(0),
+                Json(ManualFramingRequest {
+                    adjustment: ImageAdjustment::identity(),
+                    corners,
+                }),
+            )
+            .await;
+            assert!(matches!(result, Err((StatusCode::BAD_REQUEST, _))));
+        }
     }
 
     #[test]
