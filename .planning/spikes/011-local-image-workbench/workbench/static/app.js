@@ -40,7 +40,7 @@ let alignmentSuppression = null;
 let framingProposal = null;
 let framingPreviewVisible = false;
 let framingDismissalSignature = null;
-let framingUndoAdjustment = null;
+let framingUndoSnapshot = null;
 let manualFramingSupport = null;
 let manualFramingSignature = null;
 let manualFramingReassessAfterRender = false;
@@ -130,6 +130,49 @@ function invalidateManualFramingSupport() {
   manualFramingSignature = null;
 }
 
+function cloneFramingDraftState(state) {
+  return {
+    adjustment: structuredClone(state.adjustment),
+    measurementCorners: structuredClone(state.measurementCorners),
+    measurementTouched: [...state.measurementTouched],
+    measurementOrigin: state.measurementOrigin,
+    manualFramingSupport: structuredClone(state.manualFramingSupport),
+    manualFramingSignature: state.manualFramingSignature,
+    manualFramingReassessAfterRender: state.manualFramingReassessAfterRender,
+  };
+}
+
+function captureFramingDraftState() {
+  return cloneFramingDraftState({
+    adjustment,
+    measurementCorners,
+    measurementTouched,
+    measurementOrigin,
+    manualFramingSupport,
+    manualFramingSignature,
+    manualFramingReassessAfterRender,
+  });
+}
+
+function restoreFramingDraftState(snapshot) {
+  adjustment = structuredClone(snapshot.adjustment);
+  measurementCorners = structuredClone(snapshot.measurementCorners);
+  measurementTouched = new Set(snapshot.measurementTouched);
+  measurementOrigin = snapshot.measurementOrigin;
+  manualFramingSupport = structuredClone(snapshot.manualFramingSupport);
+  manualFramingSignature = snapshot.manualFramingSignature;
+  manualFramingReassessAfterRender = snapshot.manualFramingReassessAfterRender;
+  if (measurementOrigin === "manual") {
+    saveMeasurement();
+  } else {
+    try {
+      localStorage.removeItem(measurementStorageKey());
+    } catch (_error) {
+      // Browser-only measurement persistence never blocks draft restoration.
+    }
+  }
+}
+
 function log(message) {
   const item = document.createElement("li");
   item.textContent = `${new Date().toLocaleTimeString()} — ${message}`;
@@ -194,7 +237,7 @@ async function selectImage(id) {
   framingProposal = null;
   framingPreviewVisible = false;
   framingDismissalSignature = null;
-  framingUndoAdjustment = null;
+  framingUndoSnapshot = null;
   invalidateManualFramingSupport();
   manualFramingReassessAfterRender = false;
   loadMeasurement();
@@ -351,7 +394,7 @@ function syncAll() {
   framingProposal = null;
   framingPreviewVisible = false;
   framingDismissalSignature = null;
-  framingUndoAdjustment = null;
+  framingUndoSnapshot = null;
   invalidateManualFramingSupport();
   manualFramingReassessAfterRender = false;
   syncDraftControls();
@@ -363,15 +406,19 @@ function syncAll() {
   scheduleRender(0);
 }
 
-function draftChanged({ preserveFramingUndo = false, reassessManualFraming = false } = {}) {
+function draftChanged({
+  preserveFramingUndo = false,
+  preserveManualFramingSupport = false,
+  reassessManualFraming = false,
+} = {}) {
   invalidateAsyncOperations();
   alignmentSuppression = null;
   framingProposal = null;
   framingPreviewVisible = false;
   syncFramingOverlay();
-  invalidateManualFramingSupport();
+  if (!preserveManualFramingSupport) invalidateManualFramingSupport();
   manualFramingReassessAfterRender = reassessManualFraming;
-  if (!preserveFramingUndo) framingUndoAdjustment = null;
+  if (!preserveFramingUndo) framingUndoSnapshot = null;
   syncDraftControls();
   syncSourceOverlay();
   syncGeometry();
@@ -867,18 +914,18 @@ function framingAssessment(framing, target) {
       message: "Framing is within the current 3–6% trial range and opposite sides are balanced. No crop is suggested.",
     };
   }
-  if (framing.maximum + .05 >= target) {
-    return {
-      status: "Adjustable",
-      className: "warn",
-      message: `A ${target.toFixed(1)}% symmetric background band is available using real pixels. A later preview can crop excess background without inventing any.`,
-    };
-  }
   if (framing.limitedByExistingCrop) {
     return {
       status: "Constrained",
       className: "warn",
       message: `The current crop, zoom, or pan leaves at most a ${framing.maximum.toFixed(1)}% symmetric real-pixel band. Reset those controls before deciding whether the original needs a retake.`,
+    };
+  }
+  if (framing.maximum + .05 >= target) {
+    return {
+      status: "Adjustable",
+      className: "warn",
+      message: `A ${target.toFixed(1)}% symmetric background band is available using real pixels. A later preview can crop excess background without inventing any.`,
     };
   }
   const noiseGuard = Math.max(1, framing.itemShortEdgePixels * .005) /
@@ -997,7 +1044,7 @@ function applySuggestedFraming() {
   if (!framingProposal) return;
   const preserveManualBoundary = measurementOrigin === "manual" &&
     manualFramingSignature === manualFramingKey();
-  framingUndoAdjustment = structuredClone(adjustment);
+  framingUndoSnapshot = captureFramingDraftState();
   const crop = { ...framingProposal.crop };
   adjustment.crop = crop;
   adjustment.zoom = 1;
@@ -1026,23 +1073,28 @@ function applySuggestedFraming() {
 }
 
 function undoSuggestedFraming() {
-  if (!framingUndoAdjustment) return;
-  adjustment = framingUndoAdjustment;
-  framingUndoAdjustment = null;
+  if (!framingUndoSnapshot) return;
+  const snapshot = framingUndoSnapshot;
+  framingUndoSnapshot = null;
+  restoreFramingDraftState(snapshot);
   framingProposal = null;
   framingPreviewVisible = false;
   framingDismissalSignature = null;
   syncFramingOverlay();
   log("Undid the framing crop");
   status("Framing crop undone; the prior draft was restored.", "success");
-  draftChanged({ preserveFramingUndo: true });
+  draftChanged({
+    preserveFramingUndo: true,
+    preserveManualFramingSupport: true,
+    reassessManualFraming: snapshot.manualFramingReassessAfterRender,
+  });
 }
 
 function syncFramingActions(assessment, framing, target, points) {
   const host = $("#framing-actions");
   host.replaceChildren();
   framingProposal = null;
-  if (framingUndoAdjustment) {
+  if (framingUndoSnapshot) {
     appendFramingButton(host, "Undo framing", "quiet", undoSuggestedFraming);
   }
   const onePixelPercent = 100 / framing.itemShortEdgePixels;
@@ -1052,7 +1104,7 @@ function syncFramingActions(assessment, framing, target, points) {
         (framing.vertical.deviation > 5 || framing.horizontal.deviation > 5)
       ? Math.max(0, framing.maximum - onePixelPercent)
       : 0;
-  if (proposalBand <= .5 || framing.itemIntersectsInvalidPixels) {
+  if (proposalBand <= .5 || framing.itemIntersectsInvalidPixels || framing.limitedByExistingCrop) {
     framingPreviewVisible = false;
     syncFramingOverlay();
     return;
@@ -1159,7 +1211,7 @@ function syncFramingGeometry(points, reliabilityMessage = "") {
     syncFramingOverlay();
     summary.classList.add("warn");
     summary.textContent = "Manual boundaries show preview-relative balance until you confirm that the four handles mark the item corners. Confirmation measures real photographed-pixel support without changing the image adjustment.";
-    if (framingUndoAdjustment) {
+    if (framingUndoSnapshot) {
       appendFramingButton(actions, "Undo framing", "quiet", undoSuggestedFraming);
     }
     const button = appendFramingButton(
@@ -1359,7 +1411,7 @@ async function applySuggestedAlignment() {
   alignmentSuppression = null;
   framingProposal = null;
   framingPreviewVisible = false;
-  framingUndoAdjustment = null;
+  framingUndoSnapshot = null;
   syncFramingOverlay();
   clearTimeout(renderTimer);
   $("#rendering").hidden = false;
@@ -1701,7 +1753,7 @@ function syncOutputGeometry() {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { createOperationAuthority };
+  module.exports = { cloneFramingDraftState, createOperationAuthority, framingAssessment };
 }
 if (typeof document !== "undefined") {
   start();

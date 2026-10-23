@@ -3,7 +3,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { createOperationAuthority } = require("./app.js");
+const {
+  cloneFramingDraftState,
+  createOperationAuthority,
+  framingAssessment,
+} = require("./app.js");
 
 function deferred() {
   let resolve;
@@ -71,4 +75,52 @@ test("all async mutation paths use the shared ownership contract", () => {
     assert.match(body, /operationAuthority\.capture/, `${functionName} captures ownership`);
     assert.match(body, /operationAuthority\.owns|ownedApi/, `${functionName} checks ownership`);
   }
+});
+
+test("existing crop, zoom, or pan suppresses a crop-driving framing result", () => {
+  const assessment = framingAssessment({
+    margins: { top: 8, right: 8, bottom: 8, left: 8 },
+    vertical: { deviation: 0 },
+    horizontal: { deviation: 0 },
+    maximum: 8,
+    itemShortEdgePixels: 400,
+    itemIntersectsInvalidPixels: false,
+    limitedByExistingCrop: true,
+  }, 4);
+
+  assert.equal(assessment.status, "Constrained");
+  assert.match(assessment.message, /Reset those controls/);
+});
+
+test("framing undo snapshot round-trips every manual geometry input", () => {
+  const draft = {
+    adjustment: {
+      rotationDegrees: 1.5,
+      zoom: 1,
+      panX: 0,
+      panY: 0,
+      crop: null,
+      perspective: { corners: [{ x: .1, y: .1 }, { x: .9, y: .1 }, { x: .9, y: .9 }, { x: .1, y: .9 }] },
+    },
+    measurementCorners: [{ x: .2, y: .2 }, { x: .8, y: .2 }, { x: .8, y: .8 }, { x: .2, y: .8 }],
+    measurementTouched: new Set([0, 1, 2, 3]),
+    measurementOrigin: "manual",
+    manualFramingSupport: { maxSymmetricMarginPixels: 12 },
+    manualFramingSignature: "confirmed-boundary",
+    manualFramingReassessAfterRender: false,
+  };
+
+  const snapshot = cloneFramingDraftState(draft);
+  draft.adjustment.rotationDegrees = 8;
+  draft.measurementCorners[0].x = .6;
+  draft.measurementTouched.delete(3);
+  draft.manualFramingSupport.maxSymmetricMarginPixels = 2;
+
+  assert.equal(snapshot.adjustment.rotationDegrees, 1.5);
+  assert.equal(snapshot.measurementCorners[0].x, .2);
+  assert.deepEqual(snapshot.measurementTouched, [0, 1, 2, 3]);
+  assert.equal(snapshot.measurementOrigin, "manual");
+  assert.deepEqual(snapshot.manualFramingSupport, { maxSymmetricMarginPixels: 12 });
+  assert.equal(snapshot.manualFramingSignature, "confirmed-boundary");
+  assert.equal(snapshot.manualFramingReassessAfterRender, false);
 });
