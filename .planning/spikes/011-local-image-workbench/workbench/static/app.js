@@ -21,6 +21,7 @@ const cornerInsets = [
 
 let images = [];
 let selectedId = 0;
+const capability = new URLSearchParams(location.search).get("cap") || "";
 let adjustment = identity();
 let renderTimer = null;
 let renderGeneration = 0;
@@ -89,7 +90,9 @@ function status(message, kind = "normal") {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, { cache: "no-store", ...options });
+  const headers = new Headers(options.headers || {});
+  if (path.startsWith("/api/")) headers.set("x-workbench-capability", capability);
+  const response = await fetch(path, { cache: "no-store", ...options, headers });
   if (!response.ok) {
     throw new Error((await response.text()) || `HTTP ${response.status}`);
   }
@@ -118,7 +121,7 @@ async function start() {
 
 async function selectImage(id) {
   selectedId = Number(id);
-  history.replaceState(null, "", `?image=${selectedId}`);
+  history.replaceState(null, "", `?cap=${encodeURIComponent(capability)}&image=${selectedId}`);
   detectedBoundary = { status: "unavailable", corners: [], edges: [], framingSupport: null };
   framingProposal = null;
   framingPreviewVisible = false;
@@ -131,7 +134,7 @@ async function selectImage(id) {
   const sourceImage = $("#source-image");
   sourceImage.classList.add("is-loading");
   $("#source-loading").hidden = false;
-  sourceImage.src = `/api/images/${selectedId}/source?fresh=${Date.now()}`;
+  sourceImage.src = `/api/images/${selectedId}/source?cap=${encodeURIComponent(capability)}&fresh=${Date.now()}`;
   adjustment = identity();
   await loadFixture(false);
   syncAll();
@@ -140,7 +143,7 @@ async function selectImage(id) {
 
 async function loadFixture(announce = true) {
   try {
-    const response = await fetch(`/api/images/${selectedId}/fixture`, { cache: "no-store" });
+    const response = await api(`/api/images/${selectedId}/fixture`);
     if (response.status === 204) {
       adjustment = identity();
       if (announce) status("No saved fixture; reset to identity adjustment.");

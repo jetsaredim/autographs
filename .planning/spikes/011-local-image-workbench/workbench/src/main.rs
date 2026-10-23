@@ -13,8 +13,9 @@ use autographs_image_processing::image_adjustments::{
 use axum::{
     Json, Router,
     body::Bytes,
-    extract::{Path as AxumPath, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    extract::{Path as AxumPath, Request, State},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, header},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -30,6 +31,8 @@ const APP_JS: &str = include_str!("../static/app.js");
 struct AppState {
     images: Arc<Vec<ImageEntry>>,
     workspace: Arc<PathBuf>,
+    authority: Arc<str>,
+    capability: Arc<str>,
 }
 
 #[derive(Clone)]
@@ -88,17 +91,23 @@ async fn main() -> Result<(), String> {
         .await
         .map_err(|error| format!("create workspace {}: {error}", config.workspace.display()))?;
 
-    let state = AppState {
-        images: Arc::new(images),
-        workspace: Arc::new(config.workspace),
-    };
-    let image_count = state.images.len();
-    let app = app(state);
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), config.port);
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .map_err(|error| format!("bind {address}: {error}"))?;
-    println!("Autographs image workbench: http://{address}");
+    let address = listener
+        .local_addr()
+        .map_err(|error| format!("inspect bound address: {error}"))?;
+    let capability = format!("{:032x}", rand::random::<u128>());
+    let state = AppState {
+        images: Arc::new(images),
+        workspace: Arc::new(config.workspace),
+        authority: Arc::from(address.to_string()),
+        capability: Arc::from(capability.as_str()),
+    };
+    let image_count = state.images.len();
+    let app = app(state);
+    println!("Autographs image workbench: http://{address}/?cap={capability}");
     println!("Loaded {image_count} immutable source image(s).");
     axum::serve(listener, app)
         .await
@@ -119,7 +128,60 @@ fn app(state: AppState) -> Router {
             "/api/images/{id}/fixture",
             get(load_fixture).put(save_fixture),
         )
-        .with_state(state)
+        .with_state(state.clone())
+        .layer(middleware::from_fn_with_state(state, authorize_request))
+}
+
+async fn authorize_request(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let expected_origin = format!("http://{}", state.authority);
+    let host_matches = request
+        .headers()
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|host| host == state.authority.as_ref());
+    if !host_matches {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    let is_api = request.uri().path().starts_with("/api/");
+    if is_api {
+        let header_capability = request
+            .headers()
+            .get("x-workbench-capability")
+            .and_then(|value| value.to_str().ok());
+        let query_capability = request
+            .uri()
+            .query()
+            .and_then(|query| query.split('&').find_map(|pair| pair.strip_prefix("cap=")));
+        if header_capability.or(query_capability) != Some(state.capability.as_ref()) {
+            return StatusCode::FORBIDDEN.into_response();
+        }
+        if !matches!(
+            *request.method(),
+            Method::GET | Method::HEAD | Method::OPTIONS
+        ) {
+            let origin_matches = request
+                .headers()
+                .get(header::ORIGIN)
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|origin| origin == expected_origin);
+            if !origin_matches {
+                return StatusCode::FORBIDDEN.into_response();
+            }
+        }
+    }
+
+    let mut response = next.run(request).await;
+    if is_api {
+        response
+            .headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    }
+    response
 }
 
 async fn index() -> impl IntoResponse {
@@ -659,8 +721,19 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::body::Body;
     use image::{DynamicImage, Rgb, RgbImage};
     use tempfile::tempdir;
+    use tower::ServiceExt;
+
+    fn test_state(images: Vec<ImageEntry>, workspace: &Path) -> AppState {
+        AppState {
+            images: Arc::new(images),
+            workspace: Arc::new(workspace.to_path_buf()),
+            authority: Arc::from("127.0.0.1:8788"),
+            capability: Arc::from("test-capability"),
+        }
+    }
 
     #[test]
     fn discovers_only_allowlisted_images_in_stable_order() {
@@ -685,10 +758,10 @@ mod tests {
             .save(&source_path)
             .expect("save source");
         let before = std::fs::read(&source_path).expect("read before");
-        let state = AppState {
-            images: Arc::new(discover_images(&source_path).expect("discover")),
-            workspace: Arc::new(workspace.path().to_path_buf()),
-        };
+        let state = test_state(
+            discover_images(&source_path).expect("discover"),
+            workspace.path(),
+        );
         let response = render_image(
             State(state),
             AxumPath(0),
@@ -729,10 +802,10 @@ mod tests {
         DynamicImage::ImageRgb8(image)
             .save(&source_path)
             .expect("save source");
-        let state = AppState {
-            images: Arc::new(discover_images(&source_path).expect("discover")),
-            workspace: Arc::new(workspace.path().to_path_buf()),
-        };
+        let state = test_state(
+            discover_images(&source_path).expect("discover"),
+            workspace.path(),
+        );
 
         let response = render_image(
             State(state),
@@ -775,10 +848,10 @@ mod tests {
         DynamicImage::ImageRgb8(image)
             .save(&source_path)
             .expect("save source");
-        let state = AppState {
-            images: Arc::new(discover_images(&source_path).expect("discover")),
-            workspace: Arc::new(workspace.path().to_path_buf()),
-        };
+        let state = test_state(
+            discover_images(&source_path).expect("discover"),
+            workspace.path(),
+        );
         let request = ManualFramingRequest {
             adjustment: ImageAdjustment::identity(),
             corners: vec![
@@ -897,5 +970,69 @@ mod tests {
         assert!(analysis.max_symmetric_margin_pixels >= 11.0);
         assert!(analysis.max_symmetric_margin_pixels <= 12.0);
         assert!(!analysis.item_intersects_invalid_pixels);
+    }
+
+    #[tokio::test]
+    async fn router_rejects_attacker_hosts_and_cross_origin_fixture_writes() {
+        let source_dir = tempdir().expect("source tempdir");
+        let workspace = tempdir().expect("workspace tempdir");
+        let source_path = source_dir.path().join("card.png");
+        DynamicImage::ImageRgb8(RgbImage::from_pixel(24, 16, Rgb([90, 100, 110])))
+            .save(&source_path)
+            .expect("save source");
+        let router = app(test_state(
+            discover_images(&source_path).expect("discover"),
+            workspace.path(),
+        ));
+
+        for uri in ["/api/images", "/api/images/0/source"] {
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(uri)
+                        .header(header::HOST, "attacker.example:8788")
+                        .header("x-workbench-capability", "test-capability")
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        }
+
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(Method::PUT)
+                    .uri("/api/images/0/fixture")
+                    .header(header::HOST, "127.0.0.1:8788")
+                    .header(header::ORIGIN, "http://attacker.example:8788")
+                    .header("x-workbench-capability", "test-capability")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        ImageAdjustment::identity().to_json().expect("json"),
+                    ))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert!(!workspace.path().join("0000-adjustment.json").exists());
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .uri("/api/images/0/source")
+                    .header(header::HOST, "127.0.0.1:8788")
+                    .header("x-workbench-capability", "test-capability")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
     }
 }
