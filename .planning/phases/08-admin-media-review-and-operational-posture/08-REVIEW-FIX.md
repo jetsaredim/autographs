@@ -28,7 +28,9 @@ final_tree_cleanup_review: fix_applied_pending_confirmation
 - Fixed: 3
 - Skipped: 0
 - Reassessment required: no
-- Source commits: `16241f6`, `f82229c`, `3aaf113`
+- Historical fix commits: `16241f6`, `f82229c`
+- Harness-retirement commit: `3aaf113`
+- WR-07 fix commit: `018ec37`
 
 The cycle-3 plan closes the two round-2 findings under the user-approved single-operator local-workbench contract. Browser Save is single-flight and stale-safe, fixture publication no longer shares a fixed temporary path, and the operator runbook now preserves the capability through launch and deep links. Concurrent external API writers and multi-user use remain explicitly unsupported; no mutex, ordinal, barrier, custom temp naming, or winner-order contract was added.
 
@@ -73,13 +75,13 @@ The browser now uses one exported DOM-independent Save coordinator in production
 
 ### WR-07: The spike manifest still promises the retired workbench as future work
 
-**Finding family:** `retired_validation_documentation_consistency`
+**Finding family:** `retired_workbench_manifest_contract`
 
-**Lineage:** `sibling_path_miss` from the Spike 011 harness retirement
+**Lineage:** `independent`
 
 **Files modified:** `.planning/spikes/MANIFEST.md`
 
-**Commit:** this fix commit
+**Commit:** `018ec37`
 
 **Applied fix:** Rewrote the shared-image-processing idea and requirements so
 the retained production crate contract remains current while every workbench
@@ -142,8 +144,8 @@ Iteration 2 closeout:
 
 Final-tree cleanup review:
 
-- WR-07 documentation consistency — fixed in the follow-up commit; reviewer
-  finding: https://github.com/jetsaredim/autographs/pull/281#issuecomment-6389097851
+- WR-07 documentation consistency — `018ec37`; reviewer finding:
+  https://github.com/jetsaredim/autographs/pull/281#issuecomment-6389097851
 
 Pull request: https://github.com/jetsaredim/autographs/pull/281
 
@@ -158,6 +160,8 @@ Pull request: https://github.com/jetsaredim/autographs/pull/281
   in `controller/tests/image_adjustments.rs`.
 - The cleanup deliberately changes no production image-processing or controller
   test path relative to baseline `8d57e761496576356ae4a4733dae789c7fb50b4b`.
+- Commit `3aaf113` is solely the executable harness retirement; commit `018ec37`
+  is the exact WR-07 manifest-contract fix.
 - Independent final-tree review found `WR-07`; its documentation-family fix is
   applied and awaits reviewer confirmation.
 

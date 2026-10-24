@@ -35,6 +35,10 @@ findings:
     severity: warning
     disposition: fixed
     title: "The spike manifest still promises the retired workbench as future work"
+    family: retired_workbench_manifest_contract
+    lineage: independent
+    harness_retirement_commit: 3aaf113
+    fix_commit: 018ec37
 open: 0
 total: 8
 recorded: 2026-10-24T15:25:00Z
@@ -60,6 +64,8 @@ These dispositions preserve the historical review lineage. `CR-01`, `WR-01`,
 `WR-02`, `WR-05`, and `WR-06` apply to the now-retired disposable workbench or
 its evidence. `WR-03` and `WR-04` apply to shared production detector behavior
 that remains covered by controller tests. `WR-07` corrects the final manifest's
-historical/current boundary. Its fix awaits independent confirmation; `open: 0`
-records that no known finding remains unfixed.
+historical/current boundary. Commit `3aaf113` is solely the harness-retirement
+commit, while `018ec37` is the exact WR-07 fix commit. Final independent
+confirmation remains pending; `open: 0` records that no known finding remains
+unfixed.
 
