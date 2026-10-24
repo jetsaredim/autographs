@@ -61,30 +61,31 @@ production implementation round is authorized.
 
 ### shared-image-processing
 
-Extract the deterministic image adjustment, detection, transformation, and
-derivative pipeline into one project-local Rust crate that production and a
-future fixture-driven workbench can consume without copying behavior.
+The deterministic image adjustment, detection, transformation, and derivative
+pipeline was extracted into one project-local Rust crate. Production continues
+to consume that crate, and the now-retired Spike 011 workbench validated it as a
+real second consumer without copying behavior.
 
 **Requirements:**
 
-- Production and experimental tools must call the same image-processing crate;
+- Production and any experimental tools must call the same image-processing crate;
   copied detector or transform implementations are not acceptable.
-- Preserve the deployed controller's adjustment JSON, cache-key, detector,
-  transformation, derivative, route, and persistence behavior during the
-  extraction.
+- The deployed controller's adjustment JSON, cache-key, detector,
+  transformation, derivative, route, and persistence behavior must remain
+  stable.
 - Keep HTTP, authentication, catalog, publishing, Oracle, OCI, and environment
   concerns outside the shared crate.
-- Deploy and validate the extraction before starting the local workbench or
-  camera-profile experiments.
-- The future workbench must use private images and generated outputs outside
-  Git and must not require the admin environment.
+- The extraction was deployed and validated before the Spike 011 workbench
+  experiment began.
+- Spike 011 used private images and generated outputs outside Git and did not
+  require the admin environment.
 - Other crate candidates may be documented, but only capabilities with a real
   second consumer and a coherent deterministic contract should be extracted.
-- The local workbench must bind to loopback, treat source images as immutable,
-  and keep adjustment fixtures and generated output in an explicit directory
+- The Spike 011 workbench bound to loopback, treated source images as immutable,
+  and kept adjustment fixtures and generated output in an explicit directory
   outside Git.
-- The workbench must exercise the shared crate directly without requiring the
-  controller, admin authentication, catalog persistence, Oracle, or OCI.
+- The Spike 011 workbench exercised the shared crate directly without requiring
+  the controller, admin authentication, catalog persistence, Oracle, or OCI.
 
 ## Spikes
 
@@ -100,5 +101,5 @@ future fixture-driven workbench can consume without copying behavior.
 | 008 | outer-boundary-detection | detector-mask-contour-diagnostics | standard | Given the exact positive and slab controls, when threshold masks, anchor components, contours, extrema chords, and edge evidence are rendered, then the failed coherence decision is observable without committing private media. | VALIDATED | rust, imageproc, diagnostics, contours, privacy |
 | 009a | outer-boundary-detection | actual-contour-boundary | comparison | Given the diagnostic masks and actual component contours, when contour-derived quadrilateral candidates are scored, then the positive outer card is retained while the slab's internal card is rejected without per-image tuning. | INVALIDATED | rust, imageproc, contours, detector |
 | 009b | outer-boundary-detection | local-gradient-rectangle | comparison | Given the same controls and corpus, when Canny/Hough rectangular-boundary evidence is scored, then it outperforms or falsifies the contour approach under the same acceptance gates. | VALIDATED | rust, imageproc, canny, hough, detector |
-| 010 | shared-image-processing | shared-image-processing-crate | standard | Given the existing adjustment and derivative code, when it is extracted into a project-local crate, then the controller compiles and passes unchanged behavior contracts through stable re-exports while a future workbench can depend on the same crate. | VALIDATED | rust, image-processing, crate, architecture, regression |
+| 010 | shared-image-processing | shared-image-processing-crate | standard | Extracting the existing adjustment and derivative code into a project-local crate preserved the controller's behavior contracts through stable re-exports and enabled the now-retired Spike 011 workbench to validate the same crate as a real second consumer. | VALIDATED | rust, image-processing, crate, architecture, regression |
 | 011 | shared-image-processing | local-image-workbench | standard | Given representative private images, can the shared production image-processing crate support exact adjustment fixtures and an honest operator fallback without weakening detector abstention or copying production behavior? The disposable harness was removed after acceptance. | VALIDATED | rust, image-processing, validation, fixtures, privacy |

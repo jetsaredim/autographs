@@ -1,41 +1,41 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-fixed_at: 2026-10-24T14:43:11Z
+fixed_at: 2026-10-24T20:23:17Z
 review_path: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
-iteration: 2
-findings_in_scope: 2
-finding_families: 2
-fixed: 2
+iteration: 3
+findings_in_scope: 3
+finding_families: 3
+fixed: 3
 skipped: 0
 reassessment_required: false
 status: all_fixed
-final_tree_cleanup_review: pending
+final_tree_cleanup_review: fix_applied_pending_confirmation
 ---
 
 # Phase 08: Code Review Fix Report
 
-**Fixed at:** 2026-10-24T14:43:11Z
+**Fixed at:** 2026-10-24T20:23:17Z
 **Source review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md`
 **Approved assumptions:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-ASSUMPTIONS.md`
 **Reviewed plan:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-REVISED-PLAN.md`
 **Plan review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-PLAN-REVIEW.md` (`passed`, cycle 3)
-**Iteration:** 2
+**Iteration:** 3
 
 ## Summary
 
-- Findings in scope: 2
-- Finding families: 2
-- Fixed: 2
+- Findings in scope: 3
+- Finding families: 3
+- Fixed: 3
 - Skipped: 0
 - Reassessment required: no
-- Source commits: `16241f6`, `f82229c`
+- Source commits: `16241f6`, `f82229c`, `3aaf113`
 
 The cycle-3 plan closes the two round-2 findings under the user-approved single-operator local-workbench contract. Browser Save is single-flight and stale-safe, fixture publication no longer shares a fixed temporary path, and the operator runbook now preserves the capability through launch and deep links. Concurrent external API writers and multi-user use remain explicitly unsupported; no mutex, ordinal, barrier, custom temp naming, or winner-order contract was added.
 
 The accepted executable workbench was subsequently retired as disposable
 validation infrastructure. This report preserves the finding lineage and fix
-evidence; it does not claim that the cleanup commit has received its independent
-final review. That review is pending on the final tree.
+evidence. The first independent review of the cleanup found one documentation
+consistency issue, `WR-07`; its fix is recorded below and awaits confirmation.
 
 ## Fixed Issues
 
@@ -70,6 +70,25 @@ The browser now uses one exported DOM-independent Save coordinator in production
 **Applied fix:** The runbook now directs the operator to copy the exact process-emitted `?cap=...` URL, explains that the bare shell cannot authorize private APIs and missing-cap API requests receive `403 Forbidden`, and treats the live token as sensitive. Image deep links retain both `cap` and `image`; bare `?image=N` is explicitly insufficient. The README records the one-operator/session boundary, unsupported external writers, browser single-flight behavior, and the multi-user productization blocker: durable versions or ETags, actor/audit identity, serialized or compare-and-swap commits, conflict/retry UX, and deterministic concurrency/recovery/durability tests.
 
 **PR comment:** https://github.com/jetsaredim/autographs/pull/281#issuecomment-6385547117
+
+### WR-07: The spike manifest still promises the retired workbench as future work
+
+**Finding family:** `retired_validation_documentation_consistency`
+
+**Lineage:** `sibling_path_miss` from the Spike 011 harness retirement
+
+**Files modified:** `.planning/spikes/MANIFEST.md`
+
+**Commit:** this fix commit
+
+**Applied fix:** Rewrote the shared-image-processing idea and requirements so
+the retained production crate contract remains current while every workbench
+statement records completed historical acceptance evidence. Updated the Spike
+010 index row to describe the retired Spike 011 harness as the real second
+consumer that already validated the shared crate. Spike 011 remains
+`VALIDATED`; no manifest text promises a future or active workbench.
+
+**Reviewer PR comment:** https://github.com/jetsaredim/autographs/pull/281#issuecomment-6389097851
 
 ## Verification
 
@@ -121,6 +140,11 @@ Iteration 2 closeout:
 - WR-01 supported-scope completion — `16241f6`: https://github.com/jetsaredim/autographs/pull/281#issuecomment-6385523151
 - WR-06 — `f82229c`: https://github.com/jetsaredim/autographs/pull/281#issuecomment-6385547117
 
+Final-tree cleanup review:
+
+- WR-07 documentation consistency — fixed in the follow-up commit; reviewer
+  finding: https://github.com/jetsaredim/autographs/pull/281#issuecomment-6389097851
+
 Pull request: https://github.com/jetsaredim/autographs/pull/281
 
 ## Final-Tree Cleanup Classification
@@ -134,11 +158,11 @@ Pull request: https://github.com/jetsaredim/autographs/pull/281
   in `controller/tests/image_adjustments.rs`.
 - The cleanup deliberately changes no production image-processing or controller
   test path relative to baseline `8d57e761496576356ae4a4733dae789c7fb50b4b`.
-- Independent final-tree review: **pending**. The parent workflow owns reviewer
-  dispatch and the resulting PR audit comment.
+- Independent final-tree review found `WR-07`; its documentation-family fix is
+  applied and awaits reviewer confirmation.
 
 ---
 
-_Fixed: 2026-10-24T14:43:11Z_
+_Fixed: 2026-10-24T20:23:17Z_
 _Fixer: Codex (gsd-code-fixer)_
-_Iteration: 2_
+_Iteration: 3_
