@@ -34,6 +34,7 @@ findings:
 open: 0
 total: 7
 recorded: 2026-10-24T15:25:00Z
+final_tree_cleanup_review: pending
 ---
 
 # Phase 08: Code Review Disposition
@@ -49,4 +50,10 @@ recorded: 2026-10-24T15:25:00Z
 | WR-06 | warning | fixed | 08-REVIEW-FIX.md |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
+
+These dispositions preserve the historical review lineage. `CR-01`, `WR-01`,
+`WR-02`, `WR-05`, and `WR-06` apply to the now-retired disposable workbench or
+its evidence. `WR-03` and `WR-04` apply to shared production detector behavior
+that remains covered by controller tests. The cleanup commit's independent
+final-tree review is pending and is not represented by `open: 0` above.
 

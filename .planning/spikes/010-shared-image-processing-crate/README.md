@@ -3,7 +3,7 @@ spike: 010
 idea: shared-image-processing
 name: shared-image-processing-crate
 type: standard
-validates: "Given the existing adjustment and derivative code, when it is extracted into a project-local crate, then the controller compiles and passes unchanged behavior contracts through stable re-exports while a future workbench can depend on the same crate."
+validates: "Given the existing adjustment and derivative code, when it is extracted into a project-local crate, then the controller compiles and passes unchanged behavior contracts through stable re-exports while an independent validation consumer can depend on the same crate."
 verdict: VALIDATED
 related: [008, 009a, 009b]
 tags: [rust, image-processing, crate, architecture, regression]
@@ -17,7 +17,7 @@ Given the deployed controller's image adjustment, detector, transformation,
 and derivative behavior, extracting those capabilities into one project-local
 Rust crate must preserve the existing controller API, serialized adjustment
 contract, generated derivatives, and regression suite while making the same
-implementation available to a future local workbench.
+implementation available to an independent validation consumer.
 
 ## Research
 
@@ -75,11 +75,13 @@ changing their expected behavior.
 
 ## Results
 
-**VALIDATED.** The controller now consumes the same project-local crate that the
-future fixture-driven workbench can use by path dependency. The existing public
+**VALIDATED.** The controller consumes the same project-local crate that the
+now-retired Spike 011 workbench used as a real second consumer. The existing public
 controller module paths, adjustment JSON/cache contract, detector behavior,
 derivative generation, routes, persistence adapters, and tests remain intact.
 
 The extracted crate shipped in controller v0.4.2. Production deployment,
 authenticated editor use, and an incremental publish all completed successfully,
-so the deployed-baseline gate for Spike 011 is satisfied.
+so the deployed-baseline gate for Spike 011 was satisfied. Spike 011's
+disposable harness was removed after validation; this shared crate remains
+production code.

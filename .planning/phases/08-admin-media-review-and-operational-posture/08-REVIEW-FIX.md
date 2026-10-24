@@ -9,6 +9,7 @@ fixed: 2
 skipped: 0
 reassessment_required: false
 status: all_fixed
+final_tree_cleanup_review: pending
 ---
 
 # Phase 08: Code Review Fix Report
@@ -30,6 +31,11 @@ status: all_fixed
 - Source commits: `16241f6`, `f82229c`
 
 The cycle-3 plan closes the two round-2 findings under the user-approved single-operator local-workbench contract. Browser Save is single-flight and stale-safe, fixture publication no longer shares a fixed temporary path, and the operator runbook now preserves the capability through launch and deep links. Concurrent external API writers and multi-user use remain explicitly unsupported; no mutex, ordinal, barrier, custom temp naming, or winner-order contract was added.
+
+The accepted executable workbench was subsequently retired as disposable
+validation infrastructure. This report preserves the finding lineage and fix
+evidence; it does not claim that the cleanup commit has received its independent
+final review. That review is pending on the final tree.
 
 ## Fixed Issues
 
@@ -116,6 +122,20 @@ Iteration 2 closeout:
 - WR-06 — `f82229c`: https://github.com/jetsaredim/autographs/pull/281#issuecomment-6385547117
 
 Pull request: https://github.com/jetsaredim/autographs/pull/281
+
+## Final-Tree Cleanup Classification
+
+- Historical harness/evidence findings `CR-01`, `WR-01`, `WR-02`, `WR-05`, and
+  `WR-06` were fixed before the executable harness was retired. Their lineage
+  remains recorded above even though their implementation paths no longer
+  survive in the final tree.
+- Findings `WR-03` and `WR-04` corrected shared detector validation behavior.
+  Those fixes remain in `controller/image-processing/` with regression coverage
+  in `controller/tests/image_adjustments.rs`.
+- The cleanup deliberately changes no production image-processing or controller
+  test path relative to baseline `8d57e761496576356ae4a4733dae789c7fb50b4b`.
+- Independent final-tree review: **pending**. The parent workflow owns reviewer
+  dispatch and the resulting PR audit comment.
 
 ---
 
