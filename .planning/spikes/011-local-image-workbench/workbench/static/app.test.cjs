@@ -6,13 +6,15 @@ const test = require("node:test");
 const {
   cloneFramingDraftState,
   createOperationAuthority,
+  createSaveCoordinator,
   framingAssessment,
 } = require("./app.js");
 
 function deferred() {
   let resolve;
-  const promise = new Promise((done) => { resolve = done; });
-  return { promise, resolve };
+  let reject;
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  return { promise, reject, resolve };
 }
 
 for (const operation of ["load", "detect", "save", "render", "auto-align"]) {
@@ -61,7 +63,6 @@ test("all async mutation paths use the shared ownership contract", () => {
     "reloadFixture",
     "renderPreview",
     "detect",
-    "saveFixture",
     "assessManualFraming",
     "applySuggestedAlignment",
   ]) {
@@ -75,6 +76,82 @@ test("all async mutation paths use the shared ownership contract", () => {
     assert.match(body, /operationAuthority\.capture/, `${functionName} captures ownership`);
     assert.match(body, /operationAuthority\.owns|ownedApi/, `${functionName} checks ownership`);
   }
+});
+
+test("save coordinator suppresses duplicates and stale publication through settlement", async () => {
+  let currentOwner = { imageId: 0, generation: 0, adjustmentSignature: "draft-a" };
+  let currentAdjustment = { rotationDegrees: 1 };
+  const persistence = [];
+  const gates = [];
+  const published = [];
+  const pending = [];
+  const errors = [];
+  const coordinator = createSaveCoordinator({
+    captureSnapshot: () => ({ owner: currentOwner, adjustment: structuredClone(currentAdjustment) }),
+    persist(snapshot) {
+      persistence.push(snapshot);
+      const gate = deferred();
+      gates.push(gate);
+      return gate.promise;
+    },
+    owns: (owner) => owner === currentOwner,
+    publish: (result, snapshot) => published.push({ result, snapshot }),
+    setPending: (value) => pending.push(value),
+    reportError: (error) => errors.push(error.message),
+  });
+
+  const first = coordinator.save();
+  const duplicate = coordinator.save();
+  assert.equal(persistence.length, 1, "duplicate activation dispatches no persistence call");
+  assert.deepEqual(pending, [true], "pending begins synchronously");
+
+  currentOwner = { imageId: 1, generation: 1, adjustmentSignature: "draft-b" };
+  currentAdjustment = { rotationDegrees: 2 };
+  gates[0].resolve({ adjustment: { rotationDegrees: 1 } });
+  assert.equal(await first, false);
+  assert.equal(await duplicate, false);
+  assert.deepEqual(published, [], "stale completion cannot publish any UI mutation");
+  assert.deepEqual(errors, []);
+  assert.deepEqual(pending, [true, false], "pending clears only after settlement");
+
+  const next = coordinator.save();
+  assert.equal(persistence.length, 2, "a later explicit activation captures a new snapshot");
+  assert.deepEqual(persistence[1].adjustment, { rotationDegrees: 2 });
+  gates[1].resolve({ adjustment: { rotationDegrees: 2 } });
+  assert.equal(await next, true);
+  assert.equal(published.length, 1);
+  assert.equal(published[0].snapshot.owner, currentOwner);
+  assert.deepEqual(pending, [true, false, true, false]);
+});
+
+test("save coordinator reports current errors and clears pending", async () => {
+  const owner = { imageId: 0, generation: 0, adjustmentSignature: "draft-a" };
+  const gate = deferred();
+  const pending = [];
+  const errors = [];
+  const coordinator = createSaveCoordinator({
+    captureSnapshot: () => ({ owner, adjustment: { rotationDegrees: 0 } }),
+    persist: () => gate.promise,
+    owns: (candidate) => candidate === owner,
+    publish: () => assert.fail("failed persistence must not publish"),
+    setPending: (value) => pending.push(value),
+    reportError: (error) => errors.push(error.message),
+  });
+
+  const save = coordinator.save();
+  gate.reject(new Error("write failed"));
+  assert.equal(await save, false);
+  assert.deepEqual(errors, ["write failed"]);
+  assert.deepEqual(pending, [true, false]);
+});
+
+test("production Save uses the non-aborting coordinator seam", () => {
+  const source = fs.readFileSync(path.join(__dirname, "app.js"), "utf8");
+  const start = source.indexOf("function saveFixture");
+  const end = source.indexOf("\nfunction ", start + 1);
+  const body = source.slice(start, end);
+  assert.match(body, /saveCoordinator\.save/);
+  assert.doesNotMatch(body, /ownedApi|AbortController/);
 });
 
 test("existing crop, zoom, or pan suppresses a crop-driving framing result", () => {

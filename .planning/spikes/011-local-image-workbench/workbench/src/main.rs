@@ -1,6 +1,6 @@
 use std::{
     env,
-    io::Cursor,
+    io::{Cursor, Write},
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::{Path, PathBuf},
     sync::Arc,
@@ -22,6 +22,7 @@ use axum::{
 use image::{ImageFormat, ImageReader, RgbaImage};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use tempfile::NamedTempFile;
 use tokio::fs;
 
 const INDEX_HTML: &str = include_str!("../static/index.html");
@@ -590,13 +591,17 @@ async fn save_fixture(
         serde_json::to_string(&document).map_err(bad_request("serialize fixture"))?
     );
     let destination = fixture_path(&state, image);
-    let temporary = destination.with_extension("json.tmp");
-    fs::write(&temporary, json)
-        .await
-        .map_err(internal("write fixture"))?;
-    fs::rename(&temporary, &destination)
-        .await
-        .map_err(internal("replace fixture"))?;
+    let mut temporary =
+        NamedTempFile::new_in(state.workspace.as_ref()).map_err(internal("create fixture temp"))?;
+    temporary
+        .write_all(json.as_bytes())
+        .map_err(internal("write fixture temp"))?;
+    temporary.flush().map_err(internal("flush fixture temp"))?;
+    temporary.persist(&destination).map_err(|error| {
+        let tempfile::PersistError { error, file } = error;
+        drop(file);
+        internal("replace fixture")(error)
+    })?;
     Ok(Json(adjustment).into_response())
 }
 
@@ -1220,5 +1225,54 @@ mod tests {
             .await
             .expect_err("identity mismatch must fail closed");
         assert_eq!(load_error.0, StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn fixture_save_replaces_valid_document_without_temporary_artifacts() {
+        let source_dir = tempdir().expect("source tempdir");
+        let workspace = tempdir().expect("workspace tempdir");
+        let source_path = source_dir.path().join("card.png");
+        DynamicImage::ImageRgb8(RgbImage::from_pixel(24, 16, Rgb([90, 100, 110])))
+            .save(&source_path)
+            .expect("save source");
+        let state = test_state(
+            discover_images(&source_path).expect("discover"),
+            workspace.path(),
+        );
+        let mut first = ImageAdjustment::identity();
+        first.rotation_degrees = 1.0;
+        save_fixture(
+            State(state.clone()),
+            AxumPath(0),
+            Bytes::from(first.to_json().expect("first json")),
+        )
+        .await
+        .expect("save first fixture");
+        let mut replacement = ImageAdjustment::identity();
+        replacement.rotation_degrees = 2.0;
+        save_fixture(
+            State(state.clone()),
+            AxumPath(0),
+            Bytes::from(replacement.to_json().expect("replacement json")),
+        )
+        .await
+        .expect("replace fixture");
+
+        let destination = fixture_path(&state, &state.images[0]);
+        let persisted = std::fs::read_to_string(&destination).expect("persisted fixture");
+        let document = serde_json::from_str::<FixtureDocument>(persisted.trim())
+            .expect("valid fixture document");
+        document.adjustment.validate().expect("valid adjustment");
+        assert_eq!(document.version, 1);
+        assert_eq!(document.source, state.images[0].source_identity);
+        assert_eq!(
+            document.adjustment.to_json().expect("persisted json"),
+            replacement.to_json().expect("replacement json")
+        );
+        let entries = std::fs::read_dir(workspace.path())
+            .expect("workspace entries")
+            .map(|entry| entry.expect("workspace entry").file_name())
+            .collect::<Vec<_>>();
+        assert_eq!(entries, vec![destination.file_name().unwrap()]);
     }
 }

@@ -80,10 +80,64 @@ function createOperationAuthority(readState) {
   };
 }
 
+function createSaveCoordinator({ captureSnapshot, persist, owns, publish, setPending, reportError }) {
+  let pending = false;
+  return {
+    async save() {
+      if (pending) return false;
+      const snapshot = captureSnapshot();
+      pending = true;
+      setPending(true);
+      try {
+        const result = await persist(snapshot);
+        if (!owns(snapshot.owner)) return false;
+        publish(result, snapshot);
+        return true;
+      } catch (error) {
+        if (owns(snapshot.owner)) reportError(error, snapshot);
+        return false;
+      } finally {
+        pending = false;
+        setPending(false);
+      }
+    },
+  };
+}
+
 const operationAuthority = createOperationAuthority(() => ({
   imageId: selectedId,
   adjustmentSignature: JSON.stringify(canonicalAdjustment()),
 }));
+
+const saveCoordinator = createSaveCoordinator({
+  captureSnapshot() {
+    const owner = operationAuthority.capture();
+    return { owner, imageId: owner.imageId, adjustment: canonicalAdjustment() };
+  },
+  async persist(snapshot) {
+    const response = await api(`/api/images/${snapshot.imageId}/fixture`, {
+      method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify(snapshot.adjustment),
+    });
+    return { adjustment: await response.json() };
+  },
+  owns: (owner) => operationAuthority.owns(owner),
+  publish(result, snapshot) {
+    adjustment = result.adjustment;
+    images[snapshot.imageId].hasFixture = true;
+    $("#image-select").options[snapshot.imageId].textContent = `${images[snapshot.imageId].name} • fixture`;
+    draftChanged();
+    status("Fixture saved outside Git. Original image was not modified.", "success");
+    log("Saved fixture");
+  },
+  setPending(pending) {
+    $("#save").disabled = pending;
+    if (!pending) syncDraftControls();
+  },
+  reportError(error) {
+    status(error.message, "error");
+  },
+});
 
 function invalidateAsyncOperations() {
   clearTimeout(renderTimer);
@@ -737,25 +791,8 @@ async function detect() {
   }
 }
 
-async function saveFixture() {
-  const owner = operationAuthority.capture();
-  try {
-    const response = await ownedApi(owner, `/api/images/${owner.imageId}/fixture`, {
-      method: "PUT", headers: { "content-type": "application/json" },
-      body: JSON.stringify(canonicalAdjustment()),
-    });
-    if (!response) return;
-    const savedAdjustment = await response.json();
-    if (!operationAuthority.owns(owner)) return;
-    adjustment = savedAdjustment;
-    images[owner.imageId].hasFixture = true;
-    $("#image-select").options[owner.imageId].textContent = `${images[owner.imageId].name} • fixture`;
-    draftChanged();
-    status("Fixture saved outside Git. Original image was not modified.", "success");
-    log("Saved fixture");
-  } catch (error) {
-    if (operationAuthority.owns(owner) && !isAbortError(error)) status(error.message, "error");
-  }
+function saveFixture() {
+  return saveCoordinator.save();
 }
 
 function applyJson() {
@@ -1753,7 +1790,7 @@ function syncOutputGeometry() {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { cloneFramingDraftState, createOperationAuthority, framingAssessment };
+  module.exports = { cloneFramingDraftState, createOperationAuthority, createSaveCoordinator, framingAssessment };
 }
 if (typeof document !== "undefined") {
   start();
