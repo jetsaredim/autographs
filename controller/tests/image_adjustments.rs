@@ -1,8 +1,9 @@
 use autographs_controller::{
     derivatives::{DerivativeVariant, generate_derivative},
     image_adjustments::{
-        ImageAdjustment, ImageAdjustmentProposalStatus, ImageCrop, ImagePerspective, ImagePoint,
-        generate_adjusted_derivative, propose_image_adjustment,
+        ImageAdjustment, ImageAdjustmentProposalStatus, ImageBoundaryDetectionStatus, ImageCrop,
+        ImagePerspective, ImagePoint, detect_image_boundary, generate_adjusted_derivative,
+        propose_image_adjustment, validate_ordered_convex_quad,
     },
 };
 use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
@@ -52,7 +53,7 @@ fn adjustment_validation_rejects_unbounded_values() {
             ImagePoint { x: 0.0, y: 1.0 },
         ],
     });
-    assert!(perspective.validate().unwrap_err().contains("perspective"));
+    assert!(perspective.validate().unwrap_err().contains("normalized"));
 }
 
 #[test]
@@ -66,7 +67,7 @@ fn adjustment_validation_rejects_degenerate_perspective_corners() {
             ImagePoint { x: 0.1, y: 0.9 },
         ],
     });
-    assert!(duplicate.validate().unwrap_err().contains("projection"));
+    assert!(duplicate.validate().unwrap_err().contains("quadrilateral"));
 
     let mut collinear = ImageAdjustment::identity();
     collinear.perspective = Some(ImagePerspective {
@@ -77,7 +78,68 @@ fn adjustment_validation_rejects_degenerate_perspective_corners() {
             ImagePoint { x: 0.1, y: 0.9 },
         ],
     });
-    assert!(collinear.validate().unwrap_err().contains("projection"));
+    assert!(collinear.validate().unwrap_err().contains("quadrilateral"));
+}
+
+#[test]
+fn ordered_quad_validation_rejects_invalid_topology_and_accepts_skew() {
+    let bow_tie = [
+        ImagePoint { x: 0.1, y: 0.1 },
+        ImagePoint { x: 0.9, y: 0.9 },
+        ImagePoint { x: 0.9, y: 0.1 },
+        ImagePoint { x: 0.1, y: 0.9 },
+    ];
+    let concave = [
+        ImagePoint { x: 0.1, y: 0.1 },
+        ImagePoint { x: 0.9, y: 0.1 },
+        ImagePoint { x: 0.4, y: 0.4 },
+        ImagePoint { x: 0.1, y: 0.9 },
+    ];
+    let reversed = [
+        ImagePoint { x: 0.1, y: 0.1 },
+        ImagePoint { x: 0.1, y: 0.9 },
+        ImagePoint { x: 0.9, y: 0.9 },
+        ImagePoint { x: 0.9, y: 0.1 },
+    ];
+    let wrong_start = [
+        ImagePoint { x: 0.9, y: 0.1 },
+        ImagePoint { x: 0.9, y: 0.9 },
+        ImagePoint { x: 0.1, y: 0.9 },
+        ImagePoint { x: 0.1, y: 0.1 },
+    ];
+    let near_zero = [
+        ImagePoint { x: 0.1, y: 0.1 },
+        ImagePoint { x: 0.1001, y: 0.1 },
+        ImagePoint {
+            x: 0.1001,
+            y: 0.1001,
+        },
+        ImagePoint { x: 0.1, y: 0.1001 },
+    ];
+    let out_of_range = [
+        ImagePoint { x: -0.1, y: 0.1 },
+        ImagePoint { x: 0.9, y: 0.1 },
+        ImagePoint { x: 0.9, y: 0.9 },
+        ImagePoint { x: 0.1, y: 0.9 },
+    ];
+    for invalid in [
+        bow_tie,
+        concave,
+        reversed,
+        wrong_start,
+        near_zero,
+        out_of_range,
+    ] {
+        assert!(validate_ordered_convex_quad(&invalid).is_err());
+    }
+
+    let valid_skew = [
+        ImagePoint { x: 0.12, y: 0.08 },
+        ImagePoint { x: 0.91, y: 0.16 },
+        ImagePoint { x: 0.84, y: 0.93 },
+        ImagePoint { x: 0.07, y: 0.82 },
+    ];
+    validate_ordered_convex_quad(&valid_skew).expect("valid skewed TL/TR/BR/BL quad");
 }
 
 #[test]
@@ -283,6 +345,79 @@ fn auto_assist_reports_when_no_meaningful_correction_is_needed() {
         serde_json::to_value(&proposal).unwrap()["status"],
         "notNeeded"
     );
+}
+
+#[test]
+fn boundary_detection_returns_near_frame_corners_even_when_correction_is_not_needed() {
+    let source = nearly_full_frame_card_fixture(2);
+    let boundary = detect_image_boundary(&source).unwrap();
+
+    assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Reliable);
+    assert_detected_corners_near(
+        &boundary.corners,
+        &[(2, 2), (157, 2), (157, 117), (2, 117)],
+        160,
+        120,
+        0.025,
+    );
+    assert_eq!(boundary.edges.len(), 4);
+    assert!(boundary.edges.iter().all(|edge| edge.coverage >= 0.35));
+}
+
+#[test]
+fn boundary_detection_exposes_outer_gradient_boundary_without_weakening_auto_assist() {
+    let source = low_contrast_physical_slab_fixture();
+    let boundary = detect_image_boundary(&source).unwrap();
+    let proposal = propose_image_adjustment(&source).unwrap();
+
+    assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Reliable);
+    assert_eq!(boundary.corners.len(), 4);
+    assert_eq!(boundary.edges.len(), 4);
+    assert_eq!(proposal.status, ImageAdjustmentProposalStatus::Unavailable);
+    assert!(proposal.corners.is_empty());
+}
+
+#[test]
+fn boundary_detection_remains_unavailable_without_a_contrast_component() {
+    let source = fixture_png([128, 128, 128], 96, 72);
+    let boundary = detect_image_boundary(&source).unwrap();
+
+    assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Unavailable);
+    assert!(boundary.corners.is_empty());
+}
+
+#[test]
+fn boundary_detection_marks_a_small_contrast_candidate_tentative() {
+    let mut image = RgbaImage::from_pixel(100, 80, Rgba([190, 190, 190, 255]));
+    for y in 28..52 {
+        for x in 35..65 {
+            image.put_pixel(x, y, Rgba([24, 28, 32, 255]));
+        }
+    }
+    let boundary = detect_image_boundary(&encode_png(image)).unwrap();
+
+    assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Tentative);
+    assert_eq!(boundary.corners.len(), 4);
+}
+
+#[test]
+fn boundary_detection_refines_subdegree_edge_angles() {
+    let mut image = RgbaImage::from_pixel(480, 360, Rgba([190, 190, 190, 255]));
+    for x in 45..435 {
+        let offset = ((x - 45) * 2) / 390;
+        let top = 40 + offset;
+        let bottom = 320 + offset;
+        for y in top..=bottom {
+            image.put_pixel(x, y, Rgba([24, 28, 32, 255]));
+        }
+    }
+    let boundary = detect_image_boundary(&encode_png(image)).unwrap();
+
+    assert_eq!(boundary.status, ImageBoundaryDetectionStatus::Reliable);
+    assert_eq!(boundary.edges.len(), 4);
+    assert!(boundary.edges[0].axis_deviation_degrees.abs() > 0.10);
+    assert!(boundary.edges[0].axis_deviation_degrees.abs() < 0.60);
+    assert!(boundary.edges[0].coverage >= 0.75);
 }
 
 #[test]
