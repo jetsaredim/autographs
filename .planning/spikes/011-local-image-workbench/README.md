@@ -30,6 +30,9 @@ workspace.
   separately supplied workspace.
 - Detector proposals and adjusted previews call `autographs-image-processing`
   directly.
+- The supported workflow is one local operator in one browser session.
+  Concurrent external API writers, multiple browser sessions, and multi-user use
+  are unsupported.
 - No private image, fixture, or rendered output belongs in Git. The committed
   code is a disposable spike harness, not a production runtime.
 
@@ -42,11 +45,19 @@ cargo run --release --manifest-path .planning/spikes/011-local-image-workbench/w
   --workspace /tmp/autographs-image-workbench
 ```
 
-Then open `http://127.0.0.1:8788`. This is the single standard workbench port.
-Stop the running instance before rebuilding or restarting it; if the bind fails
-because 8788 is occupied, stop that instance rather than selecting another port.
-The UI displays its active address, and shell assets use `Cache-Control: no-store`
-so a restarted workbench cannot silently reuse an earlier revision.
+The process prints a URL such as
+`http://127.0.0.1:8788/?cap=<emitted-token>`. Copy and open that exact URL; the
+random capability is required for every private API request. The bare
+`http://127.0.0.1:8788` shell can load, but its API requests correctly receive
+`403 Forbidden` because the capability is missing. Treat the emitted URL as a
+sensitive local credential: do not put a live token in screenshots, issues,
+logs, or other shared artifacts.
+
+Port 8788 is the single standard workbench port. Stop the running instance
+before rebuilding or restarting it; if the bind fails because 8788 is occupied,
+stop that instance rather than selecting another port. The UI displays its
+active address, and shell assets use `Cache-Control: no-store` so a restarted
+workbench cannot silently reuse an earlier revision.
 
 ## What to Expect
 
@@ -63,8 +74,10 @@ tentative boundary that is useful for measurement but did not satisfy the safer
 automatic-correction contract. Dragging any orange handle switches that image to
 a browser-local manual override; **Use automatic detection** discards the override
 and resumes measurement from each render. Measurements remain separate from
-adjustment fixtures and production data. A specific image can be reopened with
-`?image=N` using its zero-based list index.
+adjustment fixtures and production data. To reopen a specific image, use the UI
+after launching from the emitted URL or retain the capability explicitly as
+`?cap=<emitted-token>&image=N`, where `N` is its zero-based list index. A bare
+`?image=N` link cannot authorize private API access.
 
 For reliable automatic boundaries, the framing panel measures photographed
 background in rendered pixels and normalizes each side against the item's
@@ -87,6 +100,47 @@ preserves the limiting real-pixel border, remaps a confirmed manual boundary
 through the crop, and automatically refreshes the assessment. Saving the
 fixture remains a separate operator action.
 
+## Supported Save Scope
+
+Save is single-flight in the browser: an accidental repeated activation while a
+save is pending sends no second request. Editing or navigating during that save
+does not cancel the accepted fixture write, but its stale completion cannot
+overwrite or claim to represent the current browser draft. After settlement,
+the operator can explicitly save the then-current snapshot.
+
+Fixture publication uses a uniquely created same-workspace temporary file and a
+same-directory replacement. This removes the shared temporary-path collision,
+but it does not define a winner for concurrent direct API requests. Concurrent
+external writers and multi-user use remain unsupported.
+
+Before productizing this workbench for multiple users, browser sessions,
+background writers, or production persistence, design and verify all of the
+following as one conflict contract:
+
+- durable record versions or ETags with explicit conflict behavior;
+- authorization plus actor and audit identity;
+- serialized or compare-and-swap commits with a defined winner;
+- conflict and retry UX that cannot silently overwrite another editor; and
+- deterministic concurrent-write, recovery, and durability tests.
+
+Until that contract exists, multi-user productization is blocked.
+
+## Capability-Aware Smoke Check
+
+Run the command above with a disposable external workspace, then use only the
+exact capability-bearing URL printed by that process:
+
+1. Confirm the image list loads and a selected private source renders.
+2. Change a numeric adjustment, save it, reload it, and confirm the saved value
+   returns without modifying the source image.
+3. Reopen the selected image through the UI deep link and confirm the URL still
+   contains both `cap` and `image`.
+4. In a separate request or tab, omit `cap` from a private `/api/*` request and
+   confirm it receives `403 Forbidden`.
+
+Do not record the live token or private image content while capturing smoke
+evidence.
+
 ## Investigation Trail
 
 - Spike 010's extracted crate shipped in v0.4.2 and passed authenticated editor
@@ -96,9 +150,10 @@ fixture remains a separate operator action.
 - Loaded the full 116-image private corpus without copying any original into
   the repository or workspace.
 - Verified list, source, identity-render, detector, fixture-save, and
-  fixture-load endpoints against a real corpus image. The rendered response was
-  a valid WebP, and the source SHA-256 remained identical before and after the
-  fixture round trip.
+  fixture-load endpoints through the exact emitted capability URL against a real
+  corpus image. The rendered response was a valid WebP, and the source SHA-256
+  remained identical before and after the fixture round trip. The same private
+  API correctly rejects a missing capability.
 - Passed eight workbench contract tests, strict Clippy, Rust formatting, the
   shared crate test, JavaScript syntax validation, and repository diff checks.
 - The browser experience is running on loopback for the required operator
