@@ -79,12 +79,14 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Update Terraform versions pinned in GitHub workflows",
+      "description": "Update Terraform versions pinned in GitHub workflows and the resolve-runtime-ip action",
       "managerFilePatterns": [
-        "/^\\.github/workflows/.*\\.ya?ml$/"
+        "/^\\.github/workflows/.*\\.ya?ml$/",
+        "/^\\.github/actions/resolve-runtime-ip/action\\.yml$/"
       ],
       "matchStrings": [
-        "terraform_version:\\s*\"(?<currentValue>[^\"]+)\""
+        "terraform_version:\\s*\"(?<currentValue>[^\"]+)\"",
+        "terraform-version:\\s*\\n(?:    [^\\n]*\\n)*?    default:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "depNameTemplate": "hashicorp/terraform",
       "datasourceTemplate": "github-releases"
