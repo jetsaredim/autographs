@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (Admin Media Review and Operational Posture) — EXECUTING
 Plan: 7 of 9
 Status: Ready to execute
-Last activity: 2026-10-25 — Relaxed exact action digest tests while retaining full-SHA pin checks; PR review pending
+Last activity: 2026-10-25 — Removed Renovate-managed action pin/version assertions from release workflow tests; PR review pending
 
 Progress: [█████████░] 94% of milestone plans complete; Phase 8 Plan 6 is next
 
@@ -262,4 +262,4 @@ Resume file: None
 | 261024-mg2 | Remove the disposable local image workbench harness after validation, retain concise spike evidence, and align PR review artifacts with the final tree | 2026-10-25 | 48b0207 | complete | [261024-mg2-remove-the-disposable-local-image-workbe](./quick/261024-mg2-remove-the-disposable-local-image-workbe/) |
 | 261025-e8u | Teach Renovate to update the Terraform version in the resolve-runtime-ip composite action | 2026-10-25 | cf27861 | — | [261025-e8u-teach-renovate-to-update-the-terraform-v](./quick/261025-e8u-teach-renovate-to-update-the-terraform-v/) |
 | 261025-l09 | Group Terraform CLI Renovate updates across five version locations; implementation PR pending review and post-merge regeneration | 2026-10-25 | d1df901 | needs_review | [261025-l09-address-issue-286-make-renovate-terrafor](./quick/261025-l09-address-issue-286-make-renovate-terrafor/) |
-| 261025-lrr | Allow reviewed privileged GitHub Action digest updates while requiring full SHA pins; implementation PR pending | 2026-10-25 | edf1a02 | needs_review | [261025-lrr-replace-exact-github-action-sha-test-exp](./quick/261025-lrr-replace-exact-github-action-sha-test-exp/) |
+| 261025-lrr | Remove Renovate-managed GitHub Action pin and version assertions while retaining release behavior checks; PR review pending | 2026-10-25 | cafdcc2 | needs_review | [261025-lrr-replace-exact-github-action-sha-test-exp](./quick/261025-lrr-replace-exact-github-action-sha-test-exp/) |
