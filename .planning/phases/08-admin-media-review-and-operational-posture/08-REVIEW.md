@@ -1,148 +1,154 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 281
-reviewed: 2026-10-24T15:20:57Z
-reviewed_head: f82229c3d765f8d1064190e2ed13ed381bd466c9
+reviewed: 2026-10-25T13:20:43Z
+reviewed_head: 48b020703ba7cbd52d2986a1c667e4ce1f24d83b
 depth: deep
-review_round: 3
-files_reviewed: 16
+review_round: 6
+files_reviewed: 12
 files_reviewed_list:
+  - .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
+  - .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW-FIX.md
+  - .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW-DISPOSITION.md
+  - .planning/quick/261024-mg2-remove-the-disposable-local-image-workbe/261024-mg2-WR-07-PLAN-REVIEW.md
+  - .planning/spikes/MANIFEST.md
+  - .planning/spikes/010-shared-image-processing-crate/README.md
   - .planning/spikes/011-local-image-workbench/README.md
-  - .planning/spikes/011-local-image-workbench/workbench/Cargo.toml
-  - .planning/spikes/011-local-image-workbench/workbench/Cargo.lock
-  - .planning/spikes/011-local-image-workbench/workbench/src/main.rs
-  - .planning/spikes/011-local-image-workbench/workbench/static/app.css
-  - .planning/spikes/011-local-image-workbench/workbench/static/app.js
-  - .planning/spikes/011-local-image-workbench/workbench/static/app.test.cjs
-  - .planning/spikes/011-local-image-workbench/workbench/static/index.html
-  - controller/image-processing/src/image_adjustments.rs
-  - controller/image-processing/src/derivatives.rs
+  - controller/image-processing/Cargo.toml
   - controller/image-processing/src/lib.rs
+  - controller/image-processing/src/derivatives.rs
+  - controller/image-processing/src/image_adjustments.rs
   - controller/tests/image_adjustments.rs
-  - controller/src/lib.rs
-  - controller/src/routes.rs
-  - controller/src/catalog.rs
-  - controller/src/oracle_catalog.rs
 findings:
   critical: 0
   warning: 0
   info: 0
   total: 0
 status: clean
+publication_authorized: true
 convergence:
-  status: ready_to_resume
+  status: clear
   recurring_critical_warning: 0
   scope_expansion: false
   requires_reassessment: false
-  assumptions_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-ASSUMPTIONS.md
-  plan_evidence: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-PLAN-REVIEW.md
+  assumptions_evidence: null
+  plan_evidence: .planning/quick/261024-mg2-remove-the-disposable-local-image-workbe/261024-mg2-WR-07-PLAN-REVIEW.md
 ---
 
-# Phase 08: Local Image Workbench Code Review
+# Phase 08: Final WR-07 and Workbench-Retirement Convergence Review
 
-**Reviewed:** 2026-10-24T15:20:57Z
-**Reviewed commit:** `f82229c3d765f8d1064190e2ed13ed381bd466c9`
+**Reviewed:** 2026-10-25T13:20:43Z
+**Reviewed commit:** `48b020703ba7cbd52d2986a1c667e4ce1f24d83b`
 **Depth:** deep
 **Status:** clean
 **PR:** #281
 
 ## Summary
 
-No actionable Critical, Warning, or Info findings remain in the final round-3
-scope. The implementation closes WR-01 under the user-approved single-operator
-local-workbench contract and closes WR-06's capability-aware operator path.
-Concurrent external writers, multiple browser sessions, and multi-user use are
-explicitly unsupported; this review did not reimpose a multi-writer ordering
-contract.
+The exact `48b0207` candidate closes WR-07 without changing the accepted final
+product tree. The fix and disposition records preserve the stable
+`retired_workbench_manifest_contract` family and `independent` lineage, assign
+`3aaf113` only to harness retirement, and assign `018ec37` to the manifest fix.
+WR-07 is fixed, all eight findings are accounted for, and the aggregate remains
+`open: 0`, `total: 8`.
 
-Fixture publication now creates a unique `NamedTempFile` in the workspace,
-writes and flushes the complete serialized document, and publishes it with a
-same-directory `persist`. No fixed temporary path remains. The locked
-`tempfile 3.27.0` implementation returns the still-owned `NamedTempFile` in
-`PersistError`; the handler explicitly drops it, and `TempPath::drop` removes
-the file. Earlier write/flush errors also clean up through RAII. `Cargo.lock` is
-byte-identical to round 2, so promoting `tempfile` from dev-only to runtime did
-not introduce lockfile churn.
+The manifest and Spike 010/011 records consistently describe the removed
+workbench as completed historical validation while retaining the shared crate
+as current production code. No runnable workbench survives. Production image
+processing and its controller integration test remain byte-identical to
+baseline `8d57e761496576356ae4a4733dae789c7fb50b4b` and pass focused tests.
 
-The production browser path uses the same DOM-independent Save coordinator as
-the deterministic tests. It marks pending before the first await, rejects a
-duplicate activation, captures one image/owner/adjustment snapshot, persists
-through non-aborting `api`, gates all success/error publication on current
-ownership, and clears pending only after the request and response body settle.
-The Save control remains disabled for that interval. Navigation or editing can
-make the result stale without aborting the accepted write; stale completion
-cannot change the adjustment, fixture marker, status, or event log.
-
-The runbook now makes the exact process-emitted capability URL the supported
-entry point, documents capability-preserving image deep links and the expected
-403 for missing capability, states the one-operator/session boundary, and
-records the accepted multi-user productization blocker: versions or ETags,
-actor/audit identity, serialized or compare-and-swap commits, conflict/retry
-UX, and deterministic concurrency/recovery/durability tests.
+All reviewed files meet the final convergence contract. No actionable findings
+remain, and publication is authorized.
 
 ## Narrative Findings (AI reviewer)
 
-No actionable findings.
+None.
+
+## WR-07 Closure Evidence
+
+| Required invariant | Result | Evidence |
+|---|---|---|
+| Stable family | Pass | `08-REVIEW-FIX.md` and the WR-07 disposition use `retired_workbench_manifest_contract` exactly. |
+| Stable lineage | Pass | Both audit records identify WR-07 as `independent`. |
+| Retirement commit attribution | Pass | `3aaf113` is identified only as the executable-harness retirement commit. |
+| Fix commit attribution | Pass | `018ec37` is identified as the exact WR-07 manifest-contract fix. |
+| Final finding state | Pass | WR-07 is `fixed`; the disposition contains eight unique findings with `open: 0` and `total: 8`. |
+| Earlier finding lineage | Pass | The other seven findings, dispositions, titles, sources, and retained-versus-retired classifications are unchanged. |
+| PR audit URLs | Pass | The complete issue-comment URL sequence is byte-identical between `018ec37` and `48b0207`. |
+| Exact candidate reviewed | Pass | `018ec37..48b0207` changes only `08-REVIEW-FIX.md` and `08-REVIEW-DISPOSITION.md`; neither has a worktree mutation after `48b0207`. |
+
+## Final-Tree Contract Verification
+
+- The shared-image-processing manifest section uses present tense for the
+  retained production crate and historical language for the retired Spike 011
+  consumer.
+- All workbench-specific manifest requirements describe completed validation;
+  none requires recreation or ongoing support.
+- The Spike 010 row and README describe the workbench as the completed real
+  second consumer while preserving the current shared-crate production
+  contract.
+- The Spike 011 row and README remain `VALIDATED`, preserve concise evidence,
+  and explicitly state that the disposable executable was removed.
+- The Spike 011 directory contains only its result README. No Cargo manifest,
+  lockfile, Rust server, browser script, static entry point, test harness, or
+  runnable workbench directory survives.
+- `controller/image-processing/` and
+  `controller/tests/image_adjustments.rs` have no diff from baseline
+  `8d57e761496576356ae4a4733dae789c7fb50b4b`.
+- No private originals, generated diagnostics, credentials, capability token,
+  or private-media reference was introduced by the convergence amendment.
 
 ## Finding Lineage
 
-| Finding | Family | Round-3 result | Evidence |
-|---|---|---|---|
-| CR-01 | `loopback_browser_origin_isolation` | Resolved | Host, capability, Origin, and API no-store boundaries remain intact; authorized and missing-cap smoke paths behaved as documented. |
-| WR-01 | `workbench_async_authority` | Resolved within approved supported scope | Unique same-workspace temporary publication plus production-used single-flight, unabortable, stale-safe browser coordination; focused Rust and Node tests pass. |
-| WR-02 | `framing_transform_round_trip` | Resolved | Constrained transforms suppress crop-driving actions and complete framing draft state remains round-trippable. |
-| WR-03 | `ordered_convex_quadrilateral_validation` | Resolved | Shared validation remains used by production adjustment and manual-framing paths; focused shared/controller tests pass. |
-| WR-04 | `boundary_confidence_preservation` | Resolved | Three-sided gradient evidence remains tentative and non-actionable while preserving conservative veto behavior. |
-| WR-05 | `stable_fixture_source_identity` | Resolved | Stable path key plus source digest identity and fail-closed reload behavior remain covered. |
-| WR-06 | `operator_capability_launch_contract` | Resolved | Exact emitted URL, deep-link retention, negative authorization, sensitive-token handling, and smoke steps are documented and exercised. |
-
-## Supported-Scope Audit
-
-- **Producer:** Save activation captures the current operation owner, image id,
-  and canonical adjustment exactly once.
-- **Browser mutation boundary:** one coordinator instance synchronously owns the
-  pending flag and rejects accidental duplicate activation.
-- **Server mutation boundary:** one complete JSON document is written to a
-  unique workspace-local temporary file, flushed, then atomically replaced
-  through `persist` on the supported filesystem.
-- **Cleanup/recovery:** pre-persist failures drop the `NamedTempFile`; persist
-  failures explicitly drop the returned file; successful replacement leaves
-  only the stable fixture.
-- **Consumers/reporting:** fixture list/load and stable source-identity checks
-  remain unchanged; only current-owner success updates adjustment, option
-  marker, status, and event log.
-- **Capability contract:** printed URL, browser extraction/header injection,
-  source query parameter, history deep link, middleware, README, and smoke
-  instructions agree.
-- **Shared production paths:** controller persistence and the extracted
-  image-processing consumers were unchanged by the final fix and their focused
-  regression tests remain green.
+| Finding | Final result |
+|---|---|
+| CR-01 | Fixed historically in the retired harness; no executable security surface survives. |
+| WR-01 | Fixed historically in the retired harness; no Save or fixture-mutation path survives. |
+| WR-02 | Fixed historically in the retired harness; no framing UI survives. |
+| WR-03 | Fixed and retained in shared production quadrilateral validation and controller tests. |
+| WR-04 | Fixed and retained in shared production gradient-confidence behavior and controller tests. |
+| WR-05 | Fixed historically in the retired harness; no fixture-identity path survives. |
+| WR-06 | Fixed historically; runnable capability instructions were removed with the harness. |
+| WR-07 | Fixed. Manifest behavior and audit lineage now agree on family, lineage, and correcting commit. |
 
 ## Verification
 
-- `cargo test --release --manifest-path .planning/spikes/011-local-image-workbench/workbench/Cargo.toml` — passed, 12 tests.
-- `cargo clippy --manifest-path .planning/spikes/011-local-image-workbench/workbench/Cargo.toml --all-targets -- -D warnings` — passed.
-- `cargo fmt --manifest-path .planning/spikes/011-local-image-workbench/workbench/Cargo.toml -- --check` — passed.
-- `node --check .planning/spikes/011-local-image-workbench/workbench/static/app.js` — passed.
-- `node --test .planning/spikes/011-local-image-workbench/workbench/static/app.test.cjs` — passed, 12 tests.
-- `cargo test --manifest-path controller/image-processing/Cargo.toml` — passed, 2 tests plus doc tests.
-- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments` — passed, 23 tests; only the previously documented unrelated `oracle_wallet_dir` dead-code warning was emitted.
-- `git diff --check 71f43f5b38d97077874d7e7edfdeb7f9feed8c42..HEAD` — passed.
-- `Cargo.lock` has no diff from `71f43f5b38d97077874d7e7edfdeb7f9feed8c42`.
-- Disposable capability-aware smoke — emitted capability URL and deep link returned `200`; authorized list, fixture save, and reload returned `200`; the same private API without capability returned `403`; reload returned the saved adjustment; the workspace contained one stable fixture and no temporary artifact.
-- Locked `tempfile 3.27.0` source was inspected directly for `PersistError` ownership and `TempPath` drop cleanup semantics.
-- No source file was modified and no commit was created.
+- `git rev-parse HEAD` —
+  `48b020703ba7cbd52d2986a1c667e4ce1f24d83b`.
+- `git diff 018ec37..48b0207` — only `08-REVIEW-FIX.md` and
+  `08-REVIEW-DISPOSITION.md` changed, and every hunk is limited to WR-07 family,
+  lineage, commit attribution, or its final-tree explanation.
+- `git diff --exit-code HEAD --` the fix report, disposition, manifest, Spike
+  READMEs, production crate, and controller integration test — passed before
+  this review write; no post-candidate mutation was present.
+- Historical PR URL digest at `018ec37` and `48b0207` — identical SHA-256
+  `22ec01b801ed9b5ff4005c1a12b38d8e67f7543218014135df4433b4a8e7bad2`.
+- `test ! -d .planning/spikes/011-local-image-workbench/workbench` — passed;
+  filesystem and `git ls-tree` inspection found only the Spike 011 README.
+- `git diff --exit-code 018ec37..48b0207 --` the manifest and Spike 010/011
+  READMEs — passed.
+- `git diff --exit-code 8d57e761496576356ae4a4733dae789c7fb50b4b..48b0207 -- controller/image-processing controller/tests/image_adjustments.rs`
+  — passed.
+- `cargo test --manifest-path controller/image-processing/Cargo.toml` — passed,
+  2 tests and doc tests.
+- `cargo test --manifest-path controller/Cargo.toml --test image_adjustments` —
+  passed, 23 tests; the existing `oracle_wallet_dir` dead-code warning remains
+  outside this unchanged scope.
+- `git diff --check 018ec37..48b0207` and
+  `git diff --check 8d57e761496576356ae4a4733dae789c7fb50b4b..48b0207`
+  — passed.
 
-## Convergence Verdict
+## Publication Decision
 
-Round 3 is clean. No in-scope Critical or Warning remains, no finding recurred,
-and no sibling path, regression, or test-weakness expansion was found. The
-mandatory third-review checkpoint therefore authorizes convergence as
-`ready_to_resume` using the assumptions and passed cycle-3 plan review recorded
-in frontmatter.
+Clean. The round-5 WR-07 warning is closed, the approved bounded plan was
+followed, and no Critical, Warning, regression, sibling-path miss, test
+weakness, or scope expansion remains. PR #281 is authorized to proceed to its
+normal publication checks. No audit field may be changed after this final
+review without reopening convergence.
 
 ---
 
-_Reviewed: 2026-10-24T15:20:57Z_
+_Reviewed: 2026-10-25T13:20:43Z_
 _Reviewer: Codex (gsd-code-reviewer)_
 _Depth: deep_
