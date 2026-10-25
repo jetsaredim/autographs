@@ -39,6 +39,7 @@ Renovate now updates the resolve-runtime-ip Terraform default together with the 
 
 - Extended the existing `hashicorp/terraform` custom regex manager to scan nested `action.yml` and `action.yaml` definitions under `.github/actions` while retaining workflow YAML coverage.
 - Added an input-scoped matcher that captures only `inputs.terraform-version.default` from the composite action.
+- Line-bounded both value matchers around their exact YAML keys so longer sibling names cannot be misclassified as HashiCorp Terraform.
 - Preserved the existing datasource, dependency name, workflow matcher, and `custom.regex` package-rule behavior.
 
 ## Verification
