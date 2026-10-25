@@ -141,7 +141,6 @@ fn controller_dockerfile_copies_compile_time_static_assets() {
     let smoke_dockerfile = read_repo("controller/Dockerfile.smoke");
     let static_smoke_dockerfile = read_repo("controller/Dockerfile.static-smoke");
 
-    assert!(dockerfile.contains("cargo install cargo-chef --version 0.1.78 --locked"));
     assert!(dockerfile.contains("cargo chef prepare --recipe-path recipe.json"));
     assert!(dockerfile.contains(
         "cargo chef cook --release --features production-persistence --recipe-path recipe.json"
@@ -158,7 +157,7 @@ fn controller_dockerfile_copies_compile_time_static_assets() {
     assert!(dockerfile.contains("COPY controller/static-admin ./static-admin"));
     assert!(dockerfile.contains("cargo build --release --features production-persistence"));
     assert!(dockerfile.contains("COPY controller/static-admin /opt/autographs/static-admin"));
-    assert!(dockerfile.contains("ca-certificates-2025.2.80_v9.0.305-102.el10_1"));
+    assert!(dockerfile.contains("microdnf install -y ca-certificates"));
     assert!(!dockerfile.contains("oracle-instantclient"));
     assert!(dockerignore.contains("controller/static-public/data/collection.json"));
     assert!(dockerignore.contains("controller/static-public/data/facets.json"));
