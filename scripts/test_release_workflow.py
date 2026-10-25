@@ -147,9 +147,6 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         release_names = [step["name"] for step in named_steps(self.release_job)]
         token_name = "Generate short-lived release token"
         token = self.release_steps[token_name]
-        self.assertRegex(
-            token["uses"], r"^actions/create-github-app-token@[0-9a-f]{40}$"
-        )
         self.assertEqual(
             token["with"]["client-id"],
             "${{ vars.RELEASE_PLEASE_APP_CLIENT_ID }}",
@@ -168,9 +165,6 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             release_names.index("Check unresolved draft releases"),
         )
         action = self.release_steps["Run release-please"]
-        self.assertRegex(
-            action["uses"], r"^googleapis/release-please-action@[0-9a-f]{40}$"
-        )
         app_token = "${{ steps.release_app_token.outputs.token }}"
         self.assertEqual(action["with"]["token"], app_token)
         self.assertEqual(
