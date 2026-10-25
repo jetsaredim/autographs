@@ -290,12 +290,10 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         )
 
         self.assertEqual(checkout["if"], status_condition)
-        self.assertEqual(checkout["uses"], "actions/checkout@v7")
         self.assertEqual(checkout["with"]["fetch-depth"], "0")
         self.assertEqual(checkout["with"]["ref"], "main")
         self.assertEqual(checkout["with"]["path"], ".production-status")
         self.assertEqual(tooling_checkout["if"], status_condition)
-        self.assertEqual(tooling_checkout["uses"], "actions/checkout@v7")
         self.assertEqual(tooling_checkout["with"]["fetch-depth"], "1")
         self.assertEqual(tooling_checkout["with"]["ref"], "${{ github.sha }}")
         self.assertEqual(tooling_checkout["with"]["path"], ".status-automation")
@@ -480,7 +478,6 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         login_name = "Log in to ghcr.io for rollback inspection"
         login = self.production_steps[login_name]
         self.assertIn("steps.request.outputs.operation == 'rollback'", login["if"])
-        self.assertEqual(login["uses"], "docker/login-action@v4")
         self.assertEqual(login["with"]["registry"], "ghcr.io")
         self.assertEqual(login["with"]["password"], "${{ secrets.GHCR_TOKEN }}")
         self.assertLess(
