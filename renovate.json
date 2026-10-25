@@ -36,6 +36,29 @@
       "groupName": "routine dependency updates"
     },
     {
+      "description": "Keep Terraform CLI constraints and install pins together",
+      "matchManagers": [
+        "terraform",
+        "github-actions",
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "hashicorp/terraform"
+      ],
+      "groupName": "Terraform CLI updates",
+      "groupSlug": "terraform-cli"
+    },
+    {
+      "description": "Keep setup-terraform CLI versions unprefixed",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepNames": [
+        "terraform"
+      ],
+      "extractVersion": "^v(?<version>.*)$"
+    },
+    {
       "description": "Keep majors separate for manual review",
       "matchUpdateTypes": [
         "major"
@@ -79,13 +102,11 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Update Terraform versions pinned in GitHub workflows and actions",
+      "description": "Update Terraform versions pinned in GitHub composite actions",
       "managerFilePatterns": [
-        "/^\\.github/workflows/.*\\.ya?ml$/",
         "/^\\.github/actions/.*/action\\.ya?ml$/"
       ],
       "matchStrings": [
-        "(?:^|\\r\\n|\\r|\\n)[ \\t]+terraform_version:[ \\t]*\"(?<currentValue>[^\"]+)\"",
         "(?:^|\\r\\n|\\r|\\n)  terraform-version:[ \\t]*(?:\\r\\n|\\r|\\n)(?:    [^\\r\\n]*(?:\\r\\n|\\r|\\n))*?    default:[ \\t]*\"(?<currentValue>[^\"]+)\""
       ],
       "depNameTemplate": "hashicorp/terraform",
