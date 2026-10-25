@@ -132,6 +132,9 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         indexes = [self.production_step_names.index(name) for name in expected]
         self.assertEqual(indexes, sorted(indexes), expected)
 
+    def assert_action_repository(self, step: dict, repository: str) -> None:
+        self.assertRegex(step["uses"], rf"^{re.escape(repository)}@[^@]+$")
+
     def test_normal_push_gating(self):
         case = self.cases["normal_push_gating"]
         release_names = [step["name"] for step in named_steps(self.release_job)]
@@ -147,6 +150,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         release_names = [step["name"] for step in named_steps(self.release_job)]
         token_name = "Generate short-lived release token"
         token = self.release_steps[token_name]
+        self.assert_action_repository(token, "actions/create-github-app-token")
         self.assertEqual(
             token["with"]["client-id"],
             "${{ vars.RELEASE_PLEASE_APP_CLIENT_ID }}",
@@ -165,6 +169,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             release_names.index("Check unresolved draft releases"),
         )
         action = self.release_steps["Run release-please"]
+        self.assert_action_repository(action, "googleapis/release-please-action")
         app_token = "${{ steps.release_app_token.outputs.token }}"
         self.assertEqual(action["with"]["token"], app_token)
         self.assertEqual(
@@ -290,10 +295,12 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         )
 
         self.assertEqual(checkout["if"], status_condition)
+        self.assert_action_repository(checkout, "actions/checkout")
         self.assertEqual(checkout["with"]["fetch-depth"], "0")
         self.assertEqual(checkout["with"]["ref"], "main")
         self.assertEqual(checkout["with"]["path"], ".production-status")
         self.assertEqual(tooling_checkout["if"], status_condition)
+        self.assert_action_repository(tooling_checkout, "actions/checkout")
         self.assertEqual(tooling_checkout["with"]["fetch-depth"], "1")
         self.assertEqual(tooling_checkout["with"]["ref"], "${{ github.sha }}")
         self.assertEqual(tooling_checkout["with"]["path"], ".status-automation")
@@ -471,12 +478,14 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
 
     def test_rollback_authenticates_before_private_image_inspection(self):
         release_login = self.production_steps["Log in to ghcr.io"]
+        self.assert_action_repository(release_login, "docker/login-action")
         self.assertIn(
             "steps.request.outputs.operation != 'rollback'", release_login["if"]
         )
         self.assertEqual(release_login["with"]["password"], "${{ secrets.GITHUB_TOKEN }}")
         login_name = "Log in to ghcr.io for rollback inspection"
         login = self.production_steps[login_name]
+        self.assert_action_repository(login, "docker/login-action")
         self.assertIn("steps.request.outputs.operation == 'rollback'", login["if"])
         self.assertEqual(login["with"]["registry"], "ghcr.io")
         self.assertEqual(login["with"]["password"], "${{ secrets.GHCR_TOKEN }}")
