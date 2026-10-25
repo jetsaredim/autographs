@@ -79,12 +79,14 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Update Terraform versions pinned in GitHub workflows",
+      "description": "Update Terraform versions pinned in GitHub workflows and actions",
       "managerFilePatterns": [
-        "/^\\.github/workflows/.*\\.ya?ml$/"
+        "/^\\.github/workflows/.*\\.ya?ml$/",
+        "/^\\.github/actions/.*/action\\.ya?ml$/"
       ],
       "matchStrings": [
-        "terraform_version:\\s*\"(?<currentValue>[^\"]+)\""
+        "(?:^|\\r\\n|\\r|\\n)[ \\t]+terraform_version:[ \\t]*\"(?<currentValue>[^\"]+)\"",
+        "(?:^|\\r\\n|\\r|\\n)  terraform-version:[ \\t]*(?:\\r\\n|\\r|\\n)(?:    [^\\r\\n]*(?:\\r\\n|\\r|\\n))*?    default:[ \\t]*\"(?<currentValue>[^\"]+)\""
       ],
       "depNameTemplate": "hashicorp/terraform",
       "datasourceTemplate": "github-releases"
