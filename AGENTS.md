@@ -94,6 +94,7 @@ Autographs is a production-lean personal autograph collection website where you 
 - Add comments only where a non-obvious operational or domain boundary needs context.
 - Prefer self-explanatory Rust names and existing controller/repository/media separation over explanatory comments for ordinary flow.
 ## Testing Habits
+- Test dependency behavior and compatibility boundaries without requiring a particular managed package version or action digest. Assert exact versions only when the value itself is the contract, such as an artifact schema version.
 - Use Cargo checks for current runtime code: `cargo fmt`, `cargo test`, `cargo check --features production-persistence`, and `cargo clippy`.
 - Keep static contract/privacy tests mandatory for public artifact changes.
 - Run Ansible syntax/lint checks for deployment, cleanup, and security patching changes.

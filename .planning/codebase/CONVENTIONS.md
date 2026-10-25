@@ -67,6 +67,9 @@
 
 ## Testing Habits
 
+- Test dependency behavior and compatibility boundaries without requiring a
+  particular managed package version or action digest. Assert exact versions
+  only when the value itself is the contract, such as an artifact schema version.
 - Use Cargo checks for current runtime code:
   `cargo fmt`, `cargo test`, `cargo check --features production-persistence`,
   `cargo build --features production-persistence`, and `cargo clippy`.
