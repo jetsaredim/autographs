@@ -79,10 +79,10 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Update Terraform versions pinned in GitHub workflows and the resolve-runtime-ip action",
+      "description": "Update Terraform versions pinned in GitHub workflows and actions",
       "managerFilePatterns": [
         "/^\\.github/workflows/.*\\.ya?ml$/",
-        "/^\\.github/actions/resolve-runtime-ip/action\\.yml$/"
+        "/^\\.github/actions/.*/action\\.ya?ml$/"
       ],
       "matchStrings": [
         "terraform_version:\\s*\"(?<currentValue>[^\"]+)\"",
