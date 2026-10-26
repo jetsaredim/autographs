@@ -1,13 +1,18 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-26T15:07:51Z
+reviewed: 2026-10-26T20:46:29Z
 depth: deep
-review_round: 2
-files_reviewed: 16
+review_round: 3
+files_reviewed: 28
 files_reviewed_list:
+  - .github/workflows/deploy.yml
   - .planning/phases/08-admin-media-review-and-operational-posture/08-07-PLAN.md
   - .planning/phases/08-admin-media-review-and-operational-posture/08-07-PR-294-REVIEW-FIX.md
   - .planning/phases/08-admin-media-review-and-operational-posture/08-07-SUMMARY.md
+  - .planning/phases/08-admin-media-review-and-operational-posture/08-PR-294-ASSUMPTIONS.md
+  - .planning/phases/08-admin-media-review-and-operational-posture/08-PR-294-CONTRACT-PLAN-REVIEW.md
+  - .planning/phases/08-admin-media-review-and-operational-posture/08-PR-294-CONTRACT-REVISION.md
+  - .planning/phases/08-admin-media-review-and-operational-posture/08-PR-294-CONVERGENCE.md
   - controller/src/config.rs
   - controller/src/publisher.rs
   - controller/tests/live_static_publish_smoke.rs
@@ -20,21 +25,28 @@ files_reviewed_list:
   - controller/image-processing/src/image_adjustments.rs
   - controller/image-processing/src/derivatives.rs
   - controller/src/routes.rs
+  - deploy/ansible/playbooks/deploy.yml
+  - deploy/ansible/playbooks/publish-freeze-render-test.yml
+  - deploy/ansible/roles/autographs_deploy/defaults/main.yml
   - deploy/ansible/roles/autographs_deploy/files/Caddyfile
+  - deploy/ansible/roles/autographs_deploy/tasks/main.yml
+  - deploy/ansible/roles/autographs_deploy/tasks/publish_freeze.yml
+  - deploy/ansible/roles/autographs_deploy/templates/autographs-caddy.container.j2
+  - scripts/verify-caddy-media-origin.sh
 findings:
   critical: 1
-  warning: 1
+  warning: 0
   info: 0
-  total: 2
+  total: 1
 status: issues_found
 convergence:
-  status: ready_to_resume
-  recurring_critical_warning: 2
+  status: reassessment_required
+  recurring_critical_warning: 1
   scope_expansion: false
-  requires_reassessment: false
-  assumptions_evidence: 08-PR-294-ASSUMPTIONS.md
-  plan_evidence: 08-PR-294-CONTRACT-REVISION.md
-  plan_review_evidence: 08-PR-294-CONTRACT-PLAN-REVIEW.md#revision-2--verification-passed
+  requires_reassessment: true
+  assumptions_evidence: null
+  plan_evidence: null
+  plan_review_evidence: null
 ---
 
 # Phase 8 Wave 7: PR #294 Code Review
@@ -137,3 +149,56 @@ _Reviewer: GSD code reviewer; review round 1._
 **Revised plan requirements:** Specify one commit boundary for public media visibility; use the existing Caddy fallback to serve new active media after pointer promotion; preserve old media without exposing candidate files early; define durable emergency tombstones or an equivalent release-retirement process; keep pruning safe after intentional media deletion; add deterministic tests for precommit invisibility, promotion failure, rollback, takedown, and later pruning, plus credentialed Caddy/edge proof before CDN enablement.
 
 **Resume criteria:** Independently review revised assumptions and revised implementation plan covering every invariant and failure row above. Record their evidence paths in `assumptions_evidence` and `plan_evidence` before changing convergence status to `ready_to_resume`. No status-only transition is valid.
+
+## Round 3 Convergence Checkpoint — 40ff873
+
+**Reviewed:** 2026-10-26T20:46:29Z
+**Status:** issues_found; one in-scope Blocker remains. No further point-fix round should start.
+
+### Finding lineage and resolved paths
+
+- `CR-01` (`fingerprinted_media_release_lifetime`): The shared media root preserves prior fingerprints across normal promotion, unpublish, and rollback in local tests and the real Caddy fixture. Resolved in the reviewed source.
+- `WR-01` (`derivative_cache_metadata_dimensions`): Cache reuse decodes WebP bytes and verifies dimensions. Resolved in the reviewed source and regression test.
+- `CR-02` (`candidate_media_precommit_exposure`, `CR-01` fix regression): The publisher now migrates only active media before pointer promotion and copies candidate media after promotion. The controlled callback and real Caddy fixture support the local boundary. The production deployment path remains unprotected; `CR-03` is a sibling-path miss of this family.
+- `WR-02` (`emergency_media_takedown_retention`): Caddy denies marked URLs before shared/current fallback; the publisher rejects marked candidates and skips marked copies during pruning. Local tests exercise missing retained bytes, and the real Caddy fixture exercises both origin routes. Resolved in the reviewed source. The credentialed production takedown remains a Wave 8 proof.
+
+### CR-03: Production deployment does not preserve the publish freeze
+
+**Severity:** BLOCKER
+**File:** `deploy/ansible/roles/autographs_deploy/tasks/publish_freeze.yml:19`
+**Finding family:** `candidate_media_precommit_exposure`
+**Prior family ID:** `CR-02`
+**Lineage:** `sibling_path_miss`
+**Shared invariant:** During the non-atomic Caddy/controller rollout, no old publisher request can cross into a new public shared-media route until the revised publisher and both origin routes are verified.
+**Consumers inspected:** Manual freeze runbook, Ansible Caddyfile copy and block insertion, handler flush and Caddy restart, quadlet bind mount, frozen/unfrozen render tests and real Caddy fixture, `deploy/ansible/playbooks/deploy.yml`, production `.github/workflows/deploy.yml` invocation, publisher route lock/status.
+**Evidence level:** `source_only` for the production workflow mismatch; `deterministic_test` for the rendered freeze switch and Caddy status behavior.
+**PR comment:** https://github.com/jetsaredim/autographs/pull/294#discussion_r4382273384
+**Issue:** The production GitHub Actions deployment does not pass `autographs_deploy_publish_frozen`. The role defaults it to `false`, copies a clean Caddyfile, removes the freeze block, and restarts Caddy. Thus the normal Release-PR deployment cannot carry the documented manual gate through cutover. An old controller may accept a publish while the shared media route is live.
+**Fix:** Make the production deployment path preserve or enforce the freeze through both service restarts and readiness checks, then explicitly unfreeze. A deployment test must exercise the same parameters as the GitHub Actions call, including a pre-existing manual freeze, and verify the gate remains active until deliberate release.
+
+### Verification performed in round 3
+
+- `cargo test --manifest-path controller/Cargo.toml --test publisher --test caddy_static_routes --test static_contract --quiet`: passed (49 publisher, 9 Caddy, 4 static-contract tests).
+- `bash -n scripts/verify-caddy-media-origin.sh` and `git diff --check`: passed.
+- `bash scripts/verify-caddy-media-origin.sh`: passed against containerized Caddy, including precommit 404, postcommit 200, marker denial on public and preview routes, and frozen/unfrozen publish route responses. This does not exercise the production GitHub Actions invocation or credentialed OCI/Oracle/Cloudflare paths.
+
+## Round 3 Convergence Reassessment
+
+**Finding lineage:** `CR-03` is the still-open deployment consumer of round-2 `CR-02`, which was a regression from round-1 `CR-01`. The local publisher boundary is fixed, but the production deploy can remove its only gate. This is the mandatory third-review checkpoint; no additional point fix is authorized until assumptions and plan are revised and reviewed.
+
+**Shared invariants:** Candidate URLs remain private before pointer commit; old committed URLs stay available through bounded document freshness; emergency-marked URLs remain denied; and no old publisher can run under new shared-media serving during deployment. The first three are supported locally; the fourth fails in the actual release deployment path.
+
+**Complete consumer inventory:** Candidate generator/validator; derivative cache; active-only shared copy; pointer promotion; postcommit copy and warning; Caddy shared/current/marker routes; rollback and pruning; emergency marker and CDN purge; admin publish routes, lock, status, queued jobs; manual host freeze; Ansible Caddyfile copy/blockinfile/handler restart; controller and Caddy quadlets; the production GitHub Actions deploy call; local publisher/Caddy/Ansible tests; credentialed live smoke and Wave 8 edge probes.
+
+**Assumption audit:** The revision assumed the operator would invoke Ansible with `autographs_deploy_publish_frozen=true`. The repository's normal delivery contract uses `.github/workflows/deploy.yml`, which supplies no such variable; the role's `false` default removes the gate. The local render fixture explicitly tests `true` and `false` but never the production call's implicit default against an already frozen host.
+
+| Failure point | Current effect | Required behavior |
+| --- | --- | --- |
+| Manual gate is installed, then GitHub Actions runs its normal deploy | Role copies a clean Caddyfile and renders freeze `absent` | Gate survives until verified explicit unfreeze |
+| New Caddy route restarts while old controller can still publish | Old publisher can place candidate media in public shared storage precommit | Publish routes remain blocked and queued work drained |
+| Deployment fails after Caddy restart but before controller/readiness checks | Implicit `false` leaves publish routes open | Failed rollout remains frozen and recoverable |
+| Controller and both Caddy routes pass readiness | No automatic proof is connected to gate removal | Explicit readiness-backed unfreeze and evidence record |
+
+**Revised plan requirements:** Reconcile the release-please/GitHub Actions deployment with the freeze protocol. Specify where the gate is set before mutation, how the exact production workflow passes or reads frozen state, how queued/in-flight jobs are drained, how every restart and failure preserves it, and how an explicit readiness gate removes it. Extend deployment tests to model the real invocation and a pre-frozen host. Preserve all current publisher, marker, retention, and Caddy behavior.
+
+**Resume criteria:** Produce revised deployment assumptions and a reviewed implementation plan that cover each failure row and the production workflow. Record both evidence paths, plus the plan-review evidence, before changing `convergence.status` to `ready_to_resume`. A status-only change is invalid. The next coder action must follow that reviewed plan as one coherent contract change.
