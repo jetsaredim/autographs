@@ -28,6 +28,7 @@ pub struct ControllerConfig {
     pub(crate) oracle_password_vault_secret_id: Option<String>,
     pub(crate) oracle_password_vault_version: Option<u64>,
     pub(crate) oracle_connect_string: Option<String>,
+    #[cfg_attr(not(feature = "production-persistence"), allow(dead_code))]
     pub(crate) oracle_wallet_dir: Option<String>,
     pub(crate) oracle_wallet_password: Option<String>,
     pub media_configured: bool,

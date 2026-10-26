@@ -66,12 +66,12 @@ Saved corrections now flow through normal static publishing to both public WebP 
 - `cargo test --manifest-path controller/Cargo.toml --features live-persistence --test live_static_publish_smoke --no-run` — passed.
 - `cargo test --manifest-path controller/Cargo.toml --features live-persistence --test live_static_publish_smoke -- --ignored --nocapture` — passed the environment gate only; `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE` was unset, so this is not live Oracle, OCI, or Caddy evidence.
 - `cargo check --manifest-path controller/Cargo.toml --features production-persistence` — passed.
-- `cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings` — blocked by the preexisting `oracle_wallet_dir` dead-code warning in `controller/src/config.rs:31`; this plan did not change that file. The same all-target check passed with only `-A dead-code` added. The orchestrator will resolve the strict gate before PR review.
+- `cargo clippy --manifest-path controller/Cargo.toml --all-targets -- -D warnings` — passed after the follow-up configuration lint fix. The field is used only with `production-persistence`, so its default-feature dead-code allowance is scoped to that configuration.
 
 ## Deviations from Plan
 
 - The TDD tracer's intentional RED assertion failure was observed before publisher edits. Repository instructions allow only `feat`, `fix`, `perf`, `revert`, `docs`, and `chore` commit types, so the RED regression and GREEN implementation share Task 1's `feat` commit rather than using the GSD template's invalid `test` type.
-- Strict default-feature Clippy cannot pass until the preexisting unused configuration field is handled outside this plan's file scope. No unrelated source was changed.
+- Follow-up gate fix: the orchestrator added a default-feature-only dead-code allowance to `oracle_wallet_dir` in `controller/src/config.rs`; the production-persistence path still uses the field.
 
 ## Known Stubs
 
@@ -83,7 +83,7 @@ None beyond the plan's derivative-cache, private-to-public release, and live ope
 
 ## Next Phase Readiness
 
-Wave 8 can use the runbook's credentialed adjusted-media publish to collect real edge-cache evidence before CDN enablement. The local gate result must not be cited as a live pass. Resolve the existing strict Clippy warning before PR review.
+Wave 8 can use the runbook's credentialed adjusted-media publish to collect real edge-cache evidence before CDN enablement. The local gate result must not be cited as a live pass. Strict Clippy now passes.
 OPS-02 remains pending until Wave 8 enables and verifies the production CDN.
 
 ## Self-Check: PASSED
