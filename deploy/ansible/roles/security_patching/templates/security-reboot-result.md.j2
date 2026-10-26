@@ -42,6 +42,11 @@ No reboot or installonly cleanup was attempted because the complete current Open
 - Approved advisories: {{ hostvars[host].security_patching_reboot_approved_advisory_ids | default([]) | unique | sort | list | length }}
 - Current advisories: {{ hostvars[host].security_patching_reboot_current_advisory_ids | default([]) | unique | sort | list | length }}
 - Current action: `{{ hostvars[host].security_patching_post_reboot_next_action | default('investigate') | trim }}`
+- Reason: {{ hostvars[host].security_patching_post_reboot_next_action_reason | default('Classification reason unavailable.') | trim }}
+- Entries without packages: {{ hostvars[host].security_patching_post_reboot_classification_entries_without_packages | default([]) | to_json }}; packages outside reboot families (first 12 of {{ hostvars[host].security_patching_post_reboot_classification_disallowed_packages | default([]) | length }}): {{ (hostvars[host].security_patching_post_reboot_classification_disallowed_packages | default([]))[:12] | to_json }}.
+{% set dnf = hostvars[host].security_patching_post_reboot_classification_dnf_evidence | default({}) %}
+- Advisory-scoped DNF: rc={{ dnf.rc | default('unavailable') }}, no-op={{ dnf.noop | default(false) }}, work={{ dnf.work | default(false) }}; stdout length={{ dnf.stdout_length | default('unavailable') }}, safe signals={{ dnf.stdout_signals | default([]) | to_json }}; stderr length={{ dnf.stderr_length | default('unavailable') }}, safe signals={{ dnf.stderr_signals | default([]) | to_json }}.
+- DNF output fingerprints: stdout SHA-256={{ dnf.stdout_sha256 | default('unavailable') }}, stderr SHA-256={{ dnf.stderr_sha256 | default('unavailable') }}. Arbitrary output stays private.
 
 {% endfor -%}
 {% endif %}
@@ -71,6 +76,6 @@ Advisory-scoped DNF is still a no-op and the remaining packages are reboot/insta
 {% elif security_patching_next_action | trim == 'configure' -%}
 RHCK packages violate the UEK-only runtime posture. No update or reboot approval label is offered. Run production deployment convergence to remove them without rebooting, then re-run the scanner.
 {% else -%}
-At least one host requires kernel recovery or has findings that could not be classified safely. Do not apply an approval label or run deployment convergence on an unsafe host. Recover a verified running and default UEK kernel first, scheduling a reboot when the running kernel is not UEK, then re-run the scanner.
+At least one host has findings that could not be classified safely. Do not apply an approval label. Follow each host's recorded reason and evidence before re-running the scanner.
 {% endif %}
 {% endif %}

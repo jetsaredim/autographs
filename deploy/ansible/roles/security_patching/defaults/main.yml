@@ -13,7 +13,6 @@ security_patching_report_path: "/tmp/autographs-security-report-{{ security_patc
 security_patching_result_comment_path: "/tmp/autographs-security-update-result-{{ security_patching_issue_number | default('unknown', true) }}.md"
 security_patching_failure_context_path: "{{ lookup('env', 'SECURITY_PATCHING_FAILURE_CONTEXT_PATH') | default('', true) }}"
 security_patching_failure_context_max_chars: 12000
-security_patching_failure_context_stream_max_chars: 4000
 security_patching_oval_url: https://linux.oracle.com/security/oval/com.oracle.elsa-ol10.xml.bz2
 security_patching_errata_base_url: https://linux.oracle.com/errata/
 security_patching_oval_download_path: "/tmp/autographs-security-oval-{{ security_patching_scan_id }}-{{ inventory_hostname | default('localhost') }}.xml.bz2"
@@ -53,7 +52,8 @@ security_patching_request_accepted_message: Production security update request a
 security_patching_failed_request_message: Production security update workflow did not complete successfully.
 security_patching_installonly_limit: 2
 security_patching_reboot_validate_dnf_noop: true
-security_patching_reboot_allowed_package_regex: '^(kernel-uek($|-.*)|bpftool$|libperf$|perf$|python3-perf$|rtla$|rv$)$'
+security_patching_reboot_dnf_noop_probe_override: null
+security_patching_reboot_allowed_package_regex: '^(kernel-uek(64k)?($|-.*)|bpftool$|libperf$|perf$|python3-perf$|rtla$|rv$)$'
 security_patching_reboot_kernel_boot_dir: /boot
 security_patching_reboot_kernel_candidate_probe_override: null
 security_patching_reboot_kernel_owner_probe_override: null

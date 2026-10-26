@@ -36,6 +36,21 @@ OpenSCAP evaluation: `{{ security_patching_enrichment_status | default('unknown'
 | `{{ host }}` | {{ hostvars[host].security_patching_update_entries | default([]) | length }} | {{ hostvars[host].security_patching_update_advisory_ids | default([]) | length }} | {{ hostvars[host].security_patching_update_ksplice_aware_advisory_ids | default([]) | length }} | {{ hostvars[host].security_patching_installed_rhck_packages | default([]) | length }} | {{ hostvars[host].security_patching_running_kernel_is_valid_uek | default(false) | bool }} | {{ hostvars[host].security_patching_default_kernel_is_valid_uek | default(false) | bool }} |
 {% endfor %}
 
+## Host classification evidence
+
+{% for host in security_patching_hosts_with_findings %}
+{% set facts = hostvars[host] %}
+### `{{ host }}`
+
+- Action: `{{ facts.security_patching_next_action | default('investigate') | trim }}`. Reason: {{ facts.security_patching_next_action_reason | default('Classification reason unavailable.') | trim }}
+- Scan: `{{ facts.security_patching_scan_status | default('missing') }}`; kernel inventory complete={{ facts.security_patching_kernel_inventory_is_complete | default(false) | bool }}, running UEK verified={{ facts.security_patching_running_kernel_is_valid_uek | default(false) | bool }}, default UEK verified={{ facts.security_patching_default_kernel_is_valid_uek | default(false) | bool }}; RHCK packages={{ facts.security_patching_installed_rhck_packages | default([]) | length }}.
+- OpenSCAP advisory IDs: {{ facts.security_patching_update_advisory_ids | default([]) | unique | sort | list | to_json }}; entries without packages: {{ facts.security_patching_classification_entries_without_packages | default([]) | to_json }}; packages outside reboot families (first 12 of {{ facts.security_patching_classification_disallowed_packages | default([]) | length }}): {{ (facts.security_patching_classification_disallowed_packages | default([]))[:12] | to_json }}.
+{% set dnf = facts.security_patching_classification_dnf_evidence | default({}) %}
+- Advisory-scoped DNF: rc={{ dnf.rc | default('unavailable') }}, no-op={{ dnf.noop | default(false) }}, work={{ dnf.work | default(false) }}; stdout length={{ dnf.stdout_length | default('unavailable') }}, safe signals={{ dnf.stdout_signals | default([]) | to_json }}; stderr length={{ dnf.stderr_length | default('unavailable') }}, safe signals={{ dnf.stderr_signals | default([]) | to_json }}.
+- DNF output fingerprints: stdout SHA-256={{ dnf.stdout_sha256 | default('unavailable') }}, stderr SHA-256={{ dnf.stderr_sha256 | default('unavailable') }}. Arbitrary output stays private; compare these fingerprints with a private rerun when the safe signals do not explain the result.
+
+{% endfor %}
+
 {% for host in security_patching_hosts_with_findings %}
 {% set rhck_packages = hostvars[host].security_patching_installed_rhck_packages | default([]) %}
 {% set kernel_inventory_complete = hostvars[host].security_patching_kernel_inventory_is_complete | default(false) | bool %}

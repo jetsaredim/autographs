@@ -37,6 +37,7 @@
           - advisory_id: ELSA-2026-22222
             packages:
               - kernel-uek-core
+              - kernel-uek64k-core
               - kernel-uek-modules
               - perf
         security_patching_reboot_validate_dnf_noop: false
@@ -154,6 +155,7 @@
         security_patching_update_entries:
           - advisory_id: ELSA-2026-66666
             packages:
+              - kernel-uek64k-core
               - openssl
         security_patching_update_advisories: []
         security_patching_update_ksplice_aware_advisory_ids: []
@@ -208,6 +210,74 @@
           - security_patching_post_reboot_scan_status == 'complete'
           - security_patching_post_reboot_advisory_ids == security_patching_reboot_approved_advisory_ids
           - security_patching_post_reboot_next_action == security_patching_next_action
+
+- name: Validate failed reboot DNF proof publishes only safe evidence
+  hosts: localhost
+  gather_facts: false
+  vars:
+    security_patching_github_api_url: http://127.0.0.1:9
+    security_patching_github_repository: jetsaredim/autographs
+    security_patching_github_token: fake-token
+    security_patching_issue_number: 197
+    security_patching_approval_label: approved-production-reboot
+    security_patching_workflow_outcome: failure
+    security_patching_failure_context_path: /tmp/autographs-security-reboot-dnf-failure-context-test.md
+    security_reboot_dnf_cleanup_reached: false
+  tasks:
+    - name: Record failed DNF reboot preflight fixture
+      ansible.builtin.set_fact:
+        security_patching_request_instances:
+          localhost:
+            advisory_ids: [ELSA-2026-500374]
+        security_patching_update_advisory_ids: [ELSA-2026-500374]
+        security_patching_scan_status: complete
+        security_patching_next_action: reboot
+        security_patching_next_action_label: approved-production-reboot
+        security_patching_update_entries:
+          - advisory_id: ELSA-2026-500374
+            packages: [kernel-uek-core, kernel-uek64k-core]
+        security_patching_kernel_inventory_is_complete: true
+        security_patching_running_kernel_is_valid_uek: true
+        security_patching_default_kernel_is_valid_uek: true
+        security_patching_kernel_inventory_probe_facts: *reboot_state_probe
+        security_patching_running_kernel_probe_facts: *reboot_state_probe
+        security_patching_default_kernel_probe_facts: *reboot_state_probe
+        security_patching_running_kernel_owner_probe_facts: *reboot_state_probe
+        security_patching_default_kernel_owner_probe_facts: *reboot_state_probe
+        security_patching_running_kernel_boot_entry: *reboot_state_boot_entry
+        security_patching_default_kernel_boot_entry: *reboot_state_boot_entry
+        security_patching_reboot_validate_dnf_noop: true
+        security_patching_reboot_dnf_noop_probe_override:
+          rc: 2
+          stdout: "Authorization: Bearer fixture-secret"
+          stderr: "Error: repository unavailable; token fixture-secret"
+
+    - name: Validate failed DNF reboot preflight
+      ansible.builtin.import_role:
+        name: security_patching
+        tasks_from: validate_reboot_state
+
+    - name: Run failed cleanup until fake GitHub comment fails
+      block:
+        - name: Attempt failed cleanup with safe DNF context
+          ansible.builtin.import_role:
+            name: security_patching
+            tasks_from: cleanup_failed_request
+      rescue:
+        - name: Record expected fake GitHub comment failure
+          ansible.builtin.set_fact:
+            security_reboot_dnf_cleanup_reached: true
+
+    - name: Assert failed reboot cannot publish DNF secrets
+      ansible.builtin.assert:
+        that:
+          - not (security_patching_reboot_preflight_ready | bool)
+          - not (security_patching_reboot_dnf_noop_proven | bool)
+          - security_reboot_dnf_cleanup_reached
+          - "'fixture-secret' not in security_patching_failed_request_details"
+          - "'Authorization' not in security_patching_failed_request_details"
+          - "'DNF rc: `2`' in security_patching_failed_request_details"
+          - "'SHA-256' in security_patching_failed_request_details"
 
 - name: Validate failed reboot cleanup truncates oversized failure context
   hosts: localhost

@@ -108,6 +108,12 @@
       {{ security_patching_next_action_label | default('') | trim }}
     security_patching_post_reboot_next_action_reason: >-
       {{ security_patching_next_action_reason | default('') | trim }}
+    security_patching_post_reboot_classification_entries_without_packages: >-
+      {{ security_patching_classification_entries_without_packages | default([]) }}
+    security_patching_post_reboot_classification_disallowed_packages: >-
+      {{ security_patching_classification_disallowed_packages | default([]) }}
+    security_patching_post_reboot_classification_dnf_evidence: >-
+      {{ security_patching_classification_dnf_evidence | default({}) }}
 
 - name: Initialize reboot finding package eligibility state
   ansible.builtin.set_fact:
@@ -199,29 +205,34 @@
     - not (security_patching_reboot_drift_detected | bool)
     - security_patching_next_action | default('investigate') | trim == 'reboot'
     - security_patching_reboot_validate_dnf_noop | bool
+    - security_patching_reboot_dnf_noop_probe_override is not mapping
+
+- name: Record fixture reboot DNF no-op check
+  ansible.builtin.set_fact:
+    security_patching_reboot_dnf_noop_check: "{{ security_patching_reboot_dnf_noop_probe_override }}"
+  when:
+    - security_patching_reboot_approved_advisory_ids | length > 0
+    - not (security_patching_reboot_drift_detected | bool)
+    - security_patching_next_action | default('investigate') | trim == 'reboot'
+    - security_patching_reboot_validate_dnf_noop | bool
+    - security_patching_reboot_dnf_noop_probe_override is mapping
 
 - name: Build bounded reboot DNF no-op failure evidence
   ansible.builtin.set_fact:
-    security_patching_reboot_dnf_noop_stdout_excerpt: |-
-      {% set output = security_patching_reboot_dnf_noop_check.stdout | default('') %}
-      {% set limit = security_patching_failure_context_stream_max_chars | int %}
-      {% if output | length > limit %}
-      {{ output[:limit] | trim }}
-
-      [... truncated {{ (output | length) - limit }} characters from DNF stdout ...]
-      {% else %}
-      {{ output }}
-      {% endif %}
-    security_patching_reboot_dnf_noop_stderr_excerpt: |-
-      {% set output = security_patching_reboot_dnf_noop_check.stderr | default('') %}
-      {% set limit = security_patching_failure_context_stream_max_chars | int %}
-      {% if output | length > limit %}
-      {{ output[:limit] | trim }}
-
-      [... truncated {{ (output | length) - limit }} characters from DNF stderr ...]
-      {% else %}
-      {{ output }}
-      {% endif %}
+    security_patching_reboot_dnf_noop_evidence:
+      rc: "{{ security_patching_reboot_dnf_noop_check.rc | default('missing') }}"
+      stdout_length: "{{ security_patching_reboot_dnf_noop_check.stdout | default('') | length }}"
+      stderr_length: "{{ security_patching_reboot_dnf_noop_check.stderr | default('') | length }}"
+      stdout_sha256: "{{ security_patching_reboot_dnf_noop_check.stdout | default('') | hash('sha256') }}"
+      stderr_sha256: "{{ security_patching_reboot_dnf_noop_check.stderr | default('') | hash('sha256') }}"
+      stdout_signals: >-
+        {{ security_patching_reboot_dnf_noop_check.stdout | default('')
+           | regex_findall('(?im)^\s*(nothing to do\.|no packages marked|transaction summary|upgrading:|installing:|error:)')
+           | unique | list }}
+      stderr_signals: >-
+        {{ security_patching_reboot_dnf_noop_check.stderr | default('')
+           | regex_findall('(?im)^\s*(nothing to do\.|no packages marked|transaction summary|upgrading:|installing:|error:)')
+           | unique | list }}
   when:
     - security_patching_reboot_dnf_noop_check is defined
     - not (security_patching_reboot_drift_detected | bool)
@@ -236,22 +247,16 @@
       Validation failed before reboot: DNF did not prove that approved advisories are already a no-op.
 
       - Host: `{{ inventory_hostname }}`
-      - DNF rc: `{{ security_patching_reboot_dnf_noop_check.rc | default('missing') }}`
+      - DNF rc: `{{ security_patching_reboot_dnf_noop_evidence.rc }}`
       - Approved advisories: {{ security_patching_reboot_approved_advisory_ids | length }}
+      - DNF stdout: {{ security_patching_reboot_dnf_noop_evidence.stdout_length }} characters,
+        SHA-256 `{{ security_patching_reboot_dnf_noop_evidence.stdout_sha256 }}`,
+        safe signals {{ security_patching_reboot_dnf_noop_evidence.stdout_signals | to_json }}.
+      - DNF stderr: {{ security_patching_reboot_dnf_noop_evidence.stderr_length }} characters,
+        SHA-256 `{{ security_patching_reboot_dnf_noop_evidence.stderr_sha256 }}`,
+        safe signals {{ security_patching_reboot_dnf_noop_evidence.stderr_signals | to_json }}.
 
-      DNF stdout:
-
-      ```text
-      {{ security_patching_reboot_dnf_noop_stdout_excerpt | default('') }}
-      ```
-
-      DNF stderr:
-
-      ```text
-      {{ security_patching_reboot_dnf_noop_stderr_excerpt | default('') }}
-      ```
-
-      Use the normal update approval path until DNF reports no advisory-scoped package work.
+      Keep reboot approval off this issue until a fresh scan and preflight prove no package work.
   delegate_to: localhost
   become: false
   when:
