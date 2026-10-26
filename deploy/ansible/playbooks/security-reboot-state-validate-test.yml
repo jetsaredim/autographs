@@ -37,6 +37,7 @@
           - advisory_id: ELSA-2026-22222
             packages:
               - kernel-uek-core
+              - kernel-uek64k-core
               - kernel-uek-modules
               - perf
         security_patching_reboot_validate_dnf_noop: false
@@ -154,6 +155,7 @@
         security_patching_update_entries:
           - advisory_id: ELSA-2026-66666
             packages:
+              - kernel-uek64k-core
               - openssl
         security_patching_update_advisories: []
         security_patching_update_ksplice_aware_advisory_ids: []

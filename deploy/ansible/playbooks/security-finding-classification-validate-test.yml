@@ -164,7 +164,22 @@
           - ELSA-2026-500399
         security_patching_update_entries:
           - advisory_id: ELSA-2026-500374
-            packages: [kernel-uek, kernel-uek-core, kernel-uek-modules, perf]
+            packages:
+              - kernel-uek
+              - kernel-uek-core
+              - kernel-uek-modules
+              - kernel-uek64k
+              - kernel-uek64k-core
+              - kernel-uek64k-devel
+              - kernel-uek64k-modules
+              - kernel-uek64k-modules-core
+              - kernel-uek64k-modules-deprecated
+              - kernel-uek64k-modules-desktop
+              - kernel-uek64k-modules-extra
+              - kernel-uek64k-modules-extra-netfilter
+              - kernel-uek64k-modules-usb
+              - kernel-uek64k-modules-wireless
+              - perf
           - advisory_id: ELSA-2026-500394
             packages: [kernel-uek-core, kernel-uek-debug-core, bpftool]
           - advisory_id: ELSA-2026-500399
@@ -389,6 +404,9 @@
           - "'kernel-debug-uki-virt' in security_defaults.security_patching_rhck_packages"
           - "'kernel-debug-devel-matched' in security_defaults.security_patching_rhck_packages"
           - "'kernel-uek-core' is match(security_defaults.security_patching_reboot_allowed_package_regex)"
+          - "'kernel-uek64k' is match(security_defaults.security_patching_reboot_allowed_package_regex)"
+          - "'kernel-uek64k-modules-wireless' is match(security_defaults.security_patching_reboot_allowed_package_regex)"
+          - "'kernel-uek64kextra' is not match(security_defaults.security_patching_reboot_allowed_package_regex)"
           - "'kernel-core' is not match(security_defaults.security_patching_reboot_allowed_package_regex)"
           - security_inventory_package_matches[0]['ansible.builtin.command'].argv == ['rpm', '-qa', '--qf', '%{NAME}\n']
           - security_record_rhck_matches[0]['ansible.builtin.set_fact'].security_patching_installed_rhck_packages is search('intersect')

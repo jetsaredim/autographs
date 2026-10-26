@@ -1,5 +1,5 @@
 ---
-status: investigating
+status: fixing
 trigger: "address issue 291"
 created: 2026-10-25
 updated: 2026-10-25
@@ -11,19 +11,20 @@ Production scan and reboot preflight classified three UEK advisories as `investi
 
 ## Current Focus
 
-- hypothesis: A DNF probe or package-family input differs between the production scan and the later manual probe; reporting hides the difference.
-- test: Publish bounded per-host branch inputs and reproduce the three-advisory no-op plus ambiguous/failed probes in fixtures.
-- expecting: The no-op fixture selects reboot; ambiguous/failed probes remain investigate without approval.
-- next_action: After deployment, run a fresh production scan and compare the published host evidence with the exact three-advisory classifier branches.
+- hypothesis: The published OpenSCAP package list contains the Arm `kernel-uek64k*` family, which the shared reboot-family regex excludes.
+- test: Add the observed 11 package names to the production-shaped fixture and allow the exact `kernel-uek64k` family in classifier and reboot preflight checks.
+- expecting: The three-advisory no-op scan selects reboot; unrelated packages and ambiguous or failed DNF probes still block reboot.
+- next_action: Validate the targeted regex change, push to PR #292, and run a branch scanner pass to verify the production classification.
 
 ## Evidence
 
 - Issue #268 reports three UEK advisories, complete scan, no RHCK drift, and verified UEK posture, but omits package-family decision and DNF outcome.
 - Run 40224439797 reclassified the same advisory IDs to investigate; no reboot or cleanup occurred. Its successful DNF task does not reveal the command exit code or output.
 - `classify_findings.yml` selects investigate for missing package metadata, disallowed package family with DNF no-op, or unrecognized DNF output after the verified kernel checks.
+- Branch scanner run 40257319058 reported complete OpenSCAP, three unchanged advisory IDs, verified running/default UEK, zero RHCK drift, DNF rc 0 with `Nothing to do.`, and exactly 11 disallowed `kernel-uek64k*` package names. This identifies the selected branch: no-op DNF with packages outside the configured reboot-family regex.
 
 ## Diagnostic repair
 
-The historical October 25 run's exact DNF output and full parsed package list were not recorded, so its selected `investigate` branch cannot be established retrospectively. The demonstrated defect is the reporting gap: the host-specific reason and branch inputs were computed but omitted from the issue and reboot result. The scanner issue now publishes the host reason, posture facts, advisory IDs, missing/disallowed package metadata, and bounded DNF exit code, recognized signals, and redacted output previews. Reboot reconciliation preserves and publishes the same preflight evidence. A three-advisory UEK/no-op fixture selects `reboot`; ambiguous and failed DNF fixtures remain `investigate` without approval.
+The October 25 run did not record enough evidence to establish its exact branch retrospectively. The subsequent branch scan demonstrated the current cause: Oracle's advisory metadata includes `kernel-uek64k*` Arm UEK package names, while the shared reboot-family regex admitted only `kernel-uek*`. The branch scan's DNF no-op and verified kernel posture rule out the other classifier branches for that scan. The reporting fix now exposes these inputs; the targeted correction admits the exact 64K UEK family while preserving independent DNF no-op and boot-target safety checks.
 
-Verification: finding classification, report rendering, reboot result, update reconciliation, and reboot preflight fixtures passed. Changed Ansible files passed `ansible-lint` at the production profile. A live scanner run after deployment is still required to identify which input caused the historical production-shaped `investigate` result.
+Prior verification: finding classification, report rendering, reboot result, update reconciliation, and reboot preflight fixtures passed. Changed Ansible files passed `ansible-lint` at the production profile. A fresh branch scanner run after the regex change is required to verify the production action changes to `reboot`.
