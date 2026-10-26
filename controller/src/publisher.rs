@@ -595,10 +595,15 @@ impl DerivativeCache {
         {
             return Err("derivative cache metadata mismatch".to_owned());
         }
+        let decoded = image::load_from_memory_with_format(&bytes, image::ImageFormat::WebP)
+            .map_err(|error| format!("decode derivative cache WebP: {error}"))?;
+        if decoded.width() != metadata.width || decoded.height() != metadata.height {
+            return Err("derivative cache dimensions mismatch".to_owned());
+        }
         Ok(Some(GeneratedDerivative {
             variant,
-            width: metadata.width,
-            height: metadata.height,
+            width: decoded.width(),
+            height: decoded.height(),
             content_type: "image/webp",
             bytes,
         }))

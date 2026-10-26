@@ -2520,6 +2520,7 @@ enum CacheDamage {
     WrongKey,
     Malformed,
     Payload,
+    Dimensions,
 }
 
 async fn prove_adjusted_cache_recovers(damage: CacheDamage) {
@@ -2555,8 +2556,12 @@ async fn prove_adjusted_cache_recovers(damage: CacheDamage) {
             CacheDamage::Payload => {
                 fs::write(&cache, b"tampered webp").unwrap();
             }
+            CacheDamage::Dimensions => metadata["width"] = 1.into(),
         }
-        if matches!(damage, CacheDamage::V1 | CacheDamage::WrongKey) {
+        if matches!(
+            damage,
+            CacheDamage::V1 | CacheDamage::WrongKey | CacheDamage::Dimensions
+        ) {
             fs::write(&metadata_path, serde_json::to_vec(&metadata).unwrap()).unwrap();
         }
         let reads = media.read_count();
@@ -2611,6 +2616,11 @@ async fn publisher_adjustment_corrupt_metadata_regenerates_both_variants() {
 #[tokio::test]
 async fn publisher_adjustment_corrupt_payload_regenerates_both_variants() {
     prove_adjusted_cache_recovers(CacheDamage::Payload).await;
+}
+
+#[tokio::test]
+async fn publisher_adjustment_corrupt_dimensions_regenerates_both_variants() {
+    prove_adjusted_cache_recovers(CacheDamage::Dimensions).await;
 }
 
 #[tokio::test]
