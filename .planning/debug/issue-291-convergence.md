@@ -1,5 +1,5 @@
 ---
-status: ready_to_resume
+status: complete
 created: 2026-10-26
 updated: 2026-10-26
 pull_request: 292
@@ -64,3 +64,10 @@ pull_request: 292
 - Initial assumption/plan review: PR comment `issuecomment-6406793030` required the two-assertion correction above.
 - Assumption review after correction: SOUND, PR comment `issuecomment-6406802231` (https://github.com/jetsaredim/autographs/pull/292#issuecomment-6406802231).
 - Revised plan review after correction: SOUND, PR comment `issuecomment-6406802231` (https://github.com/jetsaredim/autographs/pull/292#issuecomment-6406802231).
+
+## Closeout evidence
+
+- Reviewed plan executed in commit `a1154bd`; 14 repository automation tests passed, and Workflow checks passed in PR run `40258803438`.
+- Post-reassessment reviewer reported no actionable findings in PR comment `issuecomment-6406832436`.
+- All required PR checks passed at `a1154bd`.
+- Branch scanner run `40259034186` succeeded and refreshed issue 268 to `next_action: reboot` for the same three advisories, with complete scan, verified UEK posture, DNF no-op, and zero disallowed packages. No reboot or installonly cleanup occurred.
