@@ -48,6 +48,6 @@ Advisory-scoped DNF is now a no-op and the remaining packages are reboot/install
 {% elif security_patching_next_action | trim == 'configure' %}
 RHCK packages violate the UEK-only runtime posture. No update or reboot approval label is offered. Run production deployment convergence to remove them without rebooting, then re-run the scanner.
 {% else %}
-At least one host has findings that could not be classified safely. Do not apply an approval label. Follow each host's recorded reason and evidence before re-running the scanner.
+At least one host has findings that could not be classified safely. Do not apply an approval label or run deployment convergence on an unsafe host. Follow each host's recorded reason and evidence before re-running the scanner.
 {% endif %}
 {% endif %}
