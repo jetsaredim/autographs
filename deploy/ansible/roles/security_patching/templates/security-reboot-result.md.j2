@@ -46,6 +46,7 @@ No reboot or installonly cleanup was attempted because the complete current Open
 - Entries without packages: {{ hostvars[host].security_patching_post_reboot_classification_entries_without_packages | default([]) | to_json }}; packages outside reboot families (first 12 of {{ hostvars[host].security_patching_post_reboot_classification_disallowed_packages | default([]) | length }}): {{ (hostvars[host].security_patching_post_reboot_classification_disallowed_packages | default([]))[:12] | to_json }}.
 {% set dnf = hostvars[host].security_patching_post_reboot_classification_dnf_evidence | default({}) %}
 - Advisory-scoped DNF: rc={{ dnf.rc | default('unavailable') }}, no-op={{ dnf.noop | default(false) }}, work={{ dnf.work | default(false) }}; stdout length={{ dnf.stdout_length | default('unavailable') }}, safe signals={{ dnf.stdout_signals | default([]) | to_json }}; stderr length={{ dnf.stderr_length | default('unavailable') }}, safe signals={{ dnf.stderr_signals | default([]) | to_json }}.
+- Bounded DNF output (URLs and common credential assignments redacted, 240 characters per stream): stdout={{ dnf.stdout_preview | default('unavailable') | to_json }}, stderr={{ dnf.stderr_preview | default('unavailable') | to_json }}.
 
 {% endfor -%}
 {% endif %}

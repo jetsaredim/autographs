@@ -175,6 +175,7 @@
             Dependencies resolved.
             Nothing to do.
             Complete!
+            token=fixture-secret https://user:fixture-secret@example.invalid/repo
           stderr: ""
 
     - name: Classify production-shaped no-op
@@ -190,6 +191,8 @@
           - security_patching_classification_dnf_evidence.rc | int == 0
           - security_patching_classification_dnf_evidence.noop | bool
           - security_patching_classification_dnf_evidence.stdout_signals | length == 1
+          - "'fixture-secret' not in security_patching_classification_dnf_evidence.stdout_preview"
+          - "'[URL redacted]' in security_patching_classification_dnf_evidence.stdout_preview"
           - security_patching_classification_disallowed_packages == []
 
     - name: Record ambiguous DNF probe

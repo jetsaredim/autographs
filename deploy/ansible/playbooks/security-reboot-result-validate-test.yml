@@ -431,8 +431,10 @@
           work: false
           stdout_length: 14
           stdout_signals: [Nothing to do.]
+          stdout_preview: Nothing to do.
           stderr_length: 0
           stderr_signals: []
+          stderr_preview: ""
         security_patching_post_reboot_advisories:
           - advisory_id: ELSA-2026-55551
             severity: Important
@@ -498,6 +500,7 @@
           - "'Current action: `investigate`' in security_patching_reboot_result_comment_body"
           - "'Findings lacked package metadata: ELSA-2026-55551.' in security_patching_reboot_result_comment_body"
           - "'rc=0, no-op=True, work=False' in security_patching_reboot_result_comment_body"
+          - "'stdout=\"Nothing to do.\"' in security_patching_reboot_result_comment_body"
           - "'investigate-one' in security_patching_reboot_result_comment_body"
 
 - name: Validate kernel-only recovery remains open after reboot reconciliation
