@@ -22,7 +22,7 @@ use crate::{
         PublishManifestEntry,
     },
     derivatives::{DerivativeVariant, GeneratedDerivative, generate_adjusted_derivative},
-    image_adjustments::{ImageAdjustment, IMAGE_ADJUSTMENT_TRANSFORM_VERSION},
+    image_adjustments::{IMAGE_ADJUSTMENT_TRANSFORM_VERSION, ImageAdjustment},
     media::PrivateMediaStore,
 };
 
@@ -1183,18 +1183,20 @@ async fn build_public_items(
                                 "failed to read private media source for derivative generation"
                             );
                         })?;
-                        let derivative = generate_adjusted_derivative(bytes, variant, image.adjustment.as_ref()).map_err(|error| {
-                            tracing::error!(
-                                item_id = %item.id,
-                                image_id = %image.id,
-                                public_slug = %slug,
-                                image_slug = %image_slug,
-                                variant = %variant.path_segment(),
-                                error = %error,
-                                "failed to generate public derivative"
-                            );
-                            error
-                        })?;
+                        let derivative =
+                            generate_adjusted_derivative(bytes, variant, image.adjustment.as_ref())
+                                .map_err(|error| {
+                                    tracing::error!(
+                                        item_id = %item.id,
+                                        image_id = %image.id,
+                                        public_slug = %slug,
+                                        image_slug = %image_slug,
+                                        variant = %variant.path_segment(),
+                                        error = %error,
+                                        "failed to generate public derivative"
+                                    );
+                                    error
+                                })?;
                         if let Err(error) =
                             derivative_cache.write(source_key.cache_key(), &derivative)
                         {
@@ -1219,18 +1221,20 @@ async fn build_public_items(
                                         "failed to read private media source after cache miss"
                                     );
                                 })?;
-                        let derivative = generate_adjusted_derivative(bytes, variant, image.adjustment.as_ref()).map_err(|error| {
-                            tracing::error!(
-                                item_id = %item.id,
-                                image_id = %image.id,
-                                public_slug = %slug,
-                                image_slug = %image_slug,
-                                variant = %variant.path_segment(),
-                                error = %error,
-                                "failed to generate public derivative after cache miss"
-                            );
-                            error
-                        })?;
+                        let derivative =
+                            generate_adjusted_derivative(bytes, variant, image.adjustment.as_ref())
+                                .map_err(|error| {
+                                    tracing::error!(
+                                        item_id = %item.id,
+                                        image_id = %image.id,
+                                        public_slug = %slug,
+                                        image_slug = %image_slug,
+                                        variant = %variant.path_segment(),
+                                        error = %error,
+                                        "failed to generate public derivative after cache miss"
+                                    );
+                                    error
+                                })?;
                         if let Err(error) =
                             derivative_cache.write(source_key.cache_key(), &derivative)
                         {
@@ -1364,17 +1368,21 @@ impl DerivativeSourceKey {
     }
 }
 
-fn derivative_cache_source_key(image: &AutographImage) -> Result<Option<DerivativeSourceKey>, String> {
+fn derivative_cache_source_key(
+    image: &AutographImage,
+) -> Result<Option<DerivativeSourceKey>, String> {
     let checksum = image
         .checksum
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
     checksum
-        .map(|checksum| Ok(DerivativeSourceKey::Checksum {
-            checksum: checksum.to_owned(),
-            cache_key: adjusted_derivative_cache_key(checksum, image.adjustment.as_ref())?,
-        }))
+        .map(|checksum| {
+            Ok(DerivativeSourceKey::Checksum {
+                checksum: checksum.to_owned(),
+                cache_key: adjusted_derivative_cache_key(checksum, image.adjustment.as_ref())?,
+            })
+        })
         .transpose()
 }
 
@@ -1386,7 +1394,9 @@ fn adjusted_derivative_cache_key(
         Some(adjustment) => adjustment.canonical_cache_key()?,
         None => "adjustment:none".to_owned(),
     };
-    Ok(format!("source:{source_fingerprint}:transform:{IMAGE_ADJUSTMENT_TRANSFORM_VERSION}:{canonical}"))
+    Ok(format!(
+        "source:{source_fingerprint}:transform:{IMAGE_ADJUSTMENT_TRANSFORM_VERSION}:{canonical}"
+    ))
 }
 
 fn private_media_error_kind(error: &str) -> &'static str {

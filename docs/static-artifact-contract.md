@@ -103,11 +103,16 @@ Public derivatives use sanitized deterministic paths:
 ```
 
 The path is independent from the private original filename, private Object
-Storage key, and private image UUID. The fingerprint is derived from the public
-WebP derivative bytes, so replacing an image changes the public URL even when
-the image slot and private image ID are preserved. Thumbnail and detail
-derivatives are generated output and may be rebuilt from durable private
-originals.
+Storage key, private image UUID, and saved image adjustment. The fingerprint is
+derived from the final public WebP bytes after applying a saved adjustment and
+resizing. A correction therefore changes both thumbnail and detail URLs even
+when the private original is unchanged. The collection and detail JSON and
+rendered detail HTML refer to the new paths after normal publish; each URL is a
+distinct edge-cache object, so routine corrections need no Cloudflare purge.
+Thumbnail and detail derivatives are generated output and may be rebuilt from
+durable private originals. Internal schema v2 derivative cache metadata binds
+the source, transform version, canonical adjustment, variant, and verified WebP
+payload digest before reuse.
 
 ## Privacy Deny-List
 
@@ -121,6 +126,7 @@ Public JSON, HTML, manifests, and media paths must not contain:
 - Oracle connection details
 - Private image UUIDs
 - Original filenames
+- Saved adjustment JSON, crop/perspective coordinates, and private media revision
 
 The Rust static contract tests generate a 500-item, multi-image fixture and scan
 the rendered public artifact set for these values.

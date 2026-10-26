@@ -67,6 +67,39 @@ fn static_contract_profiles_shapes_and_generates_public_safe_split_artifacts() {
 }
 
 #[test]
+fn static_contract_excludes_private_adjustment_metadata() {
+    let recipe: FixtureRecipe = serde_json::from_str(FIXTURE).expect("load fixture recipe");
+    let generated =
+        generate_split_artifacts(&FixtureCatalog::from_recipe(&recipe), "privacy-release");
+    let rendered = generated
+        .artifacts
+        .iter()
+        .map(|(path, bytes)| format!("{path}\n{}", String::from_utf8_lossy(bytes)))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for denied in [
+        "rotationDegrees",
+        "panX",
+        "panY",
+        "perspective",
+        "mediaRevision",
+        "adjustment",
+        "storageNamespace",
+        "bucketName",
+        "objectKey",
+        "private-original-001-1.jpg",
+        "00000000-0000-4000-8000-000000010001",
+    ] {
+        assert!(
+            !rendered.contains(denied),
+            "public contract leaked {denied}"
+        );
+    }
+    assert!(rendered.contains("/media/signed-collectible-001/image-1-thumbnail-"));
+    assert!(rendered.contains("/media/signed-collectible-001/image-1-detail-"));
+}
+
+#[test]
 fn static_contract_deserializes_schema_v2_taxonomy_shapes() {
     let recipe: FixtureRecipe = serde_json::from_str(FIXTURE).expect("load fixture recipe");
     let catalog = FixtureCatalog::from_recipe(&recipe);
