@@ -19,8 +19,9 @@ The deployed Caddyfile owns the origin `Cache-Control` posture:
 | `/`, `/index.html`, `/404.html`, `/collection/*`, `/items/*`, `/architecture/*`, `/data/*`, `/manifest.json` | `Cache-Control: public, max-age=60, must-revalidate` | Keeps public documents and JSON rollback-friendly. |
 
 The public edge must not expose Object Storage URLs, bucket names, object keys,
-private image UUIDs, original filenames, or unpublished media paths. Public
-media is always generated output from the promoted static release.
+private image UUIDs, or original filenames. Public media is validated generated
+output. Caddy serves `/media/*` from the shared static media directory, with a
+fallback to `current/media` for the already active release during migration.
 
 ## Cloudflare cache rules
 
@@ -60,6 +61,17 @@ URL instead of requiring manual purge. Existing cached derivatives can expire
 naturally because public HTML/JSON with the new media reference remains
 rollback-friendly at 60 seconds.
 
+Before moving `current`, the publisher copies validated candidate media and
+any already active media into the shared namespace. Existing files must have
+identical bytes for their fingerprinted URL. The publisher retains shared URLs
+while a retained release references them, and for at least 24 hours after
+their last active publication. Cleanup runs after successful promotion; the
+normal release count remains five. This covers a cache miss for a still-fresh
+document during correction, unpublish, and rollback. The active release's
+manifest remains the inventory of currently published media; shared media is
+only a compatibility serving namespace and is not included in candidate
+manifests or public artifact scans.
+
 ## Purge and rollback
 
 Rollback uses the static release pointer, not broad cache deletion:
@@ -76,6 +88,14 @@ or privacy takedown, CDN incident response, or a verified stale `/media/*`
 object that cannot wait for TTL expiry. Use exact URL purge where possible.
 Purge `/media/*` broadly only when emergency remediation requires it; routine
 image adjustments publish new fingerprints and should not need manual purge.
+Normal unpublish removes pages and JSON immediately at the origin, but a known
+old media URL remains available during the retention window and may persist in
+browser or edge caches for its 24-hour TTL. For an urgent takedown, publish the
+unpublish first, then remove the affected public derivative from shared media
+and from retained release copies (including `current` if still referenced),
+and purge the exact CDN URLs. Check the old URL at the origin and edge for 404.
+Do not roll back to a release containing the removed media. This intentional
+emergency 404 takes precedence over the normal cached-document guarantee.
 
 ## Verification
 

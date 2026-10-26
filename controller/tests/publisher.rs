@@ -2110,6 +2110,247 @@ async fn publisher_incremental_removes_unpublished_and_stale_artifacts() {
     assert!(artifact_impact_for(PublishChange::TagsAndFacets).facets);
 }
 
+fn origin_media_bytes(root: &Path, url: &str) -> Vec<u8> {
+    let relative = url.strip_prefix('/').expect("public media URL");
+    let shared = root.join(relative);
+    fs::read(if shared.exists() {
+        shared
+    } else {
+        root.join("current").join(relative)
+    })
+    .expect("origin media URL must resolve")
+}
+
+#[tokio::test]
+async fn publisher_shared_media_survives_corrections_and_rollback() {
+    let fixture = fixture_with_checksum_nonuniform().await;
+    let root = fixture.root.path();
+    let publisher = LocalPublisher::with_retention_policy(root, ReleaseRetentionPolicy::new(2, 1));
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+    let old_release = fs::read_link(root.join("current")).unwrap();
+    let old_detail = published_detail(root);
+    let old_paths = old_detail.images[0]
+        .variants
+        .iter()
+        .map(|variant| variant.path.clone())
+        .collect::<Vec<_>>();
+    let old_bytes = old_paths
+        .iter()
+        .map(|path| origin_media_bytes(root, path))
+        .collect::<Vec<_>>();
+    fs::remove_dir_all(root.join("media")).unwrap();
+    for (path, bytes) in old_paths.iter().zip(&old_bytes) {
+        assert_eq!(
+            &origin_media_bytes(root, path),
+            bytes,
+            "Caddy migration fallback"
+        );
+    }
+
+    save_crop(&fixture, test_crop()).await;
+    publisher
+        .publish(
+            &fixture.repository,
+            &fixture.media,
+            PublishMode::Incremental,
+        )
+        .await
+        .unwrap();
+    let new_detail = published_detail(root);
+    let new_paths = new_detail.images[0]
+        .variants
+        .iter()
+        .map(|variant| variant.path.clone())
+        .collect::<Vec<_>>();
+    assert_ne!(old_paths, new_paths);
+    for (path, bytes) in old_paths.iter().zip(&old_bytes) {
+        assert_eq!(&origin_media_bytes(root, path), bytes);
+    }
+    for path in &new_paths {
+        assert!(root.join(path.trim_start_matches('/')).is_file());
+        assert!(!origin_media_bytes(root, path).is_empty());
+    }
+
+    let next = root.join(".rollback-next");
+    std::os::unix::fs::symlink(old_release, &next).unwrap();
+    fs::rename(next, root.join("current")).unwrap();
+    assert_eq!(
+        published_detail(root).images[0]
+            .variants
+            .iter()
+            .map(|variant| variant.path.clone())
+            .collect::<Vec<_>>(),
+        old_paths
+    );
+    for path in old_paths.iter().chain(&new_paths) {
+        assert!(!origin_media_bytes(root, path).is_empty(), "{path}");
+    }
+    for path in &new_paths {
+        fs::File::options()
+            .write(true)
+            .open(root.join(path.trim_start_matches('/')))
+            .unwrap()
+            .set_modified(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap();
+    }
+    fixture
+        .repository
+        .update_image_adjustment(
+            fixture.published.id,
+            fixture.private_image_id,
+            &fixture.published.images[0].object_key,
+            None,
+        )
+        .await
+        .unwrap();
+    let tight_retention =
+        LocalPublisher::with_retention_policy(root, ReleaseRetentionPolicy::new(1, 1));
+    tight_retention
+        .publish(
+            &fixture.repository,
+            &fixture.media,
+            PublishMode::Incremental,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        published_detail(root).images[0]
+            .variants
+            .iter()
+            .map(|variant| variant.path.clone())
+            .collect::<Vec<_>>(),
+        old_paths
+    );
+    for path in &new_paths {
+        assert!(
+            !origin_media_bytes(root, path).is_empty(),
+            "demoted media must outlive cached documents"
+        );
+    }
+}
+
+#[tokio::test]
+async fn publisher_unpublish_retains_fresh_media_then_prunes_expired_urls() {
+    let fixture = fixture().await;
+    let root = fixture.root.path();
+    let publisher = LocalPublisher::with_retention_policy(root, ReleaseRetentionPolicy::new(1, 1));
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+    let old_paths = published_detail(root).images[0]
+        .variants
+        .iter()
+        .map(|variant| variant.path.clone())
+        .collect::<Vec<_>>();
+    fixture
+        .repository
+        .update(
+            fixture.published.id,
+            AutographItemUpdate {
+                publication_status: Some(PublicationStatus::Draft),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    publisher
+        .publish(
+            &fixture.repository,
+            &fixture.media,
+            PublishMode::Incremental,
+        )
+        .await
+        .unwrap();
+    assert!(
+        !root
+            .join("current/data/items/signed-jedi-card.json")
+            .exists()
+    );
+    assert!(fs::read_dir(root.join("current/media")).is_err());
+    for path in &old_paths {
+        assert!(!origin_media_bytes(root, path).is_empty());
+        let file = fs::File::options()
+            .write(true)
+            .open(root.join(path.trim_start_matches('/')))
+            .unwrap();
+        file.set_modified(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap();
+    }
+    publisher
+        .publish(
+            &fixture.repository,
+            &fixture.media,
+            PublishMode::Incremental,
+        )
+        .await
+        .unwrap();
+    for path in &old_paths {
+        assert!(!root.join(path.trim_start_matches('/')).exists());
+    }
+}
+
+#[tokio::test]
+async fn publisher_failed_promotion_removes_unpromoted_shared_media() {
+    let fixture = fixture_with_checksum_nonuniform().await;
+    let root = fixture.root.path();
+    let publisher = LocalPublisher::new(root);
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+    let old_paths = published_detail(root).images[0]
+        .variants
+        .iter()
+        .map(|variant| variant.path.clone())
+        .collect::<Vec<_>>();
+    save_crop(&fixture, test_crop()).await;
+    fs::create_dir(root.join(".current-next")).unwrap();
+    assert!(
+        publisher
+            .publish(
+                &fixture.repository,
+                &fixture.media,
+                PublishMode::Incremental
+            )
+            .await
+            .is_err()
+    );
+    let failed = fs::read_dir(root.join("failed"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let failed_manifest: PublishManifest = read_json(&failed.join("manifest.json"));
+    let new_paths = failed_manifest
+        .artifacts
+        .iter()
+        .filter(|entry| entry.variant.is_some())
+        .map(|entry| entry.path.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        published_detail(root).images[0]
+            .variants
+            .iter()
+            .map(|variant| variant.path.clone())
+            .collect::<Vec<_>>(),
+        old_paths
+    );
+    for path in &new_paths {
+        assert!(
+            !root.join(path).exists(),
+            "unpromoted media became public: {path}"
+        );
+    }
+    for path in &old_paths {
+        assert!(!origin_media_bytes(root, path).is_empty());
+    }
+}
+
 #[tokio::test]
 async fn publisher_incremental_reuses_cached_derivatives_for_metadata_changes() {
     let fixture = fixture().await;

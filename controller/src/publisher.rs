@@ -47,6 +47,7 @@ const ADMIN_JS: &str = include_str!("../static-admin/admin.js");
 const ADMIN_CSS: &str = include_str!("../static-admin/admin.css");
 const SAFE_PUBLISH_ERROR: &str = "Static publish failed. Check controller logs for details.";
 const SAFE_RELEASE_CLEANUP_WARNING: &str = "The release is active, but old release cleanup needs attention and will be retried on a later publish.";
+const SHARED_MEDIA_MIN_AGE_SECONDS: u64 = 86_400;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -869,7 +870,15 @@ impl LocalPublisher {
         };
 
         self.update_progress(&release_id, PublishStage::PromotingRelease, &progress);
-        if let Err(error) = promote_candidate(&self.root, &release_id) {
+        let mut newly_shared_media = Vec::new();
+        if let Err(error) = prepare_shared_media(&self.root, &candidate, &mut newly_shared_media)
+            .and_then(|()| promote_candidate(&self.root, &release_id))
+        {
+            for path in newly_shared_media {
+                if let Err(cleanup_error) = fs::remove_file(&path) {
+                    tracing::error!(error = %cleanup_error, "failed to remove unpromoted shared media");
+                }
+            }
             self.record_pre_promotion_failure(
                 &release_id,
                 &candidate,
@@ -2035,11 +2044,90 @@ fn promote_candidate(root: &Path, release_id: &str) -> Result<(), String> {
     fs::rename(next, current).map_err(|error| format!("promote current pointer: {error}"))
 }
 
+fn prepare_shared_media(
+    root: &Path,
+    candidate: &Path,
+    newly_shared_media: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let current = root.join("current");
+    if current.exists() {
+        // The first publish after the Caddy change migrates the already active
+        // release before its pointer can move away from that release.
+        copy_release_media_to_shared(root, &current, &mut Vec::new())?;
+    }
+    copy_release_media_to_shared(root, candidate, newly_shared_media)
+}
+
+fn copy_release_media_to_shared(
+    root: &Path,
+    release: &Path,
+    newly_shared_media: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let manifest: PublishManifest = read_json(&release.join("manifest.json"))?;
+    for artifact in manifest
+        .artifacts
+        .iter()
+        .filter(|entry| entry.variant.is_some())
+    {
+        let relative = Path::new(&artifact.path);
+        if !artifact.path.starts_with("media/")
+            || relative
+                .components()
+                .any(|component| !matches!(component, std::path::Component::Normal(_)))
+        {
+            return Err("release media path is invalid".to_owned());
+        }
+        let source = release.join(relative);
+        let bytes = fs::read(&source).map_err(|error| format!("read release media: {error}"))?;
+        let variant = artifact.variant.expect("filtered media variant");
+        if artifact.content_type.as_deref() != Some("image/webp")
+            || image::guess_format(&bytes)
+                .map_err(|error| format!("detect release media: {error}"))?
+                != image::ImageFormat::WebP
+            || derivative_fingerprint_from_path(&artifact.path, variant)?
+                != public_derivative_fingerprint(&bytes)
+        {
+            return Err("release media fingerprint or type mismatch".to_owned());
+        }
+        let target = root.join(relative);
+        if target.exists() {
+            if fs::read(&target).map_err(|error| format!("read shared media: {error}"))? != bytes {
+                return Err("shared media fingerprint collision".to_owned());
+            }
+            fs::File::options()
+                .write(true)
+                .open(&target)
+                .and_then(|file| file.set_modified(SystemTime::now()))
+                .map_err(|error| format!("refresh shared media retention: {error}"))?;
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("create shared media directory: {error}"))?;
+        }
+        let staging = root.join(".media-staging");
+        fs::create_dir_all(&staging)
+            .map_err(|error| format!("create private media staging directory: {error}"))?;
+        let staged = staging.join(Uuid::new_v4().to_string());
+        fs::write(&staged, &bytes).map_err(|error| format!("stage shared media: {error}"))?;
+        if let Err(error) = fs::rename(&staged, &target) {
+            let _ = fs::remove_file(&staged);
+            return Err(format!("publish shared media: {error}"));
+        }
+        newly_shared_media.push(target);
+    }
+    Ok(())
+}
+
 fn prune_promoted_releases(
     root: &Path,
     retention_policy: ReleaseRetentionPolicy,
 ) -> Result<(), String> {
     prune_promoted_releases_with(root, retention_policy, remove_admin_image_map, |path| {
+        // A release can be demoted by an operator rollback without going through
+        // publish. Refresh its media when pruning so documents cached just before
+        // that rollback still have the full origin miss window.
+        copy_release_media_to_shared(root, path, &mut Vec::new())?;
         fs::remove_dir_all(path).map_err(|error| format!("prune promoted release: {error}"))
     })
 }
@@ -2076,7 +2164,7 @@ where
 }
 
 fn post_promotion_cleanup(root: &Path, retention_policy: ReleaseRetentionPolicy) -> Option<String> {
-    match prune_promoted_releases(root, retention_policy) {
+    match prune_promoted_releases(root, retention_policy).and_then(|()| prune_shared_media(root)) {
         Ok(()) => None,
         Err(error) => {
             tracing::error!(
@@ -2087,6 +2175,48 @@ fn post_promotion_cleanup(root: &Path, retention_policy: ReleaseRetentionPolicy)
             Some(SAFE_RELEASE_CLEANUP_WARNING.to_owned())
         }
     }
+}
+
+fn prune_shared_media(root: &Path) -> Result<(), String> {
+    let mut referenced = BTreeSet::new();
+    for release in release_directories(&root.join("releases"))? {
+        let manifest: PublishManifest = read_json(&release.path.join("manifest.json"))?;
+        referenced.extend(
+            manifest
+                .artifacts
+                .into_iter()
+                .filter(|artifact| {
+                    artifact.variant.is_some() && artifact.path.starts_with("media/")
+                })
+                .map(|artifact| artifact.path),
+        );
+    }
+    let media_root = root.join("media");
+    if !media_root.exists() {
+        return Ok(());
+    }
+    let mut files = Vec::new();
+    collect_paths(&media_root, &mut files)?;
+    for path in files {
+        let relative = path
+            .strip_prefix(root)
+            .expect("shared media relative path")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let modified = fs::metadata(&path)
+            .and_then(|metadata| metadata.modified())
+            .map_err(|error| format!("inspect shared media age: {error}"))?;
+        if !referenced.contains(&relative)
+            && SystemTime::now()
+                .duration_since(modified)
+                .unwrap_or_default()
+                .as_secs()
+                >= SHARED_MEDIA_MIN_AGE_SECONDS
+        {
+            fs::remove_file(&path).map_err(|error| format!("prune shared media: {error}"))?;
+        }
+    }
+    Ok(())
 }
 
 fn retain_failed_candidates(

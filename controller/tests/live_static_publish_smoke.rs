@@ -523,12 +523,20 @@ mod live {
         for url in [
             format!("{preview}/items/{generated_slug}/"),
             format!("{preview}/data/items/{generated_slug}.json"),
+        ] {
+            assert_eq!(status(&url), 404, "stale public artifact remained: {url}");
+        }
+        for url in [
             thumbnail_url,
             detail_url,
             adjusted_thumbnail_url,
             adjusted_detail_url,
         ] {
-            assert_eq!(status(&url), 404, "stale public artifact remained: {url}");
+            assert_eq!(
+                status(&url),
+                200,
+                "fresh document media must remain reachable: {url}"
+            );
         }
         delete_media_with_retries(&media, &object_key)
             .await

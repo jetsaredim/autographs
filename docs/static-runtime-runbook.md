@@ -596,10 +596,17 @@ Expected `Cache-Control` behavior:
 
 If Cloudflare or another CDN is enabled later, keep admin shell/API routes out
 of CDN caching, and preserve rollback by keeping HTML/JSON short-lived. Routine
-image replacement publishes a new fingerprinted `/media/*` URL; reserve CDN
-purges for emergency takedown, accidental public exposure, or CDN incident
-response. See `docs/dns-runbook.md` for the deferred Cloudflare checklist and
-purge guidance.
+image replacement publishes a new fingerprinted `/media/*` URL. Caddy serves a
+shared media namespace with a `current/media` migration fallback; the publisher
+copies validated new media and the active release's media before pointer
+promotion. Confirm old and new URLs return 200 after an adjustment and rollback,
+including an origin cache miss. A routine unpublish removes page and JSON but
+keeps known old media URLs for at least 24 hours and while retained releases
+reference them. For urgent privacy takedown, publish the unpublish, remove the
+affected WebP from shared media and retained release copies, purge exact CDN
+URLs, verify origin and edge 404, and avoid rollback to a release containing
+the removed media. See [cdn-cache-contract.md](cdn-cache-contract.md) for the
+retention contract and `docs/dns-runbook.md` for the Cloudflare checklist.
 
 ## Phase 8 CDN/cache contract
 
@@ -644,7 +651,9 @@ the SHA-256 fingerprint of its final WebP bytes, verifies collection JSON and
 detail HTML/JSON references, compares corrected pixels and dimensions with the
 private preview, checks the OCI original bytes, and scans for private fields.
 It then drafts the temporary item, republishes removal, and deletes the OCI
-object and Oracle rows. If interrupted, use the existing cleanup guard and
+object and Oracle rows. Its already published WebP URLs remain in the shared
+origin namespace until retention cleanup; this is expected after routine
+unpublish. If interrupted, use the existing cleanup guard and
 live persistence cleanup mode above, then verify no temporary item or private
 object remains; restore the prior release pointer if a candidate publish was
 not fully validated.
@@ -674,7 +683,8 @@ prove that the ignored smoke remains gated by
 7. Confirm publish status reports promoted-release and failed-candidate
    retention counts without exposing filesystem internals.
 8. Unpublish or delete the smoke item, publish again, and verify stale public
-   item pages and media derivatives no longer resolve.
+   item pages and JSON no longer resolve. Recently published media URLs remain
+   reachable for cached documents until retention cleanup.
 9. Check Oracle rows and Object Storage objects for cleanup residue. Use the
    live persistence cleanup mode only for interrupted smoke residue.
 

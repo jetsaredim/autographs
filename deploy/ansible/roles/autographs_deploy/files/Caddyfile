@@ -27,6 +27,11 @@
 
 	@staticMedia path /media/*
 	header @staticMedia Cache-Control "public, max-age=86400"
+	handle /media/* {
+		root * /srv/autographs/static
+		try_files {path} /current{path}
+		file_server
+	}
 	@staticAssets path /assets/* /favicon.ico /icon.png
 	header @staticAssets Cache-Control "public, max-age=3600"
 	@staticDocuments path / /index.html /404.html /collection/* /items/* /architecture/* /data/* /manifest.json
@@ -45,6 +50,11 @@
 http://:8081 {
 	@staticMedia path /media/*
 	header @staticMedia Cache-Control "public, max-age=86400"
+	handle /media/* {
+		root * /srv/autographs/static
+		try_files {path} /current{path}
+		file_server
+	}
 	@staticAssets path /assets/* /favicon.ico /icon.png
 	header @staticAssets Cache-Control "public, max-age=3600"
 	@staticDocuments path / /index.html /404.html /collection/* /items/* /architecture/* /data/* /manifest.json

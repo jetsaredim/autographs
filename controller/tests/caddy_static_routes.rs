@@ -19,6 +19,15 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
     assert!(caddyfile.contains("file_server"));
     assert!(caddyfile.matches("Cache-Control \"no-store\"").count() >= 3);
     assert!(caddyfile.contains("@staticMedia path /media/*"));
+    assert_eq!(caddyfile.matches("handle /media/* {").count(), 2);
+    assert_eq!(
+        caddyfile.matches("root * /srv/autographs/static\n").count(),
+        2
+    );
+    assert_eq!(
+        caddyfile.matches("try_files {path} /current{path}").count(),
+        2
+    );
     assert!(caddyfile.contains("Cache-Control \"public, max-age=86400\""));
     assert!(caddyfile.contains("@staticAssets path /assets/*"));
     assert!(caddyfile.contains("Cache-Control \"public, max-age=3600\""));

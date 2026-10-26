@@ -114,6 +114,17 @@ durable private originals. Internal schema v2 derivative cache metadata binds
 the source, transform version, canonical adjustment, variant, and verified WebP
 payload digest before reuse.
 
+Caddy serves public `/media/*` from a stable shared directory. The publisher
+copies validated media there before changing the `current` release pointer and
+migrates any already active release media on the first publish. Shared media
+retains old and new fingerprints through cached-document freshness and rollback:
+at least 24 hours after last active publication, plus any URLs referenced by
+retained releases. The active candidate and its manifest still contain only
+currently published media. A routine unpublish removes its page and JSON, but
+its known old derivative URL remains fetchable until retention ends. Emergency
+privacy takedown requires removal of retained origin copies and an exact CDN
+purge; see [cdn-cache-contract.md](cdn-cache-contract.md).
+
 ## Privacy Deny-List
 
 Public JSON, HTML, manifests, and media paths must not contain:
