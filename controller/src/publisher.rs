@@ -21,7 +21,8 @@ use crate::{
         PublicSignerCredit, PublicSignerLink, PublishGeneratorMetadata, PublishManifest,
         PublishManifestEntry,
     },
-    derivatives::{DerivativeVariant, GeneratedDerivative, generate_derivative},
+    derivatives::{DerivativeVariant, GeneratedDerivative, generate_adjusted_derivative},
+    image_adjustments::{ImageAdjustment, IMAGE_ADJUSTMENT_TRANSFORM_VERSION},
     media::PrivateMediaStore,
 };
 
@@ -535,6 +536,8 @@ struct CachedDerivativeMetadata {
     width: u32,
     height: u32,
     content_type: String,
+    cache_key_digest: String,
+    payload_digest: String,
 }
 
 impl DerivativeCache {
@@ -544,18 +547,22 @@ impl DerivativeCache {
         }
     }
 
-    fn path_for(&self, source_fingerprint: &str, variant: DerivativeVariant) -> PathBuf {
+    fn key_digest(source_fingerprint: &str, variant: DerivativeVariant) -> String {
         let mut digest = Sha256::new();
         digest.update(b"autographs-derivative-cache-v2");
         digest.update([0]);
         digest.update(source_fingerprint.as_bytes());
         digest.update([0]);
         digest.update(variant.path_segment().as_bytes());
-        let key = digest
+        digest
             .finalize()
             .iter()
             .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+            .collect::<String>()
+    }
+
+    fn path_for(&self, source_fingerprint: &str, variant: DerivativeVariant) -> PathBuf {
+        let key = Self::key_digest(source_fingerprint, variant);
         self.root
             .join(variant.path_segment())
             .join(format!("{key}.webp"))
@@ -580,9 +587,11 @@ impl DerivativeCache {
             .map_err(|error| format!("read derivative cache metadata: {error}"))?;
         let metadata: CachedDerivativeMetadata = serde_json::from_slice(&metadata_bytes)
             .map_err(|error| format!("parse derivative cache metadata: {error}"))?;
-        if metadata.schema_version != 1
+        if metadata.schema_version != 2
             || metadata.variant != variant.path_segment()
             || metadata.content_type != "image/webp"
+            || metadata.cache_key_digest != Self::key_digest(source_fingerprint, variant)
+            || metadata.payload_digest != derivative_source_fingerprint(&bytes)
         {
             return Err("derivative cache metadata mismatch".to_owned());
         }
@@ -608,11 +617,13 @@ impl DerivativeCache {
         fs::write(&path, &derivative.bytes)
             .map_err(|error| format!("write derivative cache: {error}"))?;
         let metadata = CachedDerivativeMetadata {
-            schema_version: 1,
+            schema_version: 2,
             variant: derivative.variant.path_segment().to_owned(),
             width: derivative.width,
             height: derivative.height,
             content_type: derivative.content_type.to_owned(),
+            cache_key_digest: Self::key_digest(source_fingerprint, derivative.variant),
+            payload_digest: derivative_source_fingerprint(&derivative.bytes),
         };
         let metadata = serde_json::to_vec_pretty(&metadata)
             .map_err(|error| format!("serialize derivative cache metadata: {error}"))?;
@@ -1120,7 +1131,7 @@ async fn build_public_items(
             progress.image_count += 1;
             let image_slug = format!("image-{}", index + 1);
             let mut source = None;
-            let source_key = match derivative_cache_source_key(image) {
+            let source_key = match derivative_cache_source_key(image)? {
                 Some(source_key) => {
                     progress.cache_key_metadata_count += 1;
                     source_key
@@ -1139,7 +1150,10 @@ async fn build_public_items(
                     let fingerprint = derivative_source_fingerprint(&bytes);
                     source = Some(bytes);
                     progress.cache_key_fallback_read_count += 1;
-                    DerivativeSourceKey::Legacy(fingerprint)
+                    DerivativeSourceKey::Legacy(adjusted_derivative_cache_key(
+                        &fingerprint,
+                        image.adjustment.as_ref(),
+                    )?)
                 }
             };
             let mut variants = Vec::new();
@@ -1169,7 +1183,7 @@ async fn build_public_items(
                                 "failed to read private media source for derivative generation"
                             );
                         })?;
-                        let derivative = generate_derivative(bytes, variant).map_err(|error| {
+                        let derivative = generate_adjusted_derivative(bytes, variant, image.adjustment.as_ref()).map_err(|error| {
                             tracing::error!(
                                 item_id = %item.id,
                                 image_id = %image.id,
@@ -1205,7 +1219,7 @@ async fn build_public_items(
                                         "failed to read private media source after cache miss"
                                     );
                                 })?;
-                        let derivative = generate_derivative(bytes, variant).map_err(|error| {
+                        let derivative = generate_adjusted_derivative(bytes, variant, image.adjustment.as_ref()).map_err(|error| {
                             tracing::error!(
                                 item_id = %item.id,
                                 image_id = %image.id,
@@ -1350,16 +1364,29 @@ impl DerivativeSourceKey {
     }
 }
 
-fn derivative_cache_source_key(image: &AutographImage) -> Option<DerivativeSourceKey> {
-    image
+fn derivative_cache_source_key(image: &AutographImage) -> Result<Option<DerivativeSourceKey>, String> {
+    let checksum = image
         .checksum
         .as_deref()
         .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(|checksum| DerivativeSourceKey::Checksum {
+        .filter(|value| !value.is_empty());
+    checksum
+        .map(|checksum| Ok(DerivativeSourceKey::Checksum {
             checksum: checksum.to_owned(),
-            cache_key: format!("checksum:{checksum}"),
-        })
+            cache_key: adjusted_derivative_cache_key(checksum, image.adjustment.as_ref())?,
+        }))
+        .transpose()
+}
+
+fn adjusted_derivative_cache_key(
+    source_fingerprint: &str,
+    adjustment: Option<&ImageAdjustment>,
+) -> Result<String, String> {
+    let canonical = match adjustment {
+        Some(adjustment) => adjustment.canonical_cache_key()?,
+        None => "adjustment:none".to_owned(),
+    };
+    Ok(format!("source:{source_fingerprint}:transform:{IMAGE_ADJUSTMENT_TRANSFORM_VERSION}:{canonical}"))
 }
 
 fn private_media_error_kind(error: &str) -> &'static str {

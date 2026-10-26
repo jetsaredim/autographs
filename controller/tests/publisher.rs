@@ -21,6 +21,7 @@ use autographs_controller::{
         PublishManifest,
     },
     derivatives::{DerivativeVariant, generate_derivative},
+    image_adjustments::{ImageAdjustment, ImageCrop},
     media::{LocalMediaStore, PrivateMediaStore},
     publisher::{
         LocalPublisher, PublishChange, PublishMode, ReleaseRetentionPolicy, artifact_impact_for,
@@ -2235,6 +2236,47 @@ async fn publisher_incremental_reuses_checksum_cache_without_reading_originals()
 }
 
 #[tokio::test]
+async fn publisher_regenerates_derivatives_when_adjustment_changes_without_source_change() {
+    let fixture = fixture_with_checksum_nonuniform().await;
+    let media = CountingMediaStore::new(fixture.media.clone());
+    let publisher = LocalPublisher::new(fixture.root.path());
+    let object_key = fixture.published.images[0].object_key.clone();
+    let original = media.read(&object_key).await.unwrap();
+    publisher.publish(&fixture.repository, &media, PublishMode::Full).await.unwrap();
+    let current = fixture.root.path().join("current");
+    let before: PublicItemDetail = read_json(&current.join("data/items/signed-jedi-card.json"));
+    let before_bytes = before.images[0].variants.iter().map(|variant| {
+        fs::read(current.join(variant.path.trim_start_matches('/'))).unwrap()
+    }).collect::<Vec<_>>();
+    let mut correction = ImageAdjustment::identity();
+    correction.crop = Some(ImageCrop { left: 0.1, top: 0.1, right: 0.9, bottom: 0.9 });
+    fixture.repository.update_image_adjustment(
+        fixture.published.id, fixture.private_image_id, &object_key, Some(correction),
+    ).await.unwrap();
+    let still_before: PublicItemDetail = read_json(&current.join("data/items/signed-jedi-card.json"));
+    assert_eq!(serde_json::to_value(&still_before).unwrap(), serde_json::to_value(&before).unwrap());
+    publisher.publish(&fixture.repository, &media, PublishMode::Incremental).await.unwrap();
+    let after: PublicItemDetail = read_json(&current.join("data/items/signed-jedi-card.json"));
+    for ((old, new), old_bytes) in before.images[0].variants.iter().zip(&after.images[0].variants).zip(before_bytes) {
+        assert_ne!(old.path, new.path);
+        let new_bytes = fs::read(current.join(new.path.trim_start_matches('/'))).unwrap();
+        assert_ne!(old_bytes, new_bytes);
+        assert!(new.path.contains(&image_checksum(&new_bytes)[..16]));
+    }
+    assert_eq!(media.read(&object_key).await.unwrap(), original);
+    let reads = media.read_count();
+    publisher.publish(&fixture.repository, &media, PublishMode::Incremental).await.unwrap();
+    assert_eq!(media.read_count(), reads);
+    fixture.repository.update_image_adjustment(
+        fixture.published.id, fixture.private_image_id, &object_key, None,
+    ).await.unwrap();
+    publisher.publish(&fixture.repository, &media, PublishMode::Incremental).await.unwrap();
+    let reset: PublicItemDetail = read_json(&current.join("data/items/signed-jedi-card.json"));
+    assert_eq!(reset.images[0].variants.iter().map(|v| &v.path).collect::<Vec<_>>(),
+        before.images[0].variants.iter().map(|v| &v.path).collect::<Vec<_>>());
+}
+
+#[tokio::test]
 async fn publisher_rejects_mismatched_checksum_before_derivative_cache_write() {
     let wrong_checksum = "0".repeat(64);
     let fixture = fixture_with_stored_checksum(Some(wrong_checksum)).await;
@@ -2510,7 +2552,19 @@ async fn fixture_with_checksum() -> Fixture {
     fixture_with_stored_checksum(Some(image_checksum(&png_bytes()))).await
 }
 
+async fn fixture_with_checksum_nonuniform() -> Fixture {
+    let bytes = nonuniform_png_bytes();
+    fixture_with_stored_checksum_and_bytes(Some(image_checksum(&bytes)), bytes).await
+}
+
 async fn fixture_with_stored_checksum(stored_checksum: Option<String>) -> Fixture {
+    fixture_with_stored_checksum_and_bytes(stored_checksum, png_bytes()).await
+}
+
+async fn fixture_with_stored_checksum_and_bytes(
+    stored_checksum: Option<String>,
+    bytes: Vec<u8>,
+) -> Fixture {
     let root = tempdir().unwrap();
     let media_root = tempdir().unwrap();
     let repository = MemoryCatalogRepository::default();
@@ -2572,7 +2626,6 @@ async fn fixture_with_stored_checksum(stored_checksum: Option<String>) -> Fixtur
     let private_image_id = Uuid::new_v4();
     let private_filename = "original private scan.png".to_owned();
     let object_key = build_original_object_key(published.id, private_image_id);
-    let bytes = png_bytes();
     media.write(&object_key, &bytes).await.unwrap();
     let published = repository
         .attach_image(
@@ -2613,6 +2666,18 @@ fn image_checksum(bytes: &[u8]) -> String {
 
 fn png_bytes() -> Vec<u8> {
     png_bytes_with_color([0, 0, 0])
+}
+
+fn nonuniform_png_bytes() -> Vec<u8> {
+    let mut image = RgbImage::new(80, 60);
+    for (x, y, pixel) in image.enumerate_pixels_mut() {
+        *pixel = Rgb([(x * 3) as u8, (y * 4) as u8, ((x + y) * 2) as u8]);
+    }
+    let mut bytes = Cursor::new(Vec::new());
+    DynamicImage::ImageRgb8(image)
+        .write_to(&mut bytes, ImageFormat::Png)
+        .unwrap();
+    bytes.into_inner()
 }
 
 fn png_bytes_with_color(rgb: [u8; 3]) -> Vec<u8> {
