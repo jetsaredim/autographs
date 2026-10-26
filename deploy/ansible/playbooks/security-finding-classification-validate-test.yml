@@ -191,6 +191,7 @@
             Nothing to do.
             Complete!
             token=fixture-secret https://user:fixture-secret@example.invalid/repo
+            Authorization: Bearer fixture-secret
           stderr: ""
 
     - name: Classify production-shaped no-op
@@ -206,8 +207,9 @@
           - security_patching_classification_dnf_evidence.rc | int == 0
           - security_patching_classification_dnf_evidence.noop | bool
           - security_patching_classification_dnf_evidence.stdout_signals | length == 1
-          - "'fixture-secret' not in security_patching_classification_dnf_evidence.stdout_preview"
-          - "'[URL redacted]' in security_patching_classification_dnf_evidence.stdout_preview"
+          - "'fixture-secret' not in (security_patching_classification_dnf_evidence | to_json)"
+          - security_patching_classification_dnf_evidence.stdout_sha256 | length == 64
+          - security_patching_classification_dnf_evidence.stdout_preview is not defined
           - security_patching_classification_disallowed_packages == []
 
     - name: Record ambiguous DNF probe

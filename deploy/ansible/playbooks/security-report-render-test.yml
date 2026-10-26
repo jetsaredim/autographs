@@ -117,10 +117,10 @@
           work: true
           stdout_length: 32
           stdout_signals: [Transaction Summary]
-          stdout_preview: Transaction Summary
+          stdout_sha256: abc123
           stderr_length: 0
           stderr_signals: []
-          stderr_preview: ""
+          stderr_sha256: def456
 
     - name: Render security update report fixture
       ansible.builtin.template:
@@ -168,7 +168,7 @@
           - "'## Host classification evidence' in security_patching_render_test_body"
           - "'Reason: Advisory-scoped DNF reported package work.' in security_patching_render_test_body"
           - "'rc=1, no-op=False, work=True' in security_patching_render_test_body"
-          - "'stdout=\"Transaction Summary\"' in security_patching_render_test_body"
+          - "'stdout SHA-256=abc123' in security_patching_render_test_body"
           - "'`kernel`, `kernel-core`' in security_patching_render_test_body"
           - "'ELSA-2025-33333' in security_patching_render_test_body"
           - "'+1 more' in security_patching_render_test_body"

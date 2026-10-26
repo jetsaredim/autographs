@@ -90,18 +90,8 @@
       work: "{{ security_patching_classification_dnf_work | bool }}"
       stdout_length: "{{ security_patching_classification_dnf_stdout | length }}"
       stderr_length: "{{ security_patching_classification_dnf_stderr | length }}"
-      stdout_preview: >-
-        {{ security_patching_classification_dnf_stdout
-           | regex_replace('(?i)https?://\S+', '[URL redacted]')
-           | regex_replace('(?i)(password|token|secret|api[_-]?key)\s*[:=]\s*\S+', '\1=[redacted]')
-           | regex_replace('[\r\n]+', ' ')
-           | truncate(240, true, '...') }}
-      stderr_preview: >-
-        {{ security_patching_classification_dnf_stderr
-           | regex_replace('(?i)https?://\S+', '[URL redacted]')
-           | regex_replace('(?i)(password|token|secret|api[_-]?key)\s*[:=]\s*\S+', '\1=[redacted]')
-           | regex_replace('[\r\n]+', ' ')
-           | truncate(240, true, '...') }}
+      stdout_sha256: "{{ security_patching_classification_dnf_stdout | hash('sha256') }}"
+      stderr_sha256: "{{ security_patching_classification_dnf_stderr | hash('sha256') }}"
       stdout_signals: >-
         {{ security_patching_classification_dnf_stdout
            | regex_findall('(?im)^\s*(nothing to do\.|no packages marked|transaction summary|upgrading:|installing:|error:)')
