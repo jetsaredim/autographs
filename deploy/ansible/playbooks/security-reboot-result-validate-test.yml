@@ -422,6 +422,17 @@
         security_patching_post_reboot_ksplice_aware_advisory_ids: []
         security_patching_post_reboot_next_action: investigate
         security_patching_post_reboot_next_action_label: ""
+        security_patching_post_reboot_next_action_reason: "Findings lacked package metadata: ELSA-2026-55551."
+        security_patching_post_reboot_classification_entries_without_packages: [ELSA-2026-55551]
+        security_patching_post_reboot_classification_disallowed_packages: []
+        security_patching_post_reboot_classification_dnf_evidence:
+          rc: 0
+          noop: true
+          work: false
+          stdout_length: 14
+          stdout_signals: [Nothing to do.]
+          stderr_length: 0
+          stderr_signals: []
         security_patching_post_reboot_advisories:
           - advisory_id: ELSA-2026-55551
             severity: Important
@@ -485,6 +496,8 @@
           - "'Reboot approval reclassified' in security_patching_reboot_result_comment_body"
           - "'No reboot or installonly cleanup was attempted' in security_patching_reboot_result_comment_body"
           - "'Current action: `investigate`' in security_patching_reboot_result_comment_body"
+          - "'Findings lacked package metadata: ELSA-2026-55551.' in security_patching_reboot_result_comment_body"
+          - "'rc=0, no-op=True, work=False' in security_patching_reboot_result_comment_body"
           - "'investigate-one' in security_patching_reboot_result_comment_body"
 
 - name: Validate kernel-only recovery remains open after reboot reconciliation
@@ -566,7 +579,7 @@
           - "'Kernel recovery required on `unsafe-default-kernel`' in security_patching_refreshed_report_body"
           - "'Default kernel image: `/boot/vmlinuz-6.12.0-fixture.el10_2.x86_64`' in security_patching_refreshed_report_body"
           - "'running UEK verified=True, default UEK verified=False' in security_patching_reboot_result_comment_body"
-          - "'Recover a verified running and default UEK kernel first' in security_patching_reboot_result_comment_body"
+          - "'Reason: Kernel recovery is required.' in security_patching_reboot_result_comment_body"
 
 - name: Validate investigate outranks configure after reboot reconciliation
   hosts: localhost
@@ -805,4 +818,4 @@
           - security_patching_reconciled_issue_body.state == 'open'
           - "'rpm -qa` rc=`1`' in security_patching_refreshed_report_body"
           - "'kernel inventory complete=False' in security_patching_reboot_result_comment_body"
-          - "'Do not apply an approval label or run deployment convergence on an unsafe host' in security_patching_reboot_result_comment_body"
+          - "'Do not apply an approval label. Follow each host' in security_patching_reboot_result_comment_body"

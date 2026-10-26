@@ -82,6 +82,23 @@
         ) is search(security_patching_dnf_work_regex)
       }}
 
+- name: Record bounded DNF classification evidence
+  ansible.builtin.set_fact:
+    security_patching_classification_dnf_evidence:
+      rc: "{{ security_patching_classification_dnf_rc | int }}"
+      noop: "{{ security_patching_classification_dnf_noop | bool }}"
+      work: "{{ security_patching_classification_dnf_work | bool }}"
+      stdout_length: "{{ security_patching_classification_dnf_stdout | length }}"
+      stderr_length: "{{ security_patching_classification_dnf_stderr | length }}"
+      stdout_signals: >-
+        {{ security_patching_classification_dnf_stdout
+           | regex_findall('(?im)^\s*(nothing to do\.|no packages marked|transaction summary|upgrading:|installing:|error:)')
+           | unique | list }}
+      stderr_signals: >-
+        {{ security_patching_classification_dnf_stderr
+           | regex_findall('(?im)^\s*(nothing to do\.|no packages marked|transaction summary|upgrading:|installing:|error:)')
+           | unique | list }}
+
 - name: Resolve authoritative current finding action
   ansible.builtin.set_fact:
     security_patching_next_action: >-
@@ -131,15 +148,20 @@
       {% elif security_patching_update_advisory_ids | default([]) | length == 0 %}
       Findings were present without advisory identifiers.
       {% elif security_patching_classification_entries_without_packages | length > 0 %}
-      One or more findings lacked package metadata.
+      Findings lacked package metadata: {{ security_patching_classification_entries_without_packages | join(', ') }}.
       {% elif security_patching_classification_dnf_work | bool %}
       Advisory-scoped DNF reported package work.
       {% elif security_patching_classification_dnf_noop | bool and security_patching_classification_disallowed_packages | length == 0 %}
       Advisory-scoped DNF is a no-op and all remaining packages are reboot/installonly candidates.
       {% elif security_patching_classification_dnf_noop | bool %}
-      Advisory-scoped DNF is a no-op but the findings include packages outside reboot/installonly families.
+      Advisory-scoped DNF is a no-op but these packages are outside reboot/installonly families:
+      {{ security_patching_classification_disallowed_packages[:12] | join(', ') }}
+      ({{ security_patching_classification_disallowed_packages | length }} total).
       {% else %}
-      DNF output did not prove either applicable package work or a safe reboot-only state.
+      Advisory-scoped DNF did not prove package work or a safe reboot-only state:
+      rc={{ security_patching_classification_dnf_rc | int }},
+      no-op marker={{ security_patching_classification_dnf_noop | bool }},
+      work marker={{ security_patching_classification_dnf_work | bool }}.
       {% endif %}
 
 - name: Resolve authoritative current finding approval label

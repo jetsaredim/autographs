@@ -108,6 +108,12 @@
       {{ security_patching_next_action_label | default('') | trim }}
     security_patching_post_reboot_next_action_reason: >-
       {{ security_patching_next_action_reason | default('') | trim }}
+    security_patching_post_reboot_classification_entries_without_packages: >-
+      {{ security_patching_classification_entries_without_packages | default([]) }}
+    security_patching_post_reboot_classification_disallowed_packages: >-
+      {{ security_patching_classification_disallowed_packages | default([]) }}
+    security_patching_post_reboot_classification_dnf_evidence: >-
+      {{ security_patching_classification_dnf_evidence | default({}) }}
 
 - name: Initialize reboot finding package eligibility state
   ansible.builtin.set_fact:

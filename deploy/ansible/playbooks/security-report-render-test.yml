@@ -106,6 +106,19 @@
         security_patching_kernel_inventory_is_complete: true
         security_patching_running_kernel_is_valid_uek: true
         security_patching_default_kernel_is_valid_uek: true
+        security_patching_scan_status: complete
+        security_patching_next_action: update
+        security_patching_next_action_reason: Advisory-scoped DNF reported package work.
+        security_patching_classification_entries_without_packages: []
+        security_patching_classification_disallowed_packages: [openssl]
+        security_patching_classification_dnf_evidence:
+          rc: 1
+          noop: false
+          work: true
+          stdout_length: 32
+          stdout_signals: [Transaction Summary]
+          stderr_length: 0
+          stderr_signals: []
 
     - name: Render security update report fixture
       ansible.builtin.template:
@@ -150,6 +163,9 @@
           - "'## Advisory finding detail sample' not in security_patching_render_test_body"
           - "'Ksplice-specific OVAL findings' in security_patching_render_test_body"
           - "'Package sample' in security_patching_render_test_body"
+          - "'## Host classification evidence' in security_patching_render_test_body"
+          - "'Reason: Advisory-scoped DNF reported package work.' in security_patching_render_test_body"
+          - "'rc=1, no-op=False, work=True' in security_patching_render_test_body"
           - "'`kernel`, `kernel-core`' in security_patching_render_test_body"
           - "'ELSA-2025-33333' in security_patching_render_test_body"
           - "'+1 more' in security_patching_render_test_body"
