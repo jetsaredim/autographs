@@ -597,16 +597,130 @@ Expected `Cache-Control` behavior:
 If Cloudflare or another CDN is enabled later, keep admin shell/API routes out
 of CDN caching, and preserve rollback by keeping HTML/JSON short-lived. Routine
 image replacement publishes a new fingerprinted `/media/*` URL. Caddy serves a
-shared media namespace with a `current/media` migration fallback; the publisher
-copies validated new media and the active release's media before pointer
-promotion. Confirm old and new URLs return 200 after an adjustment and rollback,
+shared media namespace with an active `current/media` fallback. The publisher
+copies only active media before pointer promotion; the atomic pointer change
+commits candidate visibility, and shared copy follows it. A postcommit copy
+failure leaves the new release active with a cleanup warning. Repair its shared
+copy before a manual rollback. Confirm old and new URLs return 200 after an adjustment and rollback,
 including an origin cache miss. A routine unpublish removes page and JSON but
 keeps known old media URLs for at least 24 hours and while retained releases
-reference them. For urgent privacy takedown, publish the unpublish, remove the
-affected WebP from shared media and retained release copies, purge exact CDN
-URLs, verify origin and edge 404, and avoid rollback to a release containing
-the removed media. See [cdn-cache-contract.md](cdn-cache-contract.md) for the
+reference them. For urgent privacy takedown, publish the unpublish when
+possible, create a durable exact URL marker, prove dual-origin 404, then remove
+copies and purge the exact CDN URL. See [cdn-cache-contract.md](cdn-cache-contract.md) for the
 retention contract and `docs/dns-runbook.md` for the Cloudflare checklist.
+
+### Phase 8 publisher and Caddy rollout freeze
+
+Run `bash scripts/verify-caddy-media-origin.sh`, the publisher/Caddy contract
+tests, and the reviewed Ansible syntax/lint checks before touching the VM.
+Back up the installed host Caddyfile and freeze publication **before** replacing
+either the running Caddy or controller process. Use the deployed host path and
+edit its inode in place: the current quadlet bind-mounts that single file, so
+an atomic host rename could leave the running container reading an old inode.
+The two exact paths are `/admin/api/publish/full` and
+`/admin/api/publish/incremental`; `/admin/api/publish/status` stays proxied.
+
+```bash
+CADDYFILE=/opt/autographs/caddy/Caddyfile
+sudo cp -p "$CADDYFILE" "$CADDYFILE.pre-media-freeze.$(date -u +%Y%m%dT%H%M%SZ)"
+sudo python3 - "$CADDYFILE" <<'PY'
+import sys
+
+needle = "\thandle /admin/api/* {"
+gate = '''\thandle /admin/api/publish/full {
+\t\theader Cache-Control "no-store"
+\t\trespond "Publishing temporarily unavailable" 503
+\t}
+\thandle /admin/api/publish/incremental {
+\t\theader Cache-Control "no-store"
+\t\trespond "Publishing temporarily unavailable" 503
+\t}
+\n'''
+with open(sys.argv[1], "r+", encoding="utf-8") as caddyfile:
+    content = caddyfile.read()
+    if content.count(needle) != 1 or "AUTOGRAPHS PUBLISH FREEZE" in content:
+        raise SystemExit("Caddyfile shape or freeze state differs; stop rollout")
+    caddyfile.seek(0)
+    caddyfile.write(content.replace(needle, gate + needle, 1))
+    caddyfile.truncate()
+PY
+sudo podman exec autographs-caddy caddy validate --config /etc/caddy/Caddyfile
+sudo podman exec autographs-caddy caddy reload --config /etc/caddy/Caddyfile
+```
+
+Through the public admin origin, check that unauthenticated `POST` requests to
+both exact publish paths return `503` and `Cache-Control: no-store`; check an
+authenticated GET of `/admin/api/publish/status` still works and public current
+pages/media still return `200`. Keep session cookies in a protected file and do
+not print them. Stop automated smoke/publish jobs and direct private-network
+calls to `autographs-controller:8080`; gate any other publisher ingress or abort.
+Wait until publish status/logs show no in-flight job, then record the unchanged
+`current` pointer.
+
+Deploy the reviewed controller image and Caddyfile with
+`autographs_deploy_publish_frozen=true`. The Ansible role copies the new
+Caddyfile, inserts the two exact-path `503` blocks before flushing restart
+handlers, and keeps them during both service restarts. If this sequence cannot
+preserve the live gate, stop the rollout. Verify both services are active,
+the running controller image digest matches the reviewed image, Caddy validates
+and adapts its running config, authenticated controller status works, both Caddy
+origin routes pass the disposable marker HTTP fixture, both publish POSTs still
+return `503`, publish status has no running job, and current documents/media
+still return `200`. A failed check leaves the freeze active; repair or restore
+the prior image/configuration or pointer without reopening publish.
+
+Only after all readiness checks pass, rerun the role with
+`autographs_deploy_publish_frozen=false`. Verify unauthenticated publish POSTs
+now reach controller authentication (`401` or `403`, never `503`) without
+starting a job, publish status works, and current remains served. Record
+gate-on, deploy, readiness, and gate-off times and commands for Wave 8. Resume
+credentialed publishing and smoke only after explicitly lifting the operator
+freeze. The controller is kept running throughout because the Caddy quadlet
+requires its service.
+
+### Exact emergency media takedown
+
+This is a one-way operator checkpoint. Decide the exact disposable or real URL
+before beginning; do not create a marker as part of normal smoke cleanup. A
+marker and CDN purge intentionally break old documents. Publish an unpublish
+first if possible. On the VM, identify the named static volume and compare both
+container mounts before any mutation:
+
+```bash
+STATIC_ROOT="$(sudo podman volume inspect autographs-static --format '{{.Mountpoint}}')"
+STATIC_ROOT="$(realpath -e "$STATIC_ROOT")"
+sudo podman inspect --format '{{range .Mounts}}{{println .Name .Source .Destination .RW}}{{end}}' autographs-controller
+sudo podman inspect --format '{{range .Mounts}}{{println .Name .Source .Destination .RW}}{{end}}' autographs-caddy
+```
+
+Require the `autographs-static` mount source to resolve to `STATIC_ROOT` at
+`/var/lib/autographs/static` with `RW=true` for the controller and at
+`/srv/autographs/static` with `RW=false` for Caddy. Abort if any name, source,
+destination, or writeability differs. Reconcile historically removed URLs into
+markers before the first publish with the revised controller. Validate the
+exact URL before creating its marker:
+
+```bash
+MEDIA_URL='/media/<item-slug>/<image-slug>-detail-<16-hex-fingerprint>.webp'
+[[ "$MEDIA_URL" =~ ^/media/[a-z0-9-]+/[a-z0-9-]+-(thumbnail|detail)-[0-9a-f]{16}\.webp$ ]] || exit 1
+sudo install -D -m 0644 /dev/null "$STATIC_ROOT/.media-tombstones/${MEDIA_URL#/}"
+sudo podman exec autographs-caddy test -f "/srv/autographs/static/.media-tombstones/${MEDIA_URL#/}"
+curl --silent --output /dev/null --write-out '%{http_code}\n' \
+  --resolve "${AUTOGRAPHS_DOMAIN}:443:127.0.0.1" "https://${AUTOGRAPHS_DOMAIN}${MEDIA_URL}"
+curl --silent --output /dev/null --write-out '%{http_code}\n' \
+  "http://127.0.0.1:8081${MEDIA_URL}"
+```
+
+The marker readback and **both** origin `404` responses are the effective
+origin-denial evidence. If either fails, stop and repair the mount identity,
+visibility, or routing before deleting files or purging CDN. Once both pass,
+remove the exact relative media path from shared media and every retained
+release, including the active release if necessary; a failed deletion can be
+retried while the marker continues denying it. Purge only that exact Cloudflare
+URL and verify edge `404`. A failed CDN purge leaves cached copies until purge
+or TTL expiry and is an incomplete takedown. Keep and back up markers with the
+static volume. Never clear one to make rollback work; reinstatement needs an
+explicit decision and new media fingerprint.
 
 ## Phase 8 CDN/cache contract
 

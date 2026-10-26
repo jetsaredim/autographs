@@ -21,7 +21,8 @@ The deployed Caddyfile owns the origin `Cache-Control` posture:
 The public edge must not expose Object Storage URLs, bucket names, object keys,
 private image UUIDs, or original filenames. Public media is validated generated
 output. Caddy serves `/media/*` from the shared static media directory, with a
-fallback to `current/media` for the already active release during migration.
+fallback to `current/media` for the active release. Before either lookup, both
+origin listeners deny exact URLs with a durable `.media-tombstones` marker.
 
 ## Cloudflare cache rules
 
@@ -61,9 +62,14 @@ URL instead of requiring manual purge. Existing cached derivatives can expire
 naturally because public HTML/JSON with the new media reference remains
 rollback-friendly at 60 seconds.
 
-Before moving `current`, the publisher copies validated candidate media and
-any already active media into the shared namespace. Existing files must have
-identical bytes for their fingerprinted URL. The publisher retains shared URLs
+Before moving `current`, the publisher copies only already active media into
+the shared namespace and rejects candidate paths with emergency markers. The
+atomic `current` pointer change is the public visibility commit. Caddy serves
+new active media through its `current/media` fallback immediately, then the
+publisher copies that committed release into shared media. A postcommit copy
+failure keeps the active release and reports a safe cleanup warning; repair
+and verify its shared media before manually rolling back. Existing shared
+files must have identical bytes for their fingerprinted URL. The publisher retains shared URLs
 while a retained release references them, and for at least 24 hours after
 their last active publication. Cleanup runs after successful promotion; the
 normal release count remains five. This covers a cache miss for a still-fresh
@@ -91,11 +97,16 @@ image adjustments publish new fingerprints and should not need manual purge.
 Normal unpublish removes pages and JSON immediately at the origin, but a known
 old media URL remains available during the retention window and may persist in
 browser or edge caches for its 24-hour TTL. For an urgent takedown, publish the
-unpublish first, then remove the affected public derivative from shared media
-and from retained release copies (including `current` if still referenced),
-and purge the exact CDN URLs. Check the old URL at the origin and edge for 404.
-Do not roll back to a release containing the removed media. This intentional
-emergency 404 takes precedence over the normal cached-document guarantee.
+unpublish first when possible, then create a durable exact-path marker and
+prove that both Caddy origin routes return 404 before deleting origin copies.
+Remove the affected derivative from shared media and every retained release,
+then purge the exact CDN URL and verify edge 404. A missed copy cannot bypass
+the marker; release cleanup skips marked files and never restores them. Future
+candidates referencing the URL fail before promotion. Do not remove a marker
+for rollback. Reinstating content requires a separate decision and new
+fingerprint. This intentional emergency 404 overrides cached-document
+availability. Follow the volume-identity, marker-readback, and dual-route
+steps in [static-runtime-runbook.md](static-runtime-runbook.md).
 
 ## Verification
 

@@ -20,6 +20,15 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
     assert!(caddyfile.matches("Cache-Control \"no-store\"").count() >= 3);
     assert!(caddyfile.contains("@staticMedia path /media/*"));
     assert_eq!(caddyfile.matches("handle /media/* {").count(), 2);
+    assert_eq!(caddyfile.matches("@tombstonedMedia file {").count(), 2);
+    assert_eq!(
+        caddyfile
+            .matches("root /srv/autographs/static/.media-tombstones")
+            .count(),
+        2
+    );
+    assert_eq!(caddyfile.matches("respond @tombstonedMedia 404").count(), 2);
+    assert_eq!(caddyfile.matches("\t\troute {").count(), 2);
     assert_eq!(
         caddyfile.matches("root * /srv/autographs/static\n").count(),
         2
@@ -28,6 +37,13 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
         caddyfile.matches("try_files {path} /current{path}").count(),
         2
     );
+    for handler in caddyfile.split("handle /media/* {").skip(1) {
+        let deny = handler.find("respond @tombstonedMedia 404").unwrap();
+        let shared = handler.find("root * /srv/autographs/static").unwrap();
+        let fallback = handler.find("try_files {path} /current{path}").unwrap();
+        let serve = handler.find("file_server").unwrap();
+        assert!(deny < shared && shared < fallback && fallback < serve);
+    }
     assert!(caddyfile.contains("Cache-Control \"public, max-age=86400\""));
     assert!(caddyfile.contains("@staticAssets path /assets/*"));
     assert!(caddyfile.contains("Cache-Control \"public, max-age=3600\""));
@@ -140,6 +156,59 @@ fn cdn_cache_contract_matches_caddy_origin_headers() {
     let stale_architecture_asset_phrase = ["and the architecture", "SVG"].join(" ");
     assert!(!deployment_runbook.contains(&stale_architecture_asset_phrase));
     assert!(deployment_runbook.contains("`/architecture/*`, `/data/*`, `/manifest.json`"));
+}
+
+#[test]
+fn publish_freeze_renders_exact_routes_before_admin_proxy() {
+    let normal = read_repo("deploy/ansible/roles/autographs_deploy/files/Caddyfile");
+    let defaults = read_repo("deploy/ansible/roles/autographs_deploy/defaults/main.yml");
+    let tasks = read_repo("deploy/ansible/roles/autographs_deploy/tasks/main.yml");
+    let freeze = read_repo("deploy/ansible/roles/autographs_deploy/tasks/publish_freeze.yml");
+    assert!(defaults.contains("autographs_deploy_publish_frozen: false"));
+    assert!(tasks.contains("- name: Preserve publish freeze in copied Caddyfile\n  ansible.builtin.include_tasks: publish_freeze.yml"));
+    assert!(freeze.contains("ansible.builtin.blockinfile:"));
+    assert!(freeze.contains("AUTOGRAPHS PUBLISH FREEZE"));
+    assert!(freeze.contains("insertbefore:"));
+    assert!(freeze.contains("'present' if autographs_deploy_publish_frozen | bool else 'absent'"));
+    assert!(freeze.contains("notify: Restart Caddy container"));
+    let block = freeze
+        .split("    block: |\n")
+        .nth(1)
+        .expect("freeze block")
+        .lines()
+        .take_while(|line| line.starts_with("      "))
+        .map(|line| line.strip_prefix("      ").unwrap())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let frozen = normal.replacen(
+        "\thandle /admin/api/* {",
+        &format!("{block}\n\thandle /admin/api/* {{"),
+        1,
+    );
+    for path in ["full", "incremental"] {
+        let route = format!("handle /admin/api/publish/{path} {{");
+        assert_eq!(frozen.matches(&route).count(), 1);
+        assert!(!normal.contains(&route));
+    }
+    assert_eq!(
+        frozen
+            .matches("respond \"Publishing temporarily unavailable\" 503")
+            .count(),
+        2
+    );
+    assert!(
+        frozen.find("handle /admin/api/publish/full {").unwrap()
+            < frozen.find("handle /admin/api/* {").unwrap()
+    );
+    assert!(
+        frozen
+            .find("handle /admin/api/publish/incremental {")
+            .unwrap()
+            < frozen.find("handle /admin/api/* {").unwrap()
+    );
+    assert!(!block.contains("/admin/api/publish/status"));
+    assert!(frozen.contains("handle /admin/api/* {\n\t\theader Cache-Control \"no-store\"\n\t\treverse_proxy autographs-controller:8080"));
+    assert!(normal.contains("handle /admin/api/* {"));
 }
 
 #[test]

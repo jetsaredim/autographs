@@ -844,6 +844,7 @@ impl LocalPublisher {
             .and_then(|progress| {
                 self.update_progress(&release_id, PublishStage::ValidatingCandidate, &progress);
                 let manifest = validate_candidate(&candidate)?;
+                validate_manifest_tombstones(&self.root, &manifest)?;
                 tracing::info!(
                     release_id = %release_id,
                     mode = ?mode,
@@ -870,15 +871,9 @@ impl LocalPublisher {
         };
 
         self.update_progress(&release_id, PublishStage::PromotingRelease, &progress);
-        let mut newly_shared_media = Vec::new();
-        if let Err(error) = prepare_shared_media(&self.root, &candidate, &mut newly_shared_media)
-            .and_then(|()| promote_candidate(&self.root, &release_id))
+        if let Err(error) =
+            commit_candidate_with(&self.root, &release_id, &manifest, promote_candidate)
         {
-            for path in newly_shared_media {
-                if let Err(cleanup_error) = fs::remove_file(&path) {
-                    tracing::error!(error = %cleanup_error, "failed to remove unpromoted shared media");
-                }
-            }
             self.record_pre_promotion_failure(
                 &release_id,
                 &candidate,
@@ -2044,38 +2039,41 @@ fn promote_candidate(root: &Path, release_id: &str) -> Result<(), String> {
     fs::rename(next, current).map_err(|error| format!("promote current pointer: {error}"))
 }
 
-fn prepare_shared_media(
+fn commit_candidate_with<F>(
     root: &Path,
-    candidate: &Path,
-    newly_shared_media: &mut Vec<PathBuf>,
-) -> Result<(), String> {
+    release_id: &str,
+    manifest: &PublishManifest,
+    promote: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&Path, &str) -> Result<(), String>,
+{
+    prepare_shared_media(root)?;
+    validate_manifest_tombstones(root, manifest)?;
+    promote(root, release_id)
+}
+
+fn prepare_shared_media(root: &Path) -> Result<(), String> {
     let current = root.join("current");
     if current.exists() {
         // The first publish after the Caddy change migrates the already active
         // release before its pointer can move away from that release.
-        copy_release_media_to_shared(root, &current, &mut Vec::new())?;
+        copy_release_media_to_shared(root, &current)?;
     }
-    copy_release_media_to_shared(root, candidate, newly_shared_media)
+    Ok(())
 }
 
-fn copy_release_media_to_shared(
-    root: &Path,
-    release: &Path,
-    newly_shared_media: &mut Vec<PathBuf>,
-) -> Result<(), String> {
+fn copy_release_media_to_shared(root: &Path, release: &Path) -> Result<(), String> {
     let manifest: PublishManifest = read_json(&release.join("manifest.json"))?;
     for artifact in manifest
         .artifacts
         .iter()
         .filter(|entry| entry.variant.is_some())
     {
-        let relative = Path::new(&artifact.path);
-        if !artifact.path.starts_with("media/")
-            || relative
-                .components()
-                .any(|component| !matches!(component, std::path::Component::Normal(_)))
-        {
-            return Err("release media path is invalid".to_owned());
+        let relative =
+            validated_media_relative(&artifact.path, artifact.variant.expect("media variant"))?;
+        if media_tombstoned(root, &artifact.path)? {
+            continue;
         }
         let source = release.join(relative);
         let bytes = fs::read(&source).map_err(|error| format!("read release media: {error}"))?;
@@ -2114,7 +2112,45 @@ fn copy_release_media_to_shared(
             let _ = fs::remove_file(&staged);
             return Err(format!("publish shared media: {error}"));
         }
-        newly_shared_media.push(target);
+    }
+    Ok(())
+}
+
+fn validated_media_relative(path: &str, variant: ImageVariantName) -> Result<&Path, String> {
+    let relative = Path::new(path);
+    let components = relative.components().collect::<Vec<_>>();
+    if components.len() != 3
+        || components
+            .iter()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+        || components[0].as_os_str() != "media"
+        || derivative_fingerprint_from_path(path, variant).is_err()
+    {
+        return Err("release media path is invalid".to_owned());
+    }
+    Ok(relative)
+}
+
+fn media_tombstoned(root: &Path, path: &str) -> Result<bool, String> {
+    let marker = root.join(".media-tombstones").join(path);
+    match fs::symlink_metadata(marker) {
+        Ok(metadata) if metadata.file_type().is_file() => Ok(true),
+        Ok(_) => Err("emergency media marker is not a regular file".to_owned()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("inspect emergency media marker: {error}")),
+    }
+}
+
+fn validate_manifest_tombstones(root: &Path, manifest: &PublishManifest) -> Result<(), String> {
+    for artifact in manifest
+        .artifacts
+        .iter()
+        .filter(|entry| entry.variant.is_some())
+    {
+        validated_media_relative(&artifact.path, artifact.variant.expect("media variant"))?;
+        if media_tombstoned(root, &artifact.path)? {
+            return Err("candidate references emergency-removed media".to_owned());
+        }
     }
     Ok(())
 }
@@ -2127,7 +2163,7 @@ fn prune_promoted_releases(
         // A release can be demoted by an operator rollback without going through
         // publish. Refresh its media when pruning so documents cached just before
         // that rollback still have the full origin miss window.
-        copy_release_media_to_shared(root, path, &mut Vec::new())?;
+        copy_release_media_to_shared(root, path)?;
         fs::remove_dir_all(path).map_err(|error| format!("prune promoted release: {error}"))
     })
 }
@@ -2164,7 +2200,10 @@ where
 }
 
 fn post_promotion_cleanup(root: &Path, retention_policy: ReleaseRetentionPolicy) -> Option<String> {
-    match prune_promoted_releases(root, retention_policy).and_then(|()| prune_shared_media(root)) {
+    match copy_release_media_to_shared(root, &root.join("current"))
+        .and_then(|()| prune_promoted_releases(root, retention_policy))
+        .and_then(|()| prune_shared_media(root))
+    {
         Ok(()) => None,
         Err(error) => {
             tracing::error!(
@@ -2188,7 +2227,12 @@ fn prune_shared_media(root: &Path) -> Result<(), String> {
                 .filter(|artifact| {
                     artifact.variant.is_some() && artifact.path.starts_with("media/")
                 })
-                .map(|artifact| artifact.path),
+                .filter_map(|artifact| match media_tombstoned(root, &artifact.path) {
+                    Ok(false) => Some(Ok(artifact.path)),
+                    Ok(true) => None,
+                    Err(error) => Some(Err(error)),
+                })
+                .collect::<Result<Vec<_>, _>>()?,
         );
     }
     let media_root = root.join("media");
@@ -2206,12 +2250,14 @@ fn prune_shared_media(root: &Path) -> Result<(), String> {
         let modified = fs::metadata(&path)
             .and_then(|metadata| metadata.modified())
             .map_err(|error| format!("inspect shared media age: {error}"))?;
-        if !referenced.contains(&relative)
-            && SystemTime::now()
-                .duration_since(modified)
-                .unwrap_or_default()
-                .as_secs()
-                >= SHARED_MEDIA_MIN_AGE_SECONDS
+        let tombstoned = media_tombstoned(root, &relative)?;
+        if tombstoned
+            || !referenced.contains(&relative)
+                && SystemTime::now()
+                    .duration_since(modified)
+                    .unwrap_or_default()
+                    .as_secs()
+                    >= SHARED_MEDIA_MIN_AGE_SECONDS
         {
             fs::remove_file(&path).map_err(|error| format!("prune shared media: {error}"))?;
         }
@@ -2827,6 +2873,50 @@ mod tests {
         fs::FileTimes,
         time::{Duration, UNIX_EPOCH},
     };
+
+    #[test]
+    fn candidate_media_stays_private_until_pointer_commit() {
+        let root = tempfile::tempdir().unwrap();
+        let relative = "media/card/image-1-detail-aaaaaaaaaaaaaaaa.webp";
+        let candidate = root.path().join("releases/new-release");
+        fs::create_dir_all(candidate.join("media/card")).unwrap();
+        fs::write(candidate.join(relative), b"candidate only").unwrap();
+        let manifest = PublishManifest::new(
+            "new-release",
+            "2026-01-01T00:00:00Z",
+            vec![PublishManifestEntry {
+                path: relative.to_owned(),
+                byte_size: 14,
+                content_type: Some("image/webp".to_owned()),
+                variant: Some(ImageVariantName::Detail),
+            }],
+        );
+
+        let error = commit_candidate_with(root.path(), "new-release", &manifest, |root, _| {
+            assert!(root.join("releases/new-release").join(relative).is_file());
+            assert!(
+                !root.join(relative).exists(),
+                "candidate must not enter shared media"
+            );
+            assert!(!root.join("current").exists(), "pointer is not committed");
+            Err("forced promotion failure".to_owned())
+        })
+        .unwrap_err();
+        assert_eq!(error, "forced promotion failure");
+        assert!(!root.path().join(relative).exists());
+
+        commit_candidate_with(root.path(), "new-release", &manifest, |root, release_id| {
+            assert!(!root.join(relative).exists());
+            promote_candidate(root, release_id)?;
+            assert!(root.join("current").join(relative).is_file());
+            assert!(
+                !root.join(relative).exists(),
+                "fallback precedes shared copy"
+            );
+            Ok(())
+        })
+        .unwrap();
+    }
 
     #[test]
     fn release_directories_sort_newest_with_subsecond_precision() {

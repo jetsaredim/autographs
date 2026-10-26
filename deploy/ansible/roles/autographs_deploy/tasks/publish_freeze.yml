@@ -1,0 +1,29 @@
+- name: Read copied Caddyfile before publish freeze edit
+  ansible.builtin.slurp:
+    src: "{{ autographs_deploy_caddy_path }}/Caddyfile"
+  register: autographs_deploy_publish_freeze_caddyfile
+
+- name: Require one public admin API proxy insertion point
+  ansible.builtin.assert:
+    that:
+      - >-
+        (autographs_deploy_publish_freeze_caddyfile.content | b64decode)
+        .count('handle /admin/api/* {') == 1
+    fail_msg: The copied Caddyfile has no unique public admin API proxy; keep publication frozen and stop deployment.
+
+- name: Update exact publish freeze routes in copied Caddyfile
+  ansible.builtin.blockinfile:
+    path: "{{ autographs_deploy_caddy_path }}/Caddyfile"
+    marker: "# {mark} AUTOGRAPHS PUBLISH FREEZE"
+    insertbefore: '^\s*handle /admin/api/\* \{$'
+    state: "{{ 'present' if autographs_deploy_publish_frozen | bool else 'absent' }}"
+    block: |
+      handle /admin/api/publish/full {
+        header Cache-Control "no-store"
+        respond "Publishing temporarily unavailable" 503
+      }
+      handle /admin/api/publish/incremental {
+        header Cache-Control "no-store"
+        respond "Publishing temporarily unavailable" 503
+      }
+  notify: Restart Caddy container

@@ -27,10 +27,17 @@
 
 	@staticMedia path /media/*
 	header @staticMedia Cache-Control "public, max-age=86400"
+	@tombstonedMedia file {
+		root /srv/autographs/static/.media-tombstones
+		try_files {path}
+	}
 	handle /media/* {
-		root * /srv/autographs/static
-		try_files {path} /current{path}
-		file_server
+		route {
+			respond @tombstonedMedia 404
+			root * /srv/autographs/static
+			try_files {path} /current{path}
+			file_server
+		}
 	}
 	@staticAssets path /assets/* /favicon.ico /icon.png
 	header @staticAssets Cache-Control "public, max-age=3600"
@@ -50,10 +57,17 @@
 http://:8081 {
 	@staticMedia path /media/*
 	header @staticMedia Cache-Control "public, max-age=86400"
+	@tombstonedMedia file {
+		root /srv/autographs/static/.media-tombstones
+		try_files {path}
+	}
 	handle /media/* {
-		root * /srv/autographs/static
-		try_files {path} /current{path}
-		file_server
+		route {
+			respond @tombstonedMedia 404
+			root * /srv/autographs/static
+			try_files {path} /current{path}
+			file_server
+		}
 	}
 	@staticAssets path /assets/* /favicon.ico /icon.png
 	header @staticAssets Cache-Control "public, max-age=3600"

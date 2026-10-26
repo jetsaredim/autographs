@@ -2121,6 +2121,14 @@ fn origin_media_bytes(root: &Path, url: &str) -> Vec<u8> {
     .expect("origin media URL must resolve")
 }
 
+fn mark_media_removed(root: &Path, url: &str) {
+    let marker = root
+        .join(".media-tombstones")
+        .join(url.trim_start_matches('/'));
+    fs::create_dir_all(marker.parent().unwrap()).unwrap();
+    fs::write(marker, b"").unwrap();
+}
+
 #[tokio::test]
 async fn publisher_shared_media_survives_corrections_and_rollback() {
     let fixture = fixture_with_checksum_nonuniform().await;
@@ -2294,7 +2302,7 @@ async fn publisher_unpublish_retains_fresh_media_then_prunes_expired_urls() {
 }
 
 #[tokio::test]
-async fn publisher_failed_promotion_removes_unpromoted_shared_media() {
+async fn publisher_failed_promotion_never_exposes_candidate_media() {
     let fixture = fixture_with_checksum_nonuniform().await;
     let root = fixture.root.path();
     let publisher = LocalPublisher::new(root);
@@ -2349,6 +2357,181 @@ async fn publisher_failed_promotion_removes_unpromoted_shared_media() {
     for path in &old_paths {
         assert!(!origin_media_bytes(root, path).is_empty());
     }
+}
+
+#[tokio::test]
+async fn publisher_postcommit_copy_failure_keeps_current_and_retries() {
+    let fixture = fixture_with_checksum_nonuniform().await;
+    let root = fixture.root.path();
+    let publisher = LocalPublisher::new(root);
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+    let previous = published_detail(root);
+    save_crop(&fixture, test_crop()).await;
+    fs::remove_dir_all(root.join(".media-staging")).unwrap();
+    fs::write(root.join(".media-staging"), b"block postcommit copy").unwrap();
+    let status = publisher
+        .publish(
+            &fixture.repository,
+            &fixture.media,
+            PublishMode::Incremental,
+        )
+        .await
+        .unwrap();
+    assert!(status.cleanup_warning.is_some());
+    assert_eq!(fs::read_dir(root.join("releases")).unwrap().count(), 2);
+    let adjusted = published_detail(root);
+    for (old, new) in previous.images[0]
+        .variants
+        .iter()
+        .zip(&adjusted.images[0].variants)
+    {
+        assert_ne!(old.path, new.path);
+        assert!(!root.join(new.path.trim_start_matches('/')).exists());
+        assert!(!origin_media_bytes(root, &new.path).is_empty());
+        assert!(!origin_media_bytes(root, &old.path).is_empty());
+    }
+    fs::remove_file(root.join(".media-staging")).unwrap();
+    let retry = publisher
+        .publish(
+            &fixture.repository,
+            &fixture.media,
+            PublishMode::Incremental,
+        )
+        .await
+        .unwrap();
+    assert!(retry.cleanup_warning.is_none());
+    for variant in &adjusted.images[0].variants {
+        assert!(root.join(variant.path.trim_start_matches('/')).is_file());
+    }
+}
+
+#[tokio::test]
+async fn publisher_tombstone_rejects_candidate_and_survives_release_pruning() {
+    let fixture = fixture().await;
+    let root = fixture.root.path();
+    let publisher = LocalPublisher::with_retention_policy(root, ReleaseRetentionPolicy::new(1, 1));
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+    let paths = published_detail(root).images[0]
+        .variants
+        .iter()
+        .map(|variant| variant.path.clone())
+        .collect::<Vec<_>>();
+    for path in &paths {
+        mark_media_removed(root, path);
+    }
+    let initial_release = fs::read_link(root.join("current")).unwrap();
+    assert!(
+        publisher
+            .publish(
+                &fixture.repository,
+                &fixture.media,
+                PublishMode::Incremental
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        fs::read_link(root.join("current")).unwrap(),
+        initial_release
+    );
+
+    fixture
+        .repository
+        .update(
+            fixture.published.id,
+            AutographItemUpdate {
+                publication_status: Some(PublicationStatus::Draft),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    for path in &paths {
+        fs::remove_file(root.join(path.trim_start_matches('/'))).unwrap();
+    }
+    // One retained release copy is deliberately missed; the other is removed.
+    fs::remove_file(root.join("current").join(paths[1].trim_start_matches('/'))).unwrap();
+    let removed = publisher
+        .publish(
+            &fixture.repository,
+            &fixture.media,
+            PublishMode::Incremental,
+        )
+        .await
+        .unwrap();
+    assert!(removed.cleanup_warning.is_none());
+    for path in &paths {
+        assert!(!root.join(path.trim_start_matches('/')).exists());
+        assert!(
+            root.join(".media-tombstones")
+                .join(path.trim_start_matches('/'))
+                .is_file()
+        );
+    }
+    assert_eq!(fs::read_dir(root.join("releases")).unwrap().count(), 1);
+    let later = publisher
+        .publish(
+            &fixture.repository,
+            &fixture.media,
+            PublishMode::Incremental,
+        )
+        .await
+        .unwrap();
+    assert!(later.cleanup_warning.is_none());
+    for path in &paths {
+        assert!(!root.join(path.trim_start_matches('/')).exists());
+    }
+}
+
+#[tokio::test]
+async fn publisher_untombstoned_missing_retained_media_reports_cleanup_warning() {
+    let fixture = fixture().await;
+    let root = fixture.root.path();
+    let publisher = LocalPublisher::with_retention_policy(root, ReleaseRetentionPolicy::new(2, 1));
+    publisher
+        .publish(&fixture.repository, &fixture.media, PublishMode::Full)
+        .await
+        .unwrap();
+    let path = published_detail(root).images[0].variants[0].path.clone();
+    let old_release = fs::read_link(root.join("current")).unwrap();
+    fixture
+        .repository
+        .update(
+            fixture.published.id,
+            AutographItemUpdate {
+                publication_status: Some(PublicationStatus::Draft),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    publisher
+        .publish(
+            &fixture.repository,
+            &fixture.media,
+            PublishMode::Incremental,
+        )
+        .await
+        .unwrap();
+    fs::remove_file(root.join(&old_release).join(path.trim_start_matches('/'))).unwrap();
+    let tight_retention =
+        LocalPublisher::with_retention_policy(root, ReleaseRetentionPolicy::new(1, 1));
+    let status = tight_retention
+        .publish(
+            &fixture.repository,
+            &fixture.media,
+            PublishMode::Incremental,
+        )
+        .await
+        .unwrap();
+    assert!(status.cleanup_warning.is_some());
+    assert!(root.join(old_release).is_dir());
 }
 
 #[tokio::test]
