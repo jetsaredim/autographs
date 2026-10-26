@@ -608,6 +608,53 @@ contract is maintained in [cdn-cache-contract.md](cdn-cache-contract.md). Keep
 the Caddy origin headers above aligned with that contract before implementing
 or verifying admin image adjustment cache behavior.
 
+### Phase 8 adjusted media publish verification
+
+Run the credential-gated static smoke against a deployed candidate controller
+and Caddy static preview before enabling Cloudflare proxying. Complete the
+Oracle adjustment schema migration and confirm the candidate logs its Oracle
+schema preflight pass. Use the candidate controller and one-shot smoke image
+procedure above with a copied Oracle wallet, a private Podman network, and the
+VM instance principal for the disposable private Object Storage original.
+Supply the protected environment values `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true`,
+`AUTOGRAPHS_CONTROLLER_BASE_URL`, `AUTOGRAPHS_STATIC_PREVIEW_BASE_URL`,
+`AUTOGRAPHS_STATIC_RELEASE_ROOT`, `AUTOGRAPHS_ADMIN_PASSWORD`,
+`AUTOGRAPHS_PUBLIC_ORIGIN` (or `AUTOGRAPHS_DOMAIN`), `ORACLE_DB_USER`,
+`ORACLE_DB_PASSWORD`, `ORACLE_DB_CONNECT_STRING`, `OCI_MEDIA_NAMESPACE`, and
+`OCI_MEDIA_BUCKET_NAME`. The smoke logs in for a session cookie and sends the
+matching Origin for admin mutations; it must not print the cookie or password.
+
+Run the exact gated target in the one-shot image or a trusted environment with
+the same Oracle wallet, controller/Caddy reachability, and instance-principal
+media permissions:
+
+```bash
+AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true \
+  cargo test --manifest-path controller/Cargo.toml \
+  --features live-persistence --test live_static_publish_smoke \
+  -- --ignored --nocapture
+```
+
+Record the candidate commit, successful schema preflight, and complete test
+result. The smoke creates a unique item, saves a non-identity crop using the
+review response's `mediaRevision`, and proves the private preview changes while
+the current public JSON and WebP URLs stay unchanged. After incremental publish
+it reports both old and new thumbnail/detail URLs, checks each new URL against
+the SHA-256 fingerprint of its final WebP bytes, verifies collection JSON and
+detail HTML/JSON references, compares corrected pixels and dimensions with the
+private preview, checks the OCI original bytes, and scans for private fields.
+It then drafts the temporary item, republishes removal, and deletes the OCI
+object and Oracle rows. If interrupted, use the existing cleanup guard and
+live persistence cleanup mode above, then verify no temporary item or private
+object remains; restore the prior release pointer if a candidate publish was
+not fully validated.
+
+With `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE` unset, the ignored local run only
+proves compilation and safe gating. It is not live evidence. The new media URLs
+make routine Cloudflare purges unnecessary under
+[cdn-cache-contract.md](cdn-cache-contract.md). Wave 8 records the real edge
+cache observations before enabling the CDN, as required by D-08-19.
+
 ## Phase 6 Admin Live Smoke
 
 Use this operator-run smoke when an admin workflow, publisher, retention, or
