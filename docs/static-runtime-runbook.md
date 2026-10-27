@@ -661,10 +661,16 @@ the unchanged `current` pointer, then merge the Release PR or dispatch
 `autographs_deploy_publish_frozen=true` and runs
 `publish-freeze-preflight.yml` before the full deploy. That preflight keeps the
 old gated Caddyfile, removes Caddy's controller service dependency, restarts
-Caddy under the old gate, and checks publish `503` plus current static `200`.
-It then stops the old controller and waits for its unit, captured container,
-and PID to exit before any new shared-media route can restart. A surviving
-process or lost static response stops the deploy with publishing frozen.
+Caddy under the old gate. Before stopping the old controller, it reads
+`/manifest.json` on public and preview origins, requires a parseable release
+ID, verifies both publish paths return `503` with `no-store` on the public
+admin origin,
+and checks every known exact marker returns `404`. A pending `intent.json` is
+recorded for diagnostics; this early document check does not validate history
+or authorize shared media. It then stops the old controller and waits for its
+unit, captured container, and PID to exit before reconciling that intent or
+restarting any new shared route. A surviving process or lost static response
+stops the deploy frozen.
 
 For the **first** cutover, preflight runs a read-only inventory before and
 after verified old-controller exit; the latter is authoritative. A retained
@@ -707,6 +713,13 @@ denying both origins. Unmarked missing or corrupt committed bytes stop the
 deployment; repair from a verified committed copy and retry frozen. The freeze
 record changes only after successful audit and binds pointer, manifest,
 history digest/version, marker inventory, and a versioned active origin probe.
+After verified old-process exit, a valid intent with `current` still old is
+discarded; a valid intent with `current` new finalizes the committed receipt
+and old URL retention. A malformed intent or changed required bytes keeps the
+old frozen route and record. Retry through the production workflow after
+repair; do not restart the old controller under new routing. The final audit
+record and a fresh strict probe, followed by dual-origin HTTP checks, are the
+handoff authority even if `current` changed during the old-controller stop.
 The audit verifies every unmarked current WebP against manifest size, filename
 fingerprint, and committed hash before selecting one media URL. If no unmarked
 current image exists, including an empty release or one whose only image was

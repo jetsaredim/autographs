@@ -294,6 +294,11 @@ or `/manifest.json` when the current release is empty or every active image is
 exactly marked. Verify-only and mutating unfreeze require 200 for the selected
 path and 404 for every persistent marker on public and preview origins, before
 and after the Caddy restart; unmarked byte corruption keeps the gate frozen.
+Pre-stop checks prove only frozen document availability and publish denial;
+a pending publication intent is reconciled after verified old-process exit.
+The final pointer, history, marker inventory, selected probe, and dual-origin
+responses decide whether deployment may proceed. Repair an invalid intent
+under the frozen gate and use the production retry workflow.
 Keep the history namespace, migration marker, shared media,
 releases, pointer, and tombstones in the same backup set. Do not deploy with
 `autographs_deploy_publish_frozen=false` to bypass it.

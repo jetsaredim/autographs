@@ -186,7 +186,17 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 """))
             podman.chmod(0o755)
             systemctl = root / "bin/systemctl"
-            systemctl.write_text("#!/bin/sh\nprintf 'inactive\\n'\n")
+            systemctl.write_text(textwrap.dedent("""\
+                #!/usr/bin/env python3
+                import os, pathlib, sys
+                if sys.argv[1:3] == ['is-active', 'autographs-controller.service']:
+                    release = os.environ.get('FIXTURE_POINTER_AFTER_STOP')
+                    if release:
+                        pointer = pathlib.Path(os.environ['FIXTURE_STATIC']) / 'current'
+                        pointer.unlink()
+                        pointer.symlink_to('releases/' + release)
+                print('inactive')
+                """))
             systemctl.chmod(0o755)
             timedatectl = root / "bin/timedatectl"
             timedatectl.write_text("#!/bin/sh\nprintf 'yes\\n'\n")
@@ -249,11 +259,12 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                                            json.dumps({**variables, "autographs_publish_unfreeze_verify_only": verify_only})],
                                           capture_output=True, text=True, check=False, env=invocation_env)
 
-                def invoke_preflight():
+                def invoke_preflight(pointer_after_stop: str = ""):
                     return subprocess.run(["ansible-playbook", "-i", str(inventory),
                                            str(PLAYBOOKS / "publish-freeze-preflight.yml"),
                                            "--extra-vars", json.dumps(variables)],
-                                          capture_output=True, text=True, check=False, env=env)
+                                          capture_output=True, text=True, check=False,
+                                          env={**env, "FIXTURE_POINTER_AFTER_STOP": pointer_after_stop})
 
                 def invoke_role_reaudit():
                     return subprocess.run(["ansible-playbook", "-i", str(inventory),
@@ -352,6 +363,11 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
 
+                def retain_current_media(path: str):
+                    target = fixture.static / path
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(fixture.static / "current" / path, target)
+
                 def prove_frozen_deploy(expected_kind: str):
                     before = fixture.record.read_bytes()
                     preflight_result = invoke_preflight()
@@ -430,6 +446,157 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 prove_frozen_deploy("document")
                 prove_unfreeze("manifest.json", [relative, bad])
                 self.assertIn("HTTP_STATUS=200", origin("/" + good))
+
+                # A durable before-pointer intent is diagnostic at pre-stop. Under the
+                # old current-only route even a stray candidate shared file stays 404.
+                refreeze()
+                pending_old = media_path("pending-old")
+                fixture.promote("pending-old", pending_old, after_pointer=False)
+                self.assertNotEqual(fixture.probe().returncode, 0)
+                candidate_shared = fixture.static / pending_old
+                candidate_shared.parent.mkdir(parents=True, exist_ok=True)
+                candidate_shared.write_bytes(PAYLOAD)
+                current_only = frozen_config.replace(
+                    "root * /srv/autographs/static\n\t\t\ttry_files {path} /current{path}",
+                    "root * /srv/autographs/static/current",
+                )
+                self.assertNotEqual(current_only, frozen_config)
+                (caddy_dir / "Caddyfile").write_text(current_only)
+                reload_result = subprocess.run(
+                    ["docker", "exec", container, "caddy", "reload", "--config", "/etc/caddy/Caddyfile"],
+                    capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(reload_result.returncode, 0, reload_result.stderr)
+                self.assertIn("HTTP_STATUS=404", origin("/" + pending_old))
+                before_pointer = invoke_preflight()
+                self.assertEqual(before_pointer.returncode, 0, before_pointer.stdout + before_pointer.stderr)
+                self.assertIn("Record pending publication intent before process exit for diagnostics only", before_pointer.stdout)
+                self.assertFalse((fixture.static / ".media-commit-history/intent.json").exists())
+                self.assertEqual((fixture.static / "current").readlink(), Path("releases/active"))
+                self.assertEqual(json.loads((fixture.static / ".media-commit-history/history.json").read_text())["current_release_id"], "active")
+                self.assertFalse(candidate_shared.exists())
+                self.assertTrue((fixture.quarantine / pending_old).exists())
+                self.assertIn("HTTP_STATUS=404", origin("/" + pending_old))
+                (caddy_dir / "Caddyfile").write_text(frozen_config)
+                reload_result = subprocess.run(
+                    ["docker", "exec", container, "caddy", "reload", "--config", "/etc/caddy/Caddyfile"],
+                    capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(reload_result.returncode, 0, reload_result.stderr)
+                role_result = invoke_role_reaudit()
+                self.assertEqual(role_result.returncode, 0, role_result.stdout + role_result.stderr)
+                prove_unfreeze("manifest.json", [relative, bad, pending_old])
+
+                # A pointer-first commit is finalized only after old-process exit.
+                refreeze()
+                pending_new = media_path("pending-new")
+                fixture.promote("pending-new", pending_new, after_pointer=True)
+                self.assertNotEqual(fixture.probe().returncode, 0)
+                self.assertIn("HTTP_STATUS=200", origin("/manifest.json"))
+                after_pointer = invoke_preflight()
+                self.assertEqual(after_pointer.returncode, 0, after_pointer.stdout + after_pointer.stderr)
+                self.assertFalse((fixture.static / ".media-commit-history/intent.json").exists())
+                history = json.loads((fixture.static / ".media-commit-history/history.json").read_text())
+                self.assertEqual(history["current_release_id"], "pending-new")
+                self.assertIsNotNone(history["releases"]["active"]["last_active_end"])
+                self.assertIn("HTTP_STATUS=200", origin("/" + pending_new))
+                self.assertIn("HTTP_STATUS=200", origin("/" + good))
+                self.assertIn("HTTP_STATUS=404", origin("/" + relative))
+                role_result = invoke_role_reaudit()
+                self.assertEqual(role_result.returncode, 0, role_result.stdout + role_result.stderr)
+                prove_unfreeze(pending_new, [relative, bad])
+
+                # The old process may advance the pointer after the early document
+                # read. The stop adapter changes only that pointer at the exit seam.
+                refreeze()
+                retain_current_media(pending_new)
+                pending_stop = media_path("pending-stop")
+                fixture.promote("pending-stop", pending_stop, after_pointer=False)
+                self.assertNotEqual(fixture.probe().returncode, 0)
+                during_stop = invoke_preflight(pointer_after_stop="pending-stop")
+                self.assertEqual(during_stop.returncode, 0, during_stop.stdout + during_stop.stderr)
+                self.assertEqual((fixture.static / "current").readlink(), Path("releases/pending-stop"))
+                self.assertFalse((fixture.static / ".media-commit-history/intent.json").exists())
+                self.assertEqual(json.loads((fixture.static / ".media-commit-history/history.json").read_text())["current_release_id"], "pending-stop")
+                self.assertIn("HTTP_STATUS=200", origin("/" + pending_stop))
+                self.assertIn("HTTP_STATUS=200", origin("/" + pending_new))
+                role_result = invoke_role_reaudit()
+                self.assertEqual(role_result.returncode, 0, role_result.stdout + role_result.stderr)
+                prove_unfreeze(pending_stop, [relative, bad])
+
+                # Invalid intent is allowed through only the early document check;
+                # the post-exit reconciler must keep the old route and record.
+                refreeze()
+                self.assertEqual(fixture.audit().returncode, 0)
+                prior_record = fixture.record.read_bytes()
+                intent_path = fixture.static / ".media-commit-history/intent.json"
+                intent_path.write_text("{malformed")
+                malformed = invoke_preflight()
+                self.assertNotEqual(malformed.returncode, 0, malformed.stdout + malformed.stderr)
+                self.assertEqual(fixture.record.read_bytes(), prior_record)
+                self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+                self.assertIn("HTTP_STATUS=200", origin("/manifest.json"))
+                intent_path.unlink()
+
+                wrong_path = media_path("wrong-target")
+                fixture.promote("wrong-target", wrong_path, after_pointer=False)
+                stray = fixture.static / "releases/stray"
+                stray.mkdir()
+                (stray / "manifest.json").write_text(json.dumps({"release_id": "stray", "artifacts": []}))
+                (fixture.static / "current").unlink()
+                (fixture.static / "current").symlink_to("releases/stray")
+                wrong_pointer = invoke_preflight()
+                self.assertNotEqual(wrong_pointer.returncode, 0, wrong_pointer.stdout + wrong_pointer.stderr)
+                self.assertEqual(fixture.record.read_bytes(), prior_record)
+                self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+                (fixture.static / "current").unlink()
+                (fixture.static / "current").symlink_to("releases/pending-stop")
+                intent_path.unlink()
+
+                retain_current_media(pending_stop)
+                changed_path = media_path("changed-hash")
+                fixture.promote("changed-hash", changed_path, after_pointer=True)
+                changed_manifest = fixture.static / "releases/changed-hash/manifest.json"
+                original_manifest = changed_manifest.read_bytes()
+                changed_manifest.write_bytes(original_manifest + b"\n")
+                altered_hash = invoke_preflight()
+                self.assertNotEqual(altered_hash.returncode, 0, altered_hash.stdout + altered_hash.stderr)
+                self.assertEqual(fixture.record.read_bytes(), prior_record)
+                self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+                changed_manifest.write_bytes(original_manifest)
+                retry = invoke_preflight()
+                self.assertEqual(retry.returncode, 0, retry.stdout + retry.stderr)
+                role_result = invoke_role_reaudit()
+                self.assertEqual(role_result.returncode, 0, role_result.stdout + role_result.stderr)
+                prove_unfreeze(changed_path, [relative, bad])
+
+                refreeze()
+                self.assertEqual(fixture.audit().returncode, 0)
+                missing_record = fixture.record.read_bytes()
+                retain_current_media(changed_path)
+                missing_path = media_path("missing-byte")
+                fixture.promote("missing-byte", missing_path, after_pointer=True)
+                missing_file = fixture.static / "releases/missing-byte" / missing_path
+                missing_file.unlink()
+                missing_byte = invoke_preflight()
+                self.assertNotEqual(missing_byte.returncode, 0, missing_byte.stdout + missing_byte.stderr)
+                self.assertEqual(fixture.record.read_bytes(), missing_record)
+                self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+                missing_file.write_bytes(PAYLOAD)
+                retry = invoke_preflight()
+                self.assertEqual(retry.returncode, 0, retry.stdout + retry.stderr)
+                final_record = fixture.record.read_bytes()
+                (fixture.static / "current").unlink()
+                (fixture.static / "current").symlink_to("releases/changed-hash")
+                drifted_pointer = invoke_role_reaudit()
+                self.assertNotEqual(drifted_pointer.returncode, 0, drifted_pointer.stdout + drifted_pointer.stderr)
+                self.assertEqual(fixture.record.read_bytes(), final_record)
+                self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+                (fixture.static / "current").unlink()
+                (fixture.static / "current").symlink_to("releases/missing-byte")
+                role_result = invoke_role_reaudit()
+                self.assertEqual(role_result.returncode, 0, role_result.stdout + role_result.stderr)
+                prove_unfreeze(missing_path, [relative, bad])
             finally:
                 if started:
                     subprocess.run(["docker", "stop", container], capture_output=True, check=False)
@@ -670,6 +837,41 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
             self.assertFalse((fixture.static / ".media-commit-history/intent.json").exists())
             self.assertTrue((fixture.static / old).exists())
             self.assertEqual(fixture.audit().returncode, 0)
+
+    def test_pending_intent_stays_strict_until_post_exit_reconciliation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = MediaAuditFixture(Path(temporary))
+            old, abandoned, committed = (
+                media_path("old"), media_path("abandoned"), media_path("committed")
+            )
+            fixture.add_release_media(fixture.current, old)
+            self.assertEqual(fixture.audit("--initial-cutover", "--old-route-current-only").returncode, 0)
+
+            fixture.promote("abandoned", abandoned, after_pointer=False)
+            candidate_shared = fixture.static / abandoned
+            candidate_shared.parent.mkdir(parents=True, exist_ok=True)
+            candidate_shared.write_bytes(PAYLOAD)
+            self.assertNotEqual(fixture.probe().returncode, 0)
+            before = fixture.audit("--frozen-exit-proved")
+            self.assertEqual(before.returncode, 0, before.stderr)
+            self.assertFalse((fixture.static / ".media-commit-history/intent.json").exists())
+            self.assertTrue((fixture.quarantine / abandoned).is_file())
+            self.assertFalse(candidate_shared.exists())
+            self.assertEqual(json.loads((fixture.static / ".media-commit-history/history.json").read_text())["current_release_id"], "active")
+
+            fixture.promote("committed", committed, after_pointer=False)
+            self.assertNotEqual(fixture.probe().returncode, 0)
+            (fixture.static / "current").unlink()
+            (fixture.static / "current").symlink_to("releases/committed")
+            self.assertNotEqual(fixture.probe().returncode, 0)
+            after = fixture.audit("--frozen-exit-proved")
+            self.assertEqual(after.returncode, 0, after.stderr)
+            history = json.loads((fixture.static / ".media-commit-history/history.json").read_text())
+            self.assertEqual(history["current_release_id"], "committed")
+            self.assertIsNotNone(history["releases"]["active"]["last_active_end"])
+            self.assertTrue((fixture.static / old).is_file())
+            self.assertFalse((fixture.static / ".media-commit-history/intent.json").exists())
+            self.assertEqual(fixture.probe().returncode, 0)
 
     def test_preexisting_and_stop_time_candidate_bytes_are_quarantined(self):
         with tempfile.TemporaryDirectory() as temporary:
