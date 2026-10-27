@@ -1,9 +1,9 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-27T02:33:14Z
+reviewed: 2026-10-27T09:39:17Z
 depth: deep
-review_round: 4
-files_reviewed: 37
+review_round: 5
+files_reviewed: 38
 files_reviewed_list:
   - .github/workflows/ci.yml
   - .github/workflows/deploy.yml
@@ -35,6 +35,7 @@ files_reviewed_list:
   - deploy/ansible/roles/autographs_deploy/defaults/main.yml
   - deploy/ansible/roles/autographs_deploy/files/Caddyfile
   - deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py
+  - deploy/ansible/roles/autographs_deploy/files/static_release_rollback.py
   - deploy/ansible/roles/autographs_deploy/handlers/main.yml
   - deploy/ansible/roles/autographs_deploy/tasks/main.yml
   - deploy/ansible/roles/autographs_deploy/tasks/publish_freeze.yml
@@ -43,14 +44,14 @@ files_reviewed_list:
   - docs/deployment-runbook.md
   - scripts/verify-caddy-media-origin.sh
 findings:
-  critical: 1
+  critical: 0
   warning: 1
   info: 0
-  total: 2
+  total: 1
 status: issues_found
 convergence:
   status: reassessment_required
-  recurring_critical_warning: 2
+  recurring_critical_warning: 1
   scope_expansion: false
   requires_reassessment: true
   assumptions_evidence: null
@@ -282,3 +283,58 @@ _Reviewer: GSD code reviewer; review round 1._
 **Revised plan requirements:** Add a durable, auditable committed-media history for postcutover publishes or an equivalent authoritative source that the preflight can verify before moving shared files. Preserve the strict first-cutover ambiguity stop. Make active verification marker-aware and never restore a marked URL. Recheck preflight and role reaudit on successive successful publishes, retained-release pruning, rollback, emergency active removal, failure, and retry. The revised plan must include public/preview origin-miss checks for old and marked URLs.
 
 **Resume criteria:** Independently revise and review assumptions and implementation plan for both failures and all sibling paths above; record those evidence references in the convergence artifact before changing its status to `ready_to_resume`. Keep the review findings and fixes linked in PR #294. A status-only transition is invalid.
+
+## Round 5 Review — 67af9cf
+
+**Reviewed:** 2026-10-27T09:39:17Z
+**Status:** issues_found; zero Blockers and one Warning. The reviewed round-4 reassessment authorized this implementation round. The new Warning requires renewed convergence reassessment before another point fix.
+
+### Prior finding disposition
+
+- `CR-01` and `CR-04` (`fingerprinted_media_release_lifetime`): Versioned committed-release receipts now prove old URLs across later deployment audits. The publisher retains verified history, and the audit distinguishes committed retained bytes from candidate-only files. The local publisher, audit, and real Caddy origin tests pass successive publish, old-URL origin miss, rollback, and pruning cases. Resolved in reviewed source; credentialed production proof remains outstanding.
+- `WR-01` (`derivative_cache_metadata_dimensions`): Decoded WebP dimension verification remains in place and its regression passes. Resolved.
+- `CR-02` and `CR-03` (`candidate_media_precommit_exposure`): Pointer-first visibility, old-controller process exit, frozen deployment ordering, and explicit unfreeze gating remain in source and production-shaped local tests. Resolved for the reviewed local paths.
+- `WR-02` and `WR-03` (`emergency_media_takedown_retention`): The audit now permits exact-marked active files to be absent; Caddy denies marked public and preview paths, and the regression passes. `WR-04` below is an unfreeze consumer of the same valid state.
+
+### WR-04: Explicit unfreeze rejects a release with no unmarked active image
+
+**Severity:** WARNING
+**File:** `deploy/ansible/playbooks/publish-unfreeze.yml:180`
+**Finding family:** `emergency_media_takedown_retention`
+**Prior family IDs:** `WR-02`, `WR-03`
+**Lineage:** `sibling_path_miss`
+**Shared invariant:** An exact-marked active deletion may leave no anonymously available active image, yet a healthy frozen deployment must be able to prove the current document, verify marked URLs remain denied, and explicitly unfreeze.
+**Consumers inspected:** Emergency marker writer and Caddy deny routes; publisher marked-media validation and pruning; audit active receipt and `active_probe` record; preflight's `manifest.json` fallback; role reaudit; unfreeze's public and preview probes; rollback helper; Python, Cargo, Ansible, and origin tests.
+**Evidence level:** `source_only` for the unfreeze control-flow failure; `deterministic_test` for valid marked deletion in the audit and real Caddy fixture.
+**PR comment:** https://github.com/jetsaredim/autographs/pull/294#discussion_r4387116272
+**Issue:** The audit writes `active_probe: ""` when every active media path is marked. Preflight correctly probes `manifest.json` in that state. Unfreeze's Jinja `default(...)` preserves the defined empty string, then asserts a WebP path and stops. A fallback to the first manifest media path alone would select a marked 404 URL. Thus a sole-image emergency removal, or an empty current release, can pass preflight and reaudit but leave the healthy deployment permanently frozen.
+**Fix:** Apply the same public-document fallback at explicit unfreeze, retain 200 checks for both origin routes when an unmarked image exists, and prove marked paths stay 404. Add a production-shaped full preflight, reaudit, and unfreeze test with the sole active image marked and deleted.
+
+### Verification performed in round 5
+
+- `python3 -m unittest deploy/ansible/tests/test_publish_freeze_deploy.py`: 14 tests passed, including retained history, intent/pointer recovery, initial cutover ambiguity, marker-aware deletion, and rollback paths. The suite does not exercise full unfreeze with every active image marked.
+- `cargo test --manifest-path controller/Cargo.toml --test publisher --test caddy_static_routes --test static_contract --quiet`: 49 publisher, 9 Caddy, and 4 static-contract tests passed.
+- Ansible syntax checks for deploy, preflight, unfreeze, and rollback playbooks passed. The production-shaped `publish-freeze-deploy-test.yml` passed.
+- `bash scripts/verify-caddy-media-origin.sh` passed against containerized Caddy: old committed A remains 200 after B and subsequent audit, rollback A/B origin misses return 200, tombstoned and marked active media return 404, history and marker files stay private, and frozen/unfrozen routes return the expected statuses. The fixture does not run the unfreeze playbook in the all-marked state.
+- No credentialed live Oracle, OCI, production Caddy, or Cloudflare run was performed.
+
+## Round 5 Convergence Reassessment
+
+**Finding lineage:** The round-4 `CR-04` and `WR-03` defects are resolved by the reviewed history journal, marker-aware audit, and release rollback contract. `WR-04` is a sibling-path miss of the same `emergency_media_takedown_retention` family as `WR-02` and `WR-03`: the audit and preflight accept a marked/deleted active image, but explicit unfreeze still requires an image 200. Because a recurring Warning remains, `convergence.status` is `reassessment_required`; further point fixes need revised assumptions and reviewed plan evidence.
+
+**Shared invariants:** Candidate-only paths remain private until pointer commit; committed URLs stay fetchable through publication, later audit, rollback, and bounded retention; exact-marked URLs stay denied and their missing bytes do not block release maintenance; deployment remains frozen until process provenance, static/current integrity, and origin readiness are proved; origin readiness must be provable even when no active media is publicly fetchable.
+
+**Consumer inventory:** Source originals and derivative cache; candidate receipts; commit intent, pointer, history reconciliation, and publication status; retained shared URLs and last-active pruning; rollback helper and marker-aware emergency removal; Caddy shared/current and marker routes; initial cutover inventory, old process exit, quarantine, and history migration; later preflight and role reaudit; release workflow, frozen Caddy/controller ordering, and explicit unfreeze public/preview probes; Cargo, Python, Ansible, Caddy origin, and credentialed live tests.
+
+**Assumption audit:** The round-4 revision correctly made active receipt verification marker-aware and selected a document probe in preflight when no unmarked image exists. It assumed explicit unfreeze would use the same state-aware probe. The stored `active_probe` is intentionally empty in that state; Jinja's `default` filter does not replace a defined empty string without its truthy argument. A first manifest image is not a safe substitute because it may be the marked URL that must return 404.
+
+| Failure point | Current effect | Required behavior |
+| --- | --- | --- |
+| Exact marker protects the sole active image and its bytes are deleted | Audit, preflight, and role reaudit accept; unfreeze asserts nonempty WebP and stops | Probe a public document on both origins, verify marker denial, then permit explicit unfreeze |
+| Active release has no images | Audit records an empty active probe; unfreeze stops | Use a document probe and complete readiness proof |
+| Active release contains both unmarked and marked images | Unmarked image is selected; current local checks pass | Keep unmarked 200 and marked 404 proofs through unfreeze |
+| Rollback selects a release whose images are all marked | Pointer and history recovery can complete; next unfreeze fails | Apply the same state-aware readiness rule after rollback |
+
+**Revised plan requirements:** Treat active readiness as a document-or-unmarked-media choice shared by preflight, role reaudit, and unfreeze. Specify how public and preview origin probes prove 200 for a safe current artifact and 404 for every relevant exact-marked URL. Cover empty releases, sole-image takedown, mixed marked/unmarked media, and rollback to an all-marked release in the production-shaped playbook test; preserve fail-closed behavior for missing unmarked bytes and unproven retained history.
+
+**Resume criteria:** Revise assumptions and implementation plan for this complete probe contract, obtain independent plan review, and record those evidence paths in the convergence artifact before changing status to `ready_to_resume` or starting another coder point fix. The posted `WR-04` PR comment and this report retain the finding lineage.

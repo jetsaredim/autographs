@@ -2,12 +2,12 @@
 phase: 08-admin-media-review-and-operational-posture
 pr: 294
 trigger_review: 08-07-PR-294-REVIEW.md
-review_round: 4
+review_round: 5
 status: ready_to_resume
 assumption_revision_evidence: 08-PR-294-ASSUMPTIONS.md
 implementation_plan_evidence: 08-PR-294-CONTRACT-REVISION.md
-implementation_plan_review_evidence: 08-PR-294-CONTRACT-PLAN-REVIEW.md#round-4-first-cutover-revision--verification-passed
-next_review_round: 5
+implementation_plan_review_evidence: 08-PR-294-CONTRACT-PLAN-REVIEW.md#round-5-wr-04-plan-review--verification-passed
+next_review_round: 6
 ---
 
 # PR 294 convergence reassessment
@@ -29,3 +29,7 @@ The revised `08-PR-294-CONTRACT-REVISION.md` section 4 specifies the actual work
 Round 4 found `CR-04` (a later-deploy consumer of the committed URL lifetime invariant) and `WR-03` (a deployment-audit consumer of the emergency marker invariant). The review report records the lineage, complete consumer inventory, assumption audit, failure matrix, and resume criteria in `08-07-PR-294-REVIEW.md#round-4-convergence-reassessment`.
 
 The revised `08-PR-294-ASSUMPTIONS.md` distinguishes first-cutover ambiguity from later committed history and permits an intentionally absent active file under a validated exact marker. `08-PR-294-CONTRACT-REVISION.md` section 5 defines recoverable pointer intent/history, a non-mutating initial inventory with a conservative retention wait when pruned-release evidence is unavailable, history-backed later audits, marker-aware validation, and rollback/pruning consumers. The independent plan review first found an unproven pruned-release path, then approved the revised first-cutover stop and wait in `08-PR-294-CONTRACT-PLAN-REVIEW.md#round-4-first-cutover-revision--verification-passed`. Those three evidence paths were checked before `ready_to_resume` was restored. Coder work may now follow section 5 as one publication-history contract change; deployment and CDN proof remain separate Wave 8 gates.
+
+## Round 5 renewed reassessment and resume evidence
+
+Round 5 found `WR-04`, a sibling unfreeze consumer of the emergency marker contract. The review report records the finding lineage, shared invariant, consumer inventory, assumption audit, failure matrix, and resume criteria in `08-07-PR-294-REVIEW.md#round-5-convergence-reassessment`. `08-PR-294-ASSUMPTIONS.md` now defines readiness when a valid release has no unmarked active image. `08-PR-294-CONTRACT-REVISION.md` section 6 specifies one validated media-or-document probe for preflight, role reaudit, and both unfreeze modes, plus dual-origin marker denial and actual unfreeze execution tests. Independent approval is recorded in `08-PR-294-CONTRACT-PLAN-REVIEW.md#round-5-wr-04-plan-review--verification-passed`. These three evidence paths were reviewed before restoring `ready_to_resume`; coder work may now implement section 6 without weakening the existing history and marker gates.
