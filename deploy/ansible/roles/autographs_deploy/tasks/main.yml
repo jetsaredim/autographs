@@ -462,6 +462,7 @@
       cutover.
 
 - name: Read current release pointer after preflight
+  tags: [publish_reaudit]
   ansible.builtin.command:
     argv:
       - readlink
@@ -471,6 +472,7 @@
   when: not autographs_deploy_freeze_record.bootstrap
 
 - name: Require preflight current pointer remains unchanged
+  tags: [publish_reaudit]
   ansible.builtin.assert:
     that:
       - autographs_deploy_current_pointer.stdout | trim == autographs_deploy_freeze_record.current_target
@@ -478,10 +480,11 @@
   when: not autographs_deploy_freeze_record.bootstrap
 
 - name: Reaudit shared media before copying new Caddy routing
+  tags: [publish_reaudit]
   ansible.builtin.command:
     argv:
       - python3
-      - /opt/autographs/private/publish_freeze_audit.py
+      - "{{ autographs_deploy_publish_audit_script_path | default('/opt/autographs/private/publish_freeze_audit.py') }}"
       - --static-root
       - "{{ autographs_deploy_static_volume.stdout | trim }}"
       - --quarantine
@@ -500,17 +503,20 @@
   when: not autographs_deploy_freeze_record.bootstrap
 
 - name: Read refreshed frozen publication audit
+  tags: [publish_reaudit]
   ansible.builtin.slurp:
     src: "{{ autographs_deploy_publish_freeze_record_path }}"
   register: autographs_deploy_refreshed_record_file
   when: not autographs_deploy_freeze_record.bootstrap
 
 - name: Resolve refreshed publication and marker inventory
+  tags: [publish_reaudit]
   ansible.builtin.set_fact:
     autographs_deploy_refreshed_record: "{{ autographs_deploy_refreshed_record_file.content | b64decode | from_json }}"
   when: not autographs_deploy_freeze_record.bootstrap
 
 - name: Require unchanged committed release through role reaudit
+  tags: [publish_reaudit]
   ansible.builtin.assert:
     that:
       - autographs_deploy_refreshed_record.current_target == autographs_deploy_freeze_record.current_target
@@ -524,6 +530,7 @@
   when: not autographs_deploy_freeze_record.bootstrap
 
 - name: Prove newly marked URLs remain denied at both origins
+  tags: [publish_reaudit]
   ansible.builtin.command:
     argv:
       - curl
@@ -546,6 +553,7 @@
   when: not autographs_deploy_freeze_record.bootstrap
 
 - name: Require dual-origin denial for changed marker inventory
+  tags: [publish_reaudit]
   ansible.builtin.assert:
     that:
       - autographs_deploy_new_marker_origin.results | map(attribute='stdout') | list | difference(['404']) | length == 0
@@ -784,12 +792,29 @@
       - (autographs_deploy_cutover_health.stdout | from_json).release.controllerVersion == autographs_deploy_deployed_controller_version
 
 - name: Restart Caddy only after reviewed controller readiness
+  tags: [publish_reaudit]
   block:
+    - name: Restrict role adapter to the disposable local origin fixture
+      ansible.builtin.assert:
+        that:
+          - ansible_connection == 'local'
+          - autographs_deploy_domain == 'media-probe.invalid'
+          - autographs_deploy_caddy_path is match('^/tmp/autographs-unfreeze-[^/]+/caddy$')
+          - lookup('env', 'AUTOGRAPHS_PUBLISH_FIXTURE_MODE') == '1'
+      when: autographs_deploy_fixture_mode | default(false) | bool
+
     - name: Start new Caddy with managed frozen routes
       ansible.builtin.systemd:
         name: autographs-caddy.service
         state: restarted
         enabled: true
+      when: not autographs_deploy_fixture_mode | default(false) | bool
+
+    - name: Reload real fixture Caddy with managed frozen routes
+      ansible.builtin.command:
+        argv: [podman, exec, autographs-caddy, caddy, reload, --config, /etc/caddy/Caddyfile]
+      changed_when: true
+      when: autographs_deploy_fixture_mode | default(false) | bool
 
     - name: Validate running frozen Caddy configuration
       ansible.builtin.command:
@@ -852,7 +877,7 @@
             (['200'] + ['404'] * (autographs_deploy_refreshed_record.marker_paths | length)) * 2
       when: not autographs_deploy_freeze_record.bootstrap
 
-    - name: Require publish endpoints remain frozen after Caddy restart
+    - name: Recheck protected retained URL after Caddy restart
       ansible.builtin.command:
         argv:
           - curl
@@ -861,6 +886,39 @@
           - /dev/null
           - --write-out
           - "%{http_code}"
+          - --noproxy
+          - "*"
+          - --resolve
+          - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+          - >-
+            {{ ('https://' + autographs_deploy_domain) if item == 'public'
+            else 'http://127.0.0.1:8081' }}/{{ autographs_deploy_refreshed_record.retained_probe }}
+      loop: [public, preview]
+      register: autographs_deploy_postcutover_retained
+      changed_when: false
+      when:
+        - not autographs_deploy_freeze_record.bootstrap
+        - autographs_deploy_refreshed_record.retained_probe | length > 0
+
+    - name: Require protected retained URL reachable after Caddy restart
+      ansible.builtin.assert:
+        that:
+          - autographs_deploy_postcutover_retained.results | map(attribute='stdout') | list == ['200', '200']
+      when:
+        - not autographs_deploy_freeze_record.bootstrap
+        - autographs_deploy_refreshed_record.retained_probe | length > 0
+
+    - name: Require publish endpoints remain frozen after Caddy restart
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --dump-header
+          - '-'
+          - --output
+          - /dev/null
+          - --write-out
+          - "HTTP_STATUS=%{http_code}"
           - --noproxy
           - "*"
           - --resolve
@@ -875,15 +933,20 @@
     - name: Require both publish routes returned 503
       ansible.builtin.assert:
         that:
-          - autographs_deploy_postcutover_publish.results | map(attribute='stdout') | list == ['503', '503']
+          - >-
+            autographs_deploy_postcutover_publish.results | map(attribute='stdout') | map('lower') |
+            select('search', 'http_status=503') | list | length == 2
+          - >-
+            autographs_deploy_postcutover_publish.results | map(attribute='stdout') | map('lower') |
+            select('search', 'cache-control: no-store') | list | length == 2
   rescue:
     - name: Restore the old frozen Caddyfile after failed route cutover
       ansible.builtin.copy:
         src: "{{ autographs_deploy_old_frozen_caddyfile_path }}"
         dest: "{{ autographs_deploy_caddy_path }}/Caddyfile"
         remote_src: true
-        owner: root
-        group: root
+        owner: "{{ autographs_deploy_file_owner | default('root') }}"
+        group: "{{ autographs_deploy_file_group | default('root') }}"
         mode: "0644"
       when: not autographs_deploy_freeze_record.bootstrap
 
@@ -891,7 +954,15 @@
       ansible.builtin.systemd:
         name: autographs-caddy.service
         state: restarted
-      when: not autographs_deploy_freeze_record.bootstrap
+      when:
+        - not autographs_deploy_freeze_record.bootstrap
+        - not autographs_deploy_fixture_mode | default(false) | bool
+
+    - name: Reload real fixture Caddy after route failure
+      ansible.builtin.command:
+        argv: [podman, exec, autographs-caddy, caddy, reload, --config, /etc/caddy/Caddyfile]
+      changed_when: true
+      when: autographs_deploy_fixture_mode | default(false) | bool
 
     - name: Fail deployment while preserving the freeze record
       ansible.builtin.fail:

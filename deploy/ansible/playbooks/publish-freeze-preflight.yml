@@ -9,7 +9,21 @@
     legacy_wait_record_path: /opt/autographs/private/media-legacy-wait.json
     caddyfile_path: /opt/autographs/caddy/Caddyfile
     caddy_quadlet_path: /etc/containers/systemd/autographs-caddy.container
+    audit_script_path: /opt/autographs/private/publish_freeze_audit.py
+    rollback_script_path: /opt/autographs/private/static_release_rollback.py
+    autographs_publish_file_owner: root
+    autographs_publish_file_group: root
+    autographs_publish_freeze_fixture_mode: false
   pre_tasks:
+    - name: Restrict preflight adapter to the disposable local origin fixture
+      ansible.builtin.assert:
+        that:
+          - ansible_connection == 'local'
+          - autographs_deploy_domain == 'media-probe.invalid'
+          - caddyfile_path is match('^/tmp/autographs-unfreeze-[^/]+/caddy/Caddyfile$')
+          - lookup('env', 'AUTOGRAPHS_PUBLISH_FIXTURE_MODE') == '1'
+      when: autographs_publish_freeze_fixture_mode | bool
+
     - name: Wait for runtime SSH readiness
       ansible.builtin.wait_for_connection:
         timeout: 900
@@ -40,8 +54,8 @@
       ansible.builtin.file:
         path: "{{ freeze_record_path | dirname }}"
         state: directory
-        owner: root
-        group: root
+        owner: "{{ autographs_publish_file_owner }}"
+        group: "{{ autographs_publish_file_group }}"
         mode: "0700"
 
     - name: Check for a controller service on fresh-VM bootstrap
@@ -100,8 +114,8 @@
             'bootstrap': true
           } | to_nice_json }}
         dest: "{{ freeze_record_path }}"
-        owner: root
-        group: root
+        owner: "{{ autographs_publish_file_owner }}"
+        group: "{{ autographs_publish_file_group }}"
         mode: "0600"
       when: not freeze_existing_files.results[0].stat.exists
 
@@ -127,8 +141,8 @@
             src: "{{ caddyfile_path }}"
             dest: "{{ frozen_backup_path }}"
             remote_src: true
-            owner: root
-            group: root
+            owner: "{{ autographs_publish_file_owner }}"
+            group: "{{ autographs_publish_file_group }}"
             mode: "0600"
 
         - name: Remove controller ordering from live Caddy quadlet
@@ -151,11 +165,19 @@
         - name: Reload systemd after live Caddy decoupling
           ansible.builtin.systemd:
             daemon_reload: true
+          when: not autographs_publish_freeze_fixture_mode | bool
 
         - name: Restart old Caddy under its frozen configuration
           ansible.builtin.systemd:
             name: autographs-caddy.service
             state: restarted
+          when: not autographs_publish_freeze_fixture_mode | bool
+
+        - name: Reload real fixture Caddy under its frozen configuration
+          ansible.builtin.command:
+            argv: [podman, exec, autographs-caddy, caddy, reload, --config, /etc/caddy/Caddyfile]
+          changed_when: true
+          when: autographs_publish_freeze_fixture_mode | bool
 
         - name: Inspect static volume mountpoint
           ansible.builtin.command:
@@ -195,17 +217,17 @@
         - name: Install protected shared-media audit helper
           ansible.builtin.copy:
             src: ../roles/autographs_deploy/files/publish_freeze_audit.py
-            dest: /opt/autographs/private/publish_freeze_audit.py
-            owner: root
-            group: root
+            dest: "{{ audit_script_path }}"
+            owner: "{{ autographs_publish_file_owner }}"
+            group: "{{ autographs_publish_file_group }}"
             mode: "0700"
 
         - name: Install protected journaled static rollback helper
           ansible.builtin.copy:
             src: ../roles/autographs_deploy/files/static_release_rollback.py
-            dest: /opt/autographs/private/static_release_rollback.py
-            owner: root
-            group: root
+            dest: "{{ rollback_script_path }}"
+            owner: "{{ autographs_publish_file_owner }}"
+            group: "{{ autographs_publish_file_group }}"
             mode: "0700"
 
         - name: Inspect legacy exact-marker directory
@@ -279,7 +301,7 @@
           ansible.builtin.command:
             argv:
               - python3
-              - /opt/autographs/private/publish_freeze_audit.py
+              - "{{ audit_script_path }}"
               - --static-root
               - "{{ freeze_static_mount.stdout | trim }}"
               - --quarantine
@@ -309,7 +331,7 @@
           ansible.builtin.command:
             argv:
               - python3
-              - /opt/autographs/private/publish_freeze_audit.py
+              - "{{ audit_script_path }}"
               - --static-root
               - "{{ freeze_static_mount.stdout | trim }}"
               - --probe-only
@@ -391,6 +413,13 @@
           ansible.builtin.systemd:
             name: autographs-controller.service
             state: stopped
+          when: not autographs_publish_freeze_fixture_mode | bool
+
+        - name: Simulate old-controller stop only in disposable fixture
+          ansible.builtin.command:
+            argv: [/usr/bin/true]
+          changed_when: true
+          when: autographs_publish_freeze_fixture_mode | bool
 
         - name: Wait for old controller unit to become inactive
           ansible.builtin.command:
@@ -497,8 +526,8 @@
                 'pointer': freeze_old_pointer.stdout | trim
               } | to_nice_json }}
             dest: "{{ legacy_wait_record_path }}"
-            owner: root
-            group: root
+            owner: "{{ autographs_publish_file_owner }}"
+            group: "{{ autographs_publish_file_group }}"
             mode: "0600"
           when: freeze_initial_cutover | bool
 
@@ -524,7 +553,7 @@
             - /admin/api/publish/full
             - /admin/api/publish/incremental
             - /manifest.json
-            - "/{{ freeze_current_media }}"
+            - "/{{ freeze_pre_stop_state.active_probe.path }}"
           register: freeze_after_stop_http
           changed_when: false
 
@@ -543,7 +572,7 @@
           ansible.builtin.command:
             argv:
               - python3
-              - /opt/autographs/private/publish_freeze_audit.py
+              - "{{ audit_script_path }}"
               - --static-root
               - "{{ freeze_static_mount.stdout | trim }}"
               - --quarantine
@@ -589,7 +618,7 @@
           ansible.builtin.command:
             argv:
               - python3
-              - /opt/autographs/private/publish_freeze_audit.py
+              - "{{ audit_script_path }}"
               - --static-root
               - "{{ freeze_static_mount.stdout | trim }}"
               - --quarantine

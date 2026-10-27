@@ -162,8 +162,15 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 args = sys.argv[1:]
                 if args[:2] == ['volume', 'inspect']:
                     print(os.environ['FIXTURE_STATIC'])
-                elif args[:2] == ['image', 'inspect'] or args[:1] == ['inspect']:
+                elif args[:2] == ['image', 'inspect']:
                     print('fixture-image')
+                elif args[:1] == ['inspect']:
+                    if '.State.Pid' in ' '.join(args):
+                        print('old-container 0')
+                    elif '.State.Running' in ' '.join(args):
+                        print('false')
+                    else:
+                        print('fixture-image')
                 elif args[:1] == ['exec']:
                     if args[2:5] == ['caddy', 'reload', '--config'] and os.environ.get('FIXTURE_BREAK_AFTER_UNFREEZE') == '1':
                         caddyfile = pathlib.Path(os.environ['FIXTURE_CADDYFILE'])
@@ -178,6 +185,14 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                     sys.exit('unsupported fixture podman call: ' + repr(args))
                 """))
             podman.chmod(0o755)
+            systemctl = root / "bin/systemctl"
+            systemctl.write_text("#!/bin/sh\nprintf 'inactive\\n'\n")
+            systemctl.chmod(0o755)
+            timedatectl = root / "bin/timedatectl"
+            timedatectl.write_text("#!/bin/sh\nprintf 'yes\\n'\n")
+            timedatectl.chmod(0o755)
+            quadlet = root / "autographs-caddy.container"
+            quadlet.write_text("[Unit]\nAfter=network-online.target autographs-controller.service\nWants=network-online.target autographs-controller.service\n")
             (root / "app.env").write_text("AUTOGRAPHS_CONTROLLER_IMAGE=ghcr.io/example/controller:v1.2.3\nAUTOGRAPHS_CONTROLLER_DIGEST=sha256:" + "a" * 64 + "\n")
             inventory = root / "inventory"
             inventory.write_text("[runtime]\nlocalhost ansible_connection=local ansible_become=false\n")
@@ -210,11 +225,20 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                             "ANSIBLE_LOCAL_TEMP": "/tmp/ansible-local", "ANSIBLE_REMOTE_TEMP": "/tmp/ansible-remote"})
                 variables = {"freeze_record_path": str(fixture.record), "caddyfile_path": str(caddy_dir / "Caddyfile"),
                              "frozen_stage_path": str(root / "frozen-stage"), "autographs_deploy_caddy_path": str(caddy_dir),
-                             "audit_script_path": str(AUDIT), "app_env_path": str(root / "app.env"),
+                             "frozen_backup_path": str(root / "private/old-frozen-Caddyfile"),
+                             "quarantine_path": str(fixture.quarantine), "legacy_wait_record_path": str(root / "private/legacy-wait.json"),
+                             "caddy_quadlet_path": str(quadlet),
+                             "fixture_static_root": str(fixture.static),
+                             "fixture_file_owner": str(os.getuid()),
+                             "fixture_file_group": str(os.getgid()),
+                             "audit_script_path": str(root / "private/publish_freeze_audit.py"),
+                             "rollback_script_path": str(root / "private/static_release_rollback.py"),
+                             "app_env_path": str(root / "app.env"),
                              "approved_digests_path": str(root / "approved-digests"),
                              "autographs_deploy_repo_version": "v1.2.3", "autographs_deploy_controller_digest": "sha256:" + "a" * 64,
                              "autographs_deploy_source_revision": "b" * 40, "autographs_deploy_domain": "media-probe.invalid",
                              "autographs_publish_unfreeze_fixture_mode": True,
+                             "autographs_publish_freeze_fixture_mode": True,
                              "autographs_publish_file_owner": str(os.getuid()),
                              "autographs_publish_file_group": str(os.getgid()), "ansible_become": False}
 
@@ -224,6 +248,18 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                                            str(PLAYBOOKS / "publish-unfreeze.yml"), "--extra-vars",
                                            json.dumps({**variables, "autographs_publish_unfreeze_verify_only": verify_only})],
                                           capture_output=True, text=True, check=False, env=invocation_env)
+
+                def invoke_preflight():
+                    return subprocess.run(["ansible-playbook", "-i", str(inventory),
+                                           str(PLAYBOOKS / "publish-freeze-preflight.yml"),
+                                           "--extra-vars", json.dumps(variables)],
+                                          capture_output=True, text=True, check=False, env=env)
+
+                def invoke_role_reaudit():
+                    return subprocess.run(["ansible-playbook", "-i", str(inventory),
+                                           str(PLAYBOOKS / "publish-freeze-role-reaudit-test.yml"),
+                                           "--tags", "publish_reaudit", "--extra-vars", json.dumps(variables)],
+                                          capture_output=True, text=True, check=False, env=env)
 
                 def origin(path: str, method: str = "GET") -> str:
                     for _ in range(20):
@@ -244,6 +280,17 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 frozen_post = origin("/admin/api/publish/full", "POST")
                 self.assertIn("HTTP_STATUS=503", frozen_post)
                 self.assertIn("cache-control: no-store", frozen_post.lower())
+
+                preflight = invoke_preflight()
+                self.assertEqual(preflight.returncode, 0, preflight.stdout + preflight.stderr)
+                self.assertIn("Require dual-origin active 200 and every exact marker 404", preflight.stdout)
+                self.assertTrue(fixture.record.exists())
+                self.assertNotIn("autographs-controller.service", quadlet.read_text())
+
+                reaudit = invoke_role_reaudit()
+                self.assertEqual(reaudit.returncode, 0, reaudit.stdout + reaudit.stderr)
+                self.assertIn("Require refreshed active 200 and exact marker 404 after Caddy restart", reaudit.stdout)
+                self.assertTrue(fixture.record.exists())
 
                 verify = invoke(True)
                 self.assertEqual(verify.returncode, 0, verify.stdout + verify.stderr)
@@ -272,6 +319,117 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 self.assertTrue(fixture.record.exists())
                 self.assertIn("# BEGIN AUTOGRAPHS PUBLISH FREEZE", (caddy_dir / "Caddyfile").read_text())
                 self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+
+                def promote_release(release_id: str, paths: list[str]):
+                    history = json.loads((fixture.static / ".media-commit-history/history.json").read_text())
+                    old_id = history["current_release_id"]
+                    release = fixture.static / "releases" / release_id
+                    release.mkdir()
+                    artifacts = []
+                    for name in paths:
+                        target = release / name
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_bytes(PAYLOAD)
+                        artifacts.append({"path": name, "variant": "detail", "content_type": "image/webp",
+                                          "byte_size": len(PAYLOAD)})
+                    (release / "manifest.json").write_text(json.dumps({"release_id": release_id, "artifacts": artifacts}))
+                    manifest_hash = hashlib.sha256((release / "manifest.json").read_bytes()).hexdigest()
+                    intent = {"version": 1, "old_release_id": old_id, "new_release_id": release_id,
+                              "old_manifest_sha256": history["releases"][old_id]["manifest_sha256"],
+                              "new_manifest_sha256": manifest_hash,
+                              "new_media": {name: hashlib.sha256(PAYLOAD).hexdigest() for name in paths}}
+                    (fixture.static / ".media-commit-history/intent.json").write_text(json.dumps(intent))
+                    (fixture.static / "current").unlink()
+                    (fixture.static / "current").symlink_to("releases/" + release_id)
+                    result = fixture.audit("--frozen-exit-proved")
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    return release
+
+                def refreeze():
+                    (caddy_dir / "Caddyfile").write_text(frozen_config)
+                    result = subprocess.run(["docker", "exec", container, "caddy", "reload", "--config", "/etc/caddy/Caddyfile"],
+                                            capture_output=True, text=True, check=False)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+
+                def prove_frozen_deploy(expected_kind: str):
+                    before = fixture.record.read_bytes()
+                    preflight_result = invoke_preflight()
+                    self.assertEqual(preflight_result.returncode, 0, preflight_result.stdout + preflight_result.stderr)
+                    role_result = invoke_role_reaudit()
+                    self.assertEqual(role_result.returncode, 0, role_result.stdout + role_result.stderr)
+                    self.assertEqual(json.loads(fixture.record.read_text())["active_probe"]["kind"], expected_kind)
+                    self.assertTrue(before)
+                    self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+
+                def prove_unfreeze(probe_path: str, denied: list[str]):
+                    verify_result = invoke(True)
+                    self.assertEqual(verify_result.returncode, 0, verify_result.stdout + verify_result.stderr)
+                    self.assertTrue(fixture.record.exists())
+                    mutate_result = invoke(False)
+                    self.assertEqual(mutate_result.returncode, 0, mutate_result.stdout + mutate_result.stderr)
+                    self.assertFalse(fixture.record.exists())
+                    self.assertIn("HTTP_STATUS=200", origin("/" + probe_path))
+                    for name in denied:
+                        self.assertIn("HTTP_STATUS=404", origin("/" + name))
+                    self.assertIn("HTTP_STATUS=401", origin("/admin/api/publish/full", "POST"))
+
+                # Empty current release: the same production calls must use a document probe.
+                promote_release("empty", [])
+                prove_frozen_deploy("document")
+                prove_unfreeze("manifest.json", [relative])
+
+                # A mixed release must select verified unmarked media and deny marked siblings.
+                refreeze()
+                good, bad = media_path("mixed-good"), media_path("mixed-marked")
+                mixed_release = promote_release("mixed", [good, bad])
+                marked_bad = fixture.static / ".media-tombstones" / bad
+                marked_bad.parent.mkdir(parents=True, exist_ok=True)
+                marked_bad.touch()
+                (mixed_release / bad).unlink()
+                self.assertEqual(fixture.audit().returncode, 0)
+                prove_frozen_deploy("media")
+
+                # Missing unmarked bytes fail before any document fallback or gate removal.
+                (mixed_release / good).unlink()
+                missing = invoke(True)
+                self.assertNotEqual(missing.returncode, 0, missing.stdout + missing.stderr)
+                self.assertTrue(fixture.record.exists())
+                self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+                (mixed_release / good).write_bytes(PAYLOAD)
+
+                # An exact marker added after the role audit invalidates the frozen record.
+                drift_name = media_path("drift")
+                drift_marker = fixture.static / ".media-tombstones" / drift_name
+                drift_marker.parent.mkdir(parents=True, exist_ok=True)
+                drift_marker.touch()
+                drift = invoke(True)
+                self.assertNotEqual(drift.returncode, 0, drift.stdout + drift.stderr)
+                self.assertTrue(fixture.record.exists())
+                self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+                drift_marker.unlink()
+                prove_unfreeze(good, [relative, bad])
+
+                # Journaled rollback to the all-marked prior release retains mixed-good.
+                refreeze()
+                rollback = subprocess.run(
+                    [sys.executable, str(REPO / "deploy/ansible/roles/autographs_deploy/files/static_release_rollback.py"),
+                     "--static-root", str(fixture.static), "--target-release-id", "active", "--frozen-exit-proved"],
+                    capture_output=True, text=True, check=False)
+                self.assertEqual(rollback.returncode, 0, rollback.stderr)
+                self.assertEqual(fixture.audit().returncode, 0)
+                retained_good = fixture.static / good
+                self.assertTrue(retained_good.is_file())
+                retained_good.unlink()
+                retained_failure = invoke_preflight()
+                self.assertNotEqual(retained_failure.returncode, 0, retained_failure.stdout + retained_failure.stderr)
+                self.assertTrue(fixture.record.exists())
+                self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+                retained_good.parent.mkdir(parents=True, exist_ok=True)
+                retained_good.write_bytes(PAYLOAD)
+                prove_frozen_deploy("document")
+                prove_unfreeze("manifest.json", [relative, bad])
+                self.assertIn("HTTP_STATUS=200", origin("/" + good))
             finally:
                 if started:
                     subprocess.run(["docker", "stop", container], capture_output=True, check=False)

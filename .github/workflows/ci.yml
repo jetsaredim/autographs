@@ -301,6 +301,7 @@ jobs:
             deploy/ansible/playbooks/publish-unfreeze.yml \
             deploy/ansible/playbooks/publish-freeze-render-test.yml \
             deploy/ansible/playbooks/publish-freeze-deploy-test.yml \
+            deploy/ansible/playbooks/publish-freeze-role-reaudit-test.yml \
             deploy/ansible/playbooks/controller-rollback.yml \
             deploy/ansible/playbooks/system-cleanup.yml \
             deploy/ansible/playbooks/security-scan.yml \
