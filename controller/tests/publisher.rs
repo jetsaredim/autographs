@@ -3,6 +3,7 @@ use std::{
     fs,
     io::Cursor,
     path::{Path, PathBuf},
+    process::Command,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -2182,9 +2183,25 @@ async fn publisher_shared_media_survives_corrections_and_rollback() {
         assert!(!origin_media_bytes(root, path).is_empty());
     }
 
-    let next = root.join(".rollback-next");
-    std::os::unix::fs::symlink(old_release, &next).unwrap();
-    fs::rename(next, root.join("current")).unwrap();
+    let target = old_release.file_name().unwrap().to_str().unwrap();
+    let rollback_script = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../deploy/ansible/roles/autographs_deploy/files/static_release_rollback.py");
+    let result = Command::new("python3")
+        .arg(rollback_script)
+        .args([
+            "--static-root",
+            root.to_str().unwrap(),
+            "--target-release-id",
+            target,
+            "--frozen-exit-proved",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
     assert_eq!(
         published_detail(root).images[0]
             .variants
@@ -2281,13 +2298,17 @@ async fn publisher_unpublish_retains_fresh_media_then_prunes_expired_urls() {
     assert!(fs::read_dir(root.join("current/media")).is_err());
     for path in &old_paths {
         assert!(!origin_media_bytes(root, path).is_empty());
-        let file = fs::File::options()
-            .write(true)
-            .open(root.join(path.trim_start_matches('/')))
-            .unwrap();
-        file.set_modified(std::time::SystemTime::UNIX_EPOCH)
-            .unwrap();
     }
+    let history_path = root.join(".media-commit-history/history.json");
+    let mut history: Value = read_json(&history_path);
+    let old = history["releases"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+        .find(|receipt| !receipt["last_active_end"].is_null())
+        .unwrap();
+    old["last_active_end"] = serde_json::json!(0);
+    fs::write(&history_path, serde_json::to_vec(&history).unwrap()).unwrap();
     publisher
         .publish(
             &fixture.repository,
@@ -2490,7 +2511,7 @@ async fn publisher_tombstone_rejects_candidate_and_survives_release_pruning() {
 }
 
 #[tokio::test]
-async fn publisher_untombstoned_missing_retained_media_reports_cleanup_warning() {
+async fn publisher_untombstoned_missing_retained_media_blocks_until_repaired() {
     let fixture = fixture().await;
     let root = fixture.root.path();
     let publisher = LocalPublisher::with_retention_policy(root, ReleaseRetentionPolicy::new(2, 1));
@@ -2522,6 +2543,24 @@ async fn publisher_untombstoned_missing_retained_media_reports_cleanup_warning()
     fs::remove_file(root.join(&old_release).join(path.trim_start_matches('/'))).unwrap();
     let tight_retention =
         LocalPublisher::with_retention_policy(root, ReleaseRetentionPolicy::new(1, 1));
+    let active_before = fs::read_link(root.join("current")).unwrap();
+    assert!(
+        tight_retention
+            .publish(
+                &fixture.repository,
+                &fixture.media,
+                PublishMode::Incremental,
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(fs::read_link(root.join("current")).unwrap(), active_before);
+    assert!(root.join(&old_release).is_dir());
+    fs::write(
+        root.join(&old_release).join(path.trim_start_matches('/')),
+        fs::read(root.join(path.trim_start_matches('/'))).unwrap(),
+    )
+    .unwrap();
     let status = tight_retention
         .publish(
             &fixture.repository,
@@ -2530,8 +2569,7 @@ async fn publisher_untombstoned_missing_retained_media_reports_cleanup_warning()
         )
         .await
         .unwrap();
-    assert!(status.cleanup_warning.is_some());
-    assert!(root.join(old_release).is_dir());
+    assert!(status.cleanup_warning.is_none());
 }
 
 #[tokio::test]

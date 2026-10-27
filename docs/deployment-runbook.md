@@ -285,7 +285,12 @@ audit preflight, deploys with `autographs_deploy_publish_frozen=true`, checks
 both origin routes, and invokes a separate readiness-backed unfreeze. A failed
 or ambiguous cutover remains frozen and cannot complete the release. Follow
 the [publisher and Caddy rollout procedure](static-runtime-runbook.md#phase-8-publisher-and-caddy-rollout-freeze),
-including the historical media-provenance checkpoint; do not deploy with
+including read-only initial inventory, independently proven historical media,
+the conservative frozen wait for an unarchived pruned release, durable
+publication-history receipts, and exact-marker origin denial. Later mutating
+deployments must preserve a previously committed old URL through preflight and
+role reaudit. Keep the history namespace, migration marker, shared media,
+releases, pointer, and tombstones in the same backup set. Do not deploy with
 `autographs_deploy_publish_frozen=false` to bypass it.
 
 The deployed Rust controller exposes `GET /admin/api/health` for runtime readiness. A successful full or incremental publish verifies Oracle catalog access, private media access, generated derivatives, static release promotion, and Caddy static serving.

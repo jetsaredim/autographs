@@ -47,14 +47,28 @@ done
 cp "${fixture}/Caddyfile.normal-http" "${fixture}/Caddyfile.http"
 
 static_root="${fixture}/static"
-media_a="/media/card/image-1-detail-aaaaaaaaaaaaaaaa.webp"
-media_b="/media/card/image-1-detail-bbbbbbbbbbbbbbbb.webp"
-mkdir -p "${static_root}/releases/a/media/card" "${static_root}/releases/b/media/card" \
+bytes_a='RIFF0000WEBPcommitted A'
+bytes_b='RIFF0000WEBPcandidate B'
+hash_a="$(printf '%s' "${bytes_a}" | sha256sum | cut -c 1-16)"
+hash_b="$(printf '%s' "${bytes_b}" | sha256sum | cut -c 1-16)"
+media_a="/media/card/image-1-detail-${hash_a}.webp"
+media_b="/media/card/image-1-detail-${hash_b}.webp"
+mkdir -p "${static_root}/releases/a/media/card" \
   "${static_root}/media/card"
-printf 'committed A\n' > "${static_root}/releases/a${media_a}"
-printf 'candidate B\n' > "${static_root}/releases/b${media_b}"
+printf '%s' "${bytes_a}" > "${static_root}/releases/a${media_a}"
+printf '{"release_id":"a","artifacts":[{"path":"%s","variant":"detail","content_type":"image/webp","byte_size":%s}]}' \
+  "${media_a#/}" "${#bytes_a}" > "${static_root}/releases/a/manifest.json"
 cp "${static_root}/releases/a${media_a}" "${static_root}${media_a}"
 ln -s releases/a "${static_root}/current"
+audit="${repo_root}/deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py"
+audit_args=(--static-root "${static_root}" --quarantine "${fixture}/private/quarantine" \
+  --record "${fixture}/private/freeze.json" --release-tag v1.2.3 \
+  --controller-digest "sha256:$(printf 'a%.0s' {1..64})" --old-container-id old --old-pid 123)
+python3 "${audit}" "${audit_args[@]}" --initial-cutover --old-route-current-only >/dev/null
+mkdir -p "${static_root}/releases/b/media/card"
+printf '%s' "${bytes_b}" > "${static_root}/releases/b${media_b}"
+printf '{"release_id":"b","artifacts":[{"path":"%s","variant":"detail","content_type":"image/webp","byte_size":%s}]}' \
+  "${media_b#/}" "${#bytes_b}" > "${static_root}/releases/b/manifest.json"
 
 docker run --detach --rm --name "${container}" \
   --publish 127.0.0.1::80 --publish 127.0.0.1::8081 \
@@ -103,18 +117,32 @@ done
 
 expect_status 200 "${media_a}" 'committed A'
 expect_status 404 "${media_b}" 'candidate B before pointer commit'
+python3 -c 'import hashlib,json,pathlib,sys; r=pathlib.Path(sys.argv[1]); old=json.loads((r/".media-commit-history/history.json").read_text()); name=sys.argv[2].lstrip("/"); new={"version":1,"old_release_id":"a","new_release_id":"b","old_manifest_sha256":old["releases"]["a"]["manifest_sha256"],"new_manifest_sha256":hashlib.sha256((r/"releases/b/manifest.json").read_bytes()).hexdigest(),"new_media":{name:hashlib.sha256((r/name).read_bytes()).hexdigest() if (r/name).exists() else hashlib.sha256((r/"releases/b"/name).read_bytes()).hexdigest()}}; (r/".media-commit-history/intent.json").write_text(json.dumps(new))' "${static_root}" "${media_b}"
 ln -s releases/b "${static_root}/.current-next"
 mv -Tf "${static_root}/.current-next" "${static_root}/current"
 expect_status 200 "${media_b}" 'B immediately after pointer commit, before shared copy'
 expect_status 200 "${media_a}" 'A through shared retention'
+python3 "${audit}" "${audit_args[@]}" --frozen-exit-proved >/dev/null
+python3 "${audit}" "${audit_args[@]}" --frozen-exit-proved >/dev/null
+expect_status 200 "${media_a}" 'A after later preflight and role reaudit'
 cp "${static_root}/releases/b${media_b}" "${static_root}${media_b}"
+python3 "${repo_root}/deploy/ansible/roles/autographs_deploy/files/static_release_rollback.py" \
+  --static-root "${static_root}" --target-release-id a --frozen-exit-proved
+python3 "${audit}" "${audit_args[@]}" --frozen-exit-proved >/dev/null
+expect_status 200 "${media_a}" 'A restored by journaled rollback'
+expect_status 200 "${media_b}" 'B retained after rollback'
 mkdir -p "${static_root}/.media-tombstones/media/card"
 : > "${static_root}/.media-tombstones${media_b}"
-expect_status 404 "${media_b}" 'B tombstoned with shared and current copies'
+expect_status 404 "${media_b}" 'B tombstoned with shared and retained copies'
 rm -- "${static_root}${media_b}"
-expect_status 404 "${media_b}" 'B tombstoned with current fallback copy'
+expect_status 404 "${media_b}" 'B tombstoned with retained release copy'
 expect_status 200 "${media_a}" 'A remains available'
+touch "${static_root}/.media-tombstones${media_a}"
+rm -- "${static_root}${media_a}" "${static_root}/current${media_a}"
+python3 "${audit}" "${audit_args[@]}" --frozen-exit-proved >/dev/null
+expect_status 404 "${media_a}" 'marked active A deleted before later reaudit'
 expect_status 404 "/.media-tombstones${media_b}" 'marker path remains private'
+expect_status 404 '/.media-commit-history/history.json' 'publication history remains private'
 
 cat "${fixture}/Caddyfile.frozen-http" > "${fixture}/Caddyfile.http"
 docker exec "${container}" caddy validate --config /etc/caddy/Caddyfile >/dev/null

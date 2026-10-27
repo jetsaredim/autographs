@@ -6,6 +6,7 @@
     freeze_record_path: /opt/autographs/private/publish-freeze.json
     frozen_backup_path: /opt/autographs/private/Caddyfile.pre-cutover-frozen
     quarantine_path: /opt/autographs/private/media-quarantine
+    legacy_wait_record_path: /opt/autographs/private/media-legacy-wait.json
     caddyfile_path: /opt/autographs/caddy/Caddyfile
     caddy_quadlet_path: /etc/containers/systemd/autographs-caddy.container
   pre_tasks:
@@ -168,14 +169,150 @@
           register: freeze_static_mount
           changed_when: false
 
+        - name: Inspect publication history for one-time migration
+          ansible.builtin.stat:
+            path: "{{ freeze_static_mount.stdout | trim }}/.media-commit-history/history.json"
+          register: freeze_history
+
+        - name: Classify old Caddy routing before an initial migration
+          ansible.builtin.set_fact:
+            freeze_initial_cutover: "{{ not freeze_history.stat.exists }}"
+            freeze_old_route_current_only: >-
+              {{
+                'root * /srv/autographs/static/current' in (freeze_old_caddyfile.content | b64decode)
+                and 'try_files {path} /current{path}' not in (freeze_old_caddyfile.content | b64decode)
+                and (freeze_old_caddyfile.content | b64decode
+                  | regex_search('(?m)^\\s*root\\s+\\*\\s+/srv/autographs/static\\s*$')) is none
+              }}
+
+        - name: Refuse an initial migration behind shared routing
+          ansible.builtin.assert:
+            that:
+              - freeze_old_route_current_only | bool
+            fail_msg: Initial migration requires the frozen old current-only Caddy route.
+          when: freeze_initial_cutover | bool
+
+        - name: Install protected shared-media audit helper
+          ansible.builtin.copy:
+            src: ../roles/autographs_deploy/files/publish_freeze_audit.py
+            dest: /opt/autographs/private/publish_freeze_audit.py
+            owner: root
+            group: root
+            mode: "0700"
+
+        - name: Install protected journaled static rollback helper
+          ansible.builtin.copy:
+            src: ../roles/autographs_deploy/files/static_release_rollback.py
+            dest: /opt/autographs/private/static_release_rollback.py
+            owner: root
+            group: root
+            mode: "0700"
+
+        - name: Inspect legacy exact-marker directory
+          ansible.builtin.stat:
+            path: "{{ freeze_static_mount.stdout | trim }}/.media-tombstones"
+          register: freeze_legacy_marker_root
+          when: freeze_initial_cutover | bool
+
+        - name: Inventory legacy exact markers
+          ansible.builtin.find:
+            paths: "{{ freeze_static_mount.stdout | trim }}/.media-tombstones"
+            recurse: true
+            file_type: file
+          register: freeze_legacy_markers
+          when:
+            - freeze_initial_cutover | bool
+            - freeze_legacy_marker_root.stat.exists
+
+        - name: Require exact old Caddy deny before using legacy marker exception
+          ansible.builtin.assert:
+            that:
+              - "(freeze_old_caddyfile.content | b64decode).count('respond @tombstonedMedia 404') >= 2"
+            fail_msg: Old current-only Caddy lacks exact marker denial; keep cutover blocked.
+          when:
+            - freeze_initial_cutover | bool
+            - freeze_legacy_marker_root.stat.exists
+            - freeze_legacy_markers.matched | int > 0
+
+        - name: Require Caddy marker readback on the live static mount
+          ansible.builtin.command:
+            argv:
+              - podman
+              - exec
+              - autographs-caddy
+              - test
+              - -f
+              - "/srv/autographs/static/.media-tombstones/{{ item.path | regex_replace('^.*/\\.media-tombstones/', '') }}"
+          loop: "{{ (freeze_legacy_markers | default({})).files | default([]) }}"
+          changed_when: false
+          when: freeze_initial_cutover | bool
+
+        - name: Prove legacy marker denial at public and preview origins
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --silent
+              - --output
+              - /dev/null
+              - --write-out
+              - "%{http_code}"
+              - --noproxy
+              - "*"
+              - --resolve
+              - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+              - >-
+                {{ ('https://' + autographs_deploy_domain) if item.0 == 'public'
+                else 'http://127.0.0.1:8081' }}/{{ item.1.path
+                | regex_replace('^.*/\\.media-tombstones/', '') }}
+          loop: "{{ ['public', 'preview'] | product((freeze_legacy_markers | default({})).files | default([])) | list }}"
+          register: freeze_legacy_marker_origin
+          changed_when: false
+          when: freeze_initial_cutover | bool
+
+        - name: Require dual-origin legacy 404 for every marked path
+          ansible.builtin.assert:
+            that:
+              - freeze_legacy_marker_origin.results | map(attribute='stdout') | list | difference(['404']) | length == 0
+          when: freeze_initial_cutover | bool
+
+        - name: Inventory initial shared namespace without mutation before old process exit
+          ansible.builtin.command:
+            argv:
+              - python3
+              - /opt/autographs/private/publish_freeze_audit.py
+              - --static-root
+              - "{{ freeze_static_mount.stdout | trim }}"
+              - --quarantine
+              - "{{ quarantine_path }}"
+              - --record
+              - "{{ freeze_record_path }}"
+              - --release-tag
+              - "{{ autographs_deploy_repo_version }}"
+              - --controller-digest
+              - "{{ autographs_deploy_controller_digest }}"
+              - --old-container-id
+              - pending
+              - --old-pid
+              - "0"
+              - --initial-cutover
+              - --old-route-current-only
+              - --old-marker-deny-proved
+              - --report-only
+          register: freeze_initial_pre_stop_report
+          environment:
+            AUTOGRAPHS_LEGACY_MEDIA_EVIDENCE: "{{ autographs_legacy_media_evidence_path | default('') }}"
+          changed_when: false
+          failed_when: freeze_initial_pre_stop_report.rc not in [0, 2]
+          when: freeze_initial_cutover | bool
+
         - name: Read current static manifest
           ansible.builtin.slurp:
             src: "{{ freeze_static_mount.stdout | trim }}/current/manifest.json"
           register: freeze_current_manifest
 
-        - name: Select a committed current media URL
+        - name: Inventory committed current media candidates
           ansible.builtin.set_fact:
-            freeze_current_media: >-
+            freeze_current_media_candidates: >-
               {{
                 (
                   (freeze_current_manifest.content | b64decode | from_json).artifacts
@@ -183,14 +320,29 @@
                   | rejectattr('variant', 'none')
                   | map(attribute='path')
                   | list
-                  | first
-                ) | default('', true)
+                )
+              }}
+
+        - name: Inspect exact markers before selecting current media proof
+          ansible.builtin.stat:
+            path: "{{ freeze_static_mount.stdout | trim }}/.media-tombstones/{{ item }}"
+          loop: "{{ freeze_current_media_candidates }}"
+          register: freeze_current_media_markers
+
+        - name: Select an unmarked current media URL or public manifest
+          ansible.builtin.set_fact:
+            freeze_current_media: >-
+              {{
+                (freeze_current_media_markers.results
+                | rejectattr('stat.exists')
+                | map(attribute='item') | list | first)
+                | default('manifest.json', true)
               }}
 
         - name: Require current media for static cutover proof
           ansible.builtin.assert:
             that:
-              - freeze_current_media is match('^media/.+\.webp$')
+              - freeze_current_media is match('^(media/.+\.webp|manifest\.json)$')
 
         - name: Verify frozen public routes before old controller stop
           ansible.builtin.command:
@@ -285,6 +437,81 @@
           until: freeze_old_running.rc != 0 or freeze_old_running.stdout | trim == 'false'
           when: freeze_old_id | length > 0
 
+        - name: Capture conservative last possible old publication time
+          ansible.builtin.command:
+            argv: [date, +%s]
+          register: freeze_old_exit_time
+          changed_when: false
+
+        - name: Require synchronized UTC before legacy wait arithmetic
+          ansible.builtin.command:
+            argv: [timedatectl, show, -p, NTPSynchronized, --value]
+          register: freeze_clock_sync
+          changed_when: false
+          failed_when: false
+
+        - name: Read unchanged old current pointer after process exit
+          ansible.builtin.command:
+            argv: [readlink, "{{ freeze_static_mount.stdout | trim }}/current"]
+          register: freeze_old_pointer
+          changed_when: false
+
+        - name: Read host boot identity for conservative legacy wait
+          ansible.builtin.command:
+            argv: [cat, /proc/sys/kernel/random/boot_id]
+          register: freeze_boot_id
+          changed_when: false
+          when: freeze_initial_cutover | bool
+
+        - name: Read last controller unit invocation for conservative legacy wait
+          ansible.builtin.command:
+            argv: [systemctl, show, autographs-controller.service, --property=InvocationID, --value]
+          register: freeze_controller_invocation
+          changed_when: false
+          when: freeze_initial_cutover | bool
+
+        - name: Inspect prior protected legacy wait record
+          ansible.builtin.stat:
+            path: "{{ legacy_wait_record_path }}"
+          register: freeze_legacy_wait_stat
+          when: freeze_initial_cutover | bool
+
+        - name: Read prior protected legacy wait record
+          ansible.builtin.slurp:
+            src: "{{ legacy_wait_record_path }}"
+          register: freeze_legacy_wait_file
+          when:
+            - freeze_initial_cutover | bool
+            - freeze_legacy_wait_stat.stat.exists
+
+        - name: Resolve prior wait record only for unchanged stopped process and pointer
+          ansible.builtin.set_fact:
+            freeze_effective_exit_epoch: >-
+              {{
+                (freeze_legacy_wait_file.content | b64decode | from_json).exit_epoch
+                if freeze_legacy_wait_stat.stat.exists
+                and (freeze_legacy_wait_file.content | b64decode | from_json).boot_id == freeze_boot_id.stdout | trim
+                and (freeze_legacy_wait_file.content | b64decode | from_json).invocation_id == freeze_controller_invocation.stdout | trim
+                and (freeze_legacy_wait_file.content | b64decode | from_json).pointer == freeze_old_pointer.stdout | trim
+                else freeze_old_exit_time.stdout | trim
+              }}
+          when: freeze_initial_cutover | bool
+
+        - name: Persist conservative old-process exit evidence for bounded retry
+          ansible.builtin.copy:
+            content: >-
+              {{ {
+                'exit_epoch': freeze_effective_exit_epoch | int,
+                'boot_id': freeze_boot_id.stdout | trim,
+                'invocation_id': freeze_controller_invocation.stdout | trim,
+                'pointer': freeze_old_pointer.stdout | trim
+              } | to_nice_json }}
+            dest: "{{ legacy_wait_record_path }}"
+            owner: root
+            group: root
+            mode: "0600"
+          when: freeze_initial_cutover | bool
+
         - name: Prove frozen Caddy still serves static after process exit
           ansible.builtin.command:
             argv:
@@ -322,15 +549,7 @@
               - "'cache-control: no-store' in (freeze_after_stop_http.results[1].stdout | lower)"
               - freeze_old_unit.stdout | trim != 'active'
 
-        - name: Install protected shared-media audit helper
-          ansible.builtin.copy:
-            src: ../roles/autographs_deploy/files/publish_freeze_audit.py
-            dest: /opt/autographs/private/publish_freeze_audit.py
-            owner: root
-            group: root
-            mode: "0700"
-
-        - name: Quarantine every shared URL lacking committed evidence
+        - name: Inventory initial shared namespace without mutation after old process exit
           ansible.builtin.command:
             argv:
               - python3
@@ -349,4 +568,61 @@
               - "{{ freeze_old_id }}"
               - --old-pid
               - "{{ freeze_old_pid }}"
+              - --initial-cutover
+              - --old-route-current-only
+              - --old-marker-deny-proved
+              - --report-only
+              - --frozen-exit-proved
+              - --old-exit-epoch
+              - "{{ freeze_effective_exit_epoch }}"
+              - --old-pointer
+              - "{{ freeze_old_pointer.stdout | trim | regex_replace('^releases/', '') }}"
+              - "{{ '--trusted-utc' if freeze_clock_sync.stdout | trim == 'yes' else '--report-only' }}"
+          register: freeze_initial_after_stop_report
+          environment:
+            AUTOGRAPHS_LEGACY_MEDIA_EVIDENCE: "{{ autographs_legacy_media_evidence_path | default('') }}"
+          changed_when: false
+          failed_when: freeze_initial_after_stop_report.rc not in [0, 2]
+          when: freeze_initial_cutover | bool
+
+        - name: Refuse cutover while initial provenance is unresolved
+          ansible.builtin.assert:
+            that:
+              - freeze_initial_after_stop_report.rc == 0
+            fail_msg: >-
+              Initial shared-media provenance remains ambiguous. Keep the old frozen current-only
+              route and stopped controller; provide trusted archives or wait through the documented
+              exit-time window, then retry after a new read-only report.
+          when: freeze_initial_cutover | bool
+
+        - name: Quarantine uncommitted shared URLs only after provenance classification
+          ansible.builtin.command:
+            argv:
+              - python3
+              - /opt/autographs/private/publish_freeze_audit.py
+              - --static-root
+              - "{{ freeze_static_mount.stdout | trim }}"
+              - --quarantine
+              - "{{ quarantine_path }}"
+              - --record
+              - "{{ freeze_record_path }}"
+              - --release-tag
+              - "{{ autographs_deploy_repo_version }}"
+              - --controller-digest
+              - "{{ autographs_deploy_controller_digest }}"
+              - --old-container-id
+              - "{{ freeze_old_id }}"
+              - --old-pid
+              - "{{ freeze_old_pid }}"
+              - --frozen-exit-proved
+              - --old-exit-epoch
+              - "{{ freeze_effective_exit_epoch | default(freeze_old_exit_time.stdout | trim) }}"
+              - --old-pointer
+              - "{{ freeze_old_pointer.stdout | trim | regex_replace('^releases/', '') }}"
+              - "{{ '--initial-cutover' if freeze_initial_cutover | bool else '--frozen-exit-proved' }}"
+              - "{{ '--old-route-current-only' if freeze_initial_cutover | bool else '--frozen-exit-proved' }}"
+              - --old-marker-deny-proved
+              - "{{ '--trusted-utc' if freeze_clock_sync.stdout | trim == 'yes' else '--frozen-exit-proved' }}"
           changed_when: true
+          environment:
+            AUTOGRAPHS_LEGACY_MEDIA_EVIDENCE: "{{ autographs_legacy_media_evidence_path | default('') }}"

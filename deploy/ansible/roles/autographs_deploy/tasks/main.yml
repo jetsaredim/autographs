@@ -499,6 +499,57 @@
   changed_when: true
   when: not autographs_deploy_freeze_record.bootstrap
 
+- name: Read refreshed frozen publication audit
+  ansible.builtin.slurp:
+    src: "{{ autographs_deploy_publish_freeze_record_path }}"
+  register: autographs_deploy_refreshed_record_file
+  when: not autographs_deploy_freeze_record.bootstrap
+
+- name: Resolve refreshed publication and marker inventory
+  ansible.builtin.set_fact:
+    autographs_deploy_refreshed_record: "{{ autographs_deploy_refreshed_record_file.content | b64decode | from_json }}"
+  when: not autographs_deploy_freeze_record.bootstrap
+
+- name: Require unchanged committed release through role reaudit
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_refreshed_record.current_target == autographs_deploy_freeze_record.current_target
+      - autographs_deploy_refreshed_record.current_manifest_sha256 == autographs_deploy_freeze_record.current_manifest_sha256
+      - autographs_deploy_refreshed_record.history_digest == autographs_deploy_freeze_record.history_digest
+      - autographs_deploy_refreshed_record.history_version == 1
+      - autographs_deploy_refreshed_record.old_pid == autographs_deploy_freeze_record.old_pid
+    fail_msg: Committed publication changed between preflight and role reaudit.
+  when: not autographs_deploy_freeze_record.bootstrap
+
+- name: Prove newly marked URLs remain denied at both origins
+  ansible.builtin.command:
+    argv:
+      - curl
+      - --silent
+      - --output
+      - /dev/null
+      - --write-out
+      - "%{http_code}"
+      - --noproxy
+      - "*"
+      - --resolve
+      - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+      - "{{ ('https://' + autographs_deploy_domain) if item.0 == 'public' else 'http://127.0.0.1:8081' }}/{{ item.1 }}"
+  loop: >-
+    {{ ['public', 'preview'] | product(
+      (autographs_deploy_refreshed_record | default({})).marker_paths | default([])
+      | difference((autographs_deploy_freeze_record | default({})).marker_paths | default([]))) | list }}
+  register: autographs_deploy_new_marker_origin
+  changed_when: false
+  when: not autographs_deploy_freeze_record.bootstrap
+
+- name: Require dual-origin denial for changed marker inventory
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_new_marker_origin.results | map(attribute='stdout') | list | difference(['404']) | length == 0
+    fail_msg: New emergency marker lacks dual-origin denial; keep frozen route.
+  when: not autographs_deploy_freeze_record.bootstrap
+
 - name: Copy Caddyfile
   ansible.builtin.copy:
     src: Caddyfile

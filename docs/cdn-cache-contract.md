@@ -68,9 +68,17 @@ atomic `current` pointer change is the public visibility commit. Caddy serves
 new active media through its `current/media` fallback immediately, then the
 publisher copies that committed release into shared media. A postcommit copy
 failure keeps the active release and reports a safe cleanup warning; repair
-and verify its shared media before manually rolling back. Existing shared
+and verify its shared media before journaled static rollback. The controller
+fsyncs a private `.media-commit-history/intent.json` before pointer replacement
+and finalizes a versioned `history.json` receipt afterward. An interrupted
+intent is reconciled from the pointer before another publish or deploy audit;
+intent alone never proves public commitment. A postcommit history-write failure
+keeps the active release and blocks further publish or prune until recovery.
+Each receipt binds a release manifest digest, exact media paths and full byte
+hashes, first commit time, and last-active end time. Later deployment audits
+use that history to preserve A after B replaces it. Existing shared
 files must have identical bytes for their fingerprinted URL. The publisher retains shared URLs
-while a retained release references them, and for at least 24 hours after
+while a **committed** retained release references them, and for at least 24 hours after
 their last active publication. Cleanup runs after successful promotion; the
 normal release count remains five. This covers a cache miss for a still-fresh
 document during correction, unpublish, and rollback. The active release's
@@ -80,14 +88,17 @@ manifests or public artifact scans.
 
 ## Purge and rollback
 
-Rollback uses the static release pointer, not broad cache deletion:
+Rollback uses a journaled static release pointer transition, not broad cache deletion:
 
-1. Restore the prior generated static release by repointing `current` to the
-   last known-good release.
+1. Freeze publishing and stop the controller. Use the protected
+   `static_release_rollback.py` helper to verify the target's committed receipt,
+   media bytes, and markers, then atomically repoint `current` and finalize the
+   transition history. Direct symlink changes are refused by the next audit.
 2. Keep public HTML, JSON, and `manifest.json` freshness at 60 seconds or
    origin-respecting freshness so browsers and Cloudflare converge quickly.
 3. Confirm that public pages now reference the media fingerprints from the
-   restored release.
+   restored release and both origin routes serve unmarked active and retained
+   old URLs through an origin miss before unfreezing.
 
 Purge is reserved for emergency remediation: accidental public exposure, legal
 or privacy takedown, CDN incident response, or a verified stale `/media/*`

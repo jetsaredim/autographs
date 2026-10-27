@@ -27,6 +27,55 @@
           - unfreeze_record.controller_digest == autographs_deploy_controller_digest
           - autographs_deploy_source_revision is match('^[0-9a-f]{40}$')
 
+    - name: Inspect static volume for frozen publication identity
+      ansible.builtin.command:
+        argv: [podman, volume, inspect, autographs-static, --format, "{% raw %}{{.Mountpoint}}{% endraw %}"]
+      register: unfreeze_history_mount
+      changed_when: false
+
+    - name: Verify current pointer, manifest, history, and marker inventory before unfreeze
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - >-
+            import hashlib, importlib.util, json, os, pathlib, sys;
+            root=pathlib.Path(sys.argv[1]); record=json.loads(pathlib.Path(sys.argv[2]).read_text());
+            spec=importlib.util.spec_from_file_location('audit', '/opt/autographs/private/publish_freeze_audit.py');
+            audit=importlib.util.module_from_spec(spec); spec.loader.exec_module(audit);
+            assert os.readlink(root/'current') == record['current_target'];
+            assert hashlib.sha256((root/'current/manifest.json').read_bytes()).hexdigest() == record['current_manifest_sha256'];
+            assert hashlib.sha256((root/'.media-commit-history/history.json').read_bytes()).hexdigest() == record['history_digest'];
+            assert audit.marker_digest(root) == record['marker_digest'];
+            assert audit.current(root) == json.loads((root/'.media-commit-history/history.json').read_text())['current_release_id']
+          - "{{ unfreeze_history_mount.stdout | trim }}"
+          - "{{ freeze_record_path }}"
+      changed_when: false
+      when: not unfreeze_record.bootstrap
+
+    - name: Revalidate committed media bytes without mutating the frozen record
+      ansible.builtin.command:
+        argv:
+          - python3
+          - /opt/autographs/private/publish_freeze_audit.py
+          - --static-root
+          - "{{ unfreeze_history_mount.stdout | trim }}"
+          - --quarantine
+          - /opt/autographs/private/media-quarantine
+          - --record
+          - "{{ freeze_record_path }}"
+          - --release-tag
+          - "{{ autographs_deploy_repo_version }}"
+          - --controller-digest
+          - "{{ autographs_deploy_controller_digest }}"
+          - --old-container-id
+          - "{{ unfreeze_record.old_container_id }}"
+          - --old-pid
+          - "{{ unfreeze_record.old_pid }}"
+          - --report-only
+      changed_when: false
+      when: not unfreeze_record.bootstrap
+
     - name: Check old process remains absent
       ansible.builtin.stat:
         path: "/proc/{{ unfreeze_record.old_pid }}"
@@ -128,6 +177,7 @@
       ansible.builtin.set_fact:
         unfreeze_current_media: >-
           {{
+            unfreeze_record.active_probe | default(
             (
               (unfreeze_manifest.stdout | from_json).artifacts
               | selectattr('variant', 'defined')
@@ -135,8 +185,9 @@
               | map(attribute='path')
               | list
               | first
-            ) | default('', true)
+            ) | default('', true))
           }}
+        unfreeze_retained_media: "{{ unfreeze_record.retained_probe | default('') }}"
 
     - name: Require valid current release target and media
       ansible.builtin.assert:
@@ -229,6 +280,31 @@
         url: "http://127.0.0.1:8081/{{ unfreeze_current_media }}"
         status_code: 200
         return_content: false
+
+    - name: Verify protected old committed URL on both origin misses
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --output
+          - /dev/null
+          - --write-out
+          - "%{http_code}"
+          - --noproxy
+          - "*"
+          - --resolve
+          - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+          - "{{ ('https://' + autographs_deploy_domain) if item == 'public' else 'http://127.0.0.1:8081' }}/{{ unfreeze_retained_media }}"
+      loop: [public, preview]
+      register: unfreeze_retained_origins
+      changed_when: false
+      when: unfreeze_retained_media | length > 0
+
+    - name: Require dual-origin old committed media reachability
+      ansible.builtin.assert:
+        that:
+          - unfreeze_retained_origins.results | map(attribute='stdout') | list | difference(['200']) | length == 0
+      when: unfreeze_retained_media | length > 0
 
     - name: Inspect static volume mountpoint for disposable marker probe
       ansible.builtin.command:

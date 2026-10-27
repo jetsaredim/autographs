@@ -666,19 +666,48 @@ It then stops the old controller and waits for its unit, captured container,
 and PID to exit before any new shared-media route can restart. A surviving
 process or lost static response stops the deploy with publishing frozen.
 
-After old-process exit, the preflight audits every shared `media/` file. The
-active `current` manifest and matching verified WebP bytes prove an active
-URL. A retained release manifest alone does not prove that publication
-succeeded. Unproven files move to `/opt/autographs/private/media-quarantine`,
-outside the served static volume. A fresh or retained unproven URL blocks the
-cutover, even after quarantine, because it might still be required by a cached
-document. The protected audit result records exact public paths and reasons;
-resolve committed history from Oracle `autograph_publish_jobs` and any archived
-promotion evidence before retry. Do not reintroduce the path without proof or
-silently waive its 24-hour retention. No automated export of that historical
-evidence exists in the current runtime, so a host with ambiguous retained
-paths requires a Wave 8 operator checkpoint. Do not bypass this failure by
-passing an unfrozen variable.
+For the **first** cutover, preflight runs a read-only inventory before and
+after verified old-controller exit; the latter is authoritative. A retained
+release needs its manifest, successful production publish-job evidence or a
+trusted promotion receipt, and verified shared WebP bytes. A pruned release
+needs a trusted archived manifest or promotion receipt naming the exact path;
+an Oracle success row alone cannot prove its media. Supply reviewed evidence
+in a root-protected JSON file outside the static volume using
+`autographs_legacy_media_evidence_path`. The current helper accepts only
+`archived_receipts` keyed by release ID, each with `promotion_receipt_path`,
+`promotion_receipt_sha256`, `manifest_sha256`, and, for pruned releases,
+`manifest_path` plus `media_sha256`. The receipt file must bind release ID,
+manifest digest, and successful pointer promotion. A bare success-ID list is
+never proof. Verify the archive source and digest independently before using
+it; do not manufacture an operator export or a promotion receipt. A direct
+Oracle job-row verification adapter is not installed in this deployment path,
+so hosts without trusted archived receipts remain at the frozen checkpoint.
+
+If a fresh shared path could belong to a pruned committed release and no
+archive exists, the report blocks cutover **without moving shared bytes**.
+Keep the old frozen current-only route and controller stopped. That old route
+may already return 404 for the pruned URL; deferral makes no new availability
+claim. The protected `media-legacy-wait.json` records exit time, boot ID,
+controller invocation ID, and pointer. With synchronized UTC, retry after exit
+time plus 86,400 seconds media freshness, 60 seconds document freshness, and
+300 seconds clock margin. A reboot, controller restart, or pointer change starts
+a new window. A retained path without independent commit proof remains blocked
+past the timer until evidence or legitimate release retirement. Never use a
+tombstone to waive ordinary uncertainty. The mutation pass quarantines only
+unprotected paths outside the static volume and writes versioned
+`.media-commit-history/history.json` plus a migration marker. Back up history,
+pointer, releases, shared media, and `.media-tombstones` together.
+
+On **later** deployments, preflight and full-role reaudit use finalized
+publication receipts, not retained manifests or mtimes, to keep A's shared URL
+after B is published. `current` is the commit witness; a durable intent enables
+recovery if the controller stops on either side of pointer replacement. Exact
+markers allow intentionally missing active or retained bytes and continue
+denying both origins. Unmarked missing or corrupt committed bytes stop the
+deployment; repair from a verified committed copy and retry frozen. The freeze
+record changes only after successful audit and binds pointer, manifest,
+history digest/version, and marker inventory. A missing history after migration
+is fatal. Do not bypass a failed preflight with an unfrozen variable.
 
 The full role requires the protected freeze record and rechecks old PID and
 container absence before copying Caddyfile. It starts and verifies the reviewed
@@ -701,6 +730,17 @@ and gate-off times and commands in Wave 8 evidence. Resume credentialed smoke
 only after explicit unfreeze. Controller-only rollback to a digest that has not
 passed this pointer-first readiness gate is refused while shared-media routing
 is active.
+
+For **static release rollback**, keep the publish gate, stop the controller,
+and verify its unit, container, and PID exited. Run the protected
+`static_release_rollback.py --static-root <static-volume-mount>
+--target-release-id <committed-release-id> --frozen-exit-proved` helper as root.
+It checks receipts, manifest, WebP hashes, and markers, copies only verified
+unmarked media, journals the transition, and repoints `current` atomically.
+A direct `ln -s`/`mv` repoint is unrecorded and blocks the next publish or
+audit. Restart only the reviewed controller, verify active and old URL origin
+misses on public HTTPS and preview `:8081` while frozen, then explicitly
+unfreeze.
 
 ### Exact emergency media takedown
 
