@@ -1,10 +1,11 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-26T20:46:29Z
+reviewed: 2026-10-27T02:33:14Z
 depth: deep
-review_round: 3
-files_reviewed: 28
+review_round: 4
+files_reviewed: 37
 files_reviewed_list:
+  - .github/workflows/ci.yml
   - .github/workflows/deploy.yml
   - .planning/phases/08-admin-media-review-and-operational-posture/08-07-PLAN.md
   - .planning/phases/08-admin-media-review-and-operational-posture/08-07-PR-294-REVIEW-FIX.md
@@ -26,22 +27,30 @@ files_reviewed_list:
   - controller/image-processing/src/derivatives.rs
   - controller/src/routes.rs
   - deploy/ansible/playbooks/deploy.yml
+  - deploy/ansible/playbooks/controller-rollback.yml
+  - deploy/ansible/playbooks/publish-freeze-deploy-test.yml
+  - deploy/ansible/playbooks/publish-freeze-preflight.yml
   - deploy/ansible/playbooks/publish-freeze-render-test.yml
+  - deploy/ansible/playbooks/publish-unfreeze.yml
   - deploy/ansible/roles/autographs_deploy/defaults/main.yml
   - deploy/ansible/roles/autographs_deploy/files/Caddyfile
+  - deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py
+  - deploy/ansible/roles/autographs_deploy/handlers/main.yml
   - deploy/ansible/roles/autographs_deploy/tasks/main.yml
   - deploy/ansible/roles/autographs_deploy/tasks/publish_freeze.yml
   - deploy/ansible/roles/autographs_deploy/templates/autographs-caddy.container.j2
+  - deploy/ansible/tests/test_publish_freeze_deploy.py
+  - docs/deployment-runbook.md
   - scripts/verify-caddy-media-origin.sh
 findings:
   critical: 1
-  warning: 0
+  warning: 1
   info: 0
-  total: 1
+  total: 2
 status: issues_found
 convergence:
   status: reassessment_required
-  recurring_critical_warning: 1
+  recurring_critical_warning: 2
   scope_expansion: false
   requires_reassessment: true
   assumptions_evidence: null
@@ -202,3 +211,74 @@ _Reviewer: GSD code reviewer; review round 1._
 **Revised plan requirements:** Reconcile the release-please/GitHub Actions deployment with the freeze protocol. Specify where the gate is set before mutation, how the exact production workflow passes or reads frozen state, how queued/in-flight jobs are drained, how every restart and failure preserves it, and how an explicit readiness gate removes it. Extend deployment tests to model the real invocation and a pre-frozen host. Preserve all current publisher, marker, retention, and Caddy behavior.
 
 **Resume criteria:** Produce revised deployment assumptions and a reviewed implementation plan that cover each failure row and the production workflow. Record both evidence paths, plus the plan-review evidence, before changing `convergence.status` to `ready_to_resume`. A status-only change is invalid. The next coder action must follow that reviewed plan as one coherent contract change.
+
+## Round 4 Review — b33a421
+
+**Reviewed:** 2026-10-27T02:33:14Z
+**Status:** issues_found; one Blocker and one Warning.
+
+### Prior finding disposition
+
+- `CR-01` and `WR-01`: The shared namespace and decoded cache dimensions remain correct in publisher, Caddy, and contract tests. `CR-04` below is a later deployment consumer that can remove a valid old shared URL.
+- `CR-02`: Pointer-first candidate visibility remains correct in the local publisher and real Caddy origin fixture. The newly introduced audit has a separate retention failure.
+- `WR-02`: Publisher pruning and Caddy marker denial remain correct. `WR-03` below is the newly added deployment preflight consumer that rejects a documented active-media takedown.
+- `CR-03`: The actual production workflow now runs preflight, passes `autographs_deploy_publish_frozen=true`, starts the reviewed controller before new Caddy routing, checks frozen origin readiness, and explicitly unfreezes before release completion. The role retains the gate through its service restarts. Resolved in source and production-shaped local tests; no production rollout was executed.
+
+### CR-04: Routine subsequent deployment quarantines a committed old media URL
+
+**Severity:** BLOCKER
+**File:** `deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py:114`
+**Finding family:** `fingerprinted_media_release_lifetime`
+**Prior family ID:** `CR-01`
+**Lineage:** `sibling_path_miss`
+**Shared invariant:** A committed media URL referenced by a still-fresh document remains anonymously fetchable through a later production deployment, and the cutover audit distinguishes committed old URLs from candidate-only files.
+**Consumers inspected:** Publisher active-only precommit copy, postcommit shared copy, release retention/pruning and rollback; shared/current Caddy routes; preflight and role reaudit; production workflow on every mutating release; local audit fixture, publisher regression, and CDN/runbook contract.
+**Evidence level:** `deterministic_test`
+**PR comment:** https://github.com/jetsaredim/autographs/pull/294#discussion_r4384547991
+**Issue:** After normal correction or unpublish, an old committed fingerprint remains in shared `media/` and a retained release while `current` points to the new release. The audit regards only current media as proven, moves the old file out of the public root, and exits 2 because it is retained or younger than 24 hours. The production workflow invokes this preflight for every mutating deployment. A disposable active-plus-retained reproduction returned exit 2 and showed the old shared file absent. The existing audit test expects this outcome but models the retained release as ambiguous, missing the normal committed-history case.
+**Fix:** Persist or verify promotion provenance for prior committed URLs and preserve those files through their retention period; quarantine candidate-only paths. Test successful publications A then B followed by the next deployment preflight, including an old-URL origin miss.
+
+### WR-03: Preflight rejects intentional active-media emergency removal
+
+**Severity:** WARNING
+**File:** `deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py:76`
+**Finding family:** `emergency_media_takedown_retention`
+**Prior family ID:** `WR-02`
+**Lineage:** `sibling_path_miss`
+**Shared invariant:** An exact durable marker permits an intentionally deleted active or retained media file while continuing to deny its URL and allowing later deployment.
+**Consumers inspected:** Emergency-removal runbook, Caddy deny on both routes, publisher candidate rejection and tombstone-aware copy/prune, active-manifest verification in preflight, full-role reaudit, and audit tests.
+**Evidence level:** `deterministic_test`
+**PR comment:** https://github.com/jetsaredim/autographs/pull/294#discussion_r4384548637
+**Issue:** The runbook explicitly permits deleting the active release copy under a durable exact marker when needed. The publisher skips marked entries before reading them. The preflight verifies every active manifest media file without consulting markers, so the next deploy fails closed before its audit or controller cutover. A disposable active manifest with a regular marker and removed WebP reproduced exit 1 (`invalid shared media path`).
+**Fix:** Verify unmarked active media strictly, but accept an intentionally absent marked file and keep the marker denial authoritative. Test active takedown followed by deployment preflight.
+
+### Verification performed in round 4
+
+- `python3 -m unittest deploy/ansible/tests/test_publish_freeze_deploy.py`: six tests passed. The retained-manifest test currently encodes the `CR-04` failure.
+- `ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_REMOTE_TEMP=/tmp/ansible-remote ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook --syntax-check` on preflight, unfreeze, and rollback: passed.
+- Production-shaped `publish-freeze-deploy-test.yml`: passed.
+- Focused Cargo tests: 49 publisher, 9 Caddy, and 4 static-contract tests passed.
+- Containerized Caddy origin HTTP matrix: passed for precommit 404, postcommit 200, retained old URL 200, marked URL 404 on both routes, and frozen/unfrozen publish responses.
+- Disposable direct audit reproductions: ordinary active-plus-retained media returned exit 2 and quarantined the old shared file; an active marked/deleted file returned exit 1.
+- `git diff --check` for this local report edit: passed. No credentialed production OCI, Oracle, or Cloudflare run occurred.
+
+## Round 4 Convergence Reassessment
+
+**Finding lineage:** `CR-03`, the third-review deployment-gate finding in the `CR-02` candidate-visibility family, is resolved by the revised workflow and frozen role sequence. The third-review checkpoint was satisfied by the revised assumptions, contract plan, independent plan review, and separate convergence artifact before round-3 coder work. Round 4 exposes `CR-04`, a missed deployment consumer of `CR-01`'s committed URL lifetime, and `WR-03`, a missed preflight consumer of `WR-02`'s emergency marker contract. Both are recurring families, so further coder work requires renewed assumptions and plan review.
+
+**Shared invariants:** New candidate media is private until pointer commit; only committed shared media may be served; every normally retained old fingerprint remains fetchable through origin misses and later deployments; exact emergency markers deny both origin routes and permit intentionally removed bytes; the old process exits before new shared routing; deployment keeps the gate until explicit readiness-backed unfreeze.
+
+**Complete consumer inventory:** Private originals and derivative cache; candidate build/validation; pointer promotion; active/shared copy and retention; Caddy current/shared/tombstone routes; emergency marker and exact purge; rollback/unpublish/pruning; old controller request queue and process-exit barrier; preflight quarantine and durable record; role reaudit and service ordering; production GitHub Actions preflight/deploy/unfreeze/retry/rollback steps; public and preview origin probes; local publisher/Caddy/Ansible/Python tests and credentialed live checks.
+
+**Assumption audit:** The round-3 revision correctly treated a retained manifest alone as insufficient proof for the *initial* cutover, because an old candidate could be retained without pointer promotion. It applied that one-time rule to every later deployment without recording a postcutover promotion ledger. After ordinary operation, a retained manifest and shared file may represent a known committed prior URL, but the audit cannot tell. The audit also assumed every current-manifest image file exists, whereas the documented one-way emergency path deliberately removes a marked active file.
+
+| Failure point | Current effect | Required behavior |
+| --- | --- | --- |
+| Normal publish B follows committed A; next production deploy audits A in shared media | A is quarantined and preflight exits 2, breaking an old origin URL | Preserve proven committed A through retention while rejecting candidate-only bytes |
+| A shared URL has aged out but is still referenced by a retained release | It is quarantined and preflight still exits 2 | Decide retention from committed provenance and release policy, not current-only membership |
+| Emergency marker protects an active URL whose source copy was deleted | Active media verification exits 1 before cutover | Marker-aware verification accepts intentional absence while keeping unmarked corruption fatal |
+| Preflight or role reaudit fails after controller stop | Gate remains, but routine deployment cannot complete and quarantined old URLs remain unavailable | Keep the origin contract while stopped, provide deterministic recovery and retry evidence |
+
+**Revised plan requirements:** Add a durable, auditable committed-media history for postcutover publishes or an equivalent authoritative source that the preflight can verify before moving shared files. Preserve the strict first-cutover ambiguity stop. Make active verification marker-aware and never restore a marked URL. Recheck preflight and role reaudit on successive successful publishes, retained-release pruning, rollback, emergency active removal, failure, and retry. The revised plan must include public/preview origin-miss checks for old and marked URLs.
+
+**Resume criteria:** Independently revise and review assumptions and implementation plan for both failures and all sibling paths above; record those evidence references in the convergence artifact before changing its status to `ready_to_resume`. Keep the review findings and fixes linked in PR #294. A status-only transition is invalid.
