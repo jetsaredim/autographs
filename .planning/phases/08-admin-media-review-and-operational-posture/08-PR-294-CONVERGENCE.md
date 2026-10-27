@@ -2,12 +2,12 @@
 phase: 08-admin-media-review-and-operational-posture
 pr: 294
 trigger_review: 08-07-PR-294-REVIEW.md
-review_round: 5
+review_round: 6
 status: ready_to_resume
 assumption_revision_evidence: 08-PR-294-ASSUMPTIONS.md
 implementation_plan_evidence: 08-PR-294-CONTRACT-REVISION.md
-implementation_plan_review_evidence: 08-PR-294-CONTRACT-PLAN-REVIEW.md#round-5-wr-04-plan-review--verification-passed
-next_review_round: 6
+implementation_plan_review_evidence: 08-PR-294-CONTRACT-PLAN-REVIEW.md#round-6-wr-05-plan-review--verification-passed
+next_review_round: 7
 ---
 
 # PR 294 convergence reassessment
@@ -33,3 +33,7 @@ The revised `08-PR-294-ASSUMPTIONS.md` distinguishes first-cutover ambiguity fro
 ## Round 5 renewed reassessment and resume evidence
 
 Round 5 found `WR-04`, a sibling unfreeze consumer of the emergency marker contract. The review report records the finding lineage, shared invariant, consumer inventory, assumption audit, failure matrix, and resume criteria in `08-07-PR-294-REVIEW.md#round-5-convergence-reassessment`. `08-PR-294-ASSUMPTIONS.md` now defines readiness when a valid release has no unmarked active image. `08-PR-294-CONTRACT-REVISION.md` section 6 specifies one validated media-or-document probe for preflight, role reaudit, and both unfreeze modes, plus dual-origin marker denial and actual unfreeze execution tests. Independent approval is recorded in `08-PR-294-CONTRACT-PLAN-REVIEW.md#round-5-wr-04-plan-review--verification-passed`. These three evidence paths were reviewed before restoring `ready_to_resume`; coder work may now implement section 6 without weakening the existing history and marker gates.
+
+## Round 6 renewed reassessment and resume evidence
+
+Round 6 found `WR-05`, a retry consumer of the pointer-intent recovery invariant: strict pre-stop probing blocked a valid pending intent before the old process could exit and recovery could run. The lineage, consumer inventory, assumption audit, failure matrix, and resume criteria are recorded in `08-07-PR-294-REVIEW.md#round-6-convergence-reassessment`. Revised `08-PR-294-ASSUMPTIONS.md` distinguishes pre-stop static availability from publication authority. `08-PR-294-CONTRACT-REVISION.md` section 7 requires verified process exit before intent reconciliation, then final pointer/history/marker/probe evidence and dual-origin checks as the sole handoff. The independent plan approval is `08-PR-294-CONTRACT-PLAN-REVIEW.md#round-6-wr-05-plan-review--verification-passed`. Those three evidence paths were reviewed before restoring `ready_to_resume`; coder work may follow section 7, with the live rollout still a Wave 8 gate.

@@ -1,9 +1,9 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-27T09:39:17Z
+reviewed: 2026-10-27T21:33:18Z
 depth: deep
-review_round: 5
-files_reviewed: 38
+review_round: 6
+files_reviewed: 39
 files_reviewed_list:
   - .github/workflows/ci.yml
   - .github/workflows/deploy.yml
@@ -30,6 +30,7 @@ files_reviewed_list:
   - deploy/ansible/playbooks/controller-rollback.yml
   - deploy/ansible/playbooks/publish-freeze-deploy-test.yml
   - deploy/ansible/playbooks/publish-freeze-preflight.yml
+  - deploy/ansible/playbooks/publish-freeze-role-reaudit-test.yml
   - deploy/ansible/playbooks/publish-freeze-render-test.yml
   - deploy/ansible/playbooks/publish-unfreeze.yml
   - deploy/ansible/roles/autographs_deploy/defaults/main.yml
@@ -338,3 +339,56 @@ _Reviewer: GSD code reviewer; review round 1._
 **Revised plan requirements:** Treat active readiness as a document-or-unmarked-media choice shared by preflight, role reaudit, and unfreeze. Specify how public and preview origin probes prove 200 for a safe current artifact and 404 for every relevant exact-marked URL. Cover empty releases, sole-image takedown, mixed marked/unmarked media, and rollback to an all-marked release in the production-shaped playbook test; preserve fail-closed behavior for missing unmarked bytes and unproven retained history.
 
 **Resume criteria:** Revise assumptions and implementation plan for this complete probe contract, obtain independent plan review, and record those evidence paths in the convergence artifact before changing status to `ready_to_resume` or starting another coder point fix. The posted `WR-04` PR comment and this report retain the finding lineage.
+
+## Round 6 Review — 5c3ee3f
+
+**Reviewed:** 2026-10-27T21:33:18Z
+**Status:** issues_found; zero Blockers and one Warning. The reviewed round-5 reassessment authorized this implementation round.
+
+### Prior finding disposition
+
+- `WR-04` (`emergency_media_takedown_retention`): A shared versioned probe selects verified unmarked media or a public document when none exists. Preflight, role reaudit, and both unfreeze modes consume it, and the real Caddy fixture now exercises actual gate removal and postchecks. Empty, sole-marked, mixed, and all-marked rollback cases are covered locally. Resolved in reviewed source.
+- `CR-01`/`CR-04` committed URL lifetime, `CR-02`/`CR-03` candidate visibility and deployment freeze, `WR-01` decoded dimensions, and `WR-02`/`WR-03` exact-marker retention remain supported by their source paths and focused regressions. The new pre-stop recovery regression below affects the same publication-history and frozen-deployment boundary; no production rollout was executed.
+
+### WR-05: Pre-stop readiness blocks valid interrupted publication recovery
+
+**Severity:** WARNING
+**File:** `deploy/ansible/playbooks/publish-freeze-preflight.yml:330`
+**Finding family:** `publication_intent_recovery`
+**Prior family IDs:** `CR-04` (history provenance), `WR-04` (new pre-stop probe consumer)
+**Lineage:** `fix_regression`
+**Shared invariant:** A valid pending publication intent must remain recoverable under the frozen gate after the old publisher exits, allowing a normal deployment retry to finish without treating intent as publication authority before exit.
+**Consumers inspected:** Rust `commit_candidate_with` intent/pointer ordering and `reconcile_history`; Python `probe_state`, `reconcile`, active receipt, and audit; preflight pre-stop probe and post-exit audit; role reaudit; unfreeze identity checks; publisher and Python intent tests; production workflow retry invocation.
+**Evidence level:** `deterministic_test` for valid post-pointer intent versus read-only probe and frozen-exit audit; `source_only` for the full playbook stop ordering.
+**PR comment:** https://github.com/jetsaredim/autographs/pull/294#discussion_r4394368458
+**Issue:** The newly added pre-stop `--probe-only` call rejects any `intent.json`. The playbook executes it before stopping the old controller, while the later mutating audit is the operation that can reconcile a valid pending intent after `--frozen-exit-proved`. A disposable post-pointer fixture returned `prestop_probe=1` with `unreconciled commit intent blocks origin readiness`, then `postexit_audit=0` for the same files. The before-pointer intent is rejected at the same guard. A release deployment or retry with such an interrupted publish never reaches the process-exit barrier or recovery audit, despite an otherwise valid and recoverable state.
+**Fix:** Preserve the frozen admission gate, select a read-only pre-stop probe from the old current-only route while explicitly recording pending intent, then stop and prove old-process exit before reconciling intent; alternatively defer authoritative probe selection until after that exit. Require final pointer, manifest, history, marker, and probe agreement before new routing. Execute the actual preflight retry for valid before- and after-pointer intents in a regression test.
+
+### Verification performed in round 6
+
+- `cargo test --manifest-path controller/Cargo.toml --test publisher --test caddy_static_routes --test static_contract --quiet`: 49 publisher, 9 Caddy, and 4 static-contract tests passed.
+- Ansible syntax checks for preflight, unfreeze, and role-reaudit test playbooks passed.
+- `bash scripts/verify-caddy-media-origin.sh` passed against containerized Caddy, including retained old URL 200, candidate precommit 404, marked public/preview 404, unmarked media 200, all-marked document 200, and frozen/unfrozen routing.
+- A disposable direct audit reproduction of a valid post-pointer intent showed `--probe-only` exit 1 before stop and `--frozen-exit-proved` audit exit 0 after stop. The production preflight invokes the former before its stop task.
+- `python3 -m unittest deploy/ansible/tests/test_publish_freeze_deploy.py`: 19 tests passed in 418.895 seconds. Its real-Caddy fixture executed the actual preflight, role reaudit, verify-only unfreeze, mutating unfreeze, and rescue paths for sole-marked, empty, mixed, and all-marked rollback states. It did not run full preflight with an interrupted intent; the direct reproduction above demonstrates that untested retry gap. No credentialed production Oracle, OCI, or Cloudflare run was performed.
+
+## Round 6 Convergence Reassessment
+
+**Finding lineage:** `WR-04` is resolved by the reviewed state-aware probe and actual unfreeze fixture. `WR-05` is a fix regression introduced by using that strict probe before the old publisher exits. It is a new consumer of the `CR-04` committed-history recovery contract. Because a recurring Warning remains, `convergence.status` stays `reassessment_required`; another coder point fix needs renewed assumptions and reviewed plan evidence.
+
+**Shared invariants:** Candidate-only bytes remain private before pointer commit; committed active and retained URLs remain origin-fetchable; marked URLs stay denied even if bytes exist; a valid interrupted intent can be reconciled only after old-publisher exit proof; invalid intent cannot authorize new shared exposure; current pointer, manifest, history, markers, and selected readiness probe agree before new Caddy routing and explicit unfreeze.
+
+**Consumer inventory:** Rust intent write, pointer promotion, history reconciliation, and postcommit status; Python audit initial migration, read-only probe, pending-intent reconcile, quarantine, and freeze record; old Caddy current-only route and marker deny; preflight before/after exit; role reaudit and frozen Caddy restart; verify-only and mutating unfreeze; production release/retry workflow; rollback, retention, and emergency removal; publisher, Python, Ansible, and real Caddy tests.
+
+**Assumption audit:** The round-5 amendment correctly requires strict history validation for final readiness, but assumes a pre-stop probe can apply the same rule. A pending intent is intentionally incomplete history while the old controller may still be active. The audit already has a separate, safer authority point after process exit; the new pre-stop call prevents that authority point from being reached.
+
+| Failure point | Current effect | Required behavior |
+| --- | --- | --- |
+| Crash after intent write, before pointer rename | New pre-stop probe rejects intent; deploy/retry stops before old-process exit | Keep old route frozen; stop old process; discard validated uncommitted intent; continue audit |
+| Crash after pointer rename, before history finalization | New pre-stop probe rejects intent and history/pointer mismatch; deploy/retry stops | Keep current route serving committed pointer; stop old process; reconcile validated intent, then audit |
+| Intent is malformed or its bytes disagree with pointer/manifest | Probe rejects and deployment stays frozen | Continue to fail closed without promoting shared bytes |
+| Intent is reconciled after proven exit | Audit can write consistent history and freeze record | Final origin probe and both Caddy routes must match that record before unfreeze |
+
+**Revised plan requirements:** Separate pre-stop static availability from post-exit publication authority. Specify a read-only, fail-closed pre-stop treatment of pending intent under the old current-only route; define exact before-pointer discard and after-pointer history-finalization behavior after process exit; compare pre-stop route availability with the final validated release without requiring pre-stop history completion. Exercise full preflight, role reaudit, and unfreeze retry for both valid intent sides and invalid intent, retaining the marker, retained-URL, and frozen-failure checks.
+
+**Resume criteria:** Revise the publication-intent assumptions and implementation plan, obtain independent plan review, and record those evidence paths in the convergence artifact before another coder fix or `ready_to_resume` transition. Preserve `WR-05` and the resolved lineage on PR #294.
