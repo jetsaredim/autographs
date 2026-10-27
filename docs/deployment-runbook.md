@@ -289,7 +289,12 @@ including read-only initial inventory, independently proven historical media,
 the conservative frozen wait for an unarchived pruned release, durable
 publication-history receipts, and exact-marker origin denial. Later mutating
 deployments must preserve a previously committed old URL through preflight and
-role reaudit. Keep the history namespace, migration marker, shared media,
+role reaudit. The origin readiness probe is a verified unmarked current WebP,
+or `/manifest.json` when the current release is empty or every active image is
+exactly marked. Verify-only and mutating unfreeze require 200 for the selected
+path and 404 for every persistent marker on public and preview origins, before
+and after the Caddy restart; unmarked byte corruption keeps the gate frozen.
+Keep the history namespace, migration marker, shared media,
 releases, pointer, and tombstones in the same backup set. Do not deploy with
 `autographs_deploy_publish_frozen=false` to bypass it.
 

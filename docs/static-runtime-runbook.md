@@ -706,7 +706,14 @@ markers allow intentionally missing active or retained bytes and continue
 denying both origins. Unmarked missing or corrupt committed bytes stop the
 deployment; repair from a verified committed copy and retry frozen. The freeze
 record changes only after successful audit and binds pointer, manifest,
-history digest/version, and marker inventory. A missing history after migration
+history digest/version, marker inventory, and a versioned active origin probe.
+The audit verifies every unmarked current WebP against manifest size, filename
+fingerprint, and committed hash before selecting one media URL. If no unmarked
+current image exists, including an empty release or one whose only image was
+exactly marked and deleted, it selects `/manifest.json` instead. Both public
+HTTPS and preview origins must return 200 for that selected path and 404 for
+every exact marker; a missing or corrupt unmarked image never falls back to
+the document. A missing history after migration
 is fatal. Do not bypass a failed preflight with an unfrozen variable.
 
 The full role requires the protected freeze record and rechecks old PID and
@@ -721,9 +728,15 @@ valid `current` release before the existing full-deploy static gate can pass.
 Only after production health and the host's public and preview origin checks
 pass does the workflow call `publish-unfreeze.yml` separately. It repeats the
 image/release/source, current static, frozen POST, Caddy validation, and
-disposable marker checks; removes only the managed gate; restarts Caddy; and
+disposable marker checks. Verify-only and mutating unfreeze consume the same
+audited media-or-document probe, compare pointer/manifest/history/marker
+digests against the freeze record, and prove persistent exact marker denial at
+both origins. The mutating call keeps its disposable marker through the Caddy
+restart, removes only the managed gate, and repeats selected-path 200 and
+marked-path 404 afterward. It also
 requires unauthenticated publish POSTs to reach `401`/`403` without starting a
-job. A failed postcheck restores the frozen file and retains the record. The
+job before deleting the freeze record. A failed postcheck restores the frozen
+file and retains the record. The
 release completion gate requires this unfreeze step to succeed. Record gate-on,
 old-process exit, quarantine audit, new-controller readiness, route readiness,
 and gate-off times and commands in Wave 8 evidence. Resume credentialed smoke

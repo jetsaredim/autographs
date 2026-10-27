@@ -107,6 +107,60 @@ def manifest(root, release_id, archive=None):
     return value, digest(raw)
 
 
+def select_active_probe(root, pointer, history=None):
+    """Choose origin readiness only after validating every unmarked active byte."""
+    value, manifest_hash = manifest(root, pointer)
+    saved = history["releases"][pointer] if history is not None else None
+    if saved is not None and saved["manifest_sha256"] != manifest_hash:
+        raise ValueError("active manifest differs from committed history")
+    media = []
+    for artifact in value["artifacts"]:
+        if artifact.get("variant") is None:
+            continue
+        name = artifact["path"]
+        if not MEDIA.fullmatch(name) or artifact.get("contentType", artifact.get("content_type")) != "image/webp":
+            raise ValueError(f"invalid active media path: {name}")
+        if marked(root, name):
+            continue
+        expected = saved["media"].get(name) if saved is not None else None
+        if saved is not None and expected is None:
+            raise ValueError(f"active media lacks committed hash: {name}")
+        verified(root / "releases" / pointer / name, name,
+                 artifact.get("byteSize", artifact.get("byte_size")), expected)
+        media.append(name)
+    return {"version": 1, "kind": "media" if media else "document",
+            "path": media[0] if media else "manifest.json"}
+
+
+def probe_state(root, initial_cutover=False):
+    pointer = current(root)
+    history_path = root / ".media-commit-history/history.json"
+    history = None
+    history_hash = None
+    if history_path.exists():
+        if (root / ".media-commit-history/intent.json").exists():
+            raise ValueError("unreconciled commit intent blocks origin readiness")
+        if history_path.is_symlink() or not history_path.is_file():
+            raise ValueError("linked or malformed committed history")
+        raw = history_path.read_bytes()
+        history = json.loads(raw)
+        validate_history(root, history, pointer)
+        history_hash = digest(raw)
+    elif not initial_cutover:
+        raise ValueError("committed history missing from origin readiness")
+    probe = select_active_probe(root, pointer, history)
+    _, manifest_hash = manifest(root, pointer)
+    directory = root / ".media-tombstones"
+    markers = sorted(path.relative_to(directory).as_posix()
+                     for path in directory.rglob("*") if path.is_file()) if directory.exists() else []
+    return {"current_target": "releases/" + pointer,
+            "current_manifest_sha256": manifest_hash,
+            "history_digest": history_hash,
+            "marker_digest": marker_digest(root),
+            "marker_paths": markers,
+            "active_probe": probe}
+
+
 def receipt(root, release_id, archive=None, historical=None):
     value, manifest_hash = manifest(root, release_id, archive)
     media = {}
@@ -175,6 +229,8 @@ def reconcile(root, args, pointer):
     history = json.loads(history_path.read_text())
     intent_path = directory / "intent.json"
     if intent_path.exists():
+        if args.report_only:
+            raise ValueError("read-only audit cannot reconcile pending commit intent")
         if not args.frozen_exit_proved:
             raise ValueError("interrupted intent needs frozen old-process exit proof")
         intent = json.loads(intent_path.read_text())
@@ -300,6 +356,7 @@ def audit(args):
         history, unresolved = initial_history(root, args, pointer, shared)
     else:
         history, unresolved = reconcile(root, args, pointer), []
+    active_probe = select_active_probe(root, pointer, history)
     now = int(time.time())
     protected = {}
     for release_id, saved in history["releases"].items():
@@ -321,8 +378,20 @@ def audit(args):
         if not marked(root, name) and name not in shared and name not in history["releases"][pointer]["media"]:
             raise ValueError(f"committed shared media missing: {name}")
     marker_hash = marker_digest(root)
-    report = {"current_release_id": pointer, "marker_digest": marker_hash,
-              "history_digest": digest(json.dumps(history, sort_keys=True).encode()),
+    marker_root = root / ".media-tombstones"
+    marker_paths = sorted(path.relative_to(marker_root).as_posix()
+                          for path in marker_root.rglob("*") if path.is_file()) if marker_root.exists() else []
+    retained_probe = next((name for name in sorted(keep)
+                           if name not in history["releases"][pointer]["media"]), "")
+    history_path = root / ".media-commit-history/history.json"
+    report = {"current_release_id": pointer,
+              "current_target": "releases/" + pointer,
+              "current_manifest_sha256": history["releases"][pointer]["manifest_sha256"],
+              "marker_digest": marker_hash, "marker_paths": marker_paths,
+              "history_version": 1,
+              "history_digest": digest(history_path.read_bytes()) if history_path.exists() else None,
+              "active_probe": active_probe,
+              "retained_probe": retained_probe,
               "kept": sorted(keep), "quarantine": sorted(move), "unresolved": unresolved,
               "old_exit_epoch": args.old_exit_epoch, "old_pointer": args.old_pointer}
     report_path = record.parent / f"audit-report-{time.time_ns()}.json"
@@ -346,7 +415,6 @@ def audit(args):
         history_path = root / ".media-commit-history/history.json"
         atomic_json(history_path, history)
         atomic_json(root / ".media-commit-migrated.json", {"version": 1, "history_digest": digest(history_path.read_bytes())})
-    history_path = root / ".media-commit-history/history.json"
     payload = {"release_tag": args.release_tag, "controller_digest": args.controller_digest,
                "current_target": "releases/" + pointer,
                "current_manifest_sha256": history["releases"][pointer]["manifest_sha256"],
@@ -354,12 +422,9 @@ def audit(args):
                "marker_digest": marker_hash, "audited_shared_media": sorted(keep),
                "quarantined_shared_media": sorted(move), "old_container_id": args.old_container_id,
                "old_pid": args.old_pid, "bootstrap": False}
-    payload["active_probe"] = next((name for name in history["releases"][pointer]["media"] if not marked(root, name)), "")
-    payload["retained_probe"] = next((name for name in sorted(keep)
-                                      if name not in history["releases"][pointer]["media"]), "")
-    marker_root = root / ".media-tombstones"
-    payload["marker_paths"] = sorted(path.relative_to(marker_root).as_posix()
-                                     for path in marker_root.rglob("*") if path.is_file()) if marker_root.exists() else []
+    payload["active_probe"] = active_probe
+    payload["retained_probe"] = retained_probe
+    payload["marker_paths"] = marker_paths
     atomic_json(record, payload)
     print(f"Audited {len(keep)} committed URLs; quarantined {len(move)} uncommitted URLs")
     return 0
@@ -367,9 +432,11 @@ def audit(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    for field in ("static-root", "quarantine", "record", "release-tag", "controller-digest", "old-container-id"):
-        parser.add_argument("--" + field, required=True)
-    parser.add_argument("--old-pid", required=True, type=int)
+    parser.add_argument("--static-root", required=True)
+    for field in ("quarantine", "record", "release-tag", "controller-digest", "old-container-id"):
+        parser.add_argument("--" + field)
+    parser.add_argument("--old-pid", type=int)
+    parser.add_argument("--probe-only", action="store_true")
     parser.add_argument("--initial-cutover", action="store_true")
     parser.add_argument("--report-only", action="store_true")
     parser.add_argument("--old-route-current-only", action="store_true")
@@ -379,7 +446,14 @@ def main():
     parser.add_argument("--old-pointer")
     parser.add_argument("--trusted-utc", action="store_true")
     parser.add_argument("--legacy-evidence")
-    return audit(parser.parse_args())
+    args = parser.parse_args()
+    if args.probe_only:
+        print(json.dumps(probe_state(Path(args.static_root).resolve(strict=True), args.initial_cutover), sort_keys=True))
+        return 0
+    for field in ("quarantine", "record", "release_tag", "controller_digest", "old_container_id", "old_pid"):
+        if getattr(args, field) is None:
+            parser.error("--" + field.replace("_", "-") + " is required")
+    return audit(args)
 
 
 if __name__ == "__main__":

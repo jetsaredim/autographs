@@ -137,16 +137,26 @@ expect_status 404 "${media_b}" 'B tombstoned with shared and retained copies'
 rm -- "${static_root}${media_b}"
 expect_status 404 "${media_b}" 'B tombstoned with retained release copy'
 expect_status 200 "${media_a}" 'A remains available'
+for state in frozen normal; do
+  cp "${fixture}/Caddyfile.${state}-http" "${fixture}/Caddyfile.http"
+  docker exec "${container}" caddy reload --config /etc/caddy/Caddyfile >/dev/null
+  expect_status 200 "${media_a}" "${state} verified unmarked media readiness"
+  expect_status 404 "${media_b}" "${state} persistent marker denial"
+done
 touch "${static_root}/.media-tombstones${media_a}"
 rm -- "${static_root}${media_a}" "${static_root}/current${media_a}"
 python3 "${audit}" "${audit_args[@]}" --frozen-exit-proved >/dev/null
 expect_status 404 "${media_a}" 'marked active A deleted before later reaudit'
+expect_status 200 '/manifest.json' 'all-marked current document readiness'
 expect_status 404 "/.media-tombstones${media_b}" 'marker path remains private'
 expect_status 404 '/.media-commit-history/history.json' 'publication history remains private'
 
 cat "${fixture}/Caddyfile.frozen-http" > "${fixture}/Caddyfile.http"
 docker exec "${container}" caddy validate --config /etc/caddy/Caddyfile >/dev/null
 docker exec "${container}" caddy reload --config /etc/caddy/Caddyfile >/dev/null
+expect_status 200 '/manifest.json' 'frozen all-marked document readiness'
+expect_status 404 "${media_a}" 'frozen exact active marker denial'
+expect_status 404 "${media_b}" 'frozen retained marker denial'
 for path in /admin/api/publish/full /admin/api/publish/incremental; do
   actual="$(http_status public "${path}" POST)"
   [[ "${actual}" == 503 ]] || { echo "frozen ${path} returned ${actual}, expected 503" >&2; exit 1; }
@@ -158,6 +168,9 @@ echo 'Ansible-rendered freeze: both publish POSTs 503; status remains proxied'
 cat "${fixture}/Caddyfile.normal-http" > "${fixture}/Caddyfile.http"
 docker exec "${container}" caddy validate --config /etc/caddy/Caddyfile >/dev/null
 docker exec "${container}" caddy reload --config /etc/caddy/Caddyfile >/dev/null
+expect_status 200 '/manifest.json' 'unfrozen all-marked document readiness'
+expect_status 404 "${media_a}" 'unfrozen exact active marker denial'
+expect_status 404 "${media_b}" 'unfrozen retained marker denial'
 for path in /admin/api/publish/full /admin/api/publish/incremental; do
   actual="$(http_status public "${path}" POST)"
   [[ "${actual}" != 503 ]] || { echo "normal ${path} remained frozen" >&2; exit 1; }

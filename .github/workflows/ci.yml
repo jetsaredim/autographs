@@ -325,6 +325,7 @@ jobs:
 
       - name: Test Ansible validation playbooks
         run: |
+          docker info --format '{{.ServerVersion}}'
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             deploy/ansible/playbooks/publish-freeze-deploy-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \

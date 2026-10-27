@@ -305,44 +305,28 @@
           failed_when: freeze_initial_pre_stop_report.rc not in [0, 2]
           when: freeze_initial_cutover | bool
 
-        - name: Read current static manifest
-          ansible.builtin.slurp:
-            src: "{{ freeze_static_mount.stdout | trim }}/current/manifest.json"
-          register: freeze_current_manifest
+        - name: Select validated active origin probe before old controller stop
+          ansible.builtin.command:
+            argv:
+              - python3
+              - /opt/autographs/private/publish_freeze_audit.py
+              - --static-root
+              - "{{ freeze_static_mount.stdout | trim }}"
+              - --probe-only
+              - "{{ '--initial-cutover' if freeze_initial_cutover | bool else '--probe-only' }}"
+          register: freeze_pre_stop_probe
+          changed_when: false
 
-        - name: Inventory committed current media candidates
+        - name: Resolve validated pre-stop origin probe
           ansible.builtin.set_fact:
-            freeze_current_media_candidates: >-
-              {{
-                (
-                  (freeze_current_manifest.content | b64decode | from_json).artifacts
-                  | selectattr('variant', 'defined')
-                  | rejectattr('variant', 'none')
-                  | map(attribute='path')
-                  | list
-                )
-              }}
+            freeze_pre_stop_state: "{{ freeze_pre_stop_probe.stdout | from_json }}"
 
-        - name: Inspect exact markers before selecting current media proof
-          ansible.builtin.stat:
-            path: "{{ freeze_static_mount.stdout | trim }}/.media-tombstones/{{ item }}"
-          loop: "{{ freeze_current_media_candidates }}"
-          register: freeze_current_media_markers
-
-        - name: Select an unmarked current media URL or public manifest
-          ansible.builtin.set_fact:
-            freeze_current_media: >-
-              {{
-                (freeze_current_media_markers.results
-                | rejectattr('stat.exists')
-                | map(attribute='item') | list | first)
-                | default('manifest.json', true)
-              }}
-
-        - name: Require current media for static cutover proof
+        - name: Require versioned active origin probe
           ansible.builtin.assert:
             that:
-              - freeze_current_media is match('^(media/.+\.webp|manifest\.json)$')
+              - freeze_pre_stop_state.active_probe.version == 1
+              - freeze_pre_stop_state.active_probe.kind in ['media', 'document']
+              - freeze_pre_stop_state.active_probe.path is match('^(media/.+\.webp|manifest\.json)$')
 
         - name: Verify frozen public routes before old controller stop
           ansible.builtin.command:
@@ -366,7 +350,7 @@
             - /admin/api/publish/full
             - /admin/api/publish/incremental
             - /manifest.json
-            - "/{{ freeze_current_media }}"
+            - "/{{ freeze_pre_stop_state.active_probe.path }}"
           register: freeze_before_stop_http
           changed_when: false
 
@@ -379,6 +363,12 @@
               - "'HTTP_STATUS=200' in freeze_before_stop_http.results[3].stdout"
               - "'cache-control: no-store' in (freeze_before_stop_http.results[0].stdout | lower)"
               - "'cache-control: no-store' in (freeze_before_stop_http.results[1].stdout | lower)"
+
+        - name: Verify validated pre-stop probe at preview origin
+          ansible.builtin.uri:
+            url: "http://127.0.0.1:8081/{{ freeze_pre_stop_state.active_probe.path }}"
+            status_code: 200
+            return_content: false
 
         - name: Capture old controller container identity and PID
           ansible.builtin.command:
@@ -626,3 +616,56 @@
           changed_when: true
           environment:
             AUTOGRAPHS_LEGACY_MEDIA_EVIDENCE: "{{ autographs_legacy_media_evidence_path | default('') }}"
+
+        - name: Read final validated frozen publication record
+          ansible.builtin.slurp:
+            src: "{{ freeze_record_path }}"
+          register: freeze_final_record_file
+
+        - name: Resolve final validated frozen publication record
+          ansible.builtin.set_fact:
+            freeze_final_record: "{{ freeze_final_record_file.content | b64decode | from_json }}"
+
+        - name: Require unchanged active origin selection across process exit
+          ansible.builtin.assert:
+            that:
+              - freeze_final_record.current_target == freeze_pre_stop_state.current_target
+              - freeze_final_record.current_manifest_sha256 == freeze_pre_stop_state.current_manifest_sha256
+              - freeze_final_record.active_probe == freeze_pre_stop_state.active_probe
+            fail_msg: Current publication changed during old-controller stop; keep frozen and rerun preflight.
+
+        - name: Require Caddy readback of every final exact marker
+          ansible.builtin.command:
+            argv:
+              - podman
+              - exec
+              - autographs-caddy
+              - test
+              - -f
+              - "/srv/autographs/static/.media-tombstones/{{ item }}"
+          loop: "{{ freeze_final_record.marker_paths }}"
+          changed_when: false
+
+        - name: Verify final active probe and exact marker denial at both origins
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --silent
+              - --output
+              - /dev/null
+              - --write-out
+              - "%{http_code}"
+              - --noproxy
+              - "*"
+              - --resolve
+              - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+              - "{{ ('https://' + autographs_deploy_domain) if item.0 == 'public' else 'http://127.0.0.1:8081' }}/{{ item.1 }}"
+          loop: "{{ ['public', 'preview'] | product([freeze_final_record.active_probe.path] + freeze_final_record.marker_paths) | list }}"
+          register: freeze_final_origins
+          changed_when: false
+
+        - name: Require dual-origin active 200 and every exact marker 404
+          ansible.builtin.assert:
+            that:
+              - freeze_final_origins.results | map(attribute='stdout') | list ==
+                (['200'] + ['404'] * (freeze_final_record.marker_paths | length)) * 2

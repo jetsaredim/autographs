@@ -517,6 +517,8 @@
       - autographs_deploy_refreshed_record.current_manifest_sha256 == autographs_deploy_freeze_record.current_manifest_sha256
       - autographs_deploy_refreshed_record.history_digest == autographs_deploy_freeze_record.history_digest
       - autographs_deploy_refreshed_record.history_version == 1
+      - autographs_deploy_refreshed_record.active_probe == autographs_deploy_freeze_record.active_probe
+      - autographs_deploy_refreshed_record.active_probe.version == 1
       - autographs_deploy_refreshed_record.old_pid == autographs_deploy_freeze_record.old_pid
     fail_msg: Committed publication changed between preflight and role reaudit.
   when: not autographs_deploy_freeze_record.bootstrap
@@ -807,6 +809,48 @@
         method: GET
         status_code: 200
         return_content: false
+
+    - name: Verify refreshed active probe and all exact markers after Caddy restart
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --output
+          - /dev/null
+          - --write-out
+          - "%{http_code}"
+          - --noproxy
+          - "*"
+          - --resolve
+          - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+          - "{{ ('https://' + autographs_deploy_domain) if item.0 == 'public' else 'http://127.0.0.1:8081' }}/{{ item.1 }}"
+      loop: >-
+        {{ ['public', 'preview'] | product(
+          [autographs_deploy_refreshed_record.active_probe.path]
+          + autographs_deploy_refreshed_record.marker_paths) | list }}
+      register: autographs_deploy_postcutover_origins
+      changed_when: false
+      when: not autographs_deploy_freeze_record.bootstrap
+
+    - name: Require Caddy readback of every refreshed exact marker
+      ansible.builtin.command:
+        argv:
+          - podman
+          - exec
+          - "{{ autographs_deploy_caddy_container_name }}"
+          - test
+          - -f
+          - "/srv/autographs/static/.media-tombstones/{{ item }}"
+      loop: "{{ autographs_deploy_refreshed_record.marker_paths | default([]) }}"
+      changed_when: false
+      when: not autographs_deploy_freeze_record.bootstrap
+
+    - name: Require refreshed active 200 and exact marker 404 after Caddy restart
+      ansible.builtin.assert:
+        that:
+          - autographs_deploy_postcutover_origins.results | map(attribute='stdout') | list ==
+            (['200'] + ['404'] * (autographs_deploy_refreshed_record.marker_paths | length)) * 2
+      when: not autographs_deploy_freeze_record.bootstrap
 
     - name: Require publish endpoints remain frozen after Caddy restart
       ansible.builtin.command:

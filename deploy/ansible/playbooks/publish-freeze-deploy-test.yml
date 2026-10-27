@@ -4,7 +4,7 @@
   connection: local
   gather_facts: false
   tasks:
-    - name: Exercise real workflow parameters, audit quarantine, and process exit
+    - name: Exercise workflow, audit, and actual unfreeze against disposable real Caddy HTTP origins
       ansible.builtin.command:
         argv:
           - python3
