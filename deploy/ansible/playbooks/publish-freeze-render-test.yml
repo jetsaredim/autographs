@@ -19,6 +19,27 @@
         dest: "{{ freeze_test_dir }}/Caddyfile"
         mode: "0644"
 
+    - name: Stage an existing manual publish gate
+      ansible.builtin.blockinfile:
+        path: "{{ freeze_test_dir }}/Caddyfile"
+        marker: "# {mark} MANUAL PUBLISH FREEZE"
+        insertbefore: '^\s*handle /admin/api/\* \{$'
+        block: |
+          handle /admin/api/publish/full {
+            header Cache-Control "no-store"
+            respond "Publishing temporarily unavailable" 503
+          }
+          handle /admin/api/publish/incremental {
+            header Cache-Control "no-store"
+            respond "Publishing temporarily unavailable" 503
+          }
+
+    - name: Replace old manually frozen Caddyfile as full deploy does
+      ansible.builtin.copy:
+        src: ../roles/autographs_deploy/files/Caddyfile
+        dest: "{{ freeze_test_dir }}/Caddyfile"
+        mode: "0644"
+
     - name: Render frozen routes
       ansible.builtin.include_tasks: ../roles/autographs_deploy/tasks/publish_freeze.yml
       vars:
@@ -33,6 +54,7 @@
       ansible.builtin.assert:
         that:
           - "(frozen_caddyfile.content | b64decode).count('respond \"Publishing temporarily unavailable\" 503') == 2"
+          - "'MANUAL PUBLISH FREEZE' not in (frozen_caddyfile.content | b64decode)"
           - >-
             (frozen_caddyfile.content | b64decode).find('handle /admin/api/publish/full {')
             < (frozen_caddyfile.content | b64decode).find('handle /admin/api/* {')
@@ -49,6 +71,7 @@
       ansible.builtin.include_tasks: ../roles/autographs_deploy/tasks/publish_freeze.yml
       vars:
         autographs_deploy_publish_frozen: false
+        autographs_deploy_allow_unfreeze: true
 
     - name: Read unfrozen Caddyfile
       ansible.builtin.slurp:

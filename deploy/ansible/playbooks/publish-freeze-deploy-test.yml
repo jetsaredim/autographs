@@ -1,0 +1,35 @@
+---
+- name: Test production-shaped publisher freeze contract locally
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Exercise real workflow parameters, audit quarantine, and process exit
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ playbook_dir }}/../tests/test_publish_freeze_deploy.py"
+      changed_when: false
+
+    - name: Create disposable Caddy render directory
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: autographs-freeze-
+      register: freeze_render_dir
+
+    - name: Verify manual gate replacement remains managed and frozen
+      block:
+        - name: Render the production copied-file freeze fixture
+          ansible.builtin.command:
+            argv:
+              - ansible-playbook
+              - "{{ playbook_dir }}/publish-freeze-render-test.yml"
+          environment:
+            AUTOGRAPHS_FREEZE_TEST_DIR: "{{ freeze_render_dir.path }}"
+            ANSIBLE_CONFIG: "{{ playbook_dir }}/../ansible.cfg"
+          changed_when: false
+      always:
+        - name: Remove disposable Caddy render directory
+          ansible.builtin.file:
+            path: "{{ freeze_render_dir.path }}"
+            state: absent

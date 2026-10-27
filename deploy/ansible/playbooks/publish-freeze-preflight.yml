@@ -1,0 +1,352 @@
+---
+- name: Stop the old publisher before changing public media routing
+  hosts: runtime
+  become: true
+  vars:
+    freeze_record_path: /opt/autographs/private/publish-freeze.json
+    frozen_backup_path: /opt/autographs/private/Caddyfile.pre-cutover-frozen
+    quarantine_path: /opt/autographs/private/media-quarantine
+    caddyfile_path: /opt/autographs/caddy/Caddyfile
+    caddy_quadlet_path: /etc/containers/systemd/autographs-caddy.container
+  pre_tasks:
+    - name: Wait for runtime SSH readiness
+      ansible.builtin.wait_for_connection:
+        timeout: 900
+        sleep: 10
+  tasks:
+    - name: Validate freeze request identity
+      ansible.builtin.assert:
+        that:
+          - autographs_deploy_repo_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+          - autographs_deploy_controller_digest is match('^sha256:[0-9a-f]{64}$')
+          - autographs_deploy_domain is match('^[a-z0-9.-]+$')
+
+    - name: Inspect existing Caddyfile and quadlet
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ caddyfile_path }}"
+        - "{{ caddy_quadlet_path }}"
+      register: freeze_existing_files
+
+    - name: Require a complete old runtime or a fresh VM
+      ansible.builtin.assert:
+        that:
+          - freeze_existing_files.results[0].stat.exists == freeze_existing_files.results[1].stat.exists
+        fail_msg: Partial Caddy installation cannot establish a frozen cutover.
+
+    - name: Ensure protected freeze directory exists
+      ansible.builtin.file:
+        path: "{{ freeze_record_path | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Check for a controller service on fresh-VM bootstrap
+      ansible.builtin.command:
+        argv: [systemctl, is-active, autographs-controller.service]
+      register: freeze_bootstrap_controller_unit
+      changed_when: false
+      failed_when: false
+      when: not freeze_existing_files.results[0].stat.exists
+
+    - name: Check for a running controller container on fresh-VM bootstrap
+      ansible.builtin.command:
+        argv:
+          - podman
+          - inspect
+          - --format
+          - "{% raw %}{{.State.Running}}{% endraw %}"
+          - autographs-controller
+      register: freeze_bootstrap_controller_container
+      changed_when: false
+      failed_when: false
+      when: not freeze_existing_files.results[0].stat.exists
+
+    - name: Refuse bootstrap with any old publisher still running
+      ansible.builtin.assert:
+        that:
+          - freeze_bootstrap_controller_unit.stdout | trim != 'active'
+          - freeze_bootstrap_controller_container.stdout | trim != 'true'
+      when: not freeze_existing_files.results[0].stat.exists
+
+    - name: Check for a preexisting static volume on fresh-VM bootstrap
+      ansible.builtin.command:
+        argv: [podman, volume, exists, autographs-static]
+      register: freeze_bootstrap_static_volume
+      changed_when: false
+      failed_when: false
+      when: not freeze_existing_files.results[0].stat.exists
+
+    - name: Refuse an unaudited static volume on bootstrap
+      ansible.builtin.assert:
+        that:
+          - freeze_bootstrap_static_volume.rc != 0
+        fail_msg: A preexisting static volume needs a separate committed-media audit before bootstrap.
+      when: not freeze_existing_files.results[0].stat.exists
+
+    - name: Record a frozen fresh-VM bootstrap
+      ansible.builtin.copy:
+        content: >-
+          {{ {
+            'release_tag': autographs_deploy_repo_version,
+            'controller_digest': autographs_deploy_controller_digest,
+            'current_target': none,
+            'old_container_id': '',
+            'old_pid': 0,
+            'audited_shared_media': [],
+            'bootstrap': true
+          } | to_nice_json }}
+        dest: "{{ freeze_record_path }}"
+        owner: root
+        group: root
+        mode: "0600"
+      when: not freeze_existing_files.results[0].stat.exists
+
+    - name: Verify and drain an installed runtime
+      when: freeze_existing_files.results[0].stat.exists
+      block:
+        - name: Read old gated Caddyfile
+          ansible.builtin.slurp:
+            src: "{{ caddyfile_path }}"
+          register: freeze_old_caddyfile
+
+        - name: Refuse missing or partial live publish gate
+          ansible.builtin.assert:
+            that:
+              - "(freeze_old_caddyfile.content | b64decode).count('handle /admin/api/publish/full {') == 1"
+              - "(freeze_old_caddyfile.content | b64decode).count('handle /admin/api/publish/incremental {') == 1"
+              - "(freeze_old_caddyfile.content | b64decode).count('respond \"Publishing temporarily unavailable\" 503') == 2"
+              - "(freeze_old_caddyfile.content | b64decode).count('header Cache-Control \"no-store\"') >= 2"
+            fail_msg: Install and verify the exact manual Caddy publish gate before release merge or retry.
+
+        - name: Preserve the old frozen Caddyfile for failed-route recovery
+          ansible.builtin.copy:
+            src: "{{ caddyfile_path }}"
+            dest: "{{ frozen_backup_path }}"
+            remote_src: true
+            owner: root
+            group: root
+            mode: "0600"
+
+        - name: Remove controller ordering from live Caddy quadlet
+          ansible.builtin.replace:
+            path: "{{ caddy_quadlet_path }}"
+            regexp: '(?m)^(After|Wants|Requires)=(.*) autographs-controller\.service$'
+            replace: '\1=\2'
+
+        - name: Read decoupled live Caddy quadlet
+          ansible.builtin.slurp:
+            src: "{{ caddy_quadlet_path }}"
+          register: freeze_decoupled_quadlet
+
+        - name: Require no controller unit dependency before Caddy restart
+          ansible.builtin.assert:
+            that:
+              - "'autographs-controller.service' not in (freeze_decoupled_quadlet.content | b64decode)"
+            fail_msg: Live Caddy still depends on the old controller; stop before route cutover.
+
+        - name: Reload systemd after live Caddy decoupling
+          ansible.builtin.systemd:
+            daemon_reload: true
+
+        - name: Restart old Caddy under its frozen configuration
+          ansible.builtin.systemd:
+            name: autographs-caddy.service
+            state: restarted
+
+        - name: Inspect static volume mountpoint
+          ansible.builtin.command:
+            argv:
+              - podman
+              - volume
+              - inspect
+              - autographs-static
+              - --format
+              - "{% raw %}{{.Mountpoint}}{% endraw %}"
+          register: freeze_static_mount
+          changed_when: false
+
+        - name: Read current static manifest
+          ansible.builtin.slurp:
+            src: "{{ freeze_static_mount.stdout | trim }}/current/manifest.json"
+          register: freeze_current_manifest
+
+        - name: Select a committed current media URL
+          ansible.builtin.set_fact:
+            freeze_current_media: >-
+              {{
+                (
+                  (freeze_current_manifest.content | b64decode | from_json).artifacts
+                  | selectattr('variant', 'defined')
+                  | rejectattr('variant', 'none')
+                  | map(attribute='path')
+                  | list
+                  | first
+                ) | default('', true)
+              }}
+
+        - name: Require current media for static cutover proof
+          ansible.builtin.assert:
+            that:
+              - freeze_current_media is match('^media/.+\.webp$')
+
+        - name: Verify frozen public routes before old controller stop
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --silent
+              - --dump-header
+              - '-'
+              - --output
+              - /dev/null
+              - --write-out
+              - "HTTP_STATUS=%{http_code}"
+              - --noproxy
+              - "*"
+              - --resolve
+              - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+              - --request
+              - "{{ 'POST' if item.startswith('/admin/api/publish/') else 'GET' }}"
+              - "https://{{ autographs_deploy_domain }}{{ item }}"
+          loop:
+            - /admin/api/publish/full
+            - /admin/api/publish/incremental
+            - /manifest.json
+            - "/{{ freeze_current_media }}"
+          register: freeze_before_stop_http
+          changed_when: false
+
+        - name: Require frozen publish and live static before stop
+          ansible.builtin.assert:
+            that:
+              - "'HTTP_STATUS=503' in freeze_before_stop_http.results[0].stdout"
+              - "'HTTP_STATUS=503' in freeze_before_stop_http.results[1].stdout"
+              - "'HTTP_STATUS=200' in freeze_before_stop_http.results[2].stdout"
+              - "'HTTP_STATUS=200' in freeze_before_stop_http.results[3].stdout"
+              - "'cache-control: no-store' in (freeze_before_stop_http.results[0].stdout | lower)"
+              - "'cache-control: no-store' in (freeze_before_stop_http.results[1].stdout | lower)"
+
+        - name: Capture old controller container identity and PID
+          ansible.builtin.command:
+            argv:
+              - podman
+              - inspect
+              - --format
+              - "{% raw %}{{.Id}} {{.State.Pid}}{% endraw %}"
+              - autographs-controller
+          register: freeze_old_container
+          changed_when: false
+          failed_when: false
+
+        - name: Extract old process identity
+          ansible.builtin.set_fact:
+            freeze_old_id: "{{ (freeze_old_container.stdout.split() | first) | default('') }}"
+            freeze_old_pid: "{{ (freeze_old_container.stdout.split() | last) | default('0') | int }}"
+
+        - name: Stop old controller and all accepted or queued old requests
+          ansible.builtin.systemd:
+            name: autographs-controller.service
+            state: stopped
+
+        - name: Wait for old controller unit to become inactive
+          ansible.builtin.command:
+            argv: [systemctl, is-active, autographs-controller.service]
+          register: freeze_old_unit
+          changed_when: false
+          failed_when: false
+          retries: 30
+          delay: 2
+          until: freeze_old_unit.stdout | trim != 'active'
+
+        - name: Wait for captured old process to exit
+          ansible.builtin.stat:
+            path: "/proc/{{ freeze_old_pid }}"
+          register: freeze_old_process
+          retries: 30
+          delay: 2
+          until: not freeze_old_process.stat.exists
+          when: freeze_old_pid | int > 0
+
+        - name: Wait for old container to stop or disappear
+          ansible.builtin.command:
+            argv:
+              - podman
+              - inspect
+              - --format
+              - "{% raw %}{{.State.Running}}{% endraw %}"
+              - "{{ freeze_old_id }}"
+          register: freeze_old_running
+          changed_when: false
+          failed_when: false
+          retries: 30
+          delay: 2
+          until: freeze_old_running.rc != 0 or freeze_old_running.stdout | trim == 'false'
+          when: freeze_old_id | length > 0
+
+        - name: Prove frozen Caddy still serves static after process exit
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --silent
+              - --dump-header
+              - '-'
+              - --output
+              - /dev/null
+              - --write-out
+              - "HTTP_STATUS=%{http_code}"
+              - --noproxy
+              - "*"
+              - --resolve
+              - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+              - --request
+              - "{{ 'POST' if item.startswith('/admin/api/publish/') else 'GET' }}"
+              - "https://{{ autographs_deploy_domain }}{{ item }}"
+          loop:
+            - /admin/api/publish/full
+            - /admin/api/publish/incremental
+            - /manifest.json
+            - "/{{ freeze_current_media }}"
+          register: freeze_after_stop_http
+          changed_when: false
+
+        - name: Require frozen publication and static availability after exit
+          ansible.builtin.assert:
+            that:
+              - "'HTTP_STATUS=503' in freeze_after_stop_http.results[0].stdout"
+              - "'HTTP_STATUS=503' in freeze_after_stop_http.results[1].stdout"
+              - "'HTTP_STATUS=200' in freeze_after_stop_http.results[2].stdout"
+              - "'HTTP_STATUS=200' in freeze_after_stop_http.results[3].stdout"
+              - "'cache-control: no-store' in (freeze_after_stop_http.results[0].stdout | lower)"
+              - "'cache-control: no-store' in (freeze_after_stop_http.results[1].stdout | lower)"
+              - freeze_old_unit.stdout | trim != 'active'
+
+        - name: Install protected shared-media audit helper
+          ansible.builtin.copy:
+            src: ../roles/autographs_deploy/files/publish_freeze_audit.py
+            dest: /opt/autographs/private/publish_freeze_audit.py
+            owner: root
+            group: root
+            mode: "0700"
+
+        - name: Quarantine every shared URL lacking committed evidence
+          ansible.builtin.command:
+            argv:
+              - python3
+              - /opt/autographs/private/publish_freeze_audit.py
+              - --static-root
+              - "{{ freeze_static_mount.stdout | trim }}"
+              - --quarantine
+              - "{{ quarantine_path }}"
+              - --record
+              - "{{ freeze_record_path }}"
+              - --release-tag
+              - "{{ autographs_deploy_repo_version }}"
+              - --controller-digest
+              - "{{ autographs_deploy_controller_digest }}"
+              - --old-container-id
+              - "{{ freeze_old_id }}"
+              - --old-pid
+              - "{{ freeze_old_pid }}"
+          changed_when: true

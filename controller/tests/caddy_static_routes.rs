@@ -53,6 +53,7 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
 
     assert!(caddy_quadlet.contains("Volume=autographs-static.volume:/srv/autographs/static:ro"));
     assert!(caddy_quadlet.contains("Image=docker.io/library/caddy:2-alpine"));
+    assert!(!caddy_quadlet.contains("autographs-controller.service"));
     assert!(!caddy_quadlet.contains("/usr/share/caddy/admin"));
     assert!(!caddy_quadlet.contains("autographs-app.service"));
     assert!(
@@ -164,7 +165,23 @@ fn publish_freeze_renders_exact_routes_before_admin_proxy() {
     let defaults = read_repo("deploy/ansible/roles/autographs_deploy/defaults/main.yml");
     let tasks = read_repo("deploy/ansible/roles/autographs_deploy/tasks/main.yml");
     let freeze = read_repo("deploy/ansible/roles/autographs_deploy/tasks/publish_freeze.yml");
-    assert!(defaults.contains("autographs_deploy_publish_frozen: false"));
+    assert!(defaults.contains("autographs_deploy_publish_frozen: true"));
+    assert!(tasks.contains("Refuse unfrozen full deployment"));
+    assert!(tasks.contains("Require matching preflight and stopped old publisher"));
+    assert!(
+        tasks
+            .find("Require matching preflight and stopped old publisher")
+            .unwrap()
+            < tasks.find("Copy Caddyfile").unwrap()
+    );
+    assert!(
+        tasks
+            .find("Start reviewed controller before new Caddy routing")
+            .unwrap()
+            < tasks
+                .find("Restart Caddy only after reviewed controller readiness")
+                .unwrap()
+    );
     assert!(tasks.contains("- name: Preserve publish freeze in copied Caddyfile\n  ansible.builtin.include_tasks: publish_freeze.yml"));
     assert!(freeze.contains("ansible.builtin.blockinfile:"));
     assert!(freeze.contains("AUTOGRAPHS PUBLISH FREEZE"));

@@ -32,7 +32,11 @@ autographs_deploy_previous_controller_digest: ""
 autographs_deploy_source_revision: ""
 autographs_deploy_static_promoted_release_retain_count: 5
 autographs_deploy_static_failed_candidate_retain_count: 1
-autographs_deploy_publish_frozen: false
+autographs_deploy_publish_frozen: true
+autographs_deploy_explicit_cutover: true
+autographs_deploy_publish_freeze_record_path: /opt/autographs/private/publish-freeze.json
+autographs_deploy_publish_quarantine_path: /opt/autographs/private/media-quarantine
+autographs_deploy_old_frozen_caddyfile_path: /opt/autographs/private/Caddyfile.pre-cutover-frozen
 
 autographs_deploy_packages:
   - podman

@@ -1,3 +1,60 @@
+- name: Refuse unfrozen full deployment
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_publish_frozen | bool
+      - autographs_deploy_explicit_cutover | bool
+    fail_msg: Full deployment cannot remove the publish gate; run publish-unfreeze.yml after readiness.
+
+- name: Read durable publisher cutover record
+  ansible.builtin.slurp:
+    src: "{{ autographs_deploy_publish_freeze_record_path }}"
+  register: autographs_deploy_freeze_record_file
+
+- name: Validate durable publisher cutover identity
+  ansible.builtin.set_fact:
+    autographs_deploy_freeze_record: "{{ autographs_deploy_freeze_record_file.content | b64decode | from_json }}"
+
+- name: Require matching preflight and stopped old publisher
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_freeze_record.release_tag == autographs_deploy_repo_version
+      - autographs_deploy_freeze_record.controller_digest == autographs_deploy_controller_digest
+      - autographs_deploy_freeze_record.old_pid | int >= 0
+    fail_msg: Run the frozen cutover preflight for this exact release and digest before deployment.
+
+- name: Check captured old publisher process remains absent
+  ansible.builtin.stat:
+    path: "/proc/{{ autographs_deploy_freeze_record.old_pid }}"
+  register: autographs_deploy_old_process
+  when: autographs_deploy_freeze_record.old_pid | int > 0
+
+- name: Refuse a surviving old publisher process
+  ansible.builtin.assert:
+    that:
+      - not autographs_deploy_old_process.stat.exists
+    fail_msg: Captured old publisher process is still running; no new Caddy routing is allowed.
+  when: autographs_deploy_freeze_record.old_pid | int > 0
+
+- name: Check captured old controller container remains stopped
+  ansible.builtin.command:
+    argv:
+      - podman
+      - inspect
+      - --format
+      - "{% raw %}{{.State.Running}}{% endraw %}"
+      - "{{ autographs_deploy_freeze_record.old_container_id }}"
+  register: autographs_deploy_old_container
+  changed_when: false
+  failed_when: false
+  when: autographs_deploy_freeze_record.old_container_id | length > 0
+
+- name: Refuse a surviving old controller container
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_old_container.rc != 0 or autographs_deploy_old_container.stdout | trim == 'false'
+    fail_msg: Captured old controller container remains live; no new Caddy routing is allowed.
+  when: autographs_deploy_freeze_record.old_container_id | length > 0
+
 - name: Apply kernel persistence controls
   ansible.builtin.include_tasks: kernel_persistence.yml
 
@@ -404,6 +461,44 @@
       static publish and verify the promoted release before deploying this Caddy
       cutover.
 
+- name: Read current release pointer after preflight
+  ansible.builtin.command:
+    argv:
+      - readlink
+      - "{{ autographs_deploy_static_volume.stdout | trim }}/current"
+  register: autographs_deploy_current_pointer
+  changed_when: false
+  when: not autographs_deploy_freeze_record.bootstrap
+
+- name: Require preflight current pointer remains unchanged
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_current_pointer.stdout | trim == autographs_deploy_freeze_record.current_target
+    fail_msg: Current pointer changed after preflight; freeze and rerun the audit before routing cutover.
+  when: not autographs_deploy_freeze_record.bootstrap
+
+- name: Reaudit shared media before copying new Caddy routing
+  ansible.builtin.command:
+    argv:
+      - python3
+      - /opt/autographs/private/publish_freeze_audit.py
+      - --static-root
+      - "{{ autographs_deploy_static_volume.stdout | trim }}"
+      - --quarantine
+      - "{{ autographs_deploy_publish_quarantine_path }}"
+      - --record
+      - "{{ autographs_deploy_publish_freeze_record_path }}"
+      - --release-tag
+      - "{{ autographs_deploy_repo_version }}"
+      - --controller-digest
+      - "{{ autographs_deploy_controller_digest }}"
+      - --old-container-id
+      - "{{ autographs_deploy_freeze_record.old_container_id }}"
+      - --old-pid
+      - "{{ autographs_deploy_freeze_record.old_pid }}"
+  changed_when: true
+  when: not autographs_deploy_freeze_record.bootstrap
+
 - name: Copy Caddyfile
   ansible.builtin.copy:
     src: Caddyfile
@@ -565,15 +660,156 @@
     - Restart controller container
     - Restart Caddy container
 
-- name: Flush quadlet handlers before enabling services
+- name: Reload systemd for reviewed quadlets
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable and start Podman network
+  ansible.builtin.systemd:
+    name: autographs-network.service
+    state: started
+    enabled: true
+
+- name: Start reviewed controller before new Caddy routing
+  ansible.builtin.systemd:
+    name: autographs-controller.service
+    state: started
+    enabled: true
+
+- name: Read reviewed controller container image ID
+  ansible.builtin.command:
+    argv:
+      - podman
+      - inspect
+      - --format
+      - "{% raw %}{{.Image}}{% endraw %}"
+      - "{{ autographs_deploy_controller_container_name }}"
+  register: autographs_deploy_running_image_id
+  changed_when: false
+
+- name: Read verified controller image ID
+  ansible.builtin.command:
+    argv:
+      - podman
+      - image
+      - inspect
+      - --format
+      - "{% raw %}{{.Id}}{% endraw %}"
+      - "{{ autographs_controller_image }}"
+  register: autographs_deploy_expected_image_id
+  changed_when: false
+
+- name: Require reviewed image to be running before Caddy restart
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_running_image_id.stdout | trim == autographs_deploy_expected_image_id.stdout | trim
+    fail_msg: Controller image differs from the verified release; old frozen Caddy stays active.
+
+- name: Verify reviewed controller release health before Caddy restart
+  ansible.builtin.command:
+    argv:
+      - curl
+      - --fail
+      - --silent
+      - --show-error
+      - --noproxy
+      - "*"
+      - --resolve
+      - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+      - "https://{{ autographs_deploy_domain }}/admin/api/health"
+  register: autographs_deploy_cutover_health
+  changed_when: false
+  retries: 30
+  delay: 2
+  until: autographs_deploy_cutover_health.rc == 0
+
+- name: Require reviewed controller release and source before Caddy restart
+  ansible.builtin.assert:
+    that:
+      - (autographs_deploy_cutover_health.stdout | from_json).release.repoVersion == autographs_deploy_repo_version
+      - (autographs_deploy_cutover_health.stdout | from_json).release.sourceRevision == autographs_deploy_source_revision
+      - (autographs_deploy_cutover_health.stdout | from_json).release.controllerVersion == autographs_deploy_deployed_controller_version
+
+- name: Restart Caddy only after reviewed controller readiness
+  block:
+    - name: Start new Caddy with managed frozen routes
+      ansible.builtin.systemd:
+        name: autographs-caddy.service
+        state: restarted
+        enabled: true
+
+    - name: Validate running frozen Caddy configuration
+      ansible.builtin.command:
+        argv:
+          - podman
+          - exec
+          - "{{ autographs_deploy_caddy_container_name }}"
+          - caddy
+          - validate
+          - --config
+          - /etc/caddy/Caddyfile
+      changed_when: false
+
+    - name: Require current static preview after Caddy restart
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ autographs_deploy_candidate_preview_port }}/manifest.json"
+        method: GET
+        status_code: 200
+        return_content: false
+
+    - name: Require publish endpoints remain frozen after Caddy restart
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --output
+          - /dev/null
+          - --write-out
+          - "%{http_code}"
+          - --noproxy
+          - "*"
+          - --resolve
+          - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+          - --request
+          - POST
+          - "https://{{ autographs_deploy_domain }}/admin/api/publish/{{ item }}"
+      loop: [full, incremental]
+      register: autographs_deploy_postcutover_publish
+      changed_when: false
+
+    - name: Require both publish routes returned 503
+      ansible.builtin.assert:
+        that:
+          - autographs_deploy_postcutover_publish.results | map(attribute='stdout') | list == ['503', '503']
+  rescue:
+    - name: Restore the old frozen Caddyfile after failed route cutover
+      ansible.builtin.copy:
+        src: "{{ autographs_deploy_old_frozen_caddyfile_path }}"
+        dest: "{{ autographs_deploy_caddy_path }}/Caddyfile"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+      when: not autographs_deploy_freeze_record.bootstrap
+
+    - name: Restart old frozen Caddy after route failure
+      ansible.builtin.systemd:
+        name: autographs-caddy.service
+        state: restarted
+      when: not autographs_deploy_freeze_record.bootstrap
+
+    - name: Fail deployment while preserving the freeze record
+      ansible.builtin.fail:
+        msg: Caddy route cutover failed; old frozen configuration was restored where available.
+
+- name: Flush remaining non-cutover handlers
   ansible.builtin.meta: flush_handlers
 
-- name: Enable and start Podman quadlet services
+- name: Verify Podman quadlet services remain active
   ansible.builtin.systemd:
     name: "{{ item }}"
     state: started
     enabled: true
-    daemon_reload: true
   loop:
     - autographs-network.service
     - autographs-controller.service
@@ -657,6 +893,8 @@
       - "5"
       - --max-time
       - "15"
+      - --noproxy
+      - "*"
       - --resolve
       - "{{ autographs_deploy_domain }}:{{ autographs_deploy_https_port }}:127.0.0.1"
       - "https://{{ autographs_deploy_domain }}:{{ autographs_deploy_https_port }}/admin/"

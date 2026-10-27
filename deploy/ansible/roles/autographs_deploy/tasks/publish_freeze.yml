@@ -3,6 +3,12 @@
     src: "{{ autographs_deploy_caddy_path }}/Caddyfile"
   register: autographs_deploy_publish_freeze_caddyfile
 
+- name: Refuse an unfrozen full deployment
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_publish_frozen | bool or autographs_deploy_allow_unfreeze | default(false) | bool
+    fail_msg: Full deployment must remain frozen; use publish-unfreeze.yml after readiness checks.
+
 - name: Require one public admin API proxy insertion point
   ansible.builtin.assert:
     that:

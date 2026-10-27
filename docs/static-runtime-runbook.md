@@ -654,29 +654,53 @@ authenticated GET of `/admin/api/publish/status` still works and public current
 pages/media still return `200`. Keep session cookies in a protected file and do
 not print them. Stop automated smoke/publish jobs and direct private-network
 calls to `autographs-controller:8080`; gate any other publisher ingress or abort.
-Wait until publish status/logs show no in-flight job, then record the unchanged
-`current` pointer.
+The route gate blocks new ingress; publish status alone cannot prove that an
+already accepted request is not waiting on the old controller's mutex. Record
+the unchanged `current` pointer, then merge the Release PR or dispatch
+`workflow_dispatch operation=retry`. The production workflow explicitly passes
+`autographs_deploy_publish_frozen=true` and runs
+`publish-freeze-preflight.yml` before the full deploy. That preflight keeps the
+old gated Caddyfile, removes Caddy's controller service dependency, restarts
+Caddy under the old gate, and checks publish `503` plus current static `200`.
+It then stops the old controller and waits for its unit, captured container,
+and PID to exit before any new shared-media route can restart. A surviving
+process or lost static response stops the deploy with publishing frozen.
 
-Deploy the reviewed controller image and Caddyfile with
-`autographs_deploy_publish_frozen=true`. The Ansible role copies the new
-Caddyfile, inserts the two exact-path `503` blocks before flushing restart
-handlers, and keeps them during both service restarts. If this sequence cannot
-preserve the live gate, stop the rollout. Verify both services are active,
-the running controller image digest matches the reviewed image, Caddy validates
-and adapts its running config, authenticated controller status works, both Caddy
-origin routes pass the disposable marker HTTP fixture, both publish POSTs still
-return `503`, publish status has no running job, and current documents/media
-still return `200`. A failed check leaves the freeze active; repair or restore
-the prior image/configuration or pointer without reopening publish.
+After old-process exit, the preflight audits every shared `media/` file. The
+active `current` manifest and matching verified WebP bytes prove an active
+URL. A retained release manifest alone does not prove that publication
+succeeded. Unproven files move to `/opt/autographs/private/media-quarantine`,
+outside the served static volume. A fresh or retained unproven URL blocks the
+cutover, even after quarantine, because it might still be required by a cached
+document. The protected audit result records exact public paths and reasons;
+resolve committed history from Oracle `autograph_publish_jobs` and any archived
+promotion evidence before retry. Do not reintroduce the path without proof or
+silently waive its 24-hour retention. No automated export of that historical
+evidence exists in the current runtime, so a host with ambiguous retained
+paths requires a Wave 8 operator checkpoint. Do not bypass this failure by
+passing an unfrozen variable.
 
-Only after all readiness checks pass, rerun the role with
-`autographs_deploy_publish_frozen=false`. Verify unauthenticated publish POSTs
-now reach controller authentication (`401` or `403`, never `503`) without
-starting a job, publish status works, and current remains served. Record
-gate-on, deploy, readiness, and gate-off times and commands for Wave 8. Resume
-credentialed publishing and smoke only after explicitly lifting the operator
-freeze. The controller is kept running throughout because the Caddy quadlet
-requires its service.
+The full role requires the protected freeze record and rechecks old PID and
+container absence before copying Caddyfile. It starts and verifies the reviewed
+controller image, source, and health before restarting Caddy with managed
+exact-path `503` routes. A failed new Caddy route restores the saved old frozen
+Caddyfile; any failed step keeps the freeze record and does not claim release
+completion. Retry repeats the preflight and explicit frozen deploy. A fresh VM
+records bootstrap-frozen state, but first-release seeding still requires a
+valid `current` release before the existing full-deploy static gate can pass.
+
+Only after production health and the host's public and preview origin checks
+pass does the workflow call `publish-unfreeze.yml` separately. It repeats the
+image/release/source, current static, frozen POST, Caddy validation, and
+disposable marker checks; removes only the managed gate; restarts Caddy; and
+requires unauthenticated publish POSTs to reach `401`/`403` without starting a
+job. A failed postcheck restores the frozen file and retains the record. The
+release completion gate requires this unfreeze step to succeed. Record gate-on,
+old-process exit, quarantine audit, new-controller readiness, route readiness,
+and gate-off times and commands in Wave 8 evidence. Resume credentialed smoke
+only after explicit unfreeze. Controller-only rollback to a digest that has not
+passed this pointer-first readiness gate is refused while shared-media routing
+is active.
 
 ### Exact emergency media takedown
 

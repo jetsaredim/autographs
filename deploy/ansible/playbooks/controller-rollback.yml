@@ -13,6 +13,40 @@
         timeout: 900
         sleep: 10
 
+    - name: Read active Caddy media routing before rollback
+      ansible.builtin.slurp:
+        src: /opt/autographs/caddy/Caddyfile
+      register: rollback_caddyfile
+
+    - name: Inspect verified pointer-first digest registry
+      ansible.builtin.stat:
+        path: /opt/autographs/private/pointer-first-approved-digests
+      register: rollback_approved_digests_stat
+
+    - name: Refuse old publisher behind shared-media routing without approval record
+      ansible.builtin.assert:
+        that:
+          - >-
+            '.media-tombstones' not in (rollback_caddyfile.content | b64decode)
+            or rollback_approved_digests_stat.stat.isreg | default(false)
+        fail_msg: Shared-media routing requires a verified pointer-first rollback digest.
+
+    - name: Read verified pointer-first digest registry
+      ansible.builtin.slurp:
+        src: /opt/autographs/private/pointer-first-approved-digests
+      register: rollback_approved_digests
+      when: rollback_approved_digests_stat.stat.isreg | default(false)
+
+    - name: Refuse rollback to an unverified old publisher
+      ansible.builtin.assert:
+        that:
+          - >-
+            '.media-tombstones' not in (rollback_caddyfile.content | b64decode)
+            or autographs_rollback_controller_digest
+              in (rollback_approved_digests.content | b64decode).splitlines()
+        fail_msg: Target controller digest has not passed the pointer-first media readiness gate.
+      when: rollback_approved_digests_stat.stat.isreg | default(false)
+
   tasks:
     - name: Validate controller rollback inputs
       ansible.builtin.assert:

@@ -1,16 +1,18 @@
 - name: Reload systemd
   ansible.builtin.systemd:
     daemon_reload: true
+  when: not autographs_deploy_explicit_cutover | default(true) | bool
 
 - name: Restart controller container
   ansible.builtin.systemd:
     name: autographs-controller.service
     state: restarted
     daemon_reload: true
+  when: not autographs_deploy_explicit_cutover | default(true) | bool
 
 - name: Restart Caddy container
   ansible.builtin.systemd:
     name: autographs-caddy.service
     state: restarted
     daemon_reload: true
-  failed_when: false
+  when: not autographs_deploy_explicit_cutover | default(true) | bool
