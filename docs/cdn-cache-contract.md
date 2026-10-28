@@ -19,8 +19,10 @@ The deployed Caddyfile owns the origin `Cache-Control` posture:
 | `/`, `/index.html`, `/404.html`, `/collection/*`, `/items/*`, `/architecture/*`, `/data/*`, `/manifest.json` | `Cache-Control: public, max-age=60, must-revalidate` | Keeps public documents and JSON rollback-friendly. |
 
 The public edge must not expose Object Storage URLs, bucket names, object keys,
-private image UUIDs, original filenames, or unpublished media paths. Public
-media is always generated output from the promoted static release.
+private image UUIDs, or original filenames. Public media is validated generated
+output. Caddy serves `/media/*` from the shared static media directory, with a
+fallback to `current/media` for the active release. Before either lookup, both
+origin listeners deny exact URLs with a durable `.media-tombstones` marker.
 
 ## Cloudflare cache rules
 
@@ -60,22 +62,62 @@ URL instead of requiring manual purge. Existing cached derivatives can expire
 naturally because public HTML/JSON with the new media reference remains
 rollback-friendly at 60 seconds.
 
+Before moving `current`, the publisher copies only already active media into
+the shared namespace and rejects candidate paths with emergency markers. The
+atomic `current` pointer change is the public visibility commit. Caddy serves
+new active media through its `current/media` fallback immediately, then the
+publisher copies that committed release into shared media. A postcommit copy
+failure keeps the active release and reports a safe cleanup warning; repair
+and verify its shared media before journaled static rollback. The controller
+fsyncs a private `.media-commit-history/intent.json` before pointer replacement
+and finalizes a versioned `history.json` receipt afterward. An interrupted
+intent is reconciled from the pointer before another publish or deploy audit;
+intent alone never proves public commitment. A postcommit history-write failure
+keeps the active release and blocks further publish or prune until recovery.
+Each receipt binds a release manifest digest, exact media paths and full byte
+hashes, first commit time, and last-active end time. Later deployment audits
+use that history to preserve A after B replaces it. Existing shared
+files must have identical bytes for their fingerprinted URL. The publisher retains shared URLs
+while a **committed** retained release references them, and for at least 24 hours after
+their last active publication. Cleanup runs after successful promotion; the
+normal release count remains five. This covers a cache miss for a still-fresh
+document during correction, unpublish, and rollback. The active release's
+manifest remains the inventory of currently published media; shared media is
+only a compatibility serving namespace and is not included in candidate
+manifests or public artifact scans.
+
 ## Purge and rollback
 
-Rollback uses the static release pointer, not broad cache deletion:
+Rollback uses a journaled static release pointer transition, not broad cache deletion:
 
-1. Restore the prior generated static release by repointing `current` to the
-   last known-good release.
+1. Freeze publishing and stop the controller. Use the protected
+   `static_release_rollback.py` helper to verify the target's committed receipt,
+   media bytes, and markers, then atomically repoint `current` and finalize the
+   transition history. Direct symlink changes are refused by the next audit.
 2. Keep public HTML, JSON, and `manifest.json` freshness at 60 seconds or
    origin-respecting freshness so browsers and Cloudflare converge quickly.
 3. Confirm that public pages now reference the media fingerprints from the
-   restored release.
+   restored release and both origin routes serve unmarked active and retained
+   old URLs through an origin miss before unfreezing.
 
 Purge is reserved for emergency remediation: accidental public exposure, legal
 or privacy takedown, CDN incident response, or a verified stale `/media/*`
 object that cannot wait for TTL expiry. Use exact URL purge where possible.
 Purge `/media/*` broadly only when emergency remediation requires it; routine
 image adjustments publish new fingerprints and should not need manual purge.
+Normal unpublish removes pages and JSON immediately at the origin, but a known
+old media URL remains available during the retention window and may persist in
+browser or edge caches for its 24-hour TTL. For an urgent takedown, publish the
+unpublish first when possible, then create a durable exact-path marker and
+prove that both Caddy origin routes return 404 before deleting origin copies.
+Remove the affected derivative from shared media and every retained release,
+then purge the exact CDN URL and verify edge 404. A missed copy cannot bypass
+the marker; release cleanup skips marked files and never restores them. Future
+candidates referencing the URL fail before promotion. Do not remove a marker
+for rollback. Reinstating content requires a separate decision and new
+fingerprint. This intentional emergency 404 overrides cached-document
+availability. Follow the volume-identity, marker-readback, and dual-route
+steps in [static-runtime-runbook.md](static-runtime-runbook.md).
 
 ## Verification
 

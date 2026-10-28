@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
+    io::Write,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::{Instant, SystemTime},
@@ -21,7 +22,8 @@ use crate::{
         PublicSignerCredit, PublicSignerLink, PublishGeneratorMetadata, PublishManifest,
         PublishManifestEntry,
     },
-    derivatives::{DerivativeVariant, GeneratedDerivative, generate_derivative},
+    derivatives::{DerivativeVariant, GeneratedDerivative, generate_adjusted_derivative},
+    image_adjustments::{IMAGE_ADJUSTMENT_TRANSFORM_VERSION, ImageAdjustment},
     media::PrivateMediaStore,
 };
 
@@ -46,6 +48,41 @@ const ADMIN_JS: &str = include_str!("../static-admin/admin.js");
 const ADMIN_CSS: &str = include_str!("../static-admin/admin.css");
 const SAFE_PUBLISH_ERROR: &str = "Static publish failed. Check controller logs for details.";
 const SAFE_RELEASE_CLEANUP_WARNING: &str = "The release is active, but old release cleanup needs attention and will be retried on a later publish.";
+const SHARED_MEDIA_MIN_AGE_SECONDS: u64 = 86_400;
+const MEDIA_HISTORY_VERSION: u32 = 1;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct MediaCommitHistory {
+    version: u32,
+    current_release_id: Option<String>,
+    releases: BTreeMap<String, MediaCommitReceipt>,
+    transitions: Vec<MediaCommitTransition>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct MediaCommitReceipt {
+    manifest_sha256: String,
+    media: BTreeMap<String, String>,
+    first_committed_at: i64,
+    last_active_end: Option<i64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct MediaCommitTransition {
+    from: Option<String>,
+    to: String,
+    at: i64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct MediaCommitIntent {
+    version: u32,
+    old_release_id: Option<String>,
+    new_release_id: String,
+    old_manifest_sha256: Option<String>,
+    new_manifest_sha256: String,
+    new_media: BTreeMap<String, String>,
+}
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -535,6 +572,8 @@ struct CachedDerivativeMetadata {
     width: u32,
     height: u32,
     content_type: String,
+    cache_key_digest: String,
+    payload_digest: String,
 }
 
 impl DerivativeCache {
@@ -544,18 +583,22 @@ impl DerivativeCache {
         }
     }
 
-    fn path_for(&self, source_fingerprint: &str, variant: DerivativeVariant) -> PathBuf {
+    fn key_digest(source_fingerprint: &str, variant: DerivativeVariant) -> String {
         let mut digest = Sha256::new();
         digest.update(b"autographs-derivative-cache-v2");
         digest.update([0]);
         digest.update(source_fingerprint.as_bytes());
         digest.update([0]);
         digest.update(variant.path_segment().as_bytes());
-        let key = digest
+        digest
             .finalize()
             .iter()
             .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+            .collect::<String>()
+    }
+
+    fn path_for(&self, source_fingerprint: &str, variant: DerivativeVariant) -> PathBuf {
+        let key = Self::key_digest(source_fingerprint, variant);
         self.root
             .join(variant.path_segment())
             .join(format!("{key}.webp"))
@@ -580,16 +623,23 @@ impl DerivativeCache {
             .map_err(|error| format!("read derivative cache metadata: {error}"))?;
         let metadata: CachedDerivativeMetadata = serde_json::from_slice(&metadata_bytes)
             .map_err(|error| format!("parse derivative cache metadata: {error}"))?;
-        if metadata.schema_version != 1
+        if metadata.schema_version != 2
             || metadata.variant != variant.path_segment()
             || metadata.content_type != "image/webp"
+            || metadata.cache_key_digest != Self::key_digest(source_fingerprint, variant)
+            || metadata.payload_digest != derivative_source_fingerprint(&bytes)
         {
             return Err("derivative cache metadata mismatch".to_owned());
         }
+        let decoded = image::load_from_memory_with_format(&bytes, image::ImageFormat::WebP)
+            .map_err(|error| format!("decode derivative cache WebP: {error}"))?;
+        if decoded.width() != metadata.width || decoded.height() != metadata.height {
+            return Err("derivative cache dimensions mismatch".to_owned());
+        }
         Ok(Some(GeneratedDerivative {
             variant,
-            width: metadata.width,
-            height: metadata.height,
+            width: decoded.width(),
+            height: decoded.height(),
             content_type: "image/webp",
             bytes,
         }))
@@ -608,11 +658,13 @@ impl DerivativeCache {
         fs::write(&path, &derivative.bytes)
             .map_err(|error| format!("write derivative cache: {error}"))?;
         let metadata = CachedDerivativeMetadata {
-            schema_version: 1,
+            schema_version: 2,
             variant: derivative.variant.path_segment().to_owned(),
             width: derivative.width,
             height: derivative.height,
             content_type: derivative.content_type.to_owned(),
+            cache_key_digest: Self::key_digest(source_fingerprint, derivative.variant),
+            payload_digest: derivative_source_fingerprint(&derivative.bytes),
         };
         let metadata = serde_json::to_vec_pretty(&metadata)
             .map_err(|error| format!("serialize derivative cache metadata: {error}"))?;
@@ -821,12 +873,24 @@ impl LocalPublisher {
             "static publish accepted"
         );
 
+        if let Err(error) = reconcile_history(&self.root) {
+            self.record_pre_promotion_failure(
+                &release_id,
+                &candidate,
+                mode,
+                started_at_epoch_seconds,
+                &error,
+            )?;
+            return Err(error);
+        }
+
         let prepared = self
             .build_candidate(repository, media, mode, &release_id, &candidate)
             .await
             .and_then(|progress| {
                 self.update_progress(&release_id, PublishStage::ValidatingCandidate, &progress);
                 let manifest = validate_candidate(&candidate)?;
+                validate_manifest_tombstones(&self.root, &manifest)?;
                 tracing::info!(
                     release_id = %release_id,
                     mode = ?mode,
@@ -853,18 +917,29 @@ impl LocalPublisher {
         };
 
         self.update_progress(&release_id, PublishStage::PromotingRelease, &progress);
-        if let Err(error) = promote_candidate(&self.root, &release_id) {
-            self.record_pre_promotion_failure(
-                &release_id,
-                &candidate,
-                mode,
-                started_at_epoch_seconds,
-                &error,
-            )?;
-            return Err(error);
+        let commit_result =
+            commit_candidate_with(&self.root, &release_id, &manifest, promote_candidate);
+        let committed = active_release_id(&self.root)?.as_deref() == Some(release_id.as_str());
+        if let Err(error) = &commit_result {
+            if !committed {
+                self.record_pre_promotion_failure(
+                    &release_id,
+                    &candidate,
+                    mode,
+                    started_at_epoch_seconds,
+                    error,
+                )?;
+                return Err(error.clone());
+            }
+            tracing::error!(release_id = %release_id, error = %error,
+                "pointer committed but media history requires reconciliation");
         }
 
-        let cleanup_warning = post_promotion_cleanup(&self.root, self.retention_policy);
+        let cleanup_warning = if commit_result.is_ok() {
+            post_promotion_cleanup(&self.root, self.retention_policy)
+        } else {
+            Some(SAFE_RELEASE_CLEANUP_WARNING.to_owned())
+        };
         if cleanup_warning.is_some() {
             tracing::warn!(
                 release_id = %release_id,
@@ -1120,7 +1195,7 @@ async fn build_public_items(
             progress.image_count += 1;
             let image_slug = format!("image-{}", index + 1);
             let mut source = None;
-            let source_key = match derivative_cache_source_key(image) {
+            let source_key = match derivative_cache_source_key(image)? {
                 Some(source_key) => {
                     progress.cache_key_metadata_count += 1;
                     source_key
@@ -1139,7 +1214,10 @@ async fn build_public_items(
                     let fingerprint = derivative_source_fingerprint(&bytes);
                     source = Some(bytes);
                     progress.cache_key_fallback_read_count += 1;
-                    DerivativeSourceKey::Legacy(fingerprint)
+                    DerivativeSourceKey::Legacy(adjusted_derivative_cache_key(
+                        &fingerprint,
+                        image.adjustment.as_ref(),
+                    )?)
                 }
             };
             let mut variants = Vec::new();
@@ -1169,18 +1247,20 @@ async fn build_public_items(
                                 "failed to read private media source for derivative generation"
                             );
                         })?;
-                        let derivative = generate_derivative(bytes, variant).map_err(|error| {
-                            tracing::error!(
-                                item_id = %item.id,
-                                image_id = %image.id,
-                                public_slug = %slug,
-                                image_slug = %image_slug,
-                                variant = %variant.path_segment(),
-                                error = %error,
-                                "failed to generate public derivative"
-                            );
-                            error
-                        })?;
+                        let derivative =
+                            generate_adjusted_derivative(bytes, variant, image.adjustment.as_ref())
+                                .map_err(|error| {
+                                    tracing::error!(
+                                        item_id = %item.id,
+                                        image_id = %image.id,
+                                        public_slug = %slug,
+                                        image_slug = %image_slug,
+                                        variant = %variant.path_segment(),
+                                        error = %error,
+                                        "failed to generate public derivative"
+                                    );
+                                    error
+                                })?;
                         if let Err(error) =
                             derivative_cache.write(source_key.cache_key(), &derivative)
                         {
@@ -1205,18 +1285,20 @@ async fn build_public_items(
                                         "failed to read private media source after cache miss"
                                     );
                                 })?;
-                        let derivative = generate_derivative(bytes, variant).map_err(|error| {
-                            tracing::error!(
-                                item_id = %item.id,
-                                image_id = %image.id,
-                                public_slug = %slug,
-                                image_slug = %image_slug,
-                                variant = %variant.path_segment(),
-                                error = %error,
-                                "failed to generate public derivative after cache miss"
-                            );
-                            error
-                        })?;
+                        let derivative =
+                            generate_adjusted_derivative(bytes, variant, image.adjustment.as_ref())
+                                .map_err(|error| {
+                                    tracing::error!(
+                                        item_id = %item.id,
+                                        image_id = %image.id,
+                                        public_slug = %slug,
+                                        image_slug = %image_slug,
+                                        variant = %variant.path_segment(),
+                                        error = %error,
+                                        "failed to generate public derivative after cache miss"
+                                    );
+                                    error
+                                })?;
                         if let Err(error) =
                             derivative_cache.write(source_key.cache_key(), &derivative)
                         {
@@ -1350,16 +1432,35 @@ impl DerivativeSourceKey {
     }
 }
 
-fn derivative_cache_source_key(image: &AutographImage) -> Option<DerivativeSourceKey> {
-    image
+fn derivative_cache_source_key(
+    image: &AutographImage,
+) -> Result<Option<DerivativeSourceKey>, String> {
+    let checksum = image
         .checksum
         .as_deref()
         .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(|checksum| DerivativeSourceKey::Checksum {
-            checksum: checksum.to_owned(),
-            cache_key: format!("checksum:{checksum}"),
+        .filter(|value| !value.is_empty());
+    checksum
+        .map(|checksum| {
+            Ok(DerivativeSourceKey::Checksum {
+                checksum: checksum.to_owned(),
+                cache_key: adjusted_derivative_cache_key(checksum, image.adjustment.as_ref())?,
+            })
         })
+        .transpose()
+}
+
+fn adjusted_derivative_cache_key(
+    source_fingerprint: &str,
+    adjustment: Option<&ImageAdjustment>,
+) -> Result<String, String> {
+    let canonical = match adjustment {
+        Some(adjustment) => adjustment.canonical_cache_key()?,
+        None => "adjustment:none".to_owned(),
+    };
+    Ok(format!(
+        "source:{source_fingerprint}:transform:{IMAGE_ADJUSTMENT_TRANSFORM_VERSION}:{canonical}"
+    ))
 }
 
 fn private_media_error_kind(error: &str) -> &'static str {
@@ -1990,14 +2091,458 @@ fn promote_candidate(root: &Path, release_id: &str) -> Result<(), String> {
         .map_err(|error| format!("create current pointer: {error}"))?;
     #[cfg(not(unix))]
     return Err("atomic symlink promotion requires a Unix runtime".to_owned());
-    fs::rename(next, current).map_err(|error| format!("promote current pointer: {error}"))
+    fs::rename(next, current).map_err(|error| format!("promote current pointer: {error}"))?;
+    fs::File::open(root)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| format!("sync current pointer directory: {error}"))
+}
+
+fn history_dir(root: &Path) -> PathBuf {
+    root.join(".media-commit-history")
+}
+
+fn digest(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn atomic_json<T: Serialize>(directory: &Path, name: &str, value: &T) -> Result<(), String> {
+    fs::create_dir_all(directory).map_err(|error| format!("create media history: {error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(directory, fs::Permissions::from_mode(0o700))
+            .map_err(|error| format!("protect media history directory: {error}"))?;
+    }
+    let temporary = directory.join(format!(".{name}-{}", Uuid::new_v4()));
+    let mut file =
+        fs::File::create(&temporary).map_err(|error| format!("stage media history: {error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(fs::Permissions::from_mode(0o600))
+            .map_err(|error| format!("protect media history file: {error}"))?;
+    }
+    serde_json::to_writer(&mut file, value)
+        .map_err(|error| format!("encode media history: {error}"))?;
+    file.flush()
+        .and_then(|()| file.sync_all())
+        .map_err(|error| format!("sync media history: {error}"))?;
+    fs::rename(&temporary, directory.join(name))
+        .map_err(|error| format!("replace media history: {error}"))?;
+    fs::File::open(directory)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| format!("sync media history directory: {error}"))
+}
+
+fn clear_intent(root: &Path) -> Result<(), String> {
+    let directory = history_dir(root);
+    fs::remove_file(directory.join("intent.json"))
+        .map_err(|error| format!("clear media intent: {error}"))?;
+    fs::File::open(directory)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| format!("sync media intent directory: {error}"))
+}
+
+fn current_release_name(root: &Path) -> Result<Option<String>, String> {
+    let pointer = root.join("current");
+    let target = match fs::read_link(&pointer) {
+        Ok(target) => target,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("read current pointer: {error}")),
+    };
+    let mut components = target.components();
+    if components.next() != Some(std::path::Component::Normal("releases".as_ref()))
+        || components
+            .next()
+            .is_none_or(|component| !matches!(component, std::path::Component::Normal(_)))
+        || components.next().is_some()
+    {
+        return Err("current pointer is not a release".to_owned());
+    }
+    Ok(target
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned()))
+}
+
+fn release_receipt(root: &Path, release_id: &str) -> Result<MediaCommitReceipt, String> {
+    let release = root.join("releases").join(release_id);
+    let manifest_bytes = fs::read(release.join("manifest.json"))
+        .map_err(|error| format!("read committed manifest: {error}"))?;
+    let manifest: PublishManifest = serde_json::from_slice(&manifest_bytes)
+        .map_err(|error| format!("parse committed manifest: {error}"))?;
+    if manifest.release_id != release_id {
+        return Err("committed manifest release ID mismatch".to_owned());
+    }
+    let mut media = BTreeMap::new();
+    for artifact in manifest
+        .artifacts
+        .iter()
+        .filter(|entry| entry.variant.is_some())
+    {
+        let variant = artifact.variant.expect("filtered media variant");
+        let relative = validated_media_relative(&artifact.path, variant)?;
+        if artifact.content_type.as_deref() != Some("image/webp") {
+            return Err("committed media type mismatch".to_owned());
+        }
+        if media_tombstoned(root, &artifact.path)? {
+            continue;
+        }
+        let bytes = fs::read(release.join(relative))
+            .map_err(|error| format!("read committed media: {error}"))?;
+        if bytes.len() != artifact.byte_size
+            || image::guess_format(&bytes)
+                .map_err(|error| format!("detect committed media: {error}"))?
+                != image::ImageFormat::WebP
+            || derivative_fingerprint_from_path(&artifact.path, variant)?
+                != public_derivative_fingerprint(&bytes)
+        {
+            return Err("committed media fingerprint, size, or type mismatch".to_owned());
+        }
+        media.insert(artifact.path.clone(), digest(&bytes));
+    }
+    Ok(MediaCommitReceipt {
+        manifest_sha256: digest(&manifest_bytes),
+        media,
+        first_committed_at: OffsetDateTime::now_utc().unix_timestamp(),
+        last_active_end: None,
+    })
+}
+
+fn load_history(root: &Path) -> Result<MediaCommitHistory, String> {
+    let path = history_dir(root).join("history.json");
+    let history: MediaCommitHistory = read_json(&path)?;
+    if history.version != MEDIA_HISTORY_VERSION
+        || history.current_release_id != current_release_name(root)?
+    {
+        return Err("media commit history and current pointer disagree".to_owned());
+    }
+    verify_history(root, &history)?;
+    Ok(history)
+}
+
+fn verify_history(root: &Path, history: &MediaCommitHistory) -> Result<(), String> {
+    if history.version != MEDIA_HISTORY_VERSION {
+        return Err("unsupported media commit history version".to_owned());
+    }
+    let current = history.current_release_id.as_deref();
+    if let Some(current) = current
+        && !history.releases.contains_key(current)
+    {
+        return Err("active committed receipt missing".to_owned());
+    }
+    for (release_id, saved) in &history.releases {
+        if saved.manifest_sha256.len() != 64
+            || !saved
+                .manifest_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err("invalid committed manifest digest".to_owned());
+        }
+        let retained = root.join("releases").join(release_id).is_dir();
+        if retained {
+            let actual = release_receipt(root, release_id)?;
+            if actual.manifest_sha256 != saved.manifest_sha256
+                || actual
+                    .media
+                    .iter()
+                    .any(|(path, hash)| saved.media.get(path) != Some(hash))
+            {
+                return Err("committed release bytes differ from history".to_owned());
+            }
+        } else if current == Some(release_id.as_str()) {
+            return Err("active committed release is missing".to_owned());
+        }
+        for (path, hash) in &saved.media {
+            let variant = if path.contains("-detail-") {
+                ImageVariantName::Detail
+            } else {
+                ImageVariantName::Thumbnail
+            };
+            validated_media_relative(path, variant)?;
+            if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err("invalid committed media digest".to_owned());
+            }
+            if media_tombstoned(root, path)? {
+                continue;
+            }
+            let protected = retained
+                || saved.last_active_end.is_some_and(|end| {
+                    OffsetDateTime::now_utc()
+                        .unix_timestamp()
+                        .saturating_sub(end)
+                        < SHARED_MEDIA_MIN_AGE_SECONDS as i64
+                });
+            let shared = root.join(path);
+            if shared.is_file() {
+                let bytes = fs::read(&shared)
+                    .map_err(|error| format!("read committed shared media: {error}"))?;
+                if digest(&bytes) != *hash {
+                    return Err("committed shared media differs from history".to_owned());
+                }
+            } else if protected && current != Some(release_id.as_str()) {
+                return Err("protected committed shared media is missing".to_owned());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn reconcile_history(root: &Path) -> Result<MediaCommitHistory, String> {
+    let directory = history_dir(root);
+    let history_path = directory.join("history.json");
+    let intent_path = directory.join("intent.json");
+    if !history_path.exists() {
+        if directory.exists() || current_release_name(root)?.is_some() {
+            return Err("media commit history missing; frozen migration is required".to_owned());
+        }
+        let history = MediaCommitHistory {
+            version: MEDIA_HISTORY_VERSION,
+            current_release_id: None,
+            releases: BTreeMap::new(),
+            transitions: Vec::new(),
+        };
+        atomic_json(&directory, "history.json", &history)?;
+        return Ok(history);
+    }
+    let mut history: MediaCommitHistory = read_json(&history_path)?;
+    if history.version != MEDIA_HISTORY_VERSION {
+        return Err("unsupported media commit history version".to_owned());
+    }
+    let pointer = current_release_name(root)?;
+    if intent_path.exists() {
+        let intent: MediaCommitIntent = read_json(&intent_path)?;
+        if intent.version != MEDIA_HISTORY_VERSION
+            || intent.old_manifest_sha256
+                != intent
+                    .old_release_id
+                    .as_ref()
+                    .and_then(|id| history.releases.get(id))
+                    .map(|receipt| receipt.manifest_sha256.clone())
+        {
+            return Err("media commit intent does not match history".to_owned());
+        }
+        if history.current_release_id.as_deref() == Some(intent.new_release_id.as_str())
+            && pointer == history.current_release_id
+            && history
+                .releases
+                .get(&intent.new_release_id)
+                .is_some_and(|receipt| receipt.manifest_sha256 == intent.new_manifest_sha256)
+        {
+            clear_intent(root)?;
+        } else if history.current_release_id != intent.old_release_id {
+            return Err("media commit intent does not match history".to_owned());
+        } else if pointer == intent.old_release_id {
+            clear_intent(root)?;
+        } else if pointer.as_deref() == Some(intent.new_release_id.as_str()) {
+            let mut receipt = release_receipt(root, &intent.new_release_id)?;
+            if receipt.manifest_sha256 != intent.new_manifest_sha256
+                || receipt
+                    .media
+                    .iter()
+                    .any(|(path, hash)| intent.new_media.get(path) != Some(hash))
+            {
+                return Err("promoted manifest differs from media intent".to_owned());
+            }
+            for path in intent.new_media.keys() {
+                if !receipt.media.contains_key(path) && !media_tombstoned(root, path)? {
+                    return Err("promoted media missing without emergency marker".to_owned());
+                }
+            }
+            receipt.media = intent.new_media;
+            let now = OffsetDateTime::now_utc().unix_timestamp();
+            receipt.first_committed_at = history
+                .releases
+                .get(&intent.new_release_id)
+                .map_or(now, |previous| previous.first_committed_at);
+            if let Some(old) = intent.old_release_id.as_ref() {
+                history
+                    .releases
+                    .get_mut(old)
+                    .ok_or("old committed receipt missing")?
+                    .last_active_end = Some(now);
+            }
+            history
+                .releases
+                .insert(intent.new_release_id.clone(), receipt);
+            history.transitions.push(MediaCommitTransition {
+                from: intent.old_release_id,
+                to: intent.new_release_id.clone(),
+                at: now,
+            });
+            history.current_release_id = Some(intent.new_release_id);
+            atomic_json(&directory, "history.json", &history)?;
+            clear_intent(root)?;
+        } else {
+            return Err("current pointer matches neither intent side".to_owned());
+        }
+    }
+    if pointer != history.current_release_id {
+        return Err("unrecorded current pointer change".to_owned());
+    }
+    verify_history(root, &history)?;
+    Ok(history)
+}
+
+fn commit_candidate_with<F>(
+    root: &Path,
+    release_id: &str,
+    manifest: &PublishManifest,
+    promote: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&Path, &str) -> Result<(), String>,
+{
+    let history = reconcile_history(root)?;
+    if history.current_release_id.is_some() {
+        copy_release_media_to_shared(root, &root.join("current"))?;
+    }
+    validate_manifest_tombstones(root, manifest)?;
+    let receipt = release_receipt(root, release_id)?;
+    if receipt.media.len()
+        != manifest
+            .artifacts
+            .iter()
+            .filter(|entry| entry.variant.is_some())
+            .count()
+    {
+        return Err("candidate media changed or was emergency-marked before commit".to_owned());
+    }
+    let intent = MediaCommitIntent {
+        version: MEDIA_HISTORY_VERSION,
+        old_release_id: history.current_release_id.clone(),
+        new_release_id: release_id.to_owned(),
+        old_manifest_sha256: history
+            .current_release_id
+            .as_ref()
+            .map(|old| {
+                history
+                    .releases
+                    .get(old)
+                    .ok_or("old committed receipt missing")
+                    .map(|receipt| receipt.manifest_sha256.clone())
+            })
+            .transpose()?,
+        new_manifest_sha256: receipt.manifest_sha256,
+        new_media: receipt.media,
+    };
+    atomic_json(&history_dir(root), "intent.json", &intent)?;
+    if let Err(error) = promote(root, release_id) {
+        if current_release_name(root)? == intent.old_release_id {
+            clear_intent(root)?;
+        }
+        return Err(error);
+    }
+    reconcile_history(root)?;
+    Ok(())
+}
+
+fn copy_release_media_to_shared(root: &Path, release: &Path) -> Result<(), String> {
+    let manifest: PublishManifest = read_json(&release.join("manifest.json"))?;
+    for artifact in manifest
+        .artifacts
+        .iter()
+        .filter(|entry| entry.variant.is_some())
+    {
+        let relative =
+            validated_media_relative(&artifact.path, artifact.variant.expect("media variant"))?;
+        if media_tombstoned(root, &artifact.path)? {
+            continue;
+        }
+        let source = release.join(relative);
+        let bytes = fs::read(&source).map_err(|error| format!("read release media: {error}"))?;
+        let variant = artifact.variant.expect("filtered media variant");
+        if artifact.content_type.as_deref() != Some("image/webp")
+            || image::guess_format(&bytes)
+                .map_err(|error| format!("detect release media: {error}"))?
+                != image::ImageFormat::WebP
+            || derivative_fingerprint_from_path(&artifact.path, variant)?
+                != public_derivative_fingerprint(&bytes)
+        {
+            return Err("release media fingerprint or type mismatch".to_owned());
+        }
+        let target = root.join(relative);
+        if target.exists() {
+            if fs::read(&target).map_err(|error| format!("read shared media: {error}"))? != bytes {
+                return Err("shared media fingerprint collision".to_owned());
+            }
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("create shared media directory: {error}"))?;
+        }
+        let staging = root.join(".media-staging");
+        fs::create_dir_all(&staging)
+            .map_err(|error| format!("create private media staging directory: {error}"))?;
+        let staged = staging.join(Uuid::new_v4().to_string());
+        fs::write(&staged, &bytes).map_err(|error| format!("stage shared media: {error}"))?;
+        if let Err(error) = fs::rename(&staged, &target) {
+            let _ = fs::remove_file(&staged);
+            return Err(format!("publish shared media: {error}"));
+        }
+    }
+    Ok(())
+}
+
+fn validated_media_relative(path: &str, variant: ImageVariantName) -> Result<&Path, String> {
+    let relative = Path::new(path);
+    let components = relative.components().collect::<Vec<_>>();
+    if components.len() != 3
+        || components
+            .iter()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+        || components[0].as_os_str() != "media"
+        || derivative_fingerprint_from_path(path, variant).is_err()
+    {
+        return Err("release media path is invalid".to_owned());
+    }
+    Ok(relative)
+}
+
+fn media_tombstoned(root: &Path, path: &str) -> Result<bool, String> {
+    let marker = root.join(".media-tombstones").join(path);
+    match fs::symlink_metadata(marker) {
+        Ok(metadata) if metadata.file_type().is_file() => Ok(true),
+        Ok(_) => Err("emergency media marker is not a regular file".to_owned()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("inspect emergency media marker: {error}")),
+    }
+}
+
+fn validate_manifest_tombstones(root: &Path, manifest: &PublishManifest) -> Result<(), String> {
+    for artifact in manifest
+        .artifacts
+        .iter()
+        .filter(|entry| entry.variant.is_some())
+    {
+        validated_media_relative(&artifact.path, artifact.variant.expect("media variant"))?;
+        if media_tombstoned(root, &artifact.path)? {
+            return Err("candidate references emergency-removed media".to_owned());
+        }
+    }
+    Ok(())
 }
 
 fn prune_promoted_releases(
     root: &Path,
     retention_policy: ReleaseRetentionPolicy,
 ) -> Result<(), String> {
+    let history = load_history(root)?;
+    for release in release_directories(&root.join("releases"))? {
+        if !history.releases.contains_key(&release.name) {
+            retain_failed_candidates(root, &release.path, retention_policy)?;
+        }
+    }
     prune_promoted_releases_with(root, retention_policy, remove_admin_image_map, |path| {
+        let release_id = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or("invalid release directory")?;
+        if !history.releases.contains_key(release_id) {
+            return Err("cannot prune release lacking committed receipt".to_owned());
+        }
+        copy_release_media_to_shared(root, path)?;
         fs::remove_dir_all(path).map_err(|error| format!("prune promoted release: {error}"))
     })
 }
@@ -2034,7 +2579,10 @@ where
 }
 
 fn post_promotion_cleanup(root: &Path, retention_policy: ReleaseRetentionPolicy) -> Option<String> {
-    match prune_promoted_releases(root, retention_policy) {
+    match copy_release_media_to_shared(root, &root.join("current"))
+        .and_then(|()| prune_promoted_releases(root, retention_policy))
+        .and_then(|()| prune_shared_media(root))
+    {
         Ok(()) => None,
         Err(error) => {
             tracing::error!(
@@ -2045,6 +2593,61 @@ fn post_promotion_cleanup(root: &Path, retention_policy: ReleaseRetentionPolicy)
             Some(SAFE_RELEASE_CLEANUP_WARNING.to_owned())
         }
     }
+}
+
+fn prune_shared_media(root: &Path) -> Result<(), String> {
+    let history = load_history(root)?;
+    let mut referenced = BTreeSet::new();
+    for release in release_directories(&root.join("releases"))? {
+        if !history.releases.contains_key(&release.name) {
+            continue;
+        }
+        let manifest: PublishManifest = read_json(&release.path.join("manifest.json"))?;
+        referenced.extend(
+            manifest
+                .artifacts
+                .into_iter()
+                .filter(|artifact| {
+                    artifact.variant.is_some() && artifact.path.starts_with("media/")
+                })
+                .filter_map(|artifact| match media_tombstoned(root, &artifact.path) {
+                    Ok(false) => Some(Ok(artifact.path)),
+                    Ok(true) => None,
+                    Err(error) => Some(Err(error)),
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+    }
+    let media_root = root.join("media");
+    if !media_root.exists() {
+        return Ok(());
+    }
+    let mut files = Vec::new();
+    collect_paths(&media_root, &mut files)?;
+    for path in files {
+        let relative = path
+            .strip_prefix(root)
+            .expect("shared media relative path")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let tombstoned = media_tombstoned(root, &relative)?;
+        let latest_end = history
+            .releases
+            .values()
+            .filter(|receipt| receipt.media.contains_key(&relative))
+            .filter_map(|receipt| receipt.last_active_end)
+            .max();
+        let retained_by_time = latest_end.is_some_and(|end| {
+            OffsetDateTime::now_utc()
+                .unix_timestamp()
+                .saturating_sub(end)
+                < SHARED_MEDIA_MIN_AGE_SECONDS as i64
+        });
+        if tombstoned || (!referenced.contains(&relative) && !retained_by_time) {
+            fs::remove_file(&path).map_err(|error| format!("prune shared media: {error}"))?;
+        }
+    }
+    Ok(())
 }
 
 fn retain_failed_candidates(
@@ -2655,6 +3258,118 @@ mod tests {
         fs::FileTimes,
         time::{Duration, UNIX_EPOCH},
     };
+
+    #[test]
+    fn candidate_media_stays_private_until_pointer_commit() {
+        let root = tempfile::tempdir().unwrap();
+        let bytes = b"RIFF0000WEBPcandidate";
+        let relative = format!(
+            "media/card/image-1-detail-{}.webp",
+            public_derivative_fingerprint(bytes)
+        );
+        let candidate = root.path().join("releases/new-release");
+        fs::create_dir_all(candidate.join("media/card")).unwrap();
+        fs::write(candidate.join(&relative), bytes).unwrap();
+        let manifest = PublishManifest::new(
+            "new-release",
+            "2026-01-01T00:00:00Z",
+            vec![PublishManifestEntry {
+                path: relative.clone(),
+                byte_size: bytes.len(),
+                content_type: Some("image/webp".to_owned()),
+                variant: Some(ImageVariantName::Detail),
+            }],
+        );
+        write_json(&candidate, "manifest.json", &manifest).unwrap();
+
+        let error = commit_candidate_with(root.path(), "new-release", &manifest, |root, _| {
+            assert!(root.join("releases/new-release").join(&relative).is_file());
+            assert!(
+                !root.join(&relative).exists(),
+                "candidate must not enter shared media"
+            );
+            assert!(!root.join("current").exists(), "pointer is not committed");
+            Err("forced promotion failure".to_owned())
+        })
+        .unwrap_err();
+        assert_eq!(error, "forced promotion failure");
+        assert!(!root.path().join(&relative).exists());
+
+        commit_candidate_with(root.path(), "new-release", &manifest, |root, release_id| {
+            assert!(!root.join(&relative).exists());
+            promote_candidate(root, release_id)?;
+            assert!(root.join("current").join(&relative).is_file());
+            assert!(
+                !root.join(&relative).exists(),
+                "fallback precedes shared copy"
+            );
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn interrupted_pointer_commit_reconciles_receipts_before_next_publish() {
+        let root = tempfile::tempdir().unwrap();
+        let make_release = |id: &str, body: &[u8]| {
+            let path = format!(
+                "media/card/image-1-detail-{}.webp",
+                public_derivative_fingerprint(body)
+            );
+            let release = root.path().join("releases").join(id);
+            fs::create_dir_all(release.join("media/card")).unwrap();
+            fs::write(release.join(&path), body).unwrap();
+            let manifest = PublishManifest::new(
+                id,
+                "2026-01-01T00:00:00Z",
+                vec![PublishManifestEntry {
+                    path: path.clone(),
+                    byte_size: body.len(),
+                    content_type: Some("image/webp".to_owned()),
+                    variant: Some(ImageVariantName::Detail),
+                }],
+            );
+            write_json(&release, "manifest.json", &manifest).unwrap();
+            (path, manifest)
+        };
+        let (a_path, a_manifest) = make_release("a", b"RIFF0000WEBPcommitted A");
+        commit_candidate_with(root.path(), "a", &a_manifest, promote_candidate).unwrap();
+        copy_release_media_to_shared(root.path(), &root.path().join("current")).unwrap();
+        let (b_path, _) = make_release("b", b"RIFF0000WEBPcandidate B");
+        let old = load_history(root.path()).unwrap();
+        let new_receipt = release_receipt(root.path(), "b").unwrap();
+        let intent = MediaCommitIntent {
+            version: MEDIA_HISTORY_VERSION,
+            old_release_id: Some("a".to_owned()),
+            new_release_id: "b".to_owned(),
+            old_manifest_sha256: Some(old.releases["a"].manifest_sha256.clone()),
+            new_manifest_sha256: new_receipt.manifest_sha256.clone(),
+            new_media: new_receipt.media.clone(),
+        };
+        atomic_json(&history_dir(root.path()), "intent.json", &intent).unwrap();
+        assert!(
+            !root.path().join(&b_path).exists(),
+            "intent cannot expose B"
+        );
+        reconcile_history(root.path()).unwrap();
+        assert!(!history_dir(root.path()).join("intent.json").exists());
+        assert_eq!(
+            active_release_id(root.path()).unwrap().as_deref(),
+            Some("a")
+        );
+        atomic_json(&history_dir(root.path()), "intent.json", &intent).unwrap();
+        promote_candidate(root.path(), "b").unwrap();
+        assert!(root.path().join("current").join(&b_path).exists());
+        let recovered = reconcile_history(root.path()).unwrap();
+        assert_eq!(recovered.current_release_id.as_deref(), Some("b"));
+        assert!(recovered.releases["a"].last_active_end.is_some());
+        assert!(root.path().join(&a_path).exists());
+        assert!(!history_dir(root.path()).join("intent.json").exists());
+        let mut corrupt = recovered;
+        corrupt.version = 0;
+        atomic_json(&history_dir(root.path()), "history.json", &corrupt).unwrap();
+        assert!(reconcile_history(root.path()).is_err());
+    }
 
     #[test]
     fn release_directories_sort_newest_with_subsecond_precision() {

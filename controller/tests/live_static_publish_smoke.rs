@@ -14,9 +14,10 @@ mod live {
         oracle_connection,
         storage_keys::build_original_object_key,
     };
-    use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
+    use image::{DynamicImage, ImageFormat, Rgb};
     use oracledb::Connection;
     use serde_json::{Value, json};
+    use sha2::{Digest, Sha256};
     use tempfile::NamedTempFile;
     use uuid::Uuid;
 
@@ -365,6 +366,145 @@ mod live {
             &original_filename,
         );
 
+        let review_url = format!("{controller}/admin/api/items/{item_id}/images/{image_id}/review");
+        let review = json_request("GET", &review_url, &public_origin, &admin_cookie, None);
+        let media_revision = review["mediaRevision"]
+            .as_str()
+            .expect("review media revision");
+        assert_eq!(review["publicCurrentPreviewUrl"], detail_path);
+        let adjustment = json!({
+            "rotationDegrees": 0.0,
+            "zoom": 1.0,
+            "panX": 0.0,
+            "panY": 0.0,
+            "crop": { "left": 0.1, "top": 0.1, "right": 0.9, "bottom": 0.9 },
+            "perspective": null
+        });
+        let save_body =
+            json!({"mediaRevision": media_revision, "adjustment": adjustment}).to_string();
+        json_request(
+            "PATCH",
+            &format!("{controller}/admin/api/items/{item_id}/images/{image_id}/adjustment"),
+            &public_origin,
+            &admin_cookie,
+            Some(&save_body),
+        );
+        let after_save_review =
+            json_request("GET", &review_url, &public_origin, &admin_cookie, None);
+        assert_eq!(after_save_review["state"], "unpublishedChanges");
+        assert_eq!(after_save_review["publicCurrentPreviewUrl"], detail_path);
+        assert_eq!(after_save_review["adjustment"], adjustment);
+        let private_preview_path = after_save_review["privatePreviewUrl"]
+            .as_str()
+            .expect("private preview URL");
+        let private_preview = private_fetch_bytes(
+            &format!("{controller}{private_preview_path}"),
+            &public_origin,
+            &admin_cookie,
+        );
+        assert_ne!(
+            private_preview, detail,
+            "saved crop must alter private preview"
+        );
+        assert_eq!(
+            fetch(&format!("{preview}/data/items/{generated_slug}.json")),
+            item_json
+        );
+        assert_eq!(fetch_bytes(&detail_url), detail);
+        assert_eq!(fetch_bytes(&thumbnail_url), thumbnail);
+        assert_eq!(media.read(&object_key).await.unwrap(), stored);
+
+        let adjusted_publish = publish_request(
+            "POST",
+            &format!("{controller}/admin/api/publish/incremental"),
+            &public_origin,
+            &admin_cookie,
+            None,
+        );
+        assert_eq!(adjusted_publish["state"], "succeeded");
+        let adjusted_collection_json = fetch(&format!("{preview}/data/collection.json"));
+        let adjusted_item_json = fetch(&format!("{preview}/data/items/{generated_slug}.json"));
+        let adjusted_item_html = fetch(&format!("{preview}/items/{generated_slug}/"));
+        let adjusted_catalog: PublicCatalog =
+            serde_json::from_str(&adjusted_collection_json).unwrap();
+        let adjusted_item: PublicItemDetail = serde_json::from_str(&adjusted_item_json).unwrap();
+        let adjusted_thumbnail_path = adjusted_item.images[0]
+            .variants
+            .iter()
+            .find(|variant| variant.name == ImageVariantName::Thumbnail)
+            .unwrap()
+            .path
+            .clone();
+        let adjusted_detail_path = adjusted_item.images[0]
+            .variants
+            .iter()
+            .find(|variant| variant.name == ImageVariantName::Detail)
+            .unwrap()
+            .path
+            .clone();
+        assert_ne!(adjusted_thumbnail_path, thumbnail_path);
+        assert_ne!(adjusted_detail_path, detail_path);
+        let adjusted_gallery = adjusted_catalog
+            .items
+            .iter()
+            .find(|item| item.slug == slug)
+            .unwrap();
+        assert_eq!(
+            adjusted_gallery
+                .primary_image
+                .as_ref()
+                .unwrap()
+                .variants
+                .iter()
+                .find(|variant| variant.name == ImageVariantName::Thumbnail)
+                .unwrap()
+                .path,
+            adjusted_thumbnail_path
+        );
+        assert!(adjusted_item_html.contains(&adjusted_detail_path));
+        assert!(!adjusted_item_html.contains(&adjusted_thumbnail_path));
+        let adjusted_thumbnail_url = format!("{preview}{adjusted_thumbnail_path}");
+        let adjusted_detail_url = format!("{preview}{adjusted_detail_path}");
+        let adjusted_thumbnail = fetch_bytes(&adjusted_thumbnail_url);
+        let adjusted_detail = fetch_bytes(&adjusted_detail_url);
+        assert_fingerprinted(&adjusted_thumbnail_path, &adjusted_thumbnail);
+        assert_fingerprinted(&adjusted_detail_path, &adjusted_detail);
+        assert_ne!(adjusted_thumbnail, thumbnail);
+        assert_ne!(adjusted_detail, detail);
+        assert_eq!(adjusted_detail, private_preview);
+        let original_dimensions = image::load_from_memory(&detail)
+            .unwrap()
+            .to_rgba8()
+            .dimensions();
+        let adjusted_dimensions = image::load_from_memory(&adjusted_detail)
+            .unwrap()
+            .to_rgba8()
+            .dimensions();
+        assert!(
+            adjusted_dimensions.0 < original_dimensions.0
+                && adjusted_dimensions.1 < original_dimensions.1
+        );
+        assert_eq!(
+            image::guess_format(&adjusted_thumbnail).unwrap(),
+            ImageFormat::WebP
+        );
+        assert_eq!(media.read(&object_key).await.unwrap(), stored);
+        scan_public_text(
+            &[
+                &adjusted_collection_json,
+                &adjusted_item_json,
+                &adjusted_item_html,
+                &adjusted_thumbnail_url,
+                &adjusted_detail_url,
+            ],
+            image_id,
+            &object_key,
+            &original_filename,
+        );
+        println!(
+            "adjusted media publish: {thumbnail_path} -> {adjusted_thumbnail_path}; {detail_path} -> {adjusted_detail_path}"
+        );
+
         json_request(
             "POST",
             &format!("{controller}/admin/api/items/{item_id}/publication"),
@@ -383,10 +523,20 @@ mod live {
         for url in [
             format!("{preview}/items/{generated_slug}/"),
             format!("{preview}/data/items/{generated_slug}.json"),
-            thumbnail_url,
-            detail_url,
         ] {
             assert_eq!(status(&url), 404, "stale public artifact remained: {url}");
+        }
+        for url in [
+            thumbnail_url,
+            detail_url,
+            adjusted_thumbnail_url,
+            adjusted_detail_url,
+        ] {
+            assert_eq!(
+                status(&url),
+                200,
+                "fresh document media must remain reachable: {url}"
+            );
         }
         delete_media_with_retries(&media, &object_key)
             .await
@@ -757,6 +907,46 @@ mod live {
         output.stdout
     }
 
+    fn private_fetch_bytes(url: &str, origin: &str, cookie: &str) -> Vec<u8> {
+        let output = Command::new("curl")
+            .args([
+                "--fail-with-body",
+                "--silent",
+                "--show-error",
+                "--connect-timeout",
+                "5",
+                "--max-time",
+                "60",
+            ])
+            .args([
+                "--header",
+                &format!("Cookie: {cookie}"),
+                "--header",
+                &format!("Origin: {origin}"),
+            ])
+            .arg(url)
+            .output()
+            .unwrap_or_else(|error| panic!("fetch private preview: {error}"));
+        assert!(
+            output.status.success(),
+            "private preview failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        output.stdout
+    }
+
+    fn assert_fingerprinted(path: &str, bytes: &[u8]) {
+        let digest = Sha256::digest(bytes);
+        let prefix = digest[..8]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert!(
+            path.ends_with(&format!("-{prefix}.webp")),
+            "path does not fingerprint final WebP bytes: {path}"
+        );
+    }
+
     fn status(url: &str) -> u16 {
         let output = Command::new("curl")
             .args([
@@ -881,7 +1071,11 @@ mod live {
 
     fn png_fixture() -> Vec<u8> {
         let mut body = Cursor::new(Vec::new());
-        DynamicImage::ImageRgb8(RgbImage::from_pixel(16, 16, Rgb([21, 92, 126])))
+        let mut image = image::RgbImage::new(128, 96);
+        for (x, y, pixel) in image.enumerate_pixels_mut() {
+            *pixel = Rgb([(x * 2) as u8, (y * 2) as u8, ((x + y) % 256) as u8]);
+        }
+        DynamicImage::ImageRgb8(image)
             .write_to(&mut body, ImageFormat::Png)
             .expect("encode live smoke PNG");
         body.into_inner()

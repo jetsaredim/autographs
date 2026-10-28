@@ -1,0 +1,708 @@
+---
+- name: Verify frozen release then explicitly reopen publishing
+  hosts: runtime
+  become: true
+  vars:
+    freeze_record_path: /opt/autographs/private/publish-freeze.json
+    caddyfile_path: /opt/autographs/caddy/Caddyfile
+    frozen_stage_path: /opt/autographs/private/Caddyfile.ready-frozen
+    autographs_deploy_caddy_path: /opt/autographs/caddy
+    autographs_deploy_publish_frozen: false
+    autographs_deploy_allow_unfreeze: true
+    autographs_publish_unfreeze_verify_only: false
+    audit_script_path: /opt/autographs/private/publish_freeze_audit.py
+    app_env_path: /opt/autographs/env/app.env
+    approved_digests_path: /opt/autographs/private/pointer-first-approved-digests
+    autographs_publish_unfreeze_fixture_mode: false
+    autographs_publish_file_owner: root
+    autographs_publish_file_group: root
+  tasks:
+    - name: Restrict runtime adapter to the disposable local origin fixture
+      ansible.builtin.assert:
+        that:
+          - ansible_connection == 'local'
+          - autographs_deploy_domain == 'media-probe.invalid'
+          - caddyfile_path is match('^/tmp/autographs-unfreeze-[^/]+/caddy/Caddyfile$')
+          - lookup('env', 'AUTOGRAPHS_PUBLISH_FIXTURE_MODE') == '1'
+      when: autographs_publish_unfreeze_fixture_mode | bool
+
+    - name: Read durable freeze record
+      ansible.builtin.slurp:
+        src: "{{ freeze_record_path }}"
+      register: unfreeze_record_file
+
+    - name: Resolve freeze record
+      ansible.builtin.set_fact:
+        unfreeze_record: "{{ unfreeze_record_file.content | b64decode | from_json }}"
+
+    - name: Require the exact reviewed release and image digest
+      ansible.builtin.assert:
+        that:
+          - unfreeze_record.release_tag == autographs_deploy_repo_version
+          - unfreeze_record.controller_digest == autographs_deploy_controller_digest
+          - autographs_deploy_source_revision is match('^[0-9a-f]{40}$')
+
+    - name: Inspect static volume for frozen publication identity
+      ansible.builtin.command:
+        argv: [podman, volume, inspect, autographs-static, --format, "{% raw %}{{.Mountpoint}}{% endraw %}"]
+      register: unfreeze_history_mount
+      changed_when: false
+
+    - name: Verify current pointer, manifest, history, and marker inventory before unfreeze
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - >-
+            import hashlib, importlib.util, json, os, pathlib, sys;
+            root=pathlib.Path(sys.argv[1]); record=json.loads(pathlib.Path(sys.argv[2]).read_text());
+            spec=importlib.util.spec_from_file_location('audit', sys.argv[3]);
+            audit=importlib.util.module_from_spec(spec); spec.loader.exec_module(audit);
+            assert os.readlink(root/'current') == record['current_target'];
+            assert hashlib.sha256((root/'current/manifest.json').read_bytes()).hexdigest() == record['current_manifest_sha256'];
+            assert hashlib.sha256((root/'.media-commit-history/history.json').read_bytes()).hexdigest() == record['history_digest'];
+            assert audit.marker_digest(root) == record['marker_digest'];
+            assert audit.current(root) == json.loads((root/'.media-commit-history/history.json').read_text())['current_release_id']
+          - "{{ unfreeze_history_mount.stdout | trim }}"
+          - "{{ freeze_record_path }}"
+          - "{{ audit_script_path }}"
+      changed_when: false
+      when: not unfreeze_record.bootstrap
+
+    - name: Revalidate committed media bytes without mutating the frozen record
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ audit_script_path }}"
+          - --static-root
+          - "{{ unfreeze_history_mount.stdout | trim }}"
+          - --quarantine
+          - /opt/autographs/private/media-quarantine
+          - --record
+          - "{{ freeze_record_path }}"
+          - --release-tag
+          - "{{ autographs_deploy_repo_version }}"
+          - --controller-digest
+          - "{{ autographs_deploy_controller_digest }}"
+          - --old-container-id
+          - "{{ unfreeze_record.old_container_id }}"
+          - --old-pid
+          - "{{ unfreeze_record.old_pid }}"
+          - --report-only
+      changed_when: false
+      when: not unfreeze_record.bootstrap
+
+    - name: Select freshly validated current origin probe
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ audit_script_path }}"
+          - --static-root
+          - "{{ unfreeze_history_mount.stdout | trim }}"
+          - --probe-only
+      register: unfreeze_probe_result
+      changed_when: false
+
+    - name: Resolve freshly validated current origin probe
+      ansible.builtin.set_fact:
+        unfreeze_probe_state: "{{ unfreeze_probe_result.stdout | from_json }}"
+
+    - name: Refuse stale frozen origin selection or publication identity
+      ansible.builtin.assert:
+        that:
+          - unfreeze_probe_state.active_probe.version == 1
+          - unfreeze_probe_state.active_probe.kind in ['media', 'document']
+          - unfreeze_probe_state.active_probe.path is match('^(media/.+\.webp|manifest\.json)$')
+          - unfreeze_probe_state.current_target == unfreeze_record.current_target
+          - unfreeze_probe_state.current_manifest_sha256 == unfreeze_record.current_manifest_sha256
+          - unfreeze_probe_state.history_digest == unfreeze_record.history_digest
+          - unfreeze_probe_state.marker_digest == unfreeze_record.marker_digest
+          - unfreeze_probe_state.marker_paths == unfreeze_record.marker_paths
+          - unfreeze_probe_state.active_probe == unfreeze_record.active_probe
+      when: not unfreeze_record.bootstrap
+
+    - name: Check old process remains absent
+      ansible.builtin.stat:
+        path: "/proc/{{ unfreeze_record.old_pid }}"
+      register: unfreeze_old_process
+      when: unfreeze_record.old_pid | int > 0
+
+    - name: Require old publisher process absent
+      ansible.builtin.assert:
+        that:
+          - not unfreeze_old_process.stat.exists
+      when: unfreeze_record.old_pid | int > 0
+
+    - name: Check live controller image identity
+      ansible.builtin.command:
+        argv:
+          - podman
+          - inspect
+          - --format
+          - "{% raw %}{{.Image}}{% endraw %}"
+          - autographs-controller
+      register: unfreeze_running_image
+      changed_when: false
+
+    - name: Read deployed release mapping
+      ansible.builtin.slurp:
+        src: "{{ app_env_path }}"
+      register: unfreeze_app_env
+      no_log: true
+
+    - name: Resolve deployed image mapping
+      ansible.builtin.set_fact:
+        unfreeze_image: >-
+          {{
+            (
+              unfreeze_app_env.content | b64decode
+              | regex_findall('(?m)^AUTOGRAPHS_CONTROLLER_IMAGE=(.*)$')
+              | first
+            ) | default('', true)
+          }}
+        unfreeze_image_digest: >-
+          {{
+            (
+              unfreeze_app_env.content | b64decode
+              | regex_findall('(?m)^AUTOGRAPHS_CONTROLLER_DIGEST=(.*)$')
+              | first
+            ) | default('', true)
+          }}
+      no_log: true
+
+    - name: Require deployed image mapping matches the freeze record
+      ansible.builtin.assert:
+        that:
+          - unfreeze_image_digest == autographs_deploy_controller_digest
+          - unfreeze_image is match('^.+:v[0-9]+\.[0-9]+\.[0-9]+$')
+      no_log: true
+
+    - name: Check reviewed digest image identity
+      ansible.builtin.command:
+        argv:
+          - podman
+          - image
+          - inspect
+          - --format
+          - "{% raw %}{{.Id}}{% endraw %}"
+          - "{{ unfreeze_image }}"
+      register: unfreeze_expected_image
+      changed_when: false
+
+    - name: Require reviewed controller image
+      ansible.builtin.assert:
+        that:
+          - unfreeze_running_image.stdout | trim == unfreeze_expected_image.stdout | trim
+
+    - name: Validate and adapt live Caddy configuration
+      ansible.builtin.command:
+        argv:
+          - podman
+          - exec
+          - autographs-caddy
+          - caddy
+          - "{{ item }}"
+          - --config
+          - /etc/caddy/Caddyfile
+      loop: [validate, adapt]
+      changed_when: false
+
+    - name: Read current release manifest
+      ansible.builtin.command:
+        argv:
+          - podman
+          - exec
+          - autographs-caddy
+          - cat
+          - /srv/autographs/static/current/manifest.json
+      register: unfreeze_manifest
+      changed_when: false
+
+    - name: Select validated active and retained origin probes
+      ansible.builtin.set_fact:
+        unfreeze_current_probe: "{{ unfreeze_probe_state.active_probe }}"
+        unfreeze_retained_media: "{{ unfreeze_record.retained_probe | default('') }}"
+
+    - name: Require valid current release target and selected probe
+      ansible.builtin.assert:
+        that:
+          - (unfreeze_manifest.stdout | from_json).release_id is defined
+          - unfreeze_current_probe.kind == 'document' or unfreeze_current_probe.path is match('^media/.+\.webp$')
+
+    - name: Verify reviewed controller health at origin
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --fail
+          - --silent
+          - --show-error
+          - --noproxy
+          - "*"
+          - --resolve
+          - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+          - "https://{{ autographs_deploy_domain }}/admin/api/health"
+      register: unfreeze_health
+      changed_when: false
+
+    - name: Require expected source and release metadata
+      ansible.builtin.assert:
+        that:
+          - (unfreeze_health.stdout | from_json).release.repoVersion == autographs_deploy_repo_version
+          - (unfreeze_health.stdout | from_json).release.sourceRevision == autographs_deploy_source_revision
+
+    - name: Require operator token for authenticated status proof
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'AUTOGRAPHS_OPERATOR_API_TOKEN') | length > 0
+      no_log: true
+
+    - name: Verify authenticated publish status remains available
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --fail
+          - --silent
+          - --show-error
+          - --noproxy
+          - "*"
+          - --resolve
+          - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+          - --header
+          - "Authorization: Bearer {{ lookup('env', 'AUTOGRAPHS_OPERATOR_API_TOKEN') }}"
+          - "https://{{ autographs_deploy_domain }}/admin/api/publish/status"
+      changed_when: false
+      no_log: true
+
+    - name: Probe public current and frozen publish routes
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --dump-header
+          - '-'
+          - --output
+          - /dev/null
+          - --write-out
+          - "HTTP_STATUS=%{http_code}"
+          - --noproxy
+          - "*"
+          - --resolve
+          - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+          - --request
+          - "{{ item.method }}"
+          - "https://{{ autographs_deploy_domain }}{{ item.path }}"
+      loop:
+        - {method: GET, path: /manifest.json}
+        - {method: GET, path: "/{{ unfreeze_current_probe.path }}"}
+        - {method: POST, path: /admin/api/publish/full}
+        - {method: POST, path: /admin/api/publish/incremental}
+      register: unfreeze_public_before
+      changed_when: false
+
+    - name: Require static 200 and no-store frozen POSTs
+      ansible.builtin.assert:
+        that:
+          - "'HTTP_STATUS=200' in unfreeze_public_before.results[0].stdout"
+          - "'HTTP_STATUS=200' in unfreeze_public_before.results[1].stdout"
+          - "'HTTP_STATUS=503' in unfreeze_public_before.results[2].stdout"
+          - "'HTTP_STATUS=503' in unfreeze_public_before.results[3].stdout"
+          - "'cache-control: no-store' in (unfreeze_public_before.results[2].stdout | lower)"
+          - "'cache-control: no-store' in (unfreeze_public_before.results[3].stdout | lower)"
+
+    - name: Require selected preview origin probe
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8081/{{ unfreeze_current_probe.path }}"
+        status_code: 200
+        return_content: false
+
+    - name: Verify protected old committed URL on both origin misses
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --output
+          - /dev/null
+          - --write-out
+          - "%{http_code}"
+          - --noproxy
+          - "*"
+          - --resolve
+          - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+          - "{{ ('https://' + autographs_deploy_domain) if item == 'public' else 'http://127.0.0.1:8081' }}/{{ unfreeze_retained_media }}"
+      loop: [public, preview]
+      register: unfreeze_retained_origins
+      changed_when: false
+      when: unfreeze_retained_media | length > 0
+
+    - name: Require dual-origin old committed media reachability
+      ansible.builtin.assert:
+        that:
+          - unfreeze_retained_origins.results | map(attribute='stdout') | list | difference(['200']) | length == 0
+      when: unfreeze_retained_media | length > 0
+
+    - name: Require live Caddy readback of every persistent exact marker
+      ansible.builtin.command:
+        argv:
+          - podman
+          - exec
+          - autographs-caddy
+          - test
+          - -f
+          - "/srv/autographs/static/.media-tombstones/{{ item }}"
+      loop: "{{ unfreeze_probe_state.marker_paths }}"
+      changed_when: false
+
+    - name: Probe every persistent marker on both origin routes
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --output
+          - /dev/null
+          - --write-out
+          - "%{http_code}"
+          - --noproxy
+          - "*"
+          - --resolve
+          - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+          - "{{ ('https://' + autographs_deploy_domain) if item.0 == 'public' else 'http://127.0.0.1:8081' }}/{{ item.1 }}"
+      loop: "{{ ['public', 'preview'] | product(unfreeze_probe_state.marker_paths) | list }}"
+      register: unfreeze_persistent_marker_origins
+      changed_when: false
+
+    - name: Require every persistent exact marker denied at both origins
+      ansible.builtin.assert:
+        that:
+          - unfreeze_persistent_marker_origins.results | map(attribute='stdout') | list |
+            difference(['404']) | length == 0
+
+    - name: Inspect static volume mountpoint for disposable marker probe
+      ansible.builtin.command:
+        argv:
+          - podman
+          - volume
+          - inspect
+          - autographs-static
+          - --format
+          - "{% raw %}{{.Mountpoint}}{% endraw %}"
+      register: unfreeze_static_mount
+      changed_when: false
+
+    - name: Generate unique disposable marker name
+      ansible.builtin.command:
+        argv: [python3, -c, 'import uuid; print(uuid.uuid4().hex[:16])']
+      register: unfreeze_probe_nonce
+      changed_when: false
+
+    - name: Resolve disposable marker paths
+      ansible.builtin.set_fact:
+        unfreeze_probe_relative: "media/freezeprobe/probe-detail-{{ unfreeze_probe_nonce.stdout }}.webp"
+        unfreeze_probe_marker: >-
+          {{ unfreeze_static_mount.stdout | trim }}/.media-tombstones/media/freezeprobe/probe-detail-{{ unfreeze_probe_nonce.stdout }}.webp
+        unfreeze_probe_shared: >-
+          {{ unfreeze_static_mount.stdout | trim }}/media/freezeprobe/probe-detail-{{ unfreeze_probe_nonce.stdout }}.webp
+
+    - name: Check disposable marker and shared paths are unused
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ unfreeze_probe_marker }}"
+        - "{{ unfreeze_probe_shared }}"
+      register: unfreeze_probe_existing
+
+    - name: Refuse to touch an existing media or marker path
+      ansible.builtin.assert:
+        that:
+          - unfreeze_probe_existing.results | selectattr('stat.exists') | list | length == 0
+
+    - name: Probe marked shared media on both origin routes
+      block:
+        - name: Create disposable marker and shared directories
+          ansible.builtin.file:
+            path: "{{ unfreeze_static_mount.stdout | trim }}/{{ item }}"
+            state: directory
+            mode: "0755"
+          loop:
+            - .media-tombstones/media/freezeprobe
+            - media/freezeprobe
+
+        - name: Create disposable marker before any shared probe file
+          ansible.builtin.file:
+            path: "{{ unfreeze_probe_marker }}"
+            state: touch
+            mode: "0644"
+
+        - name: Create disposable shared probe file after marker
+          ansible.builtin.copy:
+            content: disposable freeze probe
+            dest: "{{ unfreeze_probe_shared }}"
+            mode: "0644"
+
+        - name: Check public marked URL
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --silent
+              - --output
+              - /dev/null
+              - --write-out
+              - "%{http_code}"
+              - --noproxy
+              - "*"
+              - --resolve
+              - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+              - "https://{{ autographs_deploy_domain }}/{{ unfreeze_probe_relative }}"
+          register: unfreeze_public_marker
+          changed_when: false
+
+        - name: Check preview marked URL
+          ansible.builtin.uri:
+            url: "http://127.0.0.1:8081/{{ unfreeze_probe_relative }}"
+            status_code: 404
+            return_content: false
+
+        - name: Require public marked URL denied
+          ansible.builtin.assert:
+            that:
+              - unfreeze_public_marker.stdout | trim == '404'
+      rescue:
+        - name: Remove disposable shared file after failed marker proof
+          ansible.builtin.file:
+            path: "{{ unfreeze_probe_shared }}"
+            state: absent
+
+        - name: Remove disposable marker after failed marker proof
+          ansible.builtin.file:
+            path: "{{ unfreeze_probe_marker }}"
+            state: absent
+
+        - name: Keep publication frozen after failed marker proof
+          ansible.builtin.fail:
+            msg: Disposable exact-marker origin proof failed; freeze record is unchanged.
+      always:
+        - name: Remove only the disposable probe file
+          ansible.builtin.file:
+            path: "{{ unfreeze_probe_shared }}"
+            state: absent
+          when: autographs_publish_unfreeze_verify_only | bool
+
+        - name: Remove only the disposable probe marker
+          ansible.builtin.file:
+            path: "{{ unfreeze_probe_marker }}"
+            state: absent
+          when: autographs_publish_unfreeze_verify_only | bool
+
+    - name: Remove managed gate only after readiness
+      when: not autographs_publish_unfreeze_verify_only | bool
+      block:
+        - name: Save frozen Caddyfile for unfreeze failure recovery
+          ansible.builtin.copy:
+            src: "{{ caddyfile_path }}"
+            dest: "{{ frozen_stage_path }}"
+            remote_src: true
+            owner: "{{ autographs_publish_file_owner }}"
+            group: "{{ autographs_publish_file_group }}"
+            mode: "0600"
+
+        - name: Remove managed exact publish gate
+          ansible.builtin.include_tasks: ../roles/autographs_deploy/tasks/publish_freeze.yml
+
+        - name: Restart Caddy after explicit unfreeze
+          ansible.builtin.systemd:
+            name: autographs-caddy.service
+            state: restarted
+          when: not autographs_publish_unfreeze_fixture_mode | bool
+
+        - name: Reload real fixture Caddy after explicit unfreeze
+          ansible.builtin.command:
+            argv: [podman, exec, autographs-caddy, caddy, reload, --config, /etc/caddy/Caddyfile]
+          changed_when: true
+          when: autographs_publish_unfreeze_fixture_mode | bool
+
+        - name: Confirm unauthenticated publish requests reach controller auth
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --silent
+              - --output
+              - /dev/null
+              - --write-out
+              - "%{http_code}"
+              - --noproxy
+              - "*"
+              - --resolve
+              - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+              - --request
+              - POST
+              - "https://{{ autographs_deploy_domain }}/admin/api/publish/{{ item }}"
+          loop: [full, incremental]
+          register: unfreeze_postcheck
+          changed_when: false
+
+        - name: Require authentication without starting a publish
+          ansible.builtin.assert:
+            that:
+              - unfreeze_postcheck.results | map(attribute='stdout') | list | difference(['401', '403']) | length == 0
+
+        - name: Verify authenticated status after unfreeze
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --fail
+              - --silent
+              - --show-error
+              - --noproxy
+              - "*"
+              - --resolve
+              - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+              - --header
+              - "Authorization: Bearer {{ lookup('env', 'AUTOGRAPHS_OPERATOR_API_TOKEN') }}"
+              - "https://{{ autographs_deploy_domain }}/admin/api/publish/status"
+          changed_when: false
+          no_log: true
+
+        - name: Verify selected origin and exact marker denial after Caddy restart
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --silent
+              - --output
+              - /dev/null
+              - --write-out
+              - "%{http_code}"
+              - --noproxy
+              - "*"
+              - --resolve
+              - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+              - "{{ ('https://' + autographs_deploy_domain) if item.0 == 'public' else 'http://127.0.0.1:8081' }}/{{ item.1 }}"
+          loop: "{{ ['public', 'preview'] | product([unfreeze_current_probe.path] + unfreeze_probe_state.marker_paths + [unfreeze_probe_relative]) | list }}"
+          register: unfreeze_postrestart_origins
+          changed_when: false
+
+        - name: Require selected dual-origin 200 and all exact marker 404 after restart
+          ansible.builtin.assert:
+            that:
+              - unfreeze_postrestart_origins.results | map(attribute='stdout') | list ==
+                (['200'] + ['404'] * ((unfreeze_probe_state.marker_paths | length) + 1)) * 2
+
+        - name: Recheck protected old committed URL on both origins after restart
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --silent
+              - --output
+              - /dev/null
+              - --write-out
+              - "%{http_code}"
+              - --noproxy
+              - "*"
+              - --resolve
+              - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+              - "{{ ('https://' + autographs_deploy_domain) if item == 'public' else 'http://127.0.0.1:8081' }}/{{ unfreeze_retained_media }}"
+          loop: [public, preview]
+          register: unfreeze_retained_postrestart
+          changed_when: false
+          when: unfreeze_retained_media | length > 0
+
+        - name: Require old committed URL still reachable after restart
+          ansible.builtin.assert:
+            that:
+              - unfreeze_retained_postrestart.results | map(attribute='stdout') | list == ['200', '200']
+          when: unfreeze_retained_media | length > 0
+
+        - name: Require Caddy readback of persistent and disposable markers after restart
+          ansible.builtin.command:
+            argv:
+              - podman
+              - exec
+              - autographs-caddy
+              - test
+              - -f
+              - "/srv/autographs/static/.media-tombstones/{{ item }}"
+          loop: "{{ unfreeze_probe_state.marker_paths + [unfreeze_probe_relative] }}"
+          changed_when: false
+
+        - name: Remove only the disposable shared file after restart checks
+          ansible.builtin.file:
+            path: "{{ unfreeze_probe_shared }}"
+            state: absent
+
+        - name: Remove only the disposable marker after restart checks
+          ansible.builtin.file:
+            path: "{{ unfreeze_probe_marker }}"
+            state: absent
+
+        - name: Revalidate current and marker identity after fixture cleanup
+          ansible.builtin.command:
+            argv:
+              - python3
+              - "{{ audit_script_path }}"
+              - --static-root
+              - "{{ unfreeze_history_mount.stdout | trim }}"
+              - --probe-only
+          register: unfreeze_postrestart_probe
+          changed_when: false
+
+        - name: Require unchanged committed origin identity after restart
+          ansible.builtin.assert:
+            that:
+              - unfreeze_postrestart_probe.stdout | from_json == unfreeze_probe_state
+
+        - name: Record digest as verified for pointer-first rollback
+          ansible.builtin.lineinfile:
+            path: "{{ approved_digests_path }}"
+            line: "{{ autographs_deploy_controller_digest }}"
+            create: true
+            owner: "{{ autographs_publish_file_owner }}"
+            group: "{{ autographs_publish_file_group }}"
+            mode: "0600"
+
+        - name: Remove freeze record only after all postchecks
+          ansible.builtin.file:
+            path: "{{ freeze_record_path }}"
+            state: absent
+      rescue:
+        - name: Remove only disposable shared file after failed unfreeze
+          ansible.builtin.file:
+            path: "{{ unfreeze_probe_shared }}"
+            state: absent
+
+        - name: Remove only disposable marker after failed unfreeze
+          ansible.builtin.file:
+            path: "{{ unfreeze_probe_marker }}"
+            state: absent
+
+        - name: Inspect saved frozen Caddyfile for recovery
+          ansible.builtin.stat:
+            path: "{{ frozen_stage_path }}"
+          register: unfreeze_saved_stage
+
+        - name: Restore frozen Caddyfile after failed unfreeze
+          ansible.builtin.copy:
+            src: "{{ frozen_stage_path }}"
+            dest: "{{ caddyfile_path }}"
+            remote_src: true
+            owner: "{{ autographs_publish_file_owner }}"
+            group: "{{ autographs_publish_file_group }}"
+            mode: "0644"
+          when: unfreeze_saved_stage.stat.isreg | default(false)
+
+        - name: Restart frozen Caddy after failed unfreeze
+          ansible.builtin.systemd:
+            name: autographs-caddy.service
+            state: restarted
+          when: not autographs_publish_unfreeze_fixture_mode | bool
+
+        - name: Reload real fixture Caddy after failed unfreeze
+          ansible.builtin.command:
+            argv: [podman, exec, autographs-caddy, caddy, reload, --config, /etc/caddy/Caddyfile]
+          changed_when: true
+          when: autographs_publish_unfreeze_fixture_mode | bool
+
+        - name: Fail unfreeze and retain durable record
+          ansible.builtin.fail:
+            msg: Unfreeze failed; restored frozen Caddy and kept the freeze record.
+  handlers:
+    - name: Restart Caddy container
+      ansible.builtin.debug:
+        msg: The explicit unfreeze block owns the Caddy restart and recovery.

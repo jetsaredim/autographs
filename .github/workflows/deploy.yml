@@ -679,8 +679,27 @@ jobs:
             echo "oracle_db_wallet_password_vault_secret_id=${oracle_db_wallet_password_vault_secret_id}"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Run full deployment
+      - name: Verify frozen publisher cutover preflight
+        id: publish_freeze_preflight
         if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
+        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
+        env:
+          ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
+        with:
+          playbook: playbooks/publish-freeze-preflight.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          requirements: collections/requirements.yml
+          options: |
+            --extra-vars autographs_deploy_repo_version=${{ steps.request.outputs.release_tag }}
+            --extra-vars autographs_deploy_controller_digest=${{ steps.manifest.outputs.controller_digest }}
+            --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
+
+      - name: Run full deployment
+        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true' && steps.publish_freeze_preflight.outcome == 'success'
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
@@ -708,6 +727,7 @@ jobs:
             --extra-vars autographs_deploy_repo_version=${{ steps.request.outputs.release_tag }}
             --extra-vars autographs_deploy_deployed_controller_version=${{ steps.manifest.outputs.controller_tag }}
             --extra-vars autographs_deploy_source_revision=${{ steps.source.outputs.source_revision }}
+            --extra-vars autographs_deploy_publish_frozen=true
             --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
             --extra-vars autographs_deploy_http_port=${{ env.AUTOGRAPHS_HTTP_PORT }}
             --extra-vars autographs_deploy_https_port=${{ env.AUTOGRAPHS_HTTPS_PORT }}
@@ -759,6 +779,50 @@ jobs:
             <<< "$controller_health" >/dev/null
           echo "verified=true" >> "$GITHUB_OUTPUT"
 
+      - name: Verify frozen origin readiness
+        id: frozen_origin_readiness
+        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true' && steps.deployment_health.outputs.verified == 'true'
+        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
+        env:
+          ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
+          AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
+        with:
+          playbook: playbooks/publish-unfreeze.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          requirements: collections/requirements.yml
+          options: |
+            --extra-vars autographs_deploy_repo_version=${{ steps.request.outputs.release_tag }}
+            --extra-vars autographs_deploy_controller_digest=${{ steps.manifest.outputs.controller_digest }}
+            --extra-vars autographs_deploy_source_revision=${{ steps.source.outputs.source_revision }}
+            --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
+            --extra-vars autographs_publish_unfreeze_verify_only=true
+
+      - name: Explicitly unfreeze verified production publication
+        id: publish_unfreeze
+        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true' && steps.deployment_health.outputs.verified == 'true' && steps.frozen_origin_readiness.outcome == 'success'
+        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
+        env:
+          ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
+          AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
+        with:
+          playbook: playbooks/publish-unfreeze.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          requirements: collections/requirements.yml
+          options: |
+            --extra-vars autographs_deploy_repo_version=${{ steps.request.outputs.release_tag }}
+            --extra-vars autographs_deploy_controller_digest=${{ steps.manifest.outputs.controller_digest }}
+            --extra-vars autographs_deploy_source_revision=${{ steps.source.outputs.source_revision }}
+            --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
+            --extra-vars autographs_publish_unfreeze_verify_only=false
+
       - name: Validate release completion gate
         if: steps.request.outputs.operation != 'rollback'
         id: release_gate
@@ -766,6 +830,7 @@ jobs:
           OPERATION: ${{ steps.request.outputs.operation }}
           PRODUCTION_MUTATION_REQUIRED: ${{ steps.manifest.outputs.production_mutation_required }}
           DEPLOYMENT_VERIFIED: ${{ steps.deployment_health.outputs.verified }}
+          PUBLISH_UNFREEZE_OUTCOME: ${{ steps.publish_unfreeze.outcome }}
           RETRY_RECOVERY_VERIFIED: ${{ steps.retry_recovery.outputs.verified }}
         run: |
           set -euo pipefail
@@ -777,6 +842,10 @@ jobs:
             true)
               if [ "$DEPLOYMENT_VERIFIED" != "true" ]; then
                 echo "Release requires production mutation but deployment health was not verified." >&2
+                exit 1
+              fi
+              if [ "$PUBLISH_UNFREEZE_OUTCOME" != "success" ]; then
+                echo "Release requires explicit verified publication unfreeze." >&2
                 exit 1
               fi
               ;;

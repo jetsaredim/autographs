@@ -278,6 +278,31 @@ The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM` for 
 
 Production verification uses the deployed Rust controller health route, static release manifest, and live static publish smoke from [static-runtime-runbook.md](static-runtime-runbook.md).
 
+For the Phase 8 publisher/Caddy cutover, install the manual publish `503` gate
+**before** merging the Release PR or dispatching a deployment retry. The
+production workflow runs a fail-closed old-controller exit and shared-media
+audit preflight, deploys with `autographs_deploy_publish_frozen=true`, checks
+both origin routes, and invokes a separate readiness-backed unfreeze. A failed
+or ambiguous cutover remains frozen and cannot complete the release. Follow
+the [publisher and Caddy rollout procedure](static-runtime-runbook.md#phase-8-publisher-and-caddy-rollout-freeze),
+including read-only initial inventory, independently proven historical media,
+the conservative frozen wait for an unarchived pruned release, durable
+publication-history receipts, and exact-marker origin denial. Later mutating
+deployments must preserve a previously committed old URL through preflight and
+role reaudit. The origin readiness probe is a verified unmarked current WebP,
+or `/manifest.json` when the current release is empty or every active image is
+exactly marked. Verify-only and mutating unfreeze require 200 for the selected
+path and 404 for every persistent marker on public and preview origins, before
+and after the Caddy restart; unmarked byte corruption keeps the gate frozen.
+Pre-stop checks prove only frozen document availability and publish denial;
+a pending publication intent is reconciled after verified old-process exit.
+The final pointer, history, marker inventory, selected probe, and dual-origin
+responses decide whether deployment may proceed. Repair an invalid intent
+under the frozen gate and use the production retry workflow.
+Keep the history namespace, migration marker, shared media,
+releases, pointer, and tombstones in the same backup set. Do not deploy with
+`autographs_deploy_publish_frozen=false` to bypass it.
+
 The deployed Rust controller exposes `GET /admin/api/health` for runtime readiness. A successful full or incremental publish verifies Oracle catalog access, private media access, generated derivatives, static release promotion, and Caddy static serving.
 
 Published images are served as generated static derivatives from the promoted release. Public URLs contain generated artifact paths only; they do not expose Object Storage bucket credentials, signed direct URLs, or raw object keys as the public access contract.

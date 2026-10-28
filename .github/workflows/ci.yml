@@ -297,6 +297,11 @@ jobs:
         run: |
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook -vvv --syntax-check \
             deploy/ansible/playbooks/deploy.yml \
+            deploy/ansible/playbooks/publish-freeze-preflight.yml \
+            deploy/ansible/playbooks/publish-unfreeze.yml \
+            deploy/ansible/playbooks/publish-freeze-render-test.yml \
+            deploy/ansible/playbooks/publish-freeze-deploy-test.yml \
+            deploy/ansible/playbooks/publish-freeze-role-reaudit-test.yml \
             deploy/ansible/playbooks/controller-rollback.yml \
             deploy/ansible/playbooks/system-cleanup.yml \
             deploy/ansible/playbooks/security-scan.yml \
@@ -321,6 +326,9 @@ jobs:
 
       - name: Test Ansible validation playbooks
         run: |
+          docker info --format '{{.ServerVersion}}'
+          ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
+            deploy/ansible/playbooks/publish-freeze-deploy-test.yml
           ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-playbook \
             -i deploy/ansible/test-fixtures/security-report-inventory.yml \
             deploy/ansible/playbooks/security-report-render-test.yml

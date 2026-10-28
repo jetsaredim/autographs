@@ -1,0 +1,30 @@
+---
+- name: Execute production role reaudit tasks against disposable Caddy origins
+  hosts: runtime
+  become: false
+  gather_facts: false
+  vars:
+    autographs_deploy_freeze_record: "{{ lookup('ansible.builtin.file', freeze_record_path) | from_json }}"
+    autographs_deploy_static_volume:
+      stdout: "{{ fixture_static_root }}"
+    autographs_deploy_publish_freeze_record_path: "{{ freeze_record_path }}"
+    autographs_deploy_publish_quarantine_path: "{{ quarantine_path }}"
+    autographs_deploy_publish_audit_script_path: "{{ audit_script_path }}"
+    autographs_deploy_caddy_container_name: autographs-caddy
+    autographs_deploy_candidate_preview_port: 8081
+    autographs_deploy_old_frozen_caddyfile_path: "{{ frozen_backup_path }}"
+    autographs_deploy_fixture_mode: true
+    autographs_deploy_file_owner: "{{ fixture_file_owner }}"
+    autographs_deploy_file_group: "{{ fixture_file_group }}"
+  pre_tasks:
+    - name: Restrict role reaudit fixture to local disposable static storage
+      ansible.builtin.assert:
+        that:
+          - ansible_connection == 'local'
+          - lookup('env', 'AUTOGRAPHS_PUBLISH_FIXTURE_MODE') == '1'
+          - fixture_static_root is match('^/tmp/autographs-unfreeze-[^/]+/static$')
+          - autographs_deploy_domain == 'media-probe.invalid'
+      tags: [always]
+  tasks:
+    - name: Import the role's actual reaudit and frozen Caddy restart tasks
+      ansible.builtin.import_tasks: ../roles/autographs_deploy/tasks/main.yml

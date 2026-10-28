@@ -596,10 +596,221 @@ Expected `Cache-Control` behavior:
 
 If Cloudflare or another CDN is enabled later, keep admin shell/API routes out
 of CDN caching, and preserve rollback by keeping HTML/JSON short-lived. Routine
-image replacement publishes a new fingerprinted `/media/*` URL; reserve CDN
-purges for emergency takedown, accidental public exposure, or CDN incident
-response. See `docs/dns-runbook.md` for the deferred Cloudflare checklist and
-purge guidance.
+image replacement publishes a new fingerprinted `/media/*` URL. Caddy serves a
+shared media namespace with an active `current/media` fallback. The publisher
+copies only active media before pointer promotion; the atomic pointer change
+commits candidate visibility, and shared copy follows it. A postcommit copy
+failure leaves the new release active with a cleanup warning. Repair its shared
+copy before a manual rollback. Confirm old and new URLs return 200 after an adjustment and rollback,
+including an origin cache miss. A routine unpublish removes page and JSON but
+keeps known old media URLs for at least 24 hours and while retained releases
+reference them. For urgent privacy takedown, publish the unpublish when
+possible, create a durable exact URL marker, prove dual-origin 404, then remove
+copies and purge the exact CDN URL. See [cdn-cache-contract.md](cdn-cache-contract.md) for the
+retention contract and `docs/dns-runbook.md` for the Cloudflare checklist.
+
+### Phase 8 publisher and Caddy rollout freeze
+
+Run `bash scripts/verify-caddy-media-origin.sh`, the publisher/Caddy contract
+tests, and the reviewed Ansible syntax/lint checks before touching the VM.
+Back up the installed host Caddyfile and freeze publication **before** replacing
+either the running Caddy or controller process. Use the deployed host path and
+edit its inode in place: the current quadlet bind-mounts that single file, so
+an atomic host rename could leave the running container reading an old inode.
+The two exact paths are `/admin/api/publish/full` and
+`/admin/api/publish/incremental`; `/admin/api/publish/status` stays proxied.
+
+```bash
+CADDYFILE=/opt/autographs/caddy/Caddyfile
+sudo cp -p "$CADDYFILE" "$CADDYFILE.pre-media-freeze.$(date -u +%Y%m%dT%H%M%SZ)"
+sudo python3 - "$CADDYFILE" <<'PY'
+import sys
+
+needle = "\thandle /admin/api/* {"
+gate = '''\thandle /admin/api/publish/full {
+\t\theader Cache-Control "no-store"
+\t\trespond "Publishing temporarily unavailable" 503
+\t}
+\thandle /admin/api/publish/incremental {
+\t\theader Cache-Control "no-store"
+\t\trespond "Publishing temporarily unavailable" 503
+\t}
+\n'''
+with open(sys.argv[1], "r+", encoding="utf-8") as caddyfile:
+    content = caddyfile.read()
+    if content.count(needle) != 1 or "AUTOGRAPHS PUBLISH FREEZE" in content:
+        raise SystemExit("Caddyfile shape or freeze state differs; stop rollout")
+    caddyfile.seek(0)
+    caddyfile.write(content.replace(needle, gate + needle, 1))
+    caddyfile.truncate()
+PY
+sudo podman exec autographs-caddy caddy validate --config /etc/caddy/Caddyfile
+sudo podman exec autographs-caddy caddy reload --config /etc/caddy/Caddyfile
+```
+
+Through the public admin origin, check that unauthenticated `POST` requests to
+both exact publish paths return `503` and `Cache-Control: no-store`; check an
+authenticated GET of `/admin/api/publish/status` still works and public current
+pages/media still return `200`. Keep session cookies in a protected file and do
+not print them. Stop automated smoke/publish jobs and direct private-network
+calls to `autographs-controller:8080`; gate any other publisher ingress or abort.
+The route gate blocks new ingress; publish status alone cannot prove that an
+already accepted request is not waiting on the old controller's mutex. Record
+the unchanged `current` pointer, then merge the Release PR or dispatch
+`workflow_dispatch operation=retry`. The production workflow explicitly passes
+`autographs_deploy_publish_frozen=true` and runs
+`publish-freeze-preflight.yml` before the full deploy. That preflight keeps the
+old gated Caddyfile, removes Caddy's controller service dependency, restarts
+Caddy under the old gate. Before stopping the old controller, it reads
+`/manifest.json` on public and preview origins, requires a parseable release
+ID, verifies both publish paths return `503` with `no-store` on the public
+admin origin,
+and checks every known exact marker returns `404`. A pending `intent.json` is
+recorded for diagnostics; this early document check does not validate history
+or authorize shared media. It then stops the old controller and waits for its
+unit, captured container, and PID to exit before reconciling that intent or
+restarting any new shared route. A surviving process or lost static response
+stops the deploy frozen.
+
+For the **first** cutover, preflight runs a read-only inventory before and
+after verified old-controller exit; the latter is authoritative. A retained
+release needs its manifest, successful production publish-job evidence or a
+trusted promotion receipt, and verified shared WebP bytes. A pruned release
+needs a trusted archived manifest or promotion receipt naming the exact path;
+an Oracle success row alone cannot prove its media. Supply reviewed evidence
+in a root-protected JSON file outside the static volume using
+`autographs_legacy_media_evidence_path`. The current helper accepts only
+`archived_receipts` keyed by release ID, each with `promotion_receipt_path`,
+`promotion_receipt_sha256`, `manifest_sha256`, and, for pruned releases,
+`manifest_path` plus `media_sha256`. The receipt file must bind release ID,
+manifest digest, and successful pointer promotion. A bare success-ID list is
+never proof. Verify the archive source and digest independently before using
+it; do not manufacture an operator export or a promotion receipt. A direct
+Oracle job-row verification adapter is not installed in this deployment path,
+so hosts without trusted archived receipts remain at the frozen checkpoint.
+
+If a fresh shared path could belong to a pruned committed release and no
+archive exists, the report blocks cutover **without moving shared bytes**.
+Keep the old frozen current-only route and controller stopped. That old route
+may already return 404 for the pruned URL; deferral makes no new availability
+claim. The protected `media-legacy-wait.json` records exit time, boot ID,
+controller invocation ID, and pointer. With synchronized UTC, retry after exit
+time plus 86,400 seconds media freshness, 60 seconds document freshness, and
+300 seconds clock margin. A reboot, controller restart, or pointer change starts
+a new window. A retained path without independent commit proof remains blocked
+past the timer until evidence or legitimate release retirement. Never use a
+tombstone to waive ordinary uncertainty. The mutation pass quarantines only
+unprotected paths outside the static volume and writes versioned
+`.media-commit-history/history.json` plus a migration marker. Back up history,
+pointer, releases, shared media, and `.media-tombstones` together.
+
+On **later** deployments, preflight and full-role reaudit use finalized
+publication receipts, not retained manifests or mtimes, to keep A's shared URL
+after B is published. `current` is the commit witness; a durable intent enables
+recovery if the controller stops on either side of pointer replacement. Exact
+markers allow intentionally missing active or retained bytes and continue
+denying both origins. Unmarked missing or corrupt committed bytes stop the
+deployment; repair from a verified committed copy and retry frozen. The freeze
+record changes only after successful audit and binds pointer, manifest,
+history digest/version, marker inventory, and a versioned active origin probe.
+After verified old-process exit, a valid intent with `current` still old is
+discarded; a valid intent with `current` new finalizes the committed receipt
+and old URL retention. A malformed intent or changed required bytes keeps the
+old frozen route and record. Retry through the production workflow after
+repair; do not restart the old controller under new routing. The final audit
+record and a fresh strict probe, followed by dual-origin HTTP checks, are the
+handoff authority even if `current` changed during the old-controller stop.
+The audit verifies every unmarked current WebP against manifest size, filename
+fingerprint, and committed hash before selecting one media URL. If no unmarked
+current image exists, including an empty release or one whose only image was
+exactly marked and deleted, it selects `/manifest.json` instead. Both public
+HTTPS and preview origins must return 200 for that selected path and 404 for
+every exact marker; a missing or corrupt unmarked image never falls back to
+the document. A missing history after migration
+is fatal. Do not bypass a failed preflight with an unfrozen variable.
+
+The full role requires the protected freeze record and rechecks old PID and
+container absence before copying Caddyfile. It starts and verifies the reviewed
+controller image, source, and health before restarting Caddy with managed
+exact-path `503` routes. A failed new Caddy route restores the saved old frozen
+Caddyfile; any failed step keeps the freeze record and does not claim release
+completion. Retry repeats the preflight and explicit frozen deploy. A fresh VM
+records bootstrap-frozen state, but first-release seeding still requires a
+valid `current` release before the existing full-deploy static gate can pass.
+
+Only after production health and the host's public and preview origin checks
+pass does the workflow call `publish-unfreeze.yml` separately. It repeats the
+image/release/source, current static, frozen POST, Caddy validation, and
+disposable marker checks. Verify-only and mutating unfreeze consume the same
+audited media-or-document probe, compare pointer/manifest/history/marker
+digests against the freeze record, and prove persistent exact marker denial at
+both origins. The mutating call keeps its disposable marker through the Caddy
+restart, removes only the managed gate, and repeats selected-path 200 and
+marked-path 404 afterward. It also
+requires unauthenticated publish POSTs to reach `401`/`403` without starting a
+job before deleting the freeze record. A failed postcheck restores the frozen
+file and retains the record. The
+release completion gate requires this unfreeze step to succeed. Record gate-on,
+old-process exit, quarantine audit, new-controller readiness, route readiness,
+and gate-off times and commands in Wave 8 evidence. Resume credentialed smoke
+only after explicit unfreeze. Controller-only rollback to a digest that has not
+passed this pointer-first readiness gate is refused while shared-media routing
+is active.
+
+For **static release rollback**, keep the publish gate, stop the controller,
+and verify its unit, container, and PID exited. Run the protected
+`static_release_rollback.py --static-root <static-volume-mount>
+--target-release-id <committed-release-id> --frozen-exit-proved` helper as root.
+It checks receipts, manifest, WebP hashes, and markers, copies only verified
+unmarked media, journals the transition, and repoints `current` atomically.
+A direct `ln -s`/`mv` repoint is unrecorded and blocks the next publish or
+audit. Restart only the reviewed controller, verify active and old URL origin
+misses on public HTTPS and preview `:8081` while frozen, then explicitly
+unfreeze.
+
+### Exact emergency media takedown
+
+This is a one-way operator checkpoint. Decide the exact disposable or real URL
+before beginning; do not create a marker as part of normal smoke cleanup. A
+marker and CDN purge intentionally break old documents. Publish an unpublish
+first if possible. On the VM, identify the named static volume and compare both
+container mounts before any mutation:
+
+```bash
+STATIC_ROOT="$(sudo podman volume inspect autographs-static --format '{{.Mountpoint}}')"
+STATIC_ROOT="$(realpath -e "$STATIC_ROOT")"
+sudo podman inspect --format '{{range .Mounts}}{{println .Name .Source .Destination .RW}}{{end}}' autographs-controller
+sudo podman inspect --format '{{range .Mounts}}{{println .Name .Source .Destination .RW}}{{end}}' autographs-caddy
+```
+
+Require the `autographs-static` mount source to resolve to `STATIC_ROOT` at
+`/var/lib/autographs/static` with `RW=true` for the controller and at
+`/srv/autographs/static` with `RW=false` for Caddy. Abort if any name, source,
+destination, or writeability differs. Reconcile historically removed URLs into
+markers before the first publish with the revised controller. Validate the
+exact URL before creating its marker:
+
+```bash
+MEDIA_URL='/media/<item-slug>/<image-slug>-detail-<16-hex-fingerprint>.webp'
+[[ "$MEDIA_URL" =~ ^/media/[a-z0-9-]+/[a-z0-9-]+-(thumbnail|detail)-[0-9a-f]{16}\.webp$ ]] || exit 1
+sudo install -D -m 0644 /dev/null "$STATIC_ROOT/.media-tombstones/${MEDIA_URL#/}"
+sudo podman exec autographs-caddy test -f "/srv/autographs/static/.media-tombstones/${MEDIA_URL#/}"
+curl --silent --output /dev/null --write-out '%{http_code}\n' \
+  --resolve "${AUTOGRAPHS_DOMAIN}:443:127.0.0.1" "https://${AUTOGRAPHS_DOMAIN}${MEDIA_URL}"
+curl --silent --output /dev/null --write-out '%{http_code}\n' \
+  "http://127.0.0.1:8081${MEDIA_URL}"
+```
+
+The marker readback and **both** origin `404` responses are the effective
+origin-denial evidence. If either fails, stop and repair the mount identity,
+visibility, or routing before deleting files or purging CDN. Once both pass,
+remove the exact relative media path from shared media and every retained
+release, including the active release if necessary; a failed deletion can be
+retried while the marker continues denying it. Purge only that exact Cloudflare
+URL and verify edge `404`. A failed CDN purge leaves cached copies until purge
+or TTL expiry and is an incomplete takedown. Keep and back up markers with the
+static volume. Never clear one to make rollback work; reinstatement needs an
+explicit decision and new media fingerprint.
 
 ## Phase 8 CDN/cache contract
 
@@ -607,6 +818,55 @@ The Phase 8 CDN/cache rule, purge, rollback, and production verification
 contract is maintained in [cdn-cache-contract.md](cdn-cache-contract.md). Keep
 the Caddy origin headers above aligned with that contract before implementing
 or verifying admin image adjustment cache behavior.
+
+### Phase 8 adjusted media publish verification
+
+Run the credential-gated static smoke against a deployed candidate controller
+and Caddy static preview before enabling Cloudflare proxying. Complete the
+Oracle adjustment schema migration and confirm the candidate logs its Oracle
+schema preflight pass. Use the candidate controller and one-shot smoke image
+procedure above with a copied Oracle wallet, a private Podman network, and the
+VM instance principal for the disposable private Object Storage original.
+Supply the protected environment values `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true`,
+`AUTOGRAPHS_CONTROLLER_BASE_URL`, `AUTOGRAPHS_STATIC_PREVIEW_BASE_URL`,
+`AUTOGRAPHS_STATIC_RELEASE_ROOT`, `AUTOGRAPHS_ADMIN_PASSWORD`,
+`AUTOGRAPHS_PUBLIC_ORIGIN` (or `AUTOGRAPHS_DOMAIN`), `ORACLE_DB_USER`,
+`ORACLE_DB_PASSWORD`, `ORACLE_DB_CONNECT_STRING`, `OCI_MEDIA_NAMESPACE`, and
+`OCI_MEDIA_BUCKET_NAME`. The smoke logs in for a session cookie and sends the
+matching Origin for admin mutations; it must not print the cookie or password.
+
+Run the exact gated target in the one-shot image or a trusted environment with
+the same Oracle wallet, controller/Caddy reachability, and instance-principal
+media permissions:
+
+```bash
+AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true \
+  cargo test --manifest-path controller/Cargo.toml \
+  --features live-persistence --test live_static_publish_smoke \
+  -- --ignored --nocapture
+```
+
+Record the candidate commit, successful schema preflight, and complete test
+result. The smoke creates a unique item, saves a non-identity crop using the
+review response's `mediaRevision`, and proves the private preview changes while
+the current public JSON and WebP URLs stay unchanged. After incremental publish
+it reports both old and new thumbnail/detail URLs, checks each new URL against
+the SHA-256 fingerprint of its final WebP bytes, verifies collection JSON and
+detail HTML/JSON references, compares corrected pixels and dimensions with the
+private preview, checks the OCI original bytes, and scans for private fields.
+It then drafts the temporary item, republishes removal, and deletes the OCI
+object and Oracle rows. Its already published WebP URLs remain in the shared
+origin namespace until retention cleanup; this is expected after routine
+unpublish. If interrupted, use the existing cleanup guard and
+live persistence cleanup mode above, then verify no temporary item or private
+object remains; restore the prior release pointer if a candidate publish was
+not fully validated.
+
+With `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE` unset, the ignored local run only
+proves compilation and safe gating. It is not live evidence. The new media URLs
+make routine Cloudflare purges unnecessary under
+[cdn-cache-contract.md](cdn-cache-contract.md). Wave 8 records the real edge
+cache observations before enabling the CDN, as required by D-08-19.
 
 ## Phase 6 Admin Live Smoke
 
@@ -627,7 +887,8 @@ prove that the ignored smoke remains gated by
 7. Confirm publish status reports promoted-release and failed-candidate
    retention counts without exposing filesystem internals.
 8. Unpublish or delete the smoke item, publish again, and verify stale public
-   item pages and media derivatives no longer resolve.
+   item pages and JSON no longer resolve. Recently published media URLs remain
+   reachable for cached documents until retention cleanup.
 9. Check Oracle rows and Object Storage objects for cleanup residue. Use the
    live persistence cleanup mode only for interrupted smoke residue.
 

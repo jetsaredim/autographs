@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 08
 current_phase_name: Admin Media Review and Operational Posture
 status: executing
-stopped_at: Completed 08-06-PLAN.md
-last_updated: "2026-10-25T19:41:08.419Z"
-last_activity: 2026-10-25
-last_activity_desc: Resumed and reconciled accepted Spike 011 operator UAT
-state_head: edf1a02fd39b8b9149688b93b76d4c86f2db4ba2
+stopped_at: Completed 08-07-PLAN.md
+last_updated: "2026-10-26T10:52:39.113Z"
+last_activity: 2026-10-26
+last_activity_desc: Completed Phase 08 Plan 07 adjusted-media publishing
+state_head: d943e0bfb0b5758dbded4b717247e16597b5ffec
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 48
-  completed_plans: 45
+  completed_plans: 46
 milestone_name: milestone
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 ## Current Position
 
 Phase: 08 (Admin Media Review and Operational Posture) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
-Last activity: 2026-10-25 — Removed managed dependency version assertions from release and Dockerfile tests; PR review pending
+Last activity: 2026-10-26 — Completed Phase 08 Plan 07 adjusted-media publishing
 
-Progress: [█████████░] 94% of milestone plans complete; Phase 8 Plan 6 is next
+Progress: [██████████] 96% of milestone plans complete; Phase 8 Plan 8 is next
 
 ## Performance Metrics
 
@@ -93,6 +93,7 @@ Progress: [█████████░] 94% of milestone plans complete; Phas
 |------|----------|-------|-------|
 | Phase 08 P05 | 7min | 2 tasks | 4 files |
 | Phase 08 P06 | 6h 57m | 3 tasks | 6 files |
+| Phase 08 P07 | 40min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -169,6 +170,8 @@ Recent decisions affecting current work:
 - [Phase 08]: Use authenticated detail-sized adjusted WebP previews with no-store headers for both normal tiles and focused review.
 - [Phase 08]: Keep static-admin image adjustments draft-local until explicit save, confirmed discard, or confirmed reset.
 - [Phase 08]: Apply only confident four-corner auto-assist proposals and preserve manual handles for unavailable results.
+- [Phase 08]: Derivative cache entries bind source SHA-256, transform version, canonical adjustment, variant, and verified WebP bytes.
+- [Phase 08]: Public media URLs fingerprint final adjusted WebP bytes and normal publish updates collection and detail references without routine Cloudflare purge.
 
 ### Pending Todos
 
@@ -194,8 +197,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-10-25T09:20:43-04:00
-Stopped at: Spike 011 harness retired; final review clean and PR #281 publication authorized
+Last session: 2026-10-26T10:52:38.935Z
+Stopped at: Completed 08-07-PLAN.md
 Resume file: None
 
 ## Quick Tasks Completed

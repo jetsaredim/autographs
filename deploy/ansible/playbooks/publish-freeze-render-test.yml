@@ -1,0 +1,90 @@
+---
+- name: Render both publish freeze states against a disposable Caddyfile
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    freeze_test_dir: "{{ lookup('env', 'AUTOGRAPHS_FREEZE_TEST_DIR') }}"
+    autographs_deploy_caddy_path: "{{ freeze_test_dir }}"
+  tasks:
+    - name: Require disposable fixture directory
+      ansible.builtin.assert:
+        that:
+          - freeze_test_dir | length > 0
+          - freeze_test_dir.startswith('/tmp/')
+
+    - name: Copy production Caddyfile into fixture
+      ansible.builtin.copy:
+        src: ../roles/autographs_deploy/files/Caddyfile
+        dest: "{{ freeze_test_dir }}/Caddyfile"
+        mode: "0644"
+
+    - name: Stage an existing manual publish gate
+      ansible.builtin.blockinfile:
+        path: "{{ freeze_test_dir }}/Caddyfile"
+        marker: "# {mark} MANUAL PUBLISH FREEZE"
+        insertbefore: '^\s*handle /admin/api/\* \{$'
+        block: |
+          handle /admin/api/publish/full {
+            header Cache-Control "no-store"
+            respond "Publishing temporarily unavailable" 503
+          }
+          handle /admin/api/publish/incremental {
+            header Cache-Control "no-store"
+            respond "Publishing temporarily unavailable" 503
+          }
+
+    - name: Replace old manually frozen Caddyfile as full deploy does
+      ansible.builtin.copy:
+        src: ../roles/autographs_deploy/files/Caddyfile
+        dest: "{{ freeze_test_dir }}/Caddyfile"
+        mode: "0644"
+
+    - name: Render frozen routes
+      ansible.builtin.include_tasks: ../roles/autographs_deploy/tasks/publish_freeze.yml
+      vars:
+        autographs_deploy_publish_frozen: true
+
+    - name: Read frozen Caddyfile
+      ansible.builtin.slurp:
+        src: "{{ freeze_test_dir }}/Caddyfile"
+      register: frozen_caddyfile
+
+    - name: Verify frozen routes and generic status proxy
+      ansible.builtin.assert:
+        that:
+          - "(frozen_caddyfile.content | b64decode).count('respond \"Publishing temporarily unavailable\" 503') == 2"
+          - "'MANUAL PUBLISH FREEZE' not in (frozen_caddyfile.content | b64decode)"
+          - >-
+            (frozen_caddyfile.content | b64decode).find('handle /admin/api/publish/full {')
+            < (frozen_caddyfile.content | b64decode).find('handle /admin/api/* {')
+          - "'handle /admin/api/publish/status {' not in (frozen_caddyfile.content | b64decode)"
+          - "'reverse_proxy autographs-controller:8080' in (frozen_caddyfile.content | b64decode)"
+
+    - name: Save frozen configuration for Caddy HTTP probe
+      ansible.builtin.copy:
+        content: "{{ frozen_caddyfile.content | b64decode }}"
+        dest: "{{ freeze_test_dir }}/Caddyfile.frozen"
+        mode: "0644"
+
+    - name: Render unfrozen routes
+      ansible.builtin.include_tasks: ../roles/autographs_deploy/tasks/publish_freeze.yml
+      vars:
+        autographs_deploy_publish_frozen: false
+        autographs_deploy_allow_unfreeze: true
+
+    - name: Read unfrozen Caddyfile
+      ansible.builtin.slurp:
+        src: "{{ freeze_test_dir }}/Caddyfile"
+      register: unfrozen_caddyfile
+
+    - name: Verify normal proxy and no frozen routes
+      ansible.builtin.assert:
+        that:
+          - "'AUTOGRAPHS PUBLISH FREEZE' not in (unfrozen_caddyfile.content | b64decode)"
+          - "'handle /admin/api/publish/full {' not in (unfrozen_caddyfile.content | b64decode)"
+          - "'handle /admin/api/* {' in (unfrozen_caddyfile.content | b64decode)"
+  handlers:
+    - name: Restart Caddy container
+      ansible.builtin.debug:
+        msg: Publish freeze render test does not restart a live service.
