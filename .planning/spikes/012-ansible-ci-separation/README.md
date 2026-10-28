@@ -61,7 +61,7 @@ The security job name covers its security patching tests plus admin credential a
 | Checkout | Each of the three jobs |
 | Install Ansible tooling | Each of the three jobs |
 | Install Ansible collections | Each of the three jobs |
-| Syntax check Ansible playbook (27 explicit paths, including all 17 functional-test playbooks) | `ansible-static`, unchanged list |
+| Syntax check Ansible playbook (27 explicit paths, including the functional-test paths) | `ansible-static`, unchanged list |
 | Test Ansible validation playbooks: `docker info`; `publish-freeze-deploy-test.yml` | `ansible-publish-integration` |
 | Test Ansible validation playbooks: `security-report-render-test.yml` with its inventory; `security-request-metadata-validate-test.yml`; `security-create-issue-status-validate-test.yml`; `security-finding-classification-validate-test.yml`; `security-kernel-posture-validate-test.yml`; `security-post-result-status-validate-test.yml`; `security-post-result-refresh-validate-test.yml`; `security-target-scope-validate-test.yml` with its inventory; `security-update-reconciliation-validate-test.yml`; `security-reboot-preflight-validate-test.yml`; `security-reboot-kernel-selection-validate-test.yml`; `security-reboot-state-validate-test.yml` twice (full and `--start-at-task`); `security-reboot-result-validate-test.yml`; `deploy-admin-credentials-validate-test.yml` with empty credential env; `runtime-kernel-persistence-validate-test.yml` | `ansible-security-scenarios`, each invocation kept with the same inventory, flags, environment, and order |
 | Lint Ansible playbook (`ansible-lint deploy/ansible/`) | `ansible-static`, unchanged scope |
