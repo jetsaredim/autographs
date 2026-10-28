@@ -1,8 +1,8 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
-reviewed: 2026-10-27T21:33:18Z
+reviewed: 2026-10-28T00:13:30Z
 depth: deep
-review_round: 6
+review_round: 7
 files_reviewed: 39
 files_reviewed_list:
   - .github/workflows/ci.yml
@@ -46,15 +46,15 @@ files_reviewed_list:
   - scripts/verify-caddy-media-origin.sh
 findings:
   critical: 0
-  warning: 1
+  warning: 0
   info: 0
-  total: 1
-status: issues_found
+  total: 0
+status: clean
 convergence:
-  status: reassessment_required
-  recurring_critical_warning: 1
+  status: clear
+  recurring_critical_warning: 0
   scope_expansion: false
-  requires_reassessment: true
+  requires_reassessment: false
   assumptions_evidence: null
   plan_evidence: null
   plan_review_evidence: null
@@ -392,3 +392,34 @@ _Reviewer: GSD code reviewer; review round 1._
 **Revised plan requirements:** Separate pre-stop static availability from post-exit publication authority. Specify a read-only, fail-closed pre-stop treatment of pending intent under the old current-only route; define exact before-pointer discard and after-pointer history-finalization behavior after process exit; compare pre-stop route availability with the final validated release without requiring pre-stop history completion. Exercise full preflight, role reaudit, and unfreeze retry for both valid intent sides and invalid intent, retaining the marker, retained-URL, and frozen-failure checks.
 
 **Resume criteria:** Revise the publication-intent assumptions and implementation plan, obtain independent plan review, and record those evidence paths in the convergence artifact before another coder fix or `ready_to_resume` transition. Preserve `WR-05` and the resolved lineage on PR #294.
+
+## Final Bounded Review — eebdc31
+
+**Reviewed:** 2026-10-28T00:13:30Z
+**Status:** clean; zero Critical, Warning, or Info findings. This is the one user-authorized final review after six earlier rounds. No further coder or review loop was started.
+**PR confirmation:** https://github.com/jetsaredim/autographs/pull/294#issuecomment-6457047888
+
+### Finding lineage and full PR contract
+
+- `WR-05` (`publication_intent_recovery`, prior fix regression): Preflight now records pending intent only for diagnostics, checks `/manifest.json` and frozen publish denial under the old route, then stops and proves old-controller exit. The mutating audit reconciles before- or after-pointer intent under that barrier; a strict final probe binds pointer, manifest, history, markers, and origin readiness before new routing. The new real-Caddy fixture exercises both intent sides, a pointer advance at the stop seam, malformed intent, wrong pointer, damaged manifest, missing byte, retry, role reaudit, and unfreeze. Resolved in reviewed source and CI evidence.
+- `CR-01`/`CR-04` (`fingerprinted_media_release_lifetime`): Candidate media is held in private release storage until pointer commit; postcommit shared copy and committed-history receipts preserve old URL origin misses across later audits, unpublish, rollback, and pruning. The local publisher and real Caddy matrices exercise old/new URL 200 and precommit 404. Resolved locally.
+- `CR-02`/`CR-03` (`candidate_media_precommit_exposure`): The production workflow runs preflight before the frozen full deploy, starts the reviewed controller before new Caddy routing, checks frozen readiness, and calls verify-only then mutating unfreeze. Failure retains or restores the gate and freeze record. Resolved locally.
+- `WR-01` (`derivative_cache_metadata_dimensions`): Cache schema v2 binds requested source/adjustment/variant and WebP payload digest, decodes dimensions before reuse, and regenerates damaged entries from verified private source bytes. Resolved locally.
+- `WR-02`/`WR-03`/`WR-04` (`emergency_media_takedown_retention`): Exact markers deny public and preview routes, permit intentionally absent marked bytes, survive audit/rollback/pruning, and are verified through media-or-document readiness in both unfreeze modes. Empty, sole-marked, mixed, and all-marked rollback states are covered by the production-shaped Caddy fixture. Resolved locally.
+
+**Invariant inventory:** Private originals and saved adjustment feed the derivative cache and adjusted WebP generator; candidate validation, private release staging, intent fsync, pointer rename, history finalization, shared copy, pruning, and status reporting form the publication transaction. Caddy's shared/current routes, exact-marker deny, 60-second public documents, and 86,400-second media header form the origin/cache contract. Preflight, process-exit proof, role reaudit, frozen controller/Caddy restart ordering, verify-only and mutating unfreeze, release gate, rollback helper, emergency runbook, and live smoke consume it. The reviewed public schema excludes adjustment coordinates, original filenames, Object Storage keys, and unpublished item data.
+
+| Failure or boundary | Reviewed behavior and evidence |
+| --- | --- |
+| Corrupt cache or unavailable private source | Digest/dimension checks regenerate from verified source or fail before pointer promotion; Cargo publisher regressions pass. |
+| Candidate pending, pointer unchanged | Candidate URL is absent; frozen audit discards valid before-pointer intent after exit and quarantines uncommitted shared bytes; real Caddy and current-head CI cover the route. |
+| Pointer changed, history write interrupted | Frozen post-exit audit validates and finalizes intent; old committed URL remains retained; final probe and role reaudit bind the record. |
+| Later deployment, rollback, or pruning | History receipts preserve proven old fingerprints while retained or within the 24-hour floor; journaled rollback keeps both URL generations reachable. |
+| Exact emergency removal | Marker blocks both Caddy origins even with a retained copy; missing marked bytes are accepted, while missing unmarked bytes fail closed. |
+| Controller/Caddy cutover or unfreeze failure | Old process exit precedes new shared routing; the release gate requires explicit unfreeze, and failed origin postchecks restore frozen routing and retain the durable record. |
+
+### Evidence and remaining live gates
+
+- Current-head [PR checks](https://github.com/jetsaredim/autographs/actions/runs/40590195545) pass, including Controller checks and the 14-minute Validate Ansible job with the production-shaped real-Caddy preflight, role reaudit, and actual unfreeze fixture.
+- Focused local Cargo tests passed: 49 publisher, 9 Caddy static route, and 4 static contract tests. Two focused Python intent/reconciliation tests passed. `bash scripts/verify-caddy-media-origin.sh` passed against containerized Caddy for precommit privacy, current fallback, retained old URL, marker denial, all-marked document readiness, and frozen/unfrozen routes.
+- The credentialed live Oracle/Object Storage adjusted-media smoke, production Caddy origin checks during actual deployment, and Cloudflare cache/edge verification were not performed in this review. They remain the separately documented Wave 8 deployment and CDN gates; green local tests do not constitute that live proof.
