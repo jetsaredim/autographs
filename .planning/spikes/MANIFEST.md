@@ -87,6 +87,20 @@ real second consumer without copying behavior.
 - The Spike 011 workbench exercised the shared crate directly without requiring
   the controller, admin authentication, catalog persistence, Oracle, or OCI.
 
+### ansible-ci-separation
+
+Separate fast Ansible syntax/lint validation from publish integration and security
+scenario validation while preserving every existing PR check and manual execution.
+
+**Requirements:**
+
+- Preserve all 27 syntax targets, all 17 functional invocations, and full-directory lint.
+- Keep deep validation on ordinary and Release PRs and available through manual dispatch.
+- Make fast, publish, and security/runtime results independently visible.
+- Implement the approved split in a follow-up PR, separate from Phase 8 Wave 7.
+- Reassess whether the exhaustive local deployment simulation belongs on every PR
+  before implementing a coverage-preserving job split; measure focused alternatives.
+
 ## Spikes
 
 | # | Idea | Name | Type | Validates | Verdict | Tags |
@@ -103,3 +117,4 @@ real second consumer without copying behavior.
 | 009b | outer-boundary-detection | local-gradient-rectangle | comparison | Given the same controls and corpus, when Canny/Hough rectangular-boundary evidence is scored, then it outperforms or falsifies the contour approach under the same acceptance gates. | VALIDATED | rust, imageproc, canny, hough, detector |
 | 010 | shared-image-processing | shared-image-processing-crate | standard | Extracting the existing adjustment and derivative code into a project-local crate preserved the controller's behavior contracts through stable re-exports and enabled the now-retired Spike 011 workbench to validate the same crate as a real second consumer. | VALIDATED | rust, image-processing, crate, architecture, regression |
 | 011 | shared-image-processing | local-image-workbench | standard | Given representative private images, can the shared production image-processing crate support exact adjustment fixtures and an honest operator fallback without weakening detector abstention or copying production behavior? The disposable harness was removed after acceptance. | VALIDATED | rust, image-processing, validation, fixtures, privacy |
+| 012 | ansible-ci-separation | ansible-ci-separation | standard | Given the current CI workflow and two completed PR runs, when Ansible work is classified and timed, then a split can preserve every check while making fast and deep results separately visible. | PARTIAL | ci, ansible, github-actions, phase-08 |
