@@ -13,6 +13,16 @@ tags: [ci, ansible, github-actions, phase-08]
 
 Issue: [#298](https://github.com/jetsaredim/autographs/issues/298). Source: [PR #294](https://github.com/jetsaredim/autographs/pull/294) and `.github/workflows/ci.yml` at merge commit `43bdd290289ba1104d33bd931fa6b9757888ce3b`.
 
+## Reassessment: Is the deep suite warranted on every PR?
+
+**Decision pending.** The three-job layout below is the original coverage-preserving proposal, not an approved implementation plan. Splitting the current job makes failures easier to identify but does not solve the 11–12 minute publish suite on every PR. It adds repeated Ansible setup and more CI surface. The operator has questioned whether this level of testing is justified; do not implement the three-job split until the test scope itself is decided.
+
+The time is concentrated in `test_actual_unfreeze_all_marked_against_real_caddy` inside `deploy/ansible/tests/test_publish_freeze_deploy.py`. That single method repeatedly invokes actual preflight, role reaudit, verify-only unfreeze, and mutating unfreeze playbooks against a disposable static release and real containerized Caddy, with a fake controller and local Podman/systemd adapters. It traverses empty, marked, mixed, rollback, pending-intent, drift, missing-byte, and failed-restart states. The same file has 19 other smaller tests of audit logic and workflow ordering. `scripts/verify-caddy-media-origin.sh` separately exercises Caddy HTTP routing, media retention/tombstones, and frozen/unfrozen publish routes. These are different test levels, but they overlap in Caddy and publication-gate coverage.
+
+**Revised recommendation for discussion:** Keep syntax/lint and focused, fast audit-logic tests on ordinary PRs. Keep a small real-Caddy route/gate smoke for changes to Caddy, freeze, publish, or deploy wiring. Treat the exhaustive local deployment simulation as a deliberate validation gate for changes to the freeze/unfreeze contract or before a production release, or retire it if the team judges the remaining live smoke and focused tests sufficient. Its current always-on placement is not justified by the observed cost alone. Before changing coverage, measure the focused tests and Caddy smoke separately, identify which failure modes only the exhaustive fixture catches, and decide the desired pre-release gate. Avoid claiming a CI speedup without those measurements.
+
+The acceptance criteria in issue #298 originally say to retain every current check during the split. Reducing or retiring the exhaustive fixture changes that scope and needs an explicit decision. Until then, this document preserves the command inventory and original proposal for review rather than silently dropping coverage.
+
 ## What This Validates
 
 The current `Validate Ansible` status hides a long publish integration suite and security scenario tests behind a syntax/lint name. This spike measures the work, inventories every existing invocation, and proposes a split. The proposal is unimplemented; the verdict is partial until CI proves the new statuses and coverage.
@@ -40,7 +50,7 @@ The first `PLAY RECAP` ends `publish-freeze-deploy-test.yml`; the next play star
 
 Suite figures include process transition overhead and are rounded to seconds. They are observations from two successful runs, not performance guarantees. The publish suite consumes roughly 83–91% of functional time. Other PR runs on earlier code were much shorter, so estimates should use the recent post-merge shape and be revisited after the split.
 
-## Proposed Layout
+## Original Coverage-Preserving Layout (not approved)
 
 Keep a single `CI` workflow in `.github/workflows/ci.yml` with its existing `pull_request` and `workflow_dispatch` events. Replace `validate-ansible` with three independent, parallel jobs:
 
@@ -68,13 +78,13 @@ The security job name covers its security patching tests plus admin credential a
 
 The source has 17 functional `ansible-playbook` invocations: one publish and 16 others. Its syntax step lists 27 paths. These counts are migration checks, not a reason to remove an invocation.
 
-## Trigger and Required-Check Policy
+## Original Trigger and Required-Check Policy (not approved)
 
 - Trigger all three jobs for every `pull_request`, including ordinary and Release PRs, and allow all three via the existing manual `workflow_dispatch` event. Do not add workflow or job path filters in the first split. A skipped job can leave required-check behavior ambiguous, and deployment/security fixtures depend on paths outside `deploy/ansible/`, including workflow, scripts, templates, and runtime contracts.
 - Require all three named jobs for merging ordinary and Release PRs, alongside the repository's other mandatory CI checks. Treat each status as independently blocking; no `continue-on-error` or conditional skip. The existing `main` ruleset currently contains deletion and non-fast-forward rules but no required-status-check rule, and `gh pr checks 294 --required` reports none. Configuring required checks is a repository settings follow-up, not something this documentation commit can enforce.
 - Keep `workflow_dispatch` as the manual deep-validation entry point. It runs the whole CI workflow today; a later optional input could target deep suites, but the initial migration should avoid conditionals that create skipped required checks.
 
-## Migration and Verification Plan
+## Original Migration and Verification Plan (not approved)
 
 1. In a separate follow-up PR, split the job into the three named jobs without changing playbook bodies. Preserve the complete step map above. Make each security invocation a distinct Actions step. Add explicit timeouts based on observed durations.
 2. Run `actionlint` and compare the old and new command inventories mechanically: 27 syntax targets, one publish invocation, 16 scenario invocations, the same inventories/env/`--start-at-task`, and the same `ansible-lint` directory. Check for duplicate functional execution and missing commands.
@@ -91,4 +101,4 @@ The source has 17 functional `ansible-playbook` invocations: one publish and 16 
 
 ## Results
 
-**PARTIAL:** The timing and command inventory are verified, and the proposed job layout is complete. The split, required-check settings, and ordinary/Release PR behavior require approval and a follow-up implementation PR.
+**PARTIAL:** The timing and command inventory are verified. The initial three-job design is superseded as a recommendation by the test-scope reassessment above. The coverage policy and follow-up implementation require a decision; ordinary/Release PR behavior remains unverified for any new layout.

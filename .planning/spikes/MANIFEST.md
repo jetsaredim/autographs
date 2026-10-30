@@ -98,6 +98,8 @@ scenario validation while preserving every existing PR check and manual executio
 - Keep deep validation on ordinary and Release PRs and available through manual dispatch.
 - Make fast, publish, and security/runtime results independently visible.
 - Implement the approved split in a follow-up PR, separate from Phase 8 Wave 7.
+- Reassess whether the exhaustive local deployment simulation belongs on every PR
+  before implementing a coverage-preserving job split; measure focused alternatives.
 
 ## Spikes
 
