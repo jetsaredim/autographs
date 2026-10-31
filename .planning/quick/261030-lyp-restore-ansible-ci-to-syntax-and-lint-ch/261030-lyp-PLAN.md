@@ -9,6 +9,7 @@ must_haves:
     - Functional test playbooks and fixtures remain available for manual runs.
   artifacts:
     - .github/workflows/ci.yml
+    - scripts/test_security_patching_create_issue_tasks.py
   key_links:
     - The existing pull_request and workflow_dispatch triggers continue to run the Ansible job.
     - All existing syntax targets and the full ansible-lint scope remain in CI.
@@ -22,4 +23,4 @@ Rename the job to describe its syntax/lint scope. Remove the `Test Ansible valid
 
 ## Task 2: Verify the workflow
 
-Run `actionlint` if available, inspect the job's step and command inventory, and check the diff. Confirm the functional playbooks remain in the repository and manual dispatch still triggers the fast CI job. Open a separate ready-for-review PR for this implementation.
+Run `actionlint` if available, inspect the job's step and command inventory, and check the diff. Update the repository automation test that expected the removed functional invocation so it checks the retained syntax coverage. Confirm the functional playbooks remain in the repository and manual dispatch still triggers the fast CI job. Open a separate ready-for-review PR for this implementation.
