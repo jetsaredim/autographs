@@ -237,7 +237,7 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
         self.assertIn("security_patching_metadata_marker_count", extract_metadata)
         self.assertIn("parsed block(s)", extract_metadata)
 
-    def test_metadata_validation_fixture_is_in_ci_surface(self):
+    def test_metadata_validation_fixtures_are_syntax_checked_in_ci(self):
         render_test = REPORT_RENDER_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         metadata_test = REQUEST_METADATA_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
         create_status_test = CREATE_ISSUE_STATUS_TEST_PLAYBOOK_PATH.read_text(encoding="utf-8")
@@ -285,10 +285,6 @@ class SecurityPatchingCreateIssueTasksTests(unittest.TestCase):
             non_kernel_fixture,
         )
         self.assertIn("security-reboot-state-validate-test.yml", ci)
-        self.assertIn(
-            '--start-at-task "Record non-kernel approved reboot issue metadata"',
-            ci,
-        )
         self.assertIn("tasks_from: post_reboot_result", reboot_result_test)
         self.assertIn("security_patching_reboot_result_comment_body", reboot_result_test)
         self.assertIn("security-reboot-result-validate-test.yml", ci)

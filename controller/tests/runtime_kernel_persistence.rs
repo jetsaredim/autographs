@@ -119,16 +119,16 @@ fn kernel_persistence_slice_does_not_mutate_swap_or_oled_storage() {
 }
 
 #[test]
-fn ci_runs_the_runtime_kernel_persistence_contract() {
+fn ci_syntax_checks_the_runtime_kernel_persistence_contract() {
     let ci = read_repo(".github/workflows/ci.yml");
     let validation = read_repo("scripts/validate-runtime.sh");
     let ansible_validation =
         read_repo("deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml");
 
     assert!(ci.contains("bash scripts/validate-runtime.sh"));
-    assert!(ci.contains(
-        "ansible-playbook deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml"
-    ));
+    assert!(ci.contains("ansible-playbook --syntax-check"));
+    assert!(ci.contains("deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml"));
+    assert!(ci.contains("ansible-lint deploy/ansible/"));
     assert!(
         !validation.contains("cargo test"),
         "the full controller coverage suite already executes this integration test"
