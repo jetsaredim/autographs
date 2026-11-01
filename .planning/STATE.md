@@ -205,6 +205,7 @@ Resume file: None
 
 | # | Description | Date | Commit | Status | Directory |
 | --- | ------------- | ------ | -------- | -------- | ----------- |
+| 59 | Corrected first-cutover provenance when older manifests reuse media already verified by `current`; added a hash-pinned `v0.5.0` retry helper override. | 2026-11-01 | `f57b0eb` | complete | `.planning/quick/261101-mx1-current-media-provenance/` |
 | 58 | Automate the live Caddy publish freeze in the production preflight and verify it before replacing the controller. The existing `v0.5.0` tag still requires a one-time manual gate for recovery. | 2026-11-01 | `6fddb5c` | complete | `.planning/quick/261101-m4i-automate-publish-freeze/` |
 | 1 | update-agents-md-with-the-valid-conventi · Documented the exact allowed Conventional Commit types (`feat`, `fix`, `perf`, `revert`, `docs`, and `chore`) in a manual AGENTS.md section and explicitly rejected every other type identifier. Implementation commit `b34f07c`. | 2026-10-01 | — | — | — |
 | 2 | enforce-a-uek-only-production-kernel-pos · Enforced fail-closed UEK running/default checks, safe RHCK cleanup and exclusions, stale non-rescue boot-entry cleanup, and an actionable no-approval `configure` scanner state that prevents patch/reboot loops. Implementation commit `1bd3796`. | 2026-09-20 | — | — | — |
