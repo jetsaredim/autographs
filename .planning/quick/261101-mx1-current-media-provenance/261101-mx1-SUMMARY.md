@@ -14,5 +14,6 @@ The audit now removes exact paths already proven by the active release or a trus
 
 - Focused active/retained overlap, unique retained path, pruned release wait, trusted archive, and workflow order tests passed.
 - Ansible preflight syntax check and lint passed.
+- Release workflow contract tests passed after adding the pinned helper to the retry checkout fixture.
 - The previous production-shaped Caddy/Ansible fixture passed before this focused audit correction; the new overlap case is exercised by the local audit fixture.
 - Live retry remains required to establish production success.
