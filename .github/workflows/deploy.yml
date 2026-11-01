@@ -193,7 +193,17 @@ jobs:
           sparse-checkout: |
             scripts/retry_recovery.py
             scripts/retry-recovery-contracts.json
+            deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply pinned v0.5.0 cutover audit correction
+        if: steps.request.outputs.operation == 'retry' && steps.request.outputs.release_tag == 'v0.5.0'
+        run: |
+          set -euo pipefail
+          helper=.retry-automation/deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py
+          printf '%s  %s\n' '8af28e110348fee32927c653b0a2b14647ed0323597365e8e0f267c8360a9d3b' "$helper" | sha256sum --check --status
+          cp "$helper" deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py
+          echo 'Using pinned current-media provenance correction for v0.5.0 retry.'
 
       - name: Checkout current main for controller rollback
         if: steps.request.outputs.operation == 'rollback'

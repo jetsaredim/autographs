@@ -296,10 +296,13 @@ path and 404 for every persistent marker on public and preview origins, before
 and after the Caddy restart; unmarked byte corruption keeps the gate frozen.
 Pre-stop checks prove only frozen document availability and publish denial;
 a pending publication intent is reconciled after verified old-process exit.
-The already-created `v0.5.0` tag predates the automatic gate installation and
-requires the one-time manual VM procedure in the linked rollout runbook before
-its draft retry. Later releases install the gate automatically. The final
-pointer, history, marker inventory, selected probe, and dual-origin
+The already-created `v0.5.0` tag predates the automatic gate installation. Its
+first retry installed and verified the one-time manual gate but stopped at an
+overly broad retained-media provenance check. The `v0.5.0` retry workflow uses
+a digest-pinned audit correction from current main; later releases include the
+correction and install the gate automatically. If the live gate is removed
+before the draft retry, restore it with the linked one-time VM procedure. The
+final pointer, history, marker inventory, selected probe, and dual-origin
 responses decide whether deployment may proceed. Repair an invalid intent
 under the frozen gate and use the production retry workflow.
 Keep the history namespace, migration marker, shared media,

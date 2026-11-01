@@ -830,6 +830,24 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
             self.assertTrue((fixture.static / relative).exists())
             self.assertFalse((fixture.static / ".media-commit-history").exists())
 
+    def test_retained_reference_to_current_media_needs_no_second_proof(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = MediaAuditFixture(Path(temporary))
+            relative = media_path("current-and-retained")
+            fixture.add_release_media(fixture.current, relative, shared=False)
+            retained = fixture.static / "releases/retained"
+            retained.mkdir()
+            fixture.add_release_media(retained, relative, shared=False)
+
+            report = fixture.audit("--report-only", "--initial-cutover", "--old-route-current-only")
+            self.assertEqual(report.returncode, 0, report.stderr)
+            self.assertFalse((fixture.static / ".media-commit-history").exists())
+            migrated = fixture.audit("--initial-cutover", "--old-route-current-only")
+            self.assertEqual(migrated.returncode, 0, migrated.stderr)
+            history = json.loads((fixture.static / ".media-commit-history/history.json").read_text())
+            self.assertEqual(set(history["releases"]), {"active"})
+            self.assertEqual(history["releases"]["active"]["media"].keys(), {relative})
+
     def test_trusted_pruned_archive_import_preserves_shared_url(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = MediaAuditFixture(Path(temporary))
@@ -1008,11 +1026,19 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
         steps = workflow["jobs"]["production"]["steps"]
         named = {step.get("name"): (index, step) for index, step in enumerate(steps)}
+        retry_checkout = named["Checkout dispatched main retry guard"]
+        correction = named["Apply pinned v0.5.0 cutover audit correction"]
         preflight = named["Freeze and verify publisher cutover preflight"]
         deploy = named["Run full deployment"]
         readiness = named["Verify frozen origin readiness"]
         unfreeze = named["Explicitly unfreeze verified production publication"]
         gate = named["Validate release completion gate"]
+        self.assertLess(retry_checkout[0], correction[0])
+        self.assertLess(correction[0], preflight[0])
+        self.assertIn("deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py",
+                      retry_checkout[1]["with"]["sparse-checkout"])
+        self.assertIn("release_tag == 'v0.5.0'", correction[1]["if"])
+        self.assertIn(hashlib.sha256(AUDIT.read_bytes()).hexdigest(), correction[1]["run"])
         self.assertLess(preflight[0], deploy[0])
         self.assertLess(deploy[0], readiness[0])
         self.assertLess(readiness[0], unfreeze[0])
