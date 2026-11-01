@@ -21,6 +21,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[3]
 AUDIT = REPO / "deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py"
+GATE = REPO / "deploy/ansible/roles/autographs_deploy/files/install_publish_freeze_gate.py"
 WORKFLOW = REPO / ".github/workflows/deploy.yml"
 PLAYBOOKS = REPO / "deploy/ansible/playbooks"
 PAYLOAD = b"RIFF0000WEBPcommitted WebP fixture"
@@ -93,6 +94,34 @@ class MediaAuditFixture:
 
 
 class PublishFreezeDeploymentTests(unittest.TestCase):
+    def test_in_place_gate_is_idempotent_and_rejects_partial_routes(self):
+        source = (REPO / "deploy/ansible/roles/autographs_deploy/files/Caddyfile").read_text()
+        with tempfile.TemporaryDirectory() as temporary:
+            caddyfile = Path(temporary) / "Caddyfile"
+            caddyfile.write_text(source)
+            inode = caddyfile.stat().st_ino
+            install = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertEqual(install.returncode, 0, install.stderr)
+            self.assertEqual(install.stdout.strip(), "installed")
+            self.assertEqual(caddyfile.stat().st_ino, inode)
+            frozen = caddyfile.read_text()
+            self.assertLess(frozen.index("handle /admin/api/publish/full {"), frozen.index("handle /admin/api/* {"))
+            retry = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertEqual(retry.returncode, 0, retry.stderr)
+            self.assertEqual(retry.stdout.strip(), "already_frozen")
+            self.assertEqual(caddyfile.read_text(), frozen)
+
+            caddyfile.write_text(source.replace("\thandle /admin/api/* {",
+                                                "\thandle /admin/api/publish/full {\n\t}\n\thandle /admin/api/* {", 1))
+            partial = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertNotEqual(partial.returncode, 0)
+            self.assertIn("partial or ambiguous", partial.stderr)
+
+            caddyfile.write_text(source.replace("\thandle /admin/api/* {", "\thandle /admin/api/missing/* {", 1))
+            unexpected = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertNotEqual(unexpected.returncode, 0)
+            self.assertIn("no unique admin API proxy", unexpected.stderr)
+
     def test_actual_unfreeze_all_marked_against_real_caddy(self):
         if not shutil.which("docker") or not shutil.which("ansible-playbook"):
             self.fail("Docker and Ansible are mandatory for the actual unfreeze origin proof")
@@ -153,7 +182,7 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
 # END AUTOGRAPHS PUBLISH FREEZE
 """
             frozen_config = source.replace("\thandle /admin/api/* {", gate + "\thandle /admin/api/* {", 1)
-            (caddy_dir / "Caddyfile").write_text(frozen_config)
+            (caddy_dir / "Caddyfile").write_text(source)
             podman = root / "bin/podman"
             podman.parent.mkdir()
             podman.write_text(textwrap.dedent("""\
@@ -236,6 +265,8 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 variables = {"freeze_record_path": str(fixture.record), "caddyfile_path": str(caddy_dir / "Caddyfile"),
                              "frozen_stage_path": str(root / "frozen-stage"), "autographs_deploy_caddy_path": str(caddy_dir),
                              "frozen_backup_path": str(root / "private/old-frozen-Caddyfile"),
+                             "pre_freeze_backup_path": str(root / "private/pre-freeze-Caddyfile"),
+                             "gate_script_path": str(root / "private/install_publish_freeze_gate.py"),
                              "quarantine_path": str(fixture.quarantine), "legacy_wait_record_path": str(root / "private/legacy-wait.json"),
                              "caddy_quadlet_path": str(quadlet),
                              "fixture_static_root": str(fixture.static),
@@ -288,12 +319,16 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
 
                 self.assertIn("HTTP_STATUS=200", origin("/manifest.json"))
                 self.assertIn("HTTP_STATUS=404", origin("/" + relative))
-                frozen_post = origin("/admin/api/publish/full", "POST")
-                self.assertIn("HTTP_STATUS=503", frozen_post)
-                self.assertIn("cache-control: no-store", frozen_post.lower())
+                self.assertIn("HTTP_STATUS=401", origin("/admin/api/publish/full", "POST"))
+                original_inode = (caddy_dir / "Caddyfile").stat().st_ino
 
                 preflight = invoke_preflight()
                 self.assertEqual(preflight.returncode, 0, preflight.stdout + preflight.stderr)
+                self.assertIn("Require live freeze before touching Caddy service ordering", preflight.stdout)
+                self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+                self.assertIn("cache-control: no-store", origin("/admin/api/publish/incremental", "POST").lower())
+                self.assertEqual((caddy_dir / "Caddyfile").stat().st_ino, original_inode)
+                self.assertEqual((root / "private/pre-freeze-Caddyfile").read_text(), source)
                 self.assertIn("Require dual-origin active 200 and every exact marker 404", preflight.stdout)
                 self.assertTrue(fixture.record.exists())
                 self.assertNotIn("autographs-controller.service", quadlet.read_text())
@@ -973,7 +1008,7 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
         steps = workflow["jobs"]["production"]["steps"]
         named = {step.get("name"): (index, step) for index, step in enumerate(steps)}
-        preflight = named["Verify frozen publisher cutover preflight"]
+        preflight = named["Freeze and verify publisher cutover preflight"]
         deploy = named["Run full deployment"]
         readiness = named["Verify frozen origin readiness"]
         unfreeze = named["Explicitly unfreeze verified production publication"]
@@ -996,6 +1031,8 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
         task_names = [task["name"] for task in preflight]
         drain = preflight[task_names.index("Verify and drain an installed runtime")]["block"]
         drain_names = [task["name"] for task in drain]
+        self.assertLess(drain_names.index("Require live freeze before touching Caddy service ordering"),
+                        drain_names.index("Stop old controller and all accepted or queued old requests"))
         self.assertLess(drain_names.index("Inventory initial shared namespace without mutation before old process exit"),
                         drain_names.index("Stop old controller and all accepted or queued old requests"))
         self.assertLess(drain_names.index("Wait for old controller unit to become inactive"),

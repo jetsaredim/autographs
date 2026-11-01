@@ -613,12 +613,20 @@ retention contract and `docs/dns-runbook.md` for the Cloudflare checklist.
 
 Run `bash scripts/verify-caddy-media-origin.sh`, the publisher/Caddy contract
 tests, and the reviewed Ansible syntax/lint checks before touching the VM.
-Back up the installed host Caddyfile and freeze publication **before** replacing
-either the running Caddy or controller process. Use the deployed host path and
-edit its inode in place: the current quadlet bind-mounts that single file, so
-an atomic host rename could leave the running container reading an old inode.
+The production preflight backs up the installed host Caddyfile, installs the
+temporary publish gate in place, validates and reloads Caddy, and proves both
+publish routes return `503` with `Cache-Control: no-store` while the public
+manifest remains available. Only then may it change Caddy service ordering or
+stop the old controller. It accepts an already frozen retry and rejects a
+partial or ambiguous gate. The in-place edit preserves the inode bind-mounted
+by the running Caddy container. No routine VM edit is required.
 The two exact paths are `/admin/api/publish/full` and
 `/admin/api/publish/incremental`; `/admin/api/publish/status` stays proxied.
+
+The already-created `v0.5.0` release tag contains the older preflight that
+requires a manually installed gate. Recovering that draft is a one-time
+exception: perform the following VM procedure before retrying `v0.5.0`.
+Do not use it for later releases, and do not run it twice.
 
 ```bash
 CADDYFILE=/opt/autographs/caddy/Caddyfile
@@ -648,16 +656,18 @@ sudo podman exec autographs-caddy caddy validate --config /etc/caddy/Caddyfile
 sudo podman exec autographs-caddy caddy reload --config /etc/caddy/Caddyfile
 ```
 
-Through the public admin origin, check that unauthenticated `POST` requests to
-both exact publish paths return `503` and `Cache-Control: no-store`; check an
-authenticated GET of `/admin/api/publish/status` still works and public current
-pages/media still return `200`. Keep session cookies in a protected file and do
-not print them. Stop automated smoke/publish jobs and direct private-network
-calls to `autographs-controller:8080`; gate any other publisher ingress or abort.
-The route gate blocks new ingress; publish status alone cannot prove that an
+For the `v0.5.0` recovery, check through the public admin origin that unauthenticated
+`POST` requests to both exact publish paths return `503` and
+`Cache-Control: no-store`; check an authenticated GET of
+`/admin/api/publish/status` still works and public current pages/media still
+return `200`. Keep session cookies in a protected file and do not print them.
+Pause any independent automated publish jobs or direct private-network calls to
+`autographs-controller:8080`; gate any other publisher ingress or abort. The
+route gate blocks new ingress; publish status alone cannot prove that an
 already accepted request is not waiting on the old controller's mutex. Record
-the unchanged `current` pointer, then merge the Release PR or dispatch
-`workflow_dispatch operation=retry`. The production workflow explicitly passes
+the unchanged `current` pointer, then dispatch `workflow_dispatch operation=retry`.
+For later releases, the preflight installs and verifies the gate automatically.
+The production workflow explicitly passes
 `autographs_deploy_publish_frozen=true` and runs
 `publish-freeze-preflight.yml` before the full deploy. That preflight keeps the
 old gated Caddyfile, removes Caddy's controller service dependency, restarts

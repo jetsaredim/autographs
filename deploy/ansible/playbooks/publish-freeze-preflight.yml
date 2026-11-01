@@ -5,12 +5,14 @@
   vars:
     freeze_record_path: /opt/autographs/private/publish-freeze.json
     frozen_backup_path: /opt/autographs/private/Caddyfile.pre-cutover-frozen
+    pre_freeze_backup_path: /opt/autographs/private/Caddyfile.before-automatic-freeze
     quarantine_path: /opt/autographs/private/media-quarantine
     legacy_wait_record_path: /opt/autographs/private/media-legacy-wait.json
     caddyfile_path: /opt/autographs/caddy/Caddyfile
     caddy_quadlet_path: /etc/containers/systemd/autographs-caddy.container
     audit_script_path: /opt/autographs/private/publish_freeze_audit.py
     rollback_script_path: /opt/autographs/private/static_release_rollback.py
+    gate_script_path: /opt/autographs/private/install_publish_freeze_gate.py
     autographs_publish_file_owner: root
     autographs_publish_file_group: root
     autographs_publish_freeze_fixture_mode: false
@@ -122,7 +124,39 @@
     - name: Verify and drain an installed runtime
       when: freeze_existing_files.results[0].stat.exists
       block:
-        - name: Read old gated Caddyfile
+        - name: Read installed Caddyfile before automatic freeze
+          ansible.builtin.slurp:
+            src: "{{ caddyfile_path }}"
+          register: freeze_initial_caddyfile
+
+        - name: Preserve unfrozen live Caddyfile before editing its mounted inode
+          ansible.builtin.copy:
+            src: "{{ caddyfile_path }}"
+            dest: "{{ pre_freeze_backup_path }}"
+            remote_src: true
+            owner: "{{ autographs_publish_file_owner }}"
+            group: "{{ autographs_publish_file_group }}"
+            mode: "0600"
+          when:
+            - "'handle /admin/api/publish/full {' not in (freeze_initial_caddyfile.content | b64decode)"
+            - "'handle /admin/api/publish/incremental {' not in (freeze_initial_caddyfile.content | b64decode)"
+            - "'AUTOGRAPHS PUBLISH FREEZE' not in (freeze_initial_caddyfile.content | b64decode)"
+
+        - name: Install protected in-place publish gate helper
+          ansible.builtin.copy:
+            src: ../roles/autographs_deploy/files/install_publish_freeze_gate.py
+            dest: "{{ gate_script_path }}"
+            owner: "{{ autographs_publish_file_owner }}"
+            group: "{{ autographs_publish_file_group }}"
+            mode: "0700"
+
+        - name: Install or retain live publish gate without replacing Caddyfile inode
+          ansible.builtin.command:
+            argv: [python3, "{{ gate_script_path }}", "{{ caddyfile_path }}"]
+          register: freeze_gate_install
+          changed_when: freeze_gate_install.stdout | trim == 'installed'
+
+        - name: Read frozen live Caddyfile
           ansible.builtin.slurp:
             src: "{{ caddyfile_path }}"
           register: freeze_old_caddyfile
@@ -134,7 +168,52 @@
               - "(freeze_old_caddyfile.content | b64decode).count('handle /admin/api/publish/incremental {') == 1"
               - "(freeze_old_caddyfile.content | b64decode).count('respond \"Publishing temporarily unavailable\" 503') == 2"
               - "(freeze_old_caddyfile.content | b64decode).count('header Cache-Control \"no-store\"') >= 2"
-            fail_msg: Install and verify the exact manual Caddy publish gate before release merge or retry.
+            fail_msg: Automatic live publish gate is missing or incomplete; keep the old controller running.
+
+        - name: Validate frozen live Caddyfile
+          ansible.builtin.command:
+            argv: [podman, exec, autographs-caddy, caddy, validate, --config, /etc/caddy/Caddyfile]
+          changed_when: false
+
+        - name: Reload Caddy with frozen live routes
+          ansible.builtin.command:
+            argv: [podman, exec, autographs-caddy, caddy, reload, --config, /etc/caddy/Caddyfile]
+          changed_when: true
+
+        - name: Prove frozen publish and public document before runtime changes
+          ansible.builtin.command:
+            argv:
+              - curl
+              - --silent
+              - --dump-header
+              - '-'
+              - --output
+              - /dev/null
+              - --write-out
+              - "HTTP_STATUS=%{http_code}"
+              - --noproxy
+              - "*"
+              - --resolve
+              - "{{ autographs_deploy_domain }}:443:127.0.0.1"
+              - --request
+              - "{{ 'POST' if item.startswith('/admin/api/publish/') else 'GET' }}"
+              - "https://{{ autographs_deploy_domain }}{{ item }}"
+          loop:
+            - /admin/api/publish/full
+            - /admin/api/publish/incremental
+            - /manifest.json
+          register: freeze_gate_http
+          changed_when: false
+
+        - name: Require live freeze before touching Caddy service ordering
+          ansible.builtin.assert:
+            that:
+              - "'HTTP_STATUS=503' in freeze_gate_http.results[0].stdout"
+              - "'HTTP_STATUS=503' in freeze_gate_http.results[1].stdout"
+              - "'HTTP_STATUS=200' in freeze_gate_http.results[2].stdout"
+              - "'cache-control: no-store' in (freeze_gate_http.results[0].stdout | lower)"
+              - "'cache-control: no-store' in (freeze_gate_http.results[1].stdout | lower)"
+            fail_msg: Live Caddy did not prove publish denial and public static availability.
 
         - name: Preserve the old frozen Caddyfile for failed-route recovery
           ansible.builtin.copy:
