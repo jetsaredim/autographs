@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.0](https://github.com/jetsaredim/autographs/compare/v0.4.2...v0.5.0) (2026-10-31)
+
+
+### Features
+
+* improve automatic image framing detection ([#281](https://github.com/jetsaredim/autographs/issues/281)) ([561c53e](https://github.com/jetsaredim/autographs/commit/561c53e5e723bfbdddbbbd50a47f935dc167347a))
+* publish adjusted media with CDN-ready URLs ([#294](https://github.com/jetsaredim/autographs/issues/294)) ([43bdd29](https://github.com/jetsaredim/autographs/commit/43bdd290289ba1104d33bd931fa6b9757888ce3b))
+
+
+### Bug Fixes
+
+* **deps:** update routine dependency updates ([#283](https://github.com/jetsaredim/autographs/issues/283)) ([0717158](https://github.com/jetsaredim/autographs/commit/0717158cfb99851e10e46f4db74a8a6a6d0c0f0c))
+* expose security classification evidence for issue 291 ([#292](https://github.com/jetsaredim/autographs/issues/292)) ([27babb4](https://github.com/jetsaredim/autographs/commit/27babb46a79827afc3b175af049a782a61526a9e))
+* **renovate:** keep Terraform CLI updates atomic ([#287](https://github.com/jetsaredim/autographs/issues/287)) ([1123235](https://github.com/jetsaredim/autographs/commit/1123235bf8ce51f2aaa87d0827bda642ca80e85a))
+* **tests:** avoid managed dependency version assertions ([#290](https://github.com/jetsaredim/autographs/issues/290)) ([2fe6333](https://github.com/jetsaredim/autographs/commit/2fe63333a94b946f9164b3dd255bc7916ff3d071))
+
+
+### Performance Improvements
+
+* **ci:** restore Ansible syntax and lint validation ([#300](https://github.com/jetsaredim/autographs/issues/300)) ([bb2b783](https://github.com/jetsaredim/autographs/commit/bb2b7830cc621ad32a4ace611222cba309d5bc1c))
+
 ## [0.4.2](https://github.com/jetsaredim/autographs/compare/v0.4.1...v0.4.2) (2026-10-15)
 
 
