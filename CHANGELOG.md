@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.6.0](https://github.com/jetsaredim/autographs/compare/v0.5.0...v0.6.0) (2026-11-02)
+
+
+### Features
+
+* restore admin image alignment and framing workflow ([a2684d0](https://github.com/jetsaredim/autographs/commit/a2684d04a3464c8711f49bb5a07ce3a366104c12))
+* restore admin image alignment and framing workflow ([3470e78](https://github.com/jetsaredim/autographs/commit/3470e7830f2a4c01d5096317885a682e5276f6ad))
+
+
+### Bug Fixes
+
+* accept current-proven media in legacy cutover ([f57b0eb](https://github.com/jetsaredim/autographs/commit/f57b0eb592c753c21f09af903a8ab1730b503561))
+* align retry workflow contract with pinned helper ([ba293a1](https://github.com/jetsaredim/autographs/commit/ba293a124179a3e1aaa8026454703d74e8910415))
+* allow verified v0.5.0 finalization after unfreeze ([a2b56b8](https://github.com/jetsaredim/autographs/commit/a2b56b83b7ac4468d5f6dd77b882cef88e2e50d3))
+* automate publish freeze before controller deployment ([7e854fd](https://github.com/jetsaredim/autographs/commit/7e854fd939c6604fd1817ace770a1491fb604be4))
+* automate publish freeze before controller deployment ([6fddb5c](https://github.com/jetsaredim/autographs/commit/6fddb5cdf58eae5cdf10a6657028df8c7422e0e8))
+* bind v0.5.0 finalization to exact run attempt ([55aa293](https://github.com/jetsaredim/autographs/commit/55aa2936a581166791f965b0b66399a66ff9fd46))
+* complete frozen v0.5.0 release with audited unfreeze ([3bf83a6](https://github.com/jetsaredim/autographs/commit/3bf83a6ad8e149d4bfab451d973e4455ca9ef129))
+* **deps:** update rust crate oracledb to 26.0.0-beta.5 ([f36a001](https://github.com/jetsaredim/autographs/commit/f36a0019b945597957ac4975733b4f4f0d703898))
+* **deps:** update rust crate oracledb to 26.0.0-beta.5 ([0a70b91](https://github.com/jetsaredim/autographs/commit/0a70b91b4a0b3f4941a7eaae8a26d19891309bd5))
+* keep rejected framing boundaries editable ([44f4f2b](https://github.com/jetsaredim/autographs/commit/44f4f2bdf7c6679344f9c45c05ddc1add4d3094b))
+* remove unaudited v0.5.0 retry override ([365c271](https://github.com/jetsaredim/autographs/commit/365c2717c263cb9f49792be651dff2c81830dc0a))
+* validate camelCase public release manifest during unfreeze ([f4aeece](https://github.com/jetsaredim/autographs/commit/f4aeece80a2290849f15cc741efee87861db978f))
+* validate image suggestions and keep output guides aligned ([0fc10fa](https://github.com/jetsaredim/autographs/commit/0fc10fa1997f816951159bc320da93d1de0ed636))
+* verify private publish status after unfreeze restart ([b62ea9d](https://github.com/jetsaredim/autographs/commit/b62ea9dbb6e8d5a0ac91e42f2e765653c3eaf7d7))
+* verify private publish status after unfreeze restart ([9df5930](https://github.com/jetsaredim/autographs/commit/9df5930cc2621fe6b2c3a515546bac1c86c4d9c6))
+* verify private publish status during v0.5.0 unfreeze ([f383279](https://github.com/jetsaredim/autographs/commit/f383279146866e3a35c8b74823b11d966a4ec6d6))
+* verify private publish status during v0.5.0 unfreeze ([b09c7b0](https://github.com/jetsaredim/autographs/commit/b09c7b0be43ada4172bbdda76e1a48bd552a3949))
+
 ## [0.5.0](https://github.com/jetsaredim/autographs/compare/v0.4.2...v0.5.0) (2026-10-31)
 
 
