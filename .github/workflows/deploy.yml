@@ -785,7 +785,6 @@ jobs:
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
-          AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
         with:
           playbook: playbooks/publish-unfreeze.yml
           directory: deploy/ansible
@@ -807,7 +806,6 @@ jobs:
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
-          AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
         with:
           playbook: playbooks/publish-unfreeze.yml
           directory: deploy/ansible
