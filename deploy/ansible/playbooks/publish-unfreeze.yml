@@ -544,22 +544,28 @@
             that:
               - unfreeze_postcheck.results | map(attribute='stdout') | list | difference(['401', '403']) | length == 0
 
-        - name: Verify authenticated status after unfreeze
+        - name: Verify publish status requires an admin session after unfreeze
           ansible.builtin.command:
             argv:
               - curl
-              - --fail
               - --silent
               - --show-error
+              - --output
+              - /dev/null
+              - --write-out
+              - "%{http_code}"
               - --noproxy
               - "*"
               - --resolve
               - "{{ autographs_deploy_domain }}:443:127.0.0.1"
-              - --header
-              - "Authorization: Bearer {{ lookup('env', 'AUTOGRAPHS_OPERATOR_API_TOKEN') }}"
               - "https://{{ autographs_deploy_domain }}/admin/api/publish/status"
+          register: unfreeze_postrestart_private_status
           changed_when: false
-          no_log: true
+
+        - name: Require publish status remains private after unfreeze
+          ansible.builtin.assert:
+            that:
+              - unfreeze_postrestart_private_status.stdout | trim == '401'
 
         - name: Verify selected origin and exact marker denial after Caddy restart
           ansible.builtin.command:

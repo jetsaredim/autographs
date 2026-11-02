@@ -127,9 +127,20 @@ jobs:
           new_prefix, new_rest = reviewed.split(new_start, 1)
           new_body, new_suffix = new_rest.split(end, 1)
           assert old_prefix.replace(before, after) == new_prefix
-          assert old_suffix == new_suffix
           assert digest(old_start + old_body) == "sha256:339cd6e54fa2baa176d15251b1bdb05b85d21f584f69505f8582663d15ec2a1a"
           assert digest(new_start + new_body) == "sha256:1f93a34b20f8c0a904f8067e07f13b763b09228c83ab54f762a07215eadcd5fc"
+          old_post_start = b"        - name: Verify authenticated status after unfreeze\n"
+          new_post_start = b"        - name: Verify publish status requires an admin session after unfreeze\n"
+          post_end = b"        - name: Verify selected origin and exact marker denial after Caddy restart\n"
+          assert old_suffix.count(old_post_start) == 1 and new_suffix.count(new_post_start) == 1
+          assert old_suffix.count(post_end) == 1 and new_suffix.count(post_end) == 1
+          old_middle, old_post_rest = old_suffix.split(old_post_start, 1)
+          old_post_body, old_trailing = old_post_rest.split(post_end, 1)
+          new_middle, new_post_rest = new_suffix.split(new_post_start, 1)
+          new_post_body, new_trailing = new_post_rest.split(post_end, 1)
+          assert old_middle == new_middle and old_trailing == new_trailing
+          assert digest(old_post_start + old_post_body) == "sha256:2ffecc27042dacfcfed1d11ebe3fef592bbfdcb757275fa7d1d41a363b0ee665"
+          assert digest(new_post_start + new_post_body) == "sha256:5e01e6524801f14564557eef7611711226db641ff5db741282f3ad121d88e7f6"
           attempt = {
               "schemaVersion": 1,
               "action": "complete-frozen-v0.5.0",
