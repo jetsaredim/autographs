@@ -278,8 +278,8 @@ The OCI API signing key remains a GitHub Secret named `OCI_PRIVATE_KEY_PEM` for 
 
 Production verification uses the deployed Rust controller health route, static release manifest, and live static publish smoke from [static-runtime-runbook.md](static-runtime-runbook.md).
 
-For the Phase 8 publisher/Caddy cutover, install the manual publish `503` gate
-**before** merging the Release PR or dispatching a deployment retry. The
+For production mutations, the Ansible preflight installs and verifies the
+temporary publish `503` gate before stopping the old controller. The
 production workflow runs a fail-closed old-controller exit and shared-media
 audit preflight, deploys with `autographs_deploy_publish_frozen=true`, checks
 both origin routes, and invokes a separate readiness-backed unfreeze. A failed
@@ -296,7 +296,15 @@ path and 404 for every persistent marker on public and preview origins, before
 and after the Caddy restart; unmarked byte corruption keeps the gate frozen.
 Pre-stop checks prove only frozen document availability and publish denial;
 a pending publication intent is reconciled after verified old-process exit.
-The final pointer, history, marker inventory, selected probe, and dual-origin
+The already-created `v0.5.0` tag predates the automatic gate installation. Its
+first retry installed and verified the one-time manual gate but stopped at an
+overly broad retained-media provenance check. The immutable retry audit for
+that draft records no Ansible override, so its tagged retry must not silently
+copy a newer helper. Resolve the old retained directories through a separately
+reviewed one-time recovery before retrying. Later releases include the audit
+correction and install the gate automatically. If the live gate is removed
+before the draft retry, restore it with the linked one-time VM procedure. The
+final pointer, history, marker inventory, selected probe, and dual-origin
 responses decide whether deployment may proceed. Repair an invalid intent
 under the frozen gate and use the production retry workflow.
 Keep the history namespace, migration marker, shared media,

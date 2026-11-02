@@ -679,7 +679,7 @@ jobs:
             echo "oracle_db_wallet_password_vault_secret_id=${oracle_db_wallet_password_vault_secret_id}"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Verify frozen publisher cutover preflight
+      - name: Freeze and verify publisher cutover preflight
         id: publish_freeze_preflight
         if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9

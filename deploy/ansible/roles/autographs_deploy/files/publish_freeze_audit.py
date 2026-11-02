@@ -327,6 +327,9 @@ def initial_history(root, args, pointer, shared):
         history["releases"][release_id] = saved
         proven.update(saved["media"])
     unresolved = sorted(name for name in shared if name not in proven and not marked(root, name))
+    # A current or archived receipt proves the public bytes at this exact URL,
+    # even when an unverified retained manifest references the same path.
+    unknown_retained.difference_update(proven)
     if unknown_retained:
         return history, sorted(set(unresolved) | unknown_retained)
     if unresolved and (not args.trusted_utc or args.old_exit_epoch is None

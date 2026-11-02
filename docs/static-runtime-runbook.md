@@ -613,12 +613,24 @@ retention contract and `docs/dns-runbook.md` for the Cloudflare checklist.
 
 Run `bash scripts/verify-caddy-media-origin.sh`, the publisher/Caddy contract
 tests, and the reviewed Ansible syntax/lint checks before touching the VM.
-Back up the installed host Caddyfile and freeze publication **before** replacing
-either the running Caddy or controller process. Use the deployed host path and
-edit its inode in place: the current quadlet bind-mounts that single file, so
-an atomic host rename could leave the running container reading an old inode.
+The production preflight backs up the installed host Caddyfile, installs the
+temporary publish gate in place, validates and reloads Caddy, and proves both
+publish routes return `503` with `Cache-Control: no-store` while the public
+manifest remains available. Only then may it change Caddy service ordering or
+stop the old controller. It accepts an already frozen retry and rejects a
+partial or ambiguous gate. The in-place edit preserves the inode bind-mounted
+by the running Caddy container. No routine VM edit is required.
 The two exact paths are `/admin/api/publish/full` and
 `/admin/api/publish/incremental`; `/admin/api/publish/status` stays proxied.
+
+The already-created `v0.5.0` release tag contains the older preflight that
+requires a manually installed gate. The first retry installed and verified it,
+then stopped at a retained-media provenance check. The retry's immutable
+recovery audit is tag-only, so do not overlay a newer Ansible helper without a
+separate audited recovery contract. Resolve the older retained directories
+through a separately reviewed one-time procedure before retrying. Use the
+following VM gate procedure only if the gate is missing. Do not use it for
+later releases, and do not run it twice.
 
 ```bash
 CADDYFILE=/opt/autographs/caddy/Caddyfile
@@ -648,16 +660,18 @@ sudo podman exec autographs-caddy caddy validate --config /etc/caddy/Caddyfile
 sudo podman exec autographs-caddy caddy reload --config /etc/caddy/Caddyfile
 ```
 
-Through the public admin origin, check that unauthenticated `POST` requests to
-both exact publish paths return `503` and `Cache-Control: no-store`; check an
-authenticated GET of `/admin/api/publish/status` still works and public current
-pages/media still return `200`. Keep session cookies in a protected file and do
-not print them. Stop automated smoke/publish jobs and direct private-network
-calls to `autographs-controller:8080`; gate any other publisher ingress or abort.
-The route gate blocks new ingress; publish status alone cannot prove that an
+For the `v0.5.0` recovery, check through the public admin origin that unauthenticated
+`POST` requests to both exact publish paths return `503` and
+`Cache-Control: no-store`; check an authenticated GET of
+`/admin/api/publish/status` still works and public current pages/media still
+return `200`. Keep session cookies in a protected file and do not print them.
+Pause any independent automated publish jobs or direct private-network calls to
+`autographs-controller:8080`; gate any other publisher ingress or abort. The
+route gate blocks new ingress; publish status alone cannot prove that an
 already accepted request is not waiting on the old controller's mutex. Record
-the unchanged `current` pointer, then merge the Release PR or dispatch
-`workflow_dispatch operation=retry`. The production workflow explicitly passes
+the unchanged `current` pointer, then dispatch `workflow_dispatch operation=retry`.
+For later releases, the preflight installs and verifies the gate automatically.
+The production workflow explicitly passes
 `autographs_deploy_publish_frozen=true` and runs
 `publish-freeze-preflight.yml` before the full deploy. That preflight keeps the
 old gated Caddyfile, removes Caddy's controller service dependency, restarts
@@ -687,7 +701,12 @@ manifest digest, and successful pointer promotion. A bare success-ID list is
 never proof. Verify the archive source and digest independently before using
 it; do not manufacture an operator export or a promotion receipt. A direct
 Oracle job-row verification adapter is not installed in this deployment path,
-so hosts without trusted archived receipts remain at the frozen checkpoint.
+so unique retained paths without trusted archived receipts remain at the
+frozen checkpoint.
+An older retained manifest that references only media paths already verified
+through the active `current` release introduces no additional public URL;
+those exact paths use the current release's proof. A path unique to an older
+retained release still requires its own trusted promotion evidence.
 
 If a fresh shared path could belong to a pruned committed release and no
 archive exists, the report blocks cutover **without moving shared bytes**.

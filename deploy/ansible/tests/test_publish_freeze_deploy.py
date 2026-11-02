@@ -21,6 +21,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[3]
 AUDIT = REPO / "deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py"
+GATE = REPO / "deploy/ansible/roles/autographs_deploy/files/install_publish_freeze_gate.py"
 WORKFLOW = REPO / ".github/workflows/deploy.yml"
 PLAYBOOKS = REPO / "deploy/ansible/playbooks"
 PAYLOAD = b"RIFF0000WEBPcommitted WebP fixture"
@@ -45,7 +46,10 @@ class MediaAuditFixture:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(PAYLOAD)
         (release / "manifest.json").write_text(
-            json.dumps({"release_id": release.name, "artifacts": [{"path": relative, "variant": "detail", "content_type": "image/webp", "byte_size": len(PAYLOAD)}]}),
+            json.dumps({"schemaVersion": 2, "releaseId": release.name,
+                        "generatedAt": "2026-01-01T00:00:00Z",
+                        "artifacts": [{"path": relative, "variant": "detail",
+                                       "contentType": "image/webp", "byteSize": len(PAYLOAD)}]}),
             encoding="utf-8",
         )
         if shared:
@@ -93,6 +97,54 @@ class MediaAuditFixture:
 
 
 class PublishFreezeDeploymentTests(unittest.TestCase):
+    def test_fixture_manifest_matches_public_identity_contract(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = MediaAuditFixture(Path(temporary))
+            fixture.add_release_media(fixture.current, media_path("contract"))
+            manifest_path = fixture.current / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            self.assertEqual(manifest["schemaVersion"], 2)
+            self.assertEqual(manifest["releaseId"], "active")
+            self.assertNotIn("release_id", manifest)
+            bootstrap = fixture.audit("--initial-cutover", "--old-route-current-only")
+            self.assertEqual(bootstrap.returncode, 0, bootstrap.stdout + bootstrap.stderr)
+            valid = fixture.probe()
+            self.assertEqual(valid.returncode, 0, valid.stdout + valid.stderr)
+
+            manifest["releaseId"] = "wrong-release"
+            manifest_path.write_text(json.dumps(manifest))
+            invalid = fixture.probe()
+            self.assertNotEqual(invalid.returncode, 0)
+            self.assertIn("manifest release ID mismatch", invalid.stderr)
+
+    def test_in_place_gate_is_idempotent_and_rejects_partial_routes(self):
+        source = (REPO / "deploy/ansible/roles/autographs_deploy/files/Caddyfile").read_text()
+        with tempfile.TemporaryDirectory() as temporary:
+            caddyfile = Path(temporary) / "Caddyfile"
+            caddyfile.write_text(source)
+            inode = caddyfile.stat().st_ino
+            install = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertEqual(install.returncode, 0, install.stderr)
+            self.assertEqual(install.stdout.strip(), "installed")
+            self.assertEqual(caddyfile.stat().st_ino, inode)
+            frozen = caddyfile.read_text()
+            self.assertLess(frozen.index("handle /admin/api/publish/full {"), frozen.index("handle /admin/api/* {"))
+            retry = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertEqual(retry.returncode, 0, retry.stderr)
+            self.assertEqual(retry.stdout.strip(), "already_frozen")
+            self.assertEqual(caddyfile.read_text(), frozen)
+
+            caddyfile.write_text(source.replace("\thandle /admin/api/* {",
+                                                "\thandle /admin/api/publish/full {\n\t}\n\thandle /admin/api/* {", 1))
+            partial = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertNotEqual(partial.returncode, 0)
+            self.assertIn("partial or ambiguous", partial.stderr)
+
+            caddyfile.write_text(source.replace("\thandle /admin/api/* {", "\thandle /admin/api/missing/* {", 1))
+            unexpected = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertNotEqual(unexpected.returncode, 0)
+            self.assertIn("no unique admin API proxy", unexpected.stderr)
+
     def test_actual_unfreeze_all_marked_against_real_caddy(self):
         if not shutil.which("docker") or not shutil.which("ansible-playbook"):
             self.fail("Docker and Ansible are mandatory for the actual unfreeze origin proof")
@@ -153,7 +205,7 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
 # END AUTOGRAPHS PUBLISH FREEZE
 """
             frozen_config = source.replace("\thandle /admin/api/* {", gate + "\thandle /admin/api/* {", 1)
-            (caddy_dir / "Caddyfile").write_text(frozen_config)
+            (caddy_dir / "Caddyfile").write_text(source)
             podman = root / "bin/podman"
             podman.parent.mkdir()
             podman.write_text(textwrap.dedent("""\
@@ -236,6 +288,8 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 variables = {"freeze_record_path": str(fixture.record), "caddyfile_path": str(caddy_dir / "Caddyfile"),
                              "frozen_stage_path": str(root / "frozen-stage"), "autographs_deploy_caddy_path": str(caddy_dir),
                              "frozen_backup_path": str(root / "private/old-frozen-Caddyfile"),
+                             "pre_freeze_backup_path": str(root / "private/pre-freeze-Caddyfile"),
+                             "gate_script_path": str(root / "private/install_publish_freeze_gate.py"),
                              "quarantine_path": str(fixture.quarantine), "legacy_wait_record_path": str(root / "private/legacy-wait.json"),
                              "caddy_quadlet_path": str(quadlet),
                              "fixture_static_root": str(fixture.static),
@@ -288,12 +342,16 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
 
                 self.assertIn("HTTP_STATUS=200", origin("/manifest.json"))
                 self.assertIn("HTTP_STATUS=404", origin("/" + relative))
-                frozen_post = origin("/admin/api/publish/full", "POST")
-                self.assertIn("HTTP_STATUS=503", frozen_post)
-                self.assertIn("cache-control: no-store", frozen_post.lower())
+                self.assertIn("HTTP_STATUS=401", origin("/admin/api/publish/full", "POST"))
+                original_inode = (caddy_dir / "Caddyfile").stat().st_ino
 
                 preflight = invoke_preflight()
                 self.assertEqual(preflight.returncode, 0, preflight.stdout + preflight.stderr)
+                self.assertIn("Require live freeze before touching Caddy service ordering", preflight.stdout)
+                self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+                self.assertIn("cache-control: no-store", origin("/admin/api/publish/incremental", "POST").lower())
+                self.assertEqual((caddy_dir / "Caddyfile").stat().st_ino, original_inode)
+                self.assertEqual((root / "private/pre-freeze-Caddyfile").read_text(), source)
                 self.assertIn("Require dual-origin active 200 and every exact marker 404", preflight.stdout)
                 self.assertTrue(fixture.record.exists())
                 self.assertNotIn("autographs-controller.service", quadlet.read_text())
@@ -341,9 +399,11 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                         target = release / name
                         target.parent.mkdir(parents=True, exist_ok=True)
                         target.write_bytes(PAYLOAD)
-                        artifacts.append({"path": name, "variant": "detail", "content_type": "image/webp",
-                                          "byte_size": len(PAYLOAD)})
-                    (release / "manifest.json").write_text(json.dumps({"release_id": release_id, "artifacts": artifacts}))
+                        artifacts.append({"path": name, "variant": "detail", "contentType": "image/webp",
+                                          "byteSize": len(PAYLOAD)})
+                    (release / "manifest.json").write_text(json.dumps({"schemaVersion": 2,
+                        "releaseId": release_id, "generatedAt": "2026-01-01T00:00:00Z",
+                        "artifacts": artifacts}))
                     manifest_hash = hashlib.sha256((release / "manifest.json").read_bytes()).hexdigest()
                     intent = {"version": 1, "old_release_id": old_id, "new_release_id": release_id,
                               "old_manifest_sha256": history["releases"][old_id]["manifest_sha256"],
@@ -542,7 +602,8 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 fixture.promote("wrong-target", wrong_path, after_pointer=False)
                 stray = fixture.static / "releases/stray"
                 stray.mkdir()
-                (stray / "manifest.json").write_text(json.dumps({"release_id": "stray", "artifacts": []}))
+                (stray / "manifest.json").write_text(json.dumps({"schemaVersion": 2,
+                    "releaseId": "stray", "generatedAt": "2026-01-01T00:00:00Z", "artifacts": []}))
                 (fixture.static / "current").unlink()
                 (fixture.static / "current").symlink_to("releases/stray")
                 wrong_pointer = invoke_preflight()
@@ -608,7 +669,8 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = MediaAuditFixture(Path(temporary))
             (fixture.current / "manifest.json").write_text(
-                json.dumps({"release_id": "active", "artifacts": []}))
+                json.dumps({"schemaVersion": 2, "releaseId": "active",
+                            "generatedAt": "2026-01-01T00:00:00Z", "artifacts": []}))
             self.assertEqual(fixture.audit("--initial-cutover", "--old-route-current-only").returncode, 0)
             state = json.loads(fixture.probe().stdout)
             self.assertEqual(state["active_probe"], {"version": 1, "kind": "document", "path": "manifest.json"})
@@ -795,6 +857,24 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
             self.assertTrue((fixture.static / relative).exists())
             self.assertFalse((fixture.static / ".media-commit-history").exists())
 
+    def test_retained_reference_to_current_media_needs_no_second_proof(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = MediaAuditFixture(Path(temporary))
+            relative = media_path("current-and-retained")
+            fixture.add_release_media(fixture.current, relative, shared=False)
+            retained = fixture.static / "releases/retained"
+            retained.mkdir()
+            fixture.add_release_media(retained, relative, shared=False)
+
+            report = fixture.audit("--report-only", "--initial-cutover", "--old-route-current-only")
+            self.assertEqual(report.returncode, 0, report.stderr)
+            self.assertFalse((fixture.static / ".media-commit-history").exists())
+            migrated = fixture.audit("--initial-cutover", "--old-route-current-only")
+            self.assertEqual(migrated.returncode, 0, migrated.stderr)
+            history = json.loads((fixture.static / ".media-commit-history/history.json").read_text())
+            self.assertEqual(set(history["releases"]), {"active"})
+            self.assertEqual(history["releases"]["active"]["media"].keys(), {relative})
+
     def test_trusted_pruned_archive_import_preserves_shared_url(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = MediaAuditFixture(Path(temporary))
@@ -802,8 +882,10 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
             fixture.add_release_media(fixture.current, current_path)
             archive = fixture.root / "private/archived-manifest.json"
             archive.parent.mkdir(parents=True)
-            archive.write_text(json.dumps({"release_id": "pruned", "artifacts": [
-                {"path": prior_path, "variant": "detail", "content_type": "image/webp", "byte_size": len(PAYLOAD)}]}))
+            archive.write_text(json.dumps({"schemaVersion": 2, "releaseId": "pruned",
+                "generatedAt": "2026-01-01T00:00:00Z", "artifacts": [
+                {"path": prior_path, "variant": "detail", "contentType": "image/webp",
+                 "byteSize": len(PAYLOAD)}]}))
             shared = fixture.static / prior_path
             shared.parent.mkdir(parents=True, exist_ok=True)
             shared.write_bytes(PAYLOAD)
@@ -973,7 +1055,7 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
         steps = workflow["jobs"]["production"]["steps"]
         named = {step.get("name"): (index, step) for index, step in enumerate(steps)}
-        preflight = named["Verify frozen publisher cutover preflight"]
+        preflight = named["Freeze and verify publisher cutover preflight"]
         deploy = named["Run full deployment"]
         readiness = named["Verify frozen origin readiness"]
         unfreeze = named["Explicitly unfreeze verified production publication"]
@@ -996,6 +1078,8 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
         task_names = [task["name"] for task in preflight]
         drain = preflight[task_names.index("Verify and drain an installed runtime")]["block"]
         drain_names = [task["name"] for task in drain]
+        self.assertLess(drain_names.index("Require live freeze before touching Caddy service ordering"),
+                        drain_names.index("Stop old controller and all accepted or queued old requests"))
         self.assertLess(drain_names.index("Inventory initial shared namespace without mutation before old process exit"),
                         drain_names.index("Stop old controller and all accepted or queued old requests"))
         self.assertLess(drain_names.index("Wait for old controller unit to become inactive"),
