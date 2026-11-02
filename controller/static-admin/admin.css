@@ -836,34 +836,123 @@ h4 {
   background: #ffffff88;
 }
 
-.review-overlay-grid-line:nth-child(1),
-.review-overlay-grid-line:nth-child(2) {
+.review-overlay-grid-line-x {
   top: 0;
   bottom: 0;
   width: 1px;
 }
 
-.review-overlay-grid-line:nth-child(1) {
-  left: 33.333%;
-}
-
-.review-overlay-grid-line:nth-child(2) {
-  left: 66.667%;
-}
-
-.review-overlay-grid-line:nth-child(3),
-.review-overlay-grid-line:nth-child(4) {
+.review-overlay-grid-line-y {
   right: 0;
   left: 0;
   height: 1px;
 }
 
-.review-overlay-grid-line:nth-child(3) {
-  top: 33.333%;
+.review-grid-controls {
+  margin-top: 16px;
 }
 
-.review-overlay-grid-line:nth-child(4) {
-  top: 66.667%;
+.review-grid-controls output {
+  font-variant-numeric: tabular-nums;
+}
+
+.review-corner-inputs {
+  display: grid;
+  gap: 12px;
+}
+
+.review-corner-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) repeat(2, minmax(5rem, 1fr));
+  align-items: end;
+  gap: 8px;
+}
+
+.review-corner-row label {
+  display: grid;
+  gap: 4px;
+}
+
+.review-corner-row input {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.review-diagnostics,
+.review-suggestion {
+  margin: 12px 0;
+  line-height: 1.45;
+}
+
+.review-diagnostics p,
+.review-suggestion p {
+  margin: 6px 0;
+}
+
+.review-diagnostics dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) auto;
+  gap: 4px 12px;
+  margin: 8px 0;
+}
+
+.review-diagnostics dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.review-framing-actions button[hidden] {
+  display: none;
+}
+
+.review-framing-preview {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.review-framing-crop {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #f6a44d;
+  box-shadow: 0 0 0 2000px #1f242177;
+}
+
+.review-manual-boundary {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.review-detected-boundary {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.review-detected-boundary-segment {
+  position: absolute;
+  height: 0;
+  border-top: 2px solid #f6a44d;
+  transform-origin: 0 50%;
+}
+
+.review-detected-boundary-tentative .review-detected-boundary-segment {
+  border-top-style: dashed;
+}
+
+.review-output-grid {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.review-manual-boundary-segment {
+  position: absolute;
+  height: 0;
+  border-top: 2px solid #7fd9df;
+  transform-origin: 0 50%;
 }
 
 .review-overlay-centerline::before,

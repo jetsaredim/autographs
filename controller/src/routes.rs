@@ -28,6 +28,7 @@ use crate::{
         ImageAdjustment, ImageAdjustmentProposalStatus, ImagePoint, generate_adjusted_derivative,
         propose_image_adjustment,
     },
+    image_workbench::{analyze_adjustment, auto_align_adjustment},
     media::{LocalMediaStore, PrivateMediaStore},
     publisher::{
         LocalPublisher, PublicImagePreview, PublishMode, PublishStatus, ReleaseRetentionPolicy,
@@ -329,6 +330,14 @@ pub fn router_with_services(
         .route(
             "/admin/api/items/{id}/images/{image_id}/adjustment/assist",
             post(assist_image_adjustment),
+        )
+        .route(
+            "/admin/api/items/{id}/images/{image_id}/adjustment/analysis",
+            post(analyze_image_adjustment),
+        )
+        .route(
+            "/admin/api/items/{id}/images/{image_id}/adjustment/auto-align",
+            post(auto_align_image_adjustment),
         )
         .route(
             "/admin/api/items/{id}/images/{image_id}",
@@ -1125,6 +1134,161 @@ async fn reset_image_adjustment(
         ))
         .into_response(),
         Err(error) => image_adjustment_update_error_response(error),
+    }
+}
+
+async fn analyze_image_adjustment(
+    state: State<AppState>,
+    path: Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let mut response = analyze_image_adjustment_inner(state, path, method, headers, body).await;
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
+async fn analyze_image_adjustment_inner(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, "rejected image adjustment analysis request");
+        return status.into_response();
+    }
+    let Ok(input) = serde_json::from_slice::<AdminImageAnalysisRequest>(&body) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    if input.adjustment.validate().is_err()
+        || input.manual_boundary.as_ref().is_some_and(|corners| {
+            crate::image_adjustments::validate_ordered_convex_quad(corners).is_err()
+        })
+    {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    let loaded = match load_admin_image(&state, &id, &image_id).await {
+        Ok(loaded) => loaded,
+        Err(error) => {
+            return image_lookup_error_response("adjustment analysis", &id, &image_id, error);
+        }
+    };
+    if !admin_image_revision_matches(&loaded.image, &input.media_revision) {
+        return media_revision_conflict_response();
+    }
+    let operation = match state.media.read(&loaded.image.object_key).await {
+        Ok(source) => {
+            let adjustment = input.adjustment.clone();
+            let manual_boundary = input.manual_boundary.clone();
+            tokio::task::spawn_blocking(move || {
+                analyze_adjustment(&source, &adjustment, manual_boundary.as_deref())
+            })
+            .await
+            .unwrap_or_else(|_| Err("private image analysis task failed".to_owned()))
+        }
+        Err(error) => Err(error.to_string()),
+    };
+    if let Some(response) = terminal_media_revision_response(
+        &state,
+        loaded.item_id,
+        loaded.image_id,
+        &input.media_revision,
+        "adjustment analysis",
+    )
+    .await
+    {
+        return response;
+    }
+    match operation {
+        Ok(analysis) => (
+            [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
+            Json(analysis),
+        )
+            .into_response(),
+        Err(error) => {
+            tracing::error!(item_id = %loaded.item_id, image_id = %loaded.image_id,
+                error_kind = classify_media_error(&error), "failed to analyze private image adjustment");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+async fn auto_align_image_adjustment(
+    state: State<AppState>,
+    path: Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let mut response = auto_align_image_adjustment_inner(state, path, method, headers, body).await;
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
+async fn auto_align_image_adjustment_inner(
+    State(state): State<AppState>,
+    Path((id, image_id)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        tracing::warn!(status = %status, "rejected automatic image alignment request");
+        return status.into_response();
+    }
+    let Ok(input) = serde_json::from_slice::<AdminImageAdjustmentRequest>(&body) else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    if input.adjustment.validate().is_err() {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    let loaded = match load_admin_image(&state, &id, &image_id).await {
+        Ok(loaded) => loaded,
+        Err(error) => {
+            return image_lookup_error_response("automatic alignment", &id, &image_id, error);
+        }
+    };
+    if !admin_image_revision_matches(&loaded.image, &input.media_revision) {
+        return media_revision_conflict_response();
+    }
+    let operation = match state.media.read(&loaded.image.object_key).await {
+        Ok(source) => {
+            let adjustment = input.adjustment.clone();
+            tokio::task::spawn_blocking(move || auto_align_adjustment(&source, &adjustment))
+                .await
+                .unwrap_or_else(|_| Err("automatic private image alignment task failed".to_owned()))
+        }
+        Err(error) => Err(error.to_string()),
+    };
+    if let Some(response) = terminal_media_revision_response(
+        &state,
+        loaded.item_id,
+        loaded.image_id,
+        &input.media_revision,
+        "automatic alignment",
+    )
+    .await
+    {
+        return response;
+    }
+    match operation {
+        Ok(result) => (
+            [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
+            Json(result),
+        )
+            .into_response(),
+        Err(error) => {
+            tracing::error!(item_id = %loaded.item_id, image_id = %loaded.image_id,
+                error_kind = classify_media_error(&error), "failed to align private image adjustment");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 
@@ -2382,6 +2546,15 @@ struct AdminImageReviewResponse {
 struct AdminImageAdjustmentRequest {
     media_revision: String,
     adjustment: ImageAdjustment,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AdminImageAnalysisRequest {
+    media_revision: String,
+    adjustment: ImageAdjustment,
+    #[serde(default)]
+    manual_boundary: Option<Vec<ImagePoint>>,
 }
 
 #[derive(Deserialize)]

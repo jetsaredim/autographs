@@ -110,7 +110,30 @@ class FakeElement {
     for (const listener of this.listeners.get("lostpointercapture") || []) listener(event);
   }
   getBoundingClientRect() { return this.rect; }
-  querySelector() { return new FakeElement("button"); }
+  querySelector(selector) {
+    if (selector.startsWith(".")) return this.querySelectorAll(selector)[0] || null;
+    return new FakeElement("button");
+  }
+  querySelectorAll(selector) {
+    const found = [];
+    const visit = (node) => {
+      for (const child of node.children || []) {
+        if (selector === "input" && child.tagName === "INPUT") found.push(child);
+        if (selector.startsWith(".") && child.className?.split(/\s+/).includes(selector.slice(1))) found.push(child);
+        visit(child);
+      }
+    };
+    visit(this);
+    return found;
+  }
+  closest(selector) {
+    let node = this;
+    while (node) {
+      if (selector.startsWith(".") && node.className?.split(/\s+/).includes(selector.slice(1))) return node;
+      node = node.parentNode;
+    }
+    return null;
+  }
   reset() {}
 }
 
@@ -270,6 +293,7 @@ const reviewPayload = (itemId, imageId, adjustment = null, mediaRevision = `revi
   sourceGuidePreviewUrl: `/admin/api/items/${itemId}/images/${imageId}/preview/source`,
   state: "published", message: "Compare latest with public current.",
 });
+context.reviewPayload = reviewPayload;
 
 await run(`
   const fullFrame = identityReviewAdjustment();
@@ -510,7 +534,8 @@ await run(`
 `);
 
 enqueueFetch(response({ json: {
-  status: "notNeeded", corners: [], message: "No meaningful perspective correction was detected.",
+  boundary: { status: "reliable", corners: [], edges: [] },
+  nextSuggestion: null, framingSupport: null, framingBoundarySource: null,
 } }));
 await run(`
   const revisionBeforeAssist = state.reviewDraftRevision;
@@ -518,7 +543,7 @@ await run(`
   assert.equal(state.reviewDraftRevision, revisionBeforeAssist);
   assert.equal(state.reviewDirty, false);
   assert.equal(state.reviewDraftAdjustment.perspective, null);
-  assert.equal(state.reviewMessage, "No meaningful perspective correction was detected.");
+  assert.equal(state.reviewAnalysis.nextSuggestion, null);
 `);
 
 const assist = deferred();
@@ -534,7 +559,10 @@ await run(`
   renderImages(state.currentItem.images, []);
   await elements.imageGrid.children[0].children[4].children[0].dispatch("click");
 `);
-assist.resolve(response({ json: { status: "confident", corners: [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.9, y: 0.9 }, { x: 0.1, y: 0.9 }] } }));
+assist.resolve(response({ json: {
+  boundary: { status: "reliable", corners: [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.9, y: 0.9 }, { x: 0.1, y: 0.9 }], edges: [] },
+  nextSuggestion: null, framingSupport: null, framingBoundarySource: null,
+} }));
 await assistPromise;
 await run(`assert.equal(state.reviewDraftAdjustment.perspective, null);`);
 enqueueFetch(response());
@@ -570,7 +598,7 @@ await run(`
   assert.equal(handles[2].style.left, "275px");
   assert.equal(handles[2].style.top, "278px");
   sourceFrame.rect = { left: 0, top: 0, width: 240, height: 320 };
-  resizeObservers.findLast((observer) => !observer.disconnected).trigger(sourceFrame);
+  resizeObservers.findLast((observer) => observer.targets.has(sourceFrame)).trigger(sourceFrame);
   handles = findAllByClass(sourceFrame, "corner-handle");
   assert.equal(handles[0].style.left, "40px");
   assert.equal(handles[0].style.top, "22px");
@@ -580,7 +608,7 @@ await run(`
   sourceFrame.rect = { left: 0, top: 0, width: 240, height: 160 };
   sourceImage.naturalWidth = 400;
   sourceImage.naturalHeight = 200;
-  resizeObservers.findLast((observer) => !observer.disconnected).trigger(sourceFrame);
+  resizeObservers.findLast((observer) => observer.targets.has(sourceFrame)).trigger(sourceFrame);
   handles = findAllByClass(sourceFrame, "corner-handle");
   assert.equal(JSON.stringify(handles.map((entry) => [entry.style.left, entry.style.top])), JSON.stringify([
     ["22px", "22px"], ["218px", "22px"], ["218px", "138px"], ["22px", "138px"]
@@ -602,7 +630,7 @@ await run(`
   sourceFrame.rect = { left: 0, top: 0, width: 400, height: 300 };
   sourceImage.naturalWidth = 200;
   sourceImage.naturalHeight = 400;
-  resizeObservers.findLast((observer) => !observer.disconnected).trigger(sourceFrame);
+  resizeObservers.findLast((observer) => observer.targets.has(sourceFrame)).trigger(sourceFrame);
   const handle = handles[0];
   const releaseCountBeforeDrag = handle.pointerReleaseCount || 0;
   const fetchCountBeforeDrag = fetchCalls.length;
@@ -620,7 +648,7 @@ await run(`
   assert.equal(edgeOverlay.children[0].style.top, "30px");
   assert.notEqual(edgeOverlay.children[0].style.width, "150px");
   sourceFrame.rect = { left: 0, top: 0, width: 300, height: 400 };
-  resizeObservers.findLast((observer) => !observer.disconnected).trigger(sourceFrame);
+  resizeObservers.findLast((observer) => observer.targets.has(sourceFrame)).trigger(sourceFrame);
   assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].x - 0.1) < 1e-9, true);
   assert.equal(Math.abs(state.reviewDraftAdjustment.perspective.corners[0].y - 0.1) < 1e-9, true);
   assert.equal(handle.isConnected, true);
@@ -683,8 +711,8 @@ await run(`
   assert.equal(state.reviewPerspectiveDrag.handle, handle);
 `);
 dragAssist.resolve(response({ json: {
-  status: "confident",
-  corners: [{ x: 0.05, y: 0.05 }, { x: 0.95, y: 0.05 }, { x: 0.95, y: 0.95 }, { x: 0.05, y: 0.95 }],
+  boundary: { status: "reliable", corners: [{ x: 0.05, y: 0.05 }, { x: 0.95, y: 0.05 }, { x: 0.95, y: 0.95 }, { x: 0.05, y: 0.95 }], edges: [] },
+  nextSuggestion: null, framingSupport: null, framingBoundarySource: null,
 } }));
 await dragAssistPromise;
 await run(`
@@ -1355,6 +1383,291 @@ await run(`
   assert.equal(state.currentView, "items-view");
   assert.equal(state.conflictRecovery, null);
   assert.match(elements.globalMessage.textContent, /no longer exists/);
+`);
+
+await run(`
+  beginReviewSession("item-suggest", "image-suggest", "revision-suggest");
+  state.reviewImage = reviewPayload("item-suggest", "image-suggest");
+  state.reviewSavedAdjustment = identityReviewAdjustment();
+  state.reviewDraftAdjustment = identityReviewAdjustment();
+  state.reviewDraftRevision = 0;
+  state.reviewPreviewStatus = "ready";
+  state.reviewDisplayedRevision = 0;
+  const frame = document.createElement("div");
+  frame.className = "review-frame";
+  const image = document.createElement("img");
+  frame.append(image);
+  state.reviewMountedOutput = { node: image };
+`);
+const suggestionCorners = [
+  { x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 },
+  { x: 0.8, y: 0.8 }, { x: 0.2, y: 0.8 },
+];
+enqueueFetch(response({ json: {
+  boundary: { status: "reliable", corners: suggestionCorners, edges: [] },
+  nextSuggestion: { kind: "rotation", measurement: "coarse", rotationDegrees: -1 },
+  framingSupport: null, framingBoundarySource: "automatic",
+} }));
+await run(`
+  await analyzeReviewDraft();
+  assert.equal(state.reviewAnalysis.nextSuggestion.kind, "rotation");
+  assert.equal(state.reviewDraftAdjustment.rotationDegrees, 0);
+  assert.equal(document.querySelector("#review-auto-align").disabled, false);
+`);
+enqueueFetch(response({ json: {
+  adjustment: { rotationDegrees: -1, zoom: 1, panX: 0, panY: 0, crop: null, perspective: null },
+  acceptedPasses: 2, stopReason: "further improvement is below measurement precision",
+  boundary: { status: "reliable", corners: suggestionCorners, edges: [] },
+} }));
+await run(`
+  await document.querySelector("#review-auto-align").dispatch("click");
+  assert.equal(state.reviewDraftAdjustment.rotationDegrees, -1);
+  assert.equal(state.reviewSavedAdjustment.rotationDegrees, 0);
+  assert.match(state.reviewMessage, /2 improving passes/);
+  assert.equal(state.reviewAnalysis, null);
+`);
+enqueueFetch(response());
+await flushTimers();
+
+await run(`
+  state.reviewAnalysis = {
+    boundary: { status: "reliable", corners: ${JSON.stringify(suggestionCorners)}, edges: [] },
+    nextSuggestion: null,
+    framingSupport: {
+      itemShortEdgePixels: 200,
+      marginsPixels: { top: 30, right: 30, bottom: 30, left: 30 },
+      maxSymmetricMarginPixels: 20,
+      itemIntersectsInvalidPixels: false,
+      limitedByExistingCrop: false,
+    },
+    framingBoundarySource: "automatic",
+  };
+  updateFramingProposal();
+  assert.equal(Boolean(state.reviewFramingProposal), true);
+  const previousDraft = JSON.stringify(state.reviewDraftAdjustment);
+  state.reviewFramingPreview = true;
+  renderFramingPreviewOverlay();
+  assert.equal(Boolean(state.reviewFramingProposal), true);
+  applyReviewFraming();
+  assert.equal(Boolean(state.reviewDraftAdjustment.crop), true);
+  assert.equal(state.reviewSavedAdjustment.crop, null);
+  undoReviewFraming();
+  assert.equal(JSON.stringify(state.reviewDraftAdjustment), previousDraft);
+`);
+enqueueFetch(response());
+await flushTimers();
+
+const staleAnalysis = deferred();
+enqueueFetch(staleAnalysis.promise);
+const staleAnalysisPromise = run(`return analyzeReviewDraft()`);
+await Promise.resolve();
+await run(`markReviewDraftChanged({ schedulePreview: false });`);
+staleAnalysis.resolve(response({ json: {
+  boundary: { status: "reliable", corners: suggestionCorners, edges: [] },
+  nextSuggestion: { kind: "rotation", measurement: "coarse", rotationDegrees: 3 },
+  framingSupport: null, framingBoundarySource: null,
+} }));
+await staleAnalysisPromise;
+await run(`assert.equal(state.reviewAnalysis, null);`);
+
+await run(`
+  state.reviewAnalysis = {
+    boundary: { status: "reliable", corners: ${JSON.stringify(suggestionCorners)}, edges: [] },
+    nextSuggestion: { kind: "rotation", measurement: "coarse", rotationDegrees: 2 },
+    framingSupport: null,
+    framingBoundarySource: "automatic",
+  };
+`);
+const staleAutoAlign = deferred();
+enqueueFetch(staleAutoAlign.promise);
+const staleAutoAlignPromise = run(`return autoAlignReviewDraft()`);
+await Promise.resolve();
+await run(`
+  const before = state.reviewDraftAdjustment.rotationDegrees;
+  markReviewDraftChanged({ schedulePreview: false });
+  assert.equal(state.reviewAnalysis, null);
+  globalThis.rotationBeforeStaleAutoAlign = before;
+`);
+staleAutoAlign.resolve(response({ json: {
+  adjustment: { rotationDegrees: 2, zoom: 1, panX: 0, panY: 0, crop: null, perspective: null },
+  acceptedPasses: 1, stopReason: "alignment is within tolerance",
+  boundary: { status: "reliable", corners: suggestionCorners, edges: [] },
+} }));
+await staleAutoAlignPromise;
+await run(`
+  assert.equal(state.reviewDraftAdjustment.rotationDegrees, globalThis.rotationBeforeStaleAutoAlign);
+  assert.equal(state.reviewAutoAlignPending, false);
+`);
+
+enqueueFetch(response({ json: {
+  boundary: { status: "tentative", corners: suggestionCorners, edges: [] },
+  nextSuggestion: null,
+  framingSupport: {
+    itemShortEdgePixels: 200,
+    marginsPixels: { top: 20, right: 20, bottom: 20, left: 20 },
+    maxSymmetricMarginPixels: 18,
+    itemIntersectsInvalidPixels: false,
+    limitedByExistingCrop: false,
+  },
+  framingBoundarySource: "manual",
+} }));
+await run(`
+  state.reviewManualBoundary = ${JSON.stringify(suggestionCorners)};
+  await analyzeReviewDraft({ manualBoundary: state.reviewManualBoundary });
+  assert.equal(JSON.parse(fetchCalls.at(-1).options.body).manualBoundary.length, 4);
+  assert.equal(state.reviewAnalysis.framingBoundarySource, "manual");
+  assert.equal(state.reviewManualBoundaryConfirmed, true);
+`);
+
+await run(`
+  const frame = document.createElement("div");
+  frame.className = "review-frame";
+  frame.rect = { left: 0, top: 0, width: 400, height: 300 };
+  const image = document.createElement("img");
+  image.naturalWidth = 400;
+  image.naturalHeight = 300;
+  frame.append(image);
+  elements.imageReviewStage.replaceChildren(frame);
+  state.reviewComparisonMode = "latest";
+  state.reviewAnalysis = {
+    boundary: { status: "reliable", corners: ${JSON.stringify(suggestionCorners)}, edges: [] },
+    nextSuggestion: { kind: "rotation", measurement: "coarse", rotationDegrees: -1 },
+    framingSupport: {
+      itemShortEdgePixels: 200,
+      marginsPixels: { top: 30, right: 30, bottom: 30, left: 30 },
+      maxSymmetricMarginPixels: 20,
+      itemIntersectsInvalidPixels: false,
+      limitedByExistingCrop: false,
+    },
+    framingBoundarySource: "automatic",
+  };
+  state.reviewManualBoundary = null;
+  state.reviewManualBoundaryEditing = false;
+  state.reviewOverlays.grid = true;
+  state.reviewOverlays.edges = true;
+  state.reviewFramingProposal = {
+    crop: { left: 0.1, top: 0.1, right: 0.9, bottom: 0.9 },
+    band: 4,
+    signature: "resize-guide-check",
+    recenter: false,
+  };
+  state.reviewFramingPreview = true;
+  const mounted = {
+    node: image,
+    session: { ...state.reviewSession },
+    itemId: state.reviewImage.itemId,
+    imageId: state.reviewImage.imageId,
+    draftRevision: state.reviewDraftRevision,
+    previewRevision: state.reviewPreviewRevision,
+    generation: state.reviewOutputRenderGeneration,
+  };
+  state.reviewMountedOutput = mounted;
+  observeReviewOutputProjection(frame, image, mounted);
+  renderReviewAnalysis();
+  let detected = frame.querySelector(".review-detected-boundary");
+  assert.equal(detected.children.length, 4);
+  assert.equal(detected.children[0].style.left, "80px");
+  assert.equal(frame.querySelector(".review-output-grid").style.width, "400px");
+  assert.equal(frame.querySelector(".review-framing-preview").style.width, "400px");
+  assert.equal(document.querySelector("#review-override-boundary").hidden, false);
+  assert.equal(document.querySelector("#review-manual-boundary-inputs").hidden, true);
+
+  frame.rect = { left: 0, top: 0, width: 200, height: 300 };
+  const outputObserver = resizeObservers.findLast((observer) => observer.targets.has(frame));
+  outputObserver.trigger(frame);
+  detected = frame.querySelector(".review-detected-boundary");
+  assert.equal(detected.style.width, "200px");
+  assert.equal(detected.style.top, "75px");
+  assert.equal(detected.children[0].style.left, "40px");
+  assert.equal(frame.querySelector(".review-output-grid").style.width, "200px");
+  assert.equal(frame.querySelector(".review-framing-preview").style.width, "200px");
+
+  enableReviewManualBoundaryEditing();
+  assert.equal(state.reviewAnalysis.nextSuggestion.kind, "rotation");
+  assert.equal(state.reviewAnalysis.framingSupport, null);
+  assert.equal(document.querySelector("#review-manual-boundary-inputs").hidden, false);
+  assert.equal(document.querySelector("#review-confirm-manual-boundary").hidden, false);
+  assert.equal(frame.querySelector(".review-manual-boundary").children.length, 4);
+  setReviewManualBoundaryCorner(0, "x", 0.25);
+  assert.equal(state.reviewManualBoundaryConfirmed, false);
+  assert.equal(frame.querySelector(".review-manual-boundary").children[0].style.left, "50px");
+  frame.rect = { left: 0, top: 0, width: 300, height: 300 };
+  outputObserver.trigger(frame);
+  assert.equal(frame.querySelector(".review-manual-boundary").style.width, "300px");
+
+  state.reviewComparisonMode = "split";
+  projectReviewOutputGuides();
+  assert.equal(frame.querySelector(".review-detected-boundary"), null);
+  assert.equal(frame.querySelector(".review-manual-boundary"), null);
+  state.reviewComparisonMode = "latest";
+  projectReviewOutputGuides();
+  assert.equal(frame.querySelector(".review-detected-boundary").children.length, 4);
+  invalidateReviewOutputRender();
+  assert.equal(outputObserver.disconnected, true);
+  frame.querySelector(".review-detected-boundary").remove();
+  outputObserver.trigger(frame);
+  assert.equal(frame.querySelector(".review-detected-boundary"), null);
+`);
+
+await run(`
+  state.reviewAnalysis = {
+    boundary: { status: "reliable", corners: ${JSON.stringify(suggestionCorners)}, edges: [] },
+    nextSuggestion: { kind: "rotation", measurement: "coarse", rotationDegrees: -1 },
+    framingSupport: {
+      itemShortEdgePixels: 200,
+      marginsPixels: { top: 30, right: 30, bottom: 30, left: 30 },
+      maxSymmetricMarginPixels: 20,
+      itemIntersectsInvalidPixels: false,
+      limitedByExistingCrop: false,
+    },
+    framingBoundarySource: "automatic",
+  };
+  state.reviewManualBoundary = [
+    { x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 },
+    { x: 0.8, y: 0.1 }, { x: 0.2, y: 0.8 },
+  ];
+  state.reviewManualBoundaryEditing = true;
+  state.reviewManualBoundaryConfirmed = false;
+  state.reviewFramingProposal = { crop: { left: 0.1, top: 0.1, right: 0.9, bottom: 0.9 } };
+  state.reviewFramingPreview = true;
+  globalThis.rejectedBoundary = JSON.stringify(state.reviewManualBoundary);
+`);
+enqueueFetch(response({ status: 400, json: { code: "invalidManualBoundary" } }));
+await run(`
+  await analyzeReviewDraft({ manualBoundary: cloneAdjustment(state.reviewManualBoundary) });
+  assert.equal(JSON.stringify(state.reviewManualBoundary), globalThis.rejectedBoundary);
+  assert.equal(JSON.stringify(JSON.parse(fetchCalls.at(-1).options.body).manualBoundary), globalThis.rejectedBoundary);
+  assert.equal(state.reviewAnalysisPending, false);
+  assert.equal(state.reviewAnalysis.framingSupport, null);
+  assert.equal(state.reviewAnalysis.framingBoundarySource, null);
+  assert.equal(state.reviewFramingProposal, null);
+  assert.equal(state.reviewFramingPreview, false);
+  assert.equal(state.reviewManualBoundaryConfirmed, false);
+  assert.equal(document.querySelector("#review-manual-boundary-inputs").hidden, false);
+  assert.equal(document.querySelector("#review-manual-boundary-inputs").querySelectorAll("input").length, 8);
+  assert.equal(document.querySelector("#review-confirm-manual-boundary").hidden, false);
+  assert.match(elements.imageReviewMessage.textContent, /invalid.*retry/i);
+  setReviewManualBoundaryCorner(2, "y", 0.8);
+  assert.equal(state.reviewManualBoundary[2].y, 0.8);
+`);
+enqueueFetch(response({ json: {
+  boundary: { status: "reliable", corners: suggestionCorners, edges: [] },
+  nextSuggestion: null,
+  framingSupport: {
+    itemShortEdgePixels: 200,
+    marginsPixels: { top: 20, right: 20, bottom: 20, left: 20 },
+    maxSymmetricMarginPixels: 18,
+    itemIntersectsInvalidPixels: false,
+    limitedByExistingCrop: false,
+  },
+  framingBoundarySource: "manual",
+} }));
+await run(`
+  await analyzeReviewDraft({ manualBoundary: cloneAdjustment(state.reviewManualBoundary) });
+  assert.equal(JSON.parse(fetchCalls.at(-1).options.body).manualBoundary[2].y, 0.8);
+  assert.equal(state.reviewAnalysis.framingBoundarySource, "manual");
+  assert.equal(state.reviewManualBoundaryConfirmed, true);
+  assert.equal(document.querySelector("#review-manual-boundary-inputs").hidden, false);
 `);
 
 console.log("static admin behavior tests passed");

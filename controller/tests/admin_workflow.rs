@@ -1588,6 +1588,126 @@ async fn admin_image_adjustment_routes_save_reset_review_and_assist() {
 }
 
 #[tokio::test]
+async fn image_workbench_analysis_and_alignment_are_private_revision_bound_and_draft_only() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let item = repository
+        .create(test_item_input(
+            "Workbench Item",
+            "Carrie Fisher",
+            "Photos",
+            vec!["rebel"],
+            PublicationStatus::Draft,
+        ))
+        .await
+        .unwrap();
+    let image_id = uuid::Uuid::new_v4();
+    let key = build_original_object_key(item.id, image_id);
+    repository
+        .attach_image(item.id, test_image(image_id, key.clone(), "original.png"))
+        .await
+        .unwrap();
+    let media_root = tempfile::tempdir().unwrap();
+    let media = Arc::new(LocalMediaStore::new(media_root.path()));
+    media.write(&key, &png_fixture()).await.unwrap();
+    let app = router_with_stores(ControllerConfig::for_test(false), repository.clone(), media);
+    let cookie = admin_cookie(&app).await;
+    let review = image_review(&app, item.id, image_id, &cookie).await;
+    let media_revision = review["mediaRevision"].as_str().unwrap();
+    let base = format!("/admin/api/items/{}/images/{image_id}/adjustment", item.id);
+    let request_body = json!({
+        "mediaRevision": media_revision,
+        "adjustment": ImageAdjustment::identity(),
+    });
+
+    let unauthorized = app
+        .clone()
+        .oneshot(
+            Request::post(format!("{base}/analysis"))
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(request_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(unauthorized.headers()[header::CACHE_CONTROL], "no-store");
+
+    let analysis = app
+        .clone()
+        .oneshot(
+            Request::post(format!("{base}/analysis"))
+                .header(header::COOKIE, &cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(request_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(analysis.status(), StatusCode::OK);
+    assert_eq!(analysis.headers()[header::CACHE_CONTROL], "no-store");
+    let analysis = response_json(analysis).await;
+    assert!(analysis["boundary"]["status"].is_string());
+
+    let auto = app
+        .clone()
+        .oneshot(
+            Request::post(format!("{base}/auto-align"))
+                .header(header::COOKIE, &cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(request_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(auto.status(), StatusCode::OK);
+    assert_eq!(auto.headers()[header::CACHE_CONTROL], "no-store");
+    let auto = response_json(auto).await;
+    assert!(auto["adjustment"].is_object());
+    assert!(auto["stopReason"].is_string());
+    assert!(auto["acceptedPasses"].as_u64().unwrap() <= 8);
+    assert!(
+        repository.get(item.id).await.unwrap().unwrap().images[0]
+            .adjustment
+            .is_none()
+    );
+
+    let stale = app
+        .clone()
+        .oneshot(
+            Request::post(format!("{base}/analysis"))
+                .header(header::COOKIE, &cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({"mediaRevision":"stale", "adjustment": ImageAdjustment::identity()})
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(stale.status(), StatusCode::CONFLICT);
+    assert_eq!(stale.headers()[header::CACHE_CONTROL], "no-store");
+
+    let invalid_manual = app.clone().oneshot(
+        Request::post(format!("{base}/analysis"))
+            .header(header::COOKIE, &cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(json!({
+                "mediaRevision":media_revision,
+                "adjustment":ImageAdjustment::identity(),
+                "manualBoundary":[{"x":0.1,"y":0.1},{"x":0.9,"y":0.9},{"x":0.9,"y":0.1},{"x":0.1,"y":0.9}]
+            }).to_string())).unwrap(),
+    ).await.unwrap();
+    assert_eq!(invalid_manual.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(invalid_manual.headers()[header::CACHE_CONTROL], "no-store");
+}
+
+#[tokio::test]
 async fn image_review_resolves_the_active_public_derivative_and_reports_private_changes() {
     let repository = Arc::new(MemoryCatalogRepository::default());
     let item = repository
