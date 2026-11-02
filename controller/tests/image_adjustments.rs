@@ -5,6 +5,7 @@ use autographs_controller::{
         ImagePerspective, ImagePoint, detect_image_boundary, generate_adjusted_derivative,
         propose_image_adjustment, validate_ordered_convex_quad,
     },
+    image_workbench::{analyze_adjustment, auto_align_adjustment},
 };
 use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
 use std::io::Cursor;
@@ -225,6 +226,54 @@ fn auto_assist_returns_confident_corners_for_high_contrast_skew_fixture() {
         90,
         0.025,
     );
+}
+
+#[test]
+fn workbench_analysis_suggests_alignment_without_mutating_the_draft() {
+    let source = skewed_card_fixture();
+    let initial = ImageAdjustment::identity();
+    let analysis = analyze_adjustment(&source, &initial, None).unwrap();
+    assert_eq!(
+        analysis.boundary.status,
+        ImageBoundaryDetectionStatus::Reliable
+    );
+    assert!(analysis.next_suggestion.is_some());
+    assert_eq!(initial, ImageAdjustment::identity());
+}
+
+#[test]
+fn workbench_auto_alignment_improves_a_real_rendered_skew_fixture() {
+    let source = skewed_card_fixture();
+    let initial = ImageAdjustment::identity();
+    let result = auto_align_adjustment(&source, &initial).unwrap();
+
+    assert!(result.accepted_passes > 0, "expected an improving pass");
+    assert_ne!(result.adjustment, initial);
+    result.adjustment.validate().unwrap();
+    assert_eq!(initial, ImageAdjustment::identity());
+}
+
+#[test]
+fn workbench_analysis_abstains_on_ambiguous_source_and_validates_manual_boundary() {
+    let source = fixture_png([128, 128, 128], 96, 72);
+    let initial = ImageAdjustment::identity();
+    let analysis = analyze_adjustment(&source, &initial, None).unwrap();
+    assert!(analysis.next_suggestion.is_none());
+    assert!(analysis.framing_support.is_none());
+    let result = auto_align_adjustment(&source, &initial).unwrap();
+    assert_eq!(result.accepted_passes, 0);
+    assert_eq!(result.adjustment, initial);
+
+    let manual = [
+        ImagePoint { x: 0.2, y: 0.2 },
+        ImagePoint { x: 0.8, y: 0.2 },
+        ImagePoint { x: 0.8, y: 0.8 },
+        ImagePoint { x: 0.2, y: 0.8 },
+    ];
+    let manual_analysis = analyze_adjustment(&source, &initial, Some(&manual)).unwrap();
+    assert_eq!(manual_analysis.framing_boundary_source, Some("manual"));
+    assert!(manual_analysis.framing_support.is_some());
+    assert!(analyze_adjustment(&source, &initial, Some(&manual[..3])).is_err());
 }
 
 #[test]

@@ -9,6 +9,9 @@ pub mod derivatives {
 pub mod image_adjustments {
     pub use autographs_image_processing::image_adjustments::*;
 }
+pub mod image_workbench {
+    pub use autographs_image_processing::image_workbench::*;
+}
 pub mod media;
 #[cfg(any(feature = "production-persistence", feature = "production-oci"))]
 pub mod oci_auth;

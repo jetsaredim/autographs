@@ -592,7 +592,8 @@ fn static_admin_image_review_contract_is_private_accessible_and_draft_local() {
         "imageSourcePreview",
         "imageReview",
         "imageAdjustment",
-        "imageAdjustmentAssist",
+        "imageAdjustmentAnalysis",
+        "imageAutoAlign",
         "openImageReview",
         "renderImagePreviewFrame",
         "renderImageReview",
@@ -601,7 +602,12 @@ fn static_admin_image_review_contract_is_private_accessible_and_draft_local() {
         "saveImageAdjustments",
         "resetImageAdjustments",
         "discardImageEdits",
-        "detectImageEdges",
+        "analyzeReviewDraft",
+        "autoAlignReviewDraft",
+        "renderReviewAnalysis",
+        "updateFramingProposal",
+        "applyReviewFraming",
+        "undoReviewFraming",
         "renderPerspectiveHandles",
         "projectPerspectiveHandles",
         "observePerspectiveProjection",
@@ -617,7 +623,9 @@ fn static_admin_image_review_contract_is_private_accessible_and_draft_local() {
         "beginReviewMutation",
         "blockReviewEgressWhileMutationPending",
         "setReviewComparisonMode",
-        "status === \"confident\"",
+        "Auto-align to tolerance",
+        "Assess using manual boundary",
+        "Grid spacing",
         "aspect-ratio: 4 / 3",
         ".review-matte",
         ".corner-handle",
@@ -663,7 +671,8 @@ fn static_admin_image_review_uses_dom_nodes_and_same_origin_endpoints() {
         "buttonNode(\"Retry preview\"",
         "element.textContent = text;",
         "request(endpoints.imageReview(itemId, imageId))",
-        "endpoints.imageAdjustmentAssist(itemId, imageId)",
+        "endpoints.imageAdjustmentAnalysis(itemId, imageId)",
+        "endpoints.imageAutoAlign(itemId, imageId)",
         "{ mediaRevision: session.mediaRevision }",
         "reconcileAdminItemResponse(item)",
         "reviewedImage.mediaRevision !== state.reviewSession.mediaRevision",
@@ -696,7 +705,8 @@ fn static_admin_image_review_uses_dom_nodes_and_same_origin_endpoints() {
         "imageSourcePreview",
         "imageReview",
         "imageAdjustment",
-        "imageAdjustmentAssist",
+        "imageAdjustmentAnalysis",
+        "imageAutoAlign",
     ] {
         let marker = if endpoint == "imagePreview" {
             format!("{endpoint}: (id, imageId, mediaRevision) =>")
@@ -772,6 +782,7 @@ fn static_admin_conflict_recovery_is_exclusive_and_generation_scoped() {
 #[test]
 fn static_admin_review_layout_has_a_narrow_viewport_override() {
     let css = static_admin_file("admin.css");
+    let source = static_admin_file("admin.js");
     let columns = css_property_values(&css, ".review-layout", "grid-template-columns");
     assert!(
         columns.iter().any(|value| value == "1fr"),
@@ -796,17 +807,12 @@ fn static_admin_review_layout_has_a_narrow_viewport_override() {
         !css.contains(".review-overlay-grid {\n  inset: 33%;"),
         "the grid overlay must not regress to a single inset box"
     );
-    for selector in [
-        ".review-overlay-grid-line:nth-child(1)",
-        ".review-overlay-grid-line:nth-child(2)",
-        ".review-overlay-grid-line:nth-child(3)",
-        ".review-overlay-grid-line:nth-child(4)",
-    ] {
-        assert!(
-            css.contains(selector),
-            "the grid overlay must render the rule-of-thirds line {selector}"
-        );
-    }
+    assert!(
+        css.contains(".review-overlay-grid-line-x {")
+            && css.contains(".review-overlay-grid-line-y {")
+            && source.contains("drawReviewGridLines"),
+        "the grid overlay must support adjustable spacing and offsets"
+    );
     assert!(
         !css.contains(".review-overlay-edges {\n  inset: 8%;"),
         "the edge overlay must be projected from the current perspective corners"
