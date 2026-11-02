@@ -5,5 +5,5 @@ edition = "2024"
 publish = false
 
 [dependencies]
-oracledb = "26.0.0-beta.4"
+oracledb = "26.0.0-beta.5"
 uuid = { version = "1.29.0", features = ["v4"] }
