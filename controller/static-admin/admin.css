@@ -921,8 +921,25 @@ h4 {
 
 .review-manual-boundary {
   position: absolute;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.review-detected-boundary {
+  position: absolute;
   z-index: 4;
   pointer-events: none;
+}
+
+.review-detected-boundary-segment {
+  position: absolute;
+  height: 0;
+  border-top: 2px solid #f6a44d;
+  transform-origin: 0 50%;
+}
+
+.review-detected-boundary-tentative .review-detected-boundary-segment {
+  border-top-style: dashed;
 }
 
 .review-output-grid {
@@ -934,7 +951,7 @@ h4 {
 .review-manual-boundary-segment {
   position: absolute;
   height: 0;
-  border-top: 2px solid #f6a44d;
+  border-top: 2px solid #7fd9df;
   transform-origin: 0 50%;
 }
 

@@ -153,8 +153,12 @@ fn auto_align_with(
 
     for _ in 0..MAX_ALIGNMENT_PASSES {
         let Some(suggestion) = analysis.next_suggestion.clone() else {
-            stop_reason = if analysis.boundary.status == ImageBoundaryDetectionStatus::Reliable {
+            stop_reason = if analysis.boundary.status == ImageBoundaryDetectionStatus::Reliable
+                && !alignment_needs_correction(&analysis.boundary, analysis.preview_aspect_ratio)
+            {
                 "alignment is within tolerance"
+            } else if analysis.boundary.status == ImageBoundaryDetectionStatus::Reliable {
+                "no valid improving adjustment can be proposed; retained the last reliable result"
             } else {
                 "boundary detection is unreliable; retained the last reliable result"
             };
@@ -211,7 +215,14 @@ fn auto_align_with(
         analysis = candidate_analysis;
         accepted_passes += 1;
         if analysis.next_suggestion.is_none() {
-            stop_reason = "alignment is within tolerance";
+            stop_reason = if alignment_needs_correction(
+                &analysis.boundary,
+                analysis.preview_aspect_ratio,
+            ) {
+                "no valid improving adjustment can be proposed; retained the last reliable result"
+            } else {
+                "alignment is within tolerance"
+            };
             break;
         }
         if analysis
@@ -252,40 +263,72 @@ fn next_alignment_suggestion(
         return Some(AlignmentSuggestion {
             kind: "perspective",
             measurement,
-            corners: suggested_perspective_corners(
+            corners: Some(suggested_perspective_corners(
                 &boundary.corners,
                 adjustment,
                 aspect_ratio,
                 common_tilt,
-            ),
+            )?),
             rotation_degrees: None,
-        });
+        })
+        .filter(|proposal| proposal.corners != Some(current_perspective_corners(adjustment)));
     }
     if common_tilt.abs() >= if fine { 0.15 } else { 0.25 } {
-        return Some(AlignmentSuggestion {
+        let rotation_degrees =
+            ((adjustment.rotation_degrees - common_tilt).clamp(-15.0, 15.0) * 20.0).round() / 20.0;
+        return (rotation_degrees != adjustment.rotation_degrees).then_some(AlignmentSuggestion {
             kind: "rotation",
             measurement,
             corners: None,
-            rotation_degrees: Some(
-                ((adjustment.rotation_degrees - common_tilt).clamp(-15.0, 15.0) * 20.0).round()
-                    / 20.0,
-            ),
+            rotation_degrees: Some(rotation_degrees),
         });
     }
     if worst_axis >= if fine { 0.25 } else { 0.5 } {
         return Some(AlignmentSuggestion {
             kind: "perspective",
             measurement,
-            corners: suggested_perspective_corners(
+            corners: Some(suggested_perspective_corners(
                 &boundary.corners,
                 adjustment,
                 aspect_ratio,
                 common_tilt,
-            ),
+            )?),
             rotation_degrees: None,
-        });
+        })
+        .filter(|proposal| proposal.corners != Some(current_perspective_corners(adjustment)));
     }
     None
+}
+
+fn current_perspective_corners(adjustment: &ImageAdjustment) -> [ImagePoint; 4] {
+    adjustment
+        .perspective
+        .as_ref()
+        .map(|p| p.corners)
+        .unwrap_or([
+            ImagePoint { x: 0.0, y: 0.0 },
+            ImagePoint { x: 1.0, y: 0.0 },
+            ImagePoint { x: 1.0, y: 1.0 },
+            ImagePoint { x: 0.0, y: 1.0 },
+        ])
+}
+
+fn alignment_needs_correction(boundary: &ImageBoundaryDetection, aspect_ratio: f32) -> bool {
+    if boundary.status != ImageBoundaryDetectionStatus::Reliable || boundary.corners.len() != 4 {
+        return false;
+    }
+    let fine = fitted_edges_are_stable(boundary);
+    let Some(offsets) = edge_offsets(boundary, aspect_ratio, fine) else {
+        return false;
+    };
+    let common_tilt = offsets.iter().sum::<f32>() / 4.0;
+    let parallelism = (offsets[0] - offsets[2])
+        .abs()
+        .max((offsets[1] - offsets[3]).abs());
+    let worst_axis = offsets.iter().map(|value| value.abs()).fold(0.0, f32::max);
+    parallelism >= if fine { 0.15 } else { 0.5 }
+        || common_tilt.abs() >= if fine { 0.15 } else { 0.25 }
+        || worst_axis >= if fine { 0.25 } else { 0.5 }
 }
 
 fn fitted_edges_are_stable(boundary: &ImageBoundaryDetection) -> bool {
@@ -352,16 +395,7 @@ fn suggested_perspective_corners(
         ],
         common_tilt,
     );
-    let source = adjustment
-        .perspective
-        .as_ref()
-        .map(|p| p.corners)
-        .unwrap_or([
-            ImagePoint { x: 0.0, y: 0.0 },
-            ImagePoint { x: 1.0, y: 0.0 },
-            ImagePoint { x: 1.0, y: 1.0 },
-            ImagePoint { x: 0.0, y: 1.0 },
-        ]);
+    let source = current_perspective_corners(adjustment);
     let source_width =
         ((source[1].x - source[0].x).abs() + (source[2].x - source[3].x).abs()) / 2.0;
     let source_height =
@@ -729,6 +763,44 @@ mod tests {
         let repeated = auto_align_with(&initial, |_| Ok(mock_analysis(2.0, 1.0))).unwrap();
         assert_eq!(repeated.adjustment, initial);
         assert_eq!(repeated.stop_reason, "a repeated adjustment was avoided");
+    }
+
+    #[test]
+    fn perspective_suggestion_abstains_when_corners_are_missing_or_unchanged() {
+        let adjustment = ImageAdjustment::identity();
+        let edge = |degrees| ImageBoundaryEdgeMeasurement {
+            axis_deviation_degrees: degrees,
+            straightness_rms: 0.0,
+            bow_deviation: 0.0,
+            coverage: 1.0,
+        };
+        let mut boundary = ImageBoundaryDetection {
+            status: ImageBoundaryDetectionStatus::Reliable,
+            corners: current_perspective_corners(&adjustment).to_vec(),
+            edges: vec![edge(1.0), edge(0.0), edge(-1.0), edge(0.0)],
+            message: None,
+        };
+        assert!(alignment_needs_correction(&boundary, 1.0));
+        assert!(next_alignment_suggestion(&boundary, &adjustment, 1.0).is_none());
+
+        boundary.corners = vec![ImagePoint { x: 0.5, y: 0.5 }; 4];
+        assert!(next_alignment_suggestion(&boundary, &adjustment, 1.0).is_none());
+        let result = auto_align_with(&adjustment, |_| {
+            Ok(ImageAdjustmentAnalysis {
+                boundary: boundary.clone(),
+                next_suggestion: next_alignment_suggestion(&boundary, &adjustment, 1.0),
+                framing_support: None,
+                framing_boundary_source: None,
+                preview_aspect_ratio: 1.0,
+            })
+        })
+        .unwrap();
+        assert_eq!(result.adjustment, adjustment);
+        assert_eq!(result.accepted_passes, 0);
+        assert_eq!(
+            result.stop_reason,
+            "no valid improving adjustment can be proposed; retained the last reliable result"
+        );
     }
 
     #[test]

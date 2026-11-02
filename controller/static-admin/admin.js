@@ -99,6 +99,8 @@ const state = {
   reviewDisplayedRevision: null,
   reviewOutputRenderGeneration: 0,
   reviewMountedOutput: null,
+  reviewOutputObserver: null,
+  reviewOutputResizeListener: null,
   reviewOutputPanel: null,
   reviewDraftRevision: 0,
   reviewSessionRevision: 0,
@@ -117,6 +119,7 @@ const state = {
   reviewFramingUndo: null,
   reviewManualBoundary: null,
   reviewManualBoundaryConfirmed: false,
+  reviewManualBoundaryEditing: false,
   conflictRecoveryGeneration: 0,
   conflictRecovery: null,
   editorAuthorityGeneration: 0,
@@ -1608,6 +1611,14 @@ function isCurrentReviewMutation(mutation) {
 }
 
 function invalidateReviewOutputRender() {
+  if (state.reviewOutputObserver) {
+    state.reviewOutputObserver.disconnect();
+    state.reviewOutputObserver = null;
+  }
+  if (state.reviewOutputResizeListener) {
+    window.removeEventListener("resize", state.reviewOutputResizeListener);
+    state.reviewOutputResizeListener = null;
+  }
   state.reviewOutputRenderGeneration += 1;
   state.reviewMountedOutput = null;
 }
@@ -1689,6 +1700,7 @@ function clearImageReviewState() {
   state.reviewFramingUndo = null;
   state.reviewManualBoundary = null;
   state.reviewManualBoundaryConfirmed = false;
+  state.reviewManualBoundaryEditing = false;
   state.reviewStageRenderDeferred = false;
   state.reviewOutputPanel = null;
   state.reviewSessionRevision += 1;
@@ -1867,6 +1879,7 @@ function markReviewDraftChanged({
   state.reviewManualBoundaryConfirmed = false;
   if (!preserveManualBoundary) {
     state.reviewManualBoundary = null;
+    state.reviewManualBoundaryEditing = false;
   }
   if (!preserveFramingUndo) {
     state.reviewFramingUndo = null;
@@ -2026,6 +2039,7 @@ async function openImageReview(imageId) {
     state.reviewFramingUndo = null;
     state.reviewManualBoundary = null;
     state.reviewManualBoundaryConfirmed = false;
+    state.reviewManualBoundaryEditing = false;
     state.reviewMessage = review.message || copy.privateOnly;
     setView("image-review-view");
     renderImageReview();
@@ -2340,12 +2354,8 @@ function renderReviewOutputPanel(outputPanel, { invalidate = true } = {}) {
       frame.append(latestImage);
     }
     outputPanel.append(frame);
-    latestImage.addEventListener("load", renderOutputGrid);
-    latestImage.addEventListener("load", renderFramingPreviewOverlay);
-    latestImage.addEventListener("load", renderManualBoundaryOverlay);
-    renderOutputGrid();
-    renderFramingPreviewOverlay();
-    renderManualBoundaryOverlay();
+    observeReviewOutputProjection(frame, latestImage, state.reviewMountedOutput);
+    projectReviewOutputGuides();
   }
   elements.imageReviewMessage.textContent = state.reviewMessage;
   syncReviewDirtyState();
@@ -2370,6 +2380,38 @@ function isAuthoritativeOutputRender(candidate) {
       isCurrentReviewSession(candidate.session) &&
       state.reviewPreviewStatus === "rendering"
   );
+}
+
+function observeReviewOutputProjection(frame, image, mounted) {
+  const project = () => {
+    if (
+      state.reviewMountedOutput === mounted &&
+      state.reviewOutputRenderGeneration === mounted.generation &&
+      state.reviewPreviewRevision === mounted.previewRevision &&
+      state.reviewDraftRevision === mounted.draftRevision &&
+      isCurrentReviewSession(mounted.session) &&
+      frame.parentNode &&
+      image.parentNode
+    ) {
+      projectReviewOutputGuides();
+    }
+  };
+  if (typeof ResizeObserver === "function") {
+    const observer = new ResizeObserver(project);
+    state.reviewOutputObserver = observer;
+    observer.observe(frame);
+    observer.observe(image);
+  } else {
+    state.reviewOutputResizeListener = project;
+    window.addEventListener("resize", project);
+  }
+}
+
+function projectReviewOutputGuides() {
+  renderOutputGrid();
+  renderDetectedBoundaryOverlay();
+  renderManualBoundaryOverlay();
+  renderFramingPreviewOverlay();
 }
 
 function reviewImageNode(src, alt, className, onLoad = null, onError = null) {
@@ -2968,6 +3010,11 @@ async function analyzeReviewDraft({ manualBoundary = null } = {}) {
     }
     state.reviewAnalysis = analysis;
     state.reviewManualBoundaryConfirmed = analysis.framingBoundarySource === "manual";
+    state.reviewManualBoundaryEditing = Boolean(manualBoundary) ||
+      analysis.framingBoundarySource !== "automatic";
+    if (!manualBoundary && analysis.framingBoundarySource === "automatic") {
+      state.reviewManualBoundary = null;
+    }
     updateFramingProposal();
   } catch (error) {
     if (!reviewAnalysisIsCurrent(session, draftRevision, analysisRevision)) {
@@ -2980,7 +3027,9 @@ async function analyzeReviewDraft({ manualBoundary = null } = {}) {
     )) {
       return;
     }
-    state.reviewMessage = "Image analysis is unavailable. Adjust the corners manually or retry.";
+    state.reviewMessage = manualBoundary && error.status === 400
+      ? "The manual output boundary is invalid. Place four corners around the item in order and retry."
+      : "Image analysis is unavailable. Adjust the corners manually or retry.";
     elements.imageReviewMessage.textContent = state.reviewMessage;
   } finally {
     if (reviewAnalysisIsCurrent(session, draftRevision, analysisRevision)) {
@@ -3216,6 +3265,41 @@ function renderOutputGrid() {
   frame.append(layer);
 }
 
+function renderDetectedBoundaryOverlay() {
+  const image = state.reviewMountedOutput?.node;
+  const frame = image?.closest(".review-frame");
+  if (!frame) {
+    return;
+  }
+  frame.querySelector(".review-detected-boundary")?.remove();
+  const boundary = state.reviewAnalysis?.boundary;
+  if (!Array.isArray(boundary?.corners) || boundary.corners.length !== 4 ||
+      !["reliable", "tentative"].includes(boundary.status) ||
+      !state.reviewOverlays.edges ||
+      state.reviewComparisonMode !== "latest" || !image.naturalWidth) {
+    return;
+  }
+  const bounds = sourceRenderedBounds(frame, image);
+  const frameBounds = frame.getBoundingClientRect();
+  if (!bounds.width || !bounds.height) {
+    return;
+  }
+  const layer = document.createElement("div");
+  layer.className = `review-detected-boundary review-detected-boundary-${boundary.status}`;
+  layer.setAttribute("aria-hidden", "true");
+  layer.style.left = `${bounds.left - frameBounds.left}px`;
+  layer.style.top = `${bounds.top - frameBounds.top}px`;
+  layer.style.width = `${bounds.width}px`;
+  layer.style.height = `${bounds.height}px`;
+  boundary.corners.forEach((corner, index) => {
+    const segment = document.createElement("span");
+    segment.className = "review-detected-boundary-segment";
+    positionReviewEdgeSegment(segment, corner, boundary.corners[(index + 1) % 4], bounds.width, bounds.height);
+    layer.append(segment);
+  });
+  frame.append(layer);
+}
+
 function renderManualBoundaryOverlay() {
   const image = state.reviewMountedOutput?.node;
   const frame = image?.closest(".review-frame");
@@ -3224,7 +3308,7 @@ function renderManualBoundaryOverlay() {
   }
   frame.querySelector(".review-manual-boundary")?.remove();
   const corners = state.reviewManualBoundary;
-  if (!state.reviewAnalysis || state.reviewAnalysis.framingBoundarySource === "automatic" ||
+  if (!state.reviewAnalysis || !state.reviewManualBoundaryEditing ||
       !Array.isArray(corners) || corners.length !== 4 ||
       state.reviewComparisonMode !== "latest" || !image.naturalWidth) {
     return;
@@ -3257,6 +3341,7 @@ function setReviewManualBoundaryCorner(index, axis, value) {
   const corners = state.reviewManualBoundary || fullFramePerspectiveCorners();
   corners[index] = { ...corners[index], [axis]: value };
   state.reviewManualBoundary = corners;
+  state.reviewManualBoundaryEditing = true;
   state.reviewAnalysisRevision += 1;
   state.reviewAnalysisPending = false;
   if (state.reviewAnalysis) {
@@ -3271,6 +3356,25 @@ function setReviewManualBoundaryCorner(index, axis, value) {
   state.reviewFramingPreview = false;
   state.reviewFramingDismissed = null;
   renderManualBoundaryOverlay();
+  renderReviewAnalysis();
+}
+
+function enableReviewManualBoundaryEditing() {
+  const analysis = state.reviewAnalysis;
+  if (!analysis || state.reviewManualBoundaryEditing ||
+      state.reviewMutationPending || state.reviewAutoAlignPending) {
+    return;
+  }
+  state.reviewManualBoundary = analysis.boundary?.corners?.length === 4
+    ? cloneAdjustment(analysis.boundary.corners)
+    : fullFramePerspectiveCorners();
+  state.reviewManualBoundaryEditing = true;
+  state.reviewManualBoundaryConfirmed = false;
+  state.reviewAnalysisRevision += 1;
+  state.reviewAnalysis = { ...analysis, framingSupport: null, framingBoundarySource: null };
+  state.reviewFramingProposal = null;
+  state.reviewFramingPreview = false;
+  state.reviewFramingDismissed = null;
   renderReviewAnalysis();
 }
 
@@ -3328,9 +3432,12 @@ function renderReviewAnalysis() {
   }
   const assessment = currentFramingAssessment();
   if (!assessment) {
-    framing.replaceChildren(textNode("p", analysis
-      ? "No reliable automatic framing boundary is available. Set the output boundary manually and confirm it to assess photographed margins."
-      : "Analyze the draft to assess its photographed background."));
+    const guidance = !analysis
+      ? "Analyze the draft to assess its photographed background."
+      : state.reviewManualBoundaryEditing
+        ? "Position the manual output boundary on the item corners, then assess it. Automatic alignment evidence remains separate."
+        : "The detected boundary cannot support a framing suggestion. Adjust the output boundary manually to assess photographed margins.";
+    framing.replaceChildren(textNode("p", guidance));
   } else {
     const marginText = Object.entries(assessment.margins)
       .map(([side, value]) => `${side} ${value.toFixed(1)}%`)
@@ -3341,7 +3448,7 @@ function renderReviewAnalysis() {
       textNode("p", `Boundary source: ${analysis.framingBoundarySource}.`)
     );
   }
-  const manualNeeded = Boolean(analysis && analysis.framingBoundarySource !== "automatic");
+  const manualNeeded = Boolean(analysis && state.reviewManualBoundaryEditing && state.reviewComparisonMode === "latest");
   manualInputs.hidden = !manualNeeded;
   if (manualNeeded) {
     if (!state.reviewManualBoundary) {
@@ -3351,6 +3458,8 @@ function renderReviewAnalysis() {
     }
     renderCoordinateInputs(manualInputs, state.reviewManualBoundary, "Output boundary", setReviewManualBoundaryCorner);
   }
+  $("#review-override-boundary").hidden = !analysis || state.reviewManualBoundaryEditing ||
+    state.reviewComparisonMode !== "latest";
   $("#review-confirm-manual-boundary").hidden = !manualNeeded;
   const proposal = state.reviewFramingProposal;
   $("#review-preview-framing").hidden = !proposal;
@@ -3359,9 +3468,7 @@ function renderReviewAnalysis() {
   $("#review-apply-framing").textContent = proposal?.recenter ? "Apply recentering" : "Apply to draft";
   $("#review-dismiss-framing").hidden = !proposal;
   $("#review-undo-framing").hidden = !state.reviewFramingUndo;
-  renderOutputGrid();
-  renderManualBoundaryOverlay();
-  renderFramingPreviewOverlay();
+  projectReviewOutputGuides();
   syncReviewDirtyState();
 }
 
@@ -4100,6 +4207,7 @@ $("#review-confirm-manual-boundary").addEventListener("click", () => {
     analyzeReviewDraft({ manualBoundary: cloneAdjustment(state.reviewManualBoundary) });
   }
 });
+$("#review-override-boundary").addEventListener("click", enableReviewManualBoundaryEditing);
 $("#review-preview-framing").addEventListener("click", () => {
   state.reviewFramingPreview = !state.reviewFramingPreview;
   if (state.reviewComparisonMode !== "latest") {
