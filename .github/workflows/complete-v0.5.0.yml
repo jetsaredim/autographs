@@ -68,11 +68,14 @@ jobs:
           if [ "$OPERATION" = finalize ]; then
             [[ "$UNFREEZE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
             [[ "$UNFREEZE_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
-            prior_step="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${UNFREEZE_RUN_ID}/jobs?per_page=100" \
+            prior_step="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${UNFREEZE_RUN_ID}/attempts/${UNFREEZE_RUN_ATTEMPT}/jobs?per_page=100" \
               --jq '.jobs[] | select(.name == "Verify, unfreeze, and publish v0.5.0") | .steps[] | select(.name == "Explicitly unfreeze verified v0.5.0 publication") | .conclusion')"
             test "$prior_step" = success
-            prior_run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${UNFREEZE_RUN_ID}")"
-            jq -e '.event == "workflow_dispatch" and .head_branch == "main"' <<< "$prior_run" >/dev/null
+            prior_run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${UNFREEZE_RUN_ID}/attempts/${UNFREEZE_RUN_ATTEMPT}")"
+            jq -e --argjson attempt "$UNFREEZE_RUN_ATTEMPT" \
+              '.event == "workflow_dispatch" and .head_branch == "main" and
+               .path == ".github/workflows/complete-v0.5.0.yml" and .run_attempt == $attempt' \
+              <<< "$prior_run" >/dev/null
             gh release download "$RELEASE_TAG" \
               --pattern "completion-attempt-${UNFREEZE_RUN_ID}-${UNFREEZE_RUN_ATTEMPT}.json" \
               --dir "$ASSET_DIR"
