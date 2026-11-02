@@ -46,7 +46,10 @@ class MediaAuditFixture:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(PAYLOAD)
         (release / "manifest.json").write_text(
-            json.dumps({"release_id": release.name, "artifacts": [{"path": relative, "variant": "detail", "content_type": "image/webp", "byte_size": len(PAYLOAD)}]}),
+            json.dumps({"schemaVersion": 2, "releaseId": release.name,
+                        "generatedAt": "2026-01-01T00:00:00Z",
+                        "artifacts": [{"path": relative, "variant": "detail",
+                                       "contentType": "image/webp", "byteSize": len(PAYLOAD)}]}),
             encoding="utf-8",
         )
         if shared:
@@ -94,6 +97,26 @@ class MediaAuditFixture:
 
 
 class PublishFreezeDeploymentTests(unittest.TestCase):
+    def test_fixture_manifest_matches_public_identity_contract(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = MediaAuditFixture(Path(temporary))
+            fixture.add_release_media(fixture.current, media_path("contract"))
+            manifest_path = fixture.current / "manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            self.assertEqual(manifest["schemaVersion"], 2)
+            self.assertEqual(manifest["releaseId"], "active")
+            self.assertNotIn("release_id", manifest)
+            bootstrap = fixture.audit("--initial-cutover", "--old-route-current-only")
+            self.assertEqual(bootstrap.returncode, 0, bootstrap.stdout + bootstrap.stderr)
+            valid = fixture.probe()
+            self.assertEqual(valid.returncode, 0, valid.stdout + valid.stderr)
+
+            manifest["releaseId"] = "wrong-release"
+            manifest_path.write_text(json.dumps(manifest))
+            invalid = fixture.probe()
+            self.assertNotEqual(invalid.returncode, 0)
+            self.assertIn("manifest release ID mismatch", invalid.stderr)
+
     def test_in_place_gate_is_idempotent_and_rejects_partial_routes(self):
         source = (REPO / "deploy/ansible/roles/autographs_deploy/files/Caddyfile").read_text()
         with tempfile.TemporaryDirectory() as temporary:
@@ -376,9 +399,11 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                         target = release / name
                         target.parent.mkdir(parents=True, exist_ok=True)
                         target.write_bytes(PAYLOAD)
-                        artifacts.append({"path": name, "variant": "detail", "content_type": "image/webp",
-                                          "byte_size": len(PAYLOAD)})
-                    (release / "manifest.json").write_text(json.dumps({"release_id": release_id, "artifacts": artifacts}))
+                        artifacts.append({"path": name, "variant": "detail", "contentType": "image/webp",
+                                          "byteSize": len(PAYLOAD)})
+                    (release / "manifest.json").write_text(json.dumps({"schemaVersion": 2,
+                        "releaseId": release_id, "generatedAt": "2026-01-01T00:00:00Z",
+                        "artifacts": artifacts}))
                     manifest_hash = hashlib.sha256((release / "manifest.json").read_bytes()).hexdigest()
                     intent = {"version": 1, "old_release_id": old_id, "new_release_id": release_id,
                               "old_manifest_sha256": history["releases"][old_id]["manifest_sha256"],
@@ -577,7 +602,8 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 fixture.promote("wrong-target", wrong_path, after_pointer=False)
                 stray = fixture.static / "releases/stray"
                 stray.mkdir()
-                (stray / "manifest.json").write_text(json.dumps({"release_id": "stray", "artifacts": []}))
+                (stray / "manifest.json").write_text(json.dumps({"schemaVersion": 2,
+                    "releaseId": "stray", "generatedAt": "2026-01-01T00:00:00Z", "artifacts": []}))
                 (fixture.static / "current").unlink()
                 (fixture.static / "current").symlink_to("releases/stray")
                 wrong_pointer = invoke_preflight()
@@ -643,7 +669,8 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = MediaAuditFixture(Path(temporary))
             (fixture.current / "manifest.json").write_text(
-                json.dumps({"release_id": "active", "artifacts": []}))
+                json.dumps({"schemaVersion": 2, "releaseId": "active",
+                            "generatedAt": "2026-01-01T00:00:00Z", "artifacts": []}))
             self.assertEqual(fixture.audit("--initial-cutover", "--old-route-current-only").returncode, 0)
             state = json.loads(fixture.probe().stdout)
             self.assertEqual(state["active_probe"], {"version": 1, "kind": "document", "path": "manifest.json"})
@@ -855,8 +882,10 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
             fixture.add_release_media(fixture.current, current_path)
             archive = fixture.root / "private/archived-manifest.json"
             archive.parent.mkdir(parents=True)
-            archive.write_text(json.dumps({"release_id": "pruned", "artifacts": [
-                {"path": prior_path, "variant": "detail", "content_type": "image/webp", "byte_size": len(PAYLOAD)}]}))
+            archive.write_text(json.dumps({"schemaVersion": 2, "releaseId": "pruned",
+                "generatedAt": "2026-01-01T00:00:00Z", "artifacts": [
+                {"path": prior_path, "variant": "detail", "contentType": "image/webp",
+                 "byteSize": len(PAYLOAD)}]}))
             shared = fixture.static / prior_path
             shared.parent.mkdir(parents=True, exist_ok=True)
             shared.write_bytes(PAYLOAD)

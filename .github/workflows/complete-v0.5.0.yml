@@ -1,0 +1,183 @@
+name: Complete frozen v0.5.0 release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-production
+  cancel-in-progress: false
+
+jobs:
+  complete:
+    name: Verify, unfreeze, and publish v0.5.0
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: v0.5.0
+      SOURCE_REVISION: 13d8df0c1e83ebaebba03c32c45158dd10f3942f
+      RUNTIME_IP: 129.213.166.159
+      AUTOGRAPHS_DOMAIN: autographs.jetsaredim.net
+      ASSET_DIR: ${{ runner.temp }}/v0.5.0-assets
+
+    steps:
+      - name: Require dispatch from main
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+        run: |
+          test "$DISPATCH_REF" = refs/heads/main
+
+      - name: Checkout reviewed completion source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Verify immutable release inputs and exact playbook correction
+        id: inputs
+        run: |
+          set -euo pipefail
+          mkdir -p "$ASSET_DIR"
+          test "$(git rev-parse 'refs/tags/v0.5.0^{commit}')" = "$SOURCE_REVISION"
+          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true
+          gh release download "$RELEASE_TAG" --pattern release-manifest.json --dir "$ASSET_DIR"
+          gh release download "$RELEASE_TAG" --pattern retry-recovery-audit.json --dir "$ASSET_DIR"
+          python3 scripts/release.py validate-manifest \
+            --manifest "$ASSET_DIR/release-manifest.json" \
+            --tag "$RELEASE_TAG" \
+            --source-revision "$SOURCE_REVISION"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import subprocess
+
+          root = pathlib.Path(os.environ["ASSET_DIR"])
+          source = os.environ["SOURCE_REVISION"]
+          audit_path = root / "retry-recovery-audit.json"
+          audit = json.loads(audit_path.read_text())
+          assert audit == {
+              "schemaVersion": 1,
+              "releaseTag": "v0.5.0",
+              "releaseSourceRevision": source,
+              "recoveryApplied": False,
+              "recoveryRevision": source,
+              "approvedFiles": [],
+          }, "the existing retry audit is not the expected immutable tag-only record"
+          manifest = json.loads((root / "release-manifest.json").read_text())
+          assert manifest["repositoryVersion"] == "v0.5.0"
+          assert manifest["sourceRevision"] == source
+          assert manifest["impact"] != "repo-only"
+          path = "deploy/ansible/playbooks/publish-unfreeze.yml"
+          tagged = subprocess.check_output(["git", "show", f"{source}:{path}"])
+          reviewed = pathlib.Path(path).read_bytes()
+          before = b"(unfreeze_manifest.stdout | from_json).release_id is defined"
+          after = b"(unfreeze_manifest.stdout | from_json).releaseId is defined"
+          assert tagged.count(before) == 1, "tagged assertion differs from expected source"
+          assert tagged.replace(before, after) == reviewed, "reviewed playbook has other changes"
+          digest = lambda value: "sha256:" + hashlib.sha256(value).hexdigest()
+          attempt = {
+              "schemaVersion": 1,
+              "action": "complete-frozen-v0.5.0",
+              "releaseTag": "v0.5.0",
+              "releaseSourceRevision": source,
+              "automationRevision": os.environ["GITHUB_SHA"],
+              "workflowRunId": os.environ["GITHUB_RUN_ID"],
+              "workflowRunAttempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "taggedPlaybookSha256": digest(tagged),
+              "reviewedPlaybookSha256": digest(reviewed),
+              "originalRetryAuditSha256": digest(audit_path.read_bytes()),
+              "releaseManifestSha256": digest((root / "release-manifest.json").read_bytes()),
+          }
+          (root / "completion-attempt.json").write_text(json.dumps(attempt, indent=2, sort_keys=True) + "\n")
+          PY
+          asset_name="completion-attempt-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          mv "$ASSET_DIR/completion-attempt.json" "$ASSET_DIR/$asset_name"
+          gh release upload "$RELEASE_TAG" "$ASSET_DIR/$asset_name"
+          echo "controller_digest=$(jq -er '.controller.digest' "$ASSET_DIR/release-manifest.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Require frozen healthy production before unfreeze
+        run: |
+          set -euo pipefail
+          test "$(getent ahostsv4 "$AUTOGRAPHS_DOMAIN" | awk 'NR == 1 {print $1}')" = "$RUNTIME_IP"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request POST "https://$AUTOGRAPHS_DOMAIN/admin/api/publish/full")" = 503
+          curl --fail --silent --show-error "https://$AUTOGRAPHS_DOMAIN/manifest.json" \
+            | jq -e '.releaseId == "a0805fb9-4570-4ad1-8f75-8c06a0e44f7a"' >/dev/null
+          curl --fail --silent --show-error "https://$AUTOGRAPHS_DOMAIN/admin/api/health" \
+            | jq -e '.release.repoVersion == "v0.5.0" and .release.sourceRevision == "13d8df0c1e83ebaebba03c32c45158dd10f3942f"' >/dev/null
+
+      - name: Verify frozen origin readiness with corrected assertion
+        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
+        env:
+          ANSIBLE_CONFIG: ${{ github.workspace }}/deploy/ansible/ansible.cfg
+          AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
+        with:
+          playbook: playbooks/publish-unfreeze.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            129.213.166.159 ansible_user=opc
+          requirements: collections/requirements.yml
+          options: |
+            --extra-vars autographs_deploy_repo_version=v0.5.0
+            --extra-vars autographs_deploy_controller_digest=${{ steps.inputs.outputs.controller_digest }}
+            --extra-vars autographs_deploy_source_revision=13d8df0c1e83ebaebba03c32c45158dd10f3942f
+            --extra-vars autographs_deploy_domain=autographs.jetsaredim.net
+            --extra-vars autographs_publish_unfreeze_verify_only=true
+
+      - name: Explicitly unfreeze verified v0.5.0 publication
+        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
+        env:
+          ANSIBLE_CONFIG: ${{ github.workspace }}/deploy/ansible/ansible.cfg
+          AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
+        with:
+          playbook: playbooks/publish-unfreeze.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            129.213.166.159 ansible_user=opc
+          requirements: collections/requirements.yml
+          options: |
+            --extra-vars autographs_deploy_repo_version=v0.5.0
+            --extra-vars autographs_deploy_controller_digest=${{ steps.inputs.outputs.controller_digest }}
+            --extra-vars autographs_deploy_source_revision=13d8df0c1e83ebaebba03c32c45158dd10f3942f
+            --extra-vars autographs_deploy_domain=autographs.jetsaredim.net
+            --extra-vars autographs_publish_unfreeze_verify_only=false
+
+      - name: Commit production release status
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3; do
+            git fetch origin main:refs/remotes/origin/main
+            git switch --force-create production-status origin/main
+            python3 scripts/release.py update-status \
+              --manifest "$ASSET_DIR/release-manifest.json" \
+              --mode retry \
+              --updated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              --retry-recovery-audit "$ASSET_DIR/retry-recovery-audit.json"
+            git add .release-status.json
+            if git diff --cached --quiet; then
+              break
+            fi
+            git commit -m 'chore(release): record production v0.5.0'
+            if git push origin HEAD:main; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+          done
+
+      - name: Publish existing v0.5.0 draft
+        run: gh release edit "$RELEASE_TAG" --draft=false
