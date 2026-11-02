@@ -1026,19 +1026,11 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
         steps = workflow["jobs"]["production"]["steps"]
         named = {step.get("name"): (index, step) for index, step in enumerate(steps)}
-        retry_checkout = named["Checkout dispatched main retry guard"]
-        correction = named["Apply pinned v0.5.0 cutover audit correction"]
         preflight = named["Freeze and verify publisher cutover preflight"]
         deploy = named["Run full deployment"]
         readiness = named["Verify frozen origin readiness"]
         unfreeze = named["Explicitly unfreeze verified production publication"]
         gate = named["Validate release completion gate"]
-        self.assertLess(retry_checkout[0], correction[0])
-        self.assertLess(correction[0], preflight[0])
-        self.assertIn("deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py",
-                      retry_checkout[1]["with"]["sparse-checkout"])
-        self.assertIn("release_tag == 'v0.5.0'", correction[1]["if"])
-        self.assertIn(hashlib.sha256(AUDIT.read_bytes()).hexdigest(), correction[1]["run"])
         self.assertLess(preflight[0], deploy[0])
         self.assertLess(deploy[0], readiness[0])
         self.assertLess(readiness[0], unfreeze[0])

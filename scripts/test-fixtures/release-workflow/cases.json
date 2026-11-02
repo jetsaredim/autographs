@@ -31,8 +31,7 @@
     "automation_path": ".retry-automation",
     "sparse_paths": [
       "scripts/retry_recovery.py",
-      "scripts/retry-recovery-contracts.json",
-      "deploy/ansible/roles/autographs_deploy/files/publish_freeze_audit.py"
+      "scripts/retry-recovery-contracts.json"
     ],
     "allowed_path": "deploy/ansible/roles/autographs_deploy/tasks/validate_kernel_boot_entry.yml",
     "forbidden_paths": [

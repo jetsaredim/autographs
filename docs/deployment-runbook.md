@@ -298,8 +298,10 @@ Pre-stop checks prove only frozen document availability and publish denial;
 a pending publication intent is reconciled after verified old-process exit.
 The already-created `v0.5.0` tag predates the automatic gate installation. Its
 first retry installed and verified the one-time manual gate but stopped at an
-overly broad retained-media provenance check. The `v0.5.0` retry workflow uses
-a digest-pinned audit correction from current main; later releases include the
+overly broad retained-media provenance check. The immutable retry audit for
+that draft records no Ansible override, so its tagged retry must not silently
+copy a newer helper. Resolve the old retained directories through a separately
+reviewed one-time recovery before retrying. Later releases include the audit
 correction and install the gate automatically. If the live gate is removed
 before the draft retry, restore it with the linked one-time VM procedure. The
 final pointer, history, marker inventory, selected probe, and dual-origin

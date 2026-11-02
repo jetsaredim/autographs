@@ -625,10 +625,12 @@ The two exact paths are `/admin/api/publish/full` and
 
 The already-created `v0.5.0` release tag contains the older preflight that
 requires a manually installed gate. The first retry installed and verified it,
-then stopped at a retained-media provenance check. After the digest-pinned
-`v0.5.0` audit correction is merged to main, retry with that existing gate in
-place. Use the following VM procedure only if the gate is missing. Do not use
-it for later releases, and do not run it twice.
+then stopped at a retained-media provenance check. The retry's immutable
+recovery audit is tag-only, so do not overlay a newer Ansible helper without a
+separate audited recovery contract. Resolve the older retained directories
+through a separately reviewed one-time procedure before retrying. Use the
+following VM gate procedure only if the gate is missing. Do not use it for
+later releases, and do not run it twice.
 
 ```bash
 CADDYFILE=/opt/autographs/caddy/Caddyfile
