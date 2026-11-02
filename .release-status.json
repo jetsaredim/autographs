@@ -1,12 +1,12 @@
 {
-  "deployedControllerDigest": "sha256:cae898187bb81f456db823f3f6cf0a2c666faba71b85702e1e88e12e605efe2c",
-  "deployedControllerVersion": "v0.5.0",
-  "deployedRepositoryVersion": "v0.5.0",
+  "deployedControllerDigest": "sha256:24e339d5112588af8f17d3684dab034c47597f89860d3bd5c810fbd53654ee2b",
+  "deployedControllerVersion": "v0.6.0",
+  "deployedRepositoryVersion": "v0.6.0",
   "lastDeployImpact": "controller-image",
-  "latestDeployImpactVersion": "v0.5.0",
-  "latestRepositoryVersion": "v0.5.0",
-  "previousControllerDigest": "sha256:97ab8e5a121f1f0572c41c1afa0a2c3766375b27e8f4c1eaec72e616cc033abf",
-  "previousControllerVersion": "v0.4.2",
-  "sourceRevision": "13d8df0c1e83ebaebba03c32c45158dd10f3942f",
-  "updatedAt": "2026-11-02T03:22:59Z"
+  "latestDeployImpactVersion": "v0.6.0",
+  "latestRepositoryVersion": "v0.6.0",
+  "previousControllerDigest": "sha256:cae898187bb81f456db823f3f6cf0a2c666faba71b85702e1e88e12e605efe2c",
+  "previousControllerVersion": "v0.5.0",
+  "sourceRevision": "9869f63fad38ef8cef80e6b029c7bae6e096c945",
+  "updatedAt": "2026-11-02T21:04:57Z"
 }
