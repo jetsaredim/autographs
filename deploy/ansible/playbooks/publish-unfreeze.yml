@@ -250,28 +250,28 @@
           - (unfreeze_health.stdout | from_json).release.repoVersion == autographs_deploy_repo_version
           - (unfreeze_health.stdout | from_json).release.sourceRevision == autographs_deploy_source_revision
 
-    - name: Require operator token for authenticated status proof
-      ansible.builtin.assert:
-        that:
-          - lookup('env', 'AUTOGRAPHS_OPERATOR_API_TOKEN') | length > 0
-      no_log: true
-
-    - name: Verify authenticated publish status remains available
+    - name: Verify publish status requires an admin session
       ansible.builtin.command:
         argv:
           - curl
-          - --fail
           - --silent
           - --show-error
+          - --output
+          - /dev/null
+          - --write-out
+          - "HTTP_STATUS=%{http_code}"
           - --noproxy
           - "*"
           - --resolve
           - "{{ autographs_deploy_domain }}:443:127.0.0.1"
-          - --header
-          - "Authorization: Bearer {{ lookup('env', 'AUTOGRAPHS_OPERATOR_API_TOKEN') }}"
           - "https://{{ autographs_deploy_domain }}/admin/api/publish/status"
+      register: unfreeze_private_status
       changed_when: false
-      no_log: true
+
+    - name: Require private publish status response
+      ansible.builtin.assert:
+        that:
+          - unfreeze_private_status.stdout | trim == 'HTTP_STATUS=401'
 
     - name: Probe public current and frozen publish routes
       ansible.builtin.command:

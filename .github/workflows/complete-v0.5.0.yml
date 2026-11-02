@@ -116,8 +116,20 @@ jobs:
           before = b"(unfreeze_manifest.stdout | from_json).release_id is defined"
           after = b"(unfreeze_manifest.stdout | from_json).releaseId is defined"
           assert tagged.count(before) == 1, "tagged assertion differs from expected source"
-          assert tagged.replace(before, after) == reviewed, "reviewed playbook has other changes"
           digest = lambda value: "sha256:" + hashlib.sha256(value).hexdigest()
+          old_start = b"    - name: Require operator token for authenticated status proof\n"
+          new_start = b"    - name: Verify publish status requires an admin session\n"
+          end = b"    - name: Probe public current and frozen publish routes\n"
+          assert tagged.count(old_start) == 1 and reviewed.count(new_start) == 1
+          assert tagged.count(end) == 1 and reviewed.count(end) == 1
+          old_prefix, old_rest = tagged.split(old_start, 1)
+          old_body, old_suffix = old_rest.split(end, 1)
+          new_prefix, new_rest = reviewed.split(new_start, 1)
+          new_body, new_suffix = new_rest.split(end, 1)
+          assert old_prefix.replace(before, after) == new_prefix
+          assert old_suffix == new_suffix
+          assert digest(old_start + old_body) == "sha256:339cd6e54fa2baa176d15251b1bdb05b85d21f584f69505f8582663d15ec2a1a"
+          assert digest(new_start + new_body) == "sha256:1f93a34b20f8c0a904f8067e07f13b763b09228c83ab54f762a07215eadcd5fc"
           attempt = {
               "schemaVersion": 1,
               "action": "complete-frozen-v0.5.0",
@@ -169,7 +181,6 @@ jobs:
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/deploy/ansible/ansible.cfg
-          AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
         with:
           playbook: playbooks/publish-unfreeze.yml
           directory: deploy/ansible
@@ -190,7 +201,6 @@ jobs:
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/deploy/ansible/ansible.cfg
-          AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
         with:
           playbook: playbooks/publish-unfreeze.yml
           directory: deploy/ansible

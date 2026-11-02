@@ -167,9 +167,6 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                     if self.path == "/admin/api/health":
                         body = json.dumps({"release": {"repoVersion": "v1.2.3", "sourceRevision": "b" * 40}}).encode()
                         self.send_response(200)
-                    elif self.path == "/admin/api/publish/status" and self.headers.get("Authorization") == "Bearer fixture-token":
-                        body = b"{}"
-                        self.send_response(200)
                     else:
                         body = b""
                         self.send_response(401)
@@ -282,7 +279,7 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 env.update({"PATH": str(podman.parent) + os.pathsep + env["PATH"],
                             "FIXTURE_STATIC": str(fixture.static), "FIXTURE_CADDY": container,
                             "FIXTURE_CADDYFILE": str(caddy_dir / "Caddyfile"),
-                            "CURL_CA_BUNDLE": str(certificate), "AUTOGRAPHS_OPERATOR_API_TOKEN": "fixture-token",
+                            "CURL_CA_BUNDLE": str(certificate),
                             "AUTOGRAPHS_PUBLISH_FIXTURE_MODE": "1", "ANSIBLE_CONFIG": str(REPO / "deploy/ansible/ansible.cfg"),
                             "ANSIBLE_LOCAL_TEMP": "/tmp/ansible-local", "ANSIBLE_REMOTE_TEMP": "/tmp/ansible-remote"})
                 variables = {"freeze_record_path": str(fixture.record), "caddyfile_path": str(caddy_dir / "Caddyfile"),
