@@ -2,6 +2,21 @@ name: Complete frozen v0.5.0 release
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Complete the frozen release, or finish GitHub bookkeeping after a verified unfreeze
+        required: true
+        default: complete
+        type: choice
+        options: [complete, finalize]
+      unfreeze_run_id:
+        description: Prior run ID whose unfreeze step succeeded (finalize only)
+        required: false
+        type: string
+      unfreeze_run_attempt:
+        description: Prior run attempt number (finalize only)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -24,7 +39,10 @@ jobs:
       SOURCE_REVISION: 13d8df0c1e83ebaebba03c32c45158dd10f3942f
       RUNTIME_IP: 129.213.166.159
       AUTOGRAPHS_DOMAIN: autographs.jetsaredim.net
-      ASSET_DIR: ${{ runner.temp }}/v0.5.0-assets
+      ASSET_DIR: /tmp/autographs-v0.5.0-assets
+      OPERATION: ${{ inputs.operation }}
+      UNFREEZE_RUN_ID: ${{ inputs.unfreeze_run_id }}
+      UNFREEZE_RUN_ATTEMPT: ${{ inputs.unfreeze_run_attempt }}
 
     steps:
       - name: Require dispatch from main
@@ -47,6 +65,21 @@ jobs:
           test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true
           gh release download "$RELEASE_TAG" --pattern release-manifest.json --dir "$ASSET_DIR"
           gh release download "$RELEASE_TAG" --pattern retry-recovery-audit.json --dir "$ASSET_DIR"
+          if [ "$OPERATION" = finalize ]; then
+            [[ "$UNFREEZE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+            [[ "$UNFREEZE_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+            prior_step="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${UNFREEZE_RUN_ID}/jobs?per_page=100" \
+              --jq '.jobs[] | select(.name == "Verify, unfreeze, and publish v0.5.0") | .steps[] | select(.name == "Explicitly unfreeze verified v0.5.0 publication") | .conclusion')"
+            test "$prior_step" = success
+            prior_run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${UNFREEZE_RUN_ID}")"
+            jq -e '.event == "workflow_dispatch" and .head_branch == "main"' <<< "$prior_run" >/dev/null
+            gh release download "$RELEASE_TAG" \
+              --pattern "completion-attempt-${UNFREEZE_RUN_ID}-${UNFREEZE_RUN_ATTEMPT}.json" \
+              --dir "$ASSET_DIR"
+            jq -e --arg sha "$(jq -er .head_sha <<< "$prior_run")" \
+              '.automationRevision == $sha' \
+              "$ASSET_DIR/completion-attempt-${UNFREEZE_RUN_ID}-${UNFREEZE_RUN_ATTEMPT}.json" >/dev/null
+          fi
           python3 scripts/release.py validate-manifest \
             --manifest "$ASSET_DIR/release-manifest.json" \
             --tag "$RELEASE_TAG" \
@@ -95,25 +128,41 @@ jobs:
               "originalRetryAuditSha256": digest(audit_path.read_bytes()),
               "releaseManifestSha256": digest((root / "release-manifest.json").read_bytes()),
           }
-          (root / "completion-attempt.json").write_text(json.dumps(attempt, indent=2, sort_keys=True) + "\n")
+          if os.environ["OPERATION"] == "complete":
+              (root / "completion-attempt.json").write_text(json.dumps(attempt, indent=2, sort_keys=True) + "\n")
+          else:
+              prior = json.loads((root / f"completion-attempt-{os.environ['UNFREEZE_RUN_ID']}-{os.environ['UNFREEZE_RUN_ATTEMPT']}.json").read_text())
+              for key in ("schemaVersion", "action", "releaseTag", "releaseSourceRevision",
+                          "taggedPlaybookSha256", "reviewedPlaybookSha256",
+                          "originalRetryAuditSha256", "releaseManifestSha256"):
+                  assert prior[key] == attempt[key], f"prior recovery asset mismatch: {key}"
+              assert prior["workflowRunId"] == os.environ["UNFREEZE_RUN_ID"]
+              assert prior["workflowRunAttempt"] == os.environ["UNFREEZE_RUN_ATTEMPT"]
           PY
-          asset_name="completion-attempt-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
-          mv "$ASSET_DIR/completion-attempt.json" "$ASSET_DIR/$asset_name"
-          gh release upload "$RELEASE_TAG" "$ASSET_DIR/$asset_name"
+          if [ "$OPERATION" = complete ]; then
+            asset_name="completion-attempt-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+            mv "$ASSET_DIR/completion-attempt.json" "$ASSET_DIR/$asset_name"
+            gh release upload "$RELEASE_TAG" "$ASSET_DIR/$asset_name"
+          fi
           echo "controller_digest=$(jq -er '.controller.digest' "$ASSET_DIR/release-manifest.json")" >> "$GITHUB_OUTPUT"
 
-      - name: Require frozen healthy production before unfreeze
+      - name: Require expected production state
         run: |
           set -euo pipefail
           test "$(getent ahostsv4 "$AUTOGRAPHS_DOMAIN" | awk 'NR == 1 {print $1}')" = "$RUNTIME_IP"
+          expected_publish_status=503
+          if [ "$OPERATION" = finalize ]; then
+            expected_publish_status=401
+          fi
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            --request POST "https://$AUTOGRAPHS_DOMAIN/admin/api/publish/full")" = 503
+            --request POST "https://$AUTOGRAPHS_DOMAIN/admin/api/publish/full")" = "$expected_publish_status"
           curl --fail --silent --show-error "https://$AUTOGRAPHS_DOMAIN/manifest.json" \
             | jq -e '.releaseId == "a0805fb9-4570-4ad1-8f75-8c06a0e44f7a"' >/dev/null
           curl --fail --silent --show-error "https://$AUTOGRAPHS_DOMAIN/admin/api/health" \
             | jq -e '.release.repoVersion == "v0.5.0" and .release.sourceRevision == "13d8df0c1e83ebaebba03c32c45158dd10f3942f"' >/dev/null
 
       - name: Verify frozen origin readiness with corrected assertion
+        if: inputs.operation == 'complete'
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/deploy/ansible/ansible.cfg
@@ -134,6 +183,7 @@ jobs:
             --extra-vars autographs_publish_unfreeze_verify_only=true
 
       - name: Explicitly unfreeze verified v0.5.0 publication
+        if: inputs.operation == 'complete'
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/deploy/ansible/ansible.cfg
