@@ -226,7 +226,7 @@
     - name: Require valid current release target and selected probe
       ansible.builtin.assert:
         that:
-          - (unfreeze_manifest.stdout | from_json).release_id is defined
+          - (unfreeze_manifest.stdout | from_json).releaseId is defined
           - unfreeze_current_probe.kind == 'document' or unfreeze_current_probe.path is match('^media/.+\.webp$')
 
     - name: Verify reviewed controller health at origin
