@@ -1609,4 +1609,65 @@ await run(`
   assert.equal(frame.querySelector(".review-detected-boundary"), null);
 `);
 
+await run(`
+  state.reviewAnalysis = {
+    boundary: { status: "reliable", corners: ${JSON.stringify(suggestionCorners)}, edges: [] },
+    nextSuggestion: { kind: "rotation", measurement: "coarse", rotationDegrees: -1 },
+    framingSupport: {
+      itemShortEdgePixels: 200,
+      marginsPixels: { top: 30, right: 30, bottom: 30, left: 30 },
+      maxSymmetricMarginPixels: 20,
+      itemIntersectsInvalidPixels: false,
+      limitedByExistingCrop: false,
+    },
+    framingBoundarySource: "automatic",
+  };
+  state.reviewManualBoundary = [
+    { x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 },
+    { x: 0.8, y: 0.1 }, { x: 0.2, y: 0.8 },
+  ];
+  state.reviewManualBoundaryEditing = true;
+  state.reviewManualBoundaryConfirmed = false;
+  state.reviewFramingProposal = { crop: { left: 0.1, top: 0.1, right: 0.9, bottom: 0.9 } };
+  state.reviewFramingPreview = true;
+  globalThis.rejectedBoundary = JSON.stringify(state.reviewManualBoundary);
+`);
+enqueueFetch(response({ status: 400, json: { code: "invalidManualBoundary" } }));
+await run(`
+  await analyzeReviewDraft({ manualBoundary: cloneAdjustment(state.reviewManualBoundary) });
+  assert.equal(JSON.stringify(state.reviewManualBoundary), globalThis.rejectedBoundary);
+  assert.equal(JSON.stringify(JSON.parse(fetchCalls.at(-1).options.body).manualBoundary), globalThis.rejectedBoundary);
+  assert.equal(state.reviewAnalysisPending, false);
+  assert.equal(state.reviewAnalysis.framingSupport, null);
+  assert.equal(state.reviewAnalysis.framingBoundarySource, null);
+  assert.equal(state.reviewFramingProposal, null);
+  assert.equal(state.reviewFramingPreview, false);
+  assert.equal(state.reviewManualBoundaryConfirmed, false);
+  assert.equal(document.querySelector("#review-manual-boundary-inputs").hidden, false);
+  assert.equal(document.querySelector("#review-manual-boundary-inputs").querySelectorAll("input").length, 8);
+  assert.equal(document.querySelector("#review-confirm-manual-boundary").hidden, false);
+  assert.match(elements.imageReviewMessage.textContent, /invalid.*retry/i);
+  setReviewManualBoundaryCorner(2, "y", 0.8);
+  assert.equal(state.reviewManualBoundary[2].y, 0.8);
+`);
+enqueueFetch(response({ json: {
+  boundary: { status: "reliable", corners: suggestionCorners, edges: [] },
+  nextSuggestion: null,
+  framingSupport: {
+    itemShortEdgePixels: 200,
+    marginsPixels: { top: 20, right: 20, bottom: 20, left: 20 },
+    maxSymmetricMarginPixels: 18,
+    itemIntersectsInvalidPixels: false,
+    limitedByExistingCrop: false,
+  },
+  framingBoundarySource: "manual",
+} }));
+await run(`
+  await analyzeReviewDraft({ manualBoundary: cloneAdjustment(state.reviewManualBoundary) });
+  assert.equal(JSON.parse(fetchCalls.at(-1).options.body).manualBoundary[2].y, 0.8);
+  assert.equal(state.reviewAnalysis.framingBoundarySource, "manual");
+  assert.equal(state.reviewManualBoundaryConfirmed, true);
+  assert.equal(document.querySelector("#review-manual-boundary-inputs").hidden, false);
+`);
+
 console.log("static admin behavior tests passed");

@@ -2992,7 +2992,22 @@ async function analyzeReviewDraft({ manualBoundary = null } = {}) {
   const draftRevision = state.reviewDraftRevision;
   const analysisRevision = ++state.reviewAnalysisRevision;
   state.reviewAnalysisPending = true;
-  state.reviewAnalysis = null;
+  if (manualBoundary) {
+    state.reviewAnalysis = {
+      ...(state.reviewAnalysis || {
+        boundary: { status: "unavailable", corners: [], edges: [] },
+        nextSuggestion: null,
+      }),
+      framingSupport: null,
+      framingBoundarySource: null,
+    };
+    state.reviewManualBoundaryEditing = true;
+    state.reviewManualBoundaryConfirmed = false;
+    state.reviewFramingProposal = null;
+    state.reviewFramingPreview = false;
+  } else {
+    state.reviewAnalysis = null;
+  }
   renderReviewAnalysis();
   syncReviewDirtyState();
   try {
@@ -3025,6 +3040,9 @@ async function analyzeReviewDraft({ manualBoundary = null } = {}) {
       () => reviewAnalysisIsCurrent(session, draftRevision, analysisRevision),
       itemId
     )) {
+      return;
+    }
+    if (error.status === 401) {
       return;
     }
     state.reviewMessage = manualBoundary && error.status === 400
