@@ -449,6 +449,7 @@ function showLogin(message = "") {
   state.reviewStageRenderDeferred = false;
   elements.workflowView.hidden = true;
   elements.loginView.hidden = false;
+  document.querySelector(".admin-shell").classList.remove("image-review-active");
   elements.loginMessage.textContent = message;
 }
 
@@ -465,6 +466,7 @@ function setView(viewId, { preserveConflictRecovery = false } = {}) {
     state.navigationRevision += 1;
   }
   state.currentView = viewId;
+  document.querySelector(".admin-shell").classList.toggle("image-review-active", viewId === "image-review-view");
   for (const view of elements.views) {
     view.hidden = view.id !== viewId;
   }
@@ -1524,6 +1526,12 @@ function syncPublishAvailability() {
 }
 
 function syncReviewDirtyState() {
+  $("#review-saved-adjustment-json").textContent = JSON.stringify(state.reviewImage?.adjustment ?? null, null, 2);
+  $("#review-draft-adjustment-json").textContent = JSON.stringify(
+    state.reviewDraftAdjustment ? canonicalReviewAdjustment(state.reviewDraftAdjustment) : null,
+    null,
+    2
+  );
   state.reviewDirty = Boolean(
     state.reviewDraftAdjustment &&
       !reviewAdjustmentsEqual(state.reviewDraftAdjustment, state.reviewSavedAdjustment)
@@ -3311,7 +3319,7 @@ function renderDetectedBoundaryOverlay() {
   layer.style.height = `${bounds.height}px`;
   boundary.corners.forEach((corner, index) => {
     const segment = document.createElement("span");
-    segment.className = "review-detected-boundary-segment";
+    segment.className = `review-detected-boundary-segment review-edge-${["top", "right", "bottom", "left"][index]}`;
     positionReviewEdgeSegment(segment, corner, boundary.corners[(index + 1) % 4], bounds.width, bounds.height);
     layer.append(segment);
   });
@@ -3348,7 +3356,84 @@ function renderManualBoundaryOverlay() {
     positionReviewEdgeSegment(segment, corner, corners[(index + 1) % 4], bounds.width, bounds.height);
     layer.append(segment);
   });
+  const labels = ["Top left", "Top right", "Bottom right", "Bottom left"];
+  corners.forEach((corner, index) => {
+    const handle = document.createElement("button");
+    handle.type = "button";
+    handle.className = "corner-handle";
+    handle.setAttribute("aria-label", `${labels[index]} output boundary corner`);
+    handle.title = `${labels[index]} output boundary corner`;
+    handle.disabled = Boolean(state.reviewMutationPending) || state.reviewAutoAlignPending;
+    positionManualBoundaryHandle(handle, corner, bounds.width, bounds.height);
+    handle.addEventListener("keydown", (event) => {
+      const step = event.shiftKey ? 0.05 : 0.01;
+      const delta = {
+        ArrowLeft: [-step, 0], ArrowRight: [step, 0],
+        ArrowUp: [0, -step], ArrowDown: [0, step],
+      }[event.key];
+      if (!delta || handle.disabled) return;
+      event.preventDefault();
+      const point = state.reviewManualBoundary[index];
+      setManualBoundaryPoint(index, point.x + delta[0], point.y + delta[1]);
+      frame.querySelector(".review-manual-boundary")?.querySelectorAll(".corner-handle")[index]?.focus();
+    });
+    handle.addEventListener("pointerdown", (event) => {
+      if (handle.disabled || event.button !== 0) return;
+      const start = layer.getBoundingClientRect();
+      if (!start.width || !start.height) return;
+      event.preventDefault();
+      const session = state.reviewSession ? { ...state.reviewSession } : null;
+      const point = state.reviewManualBoundary[index];
+      const offset = {
+        x: point.x - (event.clientX - start.left) / start.width,
+        y: point.y - (event.clientY - start.top) / start.height,
+      };
+      handle.setPointerCapture(event.pointerId);
+      const move = (moveEvent) => {
+        if (moveEvent.pointerId !== event.pointerId || !layer.isConnected ||
+            !isCurrentReviewSession(session) || state.reviewMutationPending || state.reviewAutoAlignPending) return;
+        const rect = layer.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        setManualBoundaryPoint(index,
+          (moveEvent.clientX - rect.left) / rect.width + offset.x,
+          (moveEvent.clientY - rect.top) / rect.height + offset.y,
+          { refresh: false }
+        );
+        projectManualBoundaryLayer(layer, rect.width, rect.height);
+      };
+      const finish = (terminalEvent) => {
+        if (terminalEvent.pointerId !== event.pointerId) return;
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", finish);
+        handle.removeEventListener("pointercancel", finish);
+        handle.removeEventListener("lostpointercapture", finish);
+        if (layer.isConnected && isCurrentReviewSession(session)) renderReviewAnalysis();
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", finish);
+      handle.addEventListener("pointercancel", finish);
+      handle.addEventListener("lostpointercapture", finish);
+    });
+    layer.append(handle);
+  });
   frame.append(layer);
+}
+
+function positionManualBoundaryHandle(handle, corner, width, height) {
+  const insetX = Math.min(22, width / 2);
+  const insetY = Math.min(22, height / 2);
+  handle.style.left = `${Math.max(insetX, Math.min(width - insetX, corner.x * width))}px`;
+  handle.style.top = `${Math.max(insetY, Math.min(height - insetY, corner.y * height))}px`;
+}
+
+function projectManualBoundaryLayer(layer, width, height) {
+  const corners = state.reviewManualBoundary;
+  layer.querySelectorAll(".review-manual-boundary-segment").forEach((segment, index) =>
+    positionReviewEdgeSegment(segment, corners[index], corners[(index + 1) % 4], width, height)
+  );
+  layer.querySelectorAll(".corner-handle").forEach((handle, index) =>
+    positionManualBoundaryHandle(handle, corners[index], width, height)
+  );
 }
 
 function setReviewManualBoundaryCorner(index, axis, value) {
@@ -3356,8 +3441,17 @@ function setReviewManualBoundaryCorner(index, axis, value) {
     renderReviewAnalysis();
     return;
   }
+  const point = state.reviewManualBoundary?.[index] || fullFramePerspectiveCorners()[index];
+  setManualBoundaryPoint(index, axis === "x" ? value : point.x, axis === "y" ? value : point.y);
+}
+
+function setManualBoundaryPoint(index, x, y, { refresh = true } = {}) {
+  if (state.reviewMutationPending || state.reviewAutoAlignPending ||
+      !Number.isFinite(x) || !Number.isFinite(y)) return;
   const corners = state.reviewManualBoundary || fullFramePerspectiveCorners();
-  corners[index] = { ...corners[index], [axis]: value };
+  const next = { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+  if (corners[index].x === next.x && corners[index].y === next.y) return;
+  corners[index] = next;
   state.reviewManualBoundary = corners;
   state.reviewManualBoundaryEditing = true;
   state.reviewAnalysisRevision += 1;
@@ -3373,8 +3467,7 @@ function setReviewManualBoundaryCorner(index, axis, value) {
   state.reviewFramingProposal = null;
   state.reviewFramingPreview = false;
   state.reviewFramingDismissed = null;
-  renderManualBoundaryOverlay();
-  renderReviewAnalysis();
+  if (refresh) renderReviewAnalysis();
 }
 
 function enableReviewManualBoundaryEditing() {
@@ -3419,13 +3512,17 @@ function renderReviewAnalysis() {
     const boundary = analysis.boundary;
     const nodes = [textNode("p", `Boundary: ${boundary.status}. ${boundary.message || ""}`)];
     if (Array.isArray(boundary.edges) && boundary.edges.length === 4) {
-      const list = document.createElement("dl");
+      const list = document.createElement("div");
+      list.className = "review-edge-list";
       ["Top", "Right", "Bottom", "Left"].forEach((label, index) => {
         const edge = boundary.edges[index];
-        list.append(
-          textNode("dt", `${label} tilt / coverage`),
-          textNode("dd", `${edge.axisDeviationDegrees.toFixed(2)}° / ${(edge.coverage * 100).toFixed(0)}%`)
-        );
+        const side = label.toLowerCase();
+        const straightness = Number.isFinite(edge.straightnessRms) ? edge.straightnessRms.toFixed(3) : "n/a";
+        const bow = Number.isFinite(edge.bowDeviation) ? edge.bowDeviation.toFixed(3) : "n/a";
+        const description = `${edge.axisDeviationDegrees.toFixed(2)}° tilt · ${(edge.coverage * 100).toFixed(0)}% coverage · ${straightness} straightness · ${bow} bow`;
+        const row = textNode("p", `${label}: ${description}`);
+        row.className = `review-edge-row review-edge-${side}`;
+        list.append(row);
       });
       nodes.push(list);
     }
