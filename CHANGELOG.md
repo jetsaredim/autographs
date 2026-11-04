@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0](https://github.com/jetsaredim/autographs/compare/v0.6.0...v0.7.0) (2026-11-04)
+
+
+### Features
+
+* **admin:** improve image review controls and preview layout ([36595a8](https://github.com/jetsaredim/autographs/commit/36595a84581656eb532e4366cda860a5f86bc5ae))
+* **admin:** improve image review controls and preview layout ([162618f](https://github.com/jetsaredim/autographs/commit/162618f0eb331f8a692c5b337643cdfbe8425e66))
+
+
+### Bug Fixes
+
+* **admin:** preserve saved adjustment and compact review at tablet widths ([f63604f](https://github.com/jetsaredim/autographs/commit/f63604f408aeb21768dedd4809e13dc73174a8b1))
+
 ## [0.6.0](https://github.com/jetsaredim/autographs/compare/v0.5.0...v0.6.0) (2026-11-02)
 
 
