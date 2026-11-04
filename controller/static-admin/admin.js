@@ -3643,7 +3643,8 @@ async function saveImageAdjustments() {
       return;
     }
     const returnedAdjustment = item.images?.find((image) => image.id === imageId)?.adjustment;
-    const savedAdjustment = canonicalReviewAdjustment(returnedAdjustment ?? submittedAdjustment);
+    const persistedAdjustment = returnedAdjustment === undefined ? submittedAdjustment : returnedAdjustment;
+    const savedAdjustment = canonicalReviewAdjustment(persistedAdjustment);
     const { reviewInvalidated } = reconcileAdminItemResponse(item);
     if (reviewInvalidated || !isCurrentReviewMutation(mutation)) {
       return;
@@ -3652,7 +3653,7 @@ async function saveImageAdjustments() {
     if (state.reviewDraftRevision === submittedRevision) {
       state.reviewDraftAdjustment = cloneAdjustment(savedAdjustment);
     }
-    state.reviewImage.adjustment = cloneAdjustment(savedAdjustment);
+    state.reviewImage.adjustment = persistedAdjustment === null ? null : cloneAdjustment(persistedAdjustment);
     state.reviewMessage = copy.adjustmentSaved;
     elements.imageReviewMessage.textContent = state.reviewMessage;
   } catch (error) {

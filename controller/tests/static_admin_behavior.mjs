@@ -1706,4 +1706,25 @@ await run(`
   assert.equal(JSON.parse(document.querySelector("#review-saved-adjustment-json").textContent).rotationDegrees, 2.5);
 `);
 
+const identitySave = await run(`
+  state.reviewSavedAdjustment = cloneAdjustment(state.reviewImage.adjustment);
+  state.reviewDraftAdjustment = identityReviewAdjustment();
+  state.reviewPreviewStatus = "ready";
+  state.reviewDisplayedRevision = state.reviewDraftRevision;
+  syncReviewDirtyState();
+  assert.equal(elements.imageReviewSave.disabled, false);
+  return { itemId: state.reviewImage.itemId, imageId: state.reviewImage.imageId,
+    mediaRevision: state.reviewSession.mediaRevision };
+`);
+enqueueFetch(response({ json: {
+  id: identitySave.itemId,
+  images: [{ id: identitySave.imageId, mediaRevision: identitySave.mediaRevision, adjustment: null }],
+} }));
+await run(`
+  await saveImageAdjustments();
+  assert.equal(state.reviewImage.adjustment, null);
+  assert.equal(state.reviewSavedAdjustment.rotationDegrees, 0);
+  assert.equal(document.querySelector("#review-saved-adjustment-json").textContent, "null");
+`);
+
 console.log("static admin behavior tests passed");
