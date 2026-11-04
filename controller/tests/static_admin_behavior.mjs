@@ -1567,6 +1567,17 @@ await run(`
   let detected = frame.querySelector(".review-detected-boundary");
   assert.equal(detected.children.length, 4);
   assert.equal(detected.children[0].style.left, "80px");
+  state.reviewAnalysis.boundary.edges = [0, 1, 2, 3].map((index) => ({
+    axisDeviationDegrees: index + 0.25,
+    coverage: 0.8,
+    straightnessRms: 0.01,
+    bowDeviation: 0.02,
+  }));
+  renderReviewAnalysis();
+  const edgeRows = document.querySelector("#review-alignment-diagnostics").querySelectorAll(".review-edge-row");
+  assert.equal(edgeRows.length, 4);
+  assert.match(edgeRows[0].textContent, /Top: 0.25° tilt.*straightness.*bow/);
+  assert.ok(detected.children[0].className.includes("review-edge-top"));
   assert.equal(frame.querySelector(".review-output-grid").style.width, "400px");
   assert.equal(frame.querySelector(".review-framing-preview").style.width, "400px");
   assert.equal(document.querySelector("#review-override-boundary").hidden, false);
@@ -1587,10 +1598,24 @@ await run(`
   assert.equal(state.reviewAnalysis.framingSupport, null);
   assert.equal(document.querySelector("#review-manual-boundary-inputs").hidden, false);
   assert.equal(document.querySelector("#review-confirm-manual-boundary").hidden, false);
-  assert.equal(frame.querySelector(".review-manual-boundary").children.length, 4);
+  assert.equal(frame.querySelector(".review-manual-boundary").querySelectorAll(".review-manual-boundary-segment").length, 4);
+  assert.equal(frame.querySelector(".review-manual-boundary").querySelectorAll(".corner-handle").length, 4);
   setReviewManualBoundaryCorner(0, "x", 0.25);
   assert.equal(state.reviewManualBoundaryConfirmed, false);
   assert.equal(frame.querySelector(".review-manual-boundary").children[0].style.left, "50px");
+  const topLeftHandle = frame.querySelector(".review-manual-boundary").querySelectorAll(".corner-handle")[0];
+  await topLeftHandle.dispatch("keydown", { key: "ArrowRight" });
+  assert.equal(state.reviewManualBoundary[0].x, 0.26);
+  assert.equal(frame.querySelector(".review-manual-boundary").querySelectorAll(".corner-handle")[0].focused, true);
+  const manualLayer = frame.querySelector(".review-manual-boundary");
+  manualLayer.rect = { left: 0, top: 0, width: 200, height: 150 };
+  const dragHandle = manualLayer.querySelectorAll(".corner-handle")[0];
+  const startY = state.reviewManualBoundary[0].y * 150;
+  await dragHandle.dispatch("pointerdown", { pointerId: 42, button: 0, clientX: 52, clientY: startY });
+  await dragHandle.dispatch("pointermove", { pointerId: 42, clientX: 72, clientY: startY });
+  assert.ok(Math.abs(state.reviewManualBoundary[0].x - 0.36) < 0.000001);
+  await dragHandle.dispatch("pointerup", { pointerId: 42 });
+  assert.equal(frame.querySelector(".review-manual-boundary").querySelectorAll(".corner-handle").length, 4);
   frame.rect = { left: 0, top: 0, width: 300, height: 300 };
   outputObserver.trigger(frame);
   assert.equal(frame.querySelector(".review-manual-boundary").style.width, "300px");
@@ -1668,6 +1693,38 @@ await run(`
   assert.equal(state.reviewAnalysis.framingBoundarySource, "manual");
   assert.equal(state.reviewManualBoundaryConfirmed, true);
   assert.equal(document.querySelector("#review-manual-boundary-inputs").hidden, false);
+`);
+
+await run(`
+  state.reviewImage.adjustment = null;
+  state.reviewDraftAdjustment.rotationDegrees = 2.5;
+  syncReviewDirtyState();
+  assert.equal(document.querySelector("#review-saved-adjustment-json").textContent, "null");
+  assert.equal(JSON.parse(document.querySelector("#review-draft-adjustment-json").textContent).rotationDegrees, 2.5);
+  state.reviewImage.adjustment = cloneAdjustment(state.reviewDraftAdjustment);
+  syncReviewDirtyState();
+  assert.equal(JSON.parse(document.querySelector("#review-saved-adjustment-json").textContent).rotationDegrees, 2.5);
+`);
+
+const identitySave = await run(`
+  state.reviewSavedAdjustment = cloneAdjustment(state.reviewImage.adjustment);
+  state.reviewDraftAdjustment = identityReviewAdjustment();
+  state.reviewPreviewStatus = "ready";
+  state.reviewDisplayedRevision = state.reviewDraftRevision;
+  syncReviewDirtyState();
+  assert.equal(elements.imageReviewSave.disabled, false);
+  return { itemId: state.reviewImage.itemId, imageId: state.reviewImage.imageId,
+    mediaRevision: state.reviewSession.mediaRevision };
+`);
+enqueueFetch(response({ json: {
+  id: identitySave.itemId,
+  images: [{ id: identitySave.imageId, mediaRevision: identitySave.mediaRevision, adjustment: null }],
+} }));
+await run(`
+  await saveImageAdjustments();
+  assert.equal(state.reviewImage.adjustment, null);
+  assert.equal(state.reviewSavedAdjustment.rotationDegrees, 0);
+  assert.equal(document.querySelector("#review-saved-adjustment-json").textContent, "null");
 `);
 
 console.log("static admin behavior tests passed");

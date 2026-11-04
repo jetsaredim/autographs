@@ -373,11 +373,14 @@
                   <div class="checkbox-field"><input id="review-overlay-centerline" type="checkbox" data-review-overlay="centerline"><label for="review-overlay-centerline">Centerline</label></div>
                   <div class="checkbox-field"><input id="review-overlay-edges" type="checkbox" data-review-overlay="edges" checked><label for="review-overlay-edges">Edges</label></div>
                 </div>
-                <div class="review-control-grid review-grid-controls">
-                  <div class="field"><label for="review-grid-spacing">Grid spacing</label><input id="review-grid-spacing" type="range" min="24" max="160" value="64"><output id="review-grid-spacing-value" for="review-grid-spacing">64 px</output></div>
-                  <div class="field"><label for="review-grid-x">Grid X offset</label><input id="review-grid-x" type="range" min="-80" max="80" value="0"><output id="review-grid-x-value" for="review-grid-x">0 px</output></div>
-                  <div class="field"><label for="review-grid-y">Grid Y offset</label><input id="review-grid-y" type="range" min="-80" max="80" value="0"><output id="review-grid-y-value" for="review-grid-y">0 px</output></div>
-                </div>
+                <details class="review-grid-settings">
+                  <summary>Grid settings</summary>
+                  <div class="review-control-grid review-grid-controls">
+                    <div class="field"><label for="review-grid-spacing">Grid spacing</label><input id="review-grid-spacing" type="range" min="24" max="160" value="64"><output id="review-grid-spacing-value" for="review-grid-spacing">64 px</output></div>
+                    <div class="field"><label for="review-grid-x">Grid X offset</label><input id="review-grid-x" type="range" min="-80" max="80" value="0"><output id="review-grid-x-value" for="review-grid-x">0 px</output></div>
+                    <div class="field"><label for="review-grid-y">Grid Y offset</label><input id="review-grid-y" type="range" min="-80" max="80" value="0"><output id="review-grid-y-value" for="review-grid-y">0 px</output></div>
+                  </div>
+                </details>
               </fieldset>
 
               <div class="review-control-grid">
@@ -417,6 +420,7 @@
               <fieldset>
                 <legend>Background framing</legend>
                 <p class="helper-text">Assess the item against real photographed background. Cropping cannot add missing background.</p>
+                <p class="helper-text">When editing the output boundary, drag its preview handles or use arrow keys. Hold Shift for larger steps.</p>
                 <div class="field"><label for="review-framing-target">Background target (% of item short edge)</label><input id="review-framing-target" type="number" min="1" max="12" step="0.5" value="4"></div>
                 <div id="review-framing-diagnostics" class="review-diagnostics" aria-live="polite"></div>
                 <div id="review-manual-boundary-inputs" class="review-corner-inputs" hidden></div>
@@ -429,6 +433,14 @@
                   <button id="review-undo-framing" type="button" class="secondary-action" hidden>Undo framing</button>
                 </div>
               </fieldset>
+              <details class="review-adjustment-data">
+                <summary>Adjustment JSON</summary>
+                <p class="helper-text">Read-only values for this image. Draft values update as you adjust the controls.</p>
+                <h3>Saved adjustment</h3>
+                <pre id="review-saved-adjustment-json">null</pre>
+                <h3>Current draft</h3>
+                <pre id="review-draft-adjustment-json">null</pre>
+              </details>
             </div>
           </div>
 
