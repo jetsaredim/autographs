@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Autographs · Image workbench layout sketch</title>
+  <style>
+    :root { color-scheme: light; font: 14px/1.35 system-ui, -apple-system, Segoe UI, sans-serif; color: #193036; background: #f5f7f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .shell { max-width: 1600px; margin: auto; padding: 16px 22px 20px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 0 13px; }
+    .brand { font-size: 1rem; font-weight: 750; letter-spacing: .01em; }
+    .brand span { color: #2d6770; }
+    .prototype { color: #5b6a69; font-size: .82rem; }
+    .heading { display: flex; justify-content: space-between; align-items: end; gap: 16px; padding: 0 0 13px; }
+    h1 { font-size: 1.25rem; line-height: 1.2; margin: 0 0 3px; }
+    .heading p { color: #667474; margin: 0; font-size: .84rem; }
+    .image-tag { border: 1px solid #d3dcd8; background: white; border-radius: 20px; padding: 6px 10px; font-size: .78rem; white-space: nowrap; }
+    .workbench { display: grid; grid-template-columns: minmax(0, 1fr) 344px; gap: 12px; align-items: stretch; }
+    .stage { min-width: 0; min-height: max(610px, calc(100vh - 171px)); background: #1e2523; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; color: white; }
+    .stage-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 0 1px 11px; }
+    .stage-title { font-size: .79rem; font-weight: 700; color: #d9e6e0; }
+    .stage-note { font-size: .73rem; color: #aebdb7; }
+    .preview-pair { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .preview { min-width: 0; border: 1px solid #414b46; border-radius: 8px; background: #242d2a; display: flex; flex-direction: column; align-items: stretch; padding: 10px; }
+    .preview-head { font-size: .79rem; font-weight: 650; color: #eff5f1; display: flex; justify-content: space-between; gap: 8px; }
+    .preview-head small { color: #acc1b5; font-size: .7rem; font-weight: 450; }
+    .preview-canvas { flex: 1; min-height: 0; display: grid; place-items: center; padding: 8px 0; overflow: hidden; }
+    .image-mat { position: relative; width: min(91%, 365px); aspect-ratio: 0.72; max-height: 100%; background: #8c8b82; border: 9px solid #8c8b82; box-shadow: 0 10px 26px #0008; }
+    .source .image-mat { outline: 2px dashed #e3e9e3; outline-offset: 5px; }
+    .source .image-mat::before, .source .image-mat::after { content: ""; position: absolute; z-index: 3; width: 14px; height: 14px; background: #287982; border: 2px solid white; border-radius: 50%; left: -17px; top: -17px; box-shadow: calc(min(43vw, 365px) - 7px) 0 #287982; }
+    .source .image-mat::after { top: auto; bottom: -17px; }
+    .card { position: relative; width: 100%; height: 100%; overflow: hidden; background: radial-gradient(circle at 62% 42%, #47728d, #192d44 44%, #0d1727 73%); border: 12px solid #171a1c; border-radius: 10px; box-shadow: inset 0 0 0 2px #777b79; }
+    .card::before { content: ""; position: absolute; inset: 15% 7% 16%; border: 2px solid #899aa1; box-shadow: 0 0 0 4px #1a2026; }
+    .card-top { position: absolute; top: 3%; left: 10%; right: 10%; display: flex; justify-content: space-between; color: #d7d8cb; font-size: clamp(8px, 1.3vw, 14px); font-weight: 800; }
+    .orb { position: absolute; width: 62%; height: 37%; top: 27%; right: 10%; border-radius: 48% 52% 43% 57%; background: radial-gradient(circle at 38% 25%, #b4c5b7, #406e7b 25%, #122e4e 55%, transparent 72%); transform: rotate(-12deg); filter: drop-shadow(8px 9px 3px #101d2c); }
+    .sig { position: absolute; z-index: 2; top: 47%; left: 4%; right: 4%; color: #d9b357; font: italic 700 clamp(20px, 3vw, 46px) cursive; white-space: nowrap; transform: rotate(-7deg); text-shadow: 1px 2px 2px #332512; }
+    .card-footer { position: absolute; bottom: 3%; left: 9%; right: 9%; height: 14%; border-top: 2px solid #9a9f9b; background: repeating-linear-gradient(to bottom, #c4c8c3 0 2px, transparent 2px 7px); opacity: .7; }
+    .grid-overlay { display: none; position: absolute; inset: 0; z-index: 4; pointer-events: none; background-image: linear-gradient(#fff8 1px, transparent 1px), linear-gradient(90deg, #fff8 1px, transparent 1px); background-size: var(--grid-size, 64px) var(--grid-size, 64px); background-position: var(--grid-x, 0px) var(--grid-y, 0px); }
+    .edge-overlay { position: absolute; inset: 1px; z-index: 4; pointer-events: none; outline: 2px solid #77d9eb; outline-offset: -2px; }
+    .center-overlay { display: none; position: absolute; z-index: 4; inset: 0; pointer-events: none; background: linear-gradient(90deg, transparent calc(50% - .5px), #f8d771 calc(50% - .5px), #f8d771 calc(50% + .5px), transparent calc(50% + .5px)); }
+    body.show-grid .grid-overlay, body.show-center .center-overlay { display: block; }
+    body:not(.show-edges) .edge-overlay { display: none; }
+    .stage-foot { padding-top: 10px; color: #b5c2bc; font-size: .75rem; }
+    .rail { min-width: 0; max-height: max(610px, calc(100vh - 171px)); overflow-y: auto; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 7px; padding-right: 2px; }
+    .group { border: 1px solid #d3dcd8; border-radius: 8px; background: #fff; padding: 10px 11px; }
+    .group-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+    h2 { font-size: .85rem; line-height: 1.2; margin: 0; }
+    .help { width: 22px; height: 22px; padding: 0; flex: none; border: 1px solid #c8d4d0; border-radius: 50%; background: #f4f8f6; color: #326d75; font-size: .74rem; font-weight: 750; }
+    .help:hover, .help:focus-visible { background: #d8eded; outline: 2px solid transparent; }
+    .help-copy { display: none; margin: 0 0 8px; padding: 7px 9px; border-left: 3px solid #3b8790; background: #eef6f4; color: #405759; font-size: .76rem; }
+    .help-copy.open { display: block; }
+    .segmented { display: flex; gap: 4px; }
+    .segmented button { flex: 1; white-space: nowrap; border: 1px solid #cad6d2; border-radius: 5px; background: white; color: #285e67; padding: 6px 5px; font-size: .76rem; }
+    .segmented button.active { background: #d9eeee; border-color: #2f7981; color: #174b53; font-weight: 700; }
+    .checks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+    .checks label { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 29px; border: 1px solid #d8e1dd; border-radius: 5px; font-size: .75rem; white-space: nowrap; }
+    .checks input { width: 14px; height: 14px; margin: 0; accent-color: #237780; }
+    details { margin-top: 7px; }
+    summary { cursor: pointer; color: #366c73; font-size: .76rem; font-weight: 650; }
+    .sliders { display: grid; gap: 7px; }
+    .slider-label { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: .76rem; font-weight: 620; }
+    output { font-weight: 600; color: #3d6267; font-variant-numeric: tabular-nums; }
+    input[type=range] { display: block; width: 100%; height: 17px; margin: 1px 0 0; accent-color: #257f88; }
+    .coordinate-head, .coordinate-row { display: grid; grid-template-columns: 64px 1fr 1fr; gap: 6px; align-items: center; }
+    .coordinate-head { font-size: .7rem; color: #607170; padding: 0 1px 3px; }
+    .coordinate-row { margin-top: 4px; font-size: .73rem; }
+    .coordinate-row span { font-weight: 620; }
+    input[type=number] { width: 100%; height: 28px; padding: 3px 6px; border: 1px solid #cbd6d2; border-radius: 5px; background: #fff; color: #18383e; font-size: .76rem; }
+    .inline-field { display: flex; align-items: center; gap: 8px; font-size: .76rem; }
+    .inline-field input { width: 62px; margin-left: auto; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+    .buttons button, .footer button { border: 1px solid #cad6d2; border-radius: 5px; background: #fff; color: #245d66; padding: 6px 8px; font-size: .75rem; font-weight: 630; }
+    .group--json { background: #fafdfe; }
+    .group--json summary { margin: -2px 0 0; }
+    .json-panel { margin: 7px 0 0; padding: 10px; max-height: 176px; overflow: auto; border-radius: 5px; background: #17272c; color: #e7f1ed; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre; }
+    .footer { display: flex; align-items: center; gap: 7px; padding-top: 11px; }
+    .footer .save { background: #276e76; color: white; border-color: #276e76; }
+    .footer .reset { color: #9b3434; border-color: #c99191; }
+    .footer span { margin-left: auto; color: #63716e; font-size: .74rem; }
+    @media (max-width: 1000px) { .workbench { grid-template-columns: minmax(0, 1fr) 310px; } .image-mat { width: min(94%, 300px); } }
+    @media (max-width: 740px) { .shell { padding: 12px; } .workbench { grid-template-columns: 1fr; } .stage { min-height: 560px; } .rail { max-height: none; overflow: visible; } .image-mat { width: min(90%, 300px); } .footer { flex-wrap: wrap; } .footer span { width: 100%; margin: 3px 0 0; } }
+    @media (max-width: 480px) { .preview-pair { gap: 5px; } .preview { padding: 6px; } .preview-head { display: block; } .preview-head small { display: none; } .stage { min-height: 400px; padding: 8px; } .image-mat { border-width: 5px; } .card { border-width: 5px; } .source .image-mat::before, .source .image-mat::after { display: none; } .image-tag { display: none; } }
+  </style>
+</head>
+<body class="show-edges">
+  <main class="shell">
+    <header class="topbar"><div class="brand">AUTOGRAPHS <span>/ ADMIN</span></div><div class="prototype">Local layout sketch · dummy images · no saves</div></header>
+    <div class="heading"><div><h1>Review image</h1><p>Adjust the private image and compare the result.</p></div><span class="image-tag">Card 1 of 2 · signed collectible</span></div>
+    <div class="workbench">
+      <section class="stage" aria-label="Image previews">
+        <div class="stage-toolbar"><span class="stage-title">Image workbench</span><span class="stage-note">The dark stage fills the available work area</span></div>
+        <div class="preview-pair">
+          <div class="preview source"><div class="preview-head"><span>Unadjusted source guide</span><small>Drag corner handles</small></div><div class="preview-canvas"><div class="image-mat"><div class="card"><div class="card-top"><span>★ GALACTIC CARD</span><span>01</span></div><div class="orb"></div><div class="sig">Alex Rowan</div><div class="card-footer"></div></div><div class="grid-overlay"></div><div class="center-overlay"></div><div class="edge-overlay"></div></div></div></div>
+          <div class="preview output"><div class="preview-head"><span>Adjusted output preview</span><small>Local draft</small></div><div class="preview-canvas"><div class="image-mat"><div class="card"><div class="card-top"><span>★ GALACTIC CARD</span><span>01</span></div><div class="orb"></div><div class="sig">Alex Rowan</div><div class="card-footer"></div></div><div class="grid-overlay"></div><div class="center-overlay"></div><div class="edge-overlay"></div></div></div></div>
+        </div>
+        <div class="stage-foot">Preview artwork is a placeholder. Proportions, spacing, and panel behavior are the design being reviewed.</div>
+      </section>
+      <aside class="rail" aria-label="Image adjustment controls">
+        <section class="group"><div class="group-head"><h2>Comparison</h2><button class="help" type="button" aria-label="Comparison help" aria-controls="help-comparison" aria-expanded="false">?</button></div><p class="help-copy" id="help-comparison">Switch between the current draft, before and after, or split comparison. This sketch shows the layout only.</p><div class="segmented"><button type="button" class="active" aria-pressed="true">Latest</button><button type="button" aria-pressed="false">Before / After</button><button type="button" aria-pressed="false">Split</button></div></section>
+        <section class="group"><div class="group-head"><h2>Overlays</h2><button class="help" type="button" aria-label="Overlay help" aria-controls="help-overlays" aria-expanded="false">?</button></div><p class="help-copy" id="help-overlays">Grid and centerline help judge framing. Edges mark the current boundary.</p><div class="checks"><label><input type="checkbox" data-overlay="grid">Grid</label><label><input type="checkbox" data-overlay="center">Centerline</label><label><input type="checkbox" data-overlay="edges" checked>Edges</label></div><details><summary>Grid settings</summary><div class="sliders" style="margin-top:7px"><div><label class="slider-label" for="grid-size">Grid spacing <output id="grid-size-out">64px</output></label><input type="range" id="grid-size" min="24" max="160" value="64" data-unit="px" data-css="--grid-size"></div><div><label class="slider-label" for="grid-x">Grid X offset <output id="grid-x-out">0px</output></label><input type="range" id="grid-x" min="-80" max="80" value="0" data-unit="px" data-css="--grid-x"></div><div><label class="slider-label" for="grid-y">Grid Y offset <output id="grid-y-out">0px</output></label><input type="range" id="grid-y" min="-80" max="80" value="0" data-unit="px" data-css="--grid-y"></div></div></details></section>
+        <section class="group"><div class="group-head"><h2>Transform</h2><button class="help" type="button" aria-label="Transform help" aria-controls="help-transform" aria-expanded="false">?</button></div><p class="help-copy" id="help-transform">Rotate and scale the output, then pan it within its frame. Changes here are illustrative and are not saved.</p><div class="sliders"><div><label class="slider-label" for="rotation">Rotation <output id="rotation-out">0°</output></label><input type="range" id="rotation" min="-15" max="15" step="0.1" value="0" data-unit="°"></div><div><label class="slider-label" for="zoom">Zoom <output id="zoom-out">1.00×</output></label><input type="range" id="zoom" min="1" max="3" step="0.01" value="1" data-unit="×"></div><div><label class="slider-label" for="pan-x">Pan X <output id="pan-x-out">0.00</output></label><input type="range" id="pan-x" min="-1" max="1" step="0.01" value="0"></div><div><label class="slider-label" for="pan-y">Pan Y <output id="pan-y-out">0.00</output></label><input type="range" id="pan-y" min="-1" max="1" step="0.01" value="0"></div></div></section>
+        <section class="group"><div class="group-head"><h2>Source corners</h2><button class="help" type="button" aria-label="Source corner help" aria-controls="help-corners" aria-expanded="false">?</button></div><p class="help-copy" id="help-corners">Drag the source handles or enter normalized coordinates from 0 to 1. Edits stay in the draft until saved.</p><div class="coordinate-head"><span>Corner</span><span>X coordinate</span><span>Y coordinate</span></div><div class="coordinate-row"><span>Top left</span><input aria-label="Top left X coordinate" type="number" step="0.001" value="0.08"><input aria-label="Top left Y coordinate" type="number" step="0.001" value="0.06"></div><div class="coordinate-row"><span>Top right</span><input aria-label="Top right X coordinate" type="number" step="0.001" value="0.91"><input aria-label="Top right Y coordinate" type="number" step="0.001" value="0.06"></div><div class="coordinate-row"><span>Bottom right</span><input aria-label="Bottom right X coordinate" type="number" step="0.001" value="0.91"><input aria-label="Bottom right Y coordinate" type="number" step="0.001" value="0.94"></div><div class="coordinate-row"><span>Bottom left</span><input aria-label="Bottom left X coordinate" type="number" step="0.001" value="0.08"><input aria-label="Bottom left Y coordinate" type="number" step="0.001" value="0.94"></div></section>
+        <section class="group"><div class="group-head"><h2>Edge alignment</h2><button class="help" type="button" aria-label="Edge alignment help" aria-controls="help-edges" aria-expanded="false">?</button></div><p class="help-copy" id="help-edges">Analyze the photograph to find its edges, then review any suggested correction before applying it.</p><div class="buttons"><button type="button">Analyze edges</button><button type="button">Auto-align</button></div></section>
+        <section class="group"><div class="group-head"><h2>Background framing</h2><button class="help" type="button" aria-label="Background framing help" aria-controls="help-framing" aria-expanded="false">?</button></div><p class="help-copy" id="help-framing">Assess the real photographed background. Cropping cannot add missing background. Boundary handles can be moved with arrow keys; Shift makes larger steps.</p><label class="inline-field" for="background-target">Background target (% of short edge)<input id="background-target" type="number" value="4" min="1" max="12" step="0.5"></label><div class="buttons" style="margin-top:7px"><button type="button">Analyze framing</button></div></section>
+        <section class="group group--json"><details><summary>Adjustment JSON</summary><pre class="json-panel" aria-label="Example adjustment JSON">{
+  "rotationDegrees": 0,
+  "zoom": 1,
+  "panX": 0,
+  "panY": 0,
+  "crop": { "left": 0.08, "top": 0.06 }
+}</pre></details></section>
+      </aside>
+    </div>
+    <div class="footer"><button class="save" type="button" disabled>Save adjustments</button><button type="button">Back to item editor</button><button class="reset" type="button">Reset adjustments</button><span>Prototype controls are local and do not save data.</span></div>
+  </main>
+  <script>
+    document.querySelectorAll('.help').forEach(button => button.addEventListener('click', () => {
+      const content = document.getElementById(button.getAttribute('aria-controls'));
+      const open = content.classList.toggle('open');
+      button.setAttribute('aria-expanded', String(open));
+    }));
+    document.querySelectorAll('.segmented button').forEach(button => button.addEventListener('click', () => {
+      const group = button.parentElement;
+      group.querySelectorAll('button').forEach(item => { item.classList.remove('active'); item.setAttribute('aria-pressed', 'false'); });
+      button.classList.add('active'); button.setAttribute('aria-pressed', 'true');
+    }));
+    document.querySelectorAll('[data-overlay]').forEach(input => input.addEventListener('change', () => document.body.classList.toggle('show-' + input.dataset.overlay, input.checked)));
+    document.querySelectorAll('input[type=range]').forEach(input => input.addEventListener('input', () => {
+      const value = input.id === 'zoom' || input.id.startsWith('pan-') ? Number(input.value).toFixed(2) : input.value;
+      document.getElementById(input.id + '-out').textContent = value + (input.dataset.unit || '');
+      if (input.dataset.css) document.documentElement.style.setProperty(input.dataset.css, input.value + 'px');
+    }));
+  </script>
+</body>
+</html>
