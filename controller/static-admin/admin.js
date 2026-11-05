@@ -1627,27 +1627,46 @@ function toggleReviewHelpPopup(button) {
   reviewHelpActiveButton = button;
 }
 
-function appendReviewJsonLines(host, value, other, depth = 0, prefix = "", suffix = "") {
+function reviewJsonChangedPaths(left, right, path = [], changed = new Set()) {
+  if (JSON.stringify(left) === JSON.stringify(right)) {
+    return changed;
+  }
+  const leftIsObject = left !== null && typeof left === "object";
+  const rightIsObject = right !== null && typeof right === "object";
+  if (leftIsObject && rightIsObject && Array.isArray(left) === Array.isArray(right)) {
+    for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) {
+      const segment = Array.isArray(left) ? Number(key) : key;
+      reviewJsonChangedPaths(left[key], right[key], [...path, segment], changed);
+    }
+  } else {
+    changed.add(JSON.stringify(path));
+  }
+  return changed;
+}
+
+function reviewJsonPathIsChanged(changedPaths, path) {
+  return [...changedPaths].some((encodedPath) => {
+    const changedPath = JSON.parse(encodedPath);
+    return changedPath.length <= path.length && changedPath.every((segment, index) => segment === path[index]);
+  });
+}
+
+function appendReviewJsonLines(host, value, changedPaths, path = [], depth = 0, prefix = "", suffix = "") {
   const isArray = Array.isArray(value);
   const isObject = value !== null && typeof value === "object";
-  const otherIsObject = other !== null && typeof other === "object";
-  const typeChanged = isObject && (!otherIsObject || isArray !== Array.isArray(other));
   const line = document.createElement("span");
   line.className = "review-json-line";
   line.textContent = `${"  ".repeat(depth)}${prefix}${isObject ? (isArray ? "[" : "{") : JSON.stringify(value)}${isObject ? "" : suffix}`;
-  const changed = isObject ? typeChanged : JSON.stringify(value) !== JSON.stringify(other);
-  if (changed) {
+  if (reviewJsonPathIsChanged(changedPaths, path) || (path.length === 0 && value === null && changedPaths.size > 0)) {
     line.classList.add("changed");
   }
   host.append(line);
-  let changedCount = changed ? 1 : 0;
   if (isObject) {
     const entries = isArray ? value.map((item, index) => [index, item]) : Object.entries(value);
     entries.forEach(([key, item], index) => {
       const childPrefix = isArray ? "" : `${JSON.stringify(key)}: `;
-      const otherItem = otherIsObject ? other[key] : undefined;
-      changedCount += appendReviewJsonLines(
-        host, item, otherItem, depth + 1, childPrefix,
+      appendReviewJsonLines(
+        host, item, changedPaths, [...path, key], depth + 1, childPrefix,
         index < entries.length - 1 ? "," : ""
       );
     });
@@ -1656,18 +1675,19 @@ function appendReviewJsonLines(host, value, other, depth = 0, prefix = "", suffi
     closing.textContent = `${"  ".repeat(depth)}${isArray ? "]" : "}"}${suffix}`;
     host.append(closing);
   }
-  return changedCount;
 }
 
 function renderReviewJsonComparison() {
   const saved = JSON.parse($("#review-saved-adjustment-json").textContent);
   const draft = JSON.parse($("#review-draft-adjustment-json").textContent);
+  const changedPaths = reviewJsonChangedPaths(canonicalReviewAdjustment(saved), canonicalReviewAdjustment(draft));
   const savedHost = $("#review-saved-json-highlight");
   const draftHost = $("#review-draft-json-highlight");
   savedHost.replaceChildren();
   draftHost.replaceChildren();
-  appendReviewJsonLines(savedHost, saved, draft);
-  const changedCount = appendReviewJsonLines(draftHost, draft, saved);
+  appendReviewJsonLines(savedHost, saved, changedPaths);
+  appendReviewJsonLines(draftHost, draft, changedPaths);
+  const changedCount = changedPaths.size;
   $("#review-json-change-count").textContent = changedCount === 0
     ? "No changes between the saved adjustment and current draft."
     : `${changedCount} changed ${changedCount === 1 ? "value" : "values"} highlighted on both sides.`;
