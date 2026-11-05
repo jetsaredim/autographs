@@ -223,7 +223,9 @@ fn publish_freeze_renders_exact_routes_before_admin_proxy() {
             .unwrap()
             < frozen.find("handle /admin/api/* {").unwrap()
     );
-    assert!(!block.contains("/admin/api/publish/status"));
+    assert!(block.contains("handle /admin/api/publish/status {"));
+    assert!(block.contains("header X-Autographs-Publish-Frozen \"true\""));
+    assert!(block.contains("reverse_proxy autographs-controller:8080"));
     assert!(frozen.contains("handle /admin/api/* {\n\t\theader Cache-Control \"no-store\"\n\t\treverse_proxy autographs-controller:8080"));
     assert!(normal.contains("handle /admin/api/* {"));
 }

@@ -213,9 +213,11 @@ const deferred = () => {
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 };
-const response = ({ status = 200, json, text = "", blob = new Blob(["preview"]) } = {}) => ({
+const response = ({ status = 200, json, text = "", blob = new Blob(["preview"]), headers = {} } = {}) => ({
   status, ok: status >= 200 && status < 300, statusText: status >= 400 ? "Request failed" : "OK",
-  headers: { get: (name) => name.toLowerCase() === "content-type" && json !== undefined ? "application/json" : "image/webp" },
+  headers: { get: (name) => name.toLowerCase() === "content-type"
+    ? json !== undefined ? "application/json" : "image/webp"
+    : headers[name.toLowerCase()] ?? null },
   async json() { return json; }, async text() { return text; }, async blob() { return blob; },
 });
 const flushTimers = async () => {
@@ -1811,6 +1813,43 @@ await run(`
   assert.equal(state.reviewImage.adjustment, null);
   assert.equal(state.reviewSavedAdjustment.rotationDegrees, 0);
   assert.equal(document.querySelector("#review-saved-adjustment-json").textContent, "null");
+`);
+
+await run(`
+  state.dirty = false;
+  state.reviewDirty = false;
+  state.reviewMutationPending = null;
+  state.publishAvailability = "unknown";
+  syncPublishAvailability();
+  assert.equal(elements.publishFromEditor.disabled, true);
+  assert.equal(elements.publishIncremental.disabled, true);
+  assert.equal(elements.publishFull.disabled, true);
+`);
+enqueueFetch(response({ json: { state: "idle" }, headers: { "x-autographs-publish-frozen": "true" } }));
+await run(`
+  assert.equal(await refreshPublishAvailability(), false);
+  assert.equal(state.publishAvailability, "frozen");
+  assert.equal(elements.publishIncremental.disabled, true);
+  assert.match(document.querySelector("#publish-availability").textContent, /paused during deployment/);
+`);
+enqueueFetch(response({ json: { state: "idle" }, headers: { "x-autographs-publish-frozen": "true" } }));
+const callsBeforeFrozenPublish = fetchCalls.length;
+await run(`await publishChanges("incremental");`);
+assert.equal(fetchCalls.length, callsBeforeFrozenPublish + 1, "frozen publish rechecks status without POST");
+assert.equal(fetchCalls.at(-1).path, "/admin/api/publish/status");
+enqueueFetch(response({ json: { state: "idle" } }));
+await run(`
+  assert.equal(await refreshPublishAvailability(), true);
+  assert.equal(state.publishAvailability, "available");
+  assert.equal(elements.publishFromEditor.disabled, false);
+  assert.equal(elements.publishIncremental.disabled, false);
+  assert.equal(elements.publishFull.disabled, false);
+`);
+enqueueFetch(Promise.reject(new Error("controller unavailable")));
+await run(`
+  assert.equal(await refreshPublishAvailability(), false);
+  assert.equal(state.publishAvailability, "unknown");
+  assert.equal(elements.publishIncremental.disabled, true);
 `);
 
 console.log("static admin behavior tests passed");

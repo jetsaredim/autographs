@@ -611,6 +611,14 @@ retention contract and `docs/dns-runbook.md` for the Cloudflare checklist.
 
 ### Phase 8 publisher and Caddy rollout freeze
 
+The frozen Caddy route keeps `/admin/api/publish/status` proxied and adds
+`X-Autographs-Publish-Frozen: true` with `Cache-Control: no-store`. The admin
+shell reads this signal, disables its three publish controls, and rechecks
+while open and immediately before a publish attempt. If the controller is
+temporarily unavailable during deployment, the controls remain disabled until
+status can be read again. The exact publish POST routes remain the server-side
+gate and return 503 throughout the freeze.
+
 Run `bash scripts/verify-caddy-media-origin.sh`, the publisher/Caddy contract
 tests, and the reviewed Ansible syntax/lint checks before touching the VM.
 The production preflight backs up the installed host Caddyfile, installs the

@@ -34,6 +34,8 @@ fn static_admin_source_references_collection_workflow_contract() {
         "/admin/api/publish/incremental",
         "/admin/api/publish/full",
         "/admin/api/publish/status",
+        "X-Autographs-Publish-Frozen",
+        "Publishing is paused during deployment. Saved changes remain private.",
     ] {
         assert!(
             source.contains(endpoint),
@@ -823,7 +825,7 @@ fn static_admin_review_layout_has_a_narrow_viewport_override() {
 fn static_admin_bootstraps_existing_sessions_without_expired_copy() {
     let source = static_admin_source();
     for expected in [
-        "const { allowAnonymous = false, ...fetchOptions } = options;",
+        "const { allowAnonymous = false, onResponse, ...fetchOptions } = options;",
         "if (!allowAnonymous && !elements.workflowView.hidden)",
         "const adminLoginPath = \"/admin/login\";",
         "const adminRootPath = \"/admin/\";",

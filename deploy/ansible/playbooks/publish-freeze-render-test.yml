@@ -50,7 +50,7 @@
         src: "{{ freeze_test_dir }}/Caddyfile"
       register: frozen_caddyfile
 
-    - name: Verify frozen routes and generic status proxy
+    - name: Verify frozen routes and marked status proxy
       ansible.builtin.assert:
         that:
           - "(frozen_caddyfile.content | b64decode).count('respond \"Publishing temporarily unavailable\" 503') == 2"
@@ -58,7 +58,8 @@
           - >-
             (frozen_caddyfile.content | b64decode).find('handle /admin/api/publish/full {')
             < (frozen_caddyfile.content | b64decode).find('handle /admin/api/* {')
-          - "'handle /admin/api/publish/status {' not in (frozen_caddyfile.content | b64decode)"
+          - "'handle /admin/api/publish/status {' in (frozen_caddyfile.content | b64decode)"
+          - "'header X-Autographs-Publish-Frozen \"true\"' in (frozen_caddyfile.content | b64decode)"
           - "'reverse_proxy autographs-controller:8080' in (frozen_caddyfile.content | b64decode)"
 
     - name: Save frozen configuration for Caddy HTTP probe
@@ -83,6 +84,7 @@
         that:
           - "'AUTOGRAPHS PUBLISH FREEZE' not in (unfrozen_caddyfile.content | b64decode)"
           - "'handle /admin/api/publish/full {' not in (unfrozen_caddyfile.content | b64decode)"
+          - "'handle /admin/api/publish/status {' not in (unfrozen_caddyfile.content | b64decode)"
           - "'handle /admin/api/* {' in (unfrozen_caddyfile.content | b64decode)"
   handlers:
     - name: Restart Caddy container
