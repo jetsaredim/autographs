@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.2](https://github.com/jetsaredim/autographs/compare/v0.8.1...v0.8.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **admin:** close publish freeze review gaps ([38e6368](https://github.com/jetsaredim/autographs/commit/38e6368115b08f0daac29dfa79bca92f2810bcf1))
+* **admin:** disable publishing during deployment freeze ([a6c5ed6](https://github.com/jetsaredim/autographs/commit/a6c5ed65823fc3c09c7967fba3ca3b55436dbed0))
+* **admin:** disable publishing during deployment freeze ([3c9aee6](https://github.com/jetsaredim/autographs/commit/3c9aee6f9b892c5bb0321ef2e859287f18805b1e))
+
 ## [0.8.1](https://github.com/jetsaredim/autographs/compare/v0.8.0...v0.8.1) (2026-11-05)
 
 
