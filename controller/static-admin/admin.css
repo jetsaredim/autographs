@@ -859,6 +859,18 @@ h4 {
   gap: 8px;
 }
 
+.review-legend-row::after {
+  content: "";
+  order: 1;
+  flex: 1;
+  border-top: 1px solid #d7ddd5;
+}
+
+.review-legend-row .review-help {
+  order: 2;
+  flex: none;
+}
+
 .review-controls .field {
   gap: 2px;
 }

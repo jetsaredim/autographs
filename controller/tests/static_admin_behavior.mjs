@@ -1444,6 +1444,27 @@ await run(`
   };
   updateFramingProposal();
   assert.equal(Boolean(state.reviewFramingProposal), true);
+  state.reviewAnalysis.framingSupport = {
+    itemShortEdgePixels: 200,
+    marginsPixels: { top: 10, right: 11.4, bottom: 10.8, left: 11.4 },
+    maxSymmetricMarginPixels: 10,
+    itemIntersectsInvalidPixels: false,
+    limitedByExistingCrop: false,
+  };
+  document.querySelector("#review-framing-target").value = "4";
+  assert.equal(currentFramingAssessment().status, "Adjustable");
+  updateFramingProposal();
+  assert.equal(state.reviewFramingProposal.band, 4);
+
+  state.reviewAnalysis.framingSupport.marginsPixels = { top: 8, right: 8, bottom: 8, left: 8 };
+  state.reviewAnalysis.framingSupport.maxSymmetricMarginPixels = 8;
+  assert.equal(currentFramingAssessment().status, "Balanced");
+  updateFramingProposal();
+  assert.equal(state.reviewFramingProposal, null);
+
+  state.reviewAnalysis.framingSupport.marginsPixels = { top: 10, right: 11.4, bottom: 10.8, left: 11.4 };
+  state.reviewAnalysis.framingSupport.maxSymmetricMarginPixels = 10;
+  updateFramingProposal();
   const previousDraft = JSON.stringify(state.reviewDraftAdjustment);
   state.reviewFramingPreview = true;
   renderFramingPreviewOverlay();
