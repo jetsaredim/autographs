@@ -51,7 +51,7 @@
     h2 { font-size: .85rem; line-height: 1.2; margin: 0; }
     .help { width: 22px; height: 22px; padding: 0; flex: none; border: 1px solid #c8d4d0; border-radius: 50%; background: #f4f8f6; color: #326d75; font-size: .74rem; font-weight: 750; }
     .help:hover, .help:focus-visible { background: #d8eded; outline: 2px solid transparent; }
-    .help-copy { display: none; margin: 0 0 8px; padding: 7px 9px; border-left: 3px solid #3b8790; background: #eef6f4; color: #405759; font-size: .76rem; }
+    .help-copy { display: none; position: fixed; z-index: 20; width: min(260px, calc(100vw - 24px)); margin: 0; padding: 10px 12px; border: 1px solid #9dbfbd; border-radius: 7px; background: #f7fcfa; box-shadow: 0 8px 24px #102d3040; color: #314b4d; font-size: .78rem; line-height: 1.45; }
     .help-copy.open { display: block; }
     .segmented { display: flex; gap: 4px; }
     .segmented button { flex: 1; white-space: nowrap; border: 1px solid #cad6d2; border-radius: 5px; background: white; color: #285e67; padding: 6px 5px; font-size: .76rem; }
@@ -118,11 +118,48 @@
     <div class="footer"><button class="save" type="button" disabled>Save adjustments</button><button type="button">Back to item editor</button><button class="reset" type="button">Reset adjustments</button><span>Prototype controls are local and do not save data.</span></div>
   </main>
   <script>
-    document.querySelectorAll('.help').forEach(button => button.addEventListener('click', () => {
+    let openHelp = null;
+    const closeHelp = () => {
+      if (!openHelp) return;
+      openHelp.content.classList.remove('open');
+      openHelp.button.setAttribute('aria-expanded', 'false');
+      openHelp = null;
+    };
+    const showHelp = button => {
       const content = document.getElementById(button.getAttribute('aria-controls'));
-      const open = content.classList.toggle('open');
-      button.setAttribute('aria-expanded', String(open));
-    }));
+      if (openHelp?.button === button) { closeHelp(); return; }
+      closeHelp();
+      content.classList.add('open');
+      const anchor = button.getBoundingClientRect();
+      const width = content.getBoundingClientRect().width;
+      const height = content.getBoundingClientRect().height;
+      const left = Math.max(12, Math.min(anchor.right - width, window.innerWidth - width - 12));
+      const top = anchor.bottom + height + 8 <= window.innerHeight
+        ? anchor.bottom + 6
+        : Math.max(12, anchor.top - height - 6);
+      content.style.left = left + 'px';
+      content.style.top = top + 'px';
+      button.setAttribute('aria-expanded', 'true');
+      openHelp = { button, content };
+    };
+    document.querySelectorAll('.help').forEach(button => {
+      const content = document.getElementById(button.getAttribute('aria-controls'));
+      content.setAttribute('role', 'tooltip');
+      document.body.append(content);
+      button.addEventListener('click', () => showHelp(button));
+    });
+    document.addEventListener('click', event => {
+      if (openHelp && !openHelp.button.contains(event.target) && !openHelp.content.contains(event.target)) closeHelp();
+    });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') closeHelp(); });
+    document.querySelector('.rail').addEventListener('scroll', closeHelp);
+    window.addEventListener('scroll', closeHelp);
+    window.addEventListener('resize', closeHelp);
+    const previewHelp = new URLSearchParams(window.location.search).get('help');
+    if (previewHelp) {
+      const button = document.querySelector(`[aria-controls="help-${CSS.escape(previewHelp)}"]`);
+      if (button) showHelp(button);
+    }
     document.querySelectorAll('.segmented button').forEach(button => button.addEventListener('click', () => {
       const group = button.parentElement;
       group.querySelectorAll('button').forEach(item => { item.classList.remove('active'); item.setAttribute('aria-pressed', 'false'); });
