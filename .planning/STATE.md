@@ -5,10 +5,10 @@ current_phase: 08
 current_phase_name: Admin Media Review and Operational Posture
 status: executing
 stopped_at: Completed 08-07-PLAN.md
-last_updated: "2026-11-05T00:00:40.812Z"
+last_updated: "2026-11-05T00:13:37.486Z"
 last_activity: 2026-11-04
-last_activity_desc: "Completed quick task 261104-qck: Show image workbench help in floating popups"
-state_head: d10786b9f383eb053dfd82c508433302d3c780f4
+last_activity_desc: "Completed quick task 261104-qmx: Compare saved and draft JSON in the local workbench"
+state_head: 279234d9cc2270fd736e8e26d99456b6c48a89b6
 progress:
   total_phases: 10
   completed_phases: 7
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (Admin Media Review and Operational Posture) — EXECUTING
 Plan: 8 of 9
 Status: Ready to execute
-Last activity: 2026-11-04 - Completed quick task 261104-qck: Show image workbench help in floating popups
+Last activity: 2026-11-04 - Completed quick task 261104-qmx: Compare saved and draft JSON in the local workbench
 
 Progress: [██████████] 96% of milestone plans complete; Phase 8 Plan 8 is next
 
@@ -273,3 +273,4 @@ Resume file: None
 | 261103-80l | Improve admin image review layout, restore output boundary handles and alignment cues, and show adjustment JSON | 2026-11-03 | 162618f | complete | [261103-80l-improve-admin-image-review-layout-restor](./quick/261103-80l-improve-admin-image-review-layout-restor/) |
 | 261104-ptm | Create standalone local image adjustment workbench mockup based on live screenshots with larger preview, compact controls, help popovers, and readable JSON | 2026-11-04 | a2a1701 | complete | [261104-ptm-create-standalone-local-image-adjustment](./quick/261104-ptm-create-standalone-local-image-adjustment/) |
 | 261104-qck | Change image review mockup help from expanding inline text to anchored popup tooltips | 2026-11-05 | d10786b | complete | [261104-qck-change-image-review-mockup-help-from-exp](./quick/261104-qck-change-image-review-mockup-help-from-exp/) |
+| 261104-qmx | Show saved and draft image adjustment JSON in centered comparison dialog with changed fields highlighted in local mockup | 2026-11-05 | 279234d | complete | [261104-qmx-show-saved-and-draft-image-adjustment-js](./quick/261104-qmx-show-saved-and-draft-image-adjustment-js/) |
