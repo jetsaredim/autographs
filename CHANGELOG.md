@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.1](https://github.com/jetsaredim/autographs/compare/v0.8.0...v0.8.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **admin:** honor framing target and restore group border ([d305b8f](https://github.com/jetsaredim/autographs/commit/d305b8f39a761f43ce7a1c78e2a69f8efcd43a22))
+* **admin:** honor framing target and restore group border ([13f5323](https://github.com/jetsaredim/autographs/commit/13f5323655b4e1ae43d21dd9a231101ba63613b8))
+
 ## [0.8.0](https://github.com/jetsaredim/autographs/compare/v0.7.0...v0.8.0) (2026-11-05)
 
 
