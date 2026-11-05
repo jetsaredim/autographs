@@ -357,8 +357,8 @@
           <div class="review-layout">
             <div id="image-review-stage" class="review-stage review-matte" aria-live="polite"></div>
             <div id="image-review-controls" class="review-controls">
-              <fieldset>
-                <legend>Comparison</legend>
+              <fieldset class="review-control-group">
+                <legend><span class="review-legend-row"><span>Comparison</span><button type="button" class="review-help" data-review-help="comparison" aria-label="Comparison help" aria-expanded="false">?</button></span></legend>
                 <div class="inline-actions">
                   <button type="button" class="secondary-action" data-review-mode="latest" aria-pressed="true">Latest</button>
                   <button type="button" class="secondary-action" data-review-mode="before-after" aria-pressed="false">Before / After</button>
@@ -366,8 +366,8 @@
                 </div>
               </fieldset>
 
-              <fieldset>
-                <legend>Overlays</legend>
+              <fieldset class="review-control-group">
+                <legend><span class="review-legend-row"><span>Overlays</span><button type="button" class="review-help" data-review-help="overlays" aria-label="Overlay help" aria-expanded="false">?</button></span></legend>
                 <div class="review-toggle-grid">
                   <div class="checkbox-field"><input id="review-overlay-grid" type="checkbox" data-review-overlay="grid"><label for="review-overlay-grid">Grid</label></div>
                   <div class="checkbox-field"><input id="review-overlay-centerline" type="checkbox" data-review-overlay="centerline"><label for="review-overlay-centerline">Centerline</label></div>
@@ -376,51 +376,47 @@
                 <details class="review-grid-settings">
                   <summary>Grid settings</summary>
                   <div class="review-control-grid review-grid-controls">
-                    <div class="field"><label for="review-grid-spacing">Grid spacing</label><input id="review-grid-spacing" type="range" min="24" max="160" value="64"><output id="review-grid-spacing-value" for="review-grid-spacing">64 px</output></div>
-                    <div class="field"><label for="review-grid-x">Grid X offset</label><input id="review-grid-x" type="range" min="-80" max="80" value="0"><output id="review-grid-x-value" for="review-grid-x">0 px</output></div>
-                    <div class="field"><label for="review-grid-y">Grid Y offset</label><input id="review-grid-y" type="range" min="-80" max="80" value="0"><output id="review-grid-y-value" for="review-grid-y">0 px</output></div>
+                    <div class="field"><div class="review-slider-heading"><label for="review-grid-spacing">Grid spacing</label><output id="review-grid-spacing-value" for="review-grid-spacing">64 px</output></div><input id="review-grid-spacing" type="range" min="24" max="160" value="64"></div>
+                    <div class="field"><div class="review-slider-heading"><label for="review-grid-x">Grid X offset</label><output id="review-grid-x-value" for="review-grid-x">0 px</output></div><input id="review-grid-x" type="range" min="-80" max="80" value="0"></div>
+                    <div class="field"><div class="review-slider-heading"><label for="review-grid-y">Grid Y offset</label><output id="review-grid-y-value" for="review-grid-y">0 px</output></div><input id="review-grid-y" type="range" min="-80" max="80" value="0"></div>
                   </div>
                 </details>
               </fieldset>
 
-              <div class="review-control-grid">
+              <fieldset class="review-control-group">
+                <legend><span class="review-legend-row"><span>Transform</span><button type="button" class="review-help" data-review-help="transform" aria-label="Transform help" aria-expanded="false">?</button></span></legend>
+                <div class="review-control-grid">
                 <div class="field">
-                  <label for="review-rotation">Rotation</label>
+                  <div class="review-slider-heading"><label for="review-rotation">Rotation</label><span class="review-number-inline"><label for="review-rotation-number">Degrees</label><input id="review-rotation-number" type="number" min="-15" max="15" step="0.1" value="0" data-adjustment-field="rotationDegrees"></span></div>
                   <input id="review-rotation" type="range" min="-15" max="15" step="0.1" value="0" data-adjustment-field="rotationDegrees">
                 </div>
                 <div class="field">
-                  <label for="review-rotation-number">Rotation degrees</label>
-                  <input id="review-rotation-number" type="number" min="-15" max="15" step="0.1" value="0" data-adjustment-field="rotationDegrees">
-                </div>
-                <div class="field">
-                  <label for="review-zoom">Zoom</label>
+                  <div class="review-slider-heading"><label for="review-zoom">Zoom</label><output id="review-zoom-value" for="review-zoom">1.00×</output></div>
                   <input id="review-zoom" type="range" min="1" max="3" step="0.01" value="1" data-adjustment-field="zoom">
                 </div>
                 <div class="field">
-                  <label for="review-pan-x">Pan horizontally</label>
+                  <div class="review-slider-heading"><label for="review-pan-x">Pan horizontally</label><output id="review-pan-x-value" for="review-pan-x">0.00</output></div>
                   <input id="review-pan-x" type="range" min="-1" max="1" step="0.01" value="0" data-adjustment-field="panX">
                 </div>
                 <div class="field">
-                  <label for="review-pan-y">Pan vertically</label>
+                  <div class="review-slider-heading"><label for="review-pan-y">Pan vertically</label><output id="review-pan-y-value" for="review-pan-y">0.00</output></div>
                   <input id="review-pan-y" type="range" min="-1" max="1" step="0.01" value="0" data-adjustment-field="panY">
                 </div>
-              </div>
-              <fieldset>
-                <legend>Source corners</legend>
-                <p class="helper-text">Drag the handles or enter normalized coordinates. Corner edits remain in this draft until saved.</p>
+                </div>
+              </fieldset>
+              <fieldset class="review-control-group">
+                <legend><span class="review-legend-row"><span>Source corners</span><button type="button" class="review-help" data-review-help="corners" aria-label="Source corner help" aria-expanded="false">?</button></span></legend>
                 <div id="review-corner-inputs" class="review-corner-inputs"></div>
               </fieldset>
-              <fieldset>
-                <legend>Edge alignment</legend>
+              <fieldset class="review-control-group">
+                <legend><span class="review-legend-row"><span>Edge alignment</span><button type="button" class="review-help" data-review-help="alignment" aria-label="Edge alignment help" aria-expanded="false">?</button></span></legend>
                 <button id="image-review-detect" type="button" class="secondary-action">Analyze edges</button>
                 <div id="review-alignment-diagnostics" class="review-diagnostics" aria-live="polite"></div>
                 <div id="review-alignment-suggestion" class="review-suggestion" aria-live="polite"></div>
                 <button id="review-auto-align" type="button" class="secondary-action" disabled>Auto-align to tolerance</button>
               </fieldset>
-              <fieldset>
-                <legend>Background framing</legend>
-                <p class="helper-text">Assess the item against real photographed background. Cropping cannot add missing background.</p>
-                <p class="helper-text">When editing the output boundary, drag its preview handles or use arrow keys. Hold Shift for larger steps.</p>
+              <fieldset class="review-control-group">
+                <legend><span class="review-legend-row"><span>Background framing</span><button type="button" class="review-help" data-review-help="framing" aria-label="Background framing help" aria-expanded="false">?</button></span></legend>
                 <div class="field"><label for="review-framing-target">Background target (% of item short edge)</label><input id="review-framing-target" type="number" min="1" max="12" step="0.5" value="4"></div>
                 <div id="review-framing-diagnostics" class="review-diagnostics" aria-live="polite"></div>
                 <div id="review-manual-boundary-inputs" class="review-corner-inputs" hidden></div>
@@ -433,16 +429,21 @@
                   <button id="review-undo-framing" type="button" class="secondary-action" hidden>Undo framing</button>
                 </div>
               </fieldset>
-              <details class="review-adjustment-data">
-                <summary>Adjustment JSON</summary>
-                <p class="helper-text">Read-only values for this image. Draft values update as you adjust the controls.</p>
-                <h3>Saved adjustment</h3>
-                <pre id="review-saved-adjustment-json">null</pre>
-                <h3>Current draft</h3>
-                <pre id="review-draft-adjustment-json">null</pre>
-              </details>
+              <button id="review-open-json" type="button" class="review-json-open" aria-haspopup="dialog" aria-controls="review-json-dialog">View adjustment JSON and changes</button>
             </div>
           </div>
+
+          <div id="review-help-popup" class="review-help-popup" role="tooltip" hidden></div>
+          <dialog id="review-json-dialog" class="review-json-dialog" aria-labelledby="review-json-title">
+            <div class="review-json-header"><div><h3 id="review-json-title">Adjustment JSON</h3><p>Compare the saved adjustment with the current draft.</p></div><button id="review-close-json" type="button" class="secondary-action">Close</button></div>
+            <p id="review-json-change-count" class="review-json-change-count"></p>
+            <div class="review-json-columns">
+              <section aria-labelledby="review-saved-json-title"><h4 id="review-saved-json-title">Saved adjustment</h4><div id="review-saved-json-highlight" class="review-json-code"></div></section>
+              <section aria-labelledby="review-draft-json-title"><h4 id="review-draft-json-title">Current draft</h4><div id="review-draft-json-highlight" class="review-json-code"></div></section>
+            </div>
+          </dialog>
+          <pre id="review-saved-adjustment-json" hidden>null</pre>
+          <pre id="review-draft-adjustment-json" hidden>null</pre>
 
           <p id="image-review-message" class="status-message" role="status" tabindex="-1"></p>
           <div id="image-review-dirty-band" class="dirty-adjustment-band" hidden>

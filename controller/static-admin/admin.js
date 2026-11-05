@@ -447,6 +447,10 @@ function showWorkflow() {
 function showLogin(message = "") {
   finishPerspectiveDrag({ settle: false, reason: "login-hidden" });
   state.reviewStageRenderDeferred = false;
+  closeReviewHelpPopup();
+  if ($("#review-json-dialog").open) {
+    $("#review-json-dialog").close();
+  }
   elements.workflowView.hidden = true;
   elements.loginView.hidden = false;
   document.querySelector(".admin-shell").classList.remove("image-review-active");
@@ -464,6 +468,12 @@ function setView(viewId, { preserveConflictRecovery = false } = {}) {
   if (!preserveConflictRecovery && viewId !== state.currentView) {
     invalidateEditorAuthority();
     state.navigationRevision += 1;
+  }
+  if (viewId !== "image-review-view") {
+    closeReviewHelpPopup();
+    if ($("#review-json-dialog").open) {
+      $("#review-json-dialog").close();
+    }
   }
   state.currentView = viewId;
   document.querySelector(".admin-shell").classList.toggle("image-review-active", viewId === "image-review-view");
@@ -1532,6 +1542,9 @@ function syncReviewDirtyState() {
     null,
     2
   );
+  if ($("#review-json-dialog").open) {
+    renderReviewJsonComparison();
+  }
   state.reviewDirty = Boolean(
     state.reviewDraftAdjustment &&
       !reviewAdjustmentsEqual(state.reviewDraftAdjustment, state.reviewSavedAdjustment)
@@ -1572,6 +1585,92 @@ function syncReviewDirtyState() {
   }
   syncReviewComparisonButtons();
   syncPublishAvailability();
+}
+
+const reviewHelpText = {
+  comparison: "Switch between the latest draft, before and after, or a split comparison.",
+  overlays: "Grid and centerline help judge framing. Edges show the current projected boundary.",
+  transform: "Rotate and scale the output, then pan it within its frame. Changes stay in this draft until saved.",
+  corners: "Drag the source handles or enter normalized coordinates from 0 to 1. Corner edits stay in this draft until saved.",
+  alignment: "Analyze the photographed edges, then review any suggested correction before applying it.",
+  framing: "Assess the real photographed background. Cropping cannot add missing background. Move output boundary handles with arrow keys; hold Shift for larger steps.",
+};
+
+let reviewHelpActiveButton = null;
+
+function closeReviewHelpPopup() {
+  $("#review-help-popup").hidden = true;
+  if (reviewHelpActiveButton) {
+    reviewHelpActiveButton.setAttribute("aria-expanded", "false");
+    reviewHelpActiveButton.removeAttribute("aria-describedby");
+    reviewHelpActiveButton = null;
+  }
+}
+
+function toggleReviewHelpPopup(button) {
+  if (reviewHelpActiveButton === button) {
+    closeReviewHelpPopup();
+    return;
+  }
+  closeReviewHelpPopup();
+  const popup = $("#review-help-popup");
+  popup.textContent = reviewHelpText[button.dataset.reviewHelp] || "";
+  popup.hidden = false;
+  const anchor = button.getBoundingClientRect();
+  const bounds = popup.getBoundingClientRect();
+  popup.style.left = `${Math.max(12, Math.min(anchor.right - bounds.width, window.innerWidth - bounds.width - 12))}px`;
+  popup.style.top = `${anchor.bottom + bounds.height + 8 <= window.innerHeight
+    ? anchor.bottom + 6
+    : Math.max(12, anchor.top - bounds.height - 6)}px`;
+  button.setAttribute("aria-expanded", "true");
+  button.setAttribute("aria-describedby", "review-help-popup");
+  reviewHelpActiveButton = button;
+}
+
+function appendReviewJsonLines(host, value, other, depth = 0, prefix = "", suffix = "") {
+  const isArray = Array.isArray(value);
+  const isObject = value !== null && typeof value === "object";
+  const otherIsObject = other !== null && typeof other === "object";
+  const typeChanged = isObject && (!otherIsObject || isArray !== Array.isArray(other));
+  const line = document.createElement("span");
+  line.className = "review-json-line";
+  line.textContent = `${"  ".repeat(depth)}${prefix}${isObject ? (isArray ? "[" : "{") : JSON.stringify(value)}${isObject ? "" : suffix}`;
+  const changed = isObject ? typeChanged : JSON.stringify(value) !== JSON.stringify(other);
+  if (changed) {
+    line.classList.add("changed");
+  }
+  host.append(line);
+  let changedCount = changed ? 1 : 0;
+  if (isObject) {
+    const entries = isArray ? value.map((item, index) => [index, item]) : Object.entries(value);
+    entries.forEach(([key, item], index) => {
+      const childPrefix = isArray ? "" : `${JSON.stringify(key)}: `;
+      const otherItem = otherIsObject ? other[key] : undefined;
+      changedCount += appendReviewJsonLines(
+        host, item, otherItem, depth + 1, childPrefix,
+        index < entries.length - 1 ? "," : ""
+      );
+    });
+    const closing = document.createElement("span");
+    closing.className = "review-json-line";
+    closing.textContent = `${"  ".repeat(depth)}${isArray ? "]" : "}"}${suffix}`;
+    host.append(closing);
+  }
+  return changedCount;
+}
+
+function renderReviewJsonComparison() {
+  const saved = JSON.parse($("#review-saved-adjustment-json").textContent);
+  const draft = JSON.parse($("#review-draft-adjustment-json").textContent);
+  const savedHost = $("#review-saved-json-highlight");
+  const draftHost = $("#review-draft-json-highlight");
+  savedHost.replaceChildren();
+  draftHost.replaceChildren();
+  appendReviewJsonLines(savedHost, saved, draft);
+  const changedCount = appendReviewJsonLines(draftHost, draft, saved);
+  $("#review-json-change-count").textContent = changedCount === 0
+    ? "No changes between the saved adjustment and current draft."
+    : `${changedCount} changed ${changedCount === 1 ? "value" : "values"} highlighted on both sides.`;
 }
 
 function pendingMutationMessage() {
@@ -2927,6 +3026,9 @@ function syncReviewControls() {
   for (const toggle of document.querySelectorAll("[data-review-overlay]")) {
     toggle.checked = Boolean(state.reviewOverlays[toggle.dataset.reviewOverlay]);
   }
+  setText("#review-zoom-value", `${Number(draft.zoom).toFixed(2)}×`);
+  setText("#review-pan-x-value", Number(draft.panX).toFixed(2));
+  setText("#review-pan-y-value", Number(draft.panY).toFixed(2));
   for (const [name, value] of Object.entries(state.reviewGrid)) {
     const input = $(`#review-grid-${name}`);
     const output = $(`#review-grid-${name}-value`);
@@ -2940,13 +3042,15 @@ function renderCoordinateInputs(host, corners, prefix, onChange) {
   const labels = ["Top left", "Top right", "Bottom right", "Bottom left"];
   if (host.querySelectorAll("input").length !== 8) {
     host.replaceChildren();
+    const heading = document.createElement("div");
+    heading.className = "review-corner-heading";
+    heading.append(textNode("span", "Corner"), textNode("span", "X coordinate"), textNode("span", "Y coordinate"));
+    host.append(heading);
     labels.forEach((label, index) => {
       const row = document.createElement("div");
       row.className = "review-corner-row";
       row.append(textNode("span", label));
       for (const axis of ["x", "y"]) {
-        const wrapper = document.createElement("label");
-        wrapper.textContent = `${axis.toUpperCase()} coordinate`;
         const input = document.createElement("input");
         input.type = "number";
         input.min = "0";
@@ -2956,8 +3060,7 @@ function renderCoordinateInputs(host, corners, prefix, onChange) {
         input.dataset.cornerAxis = axis;
         input.setAttribute("aria-label", `${prefix} ${label} ${axis.toUpperCase()} coordinate`);
         input.addEventListener("change", () => onChange(index, axis, Number(input.value)));
-        wrapper.append(input);
-        row.append(wrapper);
+        row.append(input);
       }
       host.append(row);
     });
@@ -4300,6 +4403,36 @@ $("#publish-full").addEventListener("click", () => publishChanges("full"));
 elements.imageReviewSave.addEventListener("click", saveImageAdjustments);
 elements.imageReviewDiscard.addEventListener("click", discardImageEdits);
 elements.imageReviewReset.addEventListener("click", resetImageAdjustments);
+for (const button of document.querySelectorAll(".review-help")) {
+  button.setAttribute("aria-controls", "review-help-popup");
+  button.addEventListener("click", () => toggleReviewHelpPopup(button));
+}
+elements.imageReviewControls.addEventListener("scroll", closeReviewHelpPopup);
+window.addEventListener("scroll", closeReviewHelpPopup);
+window.addEventListener("resize", closeReviewHelpPopup);
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeReviewHelpPopup();
+  }
+});
+window.addEventListener("click", (event) => {
+  if (reviewHelpActiveButton &&
+      !reviewHelpActiveButton.contains(event.target) &&
+      !$("#review-help-popup").contains(event.target)) {
+    closeReviewHelpPopup();
+  }
+});
+$("#review-open-json").addEventListener("click", () => {
+  closeReviewHelpPopup();
+  renderReviewJsonComparison();
+  $("#review-json-dialog").showModal();
+});
+$("#review-close-json").addEventListener("click", () => $("#review-json-dialog").close());
+$("#review-json-dialog").addEventListener("click", (event) => {
+  if (event.target === $("#review-json-dialog")) {
+    $("#review-json-dialog").close();
+  }
+});
 $("#image-review-detect").addEventListener("click", () => analyzeReviewDraft());
 $("#review-auto-align").addEventListener("click", autoAlignReviewDraft);
 for (const name of ["spacing", "x", "y"]) {
