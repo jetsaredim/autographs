@@ -5,10 +5,10 @@ current_phase: 08
 current_phase_name: Admin Media Review and Operational Posture
 status: executing
 stopped_at: Completed 08-07-PLAN.md
-last_updated: "2026-11-04T23:39:06.851Z"
+last_updated: "2026-11-05T00:00:40.812Z"
 last_activity: 2026-11-04
-last_activity_desc: "Completed quick task 261104-ptm: Create standalone local image adjustment workbench layout sketch"
-state_head: a2a1701248376ff050f0a69672fb45a56558a19d
+last_activity_desc: "Completed quick task 261104-qck: Show image workbench help in floating popups"
+state_head: d10786b9f383eb053dfd82c508433302d3c780f4
 progress:
   total_phases: 10
   completed_phases: 7
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (Admin Media Review and Operational Posture) — EXECUTING
 Plan: 8 of 9
 Status: Ready to execute
-Last activity: 2026-11-04 - Completed quick task 261104-ptm: Create standalone local image adjustment workbench layout sketch
+Last activity: 2026-11-04 - Completed quick task 261104-qck: Show image workbench help in floating popups
 
 Progress: [██████████] 96% of milestone plans complete; Phase 8 Plan 8 is next
 
@@ -272,3 +272,4 @@ Resume file: None
 | 261030-lyp | Restore Ansible CI to syntax and lint checks for issue 298 | 2026-10-31 | 20b77cc | complete | [261030-lyp-restore-ansible-ci-to-syntax-and-lint-ch](./quick/261030-lyp-restore-ansible-ci-to-syntax-and-lint-ch/) |
 | 261103-80l | Improve admin image review layout, restore output boundary handles and alignment cues, and show adjustment JSON | 2026-11-03 | 162618f | complete | [261103-80l-improve-admin-image-review-layout-restor](./quick/261103-80l-improve-admin-image-review-layout-restor/) |
 | 261104-ptm | Create standalone local image adjustment workbench mockup based on live screenshots with larger preview, compact controls, help popovers, and readable JSON | 2026-11-04 | a2a1701 | complete | [261104-ptm-create-standalone-local-image-adjustment](./quick/261104-ptm-create-standalone-local-image-adjustment/) |
+| 261104-qck | Change image review mockup help from expanding inline text to anchored popup tooltips | 2026-11-05 | d10786b | complete | [261104-qck-change-image-review-mockup-help-from-exp](./quick/261104-qck-change-image-review-mockup-help-from-exp/) |
