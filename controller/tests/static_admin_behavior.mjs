@@ -1696,14 +1696,79 @@ await run(`
 `);
 
 await run(`
+  const helpButton = document.querySelector("#review-help-test-button");
+  helpButton.dataset.reviewHelp = "corners";
+  helpButton.rect = { left: 900, right: 924, top: 120, bottom: 144, width: 24, height: 24 };
+  window.innerWidth = 1200;
+  window.innerHeight = 900;
+  toggleReviewHelpPopup(helpButton);
+  assert.equal(document.querySelector("#review-help-popup").hidden, false);
+  assert.match(document.querySelector("#review-help-popup").textContent, /normalized coordinates/);
+  assert.equal(helpButton.getAttribute("aria-expanded"), "true");
+  closeReviewHelpPopup();
+  assert.equal(document.querySelector("#review-help-popup").hidden, true);
+  assert.equal(helpButton.getAttribute("aria-expanded"), "false");
+`);
+
+await run(`
   state.reviewImage.adjustment = null;
+  state.reviewSavedAdjustment = canonicalReviewAdjustment(null);
+  state.reviewDraftAdjustment = identityReviewAdjustment();
+  syncReviewDirtyState();
+  renderReviewJsonComparison();
+  assert.equal(state.reviewDirty, false);
+  assert.equal(document.querySelector("#review-saved-adjustment-json").textContent, "null");
+  assert.equal(document.querySelector("#review-json-change-count").textContent,
+    "No changes between the saved adjustment and current draft.");
+  assert.ok(document.querySelector("#review-saved-json-highlight").children.every((line) =>
+    !line.className.includes("changed")));
+  assert.ok(document.querySelector("#review-draft-json-highlight").children.every((line) =>
+    !line.className.includes("changed")));
+
   state.reviewDraftAdjustment.rotationDegrees = 2.5;
   syncReviewDirtyState();
-  assert.equal(document.querySelector("#review-saved-adjustment-json").textContent, "null");
+  assert.equal(state.reviewDirty, true);
   assert.equal(JSON.parse(document.querySelector("#review-draft-adjustment-json").textContent).rotationDegrees, 2.5);
+  renderReviewJsonComparison();
+  assert.equal(document.querySelector("#review-json-change-count").textContent,
+    "1 changed value highlighted on both sides.");
+  assert.equal(document.querySelector("#review-saved-json-highlight").children[0].className, "review-json-line changed");
+  assert.ok(document.querySelector("#review-draft-json-highlight").children.some((line) =>
+    line.textContent.includes('"rotationDegrees": 2.5') && line.className.includes("changed")));
+
+  const fullFrameSaved = identityReviewAdjustment();
+  fullFrameSaved.perspective = { corners: fullFramePerspectiveCorners() };
+  state.reviewImage.adjustment = fullFrameSaved;
+  state.reviewSavedAdjustment = canonicalReviewAdjustment(fullFrameSaved);
+  state.reviewDraftAdjustment = identityReviewAdjustment();
+  syncReviewDirtyState();
+  renderReviewJsonComparison();
+  assert.equal(state.reviewDirty, false);
+  assert.equal(document.querySelector("#review-json-change-count").textContent,
+    "No changes between the saved adjustment and current draft.");
+  assert.ok(document.querySelector("#review-saved-json-highlight").children.every((line) =>
+    !line.className.includes("changed")));
+  state.reviewDraftAdjustment.rotationDegrees = 2.5;
+  syncReviewDirtyState();
+  renderReviewJsonComparison();
+  assert.equal(document.querySelector("#review-json-change-count").textContent,
+    "1 changed value highlighted on both sides.");
+  assert.ok(document.querySelector("#review-saved-json-highlight").children.some((line) =>
+    line.textContent.includes('"rotationDegrees": 0') && line.className.includes("changed")));
+  assert.ok(document.querySelector("#review-saved-json-highlight").children.filter((line) =>
+    line.textContent.includes('"perspective"') || line.textContent.includes('"corners"') ||
+    line.textContent.includes('"x"') || line.textContent.includes('"y"')).every((line) =>
+    !line.className.includes("changed")));
+
   state.reviewImage.adjustment = cloneAdjustment(state.reviewDraftAdjustment);
+  state.reviewSavedAdjustment = canonicalReviewAdjustment(state.reviewImage.adjustment);
   syncReviewDirtyState();
   assert.equal(JSON.parse(document.querySelector("#review-saved-adjustment-json").textContent).rotationDegrees, 2.5);
+  renderReviewJsonComparison();
+  assert.equal(document.querySelector("#review-json-change-count").textContent,
+    "No changes between the saved adjustment and current draft.");
+  assert.ok(document.querySelector("#review-draft-json-highlight").children.every((line) =>
+    !line.className.includes("changed")));
 `);
 
 const identitySave = await run(`
