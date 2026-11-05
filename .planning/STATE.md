@@ -5,10 +5,10 @@ current_phase: 08
 current_phase_name: Admin Media Review and Operational Posture
 status: executing
 stopped_at: Completed 08-07-PLAN.md
-last_updated: "2026-11-05T00:42:21.980Z"
-last_activity: 2026-11-04
-last_activity_desc: "Completed quick task 261104-qro: Integrate approved image review workbench into controller and PR #317"
-state_head: d6837e55a24503657ba8dd6731c9b9bb79712b16
+last_updated: "2026-11-05T13:25:56.933Z"
+last_activity: 2026-11-05
+last_activity_desc: "Completed quick task 261105-bnc: Fix admin media review panel borders and honor requested background framing target"
+state_head: 13f5323655b4e1ae43d21dd9a231101ba63613b8
 progress:
   total_phases: 10
   completed_phases: 7
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (Admin Media Review and Operational Posture) — EXECUTING
 Plan: 8 of 9
 Status: Ready to execute
-Last activity: 2026-11-04 - Completed quick task 261104-qro: Integrate approved image review workbench into controller and PR #317
+Last activity: 2026-11-05 - Completed quick task 261105-bnc: Fix admin media review panel borders and honor requested background framing target
 
 Progress: [██████████] 96% of milestone plans complete; Phase 8 Plan 8 is next
 
@@ -275,3 +275,4 @@ Resume file: None
 | 261104-qck | Change image review mockup help from expanding inline text to anchored popup tooltips | 2026-11-05 | d10786b | complete | [261104-qck-change-image-review-mockup-help-from-exp](./quick/261104-qck-change-image-review-mockup-help-from-exp/) |
 | 261104-qmx | Show saved and draft image adjustment JSON in centered comparison dialog with changed fields highlighted in local mockup | 2026-11-05 | 279234d | complete | [261104-qmx-show-saved-and-draft-image-adjustment-js](./quick/261104-qmx-show-saved-and-draft-image-adjustment-js/) |
 | 261104-qro | Integrate approved image review workbench into controller and open reviewed PR #317 | 2026-11-05 | d6837e5 | Needs Review | [261104-qro-integrate-approved-image-review-workbenc](./quick/261104-qro-integrate-approved-image-review-workbenc/) |
+| 261105-bnc | Fix admin media review panel borders and honor requested background framing target | 2026-11-05 | 13f5323 | Verified | [261105-bnc-fix-admin-media-review-panel-borders-and](./quick/261105-bnc-fix-admin-media-review-panel-borders-and/) |
