@@ -74,9 +74,24 @@
     .inline-field input { width: 62px; margin-left: auto; }
     .buttons { display: flex; flex-wrap: wrap; gap: 5px; }
     .buttons button, .footer button { border: 1px solid #cad6d2; border-radius: 5px; background: #fff; color: #245d66; padding: 6px 8px; font-size: .75rem; font-weight: 630; }
-    .group--json { background: #fafdfe; }
-    .group--json summary { margin: -2px 0 0; }
-    .json-panel { margin: 7px 0 0; padding: 10px; max-height: 176px; overflow: auto; border-radius: 5px; background: #17272c; color: #e7f1ed; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre; }
+    .json-open { width: 100%; border: 1px solid #bed4d2; border-radius: 6px; background: #eef7f5; color: #245e67; padding: 8px; font-size: .77rem; font-weight: 700; text-align: left; }
+    .json-open:hover, .json-open:focus-visible { background: #dbeeed; }
+    .json-dialog { width: min(940px, calc(100vw - 32px)); max-height: min(780px, calc(100vh - 32px)); margin: auto; padding: 0; overflow: auto; border: 1px solid #b8ccc9; border-radius: 11px; background: #f8fbfa; color: #193036; box-shadow: 0 24px 70px #07191670; }
+    .json-dialog::backdrop { background: #0b1d1fcc; }
+    .json-dialog-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 17px 20px 13px; border-bottom: 1px solid #d9e4e0; }
+    .json-dialog-head h2 { font-size: 1.08rem; }
+    .json-dialog-head p { margin: 4px 0 0; color: #5d7070; font-size: .78rem; }
+    .json-close { border: 1px solid #c9d7d3; border-radius: 5px; background: white; color: #285e67; padding: 5px 9px; font-size: .76rem; font-weight: 650; }
+    .json-key { display: flex; align-items: center; gap: 7px; padding: 9px 20px 0; color: #526864; font-size: .74rem; }
+    .json-swatch { width: 11px; height: 11px; border-radius: 2px; background: #fff0c1; border: 1px solid #d1ac4d; }
+    .json-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 12px 20px 20px; }
+    .json-side { min-width: 0; border: 1px solid #cadbd5; border-radius: 8px; overflow: hidden; background: #fff; }
+    .json-side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #d6e4df; }
+    .json-side-head h3 { margin: 0; font-size: .85rem; }
+    .json-side-head small { color: #657772; font-size: .72rem; }
+    .json-code { overflow: auto; padding: 9px 0; background: #17272c; color: #e7f1ed; font: 12px/1.62 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre; }
+    .json-line { display: block; min-width: max-content; padding: 0 12px; }
+    .json-line.changed { background: #554820; color: #fff0c1; box-shadow: inset 3px 0 #efc75e; }
     .footer { display: flex; align-items: center; gap: 7px; padding-top: 11px; }
     .footer .save { background: #276e76; color: white; border-color: #276e76; }
     .footer .reset { color: #9b3434; border-color: #c99191; }
@@ -84,6 +99,7 @@
     @media (max-width: 1000px) { .workbench { grid-template-columns: minmax(0, 1fr) 310px; } .image-mat { width: min(94%, 300px); } }
     @media (max-width: 740px) { .shell { padding: 12px; } .workbench { grid-template-columns: 1fr; } .stage { min-height: 560px; } .rail { max-height: none; overflow: visible; } .image-mat { width: min(90%, 300px); } .footer { flex-wrap: wrap; } .footer span { width: 100%; margin: 3px 0 0; } }
     @media (max-width: 480px) { .preview-pair { gap: 5px; } .preview { padding: 6px; } .preview-head { display: block; } .preview-head small { display: none; } .stage { min-height: 400px; padding: 8px; } .image-mat { border-width: 5px; } .card { border-width: 5px; } .source .image-mat::before, .source .image-mat::after { display: none; } .image-tag { display: none; } }
+    @media (max-width: 640px) { .json-compare { grid-template-columns: 1fr; } .json-dialog { width: calc(100vw - 20px); max-height: calc(100vh - 20px); } .json-dialog-head { padding: 13px 14px; } .json-key { padding-left: 14px; } .json-compare { padding: 10px 14px 14px; } }
   </style>
 </head>
 <body class="show-edges">
@@ -102,21 +118,20 @@
       <aside class="rail" aria-label="Image adjustment controls">
         <section class="group"><div class="group-head"><h2>Comparison</h2><button class="help" type="button" aria-label="Comparison help" aria-controls="help-comparison" aria-expanded="false">?</button></div><p class="help-copy" id="help-comparison">Switch between the current draft, before and after, or split comparison. This sketch shows the layout only.</p><div class="segmented"><button type="button" class="active" aria-pressed="true">Latest</button><button type="button" aria-pressed="false">Before / After</button><button type="button" aria-pressed="false">Split</button></div></section>
         <section class="group"><div class="group-head"><h2>Overlays</h2><button class="help" type="button" aria-label="Overlay help" aria-controls="help-overlays" aria-expanded="false">?</button></div><p class="help-copy" id="help-overlays">Grid and centerline help judge framing. Edges mark the current boundary.</p><div class="checks"><label><input type="checkbox" data-overlay="grid">Grid</label><label><input type="checkbox" data-overlay="center">Centerline</label><label><input type="checkbox" data-overlay="edges" checked>Edges</label></div><details><summary>Grid settings</summary><div class="sliders" style="margin-top:7px"><div><label class="slider-label" for="grid-size">Grid spacing <output id="grid-size-out">64px</output></label><input type="range" id="grid-size" min="24" max="160" value="64" data-unit="px" data-css="--grid-size"></div><div><label class="slider-label" for="grid-x">Grid X offset <output id="grid-x-out">0px</output></label><input type="range" id="grid-x" min="-80" max="80" value="0" data-unit="px" data-css="--grid-x"></div><div><label class="slider-label" for="grid-y">Grid Y offset <output id="grid-y-out">0px</output></label><input type="range" id="grid-y" min="-80" max="80" value="0" data-unit="px" data-css="--grid-y"></div></div></details></section>
-        <section class="group"><div class="group-head"><h2>Transform</h2><button class="help" type="button" aria-label="Transform help" aria-controls="help-transform" aria-expanded="false">?</button></div><p class="help-copy" id="help-transform">Rotate and scale the output, then pan it within its frame. Changes here are illustrative and are not saved.</p><div class="sliders"><div><label class="slider-label" for="rotation">Rotation <output id="rotation-out">0°</output></label><input type="range" id="rotation" min="-15" max="15" step="0.1" value="0" data-unit="°"></div><div><label class="slider-label" for="zoom">Zoom <output id="zoom-out">1.00×</output></label><input type="range" id="zoom" min="1" max="3" step="0.01" value="1" data-unit="×"></div><div><label class="slider-label" for="pan-x">Pan X <output id="pan-x-out">0.00</output></label><input type="range" id="pan-x" min="-1" max="1" step="0.01" value="0"></div><div><label class="slider-label" for="pan-y">Pan Y <output id="pan-y-out">0.00</output></label><input type="range" id="pan-y" min="-1" max="1" step="0.01" value="0"></div></div></section>
+        <section class="group"><div class="group-head"><h2>Transform</h2><button class="help" type="button" aria-label="Transform help" aria-controls="help-transform" aria-expanded="false">?</button></div><p class="help-copy" id="help-transform">Rotate and scale the output, then pan it within its frame. Changes here are illustrative and are not saved.</p><div class="sliders"><div><label class="slider-label" for="rotation">Rotation <output id="rotation-out">0.8°</output></label><input type="range" id="rotation" min="-15" max="15" step="0.1" value="0.8" data-unit="°"></div><div><label class="slider-label" for="zoom">Zoom <output id="zoom-out">1.12×</output></label><input type="range" id="zoom" min="1" max="3" step="0.01" value="1.12" data-unit="×"></div><div><label class="slider-label" for="pan-x">Pan X <output id="pan-x-out">0.00</output></label><input type="range" id="pan-x" min="-1" max="1" step="0.01" value="0"></div><div><label class="slider-label" for="pan-y">Pan Y <output id="pan-y-out">0.00</output></label><input type="range" id="pan-y" min="-1" max="1" step="0.01" value="0"></div></div></section>
         <section class="group"><div class="group-head"><h2>Source corners</h2><button class="help" type="button" aria-label="Source corner help" aria-controls="help-corners" aria-expanded="false">?</button></div><p class="help-copy" id="help-corners">Drag the source handles or enter normalized coordinates from 0 to 1. Edits stay in the draft until saved.</p><div class="coordinate-head"><span>Corner</span><span>X coordinate</span><span>Y coordinate</span></div><div class="coordinate-row"><span>Top left</span><input aria-label="Top left X coordinate" type="number" step="0.001" value="0.08"><input aria-label="Top left Y coordinate" type="number" step="0.001" value="0.06"></div><div class="coordinate-row"><span>Top right</span><input aria-label="Top right X coordinate" type="number" step="0.001" value="0.91"><input aria-label="Top right Y coordinate" type="number" step="0.001" value="0.06"></div><div class="coordinate-row"><span>Bottom right</span><input aria-label="Bottom right X coordinate" type="number" step="0.001" value="0.91"><input aria-label="Bottom right Y coordinate" type="number" step="0.001" value="0.94"></div><div class="coordinate-row"><span>Bottom left</span><input aria-label="Bottom left X coordinate" type="number" step="0.001" value="0.08"><input aria-label="Bottom left Y coordinate" type="number" step="0.001" value="0.94"></div></section>
         <section class="group"><div class="group-head"><h2>Edge alignment</h2><button class="help" type="button" aria-label="Edge alignment help" aria-controls="help-edges" aria-expanded="false">?</button></div><p class="help-copy" id="help-edges">Analyze the photograph to find its edges, then review any suggested correction before applying it.</p><div class="buttons"><button type="button">Analyze edges</button><button type="button">Auto-align</button></div></section>
         <section class="group"><div class="group-head"><h2>Background framing</h2><button class="help" type="button" aria-label="Background framing help" aria-controls="help-framing" aria-expanded="false">?</button></div><p class="help-copy" id="help-framing">Assess the real photographed background. Cropping cannot add missing background. Boundary handles can be moved with arrow keys; Shift makes larger steps.</p><label class="inline-field" for="background-target">Background target (% of short edge)<input id="background-target" type="number" value="4" min="1" max="12" step="0.5"></label><div class="buttons" style="margin-top:7px"><button type="button">Analyze framing</button></div></section>
-        <section class="group group--json"><details><summary>Adjustment JSON</summary><pre class="json-panel" aria-label="Example adjustment JSON">{
-  "rotationDegrees": 0,
-  "zoom": 1,
-  "panX": 0,
-  "panY": 0,
-  "crop": { "left": 0.08, "top": 0.06 }
-}</pre></details></section>
+        <button class="json-open" id="open-json" type="button" aria-haspopup="dialog" aria-controls="json-dialog">View adjustment JSON and changes ↗</button>
       </aside>
     </div>
     <div class="footer"><button class="save" type="button" disabled>Save adjustments</button><button type="button">Back to item editor</button><button class="reset" type="button">Reset adjustments</button><span>Prototype controls are local and do not save data.</span></div>
   </main>
+  <dialog class="json-dialog" id="json-dialog" aria-labelledby="json-dialog-title">
+    <div class="json-dialog-head"><div><h2 id="json-dialog-title">Adjustment JSON</h2><p>Compare the saved adjustment with the current local draft.</p></div><button class="json-close" id="close-json" type="button">Close</button></div>
+    <div class="json-key"><span class="json-swatch" aria-hidden="true"></span><span id="json-change-count">Changed fields are highlighted on both sides</span></div>
+    <div class="json-compare"><section class="json-side" aria-labelledby="saved-json-title"><div class="json-side-head"><h3 id="saved-json-title">Saved adjustment</h3><small>Last saved</small></div><div class="json-code" id="saved-json" aria-label="Saved adjustment JSON"></div></section><section class="json-side" aria-labelledby="draft-json-title"><div class="json-side-head"><h3 id="draft-json-title">Current draft</h3><small>Unsaved local values</small></div><div class="json-code" id="draft-json" aria-label="Current draft adjustment JSON"></div></section></div>
+  </dialog>
   <script>
     let openHelp = null;
     const closeHelp = () => {
@@ -171,6 +186,64 @@
       document.getElementById(input.id + '-out').textContent = value + (input.dataset.unit || '');
       if (input.dataset.css) document.documentElement.style.setProperty(input.dataset.css, input.value + 'px');
     }));
+    const savedAdjustment = {
+      rotationDegrees: 0, zoom: 1, panX: 0, panY: 0,
+      corners: { topLeft: [0.08, 0.06], topRight: [0.91, 0.06], bottomRight: [0.91, 0.94], bottomLeft: [0.08, 0.94] },
+      backgroundTarget: 4
+    };
+    const draftAdjustment = () => {
+      const cornerRows = [...document.querySelectorAll('.coordinate-row')];
+      const coordinates = row => [...row.querySelectorAll('input')].map(input => Number(input.value));
+      return {
+        rotationDegrees: Number(document.getElementById('rotation').value),
+        zoom: Number(document.getElementById('zoom').value),
+        panX: Number(document.getElementById('pan-x').value),
+        panY: Number(document.getElementById('pan-y').value),
+        corners: { topLeft: coordinates(cornerRows[0]), topRight: coordinates(cornerRows[1]), bottomRight: coordinates(cornerRows[2]), bottomLeft: coordinates(cornerRows[3]) },
+        backgroundTarget: Number(document.getElementById('background-target').value)
+      };
+    };
+    const jsonLines = adjustment => [
+      '{',
+      `  "rotationDegrees": ${JSON.stringify(adjustment.rotationDegrees)},`,
+      `  "zoom": ${JSON.stringify(adjustment.zoom)},`,
+      `  "panX": ${JSON.stringify(adjustment.panX)},`,
+      `  "panY": ${JSON.stringify(adjustment.panY)},`,
+      '  "corners": {',
+      `    "topLeft": ${JSON.stringify(adjustment.corners.topLeft)},`,
+      `    "topRight": ${JSON.stringify(adjustment.corners.topRight)},`,
+      `    "bottomRight": ${JSON.stringify(adjustment.corners.bottomRight)},`,
+      `    "bottomLeft": ${JSON.stringify(adjustment.corners.bottomLeft)}`,
+      '  },',
+      `  "backgroundTarget": ${JSON.stringify(adjustment.backgroundTarget)}`,
+      '}'
+    ];
+    const renderJsonComparison = () => {
+      const savedLines = jsonLines(savedAdjustment);
+      const draftLines = jsonLines(draftAdjustment());
+      let changed = 0;
+      for (const [containerId, lines] of [['saved-json', savedLines], ['draft-json', draftLines]]) {
+        const container = document.getElementById(containerId);
+        container.replaceChildren();
+        lines.forEach((line, index) => {
+          const row = document.createElement('span');
+          row.className = 'json-line';
+          if (line !== (containerId === 'saved-json' ? draftLines[index] : savedLines[index])) row.classList.add('changed');
+          row.textContent = line;
+          container.append(row);
+        });
+      }
+      changed = savedLines.filter((line, index) => line !== draftLines[index]).length;
+      document.getElementById('json-change-count').textContent = changed === 0
+        ? 'No differences between the saved adjustment and current draft'
+        : `${changed} changed ${changed === 1 ? 'field' : 'fields'} highlighted on both sides`;
+    };
+    const jsonDialog = document.getElementById('json-dialog');
+    const openJson = () => { closeHelp(); renderJsonComparison(); jsonDialog.showModal(); };
+    document.getElementById('open-json').addEventListener('click', openJson);
+    document.getElementById('close-json').addEventListener('click', () => jsonDialog.close());
+    jsonDialog.addEventListener('click', event => { if (event.target === jsonDialog) jsonDialog.close(); });
+    if (new URLSearchParams(window.location.search).has('json')) openJson();
   </script>
 </body>
 </html>
