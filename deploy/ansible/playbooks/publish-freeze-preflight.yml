@@ -161,7 +161,7 @@
           ansible.builtin.command:
             argv: [python3, "{{ gate_script_path }}", "{{ caddyfile_path }}"]
           register: freeze_gate_install
-          changed_when: freeze_gate_install.stdout | trim == 'installed'
+          changed_when: freeze_gate_install.stdout | trim in ['installed', 'upgraded']
 
         - name: Read frozen live Caddyfile
           ansible.builtin.slurp:

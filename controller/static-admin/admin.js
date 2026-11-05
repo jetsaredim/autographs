@@ -4296,6 +4296,9 @@ async function publishChanges(mode = "incremental") {
   if (!await refreshPublishAvailability()) {
     return;
   }
+  if (!ensureSavedBeforePublish()) {
+    return;
+  }
   if (mode === "full" && !window.confirm(copy.fullRebuild)) {
     return;
   }

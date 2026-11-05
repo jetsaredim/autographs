@@ -136,6 +136,46 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
             self.assertEqual(retry.stdout.strip(), "already_frozen")
             self.assertEqual(caddyfile.read_text(), frozen)
 
+            legacy_gate = '''# BEGIN AUTOGRAPHS PUBLISH FREEZE
+handle /admin/api/publish/full {
+  header Cache-Control "no-store"
+  respond "Publishing temporarily unavailable" 503
+}
+handle /admin/api/publish/incremental {
+  header Cache-Control "no-store"
+  respond "Publishing temporarily unavailable" 503
+}
+# END AUTOGRAPHS PUBLISH FREEZE
+
+'''
+            legacy = source.replace("\thandle /admin/api/* {", legacy_gate + "\thandle /admin/api/* {", 1)
+            caddyfile.write_text(legacy)
+            upgraded = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertEqual(upgraded.returncode, 0, upgraded.stderr)
+            self.assertEqual(upgraded.stdout.strip(), "upgraded")
+            self.assertEqual(caddyfile.stat().st_ino, inode)
+            upgraded_content = caddyfile.read_text()
+            self.assertEqual(upgraded_content.count('respond "Publishing temporarily unavailable" 503'), 2)
+            self.assertIn('header X-Autographs-Publish-Frozen "true"', upgraded_content)
+            self.assertLess(upgraded_content.index("handle /admin/api/publish/status {"),
+                            upgraded_content.index("handle /admin/api/* {"))
+            self.assertEqual(upgraded_content.replace(
+                '''handle /admin/api/publish/status {
+  header Cache-Control "no-store"
+  header X-Autographs-Publish-Frozen "true"
+  reverse_proxy autographs-controller:8080
+}
+''', "", 1), legacy)
+            retry_upgraded = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertEqual(retry_upgraded.stdout.strip(), "already_frozen")
+
+            caddyfile.write_text(legacy.replace(
+                'handle /admin/api/publish/full {\n  header Cache-Control "no-store"',
+                'handle /admin/api/publish/full {', 1))
+            invalid_legacy = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertNotEqual(invalid_legacy.returncode, 0)
+            self.assertIn("partial or ambiguous", invalid_legacy.stderr)
+
             caddyfile.write_text(source.replace("\thandle /admin/api/* {",
                                                 "\thandle /admin/api/publish/full {\n\t}\n\thandle /admin/api/* {", 1))
             partial = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)

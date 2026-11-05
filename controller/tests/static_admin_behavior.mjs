@@ -1851,5 +1851,22 @@ await run(`
   assert.equal(state.publishAvailability, "unknown");
   assert.equal(elements.publishIncremental.disabled, true);
 `);
+const pendingPublishStatus = deferred();
+enqueueFetch(pendingPublishStatus.promise);
+const callsBeforeEditDuringStatus = fetchCalls.length;
+const publishWhileEditing = run(`
+  state.dirty = false;
+  state.reviewDirty = false;
+  elements.itemForm.inert = false;
+  state.conflictRecovery = null;
+  await publishChanges("incremental");
+`);
+await Promise.resolve();
+await run(`markDirty({ target: { name: "title" } });`);
+pendingPublishStatus.resolve(response({ json: { state: "idle" } }));
+await publishWhileEditing;
+assert.equal(fetchCalls.length, callsBeforeEditDuringStatus + 1,
+  "edits made during the status request must prevent the publish POST");
+assert.equal(fetchCalls.at(-1).path, "/admin/api/publish/status");
 
 console.log("static admin behavior tests passed");
