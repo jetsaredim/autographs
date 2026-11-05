@@ -150,11 +150,18 @@
             group: "{{ autographs_publish_file_group }}"
             mode: "0700"
 
+        - name: Point fixture status proxy at its local controller
+          ansible.builtin.replace:
+            path: "{{ gate_script_path }}"
+            regexp: 'reverse_proxy autographs-controller:8080'
+            replace: "reverse_proxy 127.0.0.1:{{ autographs_publish_fixture_controller_port }}"
+          when: autographs_publish_freeze_fixture_mode | bool
+
         - name: Install or retain live publish gate without replacing Caddyfile inode
           ansible.builtin.command:
             argv: [python3, "{{ gate_script_path }}", "{{ caddyfile_path }}"]
           register: freeze_gate_install
-          changed_when: freeze_gate_install.stdout | trim == 'installed'
+          changed_when: freeze_gate_install.stdout | trim in ['installed', 'upgraded']
 
         - name: Read frozen live Caddyfile
           ansible.builtin.slurp:
@@ -166,6 +173,8 @@
             that:
               - "(freeze_old_caddyfile.content | b64decode).count('handle /admin/api/publish/full {') == 1"
               - "(freeze_old_caddyfile.content | b64decode).count('handle /admin/api/publish/incremental {') == 1"
+              - "(freeze_old_caddyfile.content | b64decode).count('handle /admin/api/publish/status {') == 1"
+              - "(freeze_old_caddyfile.content | b64decode).count('header X-Autographs-Publish-Frozen \"true\"') == 1"
               - "(freeze_old_caddyfile.content | b64decode).count('respond \"Publishing temporarily unavailable\" 503') == 2"
               - "(freeze_old_caddyfile.content | b64decode).count('header Cache-Control \"no-store\"') >= 2"
             fail_msg: Automatic live publish gate is missing or incomplete; keep the old controller running.

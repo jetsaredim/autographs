@@ -24,6 +24,11 @@
     insertbefore: '^\s*handle /admin/api/\* \{$'
     state: "{{ 'present' if autographs_deploy_publish_frozen | bool else 'absent' }}"
     block: |
+      handle /admin/api/publish/status {
+        header Cache-Control "no-store"
+        header X-Autographs-Publish-Frozen "true"
+        reverse_proxy autographs-controller:8080
+      }
       handle /admin/api/publish/full {
         header Cache-Control "no-store"
         respond "Publishing temporarily unavailable" 503

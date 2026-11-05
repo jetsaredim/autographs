@@ -68,6 +68,8 @@ const copy = {
     "Reset adjustments: Clear saved crop, rotation, pan, and perspective correction for this image? The original upload stays unchanged.",
   discardImageEdits: "Discard unsaved image edits and return to the item editor?",
   discardImageEditsForNavigation: "Discard unsaved image edits and continue?",
+  publishFrozen: "Publishing is paused during deployment. Saved changes remain private.",
+  publishUnavailable: "Publishing status is unavailable. Checking again shortly.",
 };
 
 const state = {
@@ -134,6 +136,8 @@ const state = {
   reviewStageRenderDeferred: false,
   reviewFocusedCornerIndex: null,
   reviewMessage: "",
+  publishAvailability: "unknown",
+  publishAvailabilityRevision: 0,
 };
 
 const uploadOnlyFieldNames = new Set(["images", "replacementImage", "altText"]);
@@ -397,11 +401,14 @@ const buildQuery = (form) => {
 };
 
 const request = async (path, options = {}) => {
-  const { allowAnonymous = false, ...fetchOptions } = options;
+  const { allowAnonymous = false, onResponse, ...fetchOptions } = options;
   const response = await fetch(path, {
     credentials: "same-origin",
     ...fetchOptions,
   });
+  if (onResponse) {
+    onResponse(response);
+  }
   if (response.status === 401) {
     if (!allowAnonymous && !elements.workflowView.hidden) {
       handleAuthFailure();
@@ -442,9 +449,13 @@ function showWorkflow() {
   elements.loginMessage.textContent = "";
   elements.sessionStatus.textContent = "Logged in. Private changes stay here until you publish.";
   loadTaxonomySuggestions();
+  void refreshPublishAvailability();
 }
 
 function showLogin(message = "") {
+  state.publishAvailabilityRevision += 1;
+  state.publishAvailability = "unknown";
+  syncPublishAvailability();
   finishPerspectiveDrag({ settle: false, reason: "login-hidden" });
   state.reviewStageRenderDeferred = false;
   closeReviewHelpPopup();
@@ -1522,6 +1533,7 @@ const currentPerspectiveCorners = () =>
 
 function syncPublishAvailability() {
   const disabled =
+    state.publishAvailability !== "available" ||
     state.dirty ||
     state.reviewDirty ||
     Boolean(state.reviewMutationPending) ||
@@ -1532,6 +1544,42 @@ function syncPublishAvailability() {
     }
     button.disabled = disabled;
     button.setAttribute("aria-disabled", disabled ? "true" : "false");
+    button.title = state.publishAvailability === "frozen"
+      ? copy.publishFrozen
+      : state.publishAvailability === "unknown" ? copy.publishUnavailable : "";
+  }
+  const message = state.publishAvailability === "frozen"
+    ? copy.publishFrozen
+    : state.publishAvailability === "unknown" ? copy.publishUnavailable : "";
+  setText("#publish-availability", message);
+  setText("#editor-publish-availability", message);
+  if (state.publishAvailability === "frozen") {
+    setText("#publish-next-action", message);
+  } else if ($("#publish-next-action")?.textContent === copy.publishFrozen) {
+    setText("#publish-next-action", "Publish changes when this batch is ready for the public site.");
+  }
+}
+
+async function refreshPublishAvailability() {
+  const revision = ++state.publishAvailabilityRevision;
+  let frozen = false;
+  try {
+    await request(endpoints.publishStatus, {
+      onResponse: (response) => {
+        frozen = response.headers.get("X-Autographs-Publish-Frozen") === "true";
+      },
+    });
+    if (revision === state.publishAvailabilityRevision) {
+      state.publishAvailability = frozen ? "frozen" : "available";
+      syncPublishAvailability();
+    }
+    return !frozen && revision === state.publishAvailabilityRevision;
+  } catch (error) {
+    if (revision === state.publishAvailabilityRevision) {
+      state.publishAvailability = "unknown";
+      syncPublishAvailability();
+    }
+    return false;
   }
 }
 
@@ -4245,6 +4293,12 @@ async function publishChanges(mode = "incremental") {
   if (!ensureSavedBeforePublish()) {
     return;
   }
+  if (!await refreshPublishAvailability()) {
+    return;
+  }
+  if (!ensureSavedBeforePublish()) {
+    return;
+  }
   if (mode === "full" && !window.confirm(copy.fullRebuild)) {
     return;
   }
@@ -4263,8 +4317,15 @@ async function publishChanges(mode = "incremental") {
     await renderHub();
   } catch (error) {
     if (error.status !== 401) {
+      if (error.status === 503) {
+        state.publishAvailability = error.message === "Publishing temporarily unavailable"
+          ? "frozen" : "unknown";
+        syncPublishAvailability();
+      }
       setText("#publish-state", "Failed");
-      setText("#publish-next-action", "Retry publish, inspect diagnostics, or run live smoke guidance.");
+      setText("#publish-next-action", state.publishAvailability === "frozen"
+        ? copy.publishFrozen
+        : "Retry publish, inspect diagnostics, or run live smoke guidance.");
       elements.publishStatus.textContent = `Publish failed: ${error.message}`;
     }
   }
@@ -4539,6 +4600,12 @@ elements.signerManagementForm.addEventListener("submit", (event) => {
   renderSignerManagement();
 });
 
+syncPublishAvailability();
 if (!window.__AUTOGRAPHS_STATIC_ADMIN_TEST__) {
   bootstrapSession();
+  window.setInterval(() => {
+    if (!elements.workflowView.hidden) {
+      void refreshPublishAvailability();
+    }
+  }, 15000);
 }

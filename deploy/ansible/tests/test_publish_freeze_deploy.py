@@ -129,10 +129,52 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
             self.assertEqual(caddyfile.stat().st_ino, inode)
             frozen = caddyfile.read_text()
             self.assertLess(frozen.index("handle /admin/api/publish/full {"), frozen.index("handle /admin/api/* {"))
+            self.assertLess(frozen.index("handle /admin/api/publish/status {"), frozen.index("handle /admin/api/* {"))
+            self.assertIn('header X-Autographs-Publish-Frozen "true"', frozen)
             retry = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
             self.assertEqual(retry.returncode, 0, retry.stderr)
             self.assertEqual(retry.stdout.strip(), "already_frozen")
             self.assertEqual(caddyfile.read_text(), frozen)
+
+            legacy_gate = '''# BEGIN AUTOGRAPHS PUBLISH FREEZE
+handle /admin/api/publish/full {
+  header Cache-Control "no-store"
+  respond "Publishing temporarily unavailable" 503
+}
+handle /admin/api/publish/incremental {
+  header Cache-Control "no-store"
+  respond "Publishing temporarily unavailable" 503
+}
+# END AUTOGRAPHS PUBLISH FREEZE
+
+'''
+            legacy = source.replace("\thandle /admin/api/* {", legacy_gate + "\thandle /admin/api/* {", 1)
+            caddyfile.write_text(legacy)
+            upgraded = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertEqual(upgraded.returncode, 0, upgraded.stderr)
+            self.assertEqual(upgraded.stdout.strip(), "upgraded")
+            self.assertEqual(caddyfile.stat().st_ino, inode)
+            upgraded_content = caddyfile.read_text()
+            self.assertEqual(upgraded_content.count('respond "Publishing temporarily unavailable" 503'), 2)
+            self.assertIn('header X-Autographs-Publish-Frozen "true"', upgraded_content)
+            self.assertLess(upgraded_content.index("handle /admin/api/publish/status {"),
+                            upgraded_content.index("handle /admin/api/* {"))
+            self.assertEqual(upgraded_content.replace(
+                '''handle /admin/api/publish/status {
+  header Cache-Control "no-store"
+  header X-Autographs-Publish-Frozen "true"
+  reverse_proxy autographs-controller:8080
+}
+''', "", 1), legacy)
+            retry_upgraded = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertEqual(retry_upgraded.stdout.strip(), "already_frozen")
+
+            caddyfile.write_text(legacy.replace(
+                'handle /admin/api/publish/full {\n  header Cache-Control "no-store"',
+                'handle /admin/api/publish/full {', 1))
+            invalid_legacy = subprocess.run([sys.executable, str(GATE), str(caddyfile)], capture_output=True, text=True)
+            self.assertNotEqual(invalid_legacy.returncode, 0)
+            self.assertIn("partial or ambiguous", invalid_legacy.stderr)
 
             caddyfile.write_text(source.replace("\thandle /admin/api/* {",
                                                 "\thandle /admin/api/publish/full {\n\t}\n\thandle /admin/api/* {", 1))
@@ -191,6 +233,11 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
             source = source.replace("\n{$AUTOGRAPHS_DOMAIN} {\n", "\n{$AUTOGRAPHS_DOMAIN} {\n\ttls internal\n", 1)
             source = source.replace("reverse_proxy autographs-controller:8080", f"reverse_proxy 127.0.0.1:{server.server_port}")
             gate = """# BEGIN AUTOGRAPHS PUBLISH FREEZE
+  handle /admin/api/publish/status {
+    header Cache-Control \"no-store\"
+    header X-Autographs-Publish-Frozen \"true\"
+    reverse_proxy autographs-controller:8080
+  }
   handle /admin/api/publish/full {
     header Cache-Control \"no-store\"
     respond \"Publishing temporarily unavailable\" 503
@@ -201,6 +248,8 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
   }
 # END AUTOGRAPHS PUBLISH FREEZE
 """
+            gate = gate.replace("reverse_proxy autographs-controller:8080",
+                                f"reverse_proxy 127.0.0.1:{server.server_port}")
             frozen_config = source.replace("\thandle /admin/api/* {", gate + "\thandle /admin/api/* {", 1)
             (caddy_dir / "Caddyfile").write_text(source)
             podman = root / "bin/podman"
@@ -300,6 +349,7 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                              "autographs_deploy_source_revision": "b" * 40, "autographs_deploy_domain": "media-probe.invalid",
                              "autographs_publish_unfreeze_fixture_mode": True,
                              "autographs_publish_freeze_fixture_mode": True,
+                             "autographs_publish_fixture_controller_port": server.server_port,
                              "autographs_publish_file_owner": str(os.getuid()),
                              "autographs_publish_file_group": str(os.getgid()), "ansible_become": False}
 
@@ -340,6 +390,7 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 self.assertIn("HTTP_STATUS=200", origin("/manifest.json"))
                 self.assertIn("HTTP_STATUS=404", origin("/" + relative))
                 self.assertIn("HTTP_STATUS=401", origin("/admin/api/publish/full", "POST"))
+                self.assertNotIn("x-autographs-publish-frozen", origin("/admin/api/publish/status").lower())
                 original_inode = (caddy_dir / "Caddyfile").stat().st_ino
 
                 preflight = invoke_preflight()
@@ -347,6 +398,9 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 self.assertIn("Require live freeze before touching Caddy service ordering", preflight.stdout)
                 self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
                 self.assertIn("cache-control: no-store", origin("/admin/api/publish/incremental", "POST").lower())
+                frozen_status = origin("/admin/api/publish/status").lower()
+                self.assertIn("http_status=401", frozen_status)
+                self.assertIn("x-autographs-publish-frozen: true", frozen_status)
                 self.assertEqual((caddy_dir / "Caddyfile").stat().st_ino, original_inode)
                 self.assertEqual((root / "private/pre-freeze-Caddyfile").read_text(), source)
                 self.assertIn("Require dual-origin active 200 and every exact marker 404", preflight.stdout)
@@ -370,6 +424,7 @@ class PublishFreezeDeploymentTests(unittest.TestCase):
                 self.assertIn("HTTP_STATUS=200", origin("/manifest.json"))
                 self.assertIn("HTTP_STATUS=404", origin("/" + relative))
                 self.assertIn("HTTP_STATUS=401", origin("/admin/api/publish/full", "POST"))
+                self.assertNotIn("x-autographs-publish-frozen", origin("/admin/api/publish/status").lower())
                 self.assertLess(unfreeze.stdout.index("Require selected dual-origin 200 and all exact marker 404 after restart"),
                                 unfreeze.stdout.index("Remove freeze record only after all postchecks"))
 
