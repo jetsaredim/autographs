@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/jetsaredim/autographs/compare/v0.7.0...v0.8.0) (2026-11-05)
+
+
+### Features
+
+* improve image review workbench layout ([296762d](https://github.com/jetsaredim/autographs/commit/296762d788537a4eb0dd33aebd2273694e7fb4e2))
+* integrate image review workbench layout ([bb4f846](https://github.com/jetsaredim/autographs/commit/bb4f846ba58abc8c646ae4f5a53fd6200c30a0f0))
+
+
+### Bug Fixes
+
+* **08:** WR-01 align JSON highlights with dirty state ([d6837e5](https://github.com/jetsaredim/autographs/commit/d6837e55a24503657ba8dd6731c9b9bb79712b16))
+
 ## [0.7.0](https://github.com/jetsaredim/autographs/compare/v0.6.0...v0.7.0) (2026-11-04)
 
 
