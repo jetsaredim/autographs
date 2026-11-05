@@ -3257,14 +3257,15 @@ function currentFramingAssessment() {
   const horizontal = framingSplit(margins.left, margins.right);
   const maximum = support.maxSymmetricMarginPixels * scale;
   const target = Math.max(1, Math.min(12, Number($("#review-framing-target").value) || 4));
+  const marginsMatchTarget = Object.values(margins).every((value) => Math.abs(value - target) <= 0.5);
   let status;
   let guidance;
   if (support.itemIntersectsInvalidPixels) {
     status = "Retake recommended";
     guidance = "The item intersects pixels outside the photographed source. Cropping cannot restore a real background band.";
-  } else if (Object.values(margins).every((value) => value >= 3 && value <= 6) && vertical.deviation <= 5 && horizontal.deviation <= 5) {
+  } else if (marginsMatchTarget && vertical.deviation <= 5 && horizontal.deviation <= 5) {
     status = "Balanced";
-    guidance = "The photographed margins are balanced; no crop is suggested.";
+    guidance = "The photographed margins match the selected target; no crop is suggested.";
   } else if (support.limitedByExistingCrop) {
     status = "Constrained";
     guidance = "Existing crop, zoom, or pan limits the real background. Reset those controls before deciding whether a retake is needed.";
