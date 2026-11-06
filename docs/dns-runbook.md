@@ -13,6 +13,8 @@ a saved Terraform plan and refuse Cloudflare or Porkbun DNS changes. A controlle
 operator apply uses the exact reviewed plan file; follow the
 [Wave 8 migration sequence](../.planning/phases/08-admin-media-review-and-operational-posture/08-08-CLOUDFLARE-MIGRATION.md)
 before any authoritative DNS change.
+The Cloudflare `autographs` A record uses the confirmed 600-second TTL while
+DNS-only and Cloudflare's automatic TTL when proxied.
 
 ## DNS Model
 

@@ -1,3 +1,7 @@
+locals {
+  cloudflare_autographs_proxied = coalesce(var.cloudflare_autographs_proxied, false)
+}
+
 resource "cloudflare_zone" "domain" {
   count = var.cloudflare_enabled ? 1 : 0
 
@@ -15,8 +19,8 @@ resource "cloudflare_dns_record" "autographs" {
   name    = "autographs.jetsaredim.net"
   type    = "A"
   content = module.compute.public_ip
-  ttl     = 600
-  proxied = coalesce(var.cloudflare_autographs_proxied, false)
+  ttl     = local.cloudflare_autographs_proxied ? 1 : 600
+  proxied = local.cloudflare_autographs_proxied
 }
 
 resource "cloudflare_dns_record" "mail" {
