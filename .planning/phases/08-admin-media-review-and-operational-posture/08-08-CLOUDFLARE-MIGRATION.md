@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 plan: "08"
-status: single_root_revision_record_details_pending
+status: single_root_revision_api_token_pending
 approach: terraform_managed_full_zone
 ---
 
@@ -17,10 +17,14 @@ This is a full-zone plan. Partial/CNAME setup would need a separate revised desi
 
 The adjusted-media before/after URL gate passed in `08-08-CHECKPOINT.md`. No Cloudflare zone, nameserver, or proxy change has been applied.
 
+## Confirmed inputs
+
+- The owner confirmed the complete Porkbun inventory: `autographs.jetsaredim.net A 129.213.166.159 TTL 600`; `jetsaredim.net MX 1 smtp.google.com TTL 600`; `jetsaredim.net TXT "v=spf1 include:_spf.google.com ~all" TTL 600`. Public DNS returned the same values on 2026-11-06. Keep a copy for rollback.
+- Cloudflare account ID: `162e3fcbeb9e3479a73529a6d51806bc` (provided by the owner and saved as repository GitHub Actions variable `CLOUDFLARE_ACCOUNT_ID`).
+
 ## Inputs still required
 
-- The owner reports that Porkbun has exactly three DNS records: an `autographs` A record, an apex MX record, and an apex TXT record. Public DNS on 2026-11-06 returned `autographs.jetsaredim.net A 129.213.166.159`, `jetsaredim.net MX 1 smtp.google.com.`, and `jetsaredim.net TXT "v=spf1 include:_spf.google.com ~all"`. Confirm the exact Porkbun dashboard values, including record TTLs, before treating this as the migration inventory. Keep a copy for rollback.
-- Cloudflare account ID: `162e3fcbeb9e3479a73529a6d51806bc` (provided by the owner). A scoped API token is still needed through the protected secret store; never commit the token or place it in Terraform variable values/state.
+- A scoped Cloudflare API token through the protected GitHub secret store; never commit the token or place it in Terraform variable values/state.
 - Cloudflare-assigned nameservers, a known-good rollback copy of the Porkbun zone, and the owner-selected cutover window.
 
 ## Staged implementation
