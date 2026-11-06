@@ -2,6 +2,21 @@
 
 This runbook describes the production OS security update scanner and one-click approval workflow.
 
+## Phase 8 production verification
+
+Record `security_scan_run_id` and `dry_run_apply_run_id` in the Phase 8
+closeout summary. Scanner run
+[`41503635270`](https://github.com/jetsaredim/autographs/actions/runs/41503635270)
+completed successfully on 2026-11-02, including its `Run security scan
+playbook` step. Apply run
+[`42042147529`](https://github.com/jetsaredim/autographs/actions/runs/42042147529)
+completed successfully on 2026-11-05, including `Run security update playbook`;
+it is live apply-path evidence, not a dry-run claim. If a safe dry run is not
+available, record `dry_run_apply_run_id: not performed` with that reason rather
+than triggering updates solely for closeout. Preserve the approver allowlist,
+exact issue metadata, drift refusal, and stale-label cleanup checks when
+reviewing any future apply run.
+
 ## Overview
 
 The automation is split into three GitHub Actions workflows:

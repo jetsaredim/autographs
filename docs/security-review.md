@@ -31,8 +31,9 @@ Current follow-up scope:
 
 - Phase 6 admin workflow security review is recorded below.
 - Phase 7 Metadata Taxonomy Security Review is recorded below.
-- Phase 8 must review production security patching repair, CDN/cache fronting
-  and rollback behavior, plus admin image preview/adjustment surfaces. Phase 9
+- Phase 8 security patching, CDN/cache origin posture, and admin image
+  preview/adjustment are reviewed below. Production CDN edge verification is
+  still an operator checkpoint. Phase 9
   must review taxonomy thumbnail/media processing dependencies, generated public
   derivatives, and copyright/publication risks. Phase 10 must review OCR/AI
   providers, prompts, privacy boundaries, and model configuration before
@@ -88,9 +89,36 @@ live PL/SQL.
 | SEC-07-08 | Generated artifact fail-closed behavior | Fixed | Static candidates must validate schema version 2 artifacts, required derivatives, manifest entries, and privacy deny-list terms before promotion; failed candidates leave the last valid `current` release in place. |
 | SEC-07-09 | Live static smoke taxonomy checks | Fixed | The ignored live smoke remains gated by `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE=true`; when enabled it publishes through the current session-cookie admin path and checks schema version 2 collection/facets, required taxonomy facets, absence of the category facet, generated derivatives, and stale artifact cleanup. |
 
-No unmitigated high-severity Phase 7 taxonomy finding remains. Phase 8 admin
-media/posture work, Phase 9 taxonomy media cues, and Phase 10 AI-assisted
-ingest are still future scope and are not implemented by this review.
+No unmitigated high-severity Phase 7 taxonomy finding remains. Phase 8 is
+reviewed in the next section; Phase 9 taxonomy media cues and Phase 10
+AI-assisted ingest remain later scope.
+
+## Phase 8 Admin Media Review and Operational Posture Security Review
+
+This ASVS L1 review covers the Phase 8 implementation and the remaining
+production edge checkpoint. Local source and test evidence establishes the
+controller and origin contracts; live CDN configuration must be verified
+separately before OPS-02 or the phase is marked complete.
+
+| ID | Area | Disposition | Evidence and remaining boundary |
+|---|---|---|---|
+| SEC-08-01 | Private preview authorization | Fixed | Preview and adjustment routes use the admin session and same-origin mutation checks; route tests cover unauthorized access. |
+| SEC-08-02 | Admin and API cache isolation | Operator verification required | Caddy returns `Cache-Control: no-store` for `/admin/` and an unauthenticated `/admin/api/status` response. Cloudflare bypass still requires repeated authenticated 200 API responses with `no-store`, no edge HIT, and a matching Rule Trace; a 401 alone is insufficient. |
+| SEC-08-03 | Adjustment input validation | Fixed | Shared adjustment types validate crop, rotation, pan, and perspective inputs before persistence and derivative processing; invalid input must fail without changing saved state. |
+| SEC-08-04 | Private original preservation | Fixed | Adjustments persist metadata and generate preview/public derivatives; the original Object Storage bytes are not edited. The credentialed live smoke remains an optional stronger production proof. |
+| SEC-08-05 | Public static privacy | Fixed | Publisher/static contract tests exclude private storage coordinates, image UUIDs, original filenames, adjustment metadata, and unpublished items from generated public artifacts. |
+| SEC-08-06 | Derivative cache integrity | Fixed | The cache binds source, transform version, canonical adjustment, variant, and payload digest. Public URL fingerprints derive from final WebP bytes; candidate validation checks the path against those bytes. |
+| SEC-08-07 | Security patch approval and drift | Fixed | The scan/apply path retains approver allowlisting, exact scanner metadata, drift refusal, and stale approval-label cleanup. Live scan and safe dry-run apply-path evidence remain operator verification. |
+| SEC-08-08 | CDN rollback and media retention | Operator verification required | Origin HTML/JSON freshness is 60 seconds and media uses fingerprinted URLs; Cloudflare rule order, edge cache participation, admin bypass, and rollback behavior require live account observations. |
+
+Owner UAT: the collection owner reports multiple production publishes and
+image adjustments. On 2026-11-06, the public detail JSON referenced the
+fingerprinted WebP URL for `5d6-ra-7-fivedesix`; the served bytes matched its
+16-hex fingerprint. This supports the published adjustment workflow but does
+not substitute for a recorded old/new URL pair or Cloudflare edge observations.
+No unmitigated high-severity finding is asserted by this review. The two operator
+verification dispositions remain open until the evidence fields in the
+Phase 8 production verification procedure are filled.
 
 ## Current Verification
 

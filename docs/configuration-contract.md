@@ -14,6 +14,7 @@ The project uses one explicit contract for local work, GitHub validation, and Gi
 
 Never put real private keys, API signing material, SSH private keys, or Terraform state in committed files.
 
+
 ## GitHub Secrets
 
 These are repo-level GitHub Secrets for the deployment baseline and data services.
@@ -30,6 +31,7 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Wallet download password required by the `oracledb` driver when `ORACLE_DB_WALLET_DIR` is set |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Optional compatibility token for non-management diagnostics; not a collection-management credential |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | Rust controller runtime | Argon2 hash for the single-admin browser login |
+| `CLOUDFLARE_API_TOKEN` | Terraform CI/deploy and controlled DNS apply | Scoped token for the Cloudflare zone, records, TLS setting, and cache rules; leave unset until migration setup |
 
 The current OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the controller image build, Terraform, or VM deployment steps.
 
@@ -54,6 +56,9 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_CREATE_MEDIA_BUCKET` | Optional toggle for creating the private media Object Storage bucket; defaults to `false` until the namespace is confirmed |
 | `OCI_MEDIA_BUCKET_NAME` | Private Object Storage bucket for autograph images; defaults to `autographs-media-prod` |
 | `OCI_MEDIA_NAMESPACE` | Object Storage namespace for the private media bucket; usually matches `OCI_OBJECT_STORAGE_NAMESPACE` |
+| `CLOUDFLARE_ACCOUNT_ID` | Non-secret account ID for the Terraform-managed `jetsaredim.net` zone |
+| `CLOUDFLARE_ENABLED` | Defaults to `false`; set `true` only for the reviewed Cloudflare migration plan |
+| `CLOUDFLARE_AUTOGRAPHS_PROXIED` | Required explicit `false` or `true` when Cloudflare is enabled; initially `false` and later changed only after edge TLS is active |
 | `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |
 | `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect alias or descriptor; use the wallet alias such as `autographsdb_medium` for mTLS |
 | `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the Rust controller container; defaults to `/opt/autographs/wallet` in deploy |

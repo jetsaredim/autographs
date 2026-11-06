@@ -38,16 +38,15 @@
   allowlist checks, refuse drifted package sets, remove stale approval labels on
   failure, and document the workflow in `docs/security-patching.md`.
 
-**Phase 8 operational posture must stay ahead of admin media work**
-- Issue: Repo/process hygiene, stale current-state maps, CDN/cache contracts,
-  and public-edge guidance can mislead media executors if they lag behind the
-  implemented Rust/static runtime.
-- Impact: Admin image preview or adjustment work could inherit stale
-  assumptions about retired runtime surfaces, Phase 9 taxonomy media cues, or
-  Phase 10 advisory AI-assisted ingest.
-- Mitigation: Keep the Phase 8 posture findings register current, land
-  pre-media cleanup separately, and use `scripts/validate_repo_hygiene.py` in
-  CI to fail stale map/current-state claims before media implementation begins.
+**Phase 8 CDN edge verification remains open**
+- Issue: The origin cache contract and adjusted-media fingerprints are in
+  place, but production Cloudflare proxying and cache rules have not been
+  verified.
+- Impact: An edge rule could cache admin/API responses or delay public rollback
+  despite correct Caddy headers.
+- Mitigation: Keep admin/API bypass and `no-store`, verify short-lived public
+  HTML/JSON and repeated fingerprinted media requests after proxying, and
+  record rollback or exact deferral evidence before Phase 8 completion.
 
 **Live OCI verification depends on real secrets and tenancy state**
 - Issue: Routine local tests avoid live OCI credentials.
@@ -64,10 +63,10 @@
   credentials, deploy SSH keys, and Terraform tfvars/state must stay out of git.
 - Production-sensitive GitHub Actions should use least privilege and reviewed
   immutable action references where practical.
-- Phase 6 and Phase 7 completed fresh security review for the new admin and
-  metadata surfaces they introduced. Phase 8 must add security review for
-  production security patching repair, operational posture, and admin image
-  preview/adjustment surfaces; Phase 9
+- Phase 6 and Phase 7 completed security reviews for their new surfaces.
+  Phase 8 records a fresh security review for patching, posture, private
+  previews, adjustment, and CDN origin behavior; live edge verification remains
+  open. Phase 9
   must cover taxonomy/media thumbnail processing, generated public derivatives,
   and copyright/publication risks; Phase 10 must cover advisory AI/OCR
   providers, prompts, privacy boundaries, and model configuration.
@@ -84,14 +83,14 @@
 
 ## Near-Term Recommendations
 
-1. Use the Phase 7 closeout artifacts and Phase 8 posture findings register as
-   the baseline for Phase 8 admin media and operational posture work.
+1. Complete Phase 8 live CDN checks against the deployed origin contract and
+   record the production evidence in the 08-08 summary.
 2. Keep README, public readiness, dependency update, security, and patching docs
    aligned with the Rust/static runtime.
 3. Preserve live smoke and cleanup checks as operator-run verification when
    changing controller persistence, media, or publishing behavior.
-4. Re-run codebase mapping after major Phase 8 implementation shifts.
+4. Re-run codebase mapping after major Phase 9 implementation shifts.
 
 ---
 
-*Concerns refreshed: 2026-08-17 during Phase 8 pre-media posture pass*
+*Concerns refreshed: 2026-11-06 during Phase 8 closeout*

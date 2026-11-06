@@ -11,6 +11,11 @@ terraform {
       source  = "cullenmcdermott/porkbun"
       version = "~> 0.3"
     }
+
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.28.0"
+    }
   }
 
   backend "oci" {}

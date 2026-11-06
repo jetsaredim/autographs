@@ -325,6 +325,13 @@ proxying until adjusted-media cache behavior is proven: an adjusted image must
 publish new derivative bytes and a new fingerprinted `/media/*` URL without a
 manual purge.
 
+For the Phase 8 production verification record, use the six fields defined in
+that contract: `security_scan_run_id`, `dry_run_apply_run_id`,
+`adjusted_media_publish_evidence`, `cdn_admin_bypass_evidence`,
+`cdn_media_cache_evidence`, and `rollback_evidence`. Owner production
+adjustment/publish UAT is valid workflow evidence; keep it distinct from the
+credential-gated automated smoke and post-proxy CDN evidence.
+
 Use the contract probes after deploy and again when production CDN proxying is
 enabled:
 
@@ -337,7 +344,9 @@ curl -I "https://${AUTOGRAPHS_DOMAIN}/media/...webp"
 ```
 
 Inspect `Cache-Control` on every response and `CF-Cache-Status` on the repeated
-media probes after Cloudflare is proxying the hostname.
+media probes after Cloudflare is proxying the hostname. The unauthenticated
+API 401 probe is only an origin check; follow the CDN contract's signed-in
+200-response and Rule Trace procedure for `cdn_admin_bypass_evidence`.
 
 ## Oracle Schema Updates
 
@@ -426,7 +435,7 @@ When deployment is required, the deploy workflow:
 2. enters the serialized `deploy-production` section and refuses superseded
    deploys before touching production,
 3. optionally taints and recreates the runtime VM when manually requested,
-4. runs `terraform apply`,
+4. saves a Terraform plan, rejects any Cloudflare or Porkbun DNS change during an ordinary deploy, then applies that exact plan,
 5. connects to the OCI VM over SSH through Ansible,
 6. installs/maintains Podman, firewalld, swap, and masked systemd services,
 7. copies wallet and OCI API key material to protected VM paths,

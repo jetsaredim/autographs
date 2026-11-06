@@ -1,0 +1,4 @@
+# False positive: an illustrative Cloudflare token placeholder in the example
+# contract, removed in the following commit. This fingerprint names only that
+# historical finding; all other Cloudflare token findings remain reportable.
+39411cbbc26e9cde7906db2afa042f585fa1c6b1:.github/.env.github.example:cloudflare-api-key:26
