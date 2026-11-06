@@ -11,6 +11,8 @@ approach: terraform_managed_full_zone
 
 Use a full-zone Cloudflare setup for `jetsaredim.net`. This plan does not implement partial/CNAME setup; choosing that paid-plan topology would require a separate revised design and review before execution. Porkbun remains the registrar. Cloudflare becomes authoritative DNS only after every existing Porkbun record has been inventoried and reproduced. Proxy only `autographs.jetsaredim.net`; unrelated hosts and mail records remain DNS-only. The adjusted-media before/after URL gate passed in `08-08-CHECKPOINT.md`.
 
+The owner confirms DNSSEC is disabled for this zone and does not want it enabled. Public `dig DS jetsaredim.net` returned no record on 2026-11-06. Keep DNSSEC disabled at Cloudflare and leave the registrar without a DS record throughout this migration.
+
 The current production runtime Terraform root (`infra/terraform`) manages `porkbun_dns_record.autographs` and is applied automatically by `.github/workflows/deploy.yml`. The new domain DNS root will own the Cloudflare zone, every inventoried record **except** the `autographs.jetsaredim.net` A record, zone settings, and cache rules. The runtime root alone will own that Cloudflare A record so its origin address can follow `module.compute.public_ip`. Other record types at the same hostname belong in the domain root if they exist. No record may appear in both states. Keep the Porkbun record and its import block during preparation. Never remove its resource block alone: Terraform would plan to destroy it. Retire it with a reviewed `removed` block and `destroy = false` only after the Cloudflare path has passed the production checkpoint.
 
 The runtime Cloudflare record's proxy setting is a required, persistent deployment input with no silent default. CI and production deploy must fail before Terraform apply if its zone ID, scoped token, or proxy setting is missing or malformed once Cloudflare ownership is enabled. The reviewed cutover changes the persisted setting from DNS-only to proxied; subsequent deploys must reuse that exact desired state. A regular deploy must never infer `false` from an absent variable and undo proxying.
@@ -19,7 +21,7 @@ The runtime Cloudflare record's proxy setting is a required, persistent deployme
 
 - Complete Porkbun DNS export or dashboard record inventory, including apex, mail, TXT verification, CAA, delegated subdomains, wildcards, and any service-specific records. Public `dig` and Cloudflare quick scan are incomplete inventories.
 - Cloudflare zone plan and account ID. Use a scoped API token through the secret store; never commit it or place it in Terraform state values.
-- Current registrar DNSSEC/DS setting, Cloudflare-assigned nameservers, and a known-good rollback copy of the Porkbun zone.
+- Cloudflare-assigned nameservers and a known-good rollback copy of the Porkbun zone.
 - Confirmation of the DNS cutover window and who will change Porkbun nameservers.
 
 ## Prepared implementation evidence
@@ -41,7 +43,7 @@ The record input intentionally has no default and requires a nonempty inventory 
 
 1. Compare the complete Porkbun inventory with Terraform's Cloudflare DNS plan and the resulting Cloudflare zone record list. Verify mail and unrelated hosts are DNS-only and identical in meaning, including MX priority and TXT content.
 2. Verify direct origin HTTPS using the current runtime IP and hostname, Caddy's valid certificate, admin/API no-store, public document 60-second freshness, and media one-day TTL.
-3. Check registrar DNSSEC and the parent-zone DS record. If enabled, disable the old Porkbun DNSSEC/DS record before the nameserver switch. After the new delegation is active and DNS resolves correctly, enable DNSSEC in Cloudflare, add Cloudflare's new DS record at Porkbun, and validate the parent-to-Cloudflare chain. Cloudflare's Universal SSL active check belongs after zone activation, not in this pre-delegation stage.
+3. Confirm the registrar still has no DS record and Cloudflare DNSSEC remains disabled. No DNSSEC setup or re-enablement is part of the cutover. Cloudflare's Universal SSL active check belongs after zone activation, not in this pre-delegation stage.
 
 ### C. Cut over DNS authority, then proxy
 

@@ -10,6 +10,6 @@ Before any apply:
 2. Confirm the Cloudflare account ID and place a narrowly scoped API token in the protected environment as `CLOUDFLARE_API_TOKEN`. Do not commit tokens or Terraform state.
 3. Initialize this root with the OCI backend coordinates in `backend.hcl.example`, using a protected local copy or explicit `-backend-config` arguments. Do not reuse the runtime root's state key.
 4. Review the first plan for duplicate DNS records, unintended changes to unrelated hosts, and unexpected destruction. If Cloudflare onboarding already created the zone or records, import those objects before applying rather than creating duplicates.
-5. Keep the registrar nameservers at Porkbun until the whole-zone record comparison passes. The activation, proxy, DNSSEC, and rollback sequence is in `docs/dns-runbook.md` and the Wave 8 migration artifact.
+5. Keep the registrar nameservers at Porkbun until the whole-zone record comparison passes. The owner keeps DNSSEC disabled and the registrar without a DS record. The activation, proxy, and rollback sequence is in `docs/dns-runbook.md` and the Wave 8 migration artifact.
 
 The cache rules match only `autographs.jetsaredim.net`. Admin routes and rollback-sensitive documents bypass edge cache. Public media and assets remain eligible for caching while respecting Caddy's origin headers. Cloudflare's TLS mode is Full (strict); the existing Caddy public certificate remains the origin certificate.
