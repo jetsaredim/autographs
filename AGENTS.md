@@ -169,11 +169,10 @@ The valid Conventional Commit type identifiers are exactly `feat`, `fix`, `perf`
 
 All other Conventional Commit type identifiers are invalid for this repository.
 
-## Git Operations Sandbox Escalation
+## Git Remote Access Sandbox Escalation
 
-- Run every Git operation with elevated privileges outside the AI sandbox, including read-only and mutating commands against local or remote repositories (for example, `git status`, `git diff`, `git log`, `git branch`, `git add`, `git commit`, `git fetch`, and `git push`).
-- Request elevation before running the ordinary intended Git command. Do not make a first attempt inside the sandbox.
-- Keep the existing branch, pull request, and connectivity guardrails in force; elevation does not authorize SSH overrides, remote rewrites, protocol changes, or other connectivity workarounds.
+- Run Git commands that require remote access with elevated privileges outside the AI sandbox, including `git fetch`, `git pull`, `git push`, and `git ls-remote`. Request elevation before the first attempt; run the ordinary intended command without SSH overrides, remote rewrites, protocol changes, or other connectivity workarounds.
+- Local Git commands that do not access a remote, such as `git status`, `git diff`, `git log`, `git branch`, `git add`, and `git commit`, may run inside the sandbox. The existing branch, pull request, and connectivity guardrails still apply.
 
 ## Git Commit Branch Guardrails
 
