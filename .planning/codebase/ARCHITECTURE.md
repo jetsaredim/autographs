@@ -127,25 +127,20 @@ taxonomy media cues and Phase 10 advisory AI-assisted ingest.
 
 ## Current Phase Boundary
 
-Phase 7 metadata taxonomy and public facets are implemented through Plan 07-05
-on top of the completed Phase 6 admin workflow. Current behavior includes
-reusable signer profiles, item signer credits, signer suggestions, signer merge
-repair, first-class character/franchise/productLine/setName/format/origin/
-language taxonomy, reviewed backfill artifacts, schema version 2 public static
-facets, rollout docs, security review, and live static publish smoke taxonomy
-assertions. Phase 8 starts with production security patching repair, aggressive
-operational posture cleanup in separate pre-media PRs, enforceable CI hygiene
-guardrails where feasible, and a CDN/cache contract. Admin media image
-preview/adjustment follows that clean baseline, including required
-auto-assisted deskew/perspective correction with manual fallback, then
-production CDN enablement is verified after adjusted-media cache behavior is
-proven.
+Phase 7 metadata taxonomy/public facets and Phase 8 plans 08-01 through 08-07
+are implemented. Phase 8 now has repaired security patching, the pre-media
+posture pass and CI hygiene guardrail, the origin CDN/cache contract, private
+authenticated image previews, a focused admin adjustment workbench, Oracle
+adjustment metadata, and adjustment-aware publishing with final-byte
+fingerprinted WebP URLs. Plan 08-08 closes source/security coverage and local
+gates; production CDN enablement and edge verification remain a blocking
+operator checkpoint. Phase 9 owns optional taxonomy media cues and Phase 10
+owns advisory AI-assisted ingest.
 
 ## Notable Absences
 
-- Admin image previews and non-destructive image adjustment metadata, including
-  auto-assisted deskew/perspective correction, are not implemented yet; they are
-  Phase 8 scope.
+- Production Cloudflare proxying and edge-cache behavior have not been
+  verified; they remain the Phase 8 closeout checkpoint.
 - Optional taxonomy/media thumbnail cues and AI-assisted metadata suggestions
   are not implemented yet; taxonomy media cues are Phase 9 scope and advisory
   AI-assisted ingest is Phase 10 scope.
@@ -154,4 +149,4 @@ proven.
 
 ---
 
-*Architecture analysis refreshed: 2026-07-28 after Phase 8/9/10 roadmap split*
+*Architecture analysis refreshed: 2026-11-06 during Phase 8 closeout*
