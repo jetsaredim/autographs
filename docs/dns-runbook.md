@@ -5,10 +5,12 @@ The current production zone uses Porkbun authoritative DNS and a direct
 Terraform because OCI public DNS is not available in the current free-tier
 setup. Moving to Cloudflare proxying requires a deliberate DNS topology choice.
 
-Wave 8 will use the existing runtime Terraform root for the Cloudflare zone,
-reviewed DNS records, strict TLS, and cache rules. The current Porkbun record
-and registrar nameservers remain active during preparation. Routine deploys
-must refuse unapproved DNS plan changes; follow the
+Wave 8 prepares the existing runtime Terraform root for the Cloudflare zone,
+the owner's confirmed three DNS records, strict TLS, and cache rules. The
+current Porkbun record and registrar nameservers remain active during
+preparation. `CLOUDFLARE_ENABLED` defaults to `false`. Routine deploys inspect
+a saved Terraform plan and refuse Cloudflare or Porkbun DNS changes. A controlled
+operator apply uses the exact reviewed plan file; follow the
 [Wave 8 migration sequence](../.planning/phases/08-admin-media-review-and-operational-posture/08-08-CLOUDFLARE-MIGRATION.md)
 before any authoritative DNS change.
 

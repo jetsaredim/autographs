@@ -305,3 +305,31 @@ variable "autographs_dns_record_id" {
   description = "Existing Porkbun DNS record ID for autographs.jetsaredim.net."
   type        = string
 }
+
+variable "cloudflare_enabled" {
+  description = "Stage the complete jetsaredim.net Cloudflare zone in this Terraform root."
+  type        = bool
+  default     = false
+}
+
+variable "cloudflare_account_id" {
+  description = "Cloudflare account ID for the jetsaredim.net zone."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.cloudflare_enabled || can(regex("^[0-9a-f]{32}$", var.cloudflare_account_id))
+    error_message = "Set cloudflare_account_id to the 32-character account ID when Cloudflare is enabled."
+  }
+}
+
+variable "cloudflare_autographs_proxied" {
+  description = "Persistent proxy state for the autographs A record; required when Cloudflare is enabled."
+  type        = bool
+  default     = null
+
+  validation {
+    condition     = !var.cloudflare_enabled || var.cloudflare_autographs_proxied != null
+    error_message = "Set cloudflare_autographs_proxied explicitly when Cloudflare is enabled."
+  }
+}
