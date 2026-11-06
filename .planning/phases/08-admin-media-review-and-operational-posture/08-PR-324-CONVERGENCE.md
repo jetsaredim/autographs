@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 324
-status: reassessment_required
+status: ready_to_resume
 review_round: 3
 critical_open: 0
 warning_open: 2
@@ -78,6 +78,6 @@ The first four lineages were fixed in the plan and primary CDN/DNS documentation
 
 ## Evidence references before resume
 
-- Assumptions artifact: pending
-- Revised plan artifact: pending
-- Independent plan review: pending
+- Assumptions artifact: `08-PR-324-ASSUMPTIONS.md` at commit `f8510f8`
+- Revised plan artifact: `08-PR-324-REVISION.md` at commit `f8510f8`
+- Independent plan review: [PR #324 confirmation](https://github.com/jetsaredim/autographs/pull/324#issuecomment-6678151979) (clean; 0 new findings)
