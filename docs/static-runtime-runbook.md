@@ -898,9 +898,10 @@ cache observations before enabling the CDN, as required by D-08-19.
 For Phase 8 production verification, the owner reports multiple production
 image adjustments and publishes. The current public JSON for
 `5d6-ra-7-fivedesix` references a detail WebP whose served SHA-256 begins
-with the URL's `70c219182f1ace41` fingerprint. Record that as
-`adjusted_media_publish_evidence` and owner UAT, not as a passed automated
-live smoke. An old/new URL pair was not retained for this image. The
+with the URL's `70c219182f1ace41` fingerprint. Record that as preliminary
+owner UAT under `adjusted_media_publish_evidence`, not as a passed automated
+live smoke. An old/new URL pair was not retained for this image; capture one
+across a subsequent adjustment publish before CDN enablement. The
 post-proxy `cdn_admin_bypass_evidence`, `cdn_media_cache_evidence`, and
 `rollback_evidence` follow the probes in
 [cdn-cache-contract.md](cdn-cache-contract.md); they remain separate from

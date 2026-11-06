@@ -121,9 +121,14 @@ steps in [static-runtime-runbook.md](static-runtime-runbook.md).
 
 ## Verification
 
-Production CDN enablement waits until adjusted-media cache behavior is proven by
-publishing an adjusted image and observing that the public HTML/JSON points to a
-new fingerprinted `/media/*` URL. Run these probes before and after enabling
+Production CDN enablement waits until adjusted-media cache behavior is proven
+with a before/after URL pair for the same image. Capture the current public
+thumbnail and detail URLs, save a non-identity adjustment, publish, then
+capture the new public HTML/JSON references. Both variants must have changed
+fingerprints, their served bytes must match those fingerprints, and the old
+URLs must remain available for the documented retention window. The owner's
+prior production UAT is useful workflow evidence, but the current URL alone
+does not satisfy this pre-CDN gate. Run these probes before and after enabling
 Cloudflare proxying:
 
 ```bash
@@ -140,10 +145,11 @@ Expected behavior:
 - `/data/collection.json` returns
   `Cache-Control: public, max-age=60, must-revalidate`.
 - `/media/...webp` returns `Cache-Control: public, max-age=86400`.
-- After Cloudflare proxying is enabled, inspect `CF-Cache-Status` on the two
-  repeated `/media/...webp` requests. The first request may miss or revalidate;
-  the second should demonstrate the edge behavior for the fingerprinted
-  derivative while preserving the origin `Cache-Control` header.
+- After Cloudflare proxying is enabled, inspect `CF-Cache-Status` on repeated
+  requests for the same current `/media/...webp` URL. The first may be `MISS`;
+  a later response must be `HIT` while preserving the origin `Cache-Control`
+  header. Repeated `MISS`, `BYPASS`, or absent status does not pass the edge
+  caching check; inspect rule eligibility and retry after correcting it.
 
 Rollback behavior stays the same with or without Cloudflare: restore the prior
 static release, keep HTML/JSON freshness at 60 seconds, and purge `/media/*`
@@ -158,9 +164,9 @@ Record these fields in `08-08-SUMMARY.md` before closing Phase 8:
 |---|---|
 | `security_scan_run_id` | Successful production scanner run and scan-playbook step. |
 | `dry_run_apply_run_id` | Safe apply-path exercise, or `not performed` with the exact reason; cite any successful real apply run separately. |
-| `adjusted_media_publish_evidence` | Owner UAT, item, current public thumbnail/detail paths, matching served-byte fingerprints, and an old/new URL pair when available. |
+| `adjusted_media_publish_evidence` | Owner UAT plus an old/new public thumbnail and detail URL pair for the same image after an adjustment publish, with served-byte fingerprints checked. Required before CDN enablement. |
 | `cdn_admin_bypass_evidence` | Post-proxy response headers for `/admin/` and `/admin/api/status`: `no-store` and no edge HIT. |
-| `cdn_media_cache_evidence` | Post-proxy repeated requests for a current fingerprinted `/media/*` path with edge cache status and origin header. |
+| `cdn_media_cache_evidence` | Post-proxy repeated requests for one current fingerprinted `/media/*` path, including a `CF-Cache-Status: HIT` after an initial request and the origin cache header. |
 | `rollback_evidence` | A safe rollback exercise, or the exact reason it was deferred plus the documented recovery path. |
 
 The owner reports production image adjustments and publishes. On 2026-11-06,
@@ -168,7 +174,7 @@ The owner reports production image adjustments and publishes. On 2026-11-06,
 `/media/5d6-ra-7-fivedesix/image-1-detail-70c219182f1ace41.webp`;
 the served bytes had a SHA-256 digest beginning `70c219182f1ace41`.
 The current public reference and fingerprint agree. An earlier URL was not
-retained, so that observation alone is not an old/new URL comparison. The
+retained, so that observation does not satisfy the required old/new URL gate. The
 credential-gated automated live static smoke was not run for 08-07; do not
 label the owner UAT as that test.
 

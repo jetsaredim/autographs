@@ -1,13 +1,14 @@
 # DNS Runbook
 
-This project uses Porkbun DNS directly for the public app hostname. OCI public
-DNS zones are intentionally not managed by Terraform because OCI public DNS is
-not available in the current free-tier setup.
+The current production zone uses Porkbun authoritative DNS and a direct
+`autographs` A record. OCI public DNS zones are intentionally not managed by
+Terraform because OCI public DNS is not available in the current free-tier
+setup. Moving to Cloudflare proxying requires a deliberate DNS topology choice.
 
 ## DNS Model
 
-Keep `jetsaredim.net` hosted at Porkbun and create a direct `A` record for the
-app hostname:
+Until CDN migration, keep `jetsaredim.net` hosted at Porkbun and use a direct
+`A` record for the app hostname:
 
 ```text
 autographs.jetsaredim.net -> runtime_public_ip
@@ -61,9 +62,30 @@ define the cache contract before admin media adjustment work, then enable and
 verify production CDN after adjusted image derivatives produce new
 fingerprinted `/media/*` paths and can be tested end to end.
 
+On 2026-11-06, `dig NS jetsaredim.net` returned Porkbun nameservers. A
+proxied Cloudflare record cannot be activated merely by adding the hostname
+to a Cloudflare dashboard while Porkbun remains authoritative on a Free or Pro
+full-zone setup. Choose one supported setup before changing production DNS:
+
+- **Full-zone setup:** Inventory and back up every `jetsaredim.net` DNS record,
+  recreate them in Cloudflare, check mail and other service records, then change
+  the registrar nameservers at Porkbun to Cloudflare's assigned nameservers.
+  Keep unrelated records DNS-only unless their owners approve proxying.
+- **Partial/CNAME setup:** Use this only if the Cloudflare account plan supports
+  it for the hostname. Keep Porkbun authoritative, follow Cloudflare's
+  partial-zone validation and CNAME instructions, and verify the resulting
+  hostname actually traverses Cloudflare. Do not assume this option is
+  available on a Free or Pro account.
+
+Cloudflare documents the supported zone setups at
+<https://developers.cloudflare.com/dns/zone-setups/>. The operator must
+choose and verify one route before the Phase 8 CDN checkpoint can pass.
+
 Cloudflare enablement checklist:
 
-1. Move DNS for `autographs.jetsaredim.net` behind a proxied Cloudflare record.
+1. Complete the chosen supported zone setup above, then proxy only the
+   `autographs.jetsaredim.net` record. Verify `dig NS jetsaredim.net`, the
+   hostname's DNS answers, and the production site before changing cache rules.
 2. Use Cloudflare SSL/TLS Full (strict) so Cloudflare validates the Caddy origin
    certificate; Cloudflare documents that Full (strict) requires an unexpired
    origin certificate whose hostname matches the request.
@@ -89,8 +111,11 @@ Cloudflare enablement checklist:
 
 Rollback if Cloudflare causes stale public content or admin issues:
 
-1. Set the Cloudflare DNS record to DNS-only, or move the hostname back to the
-   direct Porkbun `A` record.
+1. For a full-zone setup, set the Cloudflare `autographs` record to DNS-only
+   first; do not assume a registrar nameserver reversal is immediate. For a
+   supported partial setup, restore the prior Porkbun hostname record.
+   If full-zone migration must be reversed, restore the backed-up Porkbun zone
+   and registrar nameservers, then allow for DNS propagation.
 2. Purge the affected public URLs or the hostname cache before/after the DNS
    change.
 3. Verify origin behavior directly with `curl --resolve` against the runtime VM
