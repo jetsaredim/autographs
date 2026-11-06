@@ -21,6 +21,17 @@ Both 16-character filename fingerprints match the first 16 hex characters of the
 
 ## Origin and DNS observations
 
+### Selected adjustment test: `5d6-ra-7`
+
+At 2026-11-06 15:09 UTC, `/data/items/5d6-ra-7.json` referenced image 1 with these public variants, and both URLs returned 200 with `Cache-Control: public, max-age=86400`:
+
+| Variant | Before public path | SHA-256 of served bytes |
+|---|---|---|
+| Thumbnail | `/media/5d6-ra-7/image-1-thumbnail-d63126d844b4bbcb.webp` | `d63126d844b4bbcb62e8363981326d5467029fd2fef9d02f5dc0bea0d3ebfe57` |
+| Detail | `/media/5d6-ra-7/image-1-detail-913001cc8d9fa261.webp` | `913001cc8d9fa2614069bc6a840f42420ef2076a6351c7b2b9d8b4a24584f9f1` |
+
+Both filename fingerprints match the first 16 characters of their served-byte hashes. The owner selected this image for the next visible adjustment and publish. This is a before baseline; it does not yet prove an adjusted publish.
+
 On 2026-11-06, public responses showed `/admin/` 200 with `Cache-Control: no-store`, unauthenticated `/admin/api/status` 401 with `no-store`, `/data/collection.json` 200 with `public, max-age=60, must-revalidate`, and the current detail WebP 200 with `public, max-age=86400`. The public responses showed `server: Caddy` and no `CF-Cache-Status` header. `dig NS jetsaredim.net` returned four Porkbun nameservers. These are origin observations and do not prove Cloudflare participation or authenticated API bypass.
 
 ## Remaining gate
