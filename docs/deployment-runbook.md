@@ -344,7 +344,9 @@ curl -I "https://${AUTOGRAPHS_DOMAIN}/media/...webp"
 ```
 
 Inspect `Cache-Control` on every response and `CF-Cache-Status` on the repeated
-media probes after Cloudflare is proxying the hostname.
+media probes after Cloudflare is proxying the hostname. The unauthenticated
+API 401 probe is only an origin check; follow the CDN contract's signed-in
+200-response and Rule Trace procedure for `cdn_admin_bypass_evidence`.
 
 ## Oracle Schema Updates
 

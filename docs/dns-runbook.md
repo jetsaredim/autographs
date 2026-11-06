@@ -137,6 +137,8 @@ Phase 8 production verification record, including
 `adjusted_media_publish_evidence` and `rollback_evidence`, is defined in
 [cdn-cache-contract.md](cdn-cache-contract.md). An origin-only response is not
 proof that Cloudflare bypasses admin traffic or caches fingerprinted media.
+For admin bypass, include an authenticated 200 API response and Cloudflare
+Rule Trace; an unauthenticated 401 alone is insufficient.
 
 References checked during this decision:
 

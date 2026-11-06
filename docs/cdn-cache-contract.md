@@ -139,6 +139,17 @@ curl -I "https://${AUTOGRAPHS_DOMAIN}/media/...webp"
 curl -I "https://${AUTOGRAPHS_DOMAIN}/media/...webp"
 ```
 
+The unauthenticated `/admin/api/status` probe normally returns 401. It checks
+the origin header but cannot prove Cloudflare bypass for a private success
+response, since 401 responses are not cached by default. After proxying,
+sign in through the normal admin browser session and use the browser Network
+panel to capture a `GET /admin/api/status` response with status 200. Repeat
+the authenticated GET. Both responses must retain `Cache-Control: no-store`
+and neither may show `CF-Cache-Status: HIT`. Use Cloudflare Rule Trace for the
+same path and admin-cookie request shape to confirm the admin bypass rule
+matches. Record only status and response headers; do not copy session cookies,
+credentials, or private response bodies into the evidence.
+
 Expected behavior:
 
 - `/admin/` and `/admin/api/status` return `Cache-Control: no-store`.
@@ -165,7 +176,7 @@ Record these fields in `08-08-SUMMARY.md` before closing Phase 8:
 | `security_scan_run_id` | Successful production scanner run and scan-playbook step. |
 | `dry_run_apply_run_id` | Safe apply-path exercise, or `not performed` with the exact reason; cite any successful real apply run separately. |
 | `adjusted_media_publish_evidence` | Owner UAT plus an old/new public thumbnail and detail URL pair for the same image after an adjustment publish, with served-byte fingerprints checked. Required before CDN enablement. |
-| `cdn_admin_bypass_evidence` | Post-proxy response headers for `/admin/` and `/admin/api/status`: `no-store` and no edge HIT. |
+| `cdn_admin_bypass_evidence` | Post-proxy `/admin/` headers plus two authenticated `GET /admin/api/status` 200 responses with `no-store`, no edge HIT, and Cloudflare Rule Trace showing the bypass rule matches. Do not record cookies or bodies. |
 | `cdn_media_cache_evidence` | Post-proxy repeated requests for one current fingerprinted `/media/*` path, including a `CF-Cache-Status: HIT` after an initial request and the origin cache header. |
 | `rollback_evidence` | A safe rollback exercise, or the exact reason it was deferred plus the documented recovery path. |
 

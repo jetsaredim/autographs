@@ -103,7 +103,7 @@ separately before OPS-02 or the phase is marked complete.
 | ID | Area | Disposition | Evidence and remaining boundary |
 |---|---|---|---|
 | SEC-08-01 | Private preview authorization | Fixed | Preview and adjustment routes use the admin session and same-origin mutation checks; route tests cover unauthorized access. |
-| SEC-08-02 | Admin and API cache isolation | Operator verification required | Caddy returns `Cache-Control: no-store` for `/admin/` and an unauthenticated `/admin/api/status` response. Cloudflare bypass and absence of edge HIT still require live proxy evidence. |
+| SEC-08-02 | Admin and API cache isolation | Operator verification required | Caddy returns `Cache-Control: no-store` for `/admin/` and an unauthenticated `/admin/api/status` response. Cloudflare bypass still requires repeated authenticated 200 API responses with `no-store`, no edge HIT, and a matching Rule Trace; a 401 alone is insufficient. |
 | SEC-08-03 | Adjustment input validation | Fixed | Shared adjustment types validate crop, rotation, pan, and perspective inputs before persistence and derivative processing; invalid input must fail without changing saved state. |
 | SEC-08-04 | Private original preservation | Fixed | Adjustments persist metadata and generate preview/public derivatives; the original Object Storage bytes are not edited. The credentialed live smoke remains an optional stronger production proof. |
 | SEC-08-05 | Public static privacy | Fixed | Publisher/static contract tests exclude private storage coordinates, image UUIDs, original filenames, adjustment metadata, and unpublished items from generated public artifacts. |
