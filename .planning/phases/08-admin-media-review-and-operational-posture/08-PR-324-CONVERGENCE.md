@@ -4,7 +4,7 @@ pr: 324
 status: ready_to_resume
 review_round: 3
 critical_open: 0
-warning_open: 2
+warning_open: 0
 ---
 
 # PR #324 Wave 8 review convergence reassessment
@@ -19,8 +19,8 @@ The third review is the mandatory convergence checkpoint. No further point fix i
 | Old/new adjusted-media URL proof was optional | Round 1 | Independent | Resolved in `203cc2e` | [finding](https://github.com/jetsaredim/autographs/pull/324#discussion_r4489374171) |
 | Repeated media MISS could pass CDN cache check | Round 1 | Independent | Resolved in `203cc2e` | [finding](https://github.com/jetsaredim/autographs/pull/324#discussion_r4489374729) |
 | Anonymous 401 was used as sole admin API bypass evidence | Round 2 | Sibling-path miss | Resolved in `dd92c6c` | [finding](https://github.com/jetsaredim/autographs/pull/324#discussion_r4489393931) |
-| Static runbook asks for edge observations before proxy enablement | Round 3 | Sibling-path miss | Open | [finding](https://github.com/jetsaredim/autographs/pull/324#issuecomment-6677889197) |
-| CDN contract calls the static admin shell authenticated | Round 3 | Independent | Open | [finding](https://github.com/jetsaredim/autographs/pull/324#issuecomment-6677894390) |
+| Static runbook asks for edge observations before proxy enablement | Round 3 | Sibling-path miss | Resolved in `fcbca6b` | [finding](https://github.com/jetsaredim/autographs/pull/324#issuecomment-6677889197) |
+| CDN contract calls the static admin shell authenticated | Round 3 | Independent | Resolved in `fcbca6b` | [finding](https://github.com/jetsaredim/autographs/pull/324#issuecomment-6677894390) |
 
 The first four lineages were fixed in the plan and primary CDN/DNS documentation. The fifth arose because the static runbook was a direct consumer of the same activation sequence and retained older wording. The sixth is an inaccurate architecture assumption introduced in the initial security description.
 
@@ -81,3 +81,5 @@ The first four lineages were fixed in the plan and primary CDN/DNS documentation
 - Assumptions artifact: `08-PR-324-ASSUMPTIONS.md` at commit `f8510f8`
 - Revised plan artifact: `08-PR-324-REVISION.md` at commit `f8510f8`
 - Independent plan review: [PR #324 confirmation](https://github.com/jetsaredim/autographs/pull/324#issuecomment-6678151979) (clean; 0 new findings)
+- Correction and lineage: `fcbca6b` and [PR #324 fix comment](https://github.com/jetsaredim/autographs/pull/324#issuecomment-6678196304)
+- Post-correction review: [PR #324 clean confirmation](https://github.com/jetsaredim/autographs/pull/324#issuecomment-6678213358) (0 Critical, 0 Warning)
