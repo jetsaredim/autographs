@@ -11,18 +11,9 @@ The project uses one explicit contract for local work, GitHub validation, and Gi
 | `infra/terraform/tenancy/environments/prod/terraform.tfvars.example` | Tenancy/bootstrap Terraform variable shape for local operator runs |
 | `infra/terraform/environments/prod/terraform.tfvars.example` | Runtime/app Terraform variable shape for local operator runs |
 | `infra/terraform/bootstrap/backend.hcl.example` | OCI remote-state backend coordinate shape |
-| `infra/terraform/domain-dns/backend.hcl.example` | Separate OCI state coordinates for the staged Cloudflare domain DNS root |
 
 Never put real private keys, API signing material, SSH private keys, or Terraform state in committed files.
 
-The staged Cloudflare full-zone root under `infra/terraform/domain-dns/` uses
-`CLOUDFLARE_API_TOKEN` only in a protected operator environment. Its required
-`cloudflare_account_id` and complete `dns_records` inventory are supplied for
-a reviewed manual plan/apply; they are not part of routine Autographs deploys.
-The Cloudflare zone state key is `envs/prod/domain-dns.tfstate`, separate from
-the runtime state key. The runtime root still manages the live Porkbun
-`autographs` record until the controlled DNS cutover. See
-[the domain DNS root](../infra/terraform/domain-dns/README.md).
 
 ## GitHub Secrets
 
