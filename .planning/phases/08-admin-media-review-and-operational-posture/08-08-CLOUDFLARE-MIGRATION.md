@@ -20,7 +20,7 @@ The adjusted-media before/after URL gate passed in `08-08-CHECKPOINT.md`. No Clo
 ## Inputs still required
 
 - The owner reports that Porkbun has exactly three DNS records: an `autographs` A record, an apex MX record, and an apex TXT record. Public DNS on 2026-11-06 returned `autographs.jetsaredim.net A 129.213.166.159`, `jetsaredim.net MX 1 smtp.google.com.`, and `jetsaredim.net TXT "v=spf1 include:_spf.google.com ~all"`. Confirm the exact Porkbun dashboard values, including record TTLs, before treating this as the migration inventory. Keep a copy for rollback.
-- Cloudflare account ID and a scoped API token supplied through the protected secret store; never commit the token or place it in Terraform variable values/state.
+- Cloudflare account ID: `162e3fcbeb9e3479a73529a6d51806bc` (provided by the owner). A scoped API token is still needed through the protected secret store; never commit the token or place it in Terraform variable values/state.
 - Cloudflare-assigned nameservers, a known-good rollback copy of the Porkbun zone, and the owner-selected cutover window.
 
 ## Staged implementation
