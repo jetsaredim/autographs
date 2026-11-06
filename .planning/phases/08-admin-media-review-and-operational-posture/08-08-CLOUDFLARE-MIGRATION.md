@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 plan: "08"
-status: inventory_pending
+status: terraform_zone_prepared_inventory_pending
 approach: terraform_managed_full_zone
 ---
 
@@ -21,6 +21,12 @@ The runtime Cloudflare record's proxy setting is a required, persistent deployme
 - Cloudflare zone plan and account ID. Use a scoped API token through the secret store; never commit it or place it in Terraform state values.
 - Current registrar DNSSEC/DS setting, Cloudflare-assigned nameservers, and a known-good rollback copy of the Porkbun zone.
 - Confirmation of the DNS cutover window and who will change Porkbun nameservers.
+
+## Prepared implementation evidence
+
+Commit `f95ca2d` added the isolated `infra/terraform/domain-dns/` root, a pinned Cloudflare provider, full-zone resource, DNS-only inventory input, strict TLS setting, and cache rules scoped to the autograph hostname. CI validates this root without the OCI backend or Cloudflare credentials; the normal deploy workflow has no apply path for it. Terraform 1.17.1 `fmt -check` and `validate`, repository hygiene, and `git diff --check` passed locally. The [PR code review](https://github.com/jetsaredim/autographs/pull/324#issuecomment-6690950957) found no actionable issues, and the PR Terraform CI check passed.
+
+The record input intentionally has no default and requires a nonempty inventory with the observed apex MX and SPF records. Public DNS checks found the autograph A record, a Google MX record, and an SPF TXT record; they cannot enumerate the complete Porkbun zone, custom verification names, or future records. The runtime-root Cloudflare A record, credentials/guards, live Terraform plan, and all external DNS changes remain pending the inputs above.
 
 ## Staged implementation
 
