@@ -5,6 +5,14 @@ The current production zone uses Porkbun authoritative DNS and a direct
 Terraform because OCI public DNS is not available in the current free-tier
 setup. Moving to Cloudflare proxying requires a deliberate DNS topology choice.
 
+Wave 8 is preparing a separate Terraform root at
+[`infra/terraform/domain-dns/`](../infra/terraform/domain-dns/README.md) for
+the full Cloudflare zone, reviewed records other than the `autographs` A record, strict TLS, and
+cache rules. This root has no automatic production apply. The current Porkbun
+record and registrar nameservers remain active during preparation; see the
+[Wave 8 migration sequence](../.planning/phases/08-admin-media-review-and-operational-posture/08-08-CLOUDFLARE-MIGRATION.md)
+before any authoritative DNS change.
+
 ## DNS Model
 
 Until CDN migration, keep `jetsaredim.net` hosted at Porkbun and use a direct

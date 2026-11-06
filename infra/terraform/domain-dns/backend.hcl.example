@@ -1,0 +1,7 @@
+# Separate domain-wide DNS state; use OCI API-key environment variables locally.
+bucket               = "autographs-tf-state"
+namespace            = "replace-with-your-object-storage-namespace"
+region               = "us-ashburn-1"
+key                  = "envs/prod/domain-dns.tfstate"
+workspace_key_prefix = "envs"
+auth                 = "APIKey"

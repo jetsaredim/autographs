@@ -221,6 +221,14 @@ jobs:
           terraform init -backend=false
           terraform validate
 
+      - name: Terraform domain DNS validate
+        working-directory: infra/terraform/domain-dns
+        run: |
+          # Domain-wide DNS state and credentials are operator-owned; PR CI
+          # validates the Cloudflare provider schema without a live plan.
+          terraform init -backend=false
+          terraform validate
+
       - name: Write OCI API private key
         env:
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
