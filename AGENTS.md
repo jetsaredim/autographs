@@ -169,6 +169,12 @@ The valid Conventional Commit type identifiers are exactly `feat`, `fix`, `perf`
 
 All other Conventional Commit type identifiers are invalid for this repository.
 
+## Git Operations Sandbox Escalation
+
+- Run every Git operation with elevated privileges outside the AI sandbox, including read-only and mutating commands against local or remote repositories (for example, `git status`, `git diff`, `git log`, `git branch`, `git add`, `git commit`, `git fetch`, and `git push`).
+- Request elevation before running the ordinary intended Git command. Do not make a first attempt inside the sandbox.
+- Keep the existing branch, pull request, and connectivity guardrails in force; elevation does not authorize SSH overrides, remote rewrites, protocol changes, or other connectivity workarounds.
+
 ## Git Commit Branch Guardrails
 
 - Never commit directly to `main` or `master`.
