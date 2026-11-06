@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 plan: "08"
-status: single_root_revision_inventory_pending
+status: single_root_revision_record_details_pending
 approach: terraform_managed_full_zone
 ---
 
@@ -19,7 +19,7 @@ The adjusted-media before/after URL gate passed in `08-08-CHECKPOINT.md`. No Clo
 
 ## Inputs still required
 
-- Complete Porkbun DNS export or dashboard inventory, including apex, mail, TXT verification, CAA, delegated subdomains, wildcards, and service-specific records. Public `dig` and Cloudflare quick scan cannot enumerate the complete zone.
+- The owner reports that Porkbun has exactly three DNS records: an `autographs` A record, an apex MX record, and an apex TXT record. Public DNS on 2026-11-06 returned `autographs.jetsaredim.net A 129.213.166.159`, `jetsaredim.net MX 1 smtp.google.com.`, and `jetsaredim.net TXT "v=spf1 include:_spf.google.com ~all"`. Confirm the exact Porkbun dashboard values, including record TTLs, before treating this as the migration inventory. Keep a copy for rollback.
 - Cloudflare account ID and a scoped API token supplied through the protected secret store; never commit the token or place it in Terraform variable values/state.
 - Cloudflare-assigned nameservers, a known-good rollback copy of the Porkbun zone, and the owner-selected cutover window.
 
