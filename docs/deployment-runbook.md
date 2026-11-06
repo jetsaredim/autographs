@@ -325,6 +325,13 @@ proxying until adjusted-media cache behavior is proven: an adjusted image must
 publish new derivative bytes and a new fingerprinted `/media/*` URL without a
 manual purge.
 
+For the Phase 8 production verification record, use the six fields defined in
+that contract: `security_scan_run_id`, `dry_run_apply_run_id`,
+`adjusted_media_publish_evidence`, `cdn_admin_bypass_evidence`,
+`cdn_media_cache_evidence`, and `rollback_evidence`. Owner production
+adjustment/publish UAT is valid workflow evidence; keep it distinct from the
+credential-gated automated smoke and post-proxy CDN evidence.
+
 Use the contract probes after deploy and again when production CDN proxying is
 enabled:
 

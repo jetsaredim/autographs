@@ -895,6 +895,17 @@ make routine Cloudflare purges unnecessary under
 [cdn-cache-contract.md](cdn-cache-contract.md). Wave 8 records the real edge
 cache observations before enabling the CDN, as required by D-08-19.
 
+For Phase 8 production verification, the owner reports multiple production
+image adjustments and publishes. The current public JSON for
+`5d6-ra-7-fivedesix` references a detail WebP whose served SHA-256 begins
+with the URL's `70c219182f1ace41` fingerprint. Record that as
+`adjusted_media_publish_evidence` and owner UAT, not as a passed automated
+live smoke. An old/new URL pair was not retained for this image. The
+post-proxy `cdn_admin_bypass_evidence`, `cdn_media_cache_evidence`, and
+`rollback_evidence` follow the probes in
+[cdn-cache-contract.md](cdn-cache-contract.md); they remain separate from
+the origin-only checks.
+
 ## Phase 6 Admin Live Smoke
 
 Use this operator-run smoke when an admin workflow, publisher, retention, or

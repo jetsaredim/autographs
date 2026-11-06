@@ -149,3 +149,33 @@ Rollback behavior stays the same with or without Cloudflare: restore the prior
 static release, keep HTML/JSON freshness at 60 seconds, and purge `/media/*`
 only for emergency remediation because normal adjustment publishes produce new
 fingerprints.
+
+## Phase 8 production verification
+
+Record these fields in `08-08-SUMMARY.md` before closing Phase 8:
+
+| Field | Required evidence |
+|---|---|
+| `security_scan_run_id` | Successful production scanner run and scan-playbook step. |
+| `dry_run_apply_run_id` | Safe apply-path exercise, or `not performed` with the exact reason; cite any successful real apply run separately. |
+| `adjusted_media_publish_evidence` | Owner UAT, item, current public thumbnail/detail paths, matching served-byte fingerprints, and an old/new URL pair when available. |
+| `cdn_admin_bypass_evidence` | Post-proxy response headers for `/admin/` and `/admin/api/status`: `no-store` and no edge HIT. |
+| `cdn_media_cache_evidence` | Post-proxy repeated requests for a current fingerprinted `/media/*` path with edge cache status and origin header. |
+| `rollback_evidence` | A safe rollback exercise, or the exact reason it was deferred plus the documented recovery path. |
+
+The owner reports production image adjustments and publishes. On 2026-11-06,
+`/data/items/5d6-ra-7-fivedesix.json` referenced
+`/media/5d6-ra-7-fivedesix/image-1-detail-70c219182f1ace41.webp`;
+the served bytes had a SHA-256 digest beginning `70c219182f1ace41`.
+The current public reference and fingerprint agree. An earlier URL was not
+retained, so that observation alone is not an old/new URL comparison. The
+credential-gated automated live static smoke was not run for 08-07; do not
+label the owner UAT as that test.
+
+Pre-proxy origin probes on 2026-11-06 returned `no-store` for `/admin/` and
+the unauthenticated 401 from `/admin/api/status`, `public, max-age=60,
+must-revalidate` for `/data/collection.json`, and `public, max-age=86400`
+for the fingerprinted WebP. No `CF-Cache-Status` appeared. These establish
+origin headers, not Cloudflare caching. Enable the CDN only after the
+adjusted-media publish evidence is accepted, then repeat every probe above
+and record edge results before marking OPS-02 complete.

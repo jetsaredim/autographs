@@ -106,6 +106,13 @@ creating Cloudflare rules named `Bypass admin and API`,
 adjusted-media cache behavior is proven through the contract probes, not before
 the admin media adjustment and publisher cache-key work exists.
 
+For `cdn_admin_bypass_evidence` and `cdn_media_cache_evidence`, capture
+post-proxy response headers after the cache rules are active. The complete
+Phase 8 production verification record, including
+`adjusted_media_publish_evidence` and `rollback_evidence`, is defined in
+[cdn-cache-contract.md](cdn-cache-contract.md). An origin-only response is not
+proof that Cloudflare bypasses admin traffic or caches fingerprinted media.
+
 References checked during this decision:
 
 - <https://developers.cloudflare.com/cache/how-to/cache-rules/>
