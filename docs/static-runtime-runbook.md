@@ -2,11 +2,11 @@
 
 ## Local Controller Admin Path
 
-The static admin shell is served at `/admin` by the private controller routing
-path once Caddy wiring is deployed. It is the current Phase 6 collection
-workflow. Keep `/admin` and `/admin/api/*` behind the authenticated
-private-controller boundary; collection-management calls rely on the HTTP-only
-session cookie and same-origin mutation checks.
+The static admin shell is served by Caddy at `/admin/` without a session gate.
+It is the current Phase 6 collection workflow and uses `Cache-Control: no-store`.
+The private controller protects `/admin/api/*` data and actions with the
+HTTP-only session cookie and same-origin mutation checks. Keep both the shell
+and API routes out of CDN cache.
 
 The GitHub production deploy starts the controller with persistent Oracle and
 OCI instance-principal media adapters. Configure these repo-level values before
@@ -892,8 +892,10 @@ not fully validated.
 With `AUTOGRAPHS_LIVE_STATIC_PUBLISH_SMOKE` unset, the ignored local run only
 proves compilation and safe gating. It is not live evidence. The new media URLs
 make routine Cloudflare purges unnecessary under
-[cdn-cache-contract.md](cdn-cache-contract.md). Wave 8 records the real edge
-cache observations before enabling the CDN, as required by D-08-19.
+[cdn-cache-contract.md](cdn-cache-contract.md). Before enabling Cloudflare
+proxying, Wave 8 records the old/new adjusted-media URL pair and origin cache
+headers. After proxying, it records the real edge cache observations required
+by D-08-19.
 
 For Phase 8 production verification, the owner reports multiple production
 image adjustments and publishes. The current public JSON for

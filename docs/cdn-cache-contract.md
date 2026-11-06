@@ -11,8 +11,8 @@ The deployed Caddyfile owns the origin `Cache-Control` posture:
 | Path | Origin header | Contract |
 |------|---------------|----------|
 | `/admin` | `Cache-Control: no-store` | Redirects to `/admin/` without being stored. |
-| `/admin/*` | `Cache-Control: no-store` | Serves the private admin shell only through the authenticated admin boundary. |
-| `/admin/api/*` | `Cache-Control: no-store` | Proxies same-origin private controller API calls and must never be cached. |
+| `/admin/*` | `Cache-Control: no-store` | Serves the static admin shell without a session gate; the shell must never be cached. |
+| `/admin/api/*` | `Cache-Control: no-store` | Proxies same-origin controller API calls; private data and actions require a session and must never be cached. |
 | `/media/*` | `Cache-Control: public, max-age=86400` | Serves generated public-safe WebP derivatives with fingerprinted URLs. |
 | `/assets/*` | `Cache-Control: public, max-age=3600` | Serves generated public assets with origin freshness respected. |
 | `/favicon.ico`, `/icon.png` | `Cache-Control: public, max-age=3600` | Serves small static assets with origin freshness respected. |
