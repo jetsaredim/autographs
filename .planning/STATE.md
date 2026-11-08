@@ -5,10 +5,10 @@ current_phase: 08
 current_phase_name: Admin Media Review and Operational Posture
 status: executing
 stopped_at: Completed 08-07-PLAN.md
-last_updated: "2026-11-05T15:45:56.655Z"
+last_updated: "2026-11-06T03:34:53.196Z"
 last_activity: 2026-11-05
-last_activity_desc: "Completed quick task 261105-ee0: Disable admin publish controls while deployment freezes publishing"
-state_head: 38e6368115b08f0daac29dfa79bca92f2810bcf1
+last_activity_desc: "Completed quick task 261105-v5y: Document elevated Git remote-access requirement in AGENTS.md"
+state_head: 74ac1c65ff950dfec2da3e55f38cf4f906992f5a
 progress:
   total_phases: 10
   completed_phases: 7
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-28)
 Phase: 08 (Admin Media Review and Operational Posture) — EXECUTING
 Plan: 8 of 9
 Status: Ready to execute
-Last activity: 2026-11-05 - Completed quick task 261105-ee0: Disable admin publish controls while deployment freezes publishing
+Last activity: 2026-11-05 - Completed quick task 261105-v5y: Document elevated Git remote-access requirement in AGENTS.md
 
 Progress: [██████████] 96% of milestone plans complete; Phase 8 Plan 8 is next
 
@@ -277,3 +277,4 @@ Resume file: None
 | 261104-qro | Integrate approved image review workbench into controller and open reviewed PR #317 | 2026-11-05 | d6837e5 | Needs Review | [261104-qro-integrate-approved-image-review-workbenc](./quick/261104-qro-integrate-approved-image-review-workbenc/) |
 | 261105-bnc | Fix admin media review panel borders and honor requested background framing target | 2026-11-05 | 13f5323 | Verified | [261105-bnc-fix-admin-media-review-panel-borders-and](./quick/261105-bnc-fix-admin-media-review-panel-borders-and/) |
 | 261105-ee0 | Disable admin publish controls while deployment freezes publishing | 2026-11-05 | 3c9aee6 | complete | [261105-ee0-disable-publish-controls-during-deployment-freeze](./quick/261105-ee0-disable-publish-controls-during-deployment-freeze/) |
+| 261105-v5y | Document elevated Git remote-access requirement in AGENTS.md | 2026-11-06 | 74ac1c6 | complete | [261105-v5y-document-elevated-git-operations-require](./quick/261105-v5y-document-elevated-git-operations-require/) |
