@@ -24,14 +24,14 @@ flags. Wave 8 replaced those flags with one validated `cloudflare_mode` value:
 
 | Surface | Current switches | Assessment |
 |---------|------------------|------------|
-| Runtime Terraform resource existence | `create_network`, `create_runtime_instance`, `create_autonomous_database`, `create_media_bucket` | These control whether stateful OCI resources exist. Removing them requires a reviewed production state plan and import/readiness audit; an unreviewed default change could plan destruction. P8-POSTURE-006 remains a deferred IaC cleanup. |
+| Runtime Terraform resource existence | `create_network`, `create_runtime_instance`, `create_autonomous_database`, `create_media_bucket` | These control whether stateful OCI resources exist. `create_autonomous_database` also gates Vault data lookups, readiness checks, and password rotation. Removing them requires a reviewed production state plan and full consumer audit for unintended updates as well as replacement or destruction. P8-POSTURE-006 remains a deferred IaC cleanup. |
 | Runtime Terraform configuration | `assign_public_ip`, Autonomous Database Free tier and mTLS fields | Public IP changes topology; Free tier and mTLS are currently true in production and should be reviewed as fixed policy rather than casually toggleable options. Preserve current values until a production plan proves a refactor has no replacement. |
-| Ansible deployment | `autographs_deploy_publish_frozen`, `autographs_deploy_explicit_cutover` | Full deploy asserts both true before replacing runtime services. The former also controls the publish freeze file; the latter suppresses restart handlers during explicit cutover. Review as a cutover contract before simplifying either. |
+| Ansible deployment | `autographs_deploy_publish_frozen`, `autographs_deploy_allow_unfreeze`, `autographs_deploy_explicit_cutover` | Full deploy asserts frozen and explicit cutover before replacing runtime services. The unfreeze playbook sets the explicit override to permit freeze route removal; explicit cutover suppresses restart handlers. Review the freeze/unfreeze pair and cutover contract before simplifying them. |
 | Ansible security patching | `security_patching_reboot_validate_dnf_noop` | This controls the reboot follow-up safety probe and is overridden in validation fixtures. Keep it until the safety behavior has an equivalent test seam. |
 
 This reassessment distinguishes migration-state combinations from safety and
 resource-existence controls. It does not mark the broader Terraform/Ansible
-boolean cleanup complete. The reviewable removal sequence and no-destroy gates
+boolean cleanup complete. The reviewable removal sequence and full-change gates
 are in [the IaC boolean cleanup plan](iac-boolean-cleanup-plan.md).
 
 ## Pre-media evidence
