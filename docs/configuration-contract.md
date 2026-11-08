@@ -57,8 +57,7 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_MEDIA_BUCKET_NAME` | Private Object Storage bucket for autograph images; defaults to `autographs-media-prod` |
 | `OCI_MEDIA_NAMESPACE` | Object Storage namespace for the private media bucket; usually matches `OCI_OBJECT_STORAGE_NAMESPACE` |
 | `CLOUDFLARE_ACCOUNT_ID` | Non-secret account ID for the Terraform-managed `jetsaredim.net` zone |
-| `CLOUDFLARE_ENABLED` | Defaults to `false`; set `true` only for the reviewed Cloudflare migration plan |
-| `CLOUDFLARE_AUTOGRAPHS_PROXIED` | Required explicit `false` or `true` when Cloudflare is enabled; initially `false` and later changed only after edge TLS is active |
+| `CLOUDFLARE_MODE` | One migration setting: `off` (default), `dns_only` (zone and records prepared), or `proxied` (CDN active); advance only after each review gate |
 | `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |
 | `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect alias or descriptor; use the wallet alias such as `autographsdb_medium` for mTLS |
 | `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the Rust controller container; defaults to `/opt/autographs/wallet` in deploy |

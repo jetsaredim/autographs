@@ -61,7 +61,6 @@ media_bucket_namespace  = "replace-with-your-object-storage-namespace"
 media_bucket_name       = "autographs-media-prod"
 media_bucket_versioning = "Enabled"
 
-# Cloudflare full-zone migration. Keep disabled until the controlled DNS apply.
-cloudflare_enabled             = false
-cloudflare_account_id          = "replace-with-cloudflare-account-id"
-cloudflare_autographs_proxied = false
+# Cloudflare full-zone migration. Advance only through reviewed DNS applies.
+cloudflare_mode       = "off"
+cloudflare_account_id = "replace-with-cloudflare-account-id"

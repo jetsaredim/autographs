@@ -8,7 +8,8 @@ setup. Moving to Cloudflare proxying requires a deliberate DNS topology choice.
 Wave 8 prepares the existing runtime Terraform root for the Cloudflare zone,
 the owner's confirmed three DNS records, strict TLS, and cache rules. The
 current Porkbun record and registrar nameservers remain active during
-preparation. `CLOUDFLARE_ENABLED` defaults to `false`. Routine deploys inspect
+preparation. `CLOUDFLARE_MODE` defaults to `off`; the reviewed sequence is
+`off` → `dns_only` → `proxied`. Routine deploys inspect
 a saved Terraform plan and refuse Cloudflare or Porkbun DNS changes. A controlled
 operator apply uses the exact reviewed plan file; follow the
 [Wave 8 migration sequence](../.planning/phases/08-admin-media-review-and-operational-posture/08-08-CLOUDFLARE-MIGRATION.md)

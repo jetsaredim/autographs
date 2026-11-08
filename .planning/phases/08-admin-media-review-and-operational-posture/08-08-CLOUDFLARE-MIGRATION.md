@@ -32,7 +32,7 @@ The adjusted-media before/after URL gate passed in `08-08-CHECKPOINT.md`. No Clo
 ### A. Prepare the existing Terraform root
 
 1. Add the Cloudflare provider to `infra/terraform/`. Define the full zone, all inventoried DNS records, `autographs` A record derived from `module.compute.public_ip`, Full (strict) TLS, and cache rules in this same root. Keep the Cloudflare `autographs` record DNS-only initially. Import any records Cloudflare onboarding already created rather than duplicating them.
-2. Keep the Porkbun provider and autograph record during transition. Add explicit Cloudflare account/zone and proxy inputs. The proxy desired state must be persistent and required in CI and deploy; missing inputs fail before apply rather than silently reverting to DNS-only.
+2. Keep the Porkbun provider and autograph record during transition. Use one persistent `CLOUDFLARE_MODE` input with `off`, `dns_only`, and `proxied` stages; reject any other value. CI and deploy must fail if the scoped token or account ID is missing when the mode is not `off`.
 3. Add a pre-apply DNS-change guard to `.github/workflows/deploy.yml`: inspect the saved Terraform plan and stop ordinary deploys when Cloudflare or Porkbun DNS resources would change. A controlled operator operation must review `terraform show` and apply the exact saved plan file. A routine deploy after cutover must have a no-change DNS plan and preserve `proxied = true`.
 4. Configure admin/API bypass; public HTML/JSON origin-respecting or at most 60-second freshness; fingerprinted media one-day origin TTL and assets one-hour origin TTL. Use disjoint hostname/path matches and verify last-match rule behavior. Avoid sitewide cache-everything and custom cache keys.
 5. Update CI provider validation, GitHub secret/variable documentation, and operator runbooks. Do not merge or apply the implementation until the complete inventory, Cloudflare credentials, and reviewed plan are available.
@@ -47,9 +47,9 @@ The adjusted-media before/after URL gate passed in `08-08-CHECKPOINT.md`. No Clo
 
 1. Change Porkbun registrar nameservers to Cloudflare's assigned pair. Verify authoritative NS answers, mail, unrelated hosts, and `autographs` while the record remains DNS-only. Record results before enabling proxying.
 2. After the full zone is active, wait for Cloudflare Universal SSL to become active for `autographs.jetsaredim.net`; confirm Full (strict) and cache rules. Do not proxy before these checks pass.
-3. Set the persistent proxy input to true. Review and run the controlled operator DNS plan/apply, then verify Cloudflare answers and Caddy origin TLS. A following routine deploy plan must show no DNS changes and retain `proxied = true`.
+3. Advance the persistent mode from `dns_only` to `proxied`. Review and run the controlled operator DNS plan/apply, then verify Cloudflare answers and Caddy origin TLS. A following routine deploy plan must show no DNS changes and retain `proxied = true`.
 4. Verify `/admin/` no-store, two authenticated 200 `GET /admin/api/status` responses with no-store and no edge HIT, and Cloudflare Trace matching the bypass rule without recording cookies or private bodies. Repeated current fingerprinted media GETs must reach `CF-Cache-Status: HIT`; public HTML/JSON must remain rollback-friendly.
-5. Record rollback evidence. First rollback is a reviewed change of the persistent proxy input back to DNS-only with the dedicated DNS apply. If Cloudflare authoritative DNS fails, restore the backed-up Porkbun zone and registrar nameservers, allowing for propagation.
+5. Record rollback evidence. First rollback is a reviewed change of the persistent mode back to `dns_only` with the controlled DNS apply. If Cloudflare authoritative DNS fails, restore the backed-up Porkbun zone and registrar nameservers, allowing for propagation.
 
 ### D. Retire Porkbun Terraform ownership
 

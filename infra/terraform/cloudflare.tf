@@ -1,9 +1,10 @@
 locals {
-  cloudflare_autographs_proxied = coalesce(var.cloudflare_autographs_proxied, false)
+  cloudflare_configured         = var.cloudflare_mode != "off"
+  cloudflare_autographs_proxied = var.cloudflare_mode == "proxied"
 }
 
 resource "cloudflare_zone" "domain" {
-  count = var.cloudflare_enabled ? 1 : 0
+  count = local.cloudflare_configured ? 1 : 0
 
   account = {
     id = var.cloudflare_account_id
@@ -13,7 +14,7 @@ resource "cloudflare_zone" "domain" {
 }
 
 resource "cloudflare_dns_record" "autographs" {
-  count = var.cloudflare_enabled ? 1 : 0
+  count = local.cloudflare_configured ? 1 : 0
 
   zone_id = cloudflare_zone.domain[0].id
   name    = "autographs.jetsaredim.net"
@@ -24,7 +25,7 @@ resource "cloudflare_dns_record" "autographs" {
 }
 
 resource "cloudflare_dns_record" "mail" {
-  count = var.cloudflare_enabled ? 1 : 0
+  count = local.cloudflare_configured ? 1 : 0
 
   zone_id  = cloudflare_zone.domain[0].id
   name     = "jetsaredim.net"
@@ -36,7 +37,7 @@ resource "cloudflare_dns_record" "mail" {
 }
 
 resource "cloudflare_dns_record" "spf" {
-  count = var.cloudflare_enabled ? 1 : 0
+  count = local.cloudflare_configured ? 1 : 0
 
   zone_id = cloudflare_zone.domain[0].id
   name    = "jetsaredim.net"
@@ -47,7 +48,7 @@ resource "cloudflare_dns_record" "spf" {
 }
 
 resource "cloudflare_zone_setting" "strict_tls" {
-  count = var.cloudflare_enabled ? 1 : 0
+  count = local.cloudflare_configured ? 1 : 0
 
   zone_id    = cloudflare_zone.domain[0].id
   setting_id = "ssl"
@@ -55,7 +56,7 @@ resource "cloudflare_zone_setting" "strict_tls" {
 }
 
 resource "cloudflare_ruleset" "autographs_cache" {
-  count = var.cloudflare_enabled ? 1 : 0
+  count = local.cloudflare_configured ? 1 : 0
 
   zone_id     = cloudflare_zone.domain[0].id
   name        = "Autographs CDN cache contract"
