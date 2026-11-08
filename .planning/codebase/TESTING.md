@@ -38,7 +38,8 @@ Covered areas include:
   pending-change status, explicit publish batching, retention status, and
   redacted diagnostics; Phase 7 signer/taxonomy route auth, signer
   suggestions, signer profile edits, signer merge repair, taxonomy suggestions,
-  and taxonomy-aware item filters.
+  and taxonomy-aware item filters; Phase 8 private image preview, adjustment,
+  revision, and pending-change behavior.
 - `media_cleanup`: image primary selection, replacement/removal, retryable
   cleanup events, rollback behavior, and cleanup warning visibility.
 - Static artifact contracts for collection/detail/facet data and manifests.
@@ -53,7 +54,8 @@ Covered areas include:
 - `publisher`: generation, validation, promotion, privacy scans, incremental
   stale cleanup, promoted/failed release retention behavior, schema version 2
   public facets, detail signer rows, optional profile links, and default
-  language/origin hiding.
+  language/origin hiding; adjustment-aware derivatives and final-byte public
+  fingerprints with verified cache reuse.
 - `caddy_static_routes`: public/admin route shape, retired operator blocking,
   localhost preview binding, and Cache-Control header contract.
 - Caddy static route expectations.
@@ -86,6 +88,11 @@ Covered areas include:
   facet groups, absence of a category facet, public detail taxonomy values,
   generated WebP derivatives, stale artifact cleanup, and exclusion of private
   Object Storage identifiers or original filenames when the smoke is enabled.
+- Phase 8 adds focused adjustment transform, Oracle schema/repository,
+  authenticated preview, admin workbench, publisher cache-integrity, and
+  static privacy regressions. Owner-reported production adjustments and
+  publishes are operator UAT; the credential-gated automated smoke remains
+  separate and was not run live for Plan 08-07.
 - Public output privacy is validated at artifact/publisher boundaries rather
   than through retired app-mediated image routes.
 - Deployment validation is tied to the actual runtime model: controller image,
@@ -106,19 +113,15 @@ Covered areas include:
 
 ## Coverage Gaps
 
-### Pending Phase 8 Areas
+### Phase 8 closeout boundary
 
-- Production security patching repair validation, including local syntax checks,
-  mocked or live-safe role behavior where practical, and operator-run workflow
-  verification for production.
-- Operational posture guardrail validation for stale retired-runtime and wrong
-  Phase 8 ownership claims in repository docs and codebase maps through
-  `scripts/validate_repo_hygiene.py`.
-- Admin image preview route/UI validation behind the session-cookie boundary.
-- Image adjustment metadata, derivative transform, cache invalidation, static
-  contract/privacy, and publish behavior validation.
-- Repo-wide posture pass findings should either ship with focused tests/checks
-  or be explicitly tracked when they are outside the Phase 8 implementation.
+- Production CDN edge-cache behavior, admin bypass, and rollback still require
+  live verification after Cloudflare proxying is enabled. Caddy origin headers
+  alone do not prove edge behavior.
+- Live security scan and safe apply-path exercise require operator workflow
+  evidence; local syntax/lint checks do not prove production execution.
+- A prior media URL was not retained for the owner-observed adjusted item, so
+  the current URL/hash match does not alone prove the before/after transition.
 - Phase 9 adds taxonomy thumbnail/media cue validation; Phase 10 adds OCR/AI
   provider, prompt, failure-mode, privacy-boundary, and configuration review.
 
@@ -132,4 +135,4 @@ Covered areas include:
 
 ---
 
-*Testing analysis refreshed: 2026-08-17 during Phase 8 pre-media posture pass*
+*Testing analysis refreshed: 2026-11-06 during Phase 8 closeout*

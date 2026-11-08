@@ -305,3 +305,25 @@ variable "autographs_dns_record_id" {
   description = "Existing Porkbun DNS record ID for autographs.jetsaredim.net."
   type        = string
 }
+
+variable "cloudflare_mode" {
+  description = "Cloudflare migration stage: off, DNS-only, or proxied."
+  type        = string
+  default     = "off"
+
+  validation {
+    condition     = contains(["off", "dns_only", "proxied"], var.cloudflare_mode)
+    error_message = "cloudflare_mode must be off, dns_only, or proxied."
+  }
+}
+
+variable "cloudflare_account_id" {
+  description = "Cloudflare account ID for the jetsaredim.net zone."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.cloudflare_mode == "off" || can(regex("^[0-9a-f]{32}$", var.cloudflare_account_id))
+    error_message = "Set cloudflare_account_id to the 32-character account ID when Cloudflare mode is dns_only or proxied."
+  }
+}

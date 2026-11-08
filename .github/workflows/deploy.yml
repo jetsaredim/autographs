@@ -641,8 +641,17 @@ jobs:
           TF_VAR_autographs_dns_subdomain: ${{ vars.AUTOGRAPHS_DNS_SUBDOMAIN || 'autographs' }}
           TF_VAR_autographs_dns_ttl: ${{ vars.AUTOGRAPHS_DNS_TTL || 600 }}
           TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
+          TF_VAR_cloudflare_mode: ${{ vars.CLOUDFLARE_MODE || 'off' }}
+          TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
+          if [ "$TF_VAR_cloudflare_mode" != "off" ]; then
+            if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+              echo "::error::Set the CLOUDFLARE_API_TOKEN secret before using a Cloudflare mode."
+              exit 1
+            fi
+          fi
           terraform init \
             -backend-config="bucket=autographs-tf-state" \
             -backend-config="namespace=${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}" \
@@ -659,7 +668,18 @@ jobs:
               echo "Runtime instance is not in Terraform state; skipping taint."
             fi
           fi
-          terraform apply -auto-approve
+          terraform_plan_file="$RUNNER_TEMP/runtime.tfplan"
+          terraform plan -input=false -out="$terraform_plan_file"
+          terraform show -json "$terraform_plan_file" | jq -e '
+            [ .resource_changes[]?
+              | select(.address | test("^(cloudflare_|porkbun_dns_record\\.)"))
+              | select(.change.actions != ["no-op"])
+            ] | length == 0
+          ' >/dev/null || {
+            echo "::error::Routine deploy cannot change Cloudflare or Porkbun DNS resources. Review and apply the DNS plan through the controlled operator procedure."
+            exit 1
+          }
+          terraform apply -input=false "$terraform_plan_file"
           runtime_secret_ids="$(terraform output -json runtime_secret_id_env_vars)"
           if ! jq -e '
             type == "object" and
