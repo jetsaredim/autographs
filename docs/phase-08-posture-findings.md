@@ -14,6 +14,25 @@ This register records the pre-media repository posture pass for Phase 8. It keep
 | P8-POSTURE-008 | Validation gaps | Existing CI validates runtime, workflows, Terraform, Ansible, and scripts, but did not yet validate stale current-state claims. | Medium | Guarded by CI | Plan 08-02 adds standard-library Python tests and the repository hygiene validator. | `python3 -m unittest scripts/test_validate_repo_hygiene.py` |
 | P8-POSTURE-009 | Public edge/cache hygiene | CDN/cache behavior is Phase 8 work, but enablement must wait until adjusted-media cache behavior can be verified after the media adjustment pipeline exists. | High | Tracked in Phase 8 plan | The posture pass records CDN/cache as a pre-media contract and post-media verification concern, not a Task 1 implementation. | Phase 8 downstream plans retain CDN/cache contract and post-media verification gates. |
 
+## IaC boolean reassessment during Wave 8
+
+The pre-media pass recorded P8-POSTURE-006 but did not remove the Terraform
+create/enable variables or audit Ansible mode booleans. The Cloudflare
+implementation initially repeated that pattern with separate enabled and proxy
+flags. Wave 8 replaced those flags with one validated `cloudflare_mode` value:
+`off`, `dns_only`, or `proxied`.
+
+| Surface | Current switches | Assessment |
+|---------|------------------|------------|
+| Runtime Terraform resource existence | `create_network`, `create_runtime_instance`, `create_autonomous_database`, `create_media_bucket` | These control whether stateful OCI resources exist. Removing them requires a reviewed production state plan and import/readiness audit; an unreviewed default change could plan destruction. P8-POSTURE-006 remains a deferred IaC cleanup. |
+| Runtime Terraform configuration | `assign_public_ip`, Autonomous Database Free tier and mTLS fields | Public IP changes topology; Free tier and mTLS are currently true in production and should be reviewed as fixed policy rather than casually toggleable options. Preserve current values until a production plan proves a refactor has no replacement. |
+| Ansible deployment | `autographs_deploy_publish_frozen`, `autographs_deploy_explicit_cutover` | Full deploy asserts both true before replacing runtime services. The former also controls the publish freeze file; the latter suppresses restart handlers during explicit cutover. Review as a cutover contract before simplifying either. |
+| Ansible security patching | `security_patching_reboot_validate_dnf_noop` | This controls the reboot follow-up safety probe and is overridden in validation fixtures. Keep it until the safety behavior has an equivalent test seam. |
+
+This reassessment distinguishes migration-state combinations from safety and
+resource-existence controls. It does not mark the broader Terraform/Ansible
+boolean cleanup complete.
+
 ## Pre-media evidence
 
 Plan 08-02 changed only posture documentation, planning/codebase maps, AGENTS current-state guidance, CI workflow wiring, and the repository hygiene scripts/tests. It did not modify `controller/static-admin/`, `controller/src/image_adjustments.rs`, `controller/src/derivatives.rs`, `controller/src/publisher.rs`, or image-adjustment migration files.
