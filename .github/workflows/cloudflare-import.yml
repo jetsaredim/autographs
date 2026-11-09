@@ -99,7 +99,7 @@ jobs:
           }
           echo "Verified active full zone and exactly three DNS-only/authoritative records."
 
-      - name: Import Cloudflare resources into production state and inspect plan
+      - name: Reconcile Cloudflare state and inspect saved plan
         working-directory: infra/terraform
         env:
           ZONE_ID: ${{ inputs.zone_id }}
@@ -209,17 +209,44 @@ jobs:
             "\(.address): \(.change.actions | join(","))"
           '
           if [ "$OPERATION" = apply_tls_and_cache ]; then
-            terraform show -json "$plan_file" | jq -e '
-              [.resource_changes[]? | select(.change.actions != ["no-op"]) |
-               {address, actions: .change.actions}] | sort_by(.address) == [
+            terraform show -json "$plan_file" | jq -e --arg zone "$ZONE_ID" '
+              [.resource_changes[]? | select(.change.actions != ["no-op"])] as $changes |
+              ($changes | map({address, actions: .change.actions}) | sort_by(.address)) == [
                 {address: "cloudflare_ruleset.autographs_cache[0]", actions: ["create"]},
                 {address: "cloudflare_zone_setting.strict_tls[0]", actions: ["update"]}
-              ]
+              ] and
+              ([$changes[] | select(.address == "cloudflare_zone_setting.strict_tls[0]")][0].change |
+                .before.value == "full" and .after.value == "strict" and
+                .after.zone_id == $zone and .after.setting_id == "ssl") and
+              ([$changes[] | select(.address == "cloudflare_ruleset.autographs_cache[0]")][0].change.after |
+                .zone_id == $zone and .kind == "zone" and
+                .phase == "http_request_cache_settings" and
+                (.rules | map({ref, action, expression,
+                  cache: .action_parameters.cache,
+                  edge_ttl_mode: .action_parameters.edge_ttl.mode,
+                  browser_ttl_mode: .action_parameters.browser_ttl.mode
+                })) == [
+                  {
+                    ref: "bypass_admin_and_api", action: "set_cache_settings",
+                    expression: "(http.host eq \"autographs.jetsaredim.net\" and (http.request.uri.path eq \"/admin\" or starts_with(http.request.uri.path, \"/admin/\")))",
+                    cache: false, edge_ttl_mode: null, browser_ttl_mode: null
+                  },
+                  {
+                    ref: "respect_rollback_documents", action: "set_cache_settings",
+                    expression: "(http.host eq \"autographs.jetsaredim.net\" and (http.request.uri.path eq \"/\" or http.request.uri.path eq \"/index.html\" or http.request.uri.path eq \"/404.html\" or http.request.uri.path eq \"/manifest.json\" or starts_with(http.request.uri.path, \"/collection/\") or starts_with(http.request.uri.path, \"/items/\") or starts_with(http.request.uri.path, \"/architecture/\") or starts_with(http.request.uri.path, \"/data/\")))",
+                    cache: false, edge_ttl_mode: null, browser_ttl_mode: null
+                  },
+                  {
+                    ref: "cache_fingerprinted_media_and_assets", action: "set_cache_settings",
+                    expression: "(http.host eq \"autographs.jetsaredim.net\" and (starts_with(http.request.uri.path, \"/media/\") or starts_with(http.request.uri.path, \"/assets/\")))",
+                    cache: true, edge_ttl_mode: "respect_origin", browser_ttl_mode: "respect_origin"
+                  }
+                ])
             ' >/dev/null || {
-              echo "::error::Plan is not exactly the reviewed cache-ruleset creation and strict-TLS update. No apply ran."
+              echo "::error::Plan does not match the reviewed strict-TLS value and cache-rule contract. No apply ran."
               exit 1
             }
-            terraform apply -input=false "$plan_file"
+            terraform apply -input=false -lock-timeout=5m "$plan_file"
             echo "Applied exactly the verified saved plan for cache rules and Full (strict) TLS."
           else
             echo "Verification only: no Terraform apply was run. Review the plan before any DNS change."

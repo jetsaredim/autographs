@@ -32,7 +32,8 @@ proposed only the cache ruleset creation and SSL update from `full` to
 `strict`: one add, one change, zero destroy. The workflow's default
 `verify_only` operation never applies. Its `apply_tls_and_cache` operation
 requires the persistent mode to remain `dns_only`, verifies the live zone and
-three-record inventory, accepts exactly those two Terraform actions, then
+three-record inventory, checks the exact Full (strict) value and three cache
+rule behaviors, accepts exactly those two Terraform actions, then
 applies the saved plan from the same run. Any different plan stops without an
 apply. Routine deploys still refuse DNS changes.
 
