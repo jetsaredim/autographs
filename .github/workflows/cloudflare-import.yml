@@ -62,6 +62,13 @@ jobs:
           curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?per_page=100" \
             > "$RUNNER_TEMP/cloudflare-records.json"
+          jq -r '
+            "Cloudflare count: \(.result_info.total_count); returned: \(.result | length)",
+            (.result[] | "\(.type) \(.name) ttl=\(.ttl) proxied=\(.proxied) priority=\(.priority // "-")"),
+            "Expected A matches: \([.result[] | select(.type == "A" and .name == "autographs.jetsaredim.net" and .content == "129.213.166.159" and .proxied == false and .ttl == 600)] | length)",
+            "Expected MX matches: \([.result[] | select(.type == "MX" and .name == "jetsaredim.net" and (.content | rtrimstr(".")) == "smtp.google.com" and .priority == 1 and .ttl == 600)] | length)",
+            "Expected SPF matches: \([.result[] | select(.type == "TXT" and .name == "jetsaredim.net" and .content == "v=spf1 include:_spf.google.com ~all" and .ttl == 600)] | length)"
+          ' "$RUNNER_TEMP/cloudflare-records.json"
           jq -e '
             .success == true and .result_info.total_count == 3 and
             (.result | length) == 3 and
