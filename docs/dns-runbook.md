@@ -9,9 +9,12 @@ setup.
 Wave 8 prepares the existing runtime Terraform root for the Cloudflare zone,
 the owner's confirmed three DNS records, strict TLS, and cache rules. Porkbun
 Connect already copied the records and delegated nameservers to Cloudflare.
-The A record remains DNS-only; the Cloudflare resources are not yet imported
-into Terraform state. `CLOUDFLARE_MODE` defaults to `off`; the reviewed
-sequence is `off` → `dns_only` → `proxied`. Routine deploys inspect
+The A record remains DNS-only; the Cloudflare zone, three records, and SSL
+setting were imported into the existing Terraform state by the
+[import-only run](https://github.com/jetsaredim/autographs/actions/runs/42689411270).
+The persistent GitHub `CLOUDFLARE_MODE` is now `dns_only` (the Terraform input
+defaults to `off` when unset); the reviewed sequence is `off` → `dns_only` →
+`proxied`. Routine deploys inspect
 a saved Terraform plan and refuse Cloudflare or Porkbun DNS changes. A controlled
 operator apply uses the exact reviewed plan file; follow the
 [Wave 8 migration sequence](../.planning/phases/08-admin-media-review-and-operational-posture/08-08-CLOUDFLARE-MIGRATION.md)
@@ -19,15 +22,15 @@ before any authoritative DNS change.
 The Cloudflare `autographs` A record uses the confirmed 600-second TTL while
 DNS-only and Cloudflare's automatic TTL when proxied.
 
-Before setting the persistent GitHub `CLOUDFLARE_MODE=dns_only`, run the
-manual [Cloudflare import workflow](../.github/workflows/cloudflare-import.yml)
-on `main` with the zone ID from Cloudflare Overview. It checks the active zone
-and exact three-record inventory, then imports the zone, A/MX/TXT records, the
-SSL zone setting, and any existing cache ruleset into the existing OCI-backed
-Terraform state. It prints a sanitized plan summary and does not apply the
-plan or change DNS. Review any proposed changes before a separate controlled
-operator plan/apply. A routine deploy with `dns_only` before import would see
-the live resources as new; its DNS guard must reject that plan.
+The [manual Cloudflare import workflow](../.github/workflows/cloudflare-import.yml)
+checked the active zone and exact three-record inventory, then imported the
+zone, A/MX/TXT records, and SSL setting into OCI-backed state. No cache
+ruleset existed to import. The import run did not apply DNS changes. Its plan
+showed a new cache ruleset, an SSL update from `full` to `strict`, and a
+quote-only SPF update. Terraform's SPF source is being aligned to the imported
+record before the separate controlled operator plan/apply. Keep the persistent
+mode at `dns_only` after state import so routine plans do not propose removal
+of imported Cloudflare resources; routine deploys still refuse DNS changes.
 
 ## DNS Model
 
