@@ -163,20 +163,16 @@ References checked during this decision:
 
 ## Verification
 
-After Porkbun is updated and the deploy workflow has completed, verify DNS,
-HTTP, and HTTPS:
+After Cloudflare DNS is delegated, verify DNS and the public HTTPS origin:
 
 ```bash
+dig NS jetsaredim.net
 dig A autographs.jetsaredim.net
-curl --fail --silent http://autographs.jetsaredim.net/health
-curl --fail --silent https://autographs.jetsaredim.net/health
+curl --fail --silent --show-error --head https://autographs.jetsaredim.net/
+curl --fail --silent --show-error --head https://autographs.jetsaredim.net/admin/
 ```
 
-Expected response:
-
-```json
-{"ok":true,"service":"autographs","scope":"proof-of-life"}
-```
-
-DNS changes can take time to propagate through recursive resolver caches, but a
-The provider-enforced 600-second TTL should make routine updates settle quickly.
+Expect Cloudflare nameservers, the runtime VM A address, HTTP 200 for both
+paths, and `Cache-Control: no-store` for `/admin/`. These DNS-only responses
+do not establish CDN cache behavior. DNS changes can take time to propagate
+through recursive resolver caches; the A record has a 600-second TTL.

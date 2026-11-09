@@ -17,11 +17,14 @@ concurrency:
 
 jobs:
   import:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
+        with:
+          ref: main
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
@@ -129,33 +132,51 @@ jobs:
             -backend-config="workspace_key_prefix=envs" \
             -backend-config="auth=APIKey"
           import_if_absent() {
-            local address="$1" import_id="$2"
-            if terraform state list | grep -Fxq "$address"; then
-              echo "Already in state: $address"
-            else
+            local address="$1" import_id="$2" expected_id="$3"
+            if ! terraform state list | grep -Fxq "$address"; then
               terraform import -input=false "$address" "$import_id"
             fi
+            local resource_type="${address%%.*}"
+            local resource_name="${address#*.}"
+            resource_name="${resource_name%%[*}"
+            local current_id
+            current_id="$(terraform state pull | jq -er \
+              --arg type "$resource_type" --arg name "$resource_name" '
+              .resources[] |
+              select(.module == null and .mode == "managed" and
+                     .type == $type and .name == $name) |
+              .instances[] | select(.index_key == 0) | .attributes.id
+            ')"
+            if [ "$current_id" != "$expected_id" ]; then
+              echo "::error::Terraform address $address has a different resource ID. Stop and inspect state."
+              exit 1
+            fi
+            echo "Verified state mapping: $address"
           }
           record_id() {
             jq -er --arg type "$1" --arg name "$2" \
               '.result[] | select(.type == $type and .name == $name) | .id' \
               "$RUNNER_TEMP/cloudflare-records.json"
           }
-          import_if_absent 'cloudflare_zone.domain[0]' "$ZONE_ID"
+          import_if_absent 'cloudflare_zone.domain[0]' "$ZONE_ID" "$ZONE_ID"
+          autograph_record_id="$(record_id A autographs.jetsaredim.net)"
           import_if_absent 'cloudflare_dns_record.autographs[0]' \
-            "$ZONE_ID/$(record_id A autographs.jetsaredim.net)"
+            "$ZONE_ID/$autograph_record_id" "$autograph_record_id"
+          mail_record_id="$(record_id MX jetsaredim.net)"
           import_if_absent 'cloudflare_dns_record.mail[0]' \
-            "$ZONE_ID/$(record_id MX jetsaredim.net)"
+            "$ZONE_ID/$mail_record_id" "$mail_record_id"
+          spf_record_id="$(record_id TXT jetsaredim.net)"
           import_if_absent 'cloudflare_dns_record.spf[0]' \
-            "$ZONE_ID/$(record_id TXT jetsaredim.net)"
-          import_if_absent 'cloudflare_zone_setting.strict_tls[0]' "$ZONE_ID/ssl"
+            "$ZONE_ID/$spf_record_id" "$spf_record_id"
+          import_if_absent 'cloudflare_zone_setting.strict_tls[0]' "$ZONE_ID/ssl" ssl
           ruleset_status="$(curl -sS -o "$RUNNER_TEMP/cloudflare-cache-ruleset.json" -w '%{http_code}' \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/rulesets/phases/http_request_cache_settings/entrypoint")"
           case "$ruleset_status" in
             200)
               ruleset_id="$(jq -er '.result.id' "$RUNNER_TEMP/cloudflare-cache-ruleset.json")"
-              import_if_absent 'cloudflare_ruleset.autographs_cache[0]' "zones/$ZONE_ID/$ruleset_id"
+              import_if_absent 'cloudflare_ruleset.autographs_cache[0]' \
+                "zones/$ZONE_ID/$ruleset_id" "$ruleset_id"
               ;;
             404) echo "No existing cache ruleset; Terraform plan may propose one." ;;
             *) echo "::error::Could not inspect existing cache ruleset (HTTP $ruleset_status)."; exit 1 ;;
