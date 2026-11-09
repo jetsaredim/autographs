@@ -23,10 +23,12 @@ record, each matching the confirmed inventory. Two old apex ACME challenge
 records were removed because Caddy manages the only site's certificate.
 The zone, A/MX/TXT records, and SSL setting were imported into the existing
 OCI-backed Terraform state by [run 42689411270](https://github.com/jetsaredim/autographs/actions/runs/42689411270).
-The import-only plan reported one cache ruleset creation, an SSL setting
-update from `full` to `strict`, and a quote-only SPF update. There was no
-destruction and no apply. Terraform's SPF source must match the imported
-quoted representation before any controlled apply. The proxy is not active.
+The import-only plan initially reported a quote-only SPF update. Terraform's
+SPF representation was aligned in PR #330. The subsequent
+[verification run](https://github.com/jetsaredim/autographs/actions/runs/42693102566)
+reported exactly one cache ruleset creation and one SSL setting update from
+`full` to `strict`, with no DNS record changes, destruction, or apply. The
+proxy is not active.
 
 ## Confirmed inputs
 
@@ -35,8 +37,9 @@ quoted representation before any controlled apply. The proxy is not active.
 
 ## Inputs still required
 
-- A controlled saved plan/apply for Full (strict) TLS and the cache rules,
-  after Terraform's SPF source matches the imported state.
+- Run the reconciliation workflow's `apply_tls_and_cache` operation after
+  reviewing the exact two-action plan. It rejects any other Terraform action
+  and applies the saved plan in the same run.
 - The persistent GitHub mode variable has been set to `dns_only`; preserve it
   before any routine deployment and review the subsequent no-destroy plan.
 

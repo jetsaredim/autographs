@@ -22,15 +22,19 @@ before any authoritative DNS change.
 The Cloudflare `autographs` A record uses the confirmed 600-second TTL while
 DNS-only and Cloudflare's automatic TTL when proxied.
 
-The [manual Cloudflare import workflow](../.github/workflows/cloudflare-import.yml)
+The [manual Cloudflare reconciliation workflow](../.github/workflows/cloudflare-import.yml)
 checked the active zone and exact three-record inventory, then imported the
 zone, A/MX/TXT records, and SSL setting into OCI-backed state. No cache
-ruleset existed to import. The import run did not apply DNS changes. Its plan
-showed a new cache ruleset, an SSL update from `full` to `strict`, and a
-quote-only SPF update. Terraform's SPF source is being aligned to the imported
-record before the separate controlled operator plan/apply. Keep the persistent
-mode at `dns_only` after state import so routine plans do not propose removal
-of imported Cloudflare resources; routine deploys still refuse DNS changes.
+ruleset existed to import. The initial import run did not apply DNS changes.
+After aligning Terraform's SPF representation with Cloudflare's API, the
+[verification run](https://github.com/jetsaredim/autographs/actions/runs/42693102566)
+proposed only the cache ruleset creation and SSL update from `full` to
+`strict`: one add, one change, zero destroy. The workflow's default
+`verify_only` operation never applies. Its `apply_tls_and_cache` operation
+requires the persistent mode to remain `dns_only`, verifies the live zone and
+three-record inventory, accepts exactly those two Terraform actions, then
+applies the saved plan from the same run. Any different plan stops without an
+apply. Routine deploys still refuse DNS changes.
 
 ## DNS Model
 
