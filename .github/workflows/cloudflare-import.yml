@@ -64,7 +64,7 @@ jobs:
             > "$RUNNER_TEMP/cloudflare-records.json"
           jq -r '
             "Cloudflare count: \(.result_info.total_count); returned: \(.result | length)",
-            (.result[] | "\(.type) \(.name) ttl=\(.ttl) proxied=\(.proxied) priority=\(.priority // "-")"),
+            "Record types: \(.result | group_by(.type) | map("\(.[0].type)=\(length)") | join(", "))",
             "Expected A matches: \([.result[] | select(.type == "A" and .name == "autographs.jetsaredim.net" and .content == "129.213.166.159" and .proxied == false and .ttl == 600)] | length)",
             "Expected MX matches: \([.result[] | select(.type == "MX" and .name == "jetsaredim.net" and (.content | rtrimstr(".")) == "smtp.google.com" and .priority == 1 and .ttl == 600)] | length)",
             "Expected SPF matches: \([.result[] | select(.type == "TXT" and .name == "jetsaredim.net" and .content == "v=spf1 include:_spf.google.com ~all" and .ttl == 600)] | length)"
