@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 plan: "08"
-status: cloudflare_dns_authoritative_import_pending
+status: cloudflare_dns_authoritative_imported_proxy_pending
 approach: terraform_managed_full_zone
 ---
 
@@ -21,8 +21,12 @@ delegated nameservers. Public Cloudflare authoritative queries show the
 `autographs` A record DNS-only with TTL 600, MX priority 1, and the SPF TXT
 record, each matching the confirmed inventory. Two old apex ACME challenge
 records were removed because Caddy manages the only site's certificate.
-Cloudflare resources are not yet imported into Terraform state, and the proxy
-is not active.
+The zone, A/MX/TXT records, and SSL setting were imported into the existing
+OCI-backed Terraform state by [run 42689411270](https://github.com/jetsaredim/autographs/actions/runs/42689411270).
+The import-only plan reported one cache ruleset creation, an SSL setting
+update from `full` to `strict`, and a quote-only SPF update. There was no
+destruction and no apply. Terraform's SPF source must match the imported
+quoted representation before any controlled apply. The proxy is not active.
 
 ## Confirmed inputs
 
@@ -31,10 +35,10 @@ is not active.
 
 ## Inputs still required
 
-- A controlled import of the live Cloudflare zone and records into the existing
-  OCI-backed state, using the scoped Cloudflare token already in GitHub Secrets.
-- A reviewed production plan for the imported `dns_only` mode before changing
-  the persistent GitHub mode variable or enabling the proxy.
+- A controlled saved plan/apply for Full (strict) TLS and the cache rules,
+  after Terraform's SPF source matches the imported state.
+- The persistent GitHub mode variable has been set to `dns_only`; preserve it
+  before any routine deployment and review the subsequent no-destroy plan.
 
 ## Staged implementation
 

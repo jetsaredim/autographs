@@ -42,7 +42,7 @@ resource "cloudflare_dns_record" "spf" {
   zone_id = cloudflare_zone.domain[0].id
   name    = "jetsaredim.net"
   type    = "TXT"
-  content = "v=spf1 include:_spf.google.com ~all"
+  content = "\"v=spf1 include:_spf.google.com ~all\""
   ttl     = 600
   proxied = false
 }
