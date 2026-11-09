@@ -1,0 +1,169 @@
+name: Import existing Cloudflare DNS into Terraform
+
+on:
+  workflow_dispatch:
+    inputs:
+      zone_id:
+        description: Cloudflare zone ID for jetsaredim.net
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-production
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.17.1"
+          terraform_wrapper: false
+
+      - name: Write OCI API private key
+        env:
+          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/oci"
+          printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
+          chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
+
+      - name: Verify live Cloudflare inventory
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          ZONE_ID: ${{ inputs.zone_id }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$ZONE_ID" =~ ^[a-f0-9]{32}$ ]] || [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::A zone ID, account ID, and API token are required."
+            exit 1
+          fi
+          curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID" > "$RUNNER_TEMP/cloudflare-zone.json"
+          jq -e --arg zone "$ZONE_ID" --arg account "$CLOUDFLARE_ACCOUNT_ID" '
+            .success == true and .result.id == $zone and
+            .result.name == "jetsaredim.net" and .result.account.id == $account and
+            .result.type == "full" and .result.status == "active"
+          ' "$RUNNER_TEMP/cloudflare-zone.json" >/dev/null
+          curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?per_page=100" \
+            > "$RUNNER_TEMP/cloudflare-records.json"
+          jq -e '
+            .success == true and .result_info.total_count == 3 and
+            (.result | length) == 3 and
+            ([.result[] | select(
+              .type == "A" and .name == "autographs.jetsaredim.net" and
+              .content == "129.213.166.159" and .proxied == false and .ttl == 600
+            )] | length) == 1 and
+            ([.result[] | select(
+              .type == "MX" and .name == "jetsaredim.net" and
+              (.content | rtrimstr(".")) == "smtp.google.com" and
+              .priority == 1 and .ttl == 600
+            )] | length) == 1 and
+            ([.result[] | select(
+              .type == "TXT" and .name == "jetsaredim.net" and
+              .content == "v=spf1 include:_spf.google.com ~all" and .ttl == 600
+            )] | length) == 1
+          ' "$RUNNER_TEMP/cloudflare-records.json" >/dev/null || {
+            echo "::error::Cloudflare DNS inventory differs from the three reviewed records; stop before import."
+            exit 1
+          }
+          echo "Verified active full zone and exactly three DNS-only/authoritative records."
+
+      - name: Import Cloudflare resources into production state and inspect plan
+        working-directory: infra/terraform
+        env:
+          ZONE_ID: ${{ inputs.zone_id }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
+          OCI_REGION: us-ashburn-1
+          TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
+          TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          TF_VAR_private_key_path: ${{ runner.temp }}/oci/api_key.pem
+          TF_VAR_compartment_ocid: ${{ vars.OCI_COMPARTMENT_OCID }}
+          TF_VAR_availability_domain: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
+          TF_VAR_runtime_image_ocid: ${{ vars.OCI_RUNTIME_IMAGE_OCID }}
+          TF_VAR_runtime_shape: ${{ vars.OCI_RUNTIME_SHAPE || 'VM.Standard.E2.1.Micro' }}
+          TF_VAR_runtime_ocpus: ${{ vars.OCI_RUNTIME_OCPUS || 1 }}
+          TF_VAR_runtime_memory_gbs: ${{ vars.OCI_RUNTIME_MEMORY_GBS || 1 }}
+          TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
+          TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
+          TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
+          TF_VAR_create_autonomous_database: ${{ vars.OCI_CREATE_AUTONOMOUS_DATABASE || 'false' }}
+          TF_VAR_autonomous_database_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_NAME || 'autographsdb' }}
+          TF_VAR_autonomous_database_display_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME || 'autographs-prod-adb' }}
+          TF_VAR_autonomous_database_is_mtls_connection_required: ${{ vars.OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED || 'true' }}
+          TF_VAR_create_media_bucket: ${{ vars.OCI_CREATE_MEDIA_BUCKET || 'false' }}
+          TF_VAR_media_bucket_namespace: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
+          TF_VAR_media_bucket_name: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
+          TF_VAR_porkbun_api_key: ${{ secrets.PORKBUN_API_KEY }}
+          TF_VAR_porkbun_secret_key: ${{ secrets.PORKBUN_SECRET_KEY }}
+          TF_VAR_autographs_dns_domain: ${{ vars.AUTOGRAPHS_DNS_DOMAIN || 'jetsaredim.net' }}
+          TF_VAR_autographs_dns_subdomain: ${{ vars.AUTOGRAPHS_DNS_SUBDOMAIN || 'autographs' }}
+          TF_VAR_autographs_dns_ttl: ${{ vars.AUTOGRAPHS_DNS_TTL || 600 }}
+          TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
+          TF_VAR_cloudflare_mode: dns_only
+          TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          terraform init -input=false \
+            -backend-config="bucket=autographs-tf-state" \
+            -backend-config="namespace=${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}" \
+            -backend-config="region=us-ashburn-1" \
+            -backend-config="key=envs/prod/terraform.tfstate" \
+            -backend-config="workspace_key_prefix=envs" \
+            -backend-config="auth=APIKey"
+          import_if_absent() {
+            local address="$1" import_id="$2"
+            if terraform state list | grep -Fxq "$address"; then
+              echo "Already in state: $address"
+            else
+              terraform import -input=false "$address" "$import_id"
+            fi
+          }
+          record_id() {
+            jq -er --arg type "$1" --arg name "$2" \
+              '.result[] | select(.type == $type and .name == $name) | .id' \
+              "$RUNNER_TEMP/cloudflare-records.json"
+          }
+          import_if_absent 'cloudflare_zone.domain[0]' "$ZONE_ID"
+          import_if_absent 'cloudflare_dns_record.autographs[0]' \
+            "$ZONE_ID/$(record_id A autographs.jetsaredim.net)"
+          import_if_absent 'cloudflare_dns_record.mail[0]' \
+            "$ZONE_ID/$(record_id MX jetsaredim.net)"
+          import_if_absent 'cloudflare_dns_record.spf[0]' \
+            "$ZONE_ID/$(record_id TXT jetsaredim.net)"
+          import_if_absent 'cloudflare_zone_setting.strict_tls[0]' "$ZONE_ID/ssl"
+          ruleset_status="$(curl -sS -o "$RUNNER_TEMP/cloudflare-cache-ruleset.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/rulesets/phases/http_request_cache_settings/entrypoint")"
+          case "$ruleset_status" in
+            200)
+              ruleset_id="$(jq -er '.result.id' "$RUNNER_TEMP/cloudflare-cache-ruleset.json")"
+              import_if_absent 'cloudflare_ruleset.autographs_cache[0]' "zones/$ZONE_ID/$ruleset_id"
+              ;;
+            404) echo "No existing cache ruleset; Terraform plan may propose one." ;;
+            *) echo "::error::Could not inspect existing cache ruleset (HTTP $ruleset_status)."; exit 1 ;;
+          esac
+          plan_file="$RUNNER_TEMP/cloudflare-import.tfplan"
+          terraform plan -input=false -out="$plan_file"
+          terraform show -json "$plan_file" | jq -r '
+            .resource_changes[]? | select(.change.actions != ["no-op"]) |
+            "\(.address): \(.change.actions | join(","))"
+          '
+          echo "Import only: no Terraform apply was run. Review the plan before any DNS change."

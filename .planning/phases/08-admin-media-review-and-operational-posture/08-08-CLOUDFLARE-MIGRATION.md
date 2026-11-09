@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 plan: "08"
-status: single_root_code_prepared_api_token_pending
+status: cloudflare_dns_authoritative_import_pending
 approach: terraform_managed_full_zone
 ---
 
@@ -15,7 +15,14 @@ Porkbun remains the registrar. Cloudflare becomes authoritative only after every
 
 This is a full-zone plan. Partial/CNAME setup would need a separate revised design. The owner confirms DNSSEC is disabled and does not want it enabled. Public `dig DS jetsaredim.net` returned no record on 2026-11-06; keep DNSSEC off and the registrar without a DS record.
 
-The adjusted-media before/after URL gate passed in `08-08-CHECKPOINT.md`. No Cloudflare zone, nameserver, or proxy change has been applied.
+The adjusted-media before/after URL gate passed in `08-08-CHECKPOINT.md`.
+Porkbun Connect has now created the Cloudflare zone, copied records, and
+delegated nameservers. Public Cloudflare authoritative queries show the
+`autographs` A record DNS-only with TTL 600, MX priority 1, and the SPF TXT
+record, each matching the confirmed inventory. Two old apex ACME challenge
+records were removed because Caddy manages the only site's certificate.
+Cloudflare resources are not yet imported into Terraform state, and the proxy
+is not active.
 
 ## Confirmed inputs
 
@@ -24,8 +31,10 @@ The adjusted-media before/after URL gate passed in `08-08-CHECKPOINT.md`. No Clo
 
 ## Inputs still required
 
-- A scoped Cloudflare API token through the protected GitHub secret store; never commit the token or place it in Terraform variable values/state.
-- Cloudflare-assigned nameservers, a known-good rollback copy of the Porkbun zone, and the owner-selected cutover window.
+- A controlled import of the live Cloudflare zone and records into the existing
+  OCI-backed state, using the scoped Cloudflare token already in GitHub Secrets.
+- A reviewed production plan for the imported `dns_only` mode before changing
+  the persistent GitHub mode variable or enabling the proxy.
 
 ## Staged implementation
 
