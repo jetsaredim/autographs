@@ -1,4 +1,4 @@
-name: Import existing Cloudflare DNS into Terraform
+name: Reconcile Cloudflare DNS state and settings
 
 on:
   workflow_dispatch:
@@ -7,6 +7,14 @@ on:
         description: Cloudflare zone ID for jetsaredim.net
         required: true
         type: string
+      operation:
+        description: Verify state and plan, or apply only Full (strict) TLS and cache rules
+        required: true
+        default: verify_only
+        type: choice
+        options:
+          - verify_only
+          - apply_tls_and_cache
 
 permissions:
   contents: read
@@ -91,7 +99,7 @@ jobs:
           }
           echo "Verified active full zone and exactly three DNS-only/authoritative records."
 
-      - name: Import Cloudflare resources into production state and inspect plan
+      - name: Reconcile Cloudflare state and inspect saved plan
         working-directory: infra/terraform
         env:
           ZONE_ID: ${{ inputs.zone_id }}
@@ -129,8 +137,14 @@ jobs:
           TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
           TF_VAR_cloudflare_mode: dns_only
           TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_MODE: ${{ vars.CLOUDFLARE_MODE }}
+          OPERATION: ${{ inputs.operation }}
         run: |
           set -euo pipefail
+          if [ "$CLOUDFLARE_MODE" != dns_only ]; then
+            echo "::error::Persistent CLOUDFLARE_MODE must remain dns_only for this workflow."
+            exit 1
+          fi
           terraform init -input=false \
             -backend-config="bucket=autographs-tf-state" \
             -backend-config="namespace=${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}" \
@@ -189,9 +203,54 @@ jobs:
             *) echo "::error::Could not inspect existing cache ruleset (HTTP $ruleset_status)."; exit 1 ;;
           esac
           plan_file="$RUNNER_TEMP/cloudflare-import.tfplan"
-          terraform plan -input=false -out="$plan_file"
+          terraform plan -input=false -lock-timeout=5m -out="$plan_file"
           terraform show -json "$plan_file" | jq -r '
             .resource_changes[]? | select(.change.actions != ["no-op"]) |
             "\(.address): \(.change.actions | join(","))"
           '
-          echo "Import only: no Terraform apply was run. Review the plan before any DNS change."
+          if [ "$OPERATION" = apply_tls_and_cache ]; then
+            terraform show -json "$plan_file" | jq -e --arg zone "$ZONE_ID" '
+              [.resource_changes[]? | select(.change.actions != ["no-op"])] as $changes |
+              ($changes | map({address, actions: .change.actions}) | sort_by(.address)) == [
+                {address: "cloudflare_ruleset.autographs_cache[0]", actions: ["create"]},
+                {address: "cloudflare_zone_setting.strict_tls[0]", actions: ["update"]}
+              ] and
+              ([$changes[] | select(.address == "cloudflare_zone_setting.strict_tls[0]")][0].change |
+                .before.value == "full" and .after.value == "strict" and
+                .after.zone_id == $zone and .after.setting_id == "ssl") and
+              ([$changes[] | select(.address == "cloudflare_ruleset.autographs_cache[0]")][0].change.after |
+                .zone_id == $zone and .kind == "zone" and
+                .phase == "http_request_cache_settings" and
+                (.rules | map({ref, enabled, action, expression,
+                  action_parameters: (.action_parameters |
+                    walk(if type == "object" then with_entries(select(.value != null)) else . end))
+                })) == [
+                  {
+                    ref: "bypass_admin_and_api", enabled: true, action: "set_cache_settings",
+                    expression: "(http.host eq \"autographs.jetsaredim.net\" and (http.request.uri.path eq \"/admin\" or starts_with(http.request.uri.path, \"/admin/\")))",
+                    action_parameters: {cache: false}
+                  },
+                  {
+                    ref: "respect_rollback_documents", enabled: true, action: "set_cache_settings",
+                    expression: "(http.host eq \"autographs.jetsaredim.net\" and (http.request.uri.path eq \"/\" or http.request.uri.path eq \"/index.html\" or http.request.uri.path eq \"/404.html\" or http.request.uri.path eq \"/manifest.json\" or starts_with(http.request.uri.path, \"/collection/\") or starts_with(http.request.uri.path, \"/items/\") or starts_with(http.request.uri.path, \"/architecture/\") or starts_with(http.request.uri.path, \"/data/\")))",
+                    action_parameters: {cache: false}
+                  },
+                  {
+                    ref: "cache_fingerprinted_media_and_assets", enabled: true, action: "set_cache_settings",
+                    expression: "(http.host eq \"autographs.jetsaredim.net\" and (starts_with(http.request.uri.path, \"/media/\") or starts_with(http.request.uri.path, \"/assets/\")))",
+                    action_parameters: {
+                      cache: true,
+                      edge_ttl: {mode: "respect_origin"},
+                      browser_ttl: {mode: "respect_origin"}
+                    }
+                  }
+                ])
+            ' >/dev/null || {
+              echo "::error::Plan does not match the reviewed strict-TLS value and cache-rule contract. No apply ran."
+              exit 1
+            }
+            terraform apply -input=false -lock-timeout=5m "$plan_file"
+            echo "Applied exactly the verified saved plan for cache rules and Full (strict) TLS."
+          else
+            echo "Verification only: no Terraform apply was run. Review the plan before any DNS change."
+          fi
