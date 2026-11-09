@@ -67,6 +67,7 @@ resource "cloudflare_ruleset" "autographs_cache" {
   rules = [
     {
       ref         = "bypass_admin_and_api"
+      enabled     = true
       description = "Bypass admin shell and private API"
       expression  = "(http.host eq \"autographs.jetsaredim.net\" and (http.request.uri.path eq \"/admin\" or starts_with(http.request.uri.path, \"/admin/\")))"
       action      = "set_cache_settings"
@@ -76,6 +77,7 @@ resource "cloudflare_ruleset" "autographs_cache" {
     },
     {
       ref         = "respect_rollback_documents"
+      enabled     = true
       description = "Bypass edge cache for rollback-sensitive public HTML and JSON"
       expression  = "(http.host eq \"autographs.jetsaredim.net\" and (http.request.uri.path eq \"/\" or http.request.uri.path eq \"/index.html\" or http.request.uri.path eq \"/404.html\" or http.request.uri.path eq \"/manifest.json\" or starts_with(http.request.uri.path, \"/collection/\") or starts_with(http.request.uri.path, \"/items/\") or starts_with(http.request.uri.path, \"/architecture/\") or starts_with(http.request.uri.path, \"/data/\")))"
       action      = "set_cache_settings"
@@ -85,6 +87,7 @@ resource "cloudflare_ruleset" "autographs_cache" {
     },
     {
       ref         = "cache_fingerprinted_media_and_assets"
+      enabled     = true
       description = "Cache public media and assets using origin freshness"
       expression  = "(http.host eq \"autographs.jetsaredim.net\" and (starts_with(http.request.uri.path, \"/media/\") or starts_with(http.request.uri.path, \"/assets/\")))"
       action      = "set_cache_settings"

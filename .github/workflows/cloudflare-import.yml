@@ -221,25 +221,28 @@ jobs:
               ([$changes[] | select(.address == "cloudflare_ruleset.autographs_cache[0]")][0].change.after |
                 .zone_id == $zone and .kind == "zone" and
                 .phase == "http_request_cache_settings" and
-                (.rules | map({ref, action, expression,
-                  cache: .action_parameters.cache,
-                  edge_ttl_mode: .action_parameters.edge_ttl.mode,
-                  browser_ttl_mode: .action_parameters.browser_ttl.mode
+                (.rules | map({ref, enabled, action, expression,
+                  action_parameters: (.action_parameters |
+                    walk(if type == "object" then with_entries(select(.value != null)) else . end))
                 })) == [
                   {
-                    ref: "bypass_admin_and_api", action: "set_cache_settings",
+                    ref: "bypass_admin_and_api", enabled: true, action: "set_cache_settings",
                     expression: "(http.host eq \"autographs.jetsaredim.net\" and (http.request.uri.path eq \"/admin\" or starts_with(http.request.uri.path, \"/admin/\")))",
-                    cache: false, edge_ttl_mode: null, browser_ttl_mode: null
+                    action_parameters: {cache: false}
                   },
                   {
-                    ref: "respect_rollback_documents", action: "set_cache_settings",
+                    ref: "respect_rollback_documents", enabled: true, action: "set_cache_settings",
                     expression: "(http.host eq \"autographs.jetsaredim.net\" and (http.request.uri.path eq \"/\" or http.request.uri.path eq \"/index.html\" or http.request.uri.path eq \"/404.html\" or http.request.uri.path eq \"/manifest.json\" or starts_with(http.request.uri.path, \"/collection/\") or starts_with(http.request.uri.path, \"/items/\") or starts_with(http.request.uri.path, \"/architecture/\") or starts_with(http.request.uri.path, \"/data/\")))",
-                    cache: false, edge_ttl_mode: null, browser_ttl_mode: null
+                    action_parameters: {cache: false}
                   },
                   {
-                    ref: "cache_fingerprinted_media_and_assets", action: "set_cache_settings",
+                    ref: "cache_fingerprinted_media_and_assets", enabled: true, action: "set_cache_settings",
                     expression: "(http.host eq \"autographs.jetsaredim.net\" and (starts_with(http.request.uri.path, \"/media/\") or starts_with(http.request.uri.path, \"/assets/\")))",
-                    cache: true, edge_ttl_mode: "respect_origin", browser_ttl_mode: "respect_origin"
+                    action_parameters: {
+                      cache: true,
+                      edge_ttl: {mode: "respect_origin"},
+                      browser_ttl: {mode: "respect_origin"}
+                    }
                   }
                 ])
             ' >/dev/null || {
