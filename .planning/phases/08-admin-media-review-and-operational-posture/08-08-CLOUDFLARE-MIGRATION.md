@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 plan: "08"
-status: cloudflare_dns_authoritative_imported_proxy_pending
+status: cloudflare_dns_authoritative_tls_cache_applied_proxy_pending
 approach: terraform_managed_full_zone
 ---
 
@@ -28,7 +28,11 @@ SPF representation was aligned in PR #330. The subsequent
 [verification run](https://github.com/jetsaredim/autographs/actions/runs/42693102566)
 reported exactly one cache ruleset creation and one SSL setting update from
 `full` to `strict`, with no DNS record changes, destruction, or apply. The
-proxy is not active.
+[guarded apply run](https://github.com/jetsaredim/autographs/actions/runs/42738867482)
+applied only those two settings changes. A subsequent
+[verification run](https://github.com/jetsaredim/autographs/actions/runs/42740134922)
+confirmed no Terraform changes and the cache ruleset in state. The proxy is
+not active.
 
 ## Confirmed inputs
 
@@ -37,9 +41,12 @@ proxy is not active.
 
 ## Inputs still required
 
-- Run the reconciliation workflow's `apply_tls_and_cache` operation after
-  reviewing the exact two-action plan. It rejects any other Terraform action
-  and applies the saved plan in the same run.
+- Full (strict) TLS and the three cache rules are applied, and a fresh
+  Terraform plan is clean while the app remains DNS-only.
+- For the proxy stage, the same workflow will check the active edge
+  certificate and Caddy origin HTTPS, then accept only the app A-record
+  DNS-only-to-proxied plan. The reverse `apply_dns_only` operation is the
+  first rollback path. Both require an explicit persistent mode change.
 - The persistent GitHub mode variable has been set to `dns_only`; preserve it
   before any routine deployment and review the subsequent no-destroy plan.
 

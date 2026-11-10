@@ -37,6 +37,18 @@ rule behaviors, accepts exactly those two Terraform actions, then
 applies the saved plan from the same run. Any different plan stops without an
 apply. Routine deploys still refuse DNS changes.
 
+For proxy cutover, set the persistent GitHub `CLOUDFLARE_MODE` variable to
+`proxied`, then dispatch this workflow on `main` with `operation=apply_proxy`
+and the confirmed zone ID. It requires the old DNS-only A record, an active
+Cloudflare edge certificate covering `autographs.jetsaredim.net`, and valid
+Caddy origin HTTPS. It applies only a saved plan that changes the one A record
+from DNS-only TTL 600 to proxied automatic TTL. Follow with `verify_only` and
+the [CDN cache probes](cdn-cache-contract.md). For first rollback, set the
+persistent mode to `dns_only` and dispatch `operation=apply_dns_only`; its
+saved-plan guard accepts only the reverse A-record change. Leave MX and SPF
+untouched in both operations. The Cloudflare token needs SSL and Certificates
+Read permission for the edge certificate preflight.
+
 ## DNS Model
 
 Until CDN proxy activation, keep the direct DNS-only `A` record for the app

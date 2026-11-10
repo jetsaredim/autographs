@@ -8,13 +8,15 @@ on:
         required: true
         type: string
       operation:
-        description: Verify state and plan, or apply only Full (strict) TLS and cache rules
+        description: Verify state or run one guarded Cloudflare change
         required: true
         default: verify_only
         type: choice
         options:
           - verify_only
           - apply_tls_and_cache
+          - apply_proxy
+          - apply_dns_only
 
 permissions:
   contents: read
@@ -53,6 +55,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_MODE: ${{ vars.CLOUDFLARE_MODE }}
+          OPERATION: ${{ inputs.operation }}
           ZONE_ID: ${{ inputs.zone_id }}
         run: |
           set -euo pipefail
@@ -60,6 +64,15 @@ jobs:
             echo "::error::A zone ID, account ID, and API token are required."
             exit 1
           fi
+          case "$OPERATION:$CLOUDFLARE_MODE" in
+            verify_only:dns_only|apply_tls_and_cache:dns_only)
+              expected_proxied=false; expected_ttl=600 ;;
+            verify_only:proxied|apply_dns_only:dns_only)
+              expected_proxied=true; expected_ttl=1 ;;
+            apply_proxy:proxied)
+              expected_proxied=false; expected_ttl=600 ;;
+            *) echo "::error::Operation and persistent Cloudflare mode do not form a valid transition."; exit 1 ;;
+          esac
           curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/zones/$ZONE_ID" > "$RUNNER_TEMP/cloudflare-zone.json"
           jq -e --arg zone "$ZONE_ID" --arg account "$CLOUDFLARE_ACCOUNT_ID" '
@@ -70,19 +83,19 @@ jobs:
           curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?per_page=100" \
             > "$RUNNER_TEMP/cloudflare-records.json"
-          jq -r '
+          jq -r --argjson proxied "$expected_proxied" --argjson ttl "$expected_ttl" '
             "Cloudflare count: \(.result_info.total_count); returned: \(.result | length)",
             "Record types: \(.result | group_by(.type) | map("\(.[0].type)=\(length)") | join(", "))",
-            "Expected A matches: \([.result[] | select(.type == "A" and .name == "autographs.jetsaredim.net" and .content == "129.213.166.159" and .proxied == false and .ttl == 600)] | length)",
+            "Expected A matches: \([.result[] | select(.type == "A" and .name == "autographs.jetsaredim.net" and .content == "129.213.166.159" and .proxied == $proxied and .ttl == $ttl)] | length)",
             "Expected MX matches: \([.result[] | select(.type == "MX" and .name == "jetsaredim.net" and (.content | rtrimstr(".")) == "smtp.google.com" and .priority == 1 and .ttl == 600)] | length)",
             "Expected SPF matches: \([.result[] | select(.type == "TXT" and .name == "jetsaredim.net" and (.content | if startswith("\"") and endswith("\"") then .[1:-1] else . end) == "v=spf1 include:_spf.google.com ~all" and .ttl == 600)] | length)"
           ' "$RUNNER_TEMP/cloudflare-records.json"
-          jq -e '
+          jq -e --argjson proxied "$expected_proxied" --argjson ttl "$expected_ttl" '
             .success == true and .result_info.total_count == 3 and
             (.result | length) == 3 and
             ([.result[] | select(
               .type == "A" and .name == "autographs.jetsaredim.net" and
-              .content == "129.213.166.159" and .proxied == false and .ttl == 600
+              .content == "129.213.166.159" and .proxied == $proxied and .ttl == $ttl
             )] | length) == 1 and
             ([.result[] | select(
               .type == "MX" and .name == "jetsaredim.net" and
@@ -94,10 +107,28 @@ jobs:
               (.content | if startswith("\"") and endswith("\"") then .[1:-1] else . end) == "v=spf1 include:_spf.google.com ~all" and .ttl == 600
             )] | length) == 1
           ' "$RUNNER_TEMP/cloudflare-records.json" >/dev/null || {
-            echo "::error::Cloudflare DNS inventory differs from the three reviewed records; stop before import."
+            echo "::error::Cloudflare DNS inventory differs from the three reviewed records and expected proxy stage."
             exit 1
           }
-          echo "Verified active full zone and exactly three DNS-only/authoritative records."
+          if [ "$OPERATION" = apply_proxy ]; then
+            curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/ssl/certificate_packs?per_page=50" \
+              > "$RUNNER_TEMP/cloudflare-certificates.json"
+            jq -e '
+              .success == true and
+              ([.result[]? | select(
+                .status == "active" and
+                any(.hosts[]?; . == "autographs.jetsaredim.net" or . == "*.jetsaredim.net")
+              )] | length) > 0
+            ' "$RUNNER_TEMP/cloudflare-certificates.json" >/dev/null || {
+              echo "::error::No active Cloudflare edge certificate covers the app hostname."
+              exit 1
+            }
+            curl -fsS --resolve autographs.jetsaredim.net:443:129.213.166.159 \
+              -o /dev/null https://autographs.jetsaredim.net/
+            echo "Verified active edge certificate coverage and valid Caddy origin HTTPS."
+          fi
+          echo "Verified active full zone and exactly three expected authoritative records."
 
       - name: Reconcile Cloudflare state and inspect saved plan
         working-directory: infra/terraform
@@ -135,14 +166,14 @@ jobs:
           TF_VAR_autographs_dns_subdomain: ${{ vars.AUTOGRAPHS_DNS_SUBDOMAIN || 'autographs' }}
           TF_VAR_autographs_dns_ttl: ${{ vars.AUTOGRAPHS_DNS_TTL || 600 }}
           TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
-          TF_VAR_cloudflare_mode: dns_only
+          TF_VAR_cloudflare_mode: ${{ vars.CLOUDFLARE_MODE }}
           TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_MODE: ${{ vars.CLOUDFLARE_MODE }}
           OPERATION: ${{ inputs.operation }}
         run: |
           set -euo pipefail
-          if [ "$CLOUDFLARE_MODE" != dns_only ]; then
-            echo "::error::Persistent CLOUDFLARE_MODE must remain dns_only for this workflow."
+          if [ "$CLOUDFLARE_MODE" != dns_only ] && [ "$CLOUDFLARE_MODE" != proxied ]; then
+            echo "::error::Persistent CLOUDFLARE_MODE must be dns_only or proxied."
             exit 1
           fi
           terraform init -input=false \
@@ -251,6 +282,33 @@ jobs:
             }
             terraform apply -input=false -lock-timeout=5m "$plan_file"
             echo "Applied exactly the verified saved plan for cache rules and Full (strict) TLS."
+          elif [ "$OPERATION" = apply_proxy ] || [ "$OPERATION" = apply_dns_only ]; then
+            terraform show -json "$plan_file" | jq -e --arg zone "$ZONE_ID" --arg operation "$OPERATION" '
+              [.resource_changes[]? | select(.change.actions != ["no-op"])] as $changes |
+              ($changes | map({address, actions: .change.actions})) == [
+                {address: "cloudflare_dns_record.autographs[0]", actions: ["update"]}
+              ] and
+              ($changes[0].change | .before.zone_id == $zone and .after.zone_id == $zone and
+                .before.name == "autographs.jetsaredim.net" and
+                .after.name == "autographs.jetsaredim.net" and
+                .before.type == "A" and .after.type == "A" and
+                .before.content == "129.213.166.159" and
+                .after.content == "129.213.166.159" and
+                (.before | del(.proxied, .ttl, .modified_on, .comment_modified_on, .tags_modified_on)) ==
+                  (.after | del(.proxied, .ttl, .modified_on, .comment_modified_on, .tags_modified_on)) and
+                (if $operation == "apply_proxy" then
+                  .before.proxied == false and .before.ttl == 600 and
+                  .after.proxied == true and .after.ttl == 1
+                else
+                  .before.proxied == true and .before.ttl == 1 and
+                  .after.proxied == false and .after.ttl == 600
+                end))
+            ' >/dev/null || {
+              echo "::error::Plan is not exactly the reviewed app A-record proxy transition. No apply ran."
+              exit 1
+            }
+            terraform apply -input=false -lock-timeout=5m "$plan_file"
+            echo "Applied exactly the verified saved app A-record proxy transition."
           else
             echo "Verification only: no Terraform apply was run. Review the plan before any DNS change."
           fi
