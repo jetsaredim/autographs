@@ -873,6 +873,7 @@ impl LocalPublisher {
             "static publish accepted"
         );
 
+        let reconciliation_started = Instant::now();
         if let Err(error) = reconcile_history(&self.root) {
             self.record_pre_promotion_failure(
                 &release_id,
@@ -883,6 +884,11 @@ impl LocalPublisher {
             )?;
             return Err(error);
         }
+        tracing::info!(
+            release_id = %release_id,
+            elapsed_ms = reconciliation_started.elapsed().as_millis(),
+            "static publish history reconciliation completed"
+        );
 
         let prepared = self
             .build_candidate(repository, media, mode, &release_id, &candidate)
@@ -917,8 +923,15 @@ impl LocalPublisher {
         };
 
         self.update_progress(&release_id, PublishStage::PromotingRelease, &progress);
+        let commit_started = Instant::now();
         let commit_result =
             commit_candidate_with(&self.root, &release_id, &manifest, promote_candidate);
+        tracing::info!(
+            release_id = %release_id,
+            elapsed_ms = commit_started.elapsed().as_millis(),
+            succeeded = commit_result.is_ok(),
+            "static publish media commit completed"
+        );
         let committed = active_release_id(&self.root)?.as_deref() == Some(release_id.as_str());
         if let Err(error) = &commit_result {
             if !committed {
@@ -935,11 +948,18 @@ impl LocalPublisher {
                 "pointer committed but media history requires reconciliation");
         }
 
+        let cleanup_started = Instant::now();
         let cleanup_warning = if commit_result.is_ok() {
             post_promotion_cleanup(&self.root, self.retention_policy)
         } else {
             Some(SAFE_RELEASE_CLEANUP_WARNING.to_owned())
         };
+        tracing::info!(
+            release_id = %release_id,
+            elapsed_ms = cleanup_started.elapsed().as_millis(),
+            warning = cleanup_warning.is_some(),
+            "static publish retention cleanup completed"
+        );
         if cleanup_warning.is_some() {
             tracing::warn!(
                 release_id = %release_id,
@@ -2221,10 +2241,13 @@ fn load_history(root: &Path) -> Result<MediaCommitHistory, String> {
 }
 
 fn verify_history(root: &Path, history: &MediaCommitHistory) -> Result<(), String> {
+    let started = Instant::now();
     if history.version != MEDIA_HISTORY_VERSION {
         return Err("unsupported media commit history version".to_owned());
     }
     let current = history.current_release_id.as_deref();
+    let mut verified_shared_media = BTreeMap::<String, String>::new();
+    let mut retained_release_count = 0;
     if let Some(current) = current
         && !history.releases.contains_key(current)
     {
@@ -2241,6 +2264,7 @@ fn verify_history(root: &Path, history: &MediaCommitHistory) -> Result<(), Strin
         }
         let retained = root.join("releases").join(release_id).is_dir();
         if retained {
+            retained_release_count += 1;
             let actual = release_receipt(root, release_id)?;
             if actual.manifest_sha256 != saved.manifest_sha256
                 || actual
@@ -2275,9 +2299,15 @@ fn verify_history(root: &Path, history: &MediaCommitHistory) -> Result<(), Strin
                 });
             let shared = root.join(path);
             if shared.is_file() {
-                let bytes = fs::read(&shared)
-                    .map_err(|error| format!("read committed shared media: {error}"))?;
-                if digest(&bytes) != *hash {
+                let actual = if let Some(actual) = verified_shared_media.get(path) {
+                    actual
+                } else {
+                    let bytes = fs::read(&shared)
+                        .map_err(|error| format!("read committed shared media: {error}"))?;
+                    verified_shared_media.insert(path.clone(), digest(&bytes));
+                    &verified_shared_media[path]
+                };
+                if actual != hash {
                     return Err("committed shared media differs from history".to_owned());
                 }
             } else if protected && current != Some(release_id.as_str()) {
@@ -2285,6 +2315,13 @@ fn verify_history(root: &Path, history: &MediaCommitHistory) -> Result<(), Strin
             }
         }
     }
+    tracing::info!(
+        history_release_count = history.releases.len(),
+        retained_release_count,
+        verified_shared_media_count = verified_shared_media.len(),
+        elapsed_ms = started.elapsed().as_millis(),
+        "static publish media history verified"
+    );
     Ok(())
 }
 
@@ -2438,7 +2475,10 @@ where
 }
 
 fn copy_release_media_to_shared(root: &Path, release: &Path) -> Result<(), String> {
+    let started = Instant::now();
     let manifest: PublishManifest = read_json(&release.join("manifest.json"))?;
+    let mut copied_count = 0;
+    let mut verified_count = 0;
     for artifact in manifest
         .artifacts
         .iter()
@@ -2451,6 +2491,7 @@ fn copy_release_media_to_shared(root: &Path, release: &Path) -> Result<(), Strin
         }
         let source = release.join(relative);
         let bytes = fs::read(&source).map_err(|error| format!("read release media: {error}"))?;
+        verified_count += 1;
         let variant = artifact.variant.expect("filtered media variant");
         if artifact.content_type.as_deref() != Some("image/webp")
             || image::guess_format(&bytes)
@@ -2481,7 +2522,14 @@ fn copy_release_media_to_shared(root: &Path, release: &Path) -> Result<(), Strin
             let _ = fs::remove_file(&staged);
             return Err(format!("publish shared media: {error}"));
         }
+        copied_count += 1;
     }
+    tracing::info!(
+        verified_count,
+        copied_count,
+        elapsed_ms = started.elapsed().as_millis(),
+        "static publish shared media synchronized"
+    );
     Ok(())
 }
 
@@ -2579,10 +2627,31 @@ where
 }
 
 fn post_promotion_cleanup(root: &Path, retention_policy: ReleaseRetentionPolicy) -> Option<String> {
-    match copy_release_media_to_shared(root, &root.join("current"))
-        .and_then(|()| prune_promoted_releases(root, retention_policy))
-        .and_then(|()| prune_shared_media(root))
-    {
+    let result = (|| {
+        let started = Instant::now();
+        copy_release_media_to_shared(root, &root.join("current"))?;
+        tracing::info!(
+            step = "synchronizeCurrentMedia",
+            elapsed_ms = started.elapsed().as_millis(),
+            "static publish cleanup step completed"
+        );
+        let started = Instant::now();
+        prune_promoted_releases(root, retention_policy)?;
+        tracing::info!(
+            step = "pruneReleases",
+            elapsed_ms = started.elapsed().as_millis(),
+            "static publish cleanup step completed"
+        );
+        let started = Instant::now();
+        prune_shared_media(root)?;
+        tracing::info!(
+            step = "pruneSharedMedia",
+            elapsed_ms = started.elapsed().as_millis(),
+            "static publish cleanup step completed"
+        );
+        Ok::<(), String>(())
+    })();
+    match result {
         Ok(()) => None,
         Err(error) => {
             tracing::error!(
@@ -3258,6 +3327,52 @@ mod tests {
         fs::FileTimes,
         time::{Duration, UNIX_EPOCH},
     };
+
+    #[test]
+    fn shared_media_reused_by_history_must_match_every_receipt() {
+        let root = tempfile::tempdir().unwrap();
+        let bytes = b"RIFF0000WEBPshared";
+        let path = format!(
+            "media/card/image-1-detail-{}.webp",
+            public_derivative_fingerprint(bytes)
+        );
+        let shared = root.path().join(&path);
+        fs::create_dir_all(shared.parent().unwrap()).unwrap();
+        fs::write(&shared, bytes).unwrap();
+        let receipt = MediaCommitReceipt {
+            manifest_sha256: "a".repeat(64),
+            media: BTreeMap::from([(path.clone(), digest(bytes))]),
+            first_committed_at: 0,
+            last_active_end: None,
+        };
+        let mut history = MediaCommitHistory {
+            version: MEDIA_HISTORY_VERSION,
+            current_release_id: None,
+            releases: BTreeMap::from([
+                ("older".to_owned(), receipt.clone()),
+                ("newer".to_owned(), receipt),
+            ]),
+            transitions: Vec::new(),
+        };
+        verify_history(root.path(), &history).unwrap();
+
+        history
+            .releases
+            .get_mut("newer")
+            .unwrap()
+            .media
+            .insert(path.clone(), digest(b"RIFF0000WEBPdifferent"));
+        assert!(verify_history(root.path(), &history).is_err());
+
+        history
+            .releases
+            .get_mut("newer")
+            .unwrap()
+            .media
+            .insert(path, digest(bytes));
+        fs::write(shared, b"RIFF0000WEBPcorrupt").unwrap();
+        assert!(verify_history(root.path(), &history).is_err());
+    }
 
     #[test]
     fn candidate_media_stays_private_until_pointer_commit() {
