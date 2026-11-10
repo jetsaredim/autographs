@@ -6,36 +6,15 @@ record as a rollback copy. OCI public DNS zones are intentionally not managed
 by Terraform because OCI public DNS is not available in the current free-tier
 setup.
 
-Wave 8 prepares the existing runtime Terraform root for the Cloudflare zone,
-the owner's confirmed three DNS records, strict TLS, and cache rules. Porkbun
-Connect already copied the records and delegated nameservers to Cloudflare.
-The Cloudflare zone, three records, and SSL
-setting were imported into the existing Terraform state by the
-[import-only run](https://github.com/jetsaredim/autographs/actions/runs/42689411270).
-The persistent GitHub `CLOUDFLARE_MODE` is now `proxied` (the Terraform input
-defaults to `off` when unset); the reviewed sequence is `off` → `dns_only` →
-`proxied`. Routine deploys inspect
-a saved Terraform plan and refuse Cloudflare or Porkbun DNS changes. A controlled
-operator apply uses the exact reviewed plan file; follow the
-[Wave 8 migration sequence](../.planning/phases/08-admin-media-review-and-operational-posture/08-08-CLOUDFLARE-MIGRATION.md)
-before any authoritative DNS change.
-The Cloudflare `autographs` A record uses the confirmed 600-second TTL while
-DNS-only and Cloudflare's automatic TTL when proxied.
-
-The [manual Cloudflare reconciliation workflow](../.github/workflows/cloudflare-import.yml)
-checked the active zone and exact three-record inventory, then imported the
-zone, A/MX/TXT records, and SSL setting into OCI-backed state. No cache
-ruleset existed to import. The initial import run did not apply DNS changes.
-After aligning Terraform's SPF representation with Cloudflare's API, the
-[verification run](https://github.com/jetsaredim/autographs/actions/runs/42693102566)
-proposed only the cache ruleset creation and SSL update from `full` to
-`strict`: one add, one change, zero destroy. The workflow's default
-`verify_only` operation never applies. Its `apply_tls_and_cache` operation
-requires the persistent mode to remain `dns_only`, verifies the live zone and
-three-record inventory, checks the exact Full (strict) value and three cache
-rule behaviors, accepts exactly those two Terraform actions, then
-applies the saved plan from the same run. Any different plan stops without an
-apply. Routine deploys still refuse DNS changes.
+The existing `infra/terraform/` root and OCI state manage the full Cloudflare
+zone, the three DNS records, Full (strict) TLS, and cache rules. Porkbun
+Connect copied the records and delegated nameservers. The one-time
+[state import](https://github.com/jetsaredim/autographs/actions/runs/42689411270)
+and [settings apply](https://github.com/jetsaredim/autographs/actions/runs/42738867482)
+are complete. The persistent GitHub `CLOUDFLARE_MODE` is `proxied`; the
+Cloudflare app A record uses automatic TTL. Routine deploys reject Cloudflare
+or Porkbun DNS changes. Use the separate operator workflow below for reviewed
+Cloudflare changes.
 
 The [guarded proxy cutover](https://github.com/jetsaredim/autographs/actions/runs/42748453909)
 passed active edge certificate and origin HTTPS checks, then updated only the
@@ -47,17 +26,29 @@ the adjusted WebP returned `CF-Cache-Status: MISS` then `HIT` while retaining
 `Cache-Control: public, max-age=86400`; `/admin/` returned `no-store` and
 `DYNAMIC`, and public HTML/JSON retained 60-second origin freshness.
 
-For a future proxy cutover, set the persistent GitHub `CLOUDFLARE_MODE` variable to
-`proxied`, then dispatch this workflow on `main` with `operation=apply_proxy`
-and the confirmed zone ID. It requires the old DNS-only A record, an active
-Cloudflare edge certificate covering `autographs.jetsaredim.net`, and valid
-Caddy origin HTTPS. It applies only a saved plan that changes the one A record
-from DNS-only TTL 600 to proxied automatic TTL. Follow with `verify_only` and
-the [CDN cache probes](cdn-cache-contract.md). For first rollback, set the
-persistent mode to `dns_only` and dispatch `operation=apply_dns_only`; its
-saved-plan guard accepts only the reverse A-record change. Leave MX and SPF
-untouched in both operations. The Cloudflare token needs SSL and Certificates
-Read permission for the edge certificate preflight.
+## Ongoing Cloudflare changes
+
+Change the Terraform configuration through a reviewed PR, then use the
+[Cloudflare Terraform workflow](../.github/workflows/cloudflare-terraform.yml)
+on `main`:
+
+1. Dispatch `operation=plan`. Read the full Terraform plan in the run log and
+   confirm that only intended Cloudflare resources change. Record its printed
+   `Cloudflare plan fingerprint`.
+2. Dispatch `operation=apply` with that fingerprint as `expected_plan_sha`.
+   The workflow creates a fresh saved plan, refuses changes outside Cloudflare
+   resources or a changed fingerprint, then applies that exact saved plan.
+3. Run `operation=plan` again and confirm `No changes`. Verify the affected
+   live DNS or cache behavior.
+
+Both operations require the active `jetsaredim.net` zone and the already
+imported Terraform state. A missing state resource requires investigation;
+the workflow does not import it. For DNS-only rollback, change the persistent
+`CLOUDFLARE_MODE` to `dns_only`, plan and review the one-record proxy change,
+then apply its fingerprint. Restore `proxied` through the same process after
+the incident. Keep MX and SPF unchanged. The original staged migration and
+recovery details remain in the
+[Wave 8 migration record](../.planning/phases/08-admin-media-review-and-operational-posture/08-08-CLOUDFLARE-MIGRATION.md).
 
 ## DNS Model
 
