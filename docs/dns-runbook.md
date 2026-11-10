@@ -1,6 +1,6 @@
 # DNS Runbook
 
-The current production zone uses Cloudflare authoritative DNS with a DNS-only
+The current production zone uses Cloudflare authoritative DNS with a proxied
 `autographs` A record. Porkbun remains the registrar and retains its older DNS
 record as a rollback copy. OCI public DNS zones are intentionally not managed
 by Terraform because OCI public DNS is not available in the current free-tier
@@ -9,10 +9,10 @@ setup.
 Wave 8 prepares the existing runtime Terraform root for the Cloudflare zone,
 the owner's confirmed three DNS records, strict TLS, and cache rules. Porkbun
 Connect already copied the records and delegated nameservers to Cloudflare.
-The A record remains DNS-only; the Cloudflare zone, three records, and SSL
+The Cloudflare zone, three records, and SSL
 setting were imported into the existing Terraform state by the
 [import-only run](https://github.com/jetsaredim/autographs/actions/runs/42689411270).
-The persistent GitHub `CLOUDFLARE_MODE` is now `dns_only` (the Terraform input
+The persistent GitHub `CLOUDFLARE_MODE` is now `proxied` (the Terraform input
 defaults to `off` when unset); the reviewed sequence is `off` → `dns_only` →
 `proxied`. Routine deploys inspect
 a saved Terraform plan and refuse Cloudflare or Porkbun DNS changes. A controlled
@@ -37,7 +37,17 @@ rule behaviors, accepts exactly those two Terraform actions, then
 applies the saved plan from the same run. Any different plan stops without an
 apply. Routine deploys still refuse DNS changes.
 
-For proxy cutover, set the persistent GitHub `CLOUDFLARE_MODE` variable to
+The [guarded proxy cutover](https://github.com/jetsaredim/autographs/actions/runs/42748453909)
+passed active edge certificate and origin HTTPS checks, then updated only the
+existing app A record. The
+[post-cutover verification](https://github.com/jetsaredim/autographs/actions/runs/42748759564)
+confirmed the three-record inventory and a no-change Terraform plan. Both
+Cloudflare authoritative nameservers return edge addresses. Repeated GETs for
+the adjusted WebP returned `CF-Cache-Status: MISS` then `HIT` while retaining
+`Cache-Control: public, max-age=86400`; `/admin/` returned `no-store` and
+`DYNAMIC`, and public HTML/JSON retained 60-second origin freshness.
+
+For a future proxy cutover, set the persistent GitHub `CLOUDFLARE_MODE` variable to
 `proxied`, then dispatch this workflow on `main` with `operation=apply_proxy`
 and the confirmed zone ID. It requires the old DNS-only A record, an active
 Cloudflare edge certificate covering `autographs.jetsaredim.net`, and valid
@@ -51,8 +61,8 @@ Read permission for the edge certificate preflight.
 
 ## DNS Model
 
-Until CDN proxy activation, keep the direct DNS-only `A` record for the app
-hostname:
+The proxied `A` record for the app hostname still targets the runtime VM IP
+inside Cloudflare; public DNS returns Cloudflare edge addresses:
 
 ```text
 autographs.jetsaredim.net -> runtime_public_ip
@@ -61,15 +71,16 @@ autographs.jetsaredim.net -> runtime_public_ip
 The runtime VM public IP is produced by Terraform and currently also mirrored in
 the `VM_PUBLIC_IP` GitHub Variable for deploy fallback behavior.
 
-## DNS-only A record and Porkbun rollback copy
+## Proxied A record and Porkbun rollback copy
 
-Cloudflare's authoritative `jetsaredim.net` zone currently serves:
+Cloudflare's authoritative `jetsaredim.net` zone currently has:
 
 ```text
 Type: A
 Host: autographs
-Answer: <runtime_public_ip>
-TTL: 600
+Origin address: <runtime_public_ip>
+Proxy: enabled
+TTL: automatic
 ```
 
 Porkbun retains the former DNS record as a rollback copy; editing it does not
@@ -83,7 +94,7 @@ terraform -chdir=infra/terraform output -raw runtime_public_ip
 Or check the GitHub Variable fallback:
 
 ```bash
-gh variable get VM_PUBLIC_IP --repo jetsaredim/autographs
+gh variable list --repo jetsaredim/autographs --json name,value --jq '.[] | select(.name == "VM_PUBLIC_IP") | .value'
 ```
 
 ## TLS
@@ -92,7 +103,7 @@ The deployed edge container uses Caddy, which automatically obtains and renews a
 Let's Encrypt certificate for `autographs.jetsaredim.net`. Certificate issuance
 requires all of the following before the deploy runs:
 
-- the authoritative Cloudflare DNS-only `A` record resolves to the runtime VM public IP
+- the Cloudflare A record targets the runtime VM public IP and the edge can reach its HTTPS origin
 - OCI ingress allows ports 80 and 443
 - the VM firewall allows HTTP and HTTPS
 

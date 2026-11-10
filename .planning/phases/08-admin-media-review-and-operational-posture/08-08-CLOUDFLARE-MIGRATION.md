@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 plan: "08"
-status: cloudflare_dns_authoritative_tls_cache_applied_proxy_pending
+status: cloudflare_proxy_active_final_uat_pending
 approach: terraform_managed_full_zone
 ---
 
@@ -32,29 +32,33 @@ reported exactly one cache ruleset creation and one SSL setting update from
 applied only those two settings changes. A subsequent
 [verification run](https://github.com/jetsaredim/autographs/actions/runs/42740134922)
 confirmed no Terraform changes and the cache ruleset in state. The proxy is
-not active.
+now active through [guarded run 42748453909](https://github.com/jetsaredim/autographs/actions/runs/42748453909).
+The run verified active edge certificate coverage and Caddy origin HTTPS,
+then applied only the app A-record proxy transition. A
+[post-cutover verification](https://github.com/jetsaredim/autographs/actions/runs/42748759564)
+confirmed the same three DNS records and a no-change Terraform plan. Both
+Cloudflare authoritative nameservers return edge addresses. Repeated GETs of
+the adjusted WebP returned edge `MISS` then `HIT` with the one-day origin
+cache header. `/admin/` and unauthenticated `/admin/api/status` retained
+`no-store` and `DYNAMIC`; public HTML/JSON retained 60-second freshness.
 
 ## Confirmed inputs
 
 - The owner confirmed the complete Porkbun inventory: `autographs.jetsaredim.net A 129.213.166.159 TTL 600`; `jetsaredim.net MX 1 smtp.google.com TTL 600`; `jetsaredim.net TXT "v=spf1 include:_spf.google.com ~all" TTL 600`. Public DNS returned the same values on 2026-11-06. Keep a copy for rollback.
 - Cloudflare account ID: `162e3fcbeb9e3479a73529a6d51806bc` (provided by the owner and saved as repository GitHub Actions variable `CLOUDFLARE_ACCOUNT_ID`).
 
-## Inputs still required
+## Remaining verification
 
-- Full (strict) TLS and the three cache rules are applied, and a fresh
-  Terraform plan is clean while the app remains DNS-only.
-- For the proxy stage, the same workflow will check the active edge
-  certificate and Caddy origin HTTPS, then accept only the app A-record
-  DNS-only-to-proxied plan. The reverse `apply_dns_only` operation is the
-  first rollback path. Both require an explicit persistent mode change.
-- The persistent GitHub mode variable has been set to `dns_only`; preserve it
-  before any routine deployment and review the subsequent no-destroy plan.
+- Complete two authenticated admin API 200-response probes and Cloudflare
+  Rule Trace, then record the rollback decision or exercise before closing
+  Phase 8. The guarded `apply_dns_only` operation remains the first rollback
+  path.
 
 ## Staged implementation
 
 ### A. Prepare the existing Terraform root
 
-1. The Cloudflare provider and full-zone, record, strict TLS, and cache-rule configuration are committed in `infra/terraform/`. The live `autographs` record remains DNS-only. Import the zone and records created by Porkbun Connect before any Terraform apply.
+1. The Cloudflare provider and full-zone, record, strict TLS, and cache-rule configuration are committed in `infra/terraform/`. The live `autographs` record remained DNS-only during import of the zone and records created by Porkbun Connect, before any Terraform apply.
 2. Keep the Porkbun provider and autograph record during transition. Use one persistent `CLOUDFLARE_MODE` input with `off`, `dns_only`, and `proxied` stages; reject any other value. CI and deploy must fail if the scoped token or account ID is missing when the mode is not `off`.
 3. Add a pre-apply DNS-change guard to `.github/workflows/deploy.yml`: inspect the saved Terraform plan and stop ordinary deploys when Cloudflare or Porkbun DNS resources would change. A controlled operator operation must review `terraform show` and apply the exact saved plan file. A routine deploy after cutover must have a no-change DNS plan and preserve `proxied = true`.
 4. Configure admin/API bypass; public HTML/JSON origin-respecting or at most 60-second freshness; fingerprinted media one-day origin TTL and assets one-hour origin TTL. Use disjoint hostname/path matches and verify last-match rule behavior. Avoid sitewide cache-everything and custom cache keys.
