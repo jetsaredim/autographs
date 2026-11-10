@@ -515,6 +515,13 @@ publication status changes, static publish starts/completions, release IDs,
 artifact counts, and elapsed times. Route failures log the underlying repository,
 media, or publisher error before returning the public HTTP status.
 
+For a slow publish, find the route's `request_id` and its resulting `release_id`,
+then follow that release through `static publish timing summary` and the named
+promotion-step logs. The summary reports every reached stage's duration even
+when publishing fails; `None` means that stage was not reached. Media verification
+and copying logs report file and byte totals; pruning logs report removed release
+directories and shared-media file and byte totals.
+
 The deployed env file sets:
 
 ```text
