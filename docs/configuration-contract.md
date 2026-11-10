@@ -31,7 +31,7 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Wallet download password required by the `oracledb` driver when `ORACLE_DB_WALLET_DIR` is set |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Optional compatibility token for non-management diagnostics; not a collection-management credential |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | Rust controller runtime | Argon2 hash for the single-admin browser login |
-| `CLOUDFLARE_API_TOKEN` | Terraform CI/deploy and controlled DNS apply | Scoped token for the Cloudflare zone, records, TLS setting, and cache rules; leave unset until migration setup |
+| `CLOUDFLARE_API_TOKEN` | Terraform CI/deploy and controlled Cloudflare apply | Scoped token for the active Cloudflare zone, records, TLS setting, cache rules, and edge certificate read checks |
 
 The current OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the controller image build, Terraform, or VM deployment steps.
 
@@ -57,7 +57,7 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_MEDIA_BUCKET_NAME` | Private Object Storage bucket for autograph images; defaults to `autographs-media-prod` |
 | `OCI_MEDIA_NAMESPACE` | Object Storage namespace for the private media bucket; usually matches `OCI_OBJECT_STORAGE_NAMESPACE` |
 | `CLOUDFLARE_ACCOUNT_ID` | Non-secret account ID for the Terraform-managed `jetsaredim.net` zone |
-| `CLOUDFLARE_MODE` | One migration setting: `off` (default), `dns_only` (zone and records prepared), or `proxied` (CDN active); advance only after each review gate |
+| `CLOUDFLARE_MODE` | Production is `proxied`; use `dns_only` for a reviewed proxy rollback. `off` remains a bootstrap default and must not be used in the operator workflow |
 | `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |
 | `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect alias or descriptor; use the wallet alias such as `autographsdb_medium` for mTLS |
 | `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the Rust controller container; defaults to `/opt/autographs/wallet` in deploy |
