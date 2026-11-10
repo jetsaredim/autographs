@@ -36,12 +36,20 @@ updated: 2026-11-10
   checked: publisher unit and integration tests after shared-path deduplication and timing instrumentation
   found: 7 publisher unit tests and 49 publisher integration tests passed, including conflicting-receipt and corrupt-shared-byte checks
   implication: the local integrity and publication contracts remain intact; production speedup has not yet been measured
+- timestamp: 2026-11-10
+  checked: requested logging follow-up for PR #336
+  found: reconciliation now has its own status stage; publish requests get a request ID; publisher logs inherit a release ID span; named promotion steps report elapsed time and success/failure; media logs report files and bytes read, copied, and pruned; a drop-guarded timing summary records reached stages on success and failure
+  implication: the next production publish can distinguish history verification, candidate receipt, pointer switch, shared copy, and pruning without inferring time from gaps between timestamps
+- timestamp: 2026-11-10
+  checked: local validation after logging follow-up
+  found: 7 publisher unit tests, 49 publisher integration tests, 3 logging contract tests, Rust formatting, and production-feature strict Clippy passed
+  implication: the change is ready for PR review and CI; live timing evidence is still pending
 
 ## Eliminated
 
 ## Resolution
 
 - root_cause: "Probable repeated full-byte media verification across five history passes; the exact distribution within promotion awaits live substage timings."
-- fix: "Verify each shared media path once per history pass while comparing its digest to every receipt; add per-step timing logs."
+- fix: "Verify each shared media path once per history pass while comparing its digest to every receipt; show reconciliation as a publish stage; correlate request and release events; log named promotion steps, media I/O totals, and full success/failure timing summaries."
 - verification: "Local publisher tests pass. Live latency comparison is pending deployment and another publish."
 - files_changed: ["controller/src/publisher.rs"]

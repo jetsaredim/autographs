@@ -2120,21 +2120,26 @@ async fn publish(
     headers: HeaderMap,
     mode: PublishMode,
 ) -> Response {
+    let request_id = Uuid::new_v4();
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
-        tracing::warn!(status = %status, mode = ?mode, "rejected static publish request");
+        tracing::warn!(%request_id, status = %status, mode = ?mode, "rejected static publish request");
         return status.into_response();
     }
 
     let started = Instant::now();
+    tracing::info!(%request_id, mode = ?mode, "static publish request authorized");
     let publish_guard = state.publisher.acquire_publish_lock().await;
+    let lock_wait_ms = started.elapsed().as_millis();
+    let boundary_started = Instant::now();
     let publish_boundary = match state.repository.begin_publish_boundary().await {
         Ok(boundary) => boundary,
         Err(error) => {
-            tracing::error!(error = %error, "failed to capture publish boundary");
+            tracing::error!(%request_id, error = %error, elapsed_ms = started.elapsed().as_millis(), "failed to capture publish boundary");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    tracing::info!(mode = ?mode, "publishing static release");
+    let boundary_ms = boundary_started.elapsed().as_millis();
+    tracing::info!(%request_id, mode = ?mode, lock_wait_ms, boundary_ms, "publishing static release");
     match state
         .publisher
         .publish_locked(
@@ -2149,6 +2154,7 @@ async fn publish(
             let finished_at_epoch_seconds = status
                 .finished_at_epoch_seconds
                 .unwrap_or_else(now_epoch_seconds);
+            let record_started = Instant::now();
             if let Err(error) = state
                 .repository
                 .record_successful_publish(
@@ -2160,10 +2166,11 @@ async fn publish(
                 )
                 .await
             {
-                tracing::error!(error = %error, "failed to record successful publish job");
+                tracing::error!(%request_id, release_id = status.release_id.as_deref().unwrap_or("<none>"), error = %error, elapsed_ms = started.elapsed().as_millis(), "failed to record successful publish job");
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
             tracing::info!(
+                %request_id,
                 mode = ?mode,
                 release_id = status.release_id.as_deref().unwrap_or("<none>"),
                 stage = status.stage.as_deref().unwrap_or("succeeded"),
@@ -2172,6 +2179,9 @@ async fn publish(
                 item_count = status.item_count,
                 image_count = status.image_count,
                 derivative_count = status.derivative_count,
+                lock_wait_ms,
+                boundary_ms,
+                record_publish_ms = record_started.elapsed().as_millis(),
                 elapsed_ms = started.elapsed().as_millis(),
                 "published static release"
             );
@@ -2182,9 +2192,14 @@ async fn publish(
             let stage = status.stage.as_deref().unwrap_or("failed");
             let error_kind = crate::publisher::classify_publish_error(stage, &error);
             tracing::error!(
+                %request_id,
                 mode = ?mode,
+                release_id = status.release_id.as_deref().unwrap_or("<none>"),
                 stage,
                 error_kind,
+                lock_wait_ms,
+                boundary_ms,
+                elapsed_ms = started.elapsed().as_millis(),
                 "failed to publish static release"
             );
             (StatusCode::INTERNAL_SERVER_ERROR, Json(status)).into_response()

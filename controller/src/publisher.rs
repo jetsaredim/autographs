@@ -67,6 +67,19 @@ struct MediaCommitReceipt {
     last_active_end: Option<i64>,
 }
 
+#[derive(Default)]
+struct MediaReadStats {
+    file_count: usize,
+    byte_count: u64,
+}
+
+impl MediaReadStats {
+    fn observe(&mut self, bytes: &[u8]) {
+        self.file_count += 1;
+        self.byte_count += bytes.len() as u64;
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct MediaCommitTransition {
     from: Option<String>,
@@ -503,6 +516,7 @@ impl Default for PublishStatus {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PublishStage {
     Accepted,
+    ReconcilingHistory,
     LoadingCatalog,
     GeneratingDerivatives,
     WritingCandidate,
@@ -516,6 +530,7 @@ impl PublishStage {
     fn as_str(self) -> &'static str {
         match self {
             Self::Accepted => "accepted",
+            Self::ReconcilingHistory => "reconcilingHistory",
             Self::LoadingCatalog => "loadingCatalog",
             Self::GeneratingDerivatives => "generatingDerivatives",
             Self::WritingCandidate => "writingCandidate",
@@ -524,6 +539,69 @@ impl PublishStage {
             Self::Succeeded => "succeeded",
             Self::Failed => "failed",
         }
+    }
+}
+
+struct PublishTimingSummary {
+    release_id: String,
+    mode: PublishMode,
+    started: Instant,
+    stage_started: Instant,
+    stage: PublishStage,
+    durations: BTreeMap<&'static str, u128>,
+    outcome: &'static str,
+}
+
+impl PublishTimingSummary {
+    fn new(release_id: &str, mode: PublishMode) -> Self {
+        Self {
+            release_id: release_id.to_owned(),
+            mode,
+            started: Instant::now(),
+            stage_started: Instant::now(),
+            stage: PublishStage::Accepted,
+            durations: BTreeMap::new(),
+            outcome: "failed",
+        }
+    }
+
+    fn enter(&mut self, stage: PublishStage) {
+        self.durations.insert(
+            self.stage.as_str(),
+            self.stage_started.elapsed().as_millis(),
+        );
+        self.stage = stage;
+        self.stage_started = Instant::now();
+    }
+
+    fn duration(&self, stage: PublishStage) -> Option<u128> {
+        self.durations.get(stage.as_str()).copied()
+    }
+}
+
+impl Drop for PublishTimingSummary {
+    fn drop(&mut self) {
+        if self.stage != PublishStage::Succeeded && self.stage != PublishStage::Failed {
+            self.durations.insert(
+                self.stage.as_str(),
+                self.stage_started.elapsed().as_millis(),
+            );
+        }
+        tracing::info!(
+            release_id = %self.release_id,
+            mode = ?self.mode,
+            outcome = self.outcome,
+            last_stage = self.stage.as_str(),
+            elapsed_ms = self.started.elapsed().as_millis(),
+            accepted_ms = ?self.duration(PublishStage::Accepted),
+            reconciliation_ms = ?self.duration(PublishStage::ReconcilingHistory),
+            catalog_ms = ?self.duration(PublishStage::LoadingCatalog),
+            derivatives_ms = ?self.duration(PublishStage::GeneratingDerivatives),
+            candidate_ms = ?self.duration(PublishStage::WritingCandidate),
+            validation_ms = ?self.duration(PublishStage::ValidatingCandidate),
+            promotion_ms = ?self.duration(PublishStage::PromotingRelease),
+            "static publish timing summary"
+        );
     }
 }
 
@@ -849,6 +927,7 @@ impl LocalPublisher {
             .await
     }
 
+    #[tracing::instrument(skip_all, fields(release_id, mode = ?mode))]
     pub async fn publish_locked(
         &self,
         repository: &dyn CatalogRepository,
@@ -857,6 +936,8 @@ impl LocalPublisher {
         _publish_guard: &AsyncMutexGuard<'_, ()>,
     ) -> Result<PublishStatus, String> {
         let release_id = Uuid::new_v4().to_string();
+        tracing::Span::current().record("release_id", release_id.as_str());
+        let mut timing = PublishTimingSummary::new(&release_id, mode);
         let candidate = self.root.join("releases").join(&release_id);
         let started_at_epoch_seconds = OffsetDateTime::now_utc().unix_timestamp();
         self.set_status(PublishStatus {
@@ -873,6 +954,12 @@ impl LocalPublisher {
             "static publish accepted"
         );
 
+        timing.enter(PublishStage::ReconcilingHistory);
+        self.update_progress(
+            &release_id,
+            PublishStage::ReconcilingHistory,
+            &PublishProgress::default(),
+        );
         let reconciliation_started = Instant::now();
         if let Err(error) = reconcile_history(&self.root) {
             self.record_pre_promotion_failure(
@@ -891,9 +978,10 @@ impl LocalPublisher {
         );
 
         let prepared = self
-            .build_candidate(repository, media, mode, &release_id, &candidate)
+            .build_candidate(repository, media, mode, &release_id, &candidate, &mut timing)
             .await
             .and_then(|progress| {
+                timing.enter(PublishStage::ValidatingCandidate);
                 self.update_progress(&release_id, PublishStage::ValidatingCandidate, &progress);
                 let manifest = validate_candidate(&candidate)?;
                 validate_manifest_tombstones(&self.root, &manifest)?;
@@ -922,6 +1010,7 @@ impl LocalPublisher {
             }
         };
 
+        timing.enter(PublishStage::PromotingRelease);
         self.update_progress(&release_id, PublishStage::PromotingRelease, &progress);
         let commit_started = Instant::now();
         let commit_result =
@@ -950,7 +1039,7 @@ impl LocalPublisher {
 
         let cleanup_started = Instant::now();
         let cleanup_warning = if commit_result.is_ok() {
-            post_promotion_cleanup(&self.root, self.retention_policy)
+            post_promotion_cleanup(&self.root, &release_id, self.retention_policy)
         } else {
             Some(SAFE_RELEASE_CLEANUP_WARNING.to_owned())
         };
@@ -994,6 +1083,12 @@ impl LocalPublisher {
             cleanup_warning,
         };
         self.set_status(status.clone());
+        timing.outcome = if status.cleanup_warning.is_some() {
+            "succeeded_with_cleanup_warning"
+        } else {
+            "succeeded"
+        };
+        timing.enter(PublishStage::Succeeded);
         Ok(status)
     }
 
@@ -1039,6 +1134,7 @@ impl LocalPublisher {
         mode: PublishMode,
         release_id: &str,
         candidate: &Path,
+        timing: &mut PublishTimingSummary,
     ) -> Result<PublishProgress, String> {
         if candidate.exists() {
             fs::remove_dir_all(candidate).map_err(|error| format!("reset candidate: {error}"))?;
@@ -1057,6 +1153,7 @@ impl LocalPublisher {
         fs::create_dir_all(candidate).map_err(|error| format!("create candidate: {error}"))?;
         clear_generated_surface(candidate)?;
 
+        timing.enter(PublishStage::LoadingCatalog);
         self.update_progress(
             release_id,
             PublishStage::LoadingCatalog,
@@ -1081,6 +1178,7 @@ impl LocalPublisher {
                 .cmp(&right.title)
                 .then_with(|| left.id.cmp(&right.id))
         });
+        timing.enter(PublishStage::GeneratingDerivatives);
         self.update_progress(release_id, PublishStage::GeneratingDerivatives, &progress);
         let derivative_cache = DerivativeCache::new(&self.root);
         let derivative_started = Instant::now();
@@ -1104,6 +1202,7 @@ impl LocalPublisher {
             elapsed_ms = derivative_started.elapsed().as_millis(),
             "static publish derivative generation completed"
         );
+        timing.enter(PublishStage::WritingCandidate);
         self.update_progress(release_id, PublishStage::WritingCandidate, &progress);
         write_release(
             candidate,
@@ -1153,6 +1252,9 @@ pub(crate) fn classify_publish_error(stage: &str, error: &str) -> &'static str {
     let normalized = error.to_ascii_lowercase();
     if normalized.contains("privacy scan") || normalized.contains("private source reference") {
         return "privacy_validation";
+    }
+    if stage == PublishStage::ReconcilingHistory.as_str() {
+        return "media_history";
     }
     if normalized.contains("candidate")
         && (normalized.contains("missing")
@@ -2185,9 +2287,18 @@ fn current_release_name(root: &Path) -> Result<Option<String>, String> {
 }
 
 fn release_receipt(root: &Path, release_id: &str) -> Result<MediaCommitReceipt, String> {
+    release_receipt_with_stats(root, release_id, &mut MediaReadStats::default())
+}
+
+fn release_receipt_with_stats(
+    root: &Path,
+    release_id: &str,
+    stats: &mut MediaReadStats,
+) -> Result<MediaCommitReceipt, String> {
     let release = root.join("releases").join(release_id);
     let manifest_bytes = fs::read(release.join("manifest.json"))
         .map_err(|error| format!("read committed manifest: {error}"))?;
+    stats.observe(&manifest_bytes);
     let manifest: PublishManifest = serde_json::from_slice(&manifest_bytes)
         .map_err(|error| format!("parse committed manifest: {error}"))?;
     if manifest.release_id != release_id {
@@ -2209,6 +2320,7 @@ fn release_receipt(root: &Path, release_id: &str) -> Result<MediaCommitReceipt, 
         }
         let bytes = fs::read(release.join(relative))
             .map_err(|error| format!("read committed media: {error}"))?;
+        stats.observe(&bytes);
         if bytes.len() != artifact.byte_size
             || image::guess_format(&bytes)
                 .map_err(|error| format!("detect committed media: {error}"))?
@@ -2247,6 +2359,8 @@ fn verify_history(root: &Path, history: &MediaCommitHistory) -> Result<(), Strin
     }
     let current = history.current_release_id.as_deref();
     let mut verified_shared_media = BTreeMap::<String, String>::new();
+    let mut release_reads = MediaReadStats::default();
+    let mut shared_reads = MediaReadStats::default();
     let mut retained_release_count = 0;
     if let Some(current) = current
         && !history.releases.contains_key(current)
@@ -2265,7 +2379,7 @@ fn verify_history(root: &Path, history: &MediaCommitHistory) -> Result<(), Strin
         let retained = root.join("releases").join(release_id).is_dir();
         if retained {
             retained_release_count += 1;
-            let actual = release_receipt(root, release_id)?;
+            let actual = release_receipt_with_stats(root, release_id, &mut release_reads)?;
             if actual.manifest_sha256 != saved.manifest_sha256
                 || actual
                     .media
@@ -2304,6 +2418,7 @@ fn verify_history(root: &Path, history: &MediaCommitHistory) -> Result<(), Strin
                 } else {
                     let bytes = fs::read(&shared)
                         .map_err(|error| format!("read committed shared media: {error}"))?;
+                    shared_reads.observe(&bytes);
                     verified_shared_media.insert(path.clone(), digest(&bytes));
                     &verified_shared_media[path]
                 };
@@ -2319,6 +2434,10 @@ fn verify_history(root: &Path, history: &MediaCommitHistory) -> Result<(), Strin
         history_release_count = history.releases.len(),
         retained_release_count,
         verified_shared_media_count = verified_shared_media.len(),
+        release_files_read = release_reads.file_count,
+        release_bytes_read = release_reads.byte_count,
+        shared_files_read = shared_reads.file_count,
+        shared_bytes_read = shared_reads.byte_count,
         elapsed_ms = started.elapsed().as_millis(),
         "static publish media history verified"
     );
@@ -2430,12 +2549,20 @@ fn commit_candidate_with<F>(
 where
     F: FnOnce(&Path, &str) -> Result<(), String>,
 {
-    let history = reconcile_history(root)?;
+    let history = timed_publish_step(release_id, "reconcileBeforeCommit", || {
+        reconcile_history(root)
+    })?;
     if history.current_release_id.is_some() {
-        copy_release_media_to_shared(root, &root.join("current"))?;
+        timed_publish_step(release_id, "synchronizePreviousMedia", || {
+            copy_release_media_to_shared(root, &root.join("current"))
+        })?;
     }
-    validate_manifest_tombstones(root, manifest)?;
-    let receipt = release_receipt(root, release_id)?;
+    timed_publish_step(release_id, "validateCandidateTombstones", || {
+        validate_manifest_tombstones(root, manifest)
+    })?;
+    let receipt = timed_publish_step(release_id, "verifyCandidateReceipt", || {
+        release_receipt(root, release_id)
+    })?;
     if receipt.media.len()
         != manifest
             .artifacts
@@ -2463,15 +2590,39 @@ where
         new_manifest_sha256: receipt.manifest_sha256,
         new_media: receipt.media,
     };
-    atomic_json(&history_dir(root), "intent.json", &intent)?;
-    if let Err(error) = promote(root, release_id) {
+    timed_publish_step(release_id, "writeCommitIntent", || {
+        atomic_json(&history_dir(root), "intent.json", &intent)
+    })?;
+    if let Err(error) = timed_publish_step(release_id, "switchCurrentPointer", || {
+        promote(root, release_id)
+    }) {
         if current_release_name(root)? == intent.old_release_id {
             clear_intent(root)?;
         }
         return Err(error);
     }
-    reconcile_history(root)?;
+    timed_publish_step(release_id, "reconcileAfterCommit", || {
+        reconcile_history(root)
+    })?;
     Ok(())
+}
+
+fn timed_publish_step<T>(
+    release_id: &str,
+    step: &'static str,
+    action: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    tracing::info!(release_id, step, "static publish promotion step started");
+    let started = Instant::now();
+    let result = action();
+    tracing::info!(
+        release_id,
+        step,
+        elapsed_ms = started.elapsed().as_millis(),
+        succeeded = result.is_ok(),
+        "static publish promotion step completed"
+    );
+    result
 }
 
 fn copy_release_media_to_shared(root: &Path, release: &Path) -> Result<(), String> {
@@ -2479,6 +2630,9 @@ fn copy_release_media_to_shared(root: &Path, release: &Path) -> Result<(), Strin
     let manifest: PublishManifest = read_json(&release.join("manifest.json"))?;
     let mut copied_count = 0;
     let mut verified_count = 0;
+    let mut release_bytes_read = 0u64;
+    let mut shared_bytes_read = 0u64;
+    let mut bytes_copied = 0u64;
     for artifact in manifest
         .artifacts
         .iter()
@@ -2492,6 +2646,7 @@ fn copy_release_media_to_shared(root: &Path, release: &Path) -> Result<(), Strin
         let source = release.join(relative);
         let bytes = fs::read(&source).map_err(|error| format!("read release media: {error}"))?;
         verified_count += 1;
+        release_bytes_read += bytes.len() as u64;
         let variant = artifact.variant.expect("filtered media variant");
         if artifact.content_type.as_deref() != Some("image/webp")
             || image::guess_format(&bytes)
@@ -2504,7 +2659,10 @@ fn copy_release_media_to_shared(root: &Path, release: &Path) -> Result<(), Strin
         }
         let target = root.join(relative);
         if target.exists() {
-            if fs::read(&target).map_err(|error| format!("read shared media: {error}"))? != bytes {
+            let existing =
+                fs::read(&target).map_err(|error| format!("read shared media: {error}"))?;
+            shared_bytes_read += existing.len() as u64;
+            if existing != bytes {
                 return Err("shared media fingerprint collision".to_owned());
             }
             continue;
@@ -2523,10 +2681,14 @@ fn copy_release_media_to_shared(root: &Path, release: &Path) -> Result<(), Strin
             return Err(format!("publish shared media: {error}"));
         }
         copied_count += 1;
+        bytes_copied += bytes.len() as u64;
     }
     tracing::info!(
         verified_count,
         copied_count,
+        release_bytes_read,
+        shared_bytes_read,
+        bytes_copied,
         elapsed_ms = started.elapsed().as_millis(),
         "static publish shared media synchronized"
     );
@@ -2582,6 +2744,7 @@ fn prune_promoted_releases(
             retain_failed_candidates(root, &release.path, retention_policy)?;
         }
     }
+    let mut pruned_release_count = 0;
     prune_promoted_releases_with(root, retention_policy, remove_admin_image_map, |path| {
         let release_id = path
             .file_name()
@@ -2591,8 +2754,15 @@ fn prune_promoted_releases(
             return Err("cannot prune release lacking committed receipt".to_owned());
         }
         copy_release_media_to_shared(root, path)?;
-        fs::remove_dir_all(path).map_err(|error| format!("prune promoted release: {error}"))
-    })
+        fs::remove_dir_all(path).map_err(|error| format!("prune promoted release: {error}"))?;
+        pruned_release_count += 1;
+        Ok(())
+    })?;
+    tracing::info!(
+        pruned_release_count,
+        "static publish release pruning completed"
+    );
+    Ok(())
 }
 
 fn prune_promoted_releases_with<RemoveMap, RemoveRelease>(
@@ -2626,29 +2796,19 @@ where
     Ok(())
 }
 
-fn post_promotion_cleanup(root: &Path, retention_policy: ReleaseRetentionPolicy) -> Option<String> {
+fn post_promotion_cleanup(
+    root: &Path,
+    release_id: &str,
+    retention_policy: ReleaseRetentionPolicy,
+) -> Option<String> {
     let result = (|| {
-        let started = Instant::now();
-        copy_release_media_to_shared(root, &root.join("current"))?;
-        tracing::info!(
-            step = "synchronizeCurrentMedia",
-            elapsed_ms = started.elapsed().as_millis(),
-            "static publish cleanup step completed"
-        );
-        let started = Instant::now();
-        prune_promoted_releases(root, retention_policy)?;
-        tracing::info!(
-            step = "pruneReleases",
-            elapsed_ms = started.elapsed().as_millis(),
-            "static publish cleanup step completed"
-        );
-        let started = Instant::now();
-        prune_shared_media(root)?;
-        tracing::info!(
-            step = "pruneSharedMedia",
-            elapsed_ms = started.elapsed().as_millis(),
-            "static publish cleanup step completed"
-        );
+        timed_publish_step(release_id, "synchronizeCurrentMedia", || {
+            copy_release_media_to_shared(root, &root.join("current"))
+        })?;
+        timed_publish_step(release_id, "pruneReleases", || {
+            prune_promoted_releases(root, retention_policy)
+        })?;
+        timed_publish_step(release_id, "pruneSharedMedia", || prune_shared_media(root))?;
         Ok::<(), String>(())
     })();
     match result {
@@ -2689,10 +2849,18 @@ fn prune_shared_media(root: &Path) -> Result<(), String> {
     }
     let media_root = root.join("media");
     if !media_root.exists() {
+        tracing::info!(
+            deleted_file_count = 0,
+            deleted_byte_count = 0,
+            "static publish shared media pruning completed"
+        );
         return Ok(());
     }
     let mut files = Vec::new();
     collect_paths(&media_root, &mut files)?;
+    let mut deleted_file_count = 0;
+    let mut deleted_byte_count = 0u64;
+    let mut unknown_deleted_byte_count = 0usize;
     for path in files {
         let relative = path
             .strip_prefix(root)
@@ -2713,9 +2881,24 @@ fn prune_shared_media(root: &Path) -> Result<(), String> {
                 < SHARED_MEDIA_MIN_AGE_SECONDS as i64
         });
         if tombstoned || (!referenced.contains(&relative) && !retained_by_time) {
+            let byte_count = fs::symlink_metadata(&path)
+                .ok()
+                .map(|metadata| metadata.len());
             fs::remove_file(&path).map_err(|error| format!("prune shared media: {error}"))?;
+            deleted_file_count += 1;
+            if let Some(byte_count) = byte_count {
+                deleted_byte_count += byte_count;
+            } else {
+                unknown_deleted_byte_count += 1;
+            }
         }
     }
+    tracing::info!(
+        deleted_file_count,
+        deleted_byte_count,
+        unknown_deleted_byte_count,
+        "static publish shared media pruning completed"
+    );
     Ok(())
 }
 
@@ -3531,7 +3714,11 @@ mod tests {
         fs::create_dir_all(&old_map).unwrap();
         promote_candidate(root.path(), "new-release").unwrap();
 
-        let warning = post_promotion_cleanup(root.path(), ReleaseRetentionPolicy::new(1, 1));
+        let warning = post_promotion_cleanup(
+            root.path(),
+            "new-release",
+            ReleaseRetentionPolicy::new(1, 1),
+        );
 
         assert_eq!(warning.as_deref(), Some(SAFE_RELEASE_CLEANUP_WARNING));
         assert_eq!(
@@ -3586,6 +3773,10 @@ mod tests {
 
     #[test]
     fn publish_error_classifier_keeps_diagnostics_privacy_safe() {
+        assert_eq!(
+            classify_publish_error("reconcilingHistory", "committed shared media differs"),
+            "media_history"
+        );
         assert_eq!(
             classify_publish_error(
                 "generatingDerivatives",
