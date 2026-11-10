@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.9.0](https://github.com/jetsaredim/autographs/compare/v0.8.2...v0.9.0) (2026-11-10)
+
+
+### Features
+
+* **08-08:** prepare Cloudflare domain DNS Terraform ([f95ca2d](https://github.com/jetsaredim/autographs/commit/f95ca2de6e2a9556abc55ae1578d790ae9e2cc83))
+* import existing Cloudflare zone into Terraform state ([cda64dc](https://github.com/jetsaredim/autographs/commit/cda64dccb21bb404eb311d5c7718ad9e2cadc9f7))
+* **infra:** add guarded Cloudflare proxy cutover ([1d70658](https://github.com/jetsaredim/autographs/commit/1d7065870e79783f519d9ecb2fea2e12d0bdc064))
+* **infra:** add guarded Cloudflare proxy cutover ([2ece010](https://github.com/jetsaredim/autographs/commit/2ece010bd2d783482905dfb014704e64a3bd9a0f))
+* **infra:** add guarded Cloudflare settings apply ([a3bdec9](https://github.com/jetsaredim/autographs/commit/a3bdec9cc5fd5babd82dad4430757ad7aea38687))
+* **infra:** add guarded Cloudflare settings apply ([659bc98](https://github.com/jetsaredim/autographs/commit/659bc98f4af05e8544e35fa66c6933f96a01875a))
+* prepare Cloudflare DNS in runtime Terraform root ([39411cb](https://github.com/jetsaredim/autographs/commit/39411cbbc26e9cde7906db2afa042f585fa1c6b1))
+* prepare controlled Cloudflare state import ([a7f9dfb](https://github.com/jetsaredim/autographs/commit/a7f9dfbf8265d61b3b9e06f27f20296e2e03e97b))
+
+
+### Bug Fixes
+
+* accept quoted SPF representation during import ([4efe474](https://github.com/jetsaredim/autographs/commit/4efe474da8394bf688eb4b121cff5dcb24c869f4))
+* align Cloudflare proxy TTL with automatic mode ([cc01fa7](https://github.com/jetsaredim/autographs/commit/cc01fa7bd0059dbc76fa3c68bf79a42662d407ce))
+* align imported Cloudflare SPF state ([458d8bf](https://github.com/jetsaredim/autographs/commit/458d8bfb5880039ccc11d5ef9e0f40ffd67f26fe))
+* align Terraform with imported Cloudflare SPF ([42eaa5a](https://github.com/jetsaredim/autographs/commit/42eaa5a1635fb30a765249bc72efd65d6a442432))
+* diagnose Cloudflare import inventory mismatch ([9b5aa2a](https://github.com/jetsaredim/autographs/commit/9b5aa2a9586a138919dfae4c26d7fa8ae97be20f))
+* guard Cloudflare import state and current runbooks ([55dd9e1](https://github.com/jetsaredim/autographs/commit/55dd9e141e96bca98bb9e9ee9283f40433375563))
+* **infra:** preserve all other DNS record fields at cutover ([9fb6e29](https://github.com/jetsaredim/autographs/commit/9fb6e29daf60a6a7ab1ea14377a5ebc3be147d00))
+* **infra:** reject disabled or altered cache rules ([c615c82](https://github.com/jetsaredim/autographs/commit/c615c8227a2a9d8d0fa576eeb0e3c9f993a9b685))
+* **infra:** verify Cloudflare plan semantics before apply ([b33e426](https://github.com/jetsaredim/autographs/commit/b33e4261473748256a0a152d7cdc582cd61d93a4))
+* keep Cloudflare inventory diagnostics private ([304f5f5](https://github.com/jetsaredim/autographs/commit/304f5f5e4eb32d5cfc7ba00dd2214adc101b1a5b))
+* normalize Cloudflare TXT quotes during import check ([aa0570e](https://github.com/jetsaredim/autographs/commit/aa0570e0485fd615634b8d202a38df16c4c9d575))
+* report Cloudflare import inventory mismatch safely ([f76125a](https://github.com/jetsaredim/autographs/commit/f76125acb5e285c69b9c46836896dbae96b57709))
+
+
+### Performance Improvements
+
+* add correlated publish timing and media IO logs ([687546f](https://github.com/jetsaredim/autographs/commit/687546ff01a95d07e423506cb90faa6b7ab1d348))
+* reduce repeated shared media verification during publish ([145efa0](https://github.com/jetsaredim/autographs/commit/145efa0efe0a32743a5c5854b1c6f6b5ce01a2bf))
+* reduce repeated shared media verification during publish ([d0c8f1b](https://github.com/jetsaredim/autographs/commit/d0c8f1bc5d218d2803112fb2a9fbc50528b6d6e5))
+
 ## [0.8.2](https://github.com/jetsaredim/autographs/compare/v0.8.1...v0.8.2) (2026-11-05)
 
 
