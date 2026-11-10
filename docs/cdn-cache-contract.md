@@ -192,7 +192,17 @@ label the owner UAT as that test.
 Pre-proxy origin probes on 2026-11-06 returned `no-store` for `/admin/` and
 the unauthenticated 401 from `/admin/api/status`, `public, max-age=60,
 must-revalidate` for `/data/collection.json`, and `public, max-age=86400`
-for the fingerprinted WebP. No `CF-Cache-Status` appeared. These establish
-origin headers, not Cloudflare caching. Enable the CDN only after the
-adjusted-media publish evidence is accepted, then repeat every probe above
-and record edge results before marking OPS-02 complete.
+for the fingerprinted WebP. No `CF-Cache-Status` appeared. Those observations
+established origin headers before the CDN cutover.
+
+On 2026-11-10, the guarded proxy cutover succeeded. Both Cloudflare
+authoritative nameservers returned edge addresses for the app. Three
+consecutive GETs for
+`/media/5d6-ra-7/image-1-detail-0ddf88ebddaf88e8.webp` returned 200 with
+`Cache-Control: public, max-age=86400`; their `CF-Cache-Status` values were
+`MISS`, `HIT`, and `HIT` at the IAD edge. `/admin/` returned 200 with
+`Cache-Control: no-store` and `CF-Cache-Status: DYNAMIC`; the unauthenticated
+`/admin/api/status` probe returned 401 with the same cache behavior. Public
+HTML and `/data/collection.json` retained their 60-second origin headers
+and returned `DYNAMIC`. Authenticated 200-response probes and Rule Trace
+remain required for `cdn_admin_bypass_evidence`.
