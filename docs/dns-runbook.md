@@ -194,16 +194,20 @@ References checked during this decision:
 
 ## Verification
 
-After Cloudflare DNS is delegated, verify DNS and the public HTTPS origin:
+After Cloudflare proxy activation, verify DNS and the public HTTPS edge:
 
 ```bash
 dig NS jetsaredim.net
 dig A autographs.jetsaredim.net
 curl --fail --silent --show-error --head https://autographs.jetsaredim.net/
 curl --fail --silent --show-error --head https://autographs.jetsaredim.net/admin/
+curl --fail --silent --show-error --head --resolve autographs.jetsaredim.net:443:129.213.166.159 https://autographs.jetsaredim.net/
 ```
 
-Expect Cloudflare nameservers, the runtime VM A address, HTTP 200 for both
-paths, and `Cache-Control: no-store` for `/admin/`. These DNS-only responses
-do not establish CDN cache behavior. DNS changes can take time to propagate
-through recursive resolver caches; the A record has a 600-second TTL.
+Expect Cloudflare nameservers and edge A addresses from public DNS, HTTP 200
+for the public and admin paths, and `Cache-Control: no-store` for `/admin/`.
+The `--resolve` request checks the Caddy origin certificate and response
+directly while retaining the hostname. The proxied Cloudflare record uses
+automatic TTL; recursive resolvers may briefly retain the former DNS-only
+answer during propagation. Confirm edge media caching with repeated GETs and
+`CF-Cache-Status: HIT` as described above.
