@@ -294,6 +294,8 @@ jobs:
                 .before.type == "A" and .after.type == "A" and
                 .before.content == "129.213.166.159" and
                 .after.content == "129.213.166.159" and
+                (.before | del(.proxied, .ttl, .modified_on, .comment_modified_on, .tags_modified_on)) ==
+                  (.after | del(.proxied, .ttl, .modified_on, .comment_modified_on, .tags_modified_on)) and
                 (if $operation == "apply_proxy" then
                   .before.proxied == false and .before.ttl == 600 and
                   .after.proxied == true and .after.ttl == 1
