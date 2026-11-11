@@ -83,7 +83,9 @@ URL. Existing callers without that header retain the synchronous response.
 An `incomplete` operation means the release is active but the publish history
 record failed; check controller logs before publishing again. An `unconfirmed`
 operation means the controller cannot establish whether promotion finished; check
-the active release and pending edits before trying again.
+the active release and pending edits before trying again. Its `releaseId` is
+intentionally empty because the controller cannot safely attribute one to that
+request. General publish status reflects the latest authorized publish request.
 
 Collection-management routes require the single-admin session cookie created by
 `/admin/api/login`. Browser mutations also require a matching `Origin` or
