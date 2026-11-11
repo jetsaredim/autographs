@@ -2826,7 +2826,10 @@ mod tests {
         assert_eq!(terminal["error"], UNCONFIRMED_PUBLISH_MESSAGE);
         let publisher_release_id = publisher.status().release_id;
         assert!(publisher_release_id.is_some());
-        assert_eq!(terminal["releaseId"].as_str(), publisher_release_id.as_deref());
+        assert_eq!(
+            terminal["releaseId"].as_str(),
+            publisher_release_id.as_deref()
+        );
         let current = app
             .clone()
             .oneshot(
