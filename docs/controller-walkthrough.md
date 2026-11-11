@@ -81,7 +81,9 @@ returns `202` with an `operationId`, continues publishing after the HTTP request
 ends, and exposes progress and the final Oracle recording result at the operation
 URL. Existing callers without that header retain the synchronous response.
 An `incomplete` operation means the release is active but the publish history
-record failed; check controller logs before publishing again.
+record failed; check controller logs before publishing again. An `unconfirmed`
+operation means the controller cannot establish whether promotion finished; check
+the active release and pending edits before trying again.
 
 Collection-management routes require the single-admin session cookie created by
 `/admin/api/login`. Browser mutations also require a matching `Origin` or
