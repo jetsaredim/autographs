@@ -1869,4 +1869,29 @@ assert.equal(fetchCalls.length, callsBeforeEditDuringStatus + 1,
   "edits made during the status request must prevent the publish POST");
 assert.equal(fetchCalls.at(-1).path, "/admin/api/publish/status");
 
+await run(`renderHub = async () => true;`);
+enqueueFetch(response({ json: { state: "idle" } }));
+enqueueFetch(response({ status: 202, json: { operationId: "operation-1" } }));
+enqueueFetch(response({ json: { state: "succeeded", releaseId: "release-1" } }));
+enqueueFetch(response({ json: { state: "succeeded", releaseId: "release-1" } }));
+await run(`
+  state.dirty = false;
+  state.reviewDirty = false;
+  await publishChanges("incremental");
+  assert.equal(document.querySelector("#publish-state").textContent, "succeeded");
+  assert.match(document.querySelector("#publish-next-action").textContent, /published/i);
+`);
+assert.equal(fetchCalls.at(-3).path, "/admin/api/publish/incremental");
+assert.equal(fetchCalls.at(-3).options.headers.Prefer, "respond-async");
+assert.equal(fetchCalls.at(-2).path, "/admin/api/publish/operations/operation-1");
+
+enqueueFetch(response({ json: { state: "succeeded", releaseId: "release-1" } }));
+enqueueFetch(response({ status: 524, text: "<!DOCTYPE html><title>Cloudflare 524</title>" }));
+await run(`
+  await publishChanges("incremental");
+  assert.equal(document.querySelector("#publish-state").textContent, "Outcome unconfirmed");
+  assert.doesNotMatch(elements.publishStatus.textContent, /DOCTYPE/);
+  assert.match(document.querySelector("#publish-next-action").textContent, /before retrying/);
+`);
+
 console.log("static admin behavior tests passed");

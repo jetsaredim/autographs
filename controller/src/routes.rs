@@ -1,4 +1,8 @@
-use std::{sync::Arc, time::Instant};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 
 use axum::{
     Json, Router,
@@ -40,6 +44,10 @@ mod admin_items;
 
 const SESSION_COOKIE: &str = "autographs_admin_session";
 const MAX_IMAGE_UPLOAD_BYTES: usize = 20 * 1024 * 1024;
+const PUBLISH_OPERATION_RETAIN_FOR: Duration = Duration::from_secs(30 * 60);
+const MAX_RETAINED_PUBLISH_OPERATIONS: usize = 64;
+const UNCONFIRMED_PUBLISH_MESSAGE: &str =
+    "Publish outcome is unconfirmed. Check the active release and pending edits before retrying.";
 
 #[derive(Clone)]
 pub struct AppState {
@@ -48,6 +56,96 @@ pub struct AppState {
     repository: Arc<dyn CatalogRepository>,
     media: Arc<dyn PrivateMediaStore>,
     publisher: Arc<LocalPublisher>,
+    publish_operations: Arc<Mutex<PublishOperations>>,
+}
+
+#[derive(Clone)]
+struct PublishOperation {
+    id: Uuid,
+    status: PublishStatus,
+    completed_at: Option<Instant>,
+}
+
+#[derive(Default)]
+struct PublishOperations {
+    active: Option<Uuid>,
+    recent: VecDeque<PublishOperation>,
+    latest_request_id: Option<Uuid>,
+    latest_status: Option<PublishStatus>,
+}
+
+impl PublishOperations {
+    fn prune_expired(&mut self) {
+        self.recent.retain(|operation| {
+            operation
+                .completed_at
+                .is_none_or(|finished| finished.elapsed() < PUBLISH_OPERATION_RETAIN_FOR)
+        });
+    }
+}
+
+struct PublishOperationFinalizer {
+    operations: Arc<Mutex<PublishOperations>>,
+    id: Uuid,
+    finished: bool,
+}
+
+impl PublishOperationFinalizer {
+    fn new(operations: Arc<Mutex<PublishOperations>>, id: Uuid) -> Self {
+        Self {
+            operations,
+            id,
+            finished: false,
+        }
+    }
+
+    fn finish(&mut self, status: PublishStatus) {
+        let status = if !matches!(
+            status.state.as_str(),
+            "succeeded" | "failed" | "incomplete" | "unconfirmed"
+        ) {
+            unconfirmed_publish_operation_status(status)
+        } else {
+            status
+        };
+        let mut operations = self
+            .operations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(job) = operations.recent.iter_mut().find(|job| job.id == self.id) {
+            job.status = status.clone();
+            job.completed_at = Some(Instant::now());
+        }
+        if operations.latest_request_id == Some(self.id) {
+            operations.latest_status = Some(status);
+        }
+        if operations.active == Some(self.id) {
+            operations.active = None;
+        }
+        self.finished = true;
+    }
+}
+
+impl Drop for PublishOperationFinalizer {
+    fn drop(&mut self) {
+        if !self.finished {
+            tracing::error!(operation_id = %self.id, "publish task ended without a terminal result");
+            self.finish(unconfirmed_publish_operation_status(
+                PublishStatus::default(),
+            ));
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PublishAccepted {
+    operation_id: Uuid,
+}
+
+struct PublishRouteOutcome {
+    response: Response,
+    status: PublishStatus,
 }
 
 #[derive(Serialize)]
@@ -273,8 +371,12 @@ pub fn router_with_services(
         repository,
         media,
         publisher,
+        publish_operations: Arc::new(Mutex::new(PublishOperations::default())),
     };
+    router_with_state(state)
+}
 
+fn router_with_state(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/admin/api/health", get(admin_health))
@@ -350,6 +452,10 @@ pub fn router_with_services(
         .route("/admin/api/items/{id}/publication", post(set_publication))
         .route("/admin/api/publish/incremental", post(publish_incremental))
         .route("/admin/api/publish/full", post(publish_full))
+        .route(
+            "/admin/api/publish/operations/{id}",
+            get(publish_operation_status),
+        )
         .route("/admin/api/publish/status", get(publish_status))
         .layer(DefaultBodyLimit::max(25 * 1024 * 1024))
         .with_state(state)
@@ -424,7 +530,7 @@ async fn admin_status(State(state): State<AppState>, headers: HeaderMap) -> Resp
             media_configured: state.config.media_configured,
             static_release_configured: state.config.static_release_configured,
         },
-        publish: PublishSummaryResponse::from(state.publisher.status()),
+        publish: PublishSummaryResponse::from(current_publish_status(&state)),
         pending_changes: PendingChangesResponse {
             count: pending_changes.count,
             oldest_changed_at_epoch_seconds: pending_changes.oldest_changed_at_epoch_seconds,
@@ -2103,7 +2209,11 @@ async fn publish_incremental(
     method: Method,
     headers: HeaderMap,
 ) -> Response {
-    publish(state, method, headers, PublishMode::Incremental).await
+    if prefers_async_publish(&headers) {
+        start_publish_operation(state, method, headers, PublishMode::Incremental).await
+    } else {
+        publish(state, method, headers, PublishMode::Incremental).await
+    }
 }
 
 async fn publish_full(
@@ -2111,7 +2221,95 @@ async fn publish_full(
     method: Method,
     headers: HeaderMap,
 ) -> Response {
-    publish(state, method, headers, PublishMode::Full).await
+    if prefers_async_publish(&headers) {
+        start_publish_operation(state, method, headers, PublishMode::Full).await
+    } else {
+        publish(state, method, headers, PublishMode::Full).await
+    }
+}
+
+fn prefers_async_publish(headers: &HeaderMap) -> bool {
+    headers
+        .get("prefer")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            value
+                .split(',')
+                .any(|part| part.trim().eq_ignore_ascii_case("respond-async"))
+        })
+}
+
+async fn start_publish_operation(
+    state: AppState,
+    method: Method,
+    headers: HeaderMap,
+    mode: PublishMode,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        return status.into_response();
+    }
+
+    let operation_id = Uuid::new_v4();
+    {
+        let mut operations = state
+            .publish_operations
+            .lock()
+            .expect("publish operations lock");
+        operations.prune_expired();
+        if operations.active.is_some() {
+            return (StatusCode::CONFLICT, "A publish is already running.").into_response();
+        }
+        if operations.recent.len() >= MAX_RETAINED_PUBLISH_OPERATIONS {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "Recent publish results are still retained.",
+            )
+                .into_response();
+        }
+        let queued = PublishStatus {
+            state: "running".to_owned(),
+            stage: Some("queued".to_owned()),
+            started_at_epoch_seconds: Some(now_epoch_seconds()),
+            ..Default::default()
+        };
+        operations.active = Some(operation_id);
+        operations.latest_request_id = Some(operation_id);
+        operations.latest_status = Some(queued.clone());
+        operations.recent.push_back(PublishOperation {
+            id: operation_id,
+            status: queued,
+            completed_at: None,
+        });
+    }
+
+    tokio::spawn(async move {
+        let mut finalizer =
+            PublishOperationFinalizer::new(Arc::clone(&state.publish_operations), operation_id);
+        let outcome = publish_authorized(state.clone(), mode, operation_id).await;
+        finalizer.finish(outcome.status);
+    });
+
+    (StatusCode::ACCEPTED, Json(PublishAccepted { operation_id })).into_response()
+}
+
+async fn publish_operation_status(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        return status.into_response();
+    }
+    let mut operations = state
+        .publish_operations
+        .lock()
+        .expect("publish operations lock");
+    operations.prune_expired();
+    let job = operations.recent.iter().find(|job| job.id == id).cloned();
+    let Some(job) = job else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    Json(job.status).into_response()
 }
 
 async fn publish(
@@ -2125,7 +2323,31 @@ async fn publish(
         tracing::warn!(%request_id, status = %status, mode = ?mode, "rejected static publish request");
         return status.into_response();
     }
+    {
+        let mut operations = state
+            .publish_operations
+            .lock()
+            .expect("publish operations lock");
+        operations.latest_request_id = Some(request_id);
+        operations.latest_status = Some(PublishStatus {
+            state: "running".to_owned(),
+            stage: Some("queued".to_owned()),
+            started_at_epoch_seconds: Some(now_epoch_seconds()),
+            ..Default::default()
+        });
+    }
+    let mut finalizer =
+        PublishOperationFinalizer::new(Arc::clone(&state.publish_operations), request_id);
+    let outcome = publish_authorized(state, mode, request_id).await;
+    finalizer.finish(outcome.status);
+    outcome.response
+}
 
+async fn publish_authorized(
+    state: AppState,
+    mode: PublishMode,
+    request_id: Uuid,
+) -> PublishRouteOutcome {
     let started = Instant::now();
     tracing::info!(%request_id, mode = ?mode, "static publish request authorized");
     let publish_guard = state.publisher.acquire_publish_lock().await;
@@ -2135,7 +2357,12 @@ async fn publish(
         Ok(boundary) => boundary,
         Err(error) => {
             tracing::error!(%request_id, error = %error, elapsed_ms = started.elapsed().as_millis(), "failed to capture publish boundary");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            return PublishRouteOutcome {
+                response: StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+                status: failed_publish_operation_status(
+                    "Publish did not start. Check controller logs before retrying.",
+                ),
+            };
         }
     };
     let boundary_ms = boundary_started.elapsed().as_millis();
@@ -2167,7 +2394,16 @@ async fn publish(
                 .await
             {
                 tracing::error!(%request_id, release_id = status.release_id.as_deref().unwrap_or("<none>"), error = %error, elapsed_ms = started.elapsed().as_millis(), "failed to record successful publish job");
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                let mut incomplete = status;
+                incomplete.state = "incomplete".to_owned();
+                incomplete.error = Some(
+                    "Release is active, but publish history was not recorded. Check controller logs before retrying."
+                        .to_owned(),
+                );
+                return PublishRouteOutcome {
+                    response: StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+                    status: incomplete,
+                };
             }
             tracing::info!(
                 %request_id,
@@ -2185,10 +2421,13 @@ async fn publish(
                 elapsed_ms = started.elapsed().as_millis(),
                 "published static release"
             );
-            (StatusCode::CREATED, Json(status)).into_response()
+            PublishRouteOutcome {
+                response: (StatusCode::CREATED, Json(status.clone())).into_response(),
+                status,
+            }
         }
         Err(error) => {
-            let status = state.publisher.status();
+            let mut status = state.publisher.status();
             let stage = status.stage.as_deref().unwrap_or("failed");
             let error_kind = crate::publisher::classify_publish_error(stage, &error);
             tracing::error!(
@@ -2202,16 +2441,49 @@ async fn publish(
                 elapsed_ms = started.elapsed().as_millis(),
                 "failed to publish static release"
             );
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(status)).into_response()
+            if status.state == "running" {
+                status = unconfirmed_publish_operation_status(status);
+            }
+            PublishRouteOutcome {
+                response: (StatusCode::INTERNAL_SERVER_ERROR, Json(status.clone())).into_response(),
+                status,
+            }
         }
     }
+}
+
+fn failed_publish_operation_status(message: &str) -> PublishStatus {
+    PublishStatus {
+        state: "failed".to_owned(),
+        error: Some(message.to_owned()),
+        finished_at_epoch_seconds: Some(now_epoch_seconds()),
+        ..Default::default()
+    }
+}
+
+fn unconfirmed_publish_operation_status(mut status: PublishStatus) -> PublishStatus {
+    status.state = "unconfirmed".to_owned();
+    status.error = Some(UNCONFIRMED_PUBLISH_MESSAGE.to_owned());
+    status.finished_at_epoch_seconds = Some(now_epoch_seconds());
+    status
 }
 
 async fn publish_status(State(state): State<AppState>, headers: HeaderMap) -> Response {
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
         return status.into_response();
     }
-    Json(state.publisher.status()).into_response()
+    Json(current_publish_status(&state)).into_response()
+}
+
+fn current_publish_status(state: &AppState) -> PublishStatus {
+    let mut operations = state
+        .publish_operations
+        .lock()
+        .expect("publish operations lock");
+    operations.prune_expired();
+    let latest = operations.latest_status.clone();
+    drop(operations);
+    latest.unwrap_or_else(|| state.publisher.status())
 }
 
 fn publish_mode_label(mode: PublishMode) -> &'static str {
@@ -2224,12 +2496,68 @@ fn publish_mode_label(mode: PublishMode) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::catalog::{PendingChangeSummary, PublishBoundary};
+    use async_trait::async_trait;
     use axum::{
         body::{Body, to_bytes},
         http::{Request, header},
     };
     use serde_json::{Value, json};
     use tower::ServiceExt;
+
+    struct FailingPublishRecordRepository {
+        inner: MemoryCatalogRepository,
+    }
+
+    #[async_trait]
+    impl CatalogRepository for FailingPublishRecordRepository {
+        async fn create(&self, input: AutographItemInput) -> Result<AutographItem, String> {
+            self.inner.create(input).await
+        }
+
+        async fn update(
+            &self,
+            id: Uuid,
+            input: AutographItemUpdate,
+        ) -> Result<AutographItem, String> {
+            self.inner.update(id, input).await
+        }
+
+        async fn get(&self, id: Uuid) -> Result<Option<AutographItem>, String> {
+            self.inner.get(id).await
+        }
+
+        async fn list(&self) -> Result<Vec<AutographItem>, String> {
+            self.inner.list().await
+        }
+
+        async fn attach_image(
+            &self,
+            item_id: Uuid,
+            image: AutographImage,
+        ) -> Result<AutographItem, String> {
+            self.inner.attach_image(item_id, image).await
+        }
+
+        async fn pending_changes(&self) -> Result<PendingChangeSummary, String> {
+            self.inner.pending_changes().await
+        }
+
+        async fn begin_publish_boundary(&self) -> Result<PublishBoundary, String> {
+            self.inner.begin_publish_boundary().await
+        }
+
+        async fn record_successful_publish(
+            &self,
+            _mode: &str,
+            _release_id: Option<&str>,
+            _publish_boundary: PublishBoundary,
+            _started_at_epoch_seconds: Option<i64>,
+            _finished_at_epoch_seconds: i64,
+        ) -> Result<(), String> {
+            Err("simulated catalog recording failure".to_owned())
+        }
+    }
 
     #[cfg(feature = "production-persistence")]
     #[test]
@@ -2313,6 +2641,314 @@ mod tests {
         let status = admin_status(&app).await;
         assert_eq!(status["pendingChanges"]["count"], 0);
         assert_eq!(status["pendingChanges"]["hasPendingChanges"], false);
+    }
+
+    #[test]
+    fn older_operation_result_does_not_replace_newer_status() {
+        let older_id = Uuid::new_v4();
+        let newer_id = Uuid::new_v4();
+        let operations = Arc::new(Mutex::new(PublishOperations {
+            active: Some(older_id),
+            recent: VecDeque::from([PublishOperation {
+                id: older_id,
+                status: PublishStatus {
+                    state: "running".to_owned(),
+                    ..Default::default()
+                },
+                completed_at: None,
+            }]),
+            latest_request_id: Some(newer_id),
+            latest_status: Some(PublishStatus {
+                state: "succeeded".to_owned(),
+                release_id: Some("newer-release".to_owned()),
+                ..Default::default()
+            }),
+        }));
+        let mut older = PublishOperationFinalizer::new(Arc::clone(&operations), older_id);
+        older.finish(unconfirmed_publish_operation_status(
+            PublishStatus::default(),
+        ));
+
+        let operations = operations.lock().expect("operations lock");
+        assert_eq!(operations.active, None);
+        assert_eq!(operations.recent[0].status.state, "unconfirmed");
+        assert_eq!(operations.recent[0].status.release_id, None);
+        assert_eq!(
+            operations.latest_status.as_ref().unwrap().state,
+            "succeeded"
+        );
+        assert_eq!(
+            operations
+                .latest_status
+                .as_ref()
+                .unwrap()
+                .release_id
+                .as_deref(),
+            Some("newer-release")
+        );
+    }
+
+    #[tokio::test]
+    async fn promoted_release_with_failed_catalog_record_remains_incomplete() {
+        let repository = Arc::new(FailingPublishRecordRepository {
+            inner: MemoryCatalogRepository::default(),
+        });
+        repository
+            .create(test_item_input(
+                "Unrecorded Publish",
+                PublicationStatus::Draft,
+            ))
+            .await
+            .expect("create pending item");
+        let media_root = tempfile::tempdir().expect("media root");
+        let static_root = tempfile::tempdir().expect("static root");
+        let mut config = ControllerConfig::for_test(false);
+        config.static_release_root = static_root.path().to_path_buf();
+        let app = router_with_services(
+            config,
+            repository,
+            Arc::new(LocalMediaStore::new(media_root.path())),
+            Arc::new(LocalPublisher::new(static_root.path())),
+        );
+        let cookie = admin_cookie(&app).await;
+        let accepted = app
+            .clone()
+            .oneshot(
+                Request::post("/admin/api/publish/incremental")
+                    .header(header::COOKIE, &cookie)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .header("Prefer", "respond-async")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("publish accepted");
+        assert_eq!(accepted.status(), StatusCode::ACCEPTED);
+        let id = response_json(accepted).await["operationId"]
+            .as_str()
+            .expect("operation ID")
+            .to_owned();
+        let outcome = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let response = app
+                    .clone()
+                    .oneshot(
+                        Request::get(format!("/admin/api/publish/operations/{id}"))
+                            .header(header::COOKIE, &cookie)
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .expect("operation status");
+                let status = response_json(response).await;
+                if status["state"] != "running" {
+                    break status;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("publish completed");
+        assert_eq!(outcome["state"], "incomplete");
+        assert!(outcome["releaseId"].as_str().is_some());
+        assert!(
+            admin_status(&app).await["pendingChanges"]["count"]
+                .as_u64()
+                .unwrap_or_default()
+                > 0
+        );
+    }
+
+    #[tokio::test]
+    async fn publisher_error_with_running_status_terminalizes_async_operation() {
+        let static_root = tempfile::tempdir().expect("static root");
+        std::fs::create_dir_all(static_root.path().join(".media-commit-history"))
+            .expect("history directory");
+        std::fs::write(
+            static_root
+                .path()
+                .join(".media-commit-history/history.json"),
+            b"invalid",
+        )
+        .expect("invalid history");
+        std::fs::write(static_root.path().join("failed"), b"not a directory")
+            .expect("block failed candidate cleanup");
+        let media_root = tempfile::tempdir().expect("media root");
+        let mut config = ControllerConfig::for_test(false);
+        config.static_release_root = static_root.path().to_path_buf();
+        let publisher = Arc::new(LocalPublisher::new(static_root.path()));
+        let app = router_with_services(
+            config,
+            Arc::new(MemoryCatalogRepository::default()),
+            Arc::new(LocalMediaStore::new(media_root.path())),
+            Arc::clone(&publisher),
+        );
+        let cookie = admin_cookie(&app).await;
+        let accepted = app
+            .clone()
+            .oneshot(
+                Request::post("/admin/api/publish/incremental")
+                    .header(header::COOKIE, &cookie)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .header("Prefer", "respond-async")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("accepted response");
+        assert_eq!(accepted.status(), StatusCode::ACCEPTED);
+        let id = response_json(accepted).await["operationId"]
+            .as_str()
+            .expect("operation id")
+            .to_owned();
+        let terminal = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let response = app
+                    .clone()
+                    .oneshot(
+                        Request::get(format!("/admin/api/publish/operations/{id}"))
+                            .header(header::COOKIE, &cookie)
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .expect("operation response");
+                let status = response_json(response).await;
+                if status["state"] != "running" {
+                    break status;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("operation terminalized");
+        assert_eq!(terminal["state"], "unconfirmed");
+        assert_eq!(terminal["error"], UNCONFIRMED_PUBLISH_MESSAGE);
+        let publisher_release_id = publisher.status().release_id;
+        assert!(publisher_release_id.is_some());
+        assert_eq!(
+            terminal["releaseId"].as_str(),
+            publisher_release_id.as_deref()
+        );
+        let current = app
+            .clone()
+            .oneshot(
+                Request::get("/admin/api/publish/status")
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("publish status response");
+        assert_eq!(response_json(current).await["state"], "unconfirmed");
+        let retry = app
+            .oneshot(
+                Request::post("/admin/api/publish/incremental")
+                    .header(header::COOKIE, &cookie)
+                    .header(header::ORIGIN, "https://autographs.example.test")
+                    .header("Prefer", "respond-async")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("second publish accepted response");
+        assert_eq!(retry.status(), StatusCode::ACCEPTED);
+    }
+
+    #[tokio::test]
+    async fn panicked_publish_task_releases_active_operation_gate() {
+        let operations = Arc::new(Mutex::new(PublishOperations::default()));
+        let id = Uuid::new_v4();
+        {
+            let mut locked = operations.lock().expect("operations lock");
+            let previous_id = Uuid::new_v4();
+            locked.recent.push_back(PublishOperation {
+                id: previous_id,
+                status: PublishStatus {
+                    state: "succeeded".to_owned(),
+                    release_id: Some("previous-release".to_owned()),
+                    ..Default::default()
+                },
+                completed_at: Some(Instant::now()),
+            });
+            locked.active = Some(id);
+            locked.latest_request_id = Some(id);
+            locked.latest_status = Some(PublishStatus {
+                state: "running".to_owned(),
+                ..Default::default()
+            });
+            locked.recent.push_back(PublishOperation {
+                id,
+                status: PublishStatus {
+                    state: "running".to_owned(),
+                    ..Default::default()
+                },
+                completed_at: None,
+            });
+        }
+        let task_operations = Arc::clone(&operations);
+        let task = tokio::spawn(async move {
+            let _finalizer = PublishOperationFinalizer::new(task_operations, id);
+            panic!("simulate publish task panic");
+        });
+        assert!(task.await.is_err());
+        let locked = operations.lock().expect("operations lock");
+        assert_eq!(locked.active, None);
+        let operation = locked.recent.back().expect("retained operation");
+        assert_eq!(operation.status.state, "unconfirmed");
+        assert_eq!(operation.status.release_id, None);
+        assert_eq!(
+            locked
+                .latest_status
+                .as_ref()
+                .expect("latest status")
+                .release_id,
+            None
+        );
+        assert!(operation.completed_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn aborted_publish_task_releases_active_operation_gate() {
+        let operations = Arc::new(Mutex::new(PublishOperations::default()));
+        let id = Uuid::new_v4();
+        {
+            let mut locked = operations.lock().expect("operations lock");
+            locked.active = Some(id);
+            locked.latest_request_id = Some(id);
+            locked.latest_status = Some(PublishStatus {
+                state: "running".to_owned(),
+                ..Default::default()
+            });
+            locked.recent.push_back(PublishOperation {
+                id,
+                status: PublishStatus {
+                    state: "running".to_owned(),
+                    ..Default::default()
+                },
+                completed_at: None,
+            });
+        }
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let task_operations = Arc::clone(&operations);
+        let task = tokio::spawn(async move {
+            let _finalizer = PublishOperationFinalizer::new(task_operations, id);
+            ready_tx.send(()).expect("announce task ready");
+            std::future::pending::<()>().await;
+        });
+        ready_rx.await.expect("task ready");
+        task.abort();
+        assert!(task.await.expect_err("task aborted").is_cancelled());
+        let locked = operations.lock().expect("operations lock");
+        assert_eq!(locked.active, None);
+        assert_eq!(
+            locked.recent.front().expect("operation").status.state,
+            "unconfirmed"
+        );
+        assert_eq!(
+            locked.recent.front().expect("operation").status.release_id,
+            None
+        );
     }
 
     async fn spawn_publish(app: Router) -> tokio::task::JoinHandle<axum::response::Response> {
