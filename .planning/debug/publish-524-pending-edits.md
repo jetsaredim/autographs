@@ -22,10 +22,13 @@ updated: 2026-11-11
 
 ## Performance follow-up
 
-The same release spent about 148 seconds across five full media history verification passes, reading retained releases and shared media repeatedly. These passes occur at publish start, before commit, after commit, and during both pruning steps. Review the shared safety invariant and mutation boundaries before reusing a verification result or removing a pass; keep this change separate from the response and recording fix.
+The same release spent 147.7 seconds across five full media history verification passes, 74% of the total publish time. Each pass read roughly 1.2–1.5 GB of retained release media plus shared media. The passes occur at publish start (27.2 s), before commit (27.2 s), after commit (33.4 s), before pruning releases (32.8 s), and before pruning shared media (27.1 s). `reconcile_history()` performs the first three; `load_history()` inside each pruning function performs the last two. Review whether a verified history snapshot can be carried through the commit and cleanup steps while retaining checks around pointer changes, shared media copies, tombstones, and destructive pruning. Keep this performance change separate from the response and recording fix.
+
+The initial pass establishes recovery after a previous interrupted commit. The pre-commit pass catches media/history drift during candidate construction; the post-commit pass resolves and checks the new pointer and intent. The pruning passes guard destructive release and shared-media deletion. Any optimization must preserve these boundaries, including external tombstone changes and corrupted retained media. A follow-up should test interrupted commits, altered media, missing shared files, tombstones, and retention deletion, then compare bytes read and elapsed time against this baseline.
 
 ## Verification
 
 - Focused async integration test: dropping the initial response does not stop publishing or leave memory-catalog edits pending.
 - Static admin behavior test: 202 operation polling reports success; a 524 transport response never displays raw Cloudflare HTML or calls the outcome failed.
+- PR #337 review identified operation result identity and result-retention races. Commit `b4e1d37` binds each terminal result to its own publish call and keeps recent results queryable for 30 minutes (up to 64), with deterministic regression tests. See `publish-524-pr-review.md` for finding lineage.
 - Production verification after deployment: repeat an incremental publish and confirm a terminal operation result, a route-level `published static release` log, and the expected pending edit count.
