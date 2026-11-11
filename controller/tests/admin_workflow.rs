@@ -2306,6 +2306,105 @@ async fn async_publish_records_success_after_request_response_is_dropped() {
 }
 
 #[tokio::test]
+async fn completed_operation_remains_queryable_after_next_publish_is_accepted() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media_root = tempfile::tempdir().unwrap();
+    let static_root = tempfile::tempdir().unwrap();
+    let mut config = ControllerConfig::for_test(false);
+    config.static_release_root = static_root.path().to_path_buf();
+    let app = router_with_stores(
+        config,
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+    );
+    let cookie = admin_cookie(&app).await;
+
+    let start = || {
+        Request::post("/admin/api/publish/incremental")
+            .header(header::COOKIE, &cookie)
+            .header(header::ORIGIN, "https://autographs.example.test")
+            .header("Prefer", "respond-async")
+            .body(Body::empty())
+            .unwrap()
+    };
+    let first = app.clone().oneshot(start()).await.unwrap();
+    assert_eq!(first.status(), StatusCode::ACCEPTED);
+    let first_id = response_json(first).await["operationId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            let latest = response_json(
+                app.clone()
+                    .oneshot(
+                        Request::get("/admin/api/publish/status")
+                            .header(header::COOKIE, &cookie)
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            )
+            .await;
+            if latest["state"] == "succeeded" {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("first operation completed without polling its ID");
+
+    let second = app.clone().oneshot(start()).await.unwrap();
+    assert_eq!(second.status(), StatusCode::ACCEPTED);
+    let second_id = response_json(second).await["operationId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let first_after_second = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/admin/api/publish/operations/{first_id}"))
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first_after_second.status(), StatusCode::OK);
+    let first_status = response_json(first_after_second).await;
+    assert_eq!(first_status["state"], "succeeded");
+    let first_release_id = first_status["releaseId"].as_str().unwrap().to_owned();
+
+    let second_status = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            let status = response_json(
+                app.clone()
+                    .oneshot(
+                        Request::get(format!("/admin/api/publish/operations/{second_id}"))
+                            .header(header::COOKIE, &cookie)
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            )
+            .await;
+            if status["state"] != "running" {
+                break status;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("second operation completed");
+    assert_eq!(second_status["state"], "succeeded");
+    assert_ne!(second_status["releaseId"], first_release_id);
+}
+
+#[tokio::test]
 async fn publish_clears_same_second_saved_change_included_in_release() {
     let repository = Arc::new(MemoryCatalogRepository::default());
     let media_root = tempfile::tempdir().unwrap();
