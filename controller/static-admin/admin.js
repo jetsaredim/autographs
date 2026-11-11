@@ -37,6 +37,7 @@ const endpoints = {
     `/admin/api/items/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/cleanup/retry`,
   publishIncremental: "/admin/api/publish/incremental",
   publishFull: "/admin/api/publish/full",
+  publishOperation: (id) => `/admin/api/publish/operations/${encodeURIComponent(id)}`,
   publishStatus: "/admin/api/publish/status",
 };
 
@@ -69,6 +70,7 @@ const copy = {
   discardImageEdits: "Discard unsaved image edits and return to the item editor?",
   discardImageEditsForNavigation: "Discard unsaved image edits and continue?",
   publishFrozen: "Publishing is paused during deployment. Saved changes remain private.",
+  publishRunning: "A publish is running. Wait for its result before starting another.",
   publishUnavailable: "Publishing status is unavailable. Checking again shortly.",
 };
 
@@ -684,6 +686,9 @@ function appendTableMessage(body, message, columns) {
 const publishSummaryText = (publish) => {
   if (!publish) {
     return "Idle";
+  }
+  if (publish.state === "incomplete") {
+    return `Release ${publish.releaseId || "unknown"} active; publish history incomplete`;
   }
   const stateLabel = publish.state || "idle";
   const release = publish.releaseId ? ` release ${publish.releaseId}` : "";
@@ -1546,11 +1551,13 @@ function syncPublishAvailability() {
     button.setAttribute("aria-disabled", disabled ? "true" : "false");
     button.title = state.publishAvailability === "frozen"
       ? copy.publishFrozen
-      : state.publishAvailability === "unknown" ? copy.publishUnavailable : "";
+      : state.publishAvailability === "running" ? copy.publishRunning
+        : state.publishAvailability === "unknown" ? copy.publishUnavailable : "";
   }
   const message = state.publishAvailability === "frozen"
     ? copy.publishFrozen
-    : state.publishAvailability === "unknown" ? copy.publishUnavailable : "";
+    : state.publishAvailability === "running" ? copy.publishRunning
+      : state.publishAvailability === "unknown" ? copy.publishUnavailable : "";
   setText("#publish-availability", message);
   setText("#editor-publish-availability", message);
   if (state.publishAvailability === "frozen") {
@@ -1564,16 +1571,16 @@ async function refreshPublishAvailability() {
   const revision = ++state.publishAvailabilityRevision;
   let frozen = false;
   try {
-    await request(endpoints.publishStatus, {
+    const status = await request(endpoints.publishStatus, {
       onResponse: (response) => {
         frozen = response.headers.get("X-Autographs-Publish-Frozen") === "true";
       },
     });
     if (revision === state.publishAvailabilityRevision) {
-      state.publishAvailability = frozen ? "frozen" : "available";
+      state.publishAvailability = frozen ? "frozen" : status.state === "running" ? "running" : "available";
       syncPublishAvailability();
     }
-    return !frozen && revision === state.publishAvailabilityRevision;
+    return !frozen && status.state !== "running" && revision === state.publishAvailabilityRevision;
   } catch (error) {
     if (revision === state.publishAvailabilityRevision) {
       state.publishAvailability = "unknown";
@@ -4289,6 +4296,19 @@ function ensureSavedBeforeManagingSigner() {
   return false;
 }
 
+async function waitForPublishOperation(operationId) {
+  for (let attempt = 0; attempt < 450; attempt += 1) {
+    const status = await request(endpoints.publishOperation(operationId));
+    elements.publishStatus.textContent = JSON.stringify(status, null, 2);
+    setText("#publish-state", status.state || "Running");
+    if (status.state !== "running") {
+      return status;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 2000));
+  }
+  return null;
+}
+
 async function publishChanges(mode = "incremental") {
   if (!ensureSavedBeforePublish()) {
     return;
@@ -4304,16 +4324,31 @@ async function publishChanges(mode = "incremental") {
   }
   elements.publishStatus.textContent = "Publishing";
   try {
-    const status = await request(mode === "full" ? endpoints.publishFull : endpoints.publishIncremental, {
+    const accepted = await request(mode === "full" ? endpoints.publishFull : endpoints.publishIncremental, {
       method: "POST",
+      headers: { Prefer: "respond-async" },
     });
+    state.publishAvailability = "running";
+    syncPublishAvailability();
+    const status = await waitForPublishOperation(accepted.operationId);
+    if (!status) {
+      setText("#publish-state", "Outcome unconfirmed");
+      setText("#publish-next-action", "Check publish status before retrying. The operation may still be running.");
+      elements.publishStatus.textContent = "Publish is taking longer than expected; its outcome is not yet confirmed.";
+      return;
+    }
     elements.publishStatus.textContent = JSON.stringify(status, null, 2);
-    setText("#publish-state", status.state || "Succeeded");
+    setText("#publish-state", status.state);
     setText("#release-summary", publishSummaryText(status));
-    const publishMessage = status.cleanupWarning || copy.publishSuccess;
+    const publishMessage = status.state === "succeeded"
+      ? status.cleanupWarning || copy.publishSuccess
+      : status.state === "incomplete"
+        ? status.error || "Release is active, but publish history needs attention. Check controller logs before retrying."
+        : status.error || "Publish failed. Check controller logs before retrying.";
     setText("#publish-next-action", publishMessage);
     elements.globalMessage.textContent = publishMessage;
     elements.globalMessage.focus();
+    await refreshPublishAvailability();
     await renderHub();
   } catch (error) {
     if (error.status !== 401) {
@@ -4322,11 +4357,13 @@ async function publishChanges(mode = "incremental") {
           ? "frozen" : "unknown";
         syncPublishAvailability();
       }
-      setText("#publish-state", "Failed");
+      setText("#publish-state", "Outcome unconfirmed");
       setText("#publish-next-action", state.publishAvailability === "frozen"
         ? copy.publishFrozen
-        : "Retry publish, inspect diagnostics, or run live smoke guidance.");
-      elements.publishStatus.textContent = `Publish failed: ${error.message}`;
+        : "Check publish status before retrying. The operation may still be running.");
+      elements.publishStatus.textContent = error.status === 524
+        ? "Cloudflare timed out waiting for a response; check publish status before retrying."
+        : `Could not confirm publish outcome: ${error.message}`;
     }
   }
 }

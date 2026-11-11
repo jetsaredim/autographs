@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 
 use axum::{
     Json, Router,
@@ -48,6 +51,19 @@ pub struct AppState {
     repository: Arc<dyn CatalogRepository>,
     media: Arc<dyn PrivateMediaStore>,
     publisher: Arc<LocalPublisher>,
+    publish_operation: Arc<Mutex<Option<PublishOperation>>>,
+}
+
+#[derive(Clone)]
+struct PublishOperation {
+    id: Uuid,
+    status: PublishStatus,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PublishAccepted {
+    operation_id: Uuid,
 }
 
 #[derive(Serialize)]
@@ -273,6 +289,7 @@ pub fn router_with_services(
         repository,
         media,
         publisher,
+        publish_operation: Arc::new(Mutex::new(None)),
     };
 
     Router::new()
@@ -350,6 +367,10 @@ pub fn router_with_services(
         .route("/admin/api/items/{id}/publication", post(set_publication))
         .route("/admin/api/publish/incremental", post(publish_incremental))
         .route("/admin/api/publish/full", post(publish_full))
+        .route(
+            "/admin/api/publish/operations/{id}",
+            get(publish_operation_status),
+        )
         .route("/admin/api/publish/status", get(publish_status))
         .layer(DefaultBodyLimit::max(25 * 1024 * 1024))
         .with_state(state)
@@ -424,7 +445,7 @@ async fn admin_status(State(state): State<AppState>, headers: HeaderMap) -> Resp
             media_configured: state.config.media_configured,
             static_release_configured: state.config.static_release_configured,
         },
-        publish: PublishSummaryResponse::from(state.publisher.status()),
+        publish: PublishSummaryResponse::from(current_publish_status(&state)),
         pending_changes: PendingChangesResponse {
             count: pending_changes.count,
             oldest_changed_at_epoch_seconds: pending_changes.oldest_changed_at_epoch_seconds,
@@ -2103,7 +2124,11 @@ async fn publish_incremental(
     method: Method,
     headers: HeaderMap,
 ) -> Response {
-    publish(state, method, headers, PublishMode::Incremental).await
+    if prefers_async_publish(&headers) {
+        start_publish_operation(state, method, headers, PublishMode::Incremental).await
+    } else {
+        publish(state, method, headers, PublishMode::Incremental).await
+    }
 }
 
 async fn publish_full(
@@ -2111,7 +2136,111 @@ async fn publish_full(
     method: Method,
     headers: HeaderMap,
 ) -> Response {
-    publish(state, method, headers, PublishMode::Full).await
+    if prefers_async_publish(&headers) {
+        start_publish_operation(state, method, headers, PublishMode::Full).await
+    } else {
+        publish(state, method, headers, PublishMode::Full).await
+    }
+}
+
+fn prefers_async_publish(headers: &HeaderMap) -> bool {
+    headers
+        .get("prefer")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            value
+                .split(',')
+                .any(|part| part.trim().eq_ignore_ascii_case("respond-async"))
+        })
+}
+
+async fn start_publish_operation(
+    state: AppState,
+    method: Method,
+    headers: HeaderMap,
+    mode: PublishMode,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &method, &headers) {
+        return status.into_response();
+    }
+
+    let operation_id = Uuid::new_v4();
+    let prior_release_id = state.publisher.status().release_id;
+    {
+        let mut operation = state
+            .publish_operation
+            .lock()
+            .expect("publish operation lock");
+        if operation
+            .as_ref()
+            .is_some_and(|job| job.status.state == "running")
+        {
+            return (StatusCode::CONFLICT, "A publish is already running.").into_response();
+        }
+        *operation = Some(PublishOperation {
+            id: operation_id,
+            status: PublishStatus {
+                state: "running".to_owned(),
+                stage: Some("queued".to_owned()),
+                started_at_epoch_seconds: Some(now_epoch_seconds()),
+                ..Default::default()
+            },
+        });
+    }
+
+    tokio::spawn(async move {
+        let response =
+            publish_with_request_id(state.clone(), method, headers, mode, operation_id).await;
+        let mut status = state.publisher.status();
+        if !response.status().is_success() {
+            if status.state == "succeeded" && status.release_id != prior_release_id {
+                status.state = "incomplete".to_owned();
+                status.error = Some(
+                    "Release is active, but publish history was not recorded. Check controller logs before retrying."
+                        .to_owned(),
+                );
+            } else if status.state != "failed" {
+                status = PublishStatus {
+                    state: "failed".to_owned(),
+                    error: Some(
+                        "Publish did not start. Check controller logs before retrying.".to_owned(),
+                    ),
+                    finished_at_epoch_seconds: Some(now_epoch_seconds()),
+                    ..Default::default()
+                };
+            }
+        }
+        let mut operation = state
+            .publish_operation
+            .lock()
+            .expect("publish operation lock");
+        if let Some(job) = operation.as_mut().filter(|job| job.id == operation_id) {
+            job.status = status;
+        }
+    });
+
+    (StatusCode::ACCEPTED, Json(PublishAccepted { operation_id })).into_response()
+}
+
+async fn publish_operation_status(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
+        return status.into_response();
+    }
+    let job = state
+        .publish_operation
+        .lock()
+        .expect("publish operation lock")
+        .as_ref()
+        .filter(|job| job.id == id)
+        .cloned();
+    let Some(job) = job else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    Json(job.status).into_response()
 }
 
 async fn publish(
@@ -2121,6 +2250,16 @@ async fn publish(
     mode: PublishMode,
 ) -> Response {
     let request_id = Uuid::new_v4();
+    publish_with_request_id(state, method, headers, mode, request_id).await
+}
+
+async fn publish_with_request_id(
+    state: AppState,
+    method: Method,
+    headers: HeaderMap,
+    mode: PublishMode,
+    request_id: Uuid,
+) -> Response {
     if let Err(status) = authorize_admin_session(&state, &method, &headers) {
         tracing::warn!(%request_id, status = %status, mode = ?mode, "rejected static publish request");
         return status.into_response();
@@ -2211,7 +2350,25 @@ async fn publish_status(State(state): State<AppState>, headers: HeaderMap) -> Re
     if let Err(status) = authorize_admin_session(&state, &Method::GET, &headers) {
         return status.into_response();
     }
-    Json(state.publisher.status()).into_response()
+    Json(current_publish_status(&state)).into_response()
+}
+
+fn current_publish_status(state: &AppState) -> PublishStatus {
+    let operation = state
+        .publish_operation
+        .lock()
+        .expect("publish operation lock")
+        .clone();
+    let published = state.publisher.status();
+    if let Some(job) = operation.as_ref() {
+        if job.status.state == "incomplete" && job.status.release_id == published.release_id {
+            return job.status.clone();
+        }
+        if job.status.state == "running" {
+            return job.status.clone();
+        }
+    }
+    published
 }
 
 fn publish_mode_label(mode: PublishMode) -> &'static str {

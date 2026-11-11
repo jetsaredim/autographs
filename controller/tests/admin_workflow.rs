@@ -9,7 +9,8 @@ use autographs_controller::{
     config::ControllerConfig,
     image_adjustments::{ImageAdjustment, ImageCrop},
     media::{LocalMediaStore, PrivateMediaStore},
-    routes::router_with_stores,
+    publisher::LocalPublisher,
+    routes::{router_with_services, router_with_stores},
     storage_keys::build_original_object_key,
 };
 use axum::{
@@ -2201,6 +2202,107 @@ async fn publish_batches_saved_changes() {
         assert_eq!(detail["pendingChanges"]["hasPendingChanges"], false);
         assert_eq!(detail["pendingChanges"]["count"], 0);
     }
+}
+
+#[tokio::test]
+async fn async_publish_records_success_after_request_response_is_dropped() {
+    let repository = Arc::new(MemoryCatalogRepository::default());
+    let media_root = tempfile::tempdir().unwrap();
+    let static_root = tempfile::tempdir().unwrap();
+    let mut config = ControllerConfig::for_test(false);
+    config.static_release_root = static_root.path().to_path_buf();
+    let publisher = Arc::new(LocalPublisher::new(static_root.path()));
+    let app = router_with_services(
+        config,
+        repository,
+        Arc::new(LocalMediaStore::new(media_root.path().to_path_buf())),
+        Arc::clone(&publisher),
+    );
+
+    let item = create_item(&app, "Async Publish Item", "Carrie Fisher").await;
+    patch_item_title(&app, item, "Async Publish Updated").await;
+    let cookie = admin_cookie(&app).await;
+    let publish_guard = publisher.acquire_publish_lock().await;
+    let accepted = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        app.clone().oneshot(
+            Request::post("/admin/api/publish/incremental")
+                .header(header::COOKIE, &cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header("Prefer", "respond-async")
+                .body(Body::empty())
+                .unwrap(),
+        ),
+    )
+    .await
+    .expect("async request returns before publish lock is released")
+    .unwrap();
+    assert_eq!(accepted.status(), StatusCode::ACCEPTED);
+    let operation_id = response_json(accepted).await["operationId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let duplicate = app
+        .clone()
+        .oneshot(
+            Request::post("/admin/api/publish/incremental")
+                .header(header::COOKIE, &cookie)
+                .header(header::ORIGIN, "https://autographs.example.test")
+                .header("Prefer", "respond-async")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(duplicate.status(), StatusCode::CONFLICT);
+    let queued = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/admin/api/publish/operations/{operation_id}"))
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response_json(queued).await["state"], "running");
+    drop(publish_guard);
+
+    let status = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/admin/api/publish/operations/{operation_id}"))
+                        .header(header::COOKIE, &cookie)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let status = response_json(response).await;
+            if status["state"] != "running" {
+                break status;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("async publish completed");
+    assert_eq!(status["state"], "succeeded");
+    assert_eq!(admin_status(&app).await["pendingChanges"]["count"], 0);
+
+    let unauthenticated = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/admin/api/publish/operations/{operation_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unauthenticated.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
