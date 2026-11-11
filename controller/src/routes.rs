@@ -2776,10 +2776,12 @@ mod tests {
         let media_root = tempfile::tempdir().expect("media root");
         let mut config = ControllerConfig::for_test(false);
         config.static_release_root = static_root.path().to_path_buf();
-        let app = router_with_stores(
+        let publisher = Arc::new(LocalPublisher::new(static_root.path()));
+        let app = router_with_services(
             config,
             Arc::new(MemoryCatalogRepository::default()),
             Arc::new(LocalMediaStore::new(media_root.path())),
+            Arc::clone(&publisher),
         );
         let cookie = admin_cookie(&app).await;
         let accepted = app
@@ -2822,6 +2824,9 @@ mod tests {
         .expect("operation terminalized");
         assert_eq!(terminal["state"], "unconfirmed");
         assert_eq!(terminal["error"], UNCONFIRMED_PUBLISH_MESSAGE);
+        let publisher_release_id = publisher.status().release_id;
+        assert!(publisher_release_id.is_some());
+        assert_eq!(terminal["releaseId"].as_str(), publisher_release_id.as_deref());
         let current = app
             .clone()
             .oneshot(
