@@ -1882,6 +1882,31 @@ await run(`
 `);
 assert.equal(fetchCalls.at(-1).path, "/admin/api/status");
 
+const olderPendingStatus = deferred();
+enqueueFetch(olderPendingStatus.promise);
+const olderPendingRefresh = run(`return refreshPublishPendingSummary();`);
+enqueueFetch(response({ json: { pendingChanges: { count: 7 } } }));
+await run(`await refreshPublishPendingSummary();`);
+olderPendingStatus.resolve(response({ json: { pendingChanges: { count: 4 } } }));
+await olderPendingRefresh;
+await run(`
+  assert.equal(document.querySelector("#publish-pending-summary").textContent, pendingCopy(7));
+  assert.equal(state.diagnostics.pendingChanges.count, 7);
+`);
+
+const olderHubStatus = deferred();
+enqueueFetch(olderHubStatus.promise);
+const olderHubRefresh = run(`return renderHub();`);
+enqueueFetch(response({ json: { pendingChanges: { count: 8 } } }));
+enqueueFetch(response({ json: [] }));
+await run(`await refreshPublishPendingSummary();`);
+olderHubStatus.resolve(response({ json: { pendingChanges: { count: 4 } } }));
+await olderHubRefresh;
+await run(`
+  assert.equal(document.querySelector("#publish-pending-summary").textContent, pendingCopy(8));
+  assert.equal(state.diagnostics.pendingChanges.count, 8);
+`);
+
 await run(`renderHub = async () => true;`);
 enqueueFetch(response({ json: { state: "idle" } }));
 enqueueFetch(response({ status: 202, json: { operationId: "operation-1" } }));

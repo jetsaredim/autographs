@@ -79,6 +79,7 @@ const state = {
   currentItem: null,
   items: [],
   diagnostics: null,
+  adminStatusRevision: 0,
   dirty: false,
   itemSort: { key: "title", direction: "asc" },
   signerSuggestions: [],
@@ -538,15 +539,19 @@ function navigateToView(viewId) {
 const pendingCopy = (count) => `${count} saved change(s) have not been published yet.`;
 
 async function refreshPublishPendingSummary() {
+  const revision = ++state.adminStatusRevision;
   setText("#publish-pending-summary", "Checking saved changes...");
   try {
     const diagnostics = await request(endpoints.status);
+    if (revision !== state.adminStatusRevision) {
+      return;
+    }
     state.diagnostics = diagnostics;
     const pendingCount = diagnostics.pendingChanges?.count || 0;
     setText("#pending-summary", pendingCopy(pendingCount));
     setText("#publish-pending-summary", pendingCopy(pendingCount));
   } catch (error) {
-    if (error.status !== 401) {
+    if (revision === state.adminStatusRevision && error.status !== 401) {
       setText("#publish-pending-summary", "Could not load saved changes. Refresh and try again.");
     }
   }
@@ -579,9 +584,13 @@ const normalizeNextPath = (next) => {
 const nextDestination = () => normalizeNextPath(new URLSearchParams(window.location.search).get("next"));
 
 async function renderHub({ allowAnonymous = false } = {}) {
+  const revision = ++state.adminStatusRevision;
   try {
     const diagnostics = await request(endpoints.status, { allowAnonymous });
     const items = await request(endpoints.items, { allowAnonymous });
+    if (revision !== state.adminStatusRevision) {
+      return true;
+    }
     state.items = Array.isArray(items) ? items : [];
     state.diagnostics = diagnostics;
     const pendingCount = diagnostics.pendingChanges?.count || 0;
@@ -608,7 +617,7 @@ async function renderHub({ allowAnonymous = false } = {}) {
     renderDiagnostics();
     return true;
   } catch (error) {
-    if (error.status !== 401) {
+    if (revision === state.adminStatusRevision && error.status !== 401) {
       elements.globalMessage.textContent = `Status unavailable: ${error.message}`;
     }
     return false;
