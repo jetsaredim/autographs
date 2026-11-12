@@ -404,7 +404,7 @@ const buildQuery = (form) => {
 };
 
 const request = async (path, options = {}) => {
-  const { allowAnonymous = false, onResponse, ...fetchOptions } = options;
+  const { allowAnonymous = false, onResponse, shouldHandleAuthFailure, ...fetchOptions } = options;
   const response = await fetch(path, {
     credentials: "same-origin",
     ...fetchOptions,
@@ -413,7 +413,7 @@ const request = async (path, options = {}) => {
     onResponse(response);
   }
   if (response.status === 401) {
-    if (!allowAnonymous && !elements.workflowView.hidden) {
+    if (!allowAnonymous && !elements.workflowView.hidden && (!shouldHandleAuthFailure || shouldHandleAuthFailure())) {
       handleAuthFailure();
     }
     const error = new Error(copy.sessionExpired);
@@ -456,6 +456,7 @@ function showWorkflow() {
 }
 
 function showLogin(message = "") {
+  state.adminStatusRevision += 1;
   state.publishAvailabilityRevision += 1;
   state.publishAvailability = "unknown";
   syncPublishAvailability();
@@ -542,7 +543,9 @@ async function refreshPublishPendingSummary() {
   const revision = ++state.adminStatusRevision;
   setText("#publish-pending-summary", "Checking saved changes...");
   try {
-    const diagnostics = await request(endpoints.status);
+    const diagnostics = await request(endpoints.status, {
+      shouldHandleAuthFailure: () => revision === state.adminStatusRevision,
+    });
     if (revision !== state.adminStatusRevision) {
       return;
     }
@@ -586,8 +589,14 @@ const nextDestination = () => normalizeNextPath(new URLSearchParams(window.locat
 async function renderHub({ allowAnonymous = false } = {}) {
   const revision = ++state.adminStatusRevision;
   try {
-    const diagnostics = await request(endpoints.status, { allowAnonymous });
-    const items = await request(endpoints.items, { allowAnonymous });
+    const diagnostics = await request(endpoints.status, {
+      allowAnonymous,
+      shouldHandleAuthFailure: () => revision === state.adminStatusRevision,
+    });
+    const items = await request(endpoints.items, {
+      allowAnonymous,
+      shouldHandleAuthFailure: () => revision === state.adminStatusRevision,
+    });
     if (revision !== state.adminStatusRevision) {
       return true;
     }

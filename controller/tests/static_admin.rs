@@ -825,8 +825,8 @@ fn static_admin_review_layout_has_a_narrow_viewport_override() {
 fn static_admin_bootstraps_existing_sessions_without_expired_copy() {
     let source = static_admin_source();
     for expected in [
-        "const { allowAnonymous = false, onResponse, ...fetchOptions } = options;",
-        "if (!allowAnonymous && !elements.workflowView.hidden)",
+        "const { allowAnonymous = false, onResponse, shouldHandleAuthFailure, ...fetchOptions } = options;",
+        "if (!allowAnonymous && !elements.workflowView.hidden && (!shouldHandleAuthFailure || shouldHandleAuthFailure()))",
         "const adminLoginPath = \"/admin/login\";",
         "const adminRootPath = \"/admin/\";",
         "const publicHomePath = \"/\";",

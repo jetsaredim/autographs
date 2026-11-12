@@ -1907,6 +1907,56 @@ await run(`
   assert.equal(state.diagnostics.pendingChanges.count, 8);
 `);
 
+await run(`
+  state.originalAuthFailure = handleAuthFailure;
+  state.authFailureCount = 0;
+  handleAuthFailure = () => { state.authFailureCount += 1; };
+`);
+const olderUnauthorizedStatus = deferred();
+enqueueFetch(olderUnauthorizedStatus.promise);
+const olderUnauthorizedRefresh = run(`return refreshPublishPendingSummary();`);
+enqueueFetch(response({ json: { pendingChanges: { count: 9 } } }));
+await run(`await refreshPublishPendingSummary();`);
+olderUnauthorizedStatus.resolve(response({ status: 401 }));
+await olderUnauthorizedRefresh;
+await run(`
+  assert.equal(state.authFailureCount, 0);
+  assert.equal(state.diagnostics.pendingChanges.count, 9);
+  assert.equal(document.querySelector("#publish-pending-summary").textContent, pendingCopy(9));
+`);
+const olderUnauthorizedHubStatus = deferred();
+enqueueFetch(olderUnauthorizedHubStatus.promise);
+const olderUnauthorizedHubRefresh = run(`return renderHub();`);
+enqueueFetch(response({ json: { pendingChanges: { count: 10 } } }));
+await run(`await refreshPublishPendingSummary();`);
+olderUnauthorizedHubStatus.resolve(response({ status: 401 }));
+await olderUnauthorizedHubRefresh;
+await run(`
+  assert.equal(state.authFailureCount, 0);
+  assert.equal(state.diagnostics.pendingChanges.count, 10);
+  assert.equal(document.querySelector("#publish-pending-summary").textContent, pendingCopy(10));
+`);
+const olderUnauthorizedHubItems = deferred();
+enqueueFetch(response({ json: { pendingChanges: { count: 4 } } }));
+enqueueFetch(olderUnauthorizedHubItems.promise);
+const olderHubItemsRefresh = run(`return renderHub();`);
+await new Promise(setImmediate);
+enqueueFetch(response({ json: { pendingChanges: { count: 11 } } }));
+await run(`await refreshPublishPendingSummary();`);
+olderUnauthorizedHubItems.resolve(response({ status: 401 }));
+await olderHubItemsRefresh;
+await run(`
+  assert.equal(state.authFailureCount, 0);
+  assert.equal(state.diagnostics.pendingChanges.count, 11);
+  assert.equal(document.querySelector("#publish-pending-summary").textContent, pendingCopy(11));
+`);
+enqueueFetch(response({ status: 401 }));
+await run(`
+  await refreshPublishPendingSummary();
+  assert.equal(state.authFailureCount, 1, "the current unauthorized status still expires the session");
+  handleAuthFailure = state.originalAuthFailure;
+`);
+
 await run(`renderHub = async () => true;`);
 enqueueFetch(response({ json: { state: "idle" } }));
 enqueueFetch(response({ status: 202, json: { operationId: "operation-1" } }));
