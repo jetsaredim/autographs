@@ -1869,6 +1869,19 @@ assert.equal(fetchCalls.length, callsBeforeEditDuringStatus + 1,
   "edits made during the status request must prevent the publish POST");
 assert.equal(fetchCalls.at(-1).path, "/admin/api/publish/status");
 
+enqueueFetch(response({ json: { pendingChanges: { count: 6 } } }));
+await run(`
+  state.diagnostics = { pendingChanges: { count: 4 } };
+  document.querySelector("#publish-pending-summary").textContent = pendingCopy(4);
+  setView("publish-view");
+  assert.equal(document.querySelector("#publish-pending-summary").textContent, "Checking saved changes...");
+`);
+await new Promise(setImmediate);
+await run(`
+  assert.equal(document.querySelector("#publish-pending-summary").textContent, pendingCopy(6));
+`);
+assert.equal(fetchCalls.at(-1).path, "/admin/api/status");
+
 await run(`renderHub = async () => true;`);
 enqueueFetch(response({ json: { state: "idle" } }));
 enqueueFetch(response({ status: 202, json: { operationId: "operation-1" } }));

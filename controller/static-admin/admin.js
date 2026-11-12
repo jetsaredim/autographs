@@ -499,6 +499,8 @@ function setView(viewId, { preserveConflictRecovery = false } = {}) {
   }
   if (viewId === "hub-view") {
     renderHub();
+  } else if (viewId === "publish-view" && state.diagnostics) {
+    refreshPublishPendingSummary();
   } else if (viewId === "items-view") {
     renderItemList();
   } else if (viewId === "signers-view") {
@@ -534,6 +536,21 @@ function navigateToView(viewId) {
 }
 
 const pendingCopy = (count) => `${count} saved change(s) have not been published yet.`;
+
+async function refreshPublishPendingSummary() {
+  setText("#publish-pending-summary", "Checking saved changes...");
+  try {
+    const diagnostics = await request(endpoints.status);
+    state.diagnostics = diagnostics;
+    const pendingCount = diagnostics.pendingChanges?.count || 0;
+    setText("#pending-summary", pendingCopy(pendingCount));
+    setText("#publish-pending-summary", pendingCopy(pendingCount));
+  } catch (error) {
+    if (error.status !== 401) {
+      setText("#publish-pending-summary", "Could not load saved changes. Refresh and try again.");
+    }
+  }
+}
 
 const currentAdminPath = () => `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
