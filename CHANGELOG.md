@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.1](https://github.com/jetsaredim/autographs/compare/v0.9.0...v0.9.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* complete admin publishes beyond proxy timeout ([81c7633](https://github.com/jetsaredim/autographs/commit/81c7633c1ec53fa1346f5f5b33a6f6f5c5d69ce9))
+* complete admin publishes beyond proxy timeout ([aabec41](https://github.com/jetsaredim/autographs/commit/aabec41c48bee625216a85fa050b935c0e590f7b))
+* keep publish status tied to its request ([b235677](https://github.com/jetsaredim/autographs/commit/b235677acbc85e5a81e79c593a9a52ce0fb9e062))
+* preserve publish operation identity and results ([b4e1d37](https://github.com/jetsaredim/autographs/commit/b4e1d374edcfe4a5db7dee7f585db6eaf7b16f54))
+* terminalize publish operations on errors and aborts ([8079c32](https://github.com/jetsaredim/autographs/commit/8079c32de570b13dde3137ae0ef6bc7be4aa9c29))
+
 ## [0.9.0](https://github.com/jetsaredim/autographs/compare/v0.8.2...v0.9.0) (2026-11-10)
 
 
