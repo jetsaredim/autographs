@@ -9,12 +9,12 @@ This register records the pre-media repository posture pass for Phase 8. It keep
 | P8-POSTURE-003 | Workflows | Pull request validation needs a lightweight guardrail that fails stale codebase-map/current-state claims before they merge. | High | Guarded by CI | The CI workflow-checks job will run the repository hygiene validator. | `.github/workflows/ci.yml` contains `Validate repository hygiene`. |
 | P8-POSTURE-004 | Deployment/process scripts | Production security patching is a live-VM maintenance surface and should remain reviewed with deploy/runtime changes rather than ordinary docs cleanup. | High | Fixed | Codebase maps now describe Phase 8 as production security patching repair plus operational posture work. | Map grep for `production security patching repair`. |
 | P8-POSTURE-005 | Configuration names | Some service/config names are intentionally verbose or legacy-shaped after the static runtime and admin rename work. | Low | Accepted with rationale | The naming cleanup is tracked as a future refinement because changing deployed variable names can create operational churn. | `.planning/STATE.md` pending todo remains the follow-up owner. |
-| P8-POSTURE-006 | Terraform create/enable variables | Terraform still carries create/enable-style variables for resources that are effectively end-state managed in production. | Medium | Accepted with rationale | The variables are retained until a dedicated IaC cleanup can account for import/state behavior without surprising operators. | Phase 8 state keeps the Terraform boolean review as a future refinement. |
+| P8-POSTURE-006 | Terraform and Ansible operating contract | Terraform create/enable variables and Ansible mode flags need a full producer, consumer, state, and operator-flow review alongside other deployment complexity. | Medium | Active Wave 8 review | [The IaC operational review plan](iac-operational-review-plan.md) requires an inventory and evidence-based disposition before 08-08 closeout. | Record the full findings inventory, supported values, production state addresses and plan effects, tests, and reviewed cleanup PRs in `docs/iac-operational-review-findings.md`. |
 | P8-POSTURE-007 | Stale codebase maps | Codebase maps can misroute future executors if they describe Phase 8 as taxonomy media cues or AI-assisted ingest. | High | Fixed | Architecture, concerns, stack, testing, and AGENTS current-state sections now point Phase 8 at admin media review and operational posture. | `rg -n "Phase 8.*admin media|Phase 8.*operational posture|production security patching repair" .planning/codebase/*.md AGENTS.md` |
 | P8-POSTURE-008 | Validation gaps | Existing CI validates runtime, workflows, Terraform, Ansible, and scripts, but did not yet validate stale current-state claims. | Medium | Guarded by CI | Plan 08-02 adds standard-library Python tests and the repository hygiene validator. | `python3 -m unittest scripts/test_validate_repo_hygiene.py` |
 | P8-POSTURE-009 | Public edge/cache hygiene | CDN/cache behavior is Phase 8 work, but enablement must wait until adjusted-media cache behavior can be verified after the media adjustment pipeline exists. | High | Tracked in Phase 8 plan | The posture pass records CDN/cache as a pre-media contract and post-media verification concern, not a Task 1 implementation. | Phase 8 downstream plans retain CDN/cache contract and post-media verification gates. |
 
-## IaC boolean reassessment during Wave 8
+## IaC operational reassessment during Wave 8
 
 The pre-media pass recorded P8-POSTURE-006 but did not remove the Terraform
 create/enable variables or audit Ansible mode booleans. The Cloudflare
@@ -24,15 +24,16 @@ flags. Wave 8 replaced those flags with one validated `cloudflare_mode` value:
 
 | Surface | Current switches | Assessment |
 |---------|------------------|------------|
-| Runtime Terraform resource existence | `create_network`, `create_runtime_instance`, `create_autonomous_database`, `create_media_bucket` | These control whether stateful OCI resources exist. `create_autonomous_database` also gates Vault data lookups, readiness checks, and password rotation. Removing them requires a reviewed production state plan and full consumer audit for unintended updates as well as replacement or destruction. P8-POSTURE-006 remains a deferred IaC cleanup. |
+| Runtime Terraform resource existence | `create_network`, `create_runtime_instance`, `create_autonomous_database`, `create_media_bucket` | These control whether stateful OCI resources exist. `create_autonomous_database` also gates Vault data lookups, readiness checks, and password rotation. Their actual operational value and removal risk remain open findings for the Wave 8 inventory and production plan. |
 | Runtime Terraform configuration | `assign_public_ip`, Autonomous Database Free tier and mTLS fields | Public IP changes topology; Free tier and mTLS are currently true in production and should be reviewed as fixed policy rather than casually toggleable options. Preserve current values until a production plan proves a refactor has no replacement. |
 | Ansible deployment | `autographs_deploy_publish_frozen`, `autographs_deploy_allow_unfreeze`, `autographs_deploy_explicit_cutover` | Full deploy asserts frozen and explicit cutover before replacing runtime services. The unfreeze playbook sets the explicit override to permit freeze route removal; explicit cutover suppresses restart handlers. Review the freeze/unfreeze pair and cutover contract before simplifying them. |
-| Ansible security patching | `security_patching_reboot_validate_dnf_noop` | This controls the reboot follow-up safety probe and is overridden in validation fixtures. Keep it until the safety behavior has an equivalent test seam. |
+| Ansible security patching | `security_patching_reboot_validate_dnf_noop` | This controls the reboot follow-up safety probe and is overridden in validation fixtures. Verify whether the switch protects a supported operation or exists only for tests before deciding its disposition. |
 
-This reassessment distinguishes migration-state combinations from safety and
-resource-existence controls. It does not mark the broader Terraform/Ansible
-boolean cleanup complete. The full Terraform/Ansible inventory, review, and
-change gates are in [the IaC operational review plan](iac-operational-review-plan.md).
+This is a starting map, not a disposition for the full operating contract. The
+Terraform/Ansible inventory, review, and change gates are in [the IaC operational
+review plan](iac-operational-review-plan.md). P8-POSTURE-006 closes only when
+`docs/iac-operational-review-findings.md` records the evidence and final
+disposition for every finding.
 
 ## Pre-media evidence
 

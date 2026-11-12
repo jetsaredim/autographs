@@ -2,6 +2,9 @@
 
 Status: proposed for Phase 8 execution before 08-08 closeout.
 
+Execution evidence is recorded in `docs/iac-operational-review-findings.md`.
+Plan 08-08 Task 5 owns that artifact and its final review gate.
+
 The Phase 8 posture pass found avoidable configuration switches, but reviewing
 only booleans would miss larger problems in the deployment contract. Review the
 Terraform and Ansible implementation as one operator workflow before selecting
@@ -102,7 +105,8 @@ recorded. A removed switch needs every caller, example, and test updated.
 
 1. Produce the full inventory and findings register before selecting code
    changes. Rank findings by operational risk and value, not by how easy a
-   variable is to delete. Review the inventory with the owner.
+   variable is to delete. Review the inventory with the owner. The register
+   must identify every retained, simplified, removed, or accepted element.
 2. Group related contract changes into focused PRs. Review one shared
    invariant across Terraform, Ansible, workflow callers, tests, and runbooks
    before editing siblings. Keep the publish performance fix in a separate
@@ -118,7 +122,8 @@ recorded. A removed switch needs every caller, example, and test updated.
    relevant behavior fixtures.
 5. Record findings, proposed changes, plan evidence, fixes, and clean review
    on each PR. Update the Phase 8 posture register with a disposition for every
-   finding. Complete the review and approved fixes before 08-08 closeout.
+   finding and link merged cleanup PRs from the findings register. Complete
+   the review and approved fixes before 08-08 closeout.
 
 Keep behavior with a demonstrated operational use. Simplify or remove behavior
 whose value cannot be shown by the inventory and tests.
