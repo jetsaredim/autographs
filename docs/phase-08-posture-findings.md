@@ -31,8 +31,8 @@ flags. Wave 8 replaced those flags with one validated `cloudflare_mode` value:
 
 This reassessment distinguishes migration-state combinations from safety and
 resource-existence controls. It does not mark the broader Terraform/Ansible
-boolean cleanup complete. The reviewable removal sequence and full-change gates
-are in [the IaC boolean cleanup plan](iac-boolean-cleanup-plan.md).
+boolean cleanup complete. The full Terraform/Ansible inventory, review, and
+change gates are in [the IaC operational review plan](iac-operational-review-plan.md).
 
 ## Pre-media evidence
 
