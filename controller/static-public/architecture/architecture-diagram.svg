@@ -34,33 +34,33 @@
   <text x="880" y="188" class="zone-small">Runtime, database, private media, and secrets</text>
   <rect x="900" y="250" width="290" height="330" rx="16" class="panel" />
   <text x="920" y="283" class="zone-title">Runtime VM</text>
-  <text x="920" y="303" class="zone-small">Podman containers and static releases</text>
-  <polyline points="65,572 30,572 30,237 75,237" class="flow" />
-  <polyline points="220,237 245,237" class="flow" />
-  <polyline points="315,270 315,285" class="flow" />
-  <polyline points="245,322 220,395" class="flow" />
-  <polyline points="385,322 440,322 440,113 1015,113 1015,250" class="flow" />
+  <text x="920" y="303" class="zone-small">Podman containers and volume</text>
+  <path d="M 65 572 L 40 572 Q 30 572 30 562 L 30 247 Q 30 237 40 237 L 75 237" class="flow" />
+  <path d="M 220 237 L 245 237" class="flow" />
+  <path d="M 315 270 L 315 285" class="flow" />
+  <path d="M 245 322 L 220 395" class="flow" />
+  <path d="M 385 322 L 430 322 Q 440 322 440 312 L 440 123 Q 440 113 450 113 L 1005 113 Q 1015 113 1015 123 L 1015 250" class="flow" />
   <text x="658" y="108" text-anchor="middle" class="flow-label">Terraform + Ansible</text>
-  <polyline points="220,395 440,395 440,470 900,470" class="flow" />
+  <path d="M 220 395 L 430 395 Q 440 395 440 405 L 440 460 Q 440 470 450 470 L 900 470" class="flow" />
   <text x="607" y="462" text-anchor="middle" class="flow-label">image pull</text>
-  <polyline points="385,407 470,407 470,363 510,363" class="flow" />
-  <polyline points="225,682 465,682 465,237 510,237" class="flow" />
+  <path d="M 385 407 L 460 407 Q 470 407 470 397 L 470 373 Q 470 363 480 363 L 510 363" class="flow" />
+  <path d="M 225 682 L 455 682 Q 465 682 465 672 L 465 247 Q 465 237 475 237 L 510 237" class="flow" />
   <text x="364" y="672" text-anchor="middle" class="flow-label">NS delegation</text>
-  <polyline points="645,540 805,540 805,237 760,237" class="flow" />
+  <path d="M 645 540 L 795 540 Q 805 540 805 530 L 805 247 Q 805 237 795 237 L 760 237" class="flow" />
   <text x="761" y="526" text-anchor="middle" class="flow-label">public + admin HTTPS</text>
-  <polyline points="625,237 645,237" class="flow" />
-  <polyline points="635,315 635,285 700,285 700,270" class="flow" />
-  <polyline points="760,220 835,220 835,355 925,355" class="flow" />
+  <path d="M 625 237 L 645 237" class="flow" />
+  <path d="M 635 315 L 635 295 Q 635 285 645 285 L 692.5 285 Q 700 285 700 277.5 L 700 270" class="flow" />
+  <path d="M 760 220 L 825 220 Q 835 220 835 230 L 835 345 Q 835 355 845 355 L 925 355" class="flow" />
   <text x="832" y="275" text-anchor="middle" class="flow-label">Full (strict)</text>
-  <polyline points="755,682 845,682 845,375 925,375" class="flow" />
+  <path d="M 755 682 L 835 682 Q 845 682 845 672 L 845 385 Q 845 375 855 375 L 925 375" class="flow" />
   <text x="835" y="664" text-anchor="middle" class="flow-label">origin TLS</text>
-  <polyline points="1020,365 1060,365" class="flow" />
-  <polyline points="972,395 972,445" class="flow" />
-  <polyline points="1112,395 1112,445" class="flow" />
-  <polyline points="1165,350 1210,350 1210,280 1240,280" class="flow" />
-  <polyline points="1165,365 1200,365 1200,400 1240,400" class="flow" />
-  <polyline points="1165,380 1190,380 1190,530 1240,530" class="flow" />
-  <polyline points="1405,530 1430,530 1430,280 1405,280" class="flow" />
+  <path d="M 1020 365 L 1060 365" class="flow" />
+  <path d="M 972 395 L 972 445" class="flow" />
+  <path d="M 1112 395 L 1112 445" class="flow" />
+  <path d="M 1165 350 L 1200 350 Q 1210 350 1210 340 L 1210 290 Q 1210 280 1220 280 L 1240 280" class="flow" />
+  <path d="M 1165 365 L 1190 365 Q 1200 365 1200 375 L 1200 390 Q 1200 400 1210 400 L 1240 400" class="flow" />
+  <path d="M 1165 380 L 1180 380 Q 1190 380 1190 390 L 1190 520 Q 1190 530 1200 530 L 1240 530" class="flow" />
+  <path d="M 1405 530 L 1420 530 Q 1430 530 1430 520 L 1430 290 Q 1430 280 1420 280 L 1405 280" class="flow" />
   <rect x="75" y="205" width="145" height="65" rx="12" class="box" />
   <text x="147.5" y="229" text-anchor="middle" class="box-title">Repository</text>
   <text x="147.5" y="247" text-anchor="middle" class="box-small">Rust, static site, IaC</text>
@@ -93,8 +93,9 @@
   <text x="1112.5" y="359" text-anchor="middle" class="box-title">Rust</text>
   <text x="1112.5" y="377" text-anchor="middle" class="box-small">private API</text>
   <rect x="925" y="445" width="240" height="70" rx="12" class="box" />
-  <text x="1045.0" y="469" text-anchor="middle" class="box-title">Static releases</text>
-  <text x="1045.0" y="487" text-anchor="middle" class="box-small">public HTML, JSON, WebP</text>
+  <text x="1045.0" y="467" text-anchor="middle" class="box-title">Podman volume</text>
+  <text x="1045.0" y="485" text-anchor="middle" class="box-small">hosts static content</text>
+  <text x="1045.0" y="500" text-anchor="middle" class="box-small">HTML, JSON, WebP</text>
   <rect x="1240" y="245" width="165" height="70" rx="12" class="box" />
   <text x="1322.5" y="269" text-anchor="middle" class="box-title">Autonomous DB</text>
   <text x="1322.5" y="287" text-anchor="middle" class="box-small">catalog metadata</text>
