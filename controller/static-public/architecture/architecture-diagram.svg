@@ -26,71 +26,71 @@
   <rect x="430" y="130" width="500" height="280" rx="16" class="zone edge-zone" />
   <text x="450" y="163" class="zone-title">Cloudflare</text>
   <text x="450" y="183" class="zone-small">Authoritative DNS and HTTPS edge</text>
-  <rect x="430" y="540" width="680" height="320" rx="16" class="zone" />
-  <text x="450" y="573" class="zone-title">GitHub</text>
-  <text x="450" y="593" class="zone-small">Source, CI, releases, and workflows</text>
-  <rect x="1200" y="185" width="750" height="620" rx="16" class="zone" />
-  <text x="1220" y="218" class="zone-title">Oracle Cloud Infrastructure</text>
-  <text x="1220" y="238" class="zone-small">Runtime, database, private media, and secrets</text>
-  <rect x="1230" y="290" width="330" height="390" rx="16" class="panel" />
-  <text x="1250" y="323" class="zone-title">Runtime VM</text>
-  <text x="1250" y="343" class="zone-small">Podman containers and volume</text>
+  <rect x="340" y="540" width="680" height="320" rx="16" class="zone" />
+  <text x="360" y="573" class="zone-title">GitHub</text>
+  <text x="360" y="593" class="zone-small">Source, CI, releases, and workflows</text>
+  <rect x="1200" y="215" width="720" height="560" rx="16" class="zone" />
+  <text x="1220" y="248" class="zone-title">Oracle Cloud Infrastructure</text>
+  <text x="1220" y="268" class="zone-small">Runtime, database, private media, and secrets</text>
+  <rect x="1230" y="305" width="330" height="350" rx="16" class="panel" />
+  <text x="1250" y="338" class="zone-title">Runtime VM</text>
+  <text x="1250" y="358" class="zone-small">Podman containers and volume</text>
   <path d="M 240 270 C 360 270 445 245 560 245" class="flow" />
   <path d="M 550 445 C 549.167 440.833 540.833 429.167 545 420 C 549.167 410.833 570 395 575 390" class="flow" />
   <path d="M 675 325 C 675 317.5 675 287.5 675 280" class="flow" />
   <path d="M 790 245 C 950 245 1100 290 1160 355 C 1180 385 1210 415 1255 415" class="flow" />
-  <path d="M 240 480 C 320 305 360 305 430 305 C 900 305 1070 310 1160 385 C 1190 407 1210 415 1255 415" class="flow" />
-  <path d="M 240 490 C 285 505 385 725 455 725" class="flow" />
-  <path d="M 585 725 C 635 725 640 662 690 662" class="flow" />
-  <path d="M 765 700 C 767.5 703.667 780 714.5 780 722 C 780 729.5 767.5 741.167 765 745" class="flow" />
-  <path d="M 840 792 C 870 792 890 792 920 792" class="flow" />
-  <path d="M 840 765 C 885 765 875 668 920 668" class="flow" />
-  <path d="M 1070 668 C 1130 668 1175 640 1230 640" class="flow" />
-  <path d="M 1070 685 C 1120 685 1150 715 1200 715" class="flow" />
-  <path d="M 920 650 C 904.167 636.667 863.333 590.833 825 570 C 786.667 549.167 712.5 548.333 690 525 C 667.5 501.667 690 452.5 690 430 C 690 407.5 690 396.667 690 390" class="flow" />
-  <path d="M 1070 792 C 1160 792 1140 640 1230 640" class="flow" />
+  <path d="M 240 480 C 320 305 360 305 430 305 L 930 305 C 1040 305 1110 330 1160 385 C 1190 407 1210 415 1255 415" class="flow" />
+  <path d="M 240 490 C 270 530 300 725 365 725" class="flow" />
+  <path d="M 495 725 C 540 725 545 662 590 662" class="flow" />
+  <path d="M 665 700 C 667.5 703.667 680 714.5 680 722 C 680 729.5 667.5 741.167 665 745" class="flow" />
+  <path d="M 740 792 C 775 792 800 792 835 792" class="flow" />
+  <path d="M 740 765 C 785 765 790 668 835 668" class="flow" />
+  <path d="M 985 685 C 1080 685 1130 620 1230 620" class="flow" />
+  <path d="M 985 650 C 1050 650 1110 580 1200 580" class="flow" />
+  <path d="M 835 650 C 800 570 690 540 690 390" class="flow" />
+  <path d="M 985 792 C 1120 792 1110 620 1230 620" class="flow" />
   <path d="M 920 480 C 1050 480 1115 470 1160 445 C 1190 425 1210 415 1255 415" class="flow" />
   <path d="M 1355 415 C 1366.67 415 1413.33 415 1425 415" class="flow" />
-  <path d="M 1305 450 C 1305 463.333 1305 516.667 1305 530" class="flow" />
-  <path d="M 1480 450 C 1480 463.333 1480 516.667 1480 530" class="flow" />
+  <path d="M 1305 450 C 1305 460 1305 500 1305 510" class="flow" />
+  <path d="M 1480 450 C 1480 460 1480 500 1480 510" class="flow" />
   <path d="M 1535 415 C 1575 415 1580 327 1640 327" class="flow" />
   <path d="M 1535 415 C 1575 415 1590 452 1640 452" class="flow" />
   <path d="M 1535 415 C 1575 415 1580 585 1640 585" class="flow" />
-  <path d="M 1840 585 C 1945 585 1945 327 1840 327" class="flow" />
+  <path d="M 1840 585 C 1925 585 1925 327 1840 327" class="flow" />
   <rect x="560" y="210" width="230" height="70" rx="12" class="box" />
   <text x="675.0" y="234" text-anchor="middle" class="box-title">Public route</text>
   <text x="675.0" y="252" text-anchor="middle" class="box-small">proxy + media cache</text>
   <rect x="560" y="325" width="230" height="65" rx="12" class="box" />
   <text x="675.0" y="349" text-anchor="middle" class="box-title">CDN config</text>
   <text x="675.0" y="367" text-anchor="middle" class="box-small">DNS, cache + bypass rules</text>
-  <rect x="455" y="685" width="130" height="80" rx="12" class="box" />
-  <text x="520.0" y="709" text-anchor="middle" class="box-title">Repository</text>
-  <text x="520.0" y="727" text-anchor="middle" class="box-small">Rust, static site, IaC</text>
-  <rect x="690" y="625" width="150" height="75" rx="12" class="box" />
-  <text x="765.0" y="649" text-anchor="middle" class="box-title">CI workflows</text>
-  <text x="765.0" y="667" text-anchor="middle" class="box-small">lint, syntax, test</text>
-  <rect x="690" y="745" width="150" height="95" rx="12" class="box" />
-  <text x="765.0" y="767" text-anchor="middle" class="box-title">CD workflows</text>
-  <text x="765.0" y="785" text-anchor="middle" class="box-small">release-please</text>
-  <text x="765.0" y="800" text-anchor="middle" class="box-small">controller image publish</text>
-  <text x="765.0" y="815" text-anchor="middle" class="box-small">trigger deployment</text>
-  <rect x="920" y="625" width="150" height="85" rx="12" class="box" />
-  <text x="995.0" y="647" text-anchor="middle" class="box-title">Deployment</text>
-  <text x="995.0" y="665" text-anchor="middle" class="box-small">Terraform (OCI, CF)</text>
-  <text x="995.0" y="680" text-anchor="middle" class="box-small">Ansible</text>
-  <rect x="920" y="755" width="150" height="75" rx="12" class="box" />
-  <text x="995.0" y="779" text-anchor="middle" class="box-title">GHCR</text>
-  <text x="995.0" y="797" text-anchor="middle" class="box-small">controller image</text>
+  <rect x="365" y="685" width="130" height="80" rx="12" class="box" />
+  <text x="430.0" y="709" text-anchor="middle" class="box-title">Repository</text>
+  <text x="430.0" y="727" text-anchor="middle" class="box-small">Rust, static site, IaC</text>
+  <rect x="590" y="625" width="150" height="75" rx="12" class="box" />
+  <text x="665.0" y="649" text-anchor="middle" class="box-title">CI workflows</text>
+  <text x="665.0" y="667" text-anchor="middle" class="box-small">lint, syntax, test</text>
+  <rect x="590" y="745" width="150" height="95" rx="12" class="box" />
+  <text x="665.0" y="767" text-anchor="middle" class="box-title">CD workflows</text>
+  <text x="665.0" y="785" text-anchor="middle" class="box-small">release-please</text>
+  <text x="665.0" y="800" text-anchor="middle" class="box-small">controller image publish</text>
+  <text x="665.0" y="815" text-anchor="middle" class="box-small">trigger deployment</text>
+  <rect x="835" y="625" width="150" height="85" rx="12" class="box" />
+  <text x="910.0" y="647" text-anchor="middle" class="box-title">Deployment</text>
+  <text x="910.0" y="665" text-anchor="middle" class="box-small">Terraform (OCI, CF)</text>
+  <text x="910.0" y="680" text-anchor="middle" class="box-small">Ansible</text>
+  <rect x="835" y="755" width="150" height="75" rx="12" class="box" />
+  <text x="910.0" y="779" text-anchor="middle" class="box-title">GHCR</text>
+  <text x="910.0" y="797" text-anchor="middle" class="box-small">controller image</text>
   <rect x="1255" y="380" width="100" height="70" rx="12" class="box" />
   <text x="1305.0" y="404" text-anchor="middle" class="box-title">Caddy</text>
   <text x="1305.0" y="422" text-anchor="middle" class="box-small">HTTPS origin</text>
   <rect x="1425" y="380" width="110" height="70" rx="12" class="box" />
   <text x="1480.0" y="404" text-anchor="middle" class="box-title">Rust</text>
   <text x="1480.0" y="422" text-anchor="middle" class="box-small">private API</text>
-  <rect x="1255" y="530" width="280" height="75" rx="12" class="box" />
-  <text x="1395.0" y="552" text-anchor="middle" class="box-title">Podman volume</text>
-  <text x="1395.0" y="570" text-anchor="middle" class="box-small">hosts static content</text>
-  <text x="1395.0" y="585" text-anchor="middle" class="box-small">HTML, JSON, WebP</text>
+  <rect x="1255" y="510" width="280" height="75" rx="12" class="box" />
+  <text x="1395.0" y="532" text-anchor="middle" class="box-title">Podman volume</text>
+  <text x="1395.0" y="550" text-anchor="middle" class="box-small">hosts static content</text>
+  <text x="1395.0" y="565" text-anchor="middle" class="box-small">HTML, JSON, WebP</text>
   <rect x="1640" y="290" width="200" height="75" rx="12" class="box" />
   <text x="1740.0" y="314" text-anchor="middle" class="box-title">Autonomous DB</text>
   <text x="1740.0" y="332" text-anchor="middle" class="box-small">catalog metadata</text>
