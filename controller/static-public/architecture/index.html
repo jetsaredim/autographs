@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Autographs | Architecture</title>
-    <meta name="description" content="End-to-end architecture for the Autographs deployment path from GitHub through OCI and Caddy.">
+    <meta name="description" content="Autographs architecture: GitHub delivery, Cloudflare DNS and caching, Caddy, Rust, and OCI private data and secrets.">
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" href="/icon.png" type="image/png">
     <link rel="apple-touch-icon" href="/icon.png">
@@ -18,7 +18,7 @@
           <span class="breadcrumb-item"><span aria-hidden="true">&gt;</span><span>About</span></span>
         </nav>
         <h1 id="architecture-title">Autographs system overview</h1>
-        <p class="lede">The goal is to serve my autograph collection images on a public website using only OCI Free Tier resources and GitHub CI/CD automation for management. This page documents the full target solution: GitHub owns source control, validation, image publishing, and deployment automation; OCI runs the Caddy-served static public site, Rust private controller, Autonomous Database metadata, and private Object Storage media.</p>
+        <p class="lede">GitHub validates changes and deploys released controller images. Cloudflare handles authoritative DNS, HTTPS proxying, and caching of public media. OCI runs Caddy, the static public site, Rust private controller, Autonomous Database, private Object Storage media, and Vault secrets.</p>
       </section>
 
       <section class="diagram-card" aria-labelledby="diagram-title">
@@ -26,7 +26,7 @@
           <h2 id="diagram-title">System diagram</h2>
         </div>
         <div class="architecture-diagram">
-          <img class="architecture-diagram-image" src="./architecture-diagram.svg" width="1280" height="760" alt="Autographs architecture diagram showing GitHub repository changes flowing through pull request CI, deploy workflow, GHCR image publishing, Terraform-managed OCI resources, an OCI runtime VM, Caddy, the generated static public site, the Rust private controller, Autonomous Database, private Object Storage, Let's Encrypt, public browser traffic, and collection management.">
+          <img class="architecture-diagram-image" src="./architecture-diagram.svg" width="1500" height="810" alt="Autographs architecture diagram showing GitHub pull request checks and release deployment, Cloudflare DNS and HTTPS proxy with media caching and admin bypass, Porkbun registrar delegation, an OCI runtime VM with Caddy and the Rust controller, Autonomous Database, private Object Storage, OCI Vault secrets, and Let's Encrypt origin certificates.">
         </div>
       </section>
 
@@ -45,16 +45,15 @@
               </tr>
             </thead>
             <tbody>
-              <tr><td><span class="step-badge">1</span></td><td>Bootstrap tenancy with Terraform</td><td>The admin user runs the manual Terraform bootstrap that creates the compartment, deploy identity, policies, and state bucket.</td></tr>
-              <tr><td><span class="step-badge">2</span></td><td>Push code to GitHub</td><td>The admin/developer pushes application, infrastructure, and deployment changes to the GitHub repository.</td></tr>
-              <tr><td><span class="step-badge">3</span></td><td>Validate pull requests</td><td>Repository changes run the PR validation workflow before merge, including app and infrastructure checks.</td></tr>
-              <tr><td><span class="step-badge">4</span></td><td>Deploy from main</td><td>A merge to main starts the deploy workflow that builds the app and prepares the runtime update.</td></tr>
-              <tr><td><span class="step-badge">5</span></td><td>Provision OCI runtime with Terraform</td><td>GitHub Actions uses Terraform and the deploy identity to provision or update OCI resources, including the VCN, public subnet, runtime NSG, and VM.</td></tr>
-              <tr><td><span class="step-badge">6</span></td><td>Publish the app image</td><td>The deploy workflow publishes a Git-SHA-tagged container image to GHCR for the VM to pull.</td></tr>
-              <tr><td><span class="step-badge">7</span></td><td>Serve public traffic</td><td>End users reach Caddy over HTTPS through the public subnet and runtime NSG; Caddy serves the generated static release from the shared static volume.</td></tr>
-              <tr><td><span class="step-badge">8</span></td><td>Read and write private data</td><td>The Rust private controller uses controlled server-side paths to access Autonomous Database metadata and private Object Storage images while publishing public-safe static artifacts.</td></tr>
-              <tr><td><span class="step-badge">9</span></td><td>Manage TLS certificates</td><td>Caddy uses Let's Encrypt to obtain and renew the public HTTPS certificate for the Autographs domain.</td></tr>
-              <tr><td><span class="step-badge">10</span></td><td>Manage collection content</td><td>The Rust private controller and minimal static admin seed/publish path replace the temporary operator bridge; Phase 6 polishes the admin workflow, and Phase 7 later adds advisory AI metadata suggestions.</td></tr>
+              <tr><td><span class="step-badge">1</span></td><td>Validate changes</td><td>Pull requests run application, infrastructure, and workflow checks. Terraform plans use the shared OCI state lock, with PR plan jobs queued across pull requests.</td></tr>
+              <tr><td><span class="step-badge">2</span></td><td>Release and deploy</td><td>Ordinary merges accumulate in a release-please PR. Merging that release PR triggers the production workflow, which publishes the controller image to GHCR and deploys through Terraform and Ansible.</td></tr>
+              <tr><td><span class="step-badge">3</span></td><td>Manage DNS and edge rules</td><td>Porkbun delegates the domain to Cloudflare nameservers. A controlled Terraform workflow manages the Cloudflare DNS zone and proxy rules.</td></tr>
+              <tr><td><span class="step-badge">4</span></td><td>Serve public traffic</td><td>Visitors reach Cloudflare over HTTPS. Its proxied record forwards requests to Caddy, which serves the generated static release.</td></tr>
+              <tr><td><span class="step-badge">5</span></td><td>Cache public media</td><td>Cloudflare caches fingerprinted public image derivatives while keeping public HTML and JSON fresh. Admin routes bypass its cache.</td></tr>
+              <tr><td><span class="step-badge">6</span></td><td>Manage content</td><td>The private admin shell calls the Rust controller for item editing, media adjustments, and publishing. Caddy routes admin requests to that controller.</td></tr>
+              <tr><td><span class="step-badge">7</span></td><td>Access private data</td><td>The controller reads and writes Autonomous Database catalog metadata and private Object Storage originals. The publisher generates public-safe derivatives and releases.</td></tr>
+              <tr><td><span class="step-badge">8</span></td><td>Retrieve secrets</td><td>The runtime uses its OCI instance principal to retrieve controller secrets from OCI Vault. The database password is generated by OCI and stored in Vault.</td></tr>
+              <tr><td><span class="step-badge">9</span></td><td>Secure origin HTTPS</td><td>Caddy obtains and renews its origin certificate with Let's Encrypt. Cloudflare connects to the origin using Full (strict) TLS validation.</td></tr>
             </tbody>
           </table>
         </div>

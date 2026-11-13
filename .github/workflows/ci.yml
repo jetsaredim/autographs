@@ -199,6 +199,10 @@ jobs:
   terraform-checks:
     name: Terraform checks
     runs-on: ubuntu-latest
+    concurrency:
+      group: production-terraform-pr-plans
+      queue: max
+      cancel-in-progress: false
 
     steps:
       - name: Checkout
@@ -286,7 +290,7 @@ jobs:
             -backend-config="workspace_key_prefix=envs" \
             -backend-config="auth=APIKey"
           terraform validate
-          terraform plan -no-color -input=false
+          terraform plan -no-color -input=false -lock-timeout=10m
 
   validate-ansible:
     name: Ansible syntax and lint

@@ -149,7 +149,7 @@ jobs:
           }
           plan_file="$RUNNER_TEMP/cloudflare-terraform.tfplan"
           plan_json="$RUNNER_TEMP/cloudflare-terraform-plan.json"
-          terraform plan -input=false -lock-timeout=5m -out="$plan_file"
+          terraform plan -input=false -lock-timeout=10m -out="$plan_file"
           terraform show -json "$plan_file" > "$plan_json"
           jq -e '
             [.resource_changes[]? | select(.change.actions != ["no-op"])] |
@@ -173,7 +173,7 @@ jobs:
               echo "::error::The current plan does not match the reviewed nonempty plan fingerprint. No apply ran."
               exit 1
             fi
-            terraform apply -input=false -lock-timeout=5m "$plan_file"
+            terraform apply -input=false -lock-timeout=10m "$plan_file"
             echo "Applied the exact saved Cloudflare plan with the reviewed fingerprint."
           else
             echo "Plan only: no Terraform apply was run."
