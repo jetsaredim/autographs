@@ -45,7 +45,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr><td><span class="step-badge">1</span></td><td>Validate changes</td><td>Pull requests run application, infrastructure, and workflow checks. Terraform plans use the shared OCI state lock, with PR plan jobs queued across pull requests.</td></tr>
+              <tr><td><span class="step-badge">1</span></td><td>Validate changes</td><td>Pull requests run application, infrastructure, and workflow checks. Terraform plans wait for the shared OCI state lock when another plan or deployment is using it.</td></tr>
               <tr><td><span class="step-badge">2</span></td><td>Release and deploy</td><td>Ordinary merges accumulate in a release-please PR. Merging that release PR triggers the production workflow, which publishes the controller image to GHCR and deploys through Terraform and Ansible.</td></tr>
               <tr><td><span class="step-badge">3</span></td><td>Manage DNS and edge rules</td><td>Porkbun delegates the domain to Cloudflare nameservers. A controlled Terraform workflow manages the Cloudflare DNS zone and proxy rules.</td></tr>
               <tr><td><span class="step-badge">4</span></td><td>Serve public traffic</td><td>Visitors reach Cloudflare over HTTPS. Its proxied record forwards requests to Caddy, which serves the generated static release.</td></tr>

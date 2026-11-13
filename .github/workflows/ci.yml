@@ -199,10 +199,6 @@ jobs:
   terraform-checks:
     name: Terraform checks
     runs-on: ubuntu-latest
-    concurrency:
-      group: production-terraform-pr-plans
-      queue: max
-      cancel-in-progress: false
 
     steps:
       - name: Checkout

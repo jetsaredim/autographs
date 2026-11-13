@@ -13,6 +13,6 @@ Show the current Cloudflare and OCI Vault interactions in the editable and publi
 ## Tasks
 
 - Update the draw.io source, public SVG, and architecture page to match the current deployed design.
-- Queue PR Terraform jobs across pull requests and retain every pending job.
+- Use the OCI backend state lock to serialize PR plans and stateful deployment operations across workflows.
 - Set a bounded OCI state lock wait for CI plans, deployment plans and applies, Cloudflare plans and applies, and deployment taint.
 - Validate diagram XML, workflow YAML and locking configuration, architecture publisher tests, and existing workflow tests.
