@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 810" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
   <title id="title">Autographs architecture diagram</title>
-  <desc id="desc">GitHub release workflows deploy to OCI and manage Cloudflare through a controlled Terraform workflow. Browsers reach Caddy through Cloudflare. The Rust controller reads OCI Vault secrets with instance-principal credentials, uses Autonomous Database metadata and private Object Storage, and publishes static releases. OCI rotates the database password with the Vault secret.</desc>
+  <desc id="desc">The admin user develops through GitHub and reaches the Rust controller through a Cloudflare cache-bypass route. Public visitors use Cloudflare proxy and media cache before reaching Caddy. GitHub releases deploy to OCI, and the controller reads OCI Vault secrets, Autonomous Database metadata, and private Object Storage media.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#315f66" />
@@ -23,99 +23,107 @@
   </defs>
   <text x="50" y="55" class="page-title">Autographs architecture</text>
   <text x="50" y="84" class="subtitle">Cloudflare fronts the public site; OCI runs Caddy, the Rust controller, private media, metadata, and Vault secrets.</text>
-  <rect x="50" y="135" width="360" height="315" rx="16" class="zone" />
-  <text x="70" y="168" class="zone-title">GitHub</text>
-  <text x="70" y="188" class="zone-small">Source, CI, releases, and workflows</text>
-  <rect x="490" y="135" width="300" height="315" rx="16" class="zone edge-zone" />
-  <text x="510" y="168" class="zone-title">Cloudflare</text>
-  <text x="510" y="188" class="zone-small">Authoritative DNS and HTTPS edge</text>
-  <rect x="860" y="135" width="590" height="640" rx="16" class="zone" />
-  <text x="880" y="168" class="zone-title">Oracle Cloud Infrastructure</text>
-  <text x="880" y="188" class="zone-small">Runtime, database, private media, and secrets</text>
-  <rect x="900" y="250" width="290" height="330" rx="16" class="panel" />
-  <text x="920" y="283" class="zone-title">Runtime VM</text>
-  <text x="920" y="303" class="zone-small">Podman containers and volume</text>
-  <path d="M 65 572 L 40 572 Q 30 572 30 562 L 30 247 Q 30 237 40 237 L 75 237" class="flow" />
-  <path d="M 220 237 L 245 237" class="flow" />
-  <path d="M 315 270 L 315 285" class="flow" />
-  <path d="M 245 322 L 220 395" class="flow" />
-  <path d="M 385 322 L 430 322 Q 440 322 440 312 L 440 123 Q 440 113 450 113 L 1005 113 Q 1015 113 1015 123 L 1015 250" class="flow" />
-  <text x="658" y="108" text-anchor="middle" class="flow-label">Terraform + Ansible</text>
-  <path d="M 220 395 L 430 395 Q 440 395 440 405 L 440 460 Q 440 470 450 470 L 900 470" class="flow" />
-  <text x="607" y="462" text-anchor="middle" class="flow-label">image pull</text>
-  <path d="M 385 407 L 460 407 Q 470 407 470 397 L 470 373 Q 470 363 480 363 L 510 363" class="flow" />
-  <path d="M 225 682 L 455 682 Q 465 682 465 672 L 465 247 Q 465 237 475 237 L 510 237" class="flow" />
-  <text x="364" y="672" text-anchor="middle" class="flow-label">NS delegation</text>
-  <path d="M 645 540 L 795 540 Q 805 540 805 530 L 805 247 Q 805 237 795 237 L 760 237" class="flow" />
-  <text x="761" y="526" text-anchor="middle" class="flow-label">public + admin HTTPS</text>
-  <path d="M 625 237 L 645 237" class="flow" />
-  <path d="M 635 315 L 635 295 Q 635 285 645 285 L 692.5 285 Q 700 285 700 277.5 L 700 270" class="flow" />
-  <path d="M 760 220 L 825 220 Q 835 220 835 230 L 835 345 Q 835 355 845 355 L 925 355" class="flow" />
-  <text x="832" y="275" text-anchor="middle" class="flow-label">Full (strict)</text>
-  <path d="M 755 682 L 835 682 Q 845 682 845 672 L 845 385 Q 845 375 855 375 L 925 375" class="flow" />
-  <text x="835" y="664" text-anchor="middle" class="flow-label">origin TLS</text>
-  <path d="M 1020 365 L 1060 365" class="flow" />
-  <path d="M 972 395 L 972 445" class="flow" />
-  <path d="M 1112 395 L 1112 445" class="flow" />
-  <path d="M 1165 350 L 1200 350 Q 1210 350 1210 340 L 1210 290 Q 1210 280 1220 280 L 1240 280" class="flow" />
-  <path d="M 1165 365 L 1190 365 Q 1200 365 1200 375 L 1200 390 Q 1200 400 1210 400 L 1240 400" class="flow" />
-  <path d="M 1165 380 L 1180 380 Q 1190 380 1190 390 L 1190 520 Q 1190 530 1200 530 L 1240 530" class="flow" />
-  <path d="M 1405 530 L 1420 530 Q 1430 530 1430 520 L 1430 290 Q 1430 280 1420 280 L 1405 280" class="flow" />
-  <rect x="75" y="205" width="145" height="65" rx="12" class="box" />
-  <text x="147.5" y="229" text-anchor="middle" class="box-title">Repository</text>
-  <text x="147.5" y="247" text-anchor="middle" class="box-small">Rust, static site, IaC</text>
-  <rect x="245" y="205" width="140" height="65" rx="12" class="box" />
-  <text x="315.0" y="229" text-anchor="middle" class="box-title">PR checks</text>
-  <text x="315.0" y="247" text-anchor="middle" class="box-small">validate changes</text>
-  <rect x="245" y="285" width="140" height="75" rx="12" class="box" />
-  <text x="315.0" y="309" text-anchor="middle" class="box-title">Release PR</text>
-  <text x="315.0" y="327" text-anchor="middle" class="box-small">gates deployment</text>
-  <rect x="75" y="365" width="145" height="60" rx="12" class="box" />
-  <text x="147.5" y="389" text-anchor="middle" class="box-title">GHCR</text>
-  <text x="147.5" y="407" text-anchor="middle" class="box-small">controller image</text>
-  <rect x="245" y="380" width="140" height="55" rx="12" class="box" />
-  <text x="315.0" y="404" text-anchor="middle" class="box-title">CF apply</text>
-  <text x="315.0" y="422" text-anchor="middle" class="box-small">reviewed Terraform</text>
-  <rect x="510" y="205" width="115" height="65" rx="12" class="box" />
-  <text x="567.5" y="229" text-anchor="middle" class="box-title">DNS zone</text>
-  <text x="567.5" y="247" text-anchor="middle" class="box-small">proxied A record</text>
-  <rect x="645" y="205" width="115" height="65" rx="12" class="box" />
-  <text x="702.5" y="229" text-anchor="middle" class="box-title">HTTPS proxy</text>
-  <text x="702.5" y="247" text-anchor="middle" class="box-small">edge cache</text>
-  <rect x="510" y="315" width="250" height="95" rx="12" class="box" />
-  <text x="635.0" y="337" text-anchor="middle" class="box-title">Rules + Full (strict)</text>
-  <text x="635.0" y="355" text-anchor="middle" class="box-small">cache media; bypass admin</text>
-  <text x="635.0" y="370" text-anchor="middle" class="box-small">fresh public HTML and JSON</text>
-  <rect x="925" y="335" width="95" height="60" rx="12" class="box" />
-  <text x="972.5" y="359" text-anchor="middle" class="box-title">Caddy</text>
-  <text x="972.5" y="377" text-anchor="middle" class="box-small">HTTPS origin</text>
-  <rect x="1060" y="335" width="105" height="60" rx="12" class="box" />
-  <text x="1112.5" y="359" text-anchor="middle" class="box-title">Rust</text>
-  <text x="1112.5" y="377" text-anchor="middle" class="box-small">private API</text>
-  <rect x="925" y="445" width="240" height="70" rx="12" class="box" />
-  <text x="1045.0" y="467" text-anchor="middle" class="box-title">Podman volume</text>
-  <text x="1045.0" y="485" text-anchor="middle" class="box-small">hosts static content</text>
-  <text x="1045.0" y="500" text-anchor="middle" class="box-small">HTML, JSON, WebP</text>
-  <rect x="1240" y="245" width="165" height="70" rx="12" class="box" />
-  <text x="1322.5" y="269" text-anchor="middle" class="box-title">Autonomous DB</text>
-  <text x="1322.5" y="287" text-anchor="middle" class="box-small">catalog metadata</text>
-  <rect x="1240" y="365" width="165" height="70" rx="12" class="box" />
-  <text x="1322.5" y="389" text-anchor="middle" class="box-title">Object Storage</text>
-  <text x="1322.5" y="407" text-anchor="middle" class="box-small">private originals</text>
-  <rect x="1240" y="485" width="165" height="90" rx="12" class="box accent" />
-  <text x="1322.5" y="507" text-anchor="middle" class="box-title">OCI Vault</text>
-  <text x="1322.5" y="525" text-anchor="middle" class="box-small">DB password, wallet secret</text>
-  <text x="1322.5" y="540" text-anchor="middle" class="box-small">admin password hash</text>
-  <rect x="65" y="540" width="160" height="65" rx="12" class="box external" />
-  <text x="145.0" y="564" text-anchor="middle" class="box-title">Owner</text>
-  <text x="145.0" y="582" text-anchor="middle" class="box-small">source and operations</text>
-  <rect x="65" y="650" width="160" height="65" rx="12" class="box external" />
-  <text x="145.0" y="674" text-anchor="middle" class="box-title">Porkbun</text>
-  <text x="145.0" y="692" text-anchor="middle" class="box-small">registrar delegation</text>
-  <rect x="535" y="540" width="220" height="65" rx="12" class="box external" />
-  <text x="645.0" y="564" text-anchor="middle" class="box-title">Browsers</text>
-  <text x="645.0" y="582" text-anchor="middle" class="box-small">public visitors + admin</text>
-  <rect x="535" y="650" width="220" height="65" rx="12" class="box external" />
-  <text x="645.0" y="674" text-anchor="middle" class="box-title">Let's Encrypt</text>
-  <text x="645.0" y="692" text-anchor="middle" class="box-small">Caddy origin certificate</text>
+  <rect x="300" y="130" width="420" height="305" rx="16" class="zone" />
+  <text x="320" y="163" class="zone-title">GitHub</text>
+  <text x="320" y="183" class="zone-small">Source, CI, releases, and workflows</text>
+  <rect x="300" y="480" width="420" height="340" rx="16" class="zone edge-zone" />
+  <text x="320" y="513" class="zone-title">Cloudflare</text>
+  <text x="320" y="533" class="zone-small">Authoritative DNS and HTTPS edge</text>
+  <rect x="900" y="130" width="650" height="690" rx="16" class="zone" />
+  <text x="920" y="163" class="zone-title">Oracle Cloud Infrastructure</text>
+  <text x="920" y="183" class="zone-small">Runtime, database, private media, and secrets</text>
+  <rect x="940" y="275" width="310" height="385" rx="16" class="panel" />
+  <text x="960" y="308" class="zone-title">Runtime VM</text>
+  <text x="960" y="328" class="zone-small">Podman containers and volume</text>
+  <path d="M 240 420 C 245.833 400 260 330.333 275 300 C 290 269.667 320.833 248.333 330 238" class="flow" />
+  <text x="265" y="330" text-anchor="middle" class="flow-label">code + deploy</text>
+  <path d="M 485 238 C 493.333 238 526.667 238 535 238" class="flow" />
+  <path d="M 613 270 C 613 274.167 613 290.833 613 295" class="flow" />
+  <path d="M 535 333 C 527.5 335.833 498.333 343.833 490 350 C 481.667 356.167 485.833 366.667 485 370" class="flow" />
+  <path d="M 690 325 C 705 320.833 748.333 311.667 780 300 C 811.667 288.333 827.5 259.167 880 255 C 932.5 250.833 1059.17 271.667 1095 275" class="flow" />
+  <text x="825" y="250" text-anchor="middle" class="flow-label">Terraform + Ansible</text>
+  <path d="M 485 370 C 512.5 371.667 595.833 373.333 650 380 C 704.167 386.667 761.667 387.5 810 410 C 858.333 432.5 918.333 497.5 940 515" class="flow" />
+  <text x="730" y="392" text-anchor="middle" class="flow-label">image pull</text>
+  <path d="M 690 408 C 696.667 411.667 728.333 418 730 430 C 731.667 442 705 471.667 700 480" class="flow" />
+  <text x="745" y="458" text-anchor="middle" class="flow-label">reviewed Terraform</text>
+  <path d="M 240 455 C 250 455 245 451.667 300 455 C 355 458.333 518.333 457.5 570 475 C 621.667 492.5 603.333 545.833 610 560" class="flow" />
+  <text x="465" y="463" text-anchor="middle" class="flow-label">admin HTTPS</text>
+  <path d="M 240 690 C 248.333 684.5 246.667 663.167 290 657 C 333.333 650.833 460 644.167 500 653 C 540 661.833 525 700.5 530 710" class="flow" />
+  <text x="420" y="648" text-anchor="middle" class="flow-label">public HTTPS</text>
+  <path d="M 50 830 C 44.6667 817.5 23.3333 793.333 18 755 C 12.6667 716.667 -3.16667 635 18 600 C 39.1667 565 93 546.167 145 545 C 197 543.833 299.167 585 330 593" class="flow" />
+  <text x="145" y="535" text-anchor="middle" class="flow-label">NS delegation</text>
+  <path d="M 490 723 C 496.667 723 523.333 723 530 723" class="flow" />
+  <path d="M 690 590 C 706.667 585 761.667 582.5 790 560 C 818.333 537.5 830.833 481.333 860 455 C 889.167 428.667 947.5 410.833 965 402" class="flow" />
+  <text x="805" y="540" text-anchor="middle" class="flow-label">uncached admin</text>
+  <path d="M 690 723 C 706.667 719.167 757.5 732.167 790 700 C 822.5 667.833 855.833 575.833 885 530 C 914.167 484.167 951.667 442.5 965 425" class="flow" />
+  <text x="810" y="675" text-anchor="middle" class="flow-label">cached media</text>
+  <path d="M 885 780 C 890.833 771.667 912.5 775 920 730 C 927.5 685 922.5 558.333 930 510 C 937.5 461.667 959.167 451.667 965 440" class="flow" />
+  <text x="930" y="690" text-anchor="middle" class="flow-label">origin TLS</text>
+  <path d="M 1065 413 C 1072.5 413 1102.5 413 1110 413" class="flow" />
+  <path d="M 1015 445 C 1015 457.5 1015 507.5 1015 520" class="flow" />
+  <path d="M 1165 445 C 1165 457.5 1165 507.5 1165 520" class="flow" />
+  <path d="M 1220 396 C 1226.67 390.833 1243.33 378.833 1260 365 C 1276.67 351.167 1310 321.667 1320 313" class="flow" />
+  <path d="M 1220 413 C 1227.5 416.667 1248.33 429.167 1265 435 C 1281.67 440.833 1310.83 445.833 1320 448" class="flow" />
+  <path d="M 1220 430 C 1226.67 441.667 1243.33 471.667 1260 500 C 1276.67 528.333 1310 583.333 1320 600" class="flow" />
+  <path d="M 1505 600 C 1509.17 592.5 1525.83 596.667 1530 555 C 1534.17 513.333 1534.17 390.333 1530 350 C 1525.83 309.667 1509.17 319.167 1505 313" class="flow" />
+  <rect x="330" y="205" width="155" height="65" rx="12" class="box" />
+  <text x="407.5" y="229" text-anchor="middle" class="box-title">Repository</text>
+  <text x="407.5" y="247" text-anchor="middle" class="box-small">Rust, static site, IaC</text>
+  <rect x="535" y="205" width="155" height="65" rx="12" class="box" />
+  <text x="612.5" y="229" text-anchor="middle" class="box-title">PR checks</text>
+  <text x="612.5" y="247" text-anchor="middle" class="box-small">validate changes</text>
+  <rect x="535" y="295" width="155" height="75" rx="12" class="box" />
+  <text x="612.5" y="319" text-anchor="middle" class="box-title">Release PR</text>
+  <text x="612.5" y="337" text-anchor="middle" class="box-small">gates deployment</text>
+  <rect x="330" y="340" width="155" height="60" rx="12" class="box" />
+  <text x="407.5" y="364" text-anchor="middle" class="box-title">GHCR</text>
+  <text x="407.5" y="382" text-anchor="middle" class="box-small">controller image</text>
+  <rect x="535" y="385" width="155" height="45" rx="12" class="box" />
+  <text x="612.5" y="409" text-anchor="middle" class="box-title">CF apply</text>
+  <text x="612.5" y="427" text-anchor="middle" class="box-small">reviewed Terraform</text>
+  <rect x="330" y="560" width="160" height="65" rx="12" class="box" />
+  <text x="410.0" y="584" text-anchor="middle" class="box-title">DNS zone</text>
+  <text x="410.0" y="602" text-anchor="middle" class="box-small">proxied A record</text>
+  <rect x="530" y="560" width="160" height="75" rx="12" class="box" />
+  <text x="610.0" y="584" text-anchor="middle" class="box-title">Admin route</text>
+  <text x="610.0" y="602" text-anchor="middle" class="box-small">cache bypass</text>
+  <rect x="330" y="685" width="160" height="75" rx="12" class="box" />
+  <text x="410.0" y="707" text-anchor="middle" class="box-title">Cache rules</text>
+  <text x="410.0" y="725" text-anchor="middle" class="box-small">media cached</text>
+  <text x="410.0" y="740" text-anchor="middle" class="box-small">HTML/JSON fresh</text>
+  <rect x="530" y="685" width="160" height="75" rx="12" class="box" />
+  <text x="610.0" y="709" text-anchor="middle" class="box-title">Public route</text>
+  <text x="610.0" y="727" text-anchor="middle" class="box-small">proxy + media cache</text>
+  <rect x="965" y="380" width="100" height="65" rx="12" class="box" />
+  <text x="1015.0" y="404" text-anchor="middle" class="box-title">Caddy</text>
+  <text x="1015.0" y="422" text-anchor="middle" class="box-small">HTTPS origin</text>
+  <rect x="1110" y="380" width="110" height="65" rx="12" class="box" />
+  <text x="1165.0" y="404" text-anchor="middle" class="box-title">Rust</text>
+  <text x="1165.0" y="422" text-anchor="middle" class="box-small">private API</text>
+  <rect x="965" y="520" width="255" height="75" rx="12" class="box" />
+  <text x="1092.5" y="542" text-anchor="middle" class="box-title">Podman volume</text>
+  <text x="1092.5" y="560" text-anchor="middle" class="box-small">hosts static content</text>
+  <text x="1092.5" y="575" text-anchor="middle" class="box-small">HTML, JSON, WebP</text>
+  <rect x="1320" y="275" width="185" height="75" rx="12" class="box" />
+  <text x="1412.5" y="299" text-anchor="middle" class="box-title">Autonomous DB</text>
+  <text x="1412.5" y="317" text-anchor="middle" class="box-small">catalog metadata</text>
+  <rect x="1320" y="410" width="185" height="75" rx="12" class="box" />
+  <text x="1412.5" y="434" text-anchor="middle" class="box-title">Object Storage</text>
+  <text x="1412.5" y="452" text-anchor="middle" class="box-small">private originals</text>
+  <rect x="1320" y="555" width="185" height="90" rx="12" class="box accent" />
+  <text x="1412.5" y="577" text-anchor="middle" class="box-title">OCI Vault</text>
+  <text x="1412.5" y="595" text-anchor="middle" class="box-small">DB password, wallet secret</text>
+  <text x="1412.5" y="610" text-anchor="middle" class="box-small">admin password hash</text>
+  <rect x="50" y="400" width="190" height="75" rx="12" class="box external" />
+  <text x="145.0" y="424" text-anchor="middle" class="box-title">Admin user</text>
+  <text x="145.0" y="442" text-anchor="middle" class="box-small">code, bootstrap, data</text>
+  <rect x="50" y="655" width="190" height="75" rx="12" class="box external" />
+  <text x="145.0" y="679" text-anchor="middle" class="box-title">End user</text>
+  <text x="145.0" y="697" text-anchor="middle" class="box-small">public browser</text>
+  <rect x="50" y="795" width="190" height="70" rx="12" class="box external" />
+  <text x="145.0" y="819" text-anchor="middle" class="box-title">Porkbun</text>
+  <text x="145.0" y="837" text-anchor="middle" class="box-small">registrar delegation</text>
+  <rect x="755" y="745" width="130" height="70" rx="12" class="box external" />
+  <text x="820.0" y="769" text-anchor="middle" class="box-title">Let's Encrypt</text>
+  <text x="820.0" y="787" text-anchor="middle" class="box-small">origin certificate</text>
 </svg>
