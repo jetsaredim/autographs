@@ -79,6 +79,7 @@ const state = {
   currentItem: null,
   items: [],
   diagnostics: null,
+  adminStatusRevision: 0,
   dirty: false,
   itemSort: { key: "title", direction: "asc" },
   signerSuggestions: [],
@@ -403,7 +404,7 @@ const buildQuery = (form) => {
 };
 
 const request = async (path, options = {}) => {
-  const { allowAnonymous = false, onResponse, ...fetchOptions } = options;
+  const { allowAnonymous = false, onResponse, shouldHandleAuthFailure, ...fetchOptions } = options;
   const response = await fetch(path, {
     credentials: "same-origin",
     ...fetchOptions,
@@ -412,7 +413,7 @@ const request = async (path, options = {}) => {
     onResponse(response);
   }
   if (response.status === 401) {
-    if (!allowAnonymous && !elements.workflowView.hidden) {
+    if (!allowAnonymous && !elements.workflowView.hidden && (!shouldHandleAuthFailure || shouldHandleAuthFailure())) {
       handleAuthFailure();
     }
     const error = new Error(copy.sessionExpired);
@@ -455,6 +456,7 @@ function showWorkflow() {
 }
 
 function showLogin(message = "") {
+  state.adminStatusRevision += 1;
   state.publishAvailabilityRevision += 1;
   state.publishAvailability = "unknown";
   syncPublishAvailability();
@@ -499,6 +501,8 @@ function setView(viewId, { preserveConflictRecovery = false } = {}) {
   }
   if (viewId === "hub-view") {
     renderHub();
+  } else if (viewId === "publish-view" && state.diagnostics) {
+    refreshPublishPendingSummary();
   } else if (viewId === "items-view") {
     renderItemList();
   } else if (viewId === "signers-view") {
@@ -535,6 +539,27 @@ function navigateToView(viewId) {
 
 const pendingCopy = (count) => `${count} saved change(s) have not been published yet.`;
 
+async function refreshPublishPendingSummary() {
+  const revision = ++state.adminStatusRevision;
+  setText("#publish-pending-summary", "Checking saved changes...");
+  try {
+    const diagnostics = await request(endpoints.status, {
+      shouldHandleAuthFailure: () => revision === state.adminStatusRevision,
+    });
+    if (revision !== state.adminStatusRevision) {
+      return;
+    }
+    state.diagnostics = diagnostics;
+    const pendingCount = diagnostics.pendingChanges?.count || 0;
+    setText("#pending-summary", pendingCopy(pendingCount));
+    setText("#publish-pending-summary", pendingCopy(pendingCount));
+  } catch (error) {
+    if (revision === state.adminStatusRevision && error.status !== 401) {
+      setText("#publish-pending-summary", "Could not load saved changes. Refresh and try again.");
+    }
+  }
+}
+
 const currentAdminPath = () => `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
 const loginRedirectUrl = (next = currentAdminPath()) => {
@@ -562,9 +587,19 @@ const normalizeNextPath = (next) => {
 const nextDestination = () => normalizeNextPath(new URLSearchParams(window.location.search).get("next"));
 
 async function renderHub({ allowAnonymous = false } = {}) {
+  const revision = ++state.adminStatusRevision;
   try {
-    const diagnostics = await request(endpoints.status, { allowAnonymous });
-    const items = await request(endpoints.items, { allowAnonymous });
+    const diagnostics = await request(endpoints.status, {
+      allowAnonymous,
+      shouldHandleAuthFailure: () => revision === state.adminStatusRevision,
+    });
+    const items = await request(endpoints.items, {
+      allowAnonymous,
+      shouldHandleAuthFailure: () => revision === state.adminStatusRevision,
+    });
+    if (revision !== state.adminStatusRevision) {
+      return true;
+    }
     state.items = Array.isArray(items) ? items : [];
     state.diagnostics = diagnostics;
     const pendingCount = diagnostics.pendingChanges?.count || 0;
@@ -591,7 +626,7 @@ async function renderHub({ allowAnonymous = false } = {}) {
     renderDiagnostics();
     return true;
   } catch (error) {
-    if (error.status !== 401) {
+    if (revision === state.adminStatusRevision && error.status !== 401) {
       elements.globalMessage.textContent = `Status unavailable: ${error.message}`;
     }
     return false;
