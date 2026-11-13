@@ -50,16 +50,16 @@
   <text x="761" y="526" text-anchor="middle" class="flow-label">public + admin HTTPS</text>
   <polyline points="625,237 645,237" class="flow" />
   <polyline points="635,315 635,285 700,285 700,270" class="flow" />
-  <polyline points="760,220 835,220 835,335 925,335" class="flow" />
+  <polyline points="760,220 835,220 835,355 925,355" class="flow" />
   <text x="832" y="275" text-anchor="middle" class="flow-label">Full (strict)</text>
-  <polyline points="755,682 845,682 845,355 925,355" class="flow" />
+  <polyline points="755,682 845,682 845,375 925,375" class="flow" />
   <text x="835" y="664" text-anchor="middle" class="flow-label">origin TLS</text>
-  <polyline points="1020,335 1060,335" class="flow" />
-  <polyline points="972,365 972,445" class="flow" />
-  <polyline points="1112,365 1112,445" class="flow" />
-  <polyline points="1165,325 1210,325 1210,280 1240,280" class="flow" />
-  <polyline points="1165,340 1200,340 1200,400 1240,400" class="flow" />
-  <polyline points="1165,355 1190,355 1190,530 1240,530" class="flow" />
+  <polyline points="1020,365 1060,365" class="flow" />
+  <polyline points="972,395 972,445" class="flow" />
+  <polyline points="1112,395 1112,445" class="flow" />
+  <polyline points="1165,350 1210,350 1210,280 1240,280" class="flow" />
+  <polyline points="1165,365 1200,365 1200,400 1240,400" class="flow" />
+  <polyline points="1165,380 1190,380 1190,530 1240,530" class="flow" />
   <polyline points="1405,530 1430,530 1430,280 1405,280" class="flow" />
   <rect x="75" y="205" width="145" height="65" rx="12" class="box" />
   <text x="147.5" y="229" text-anchor="middle" class="box-title">Repository</text>
@@ -86,12 +86,12 @@
   <text x="635.0" y="337" text-anchor="middle" class="box-title">Rules + Full (strict)</text>
   <text x="635.0" y="355" text-anchor="middle" class="box-small">cache media; bypass admin</text>
   <text x="635.0" y="370" text-anchor="middle" class="box-small">fresh public HTML and JSON</text>
-  <rect x="925" y="305" width="95" height="60" rx="12" class="box" />
-  <text x="972.5" y="329" text-anchor="middle" class="box-title">Caddy</text>
-  <text x="972.5" y="347" text-anchor="middle" class="box-small">HTTPS origin</text>
-  <rect x="1060" y="305" width="105" height="60" rx="12" class="box" />
-  <text x="1112.5" y="329" text-anchor="middle" class="box-title">Rust</text>
-  <text x="1112.5" y="347" text-anchor="middle" class="box-small">private API</text>
+  <rect x="925" y="335" width="95" height="60" rx="12" class="box" />
+  <text x="972.5" y="359" text-anchor="middle" class="box-title">Caddy</text>
+  <text x="972.5" y="377" text-anchor="middle" class="box-small">HTTPS origin</text>
+  <rect x="1060" y="335" width="105" height="60" rx="12" class="box" />
+  <text x="1112.5" y="359" text-anchor="middle" class="box-title">Rust</text>
+  <text x="1112.5" y="377" text-anchor="middle" class="box-small">private API</text>
   <rect x="925" y="445" width="240" height="70" rx="12" class="box" />
   <text x="1045.0" y="469" text-anchor="middle" class="box-title">Static releases</text>
   <text x="1045.0" y="487" text-anchor="middle" class="box-small">public HTML, JSON, WebP</text>
