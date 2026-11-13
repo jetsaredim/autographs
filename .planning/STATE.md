@@ -206,6 +206,7 @@ Resume file: None
 
 | # | Description | Date | Commit | Status | Directory |
 | --- | ------------- | ------ | -------- | -------- | ----------- |
+| 62 | Updated the architecture diagram for Cloudflare and OCI Vault, queued PR Terraform plans, and added OCI state lock waits across workflows. | 2026-11-13 | `e37aeb9` | needs_review | `.planning/quick/261113-architecture-and-terraform-state-lock/` |
 | 61 | Applied approved option C to the admin item editor with compact stacked sections and side-by-side previews for saved image adjustments. | 2026-11-13 | `aa6e1a8` | needs_review | `.planning/quick/261113-compact-item-editor-option-c/` |
 | 60 | Removed PR #301's unaudited `v0.5.0` helper overlay after reviewer Warning; preserved the immutable retry audit and documented separate current-release recovery. | 2026-11-01 | `365c271` | complete | `.planning/quick/261101-r4t-review-301-recovery-provenance/` |
 | 59 | Corrected first-cutover provenance when older manifests reuse media already verified by `current`; added a hash-pinned `v0.5.0` retry helper override. | 2026-11-01 | `f57b0eb` | complete | `.planning/quick/261101-mx1-current-media-provenance/` |
