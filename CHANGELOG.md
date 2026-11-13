@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.10.0](https://github.com/jetsaredim/autographs/compare/v0.9.1...v0.10.0) (2026-11-13)
+
+
+### Features
+
+* compact admin item editor with adjusted image comparison ([7a45087](https://github.com/jetsaredim/autographs/commit/7a45087a512d3c524a6c1b5ba7af1c22cc0f6775))
+* compact admin item editor with adjusted image comparison ([aa6e1a8](https://github.com/jetsaredim/autographs/commit/aa6e1a8a18425ab58febc87956a5dd4e6b9ab6a3))
+
+
+### Bug Fixes
+
+* ignore stale admin status responses ([84dd4ed](https://github.com/jetsaredim/autographs/commit/84dd4edd18dd6f09872cd596592d1052f39d5a5c))
+* refresh pending count on publish view entry ([bf4bcff](https://github.com/jetsaredim/autographs/commit/bf4bcff226f233cec3a13dc0f8c01dc1d4aea68b))
+* refresh pending count when opening publish view ([a5e34d6](https://github.com/jetsaredim/autographs/commit/a5e34d6362fef9a69088d0ad5c88ea3fef79f778))
+* suppress stale admin status auth failures ([24fb239](https://github.com/jetsaredim/autographs/commit/24fb239ef1691b98a165c999b7b8ebeacaacbc7b))
+
 ## [0.9.1](https://github.com/jetsaredim/autographs/compare/v0.9.0...v0.9.1) (2026-11-11)
 
 
