@@ -175,7 +175,8 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- Future naming/config refinement: after the admin rename and instance-principal Object Storage path settle, review service names, env vars, Terraform variables, IAM identities, and deploy resources for over-wording or stale terminology. Include unnecessary create/enable Terraform booleans where resources are intended to be end-state managed by Terraform state.
+- Phase 8 Wave 8 IaC operational review: inventory the full Terraform, Ansible, workflow, configuration, and runbook contract; assess every safety or migration switch against supported use and evidence; record findings, production state/plan effects, and reviewed cleanup PRs in `docs/iac-operational-review-findings.md` before 08-08 closeout. This supersedes the deferred Terraform boolean follow-up.
+- Future naming refinement outside the IaC review: after the admin rename and instance-principal Object Storage path settle, review remaining service and environment names for stale terminology.
 - Future IAM refinement: review deploy-user permissions after the dedicated admin runtime identity exists, but do not assume permissions should be removed. The deploy user runs Terraform for much of the infrastructure, so broad permissions may remain justified when they are needed for provisioning even if runtime access moves to narrower identities.
 - Future OCI crate contribution: propose an upstream patch adding binary-safe request signing/Object Storage APIs, including byte-body `PUT`, byte-returning `GET`, object `DELETE`, and rustls-friendly TLS configuration. The local controller adapter can then collapse back onto a maintained crate instead of carrying its own binary Object Storage request path.
 
