@@ -90,21 +90,28 @@
     .savebar { position: sticky; bottom: 0; z-index: 5; margin-top: 11px; padding: 10px 12px; border: 1px solid #cbdad3; border-radius: 8px; background: #f7faf7f2; box-shadow: 0 -4px 20px #24332d16; backdrop-filter: blur(8px); }
     .savebar p { margin: 0; color: #64746f; font-size: .73rem; }
     .savebar-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-    .layout-b .editor-body { display: block; }
+    .layout-b .editor-body, .layout-c .editor-body { display: block; }
     .layout-b .meta-stack { display: block; columns: 2; column-gap: 9px; }
     .layout-b .meta-stack .section { break-inside: avoid; margin-bottom: 9px; }
-    .layout-b .media-stack { margin-top: 10px; }
-    .layout-b .image-record { max-width: 1120px; }
-    .layout-b .art-canvas { height: clamp(220px, 27vw, 350px); }
+    .layout-c .meta-stack { grid-template-columns: 1fr; }
+    .layout-c .meta-stack .section { width: 100%; }
+    .layout-c .meta-stack .fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .layout-c .identity .field.span-two { grid-column: auto; }
+    .layout-c .details .field.span-two { grid-column: 1 / -1; }
+    .layout-c .publication .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .layout-b .media-stack, .layout-c .media-stack { margin-top: 10px; }
+    .layout-b .image-record, .layout-c .image-record { max-width: 1120px; }
+    .layout-b .art-canvas, .layout-c .art-canvas { height: clamp(220px, 27vw, 350px); }
     .mode-add .existing-images { display: none; }
     .mode-add .new-empty { display: grid; }
     .mode-add .edit-only { display: none; }
     @media (max-width: 1060px) { .editor-body { grid-template-columns: minmax(325px, 410px) minmax(0, 1fr); } .art-canvas { height: 220px; } .art { width: min(76%, 180px); } }
-    @media (max-width: 800px) { .shell { padding: 16px; } .view-panel { padding: 16px; } .admin-header { flex-wrap: wrap; } .admin-tabs button { flex-basis: 100px; } .heading { flex-wrap: wrap; } .editor-body, .layout-b .editor-body { display: block; } .meta-stack, .layout-b .meta-stack { display: grid; columns: 1; grid-template-columns: 1fr; } .media-stack { margin-top: 10px; } }
+    @media (max-width: 800px) { .shell { padding: 16px; } .view-panel { padding: 16px; } .admin-header { flex-wrap: wrap; } .admin-tabs button { flex-basis: 100px; } .heading { flex-wrap: wrap; } .editor-body, .layout-b .editor-body, .layout-c .editor-body { display: block; } .meta-stack, .layout-b .meta-stack, .layout-c .meta-stack { display: grid; columns: 1; grid-template-columns: 1fr; } .layout-c .meta-stack .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .layout-c .identity .field.span-two { grid-column: 1 / -1; } .media-stack { margin-top: 10px; } }
+    @media (max-width: 490px) { .layout-c .meta-stack .fields { grid-template-columns: 1fr; } .layout-c .meta-stack .field.span-two { grid-column: auto; } }
     @media (max-width: 490px) { .compare { gap: 5px; } .image-stage { padding: 6px; } .image-pane { padding: 5px; } .art-canvas { height: 185px; } .art { width: 80%; border-width: 5px; } .art .signature { font-size: 16px; } .image-pane figcaption span { display: none; } .single { grid-template-columns: 1fr; } .savebar { align-items: start; flex-direction: column; } }
   </style>
 </head>
-<body class="layout-a mode-edit width-current">
+<body class="layout-b mode-edit width-current">
   <main class="shell">
     <header class="admin-header"><div><p class="eyebrow">Collection owner console</p><h1>Admin hub</h1><p class="session">Logged in. Private changes stay here until you publish.</p></div><button type="button">Log out</button></header>
     <nav class="admin-tabs" aria-label="Admin workflow"><button type="button">Hub</button><button type="button" aria-current="page">Add item</button><button type="button">Items</button><button type="button">Signers</button><button type="button">Publish</button><button type="button">Diagnostics</button></nav>
@@ -112,17 +119,17 @@
     <section class="view-panel" aria-label="Item editor layout workbench">
     <div class="heading"><div><h2 id="page-title">Edit item</h2><p id="page-subtitle">Keep the item fields close together while reviewing all associated images.</p></div><div class="heading-actions"><button class="secondary-action" type="button">Add another item</button><button class="secondary-action" type="button">Back to hub</button></div></div>
     <div class="toolbar" aria-label="Workbench options">
-      <div class="segmented" role="group" aria-label="Layout variant"><button type="button" data-layout="a" aria-pressed="true">A · Metadata rail</button><button type="button" data-layout="b" aria-pressed="false">B · Wide grid</button></div>
+      <div class="segmented" role="group" aria-label="Layout variant"><button type="button" data-layout="a" aria-pressed="false">A · Metadata rail</button><button type="button" data-layout="b" aria-pressed="true">B · Wide grid</button><button type="button" data-layout="c" aria-pressed="false">C · Stacked sections</button></div>
       <div class="segmented" role="group" aria-label="Item mode"><button type="button" data-mode="edit" aria-pressed="true">Edit item</button><button type="button" data-mode="add" aria-pressed="false">Add item</button></div>
       <div class="segmented" role="group" aria-label="Admin shell width"><button type="button" data-width="current" aria-pressed="true">Current 1120px</button><button type="button" data-width="wide" aria-pressed="false">Wide 1500px</button></div>
       <span class="toolbar-note">Switch views to compare spacing. Fields and actions are visual placeholders.</span>
     </div>
     <div class="editor-body">
       <div class="meta-stack">
-        <section class="section"><div class="section-head"><h2>Identity</h2><small>Who and what</small></div><div class="fields"><div class="field span-two"><label for="title">Title</label><input id="title" value="Alex Rowan · Galactic Card 01"></div><div class="field span-two"><label for="characters">Characters</label><input id="characters" value="Captain Vela"></div><div class="field span-two edit-only"><label for="item-id">Item ID</label><input id="item-id" value="5d6-ra-7" readonly></div></div><div class="section-head" style="margin:10px 0 6px"><h2>Signers</h2><button type="button">Add signer</button></div><div class="signer-row"><div class="field"><label for="signer">Name</label><input id="signer" value="Alex Rowan"></div><div class="field"><label for="role">Role</label><input id="role" value="Actor"></div><div class="field"><label for="context">Context</label><input id="context" value="Captain Vela"></div></div></section>
+        <section class="section identity"><div class="section-head"><h2>Identity</h2><small>Who and what</small></div><div class="fields"><div class="field span-two"><label for="title">Title</label><input id="title" value="Alex Rowan · Galactic Card 01"></div><div class="field span-two"><label for="characters">Characters</label><input id="characters" value="Captain Vela"></div><div class="field span-two edit-only"><label for="item-id">Item ID</label><input id="item-id" value="5d6-ra-7" readonly></div></div><div class="section-head" style="margin:10px 0 6px"><h2>Signers</h2><button type="button">Add signer</button></div><div class="signer-row"><div class="field"><label for="signer">Name</label><input id="signer" value="Alex Rowan"></div><div class="field"><label for="role">Role</label><input id="role" value="Actor"></div><div class="field"><label for="context">Context</label><input id="context" value="Captain Vela"></div></div></section>
         <section class="section"><div class="section-head"><h2>Classification</h2><small>Public facets</small></div><div class="fields"><div class="field"><label for="format">Format</label><select id="format"><option>Trading Card</option></select></div><div class="field"><label for="language">Language</label><select id="language"><option>English</option></select></div><div class="field"><label for="franchise">Franchise</label><input id="franchise" value="Galactic Saga"></div><div class="field"><label for="product">Product line</label><input id="product" value="Collector Series"></div><div class="field"><label for="set">Set</label><input id="set" value="Series 2"></div><div class="field"><label for="tags">Loose tags</label><input id="tags" value="convention"></div></div><label class="checkline"><input type="checkbox">Custom item</label></section>
-        <section class="section"><div class="section-head"><h2>Details</h2><small>Collection notes</small></div><div class="fields"><div class="field span-two"><label for="description">Description</label><textarea id="description">Signed Galactic Card 01, kept in archival sleeve.</textarea></div><div class="field"><label for="inscription">Inscription</label><input id="inscription" value="To Jamie"></div><div class="field"><label for="event">Event</label><input id="event" value="Fan Expo 2026"></div><div class="field"><label for="location">Event location</label><input id="location" value="New York"></div><div class="field"><label for="year">Estimated year</label><input id="year" value="2026"></div><div class="field"><label for="source">Source</label><input id="source" value="In person"></div><div class="field"><label for="reference">Object reference</label><input id="reference" value="Binder 3 / Page 8"></div></div></section>
-        <section class="section"><div class="section-head"><h2>Publication</h2><small>Save stays private</small></div><div class="fields"><div class="field"><label for="status">Status</label><select id="status"><option>Published</option><option>Draft</option></select></div><div class="field"><label for="alt">New image alt text</label><input id="alt" value="Signed Galactic Card 01"></div></div></section>
+        <section class="section details"><div class="section-head"><h2>Details</h2><small>Collection notes</small></div><div class="fields"><div class="field span-two"><label for="description">Description</label><textarea id="description">Signed Galactic Card 01, kept in archival sleeve.</textarea></div><div class="field"><label for="inscription">Inscription</label><input id="inscription" value="To Jamie"></div><div class="field"><label for="event">Event</label><input id="event" value="Fan Expo 2026"></div><div class="field"><label for="location">Event location</label><input id="location" value="New York"></div><div class="field"><label for="year">Estimated year</label><input id="year" value="2026"></div><div class="field"><label for="source">Source</label><input id="source" value="In person"></div><div class="field"><label for="reference">Object reference</label><input id="reference" value="Binder 3 / Page 8"></div></div></section>
+        <section class="section publication"><div class="section-head"><h2>Publication</h2><small>Save stays private</small></div><div class="fields"><div class="field"><label for="status">Status</label><select id="status"><option>Published</option><option>Draft</option></select></div><div class="field"><label for="alt">New image alt text</label><input id="alt" value="Signed Galactic Card 01"></div></div></section>
       </div>
       <div class="media-stack">
         <section class="section"><div class="section-head"><div class="media-intro"><h2>Images</h2><p>Each adjusted image shows its source and saved result together.</p></div><button type="button">Upload images</button></div><div class="new-empty"><div><strong>Images appear after the item is saved</strong><p>Use this area to review the primary image, adjustments, and supporting images without leaving the item editor.</p></div></div><div class="existing-images">
@@ -139,7 +146,7 @@
     const demoFields = [...document.querySelectorAll('.meta-stack input:not([type="checkbox"]), .meta-stack textarea')];
     const editValues = demoFields.map((field) => field.value);
     const setChoice = (kind, value) => {
-      const choices = { layout: ["a", "b"], mode: ["edit", "add"], width: ["current", "wide"] };
+      const choices = { layout: ["a", "b", "c"], mode: ["edit", "add"], width: ["current", "wide"] };
       page.classList.remove(...choices[kind].map((choice) => `${kind}-${choice}`));
       page.classList.add(`${kind}-${value}`);
       document.querySelectorAll(`[data-${kind}]`).forEach((button) => {
@@ -161,7 +168,7 @@
       });
     });
     const params = new URLSearchParams(window.location.search);
-    if (params.get("layout") === "b") setChoice("layout", "b");
+    if (["a", "b", "c"].includes(params.get("layout"))) setChoice("layout", params.get("layout"));
     if (params.get("mode") === "add") setChoice("mode", "add");
     if (params.get("width") === "wide") setChoice("width", "wide");
   </script>
