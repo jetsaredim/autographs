@@ -26,7 +26,7 @@
           <h2 id="diagram-title">System diagram</h2>
         </div>
         <div class="architecture-diagram">
-          <img class="architecture-diagram-image" src="./architecture-diagram.svg" width="1700" height="960" alt="Autographs architecture diagram with Cloudflare above GitHub. End users are to the left of Cloudflare; the admin user aligns with Porkbun and Let's Encrypt between the two panels. Cloudflare contains a public proxy route and CDN config. GitHub contains a repository, CI and CD workflows, GHCR, and a deployment box connected to CDN config and the OCI runtime. The admin path bypasses Cloudflare caching before reaching Caddy. OCI contains the Runtime VM, Podman volume, Autonomous Database, private Object Storage, and Vault.">
+          <img class="architecture-diagram-image" src="./architecture-diagram.svg" width="2020" height="960" alt="Autographs architecture diagram with Cloudflare above GitHub and a wider space before OCI. The public, admin, and Let's Encrypt paths converge at the middle of Caddy's left edge. The Rust controller connects from one exit point to Autonomous Database, Object Storage, and Vault; Vault has a return arc to the database. GitHub deployment connects to CDN config and the runtime VM.">
         </div>
       </section>
 
