@@ -38,8 +38,8 @@
   <path d="M 240 270 C 360 270 445 245 560 245" class="flow" />
   <path d="M 600 445 L 600 390" class="flow" />
   <path d="M 675 325 C 675 317.5 675 287.5 675 280" class="flow" />
-  <path d="M 790 245 C 950 245 1100 290 1160 375 C 1180 405 1210 435 1255 435" class="flow" />
-  <path d="M 240 480 C 320 305 360 305 430 305 L 930 305 C 1040 305 1110 330 1160 405 C 1190 427 1210 435 1255 435" class="flow" />
+  <path d="M 790 245 C 960 245 1110 300 1170 405 C 1195 440 1220 450 1255 450" class="flow" />
+  <path d="M 240 480 C 320 305 360 305 430 305 L 930 305 C 1060 305 1110 450 1255 450" class="flow" />
   <path d="M 240 490 C 270 530 300 725 365 725" class="flow" />
   <path d="M 495 725 C 540 725 545 662 590 662" class="flow" />
   <path d="M 665 700 L 665 745" class="flow" />
@@ -49,13 +49,13 @@
   <path d="M 985 650 C 1050 650 1110 600 1200 600" class="flow" />
   <path d="M 835 650 C 800 570 690 540 690 390" class="flow" />
   <path d="M 985 792 C 1120 792 1110 640 1230 640" class="flow" />
-  <path d="M 920 480 C 1050 480 1115 470 1160 465 C 1190 445 1210 435 1255 435" class="flow" />
-  <path d="M 1355 435 C 1366.67 435 1413.33 435 1425 435" class="flow" />
-  <path d="M 1305 470 C 1305 479.167 1305 515.833 1305 525" class="flow" />
-  <path d="M 1480 470 C 1480 479.167 1480 515.833 1480 525" class="flow" />
-  <path d="M 1535 435 C 1575 435 1580 377 1640 377" class="flow" />
-  <path d="M 1535 435 C 1575 435 1590 492 1640 492" class="flow" />
-  <path d="M 1535 435 C 1575 435 1580 620 1640 620" class="flow" />
+  <path d="M 920 480 C 1060 480 1140 450 1255 450" class="flow" />
+  <path d="M 1355 450 C 1366.67 450 1413.33 450 1425 450" class="flow" />
+  <path d="M 1305 485 C 1305 494.167 1305 530.833 1305 540" class="flow" />
+  <path d="M 1480 485 C 1480 494.167 1480 530.833 1480 540" class="flow" />
+  <path d="M 1535 450 C 1575 450 1580 377 1640 377" class="flow" />
+  <path d="M 1535 450 C 1575 450 1590 492 1640 492" class="flow" />
+  <path d="M 1535 450 C 1575 450 1580 620 1640 620" class="flow" />
   <path d="M 1840 620 C 1925 620 1925 377 1840 377" class="flow" />
   <rect x="560" y="210" width="230" height="70" rx="12" class="box" />
   <text x="675.0" y="234" text-anchor="middle" class="box-title">Public route</text>
@@ -81,16 +81,16 @@
   <rect x="835" y="755" width="150" height="75" rx="12" class="box" />
   <text x="910.0" y="779" text-anchor="middle" class="box-title">GHCR</text>
   <text x="910.0" y="797" text-anchor="middle" class="box-small">controller image</text>
-  <rect x="1255" y="400" width="100" height="70" rx="12" class="box" />
-  <text x="1305.0" y="424" text-anchor="middle" class="box-title">Caddy</text>
-  <text x="1305.0" y="442" text-anchor="middle" class="box-small">HTTPS origin</text>
-  <rect x="1425" y="400" width="110" height="70" rx="12" class="box" />
-  <text x="1480.0" y="424" text-anchor="middle" class="box-title">Rust</text>
-  <text x="1480.0" y="442" text-anchor="middle" class="box-small">private API</text>
-  <rect x="1255" y="525" width="280" height="75" rx="12" class="box" />
-  <text x="1395.0" y="547" text-anchor="middle" class="box-title">Podman volume</text>
-  <text x="1395.0" y="565" text-anchor="middle" class="box-small">hosts static content</text>
-  <text x="1395.0" y="580" text-anchor="middle" class="box-small">HTML, JSON, WebP</text>
+  <rect x="1255" y="415" width="100" height="70" rx="12" class="box" />
+  <text x="1305.0" y="439" text-anchor="middle" class="box-title">Caddy</text>
+  <text x="1305.0" y="457" text-anchor="middle" class="box-small">HTTPS origin</text>
+  <rect x="1425" y="415" width="110" height="70" rx="12" class="box" />
+  <text x="1480.0" y="439" text-anchor="middle" class="box-title">Rust</text>
+  <text x="1480.0" y="457" text-anchor="middle" class="box-small">private API</text>
+  <rect x="1255" y="540" width="280" height="75" rx="12" class="box" />
+  <text x="1395.0" y="562" text-anchor="middle" class="box-title">Podman volume</text>
+  <text x="1395.0" y="580" text-anchor="middle" class="box-small">hosts static content</text>
+  <text x="1395.0" y="595" text-anchor="middle" class="box-small">HTML, JSON, WebP</text>
   <rect x="1640" y="340" width="200" height="75" rx="12" class="box" />
   <text x="1740.0" y="364" text-anchor="middle" class="box-title">Autonomous DB</text>
   <text x="1740.0" y="382" text-anchor="middle" class="box-small">catalog metadata</text>
