@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 960" role="img" aria-labelledby="title desc">
   <title id="title">Autographs architecture diagram</title>
-  <desc id="desc">Public visitors reach Caddy through the Cloudflare public cache and proxy route. The admin user develops through GitHub and reaches Caddy through the Cloudflare edge with caching bypassed. Porkbun delegates DNS to Cloudflare CDN configuration. GitHub deployment workflows use Terraform and Ansible for the OCI runtime and reviewed Terraform for Cloudflare. Lets Encrypt provides the Caddy origin certificate.</desc>
+  <desc id="desc">Public visitors reach Caddy through the Cloudflare public cache and proxy route. The admin user develops through GitHub and reaches Caddy through the Cloudflare edge with caching bypassed. Porkbun delegates DNS to Cloudflare CDN configuration. GitHub CI workflows lint, validate syntax, and test; CD workflows use release-please. Deployment uses Terraform for OCI and Cloudflare and Ansible for the runtime. Lets Encrypt provides the Caddy origin certificate.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#315f66" />
@@ -35,29 +35,20 @@
   <rect x="1060" y="340" width="300" height="360" rx="16" class="panel" />
   <text x="1080" y="373" class="zone-title">Runtime VM</text>
   <text x="1080" y="393" class="zone-small">Podman containers and volume</text>
-  <path d="M 240 270 C 247.5 260 230 220.833 285 210 C 340 199.167 517.5 194.167 570 205 C 622.5 215.833 595 263.333 600 275" class="flow" />
-  <text x="410" y="203" text-anchor="middle" class="flow-label">public HTTPS</text>
-  <path d="M 240 490 C 243.333 484.167 256.667 481.667 260 455 C 263.333 428.333 245.833 360 260 330 C 274.167 300 330.833 284.167 345 275" class="flow" />
-  <text x="275" y="380" text-anchor="middle" class="flow-label">NS delegation</text>
-  <path d="M 550 275 C 558.333 275 591.667 275 600 275" class="flow" />
-  <path d="M 775 275 C 795.833 280 862.5 286.667 900 305 C 937.5 323.333 969.167 357.5 1000 385 C 1030.83 412.5 1070.83 455.833 1085 470" class="flow" />
-  <text x="915" y="329" text-anchor="middle" class="flow-label">cached media</text>
-  <path d="M 240 690 C 250 683.333 289.167 693.333 300 650 C 310.833 606.667 300 477.5 305 430 C 310 382.5 259.167 375.833 330 365 C 400.833 354.167 643.333 365 730 365 C 816.667 365 810 360.833 850 365 C 890 369.167 930.833 376.667 970 390 C 1009.17 403.333 1065.83 435.833 1085 445" class="flow" />
-  <text x="595" y="355" text-anchor="middle" class="flow-label">admin HTTPS, cache bypass</text>
-  <path d="M 240 710 C 249.167 711.667 277.5 720.833 295 720 C 312.5 719.167 336.667 707.5 345 705" class="flow" />
-  <text x="295" y="742" text-anchor="middle" class="flow-label">code + deploy</text>
-  <path d="M 490 705 C 495 697 515 665 520 657" class="flow" />
-  <path d="M 582 690 C 582 693.333 582 706.667 582 710" class="flow" />
-  <path d="M 520 747 C 516.667 752.5 505 770.667 500 780 C 495 789.333 491.667 799.167 490 803" class="flow" />
-  <path d="M 645 747 C 649.167 742.5 665.833 724.5 670 720" class="flow" />
-  <path d="M 790 720 C 810 716.667 873.333 711.667 910 700 C 946.667 688.333 985 665 1010 650 C 1035 635 1051.67 616.667 1060 610" class="flow" />
-  <text x="920" y="675" text-anchor="middle" class="flow-label">Terraform + Ansible</text>
-  <path d="M 730 670 C 739.167 653.333 769.167 605 785 570 C 800.833 535 825.833 486.667 825 460 C 824.167 433.333 787.5 418.333 780 410" class="flow" />
-  <text x="815" y="540" text-anchor="middle" class="flow-label">reviewed CF Terraform</text>
-  <path d="M 490 803 C 535 804.167 686.667 813.833 760 810 C 833.333 806.167 880 804.167 930 780 C 980 755.833 1038.33 684.167 1060 665" class="flow" />
-  <text x="825" y="800" text-anchor="middle" class="flow-label">image pull</text>
-  <path d="M 990 480 C 996.667 480.333 1014.17 480.333 1030 482 C 1045.83 483.667 1075.83 488.667 1085 490" class="flow" />
-  <text x="1038" y="474" text-anchor="middle" class="flow-label">origin TLS</text>
+  <path d="M 240 270 C 249.167 270 277.5 269.167 295 270 C 312.5 270.833 336.667 274.167 345 275" class="flow" />
+  <path d="M 335 480 C 326.667 470.833 293.333 470.833 285 425 C 276.667 379.167 240.833 241.667 285 205 C 329.167 168.333 480.833 205 550 205 C 619.167 205 675 200.833 700 205 C 725 209.167 700 225.833 700 230" class="flow" />
+  <path d="M 600 275 C 591.667 275 558.333 275 550 275" class="flow" />
+  <path d="M 550 290 C 551.667 297.5 525 327.5 560 335 C 595 342.5 698.333 325.833 760 335 C 821.667 344.167 875.833 367.5 930 390 C 984.167 412.5 1059.17 456.667 1085 470" class="flow" />
+  <path d="M 240 480 C 243.333 470.833 248.333 444.167 260 425 C 271.667 405.833 223.333 375 310 365 C 396.667 355 673.333 360 780 365 C 886.667 370 899.167 381.667 950 395 C 1000.83 408.333 1062.5 436.667 1085 445" class="flow" />
+  <path d="M 240 490 C 245.833 501.667 262.5 534.167 275 560 C 287.5 585.833 305 618.333 315 645 C 325 671.667 331.667 707.5 335 720" class="flow" />
+  <path d="M 475 700 C 479.167 693.833 495.833 669.167 500 663" class="flow" />
+  <path d="M 565 700 C 565 705 565 725 565 730" class="flow" />
+  <path d="M 630 767 C 636.667 755.833 665.833 717.333 670 700 C 674.167 682.667 657.5 669.167 655 663" class="flow" />
+  <path d="M 630 767 C 634.167 767 650.833 767 655 767" class="flow" />
+  <path d="M 785 767 C 804.167 765 864.167 766.167 900 755 C 935.833 743.833 973.333 712.5 1000 700 C 1026.67 687.5 1050 683.333 1060 680" class="flow" />
+  <path d="M 655 750 C 651.667 745 638.333 753.333 635 720 C 631.667 686.667 642.5 582.5 635 550 C 627.5 517.5 597.5 546.667 590 525 C 582.5 503.333 585.833 454.167 590 420 C 594.167 385.833 610.833 336.667 615 320" class="flow" />
+  <path d="M 785 663 C 804.167 660 854.167 652.167 900 645 C 945.833 637.833 1033.33 624.167 1060 620" class="flow" />
+  <path d="M 800 480 C 823.333 480.333 892.5 480.333 940 482 C 987.5 483.667 1060.83 488.667 1085 490" class="flow" />
   <path d="M 1185 460 C 1190.83 460 1214.17 460 1220 460" class="flow" />
   <path d="M 1135 495 C 1135 505 1135 545 1135 555" class="flow" />
   <path d="M 1275 495 C 1275 505 1275 545 1275 555" class="flow" />
@@ -66,27 +57,28 @@
   <path d="M 1330 480 C 1336.67 494.167 1356.67 539.167 1370 565 C 1383.33 590.833 1403.33 623.333 1410 635" class="flow" />
   <path d="M 1605 635 C 1609.17 621.667 1625.83 591.667 1630 555 C 1634.17 518.333 1634.17 444.5 1630 415 C 1625.83 385.5 1609.17 384.167 1605 378" class="flow" />
   <rect x="345" y="230" width="205" height="90" rx="12" class="box" />
-  <text x="447.5" y="254" text-anchor="middle" class="box-title">CDN config</text>
-  <text x="447.5" y="272" text-anchor="middle" class="box-small">DNS, cache + bypass rules</text>
+  <text x="447.5" y="254" text-anchor="middle" class="box-title">Public route</text>
+  <text x="447.5" y="272" text-anchor="middle" class="box-small">proxy + media cache</text>
   <rect x="600" y="230" width="175" height="90" rx="12" class="box" />
-  <text x="687.5" y="254" text-anchor="middle" class="box-title">Public route</text>
-  <text x="687.5" y="272" text-anchor="middle" class="box-small">proxy + media cache</text>
-  <rect x="345" y="665" width="145" height="80" rx="12" class="box" />
-  <text x="417.5" y="689" text-anchor="middle" class="box-title">Repository</text>
-  <text x="417.5" y="707" text-anchor="middle" class="box-small">Rust, static site, IaC</text>
-  <rect x="520" y="625" width="125" height="65" rx="12" class="box" />
-  <text x="582.5" y="649" text-anchor="middle" class="box-title">PR checks</text>
-  <text x="582.5" y="667" text-anchor="middle" class="box-small">validate changes</text>
-  <rect x="520" y="710" width="125" height="75" rx="12" class="box" />
-  <text x="582.5" y="734" text-anchor="middle" class="box-title">Release PR</text>
-  <text x="582.5" y="752" text-anchor="middle" class="box-small">gates deployment</text>
-  <rect x="345" y="775" width="145" height="55" rx="12" class="box" />
-  <text x="417.5" y="799" text-anchor="middle" class="box-title">GHCR</text>
-  <text x="417.5" y="817" text-anchor="middle" class="box-small">controller image</text>
-  <rect x="670" y="670" width="120" height="100" rx="12" class="box" />
-  <text x="730.0" y="692" text-anchor="middle" class="box-title">Deployment</text>
-  <text x="730.0" y="710" text-anchor="middle" class="box-small">Terraform + Ansible</text>
-  <text x="730.0" y="725" text-anchor="middle" class="box-small">reviewed CF apply</text>
+  <text x="687.5" y="254" text-anchor="middle" class="box-title">CDN config</text>
+  <text x="687.5" y="272" text-anchor="middle" class="box-small">DNS, cache + bypass rules</text>
+  <rect x="335" y="655" width="140" height="150" rx="12" class="box" />
+  <text x="405.0" y="679" text-anchor="middle" class="box-title">Repository</text>
+  <text x="405.0" y="697" text-anchor="middle" class="box-small">Rust, static site, IaC</text>
+  <rect x="500" y="625" width="130" height="75" rx="12" class="box" />
+  <text x="565.0" y="649" text-anchor="middle" class="box-title">CI workflows</text>
+  <text x="565.0" y="667" text-anchor="middle" class="box-small">lint, syntax, test</text>
+  <rect x="500" y="730" width="130" height="75" rx="12" class="box" />
+  <text x="565.0" y="752" text-anchor="middle" class="box-title">CD workflows</text>
+  <text x="565.0" y="770" text-anchor="middle" class="box-small">release-please</text>
+  <text x="565.0" y="785" text-anchor="middle" class="box-small">Release PR</text>
+  <rect x="655" y="625" width="130" height="75" rx="12" class="box" />
+  <text x="720.0" y="649" text-anchor="middle" class="box-title">GHCR</text>
+  <text x="720.0" y="667" text-anchor="middle" class="box-small">controller image</text>
+  <rect x="655" y="730" width="130" height="75" rx="12" class="box" />
+  <text x="720.0" y="752" text-anchor="middle" class="box-title">Deployment</text>
+  <text x="720.0" y="770" text-anchor="middle" class="box-small">Terraform (OCI, CF)</text>
+  <text x="720.0" y="785" text-anchor="middle" class="box-small">Ansible</text>
   <rect x="1085" y="425" width="100" height="70" rx="12" class="box" />
   <text x="1135.0" y="449" text-anchor="middle" class="box-title">Caddy</text>
   <text x="1135.0" y="467" text-anchor="middle" class="box-small">HTTPS origin</text>
@@ -110,13 +102,13 @@
   <rect x="50" y="235" width="190" height="75" rx="12" class="box external" />
   <text x="145.0" y="259" text-anchor="middle" class="box-title">End user</text>
   <text x="145.0" y="277" text-anchor="middle" class="box-small">public browser</text>
-  <rect x="50" y="455" width="190" height="70" rx="12" class="box external" />
-  <text x="145.0" y="479" text-anchor="middle" class="box-title">Porkbun</text>
-  <text x="145.0" y="497" text-anchor="middle" class="box-small">registrar delegation</text>
-  <rect x="50" y="655" width="190" height="75" rx="12" class="box external" />
-  <text x="145.0" y="679" text-anchor="middle" class="box-title">Admin user</text>
-  <text x="145.0" y="697" text-anchor="middle" class="box-small">code, bootstrap, data</text>
-  <rect x="840" y="445" width="150" height="70" rx="12" class="box external" />
-  <text x="915.0" y="469" text-anchor="middle" class="box-title">Let's Encrypt</text>
-  <text x="915.0" y="487" text-anchor="middle" class="box-small">origin certificate</text>
+  <rect x="335" y="445" width="190" height="70" rx="12" class="box external" />
+  <text x="430.0" y="469" text-anchor="middle" class="box-title">Porkbun</text>
+  <text x="430.0" y="487" text-anchor="middle" class="box-small">registrar delegation</text>
+  <rect x="50" y="445" width="190" height="70" rx="12" class="box external" />
+  <text x="145.0" y="469" text-anchor="middle" class="box-title">Admin user</text>
+  <text x="145.0" y="487" text-anchor="middle" class="box-small">code, bootstrap, data</text>
+  <rect x="615" y="445" width="185" height="70" rx="12" class="box external" />
+  <text x="707.5" y="469" text-anchor="middle" class="box-title">Let's Encrypt</text>
+  <text x="707.5" y="487" text-anchor="middle" class="box-small">origin certificate</text>
 </svg>
