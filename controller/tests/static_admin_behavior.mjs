@@ -303,12 +303,34 @@ await run(`
   assert.equal(canonicalReviewAdjustment(fullFrame).perspective, null);
 `);
 
+await run(`
+  state.currentItem = { id: "item-a" };
+  renderImages([
+    { id: "image-a", isPrimary: true, mediaRevision: "revision-image-a", altText: "Signed card", adjustment: { rotationDegrees: 2 } },
+    { id: "image-b", isPrimary: false, mediaRevision: "revision-image-b", adjustment: null },
+  ]);
+  const adjusted = elements.imageGrid.children[0];
+  const plain = elements.imageGrid.children[1];
+  const adjustedFrames = findAllByClass(adjusted, "preview-frame");
+  assert.equal(adjustedFrames.length, 2);
+  assert.ok(adjustedFrames[0].children[0].src.includes("preview/source?mediaRevision=revision-image-a"));
+  assert.ok(adjustedFrames[1].children[0].src.includes("preview?mediaRevision=revision-image-a"));
+  assert.equal(findAllByClass(plain, "preview-frame").length, 1);
+  assert.equal(findAllByClass(plain, "image-preview-comparison").length, 0);
+  const savedPreview = adjustedFrames[1].children[0];
+  await adjustedFrames[0].children[0].dispatch("error");
+  assert.equal(findAllByClass(adjustedFrames[0], "preview-failure").length, 1);
+  assert.equal(adjustedFrames[1].children[0], savedPreview);
+  await findByClass(adjustedFrames[0], "preview-failure").children[1].dispatch("click");
+  assert.ok(adjustedFrames[0].children[0].src.includes("retry=1"));
+`);
+
 enqueueFetch(response({ json: reviewPayload("item-a", "image-a") }));
 enqueueFetch(response());
 await run(`
   state.currentItem = { id: "item-a", images: [{ id: "image-a", mediaRevision: "revision-image-a", altText: "A" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
-  await elements.imageGrid.children[0].children[4].children[0].dispatch("click");
+  await findByClass(elements.imageGrid.children[0], "inline-actions").children[0].dispatch("click");
   assert.equal(state.reviewImage.imageId, "image-a");
   assert.equal(elements.imageReviewSave.disabled, true);
   assert.equal(elements.imageReviewDiscard.hidden, false);
@@ -512,14 +534,14 @@ enqueueFetch(reviewA.promise);
 const openA = run(`
   state.currentItem = { id: "item-a", images: [{ id: "image-a", mediaRevision: "revision-image-a" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
-  return elements.imageGrid.children[0].children[4].children[0].dispatch("click");
+  return findByClass(elements.imageGrid.children[0], "inline-actions").children[0].dispatch("click");
 `);
 await Promise.resolve();
 enqueueFetch(reviewB.promise);
 const openB = run(`
   state.currentItem = { id: "item-b", images: [{ id: "image-b", mediaRevision: "revision-image-b" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
-  return elements.imageGrid.children[0].children[4].children[0].dispatch("click");
+  return findByClass(elements.imageGrid.children[0], "inline-actions").children[0].dispatch("click");
 `);
 reviewA.resolve(response({ json: reviewPayload("item-a", "image-a") }));
 await openA;
@@ -559,7 +581,7 @@ await run(`
   state.currentItem = { id: "item-b", images: [{ id: "image-b", mediaRevision: "revision-image-b" }], cleanupWarnings: [] };
   setView("add-item-view");
   renderImages(state.currentItem.images, []);
-  await elements.imageGrid.children[0].children[4].children[0].dispatch("click");
+  await findByClass(elements.imageGrid.children[0], "inline-actions").children[0].dispatch("click");
 `);
 assist.resolve(response({ json: {
   boundary: { status: "reliable", corners: [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.9, y: 0.9 }, { x: 0.1, y: 0.9 }], edges: [] },
@@ -1084,7 +1106,7 @@ await run(`
   setView("add-item-view");
   state.currentItem = { id: "item-b", images: [{ id: "image-b", mediaRevision: "revision-image-b" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
-  await elements.imageGrid.children[0].children[4].children[0].dispatch("click");
+  await findByClass(elements.imageGrid.children[0], "inline-actions").children[0].dispatch("click");
 `);
 enqueueFetch(response());
 await flushTimers();
@@ -1161,7 +1183,7 @@ enqueueFetch(lateReview.promise);
 const lateOpen = run(`
   state.currentItem = { id: "item-a", images: [{ id: "image-a", mediaRevision: "revision-image-a" }], cleanupWarnings: [] };
   renderImages(state.currentItem.images, []);
-  return elements.imageGrid.children[0].children[4].children[0].dispatch("click");
+  return findByClass(elements.imageGrid.children[0], "inline-actions").children[0].dispatch("click");
 `);
 await Promise.resolve();
 await run(`await elements.tabs.find((tab) => tab.dataset.view === "publish-view").dispatch("click");`);

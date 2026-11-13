@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Autographs · Item editor workbench</title>
+  <style>
+    :root { color-scheme: light; font: 16px/1.5 "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; color: #242826; background: #f7f8f6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .shell { width: min(100%, 1120px); max-width: 1120px; margin: 0 auto; padding: 24px 16px; }
+    .width-wide .shell { width: min(100%, 1500px); max-width: 1500px; }
+    .admin-header, .heading, .toolbar, .section-head, .image-head, .image-actions, .savebar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .admin-header { align-items: flex-start; gap: 16px; border-bottom: 1px solid #d7ddd5; padding-bottom: 24px; margin-bottom: 24px; }
+    .admin-header h1 { margin: 0 0 8px; font-size: 32px; font-weight: 600; line-height: 1.1; }
+    .eyebrow { margin: 0 0 8px; color: #626862; font-size: 14px; font-weight: 600; line-height: 1.35; letter-spacing: .08em; text-transform: uppercase; }
+    .session { margin: 0; color: #626862; font-size: 16px; }
+    .admin-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    .admin-tabs button, .admin-header button, .heading .secondary-action { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border: 1px solid #d7ddd5; border-radius: 8px; padding: 8px 12px; background: #fff; color: #242826; font-size: 16px; font-weight: 600; }
+    .admin-header button, .heading .secondary-action { color: #25636a; }
+    .admin-tabs button { flex: 1 1 128px; }
+    .admin-tabs button[aria-current="page"] { border-color: #25636a; background: #eef2ed; color: #25636a; }
+    .prototype { margin: -9px 0 12px; color: #626862; font-size: .76rem; }
+    .view-panel { border: 1px solid #d7ddd5; border-radius: 8px; padding: 24px; background: #fff; }
+    .heading { align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+    .heading h2 { margin: 0 0 8px; font-size: 20px; font-weight: 600; line-height: 1.25; }
+    .heading p { margin: 0; color: #626862; font-size: 16px; }
+    .heading-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .toolbar { justify-content: flex-start; flex-wrap: wrap; margin-bottom: 13px; font-size: 14px; }
+    .segmented { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid #cad8d3; border-radius: 7px; background: #eaf1ed; }
+    .segmented button { border: 0; border-radius: 5px; padding: 6px 12px; background: transparent; color: #365d62; font-size: .78rem; }
+    .segmented button[aria-pressed="true"] { background: #fff; box-shadow: 0 1px 3px #172f3028; color: #174e56; font-weight: 750; }
+    .toolbar-note { color: #687572; font-size: .76rem; }
+    .editor-body { display: grid; grid-template-columns: minmax(390px, 500px) minmax(0, 1fr); align-items: start; gap: 12px; font-size: 14px; line-height: 1.35; }
+    .meta-stack, .media-stack { display: grid; min-width: 0; gap: 9px; }
+    .section { min-width: 0; border: 1px solid #d5dfda; border-radius: 8px; background: #fff; padding: 10px 11px 11px; }
+    .section-head { align-items: baseline; margin-bottom: 8px; }
+    h2 { margin: 0; font-size: .87rem; line-height: 1.2; }
+    .section-head small { color: #697875; font-size: .71rem; }
+    .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 9px; }
+    .field { display: grid; min-width: 0; gap: 3px; }
+    .field.span-two { grid-column: 1 / -1; }
+    .field label { color: #435a59; font-size: .72rem; font-weight: 650; }
+    .field input, .field select, .field textarea { width: 100%; min-width: 0; min-height: 30px; padding: 4px 7px; border: 1px solid #cbd8d2; border-radius: 5px; background: #fff; color: #193036; font-size: .78rem; }
+    .field textarea { min-height: 50px; resize: vertical; }
+    .field input[readonly] { background: #f3f6f4; color: #6b7773; }
+    .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible, button:focus-visible { outline: 2px solid #398c95; outline-offset: 2px; }
+    .field-note { margin: 4px 0 0; color: #6b7773; font-size: .69rem; }
+    .signer-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .65fr) minmax(0, 1fr); gap: 7px; }
+    .checkline { display: flex; align-items: center; gap: 6px; padding-top: 8px; color: #435a59; font-size: .75rem; }
+    .checkline input { margin: 0; accent-color: #287780; }
+    .media-intro { display: grid; gap: 2px; }
+    .media-intro p { margin: 0; color: #697875; font-size: .75rem; }
+    .image-record { border: 1px solid #d5dfda; border-radius: 8px; background: #fff; overflow: hidden; }
+    .image-head { align-items: start; padding: 9px 11px; border-bottom: 1px solid #e1e8e3; }
+    .image-name { display: grid; gap: 2px; }
+    .image-name strong { font-size: .82rem; }
+    .image-name small { color: #657571; font-size: .71rem; }
+    .badge { display: inline-block; border: 1px solid #b8d7d4; border-radius: 999px; padding: 3px 7px; color: #24666c; background: #eef8f6; font-size: .68rem; font-weight: 700; white-space: nowrap; }
+    .badge.muted { border-color: #d9e0dc; background: #f6f8f6; color: #697875; }
+    .image-stage { padding: 10px; background: #202825; }
+    .compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .image-pane { min-width: 0; margin: 0; padding: 8px; border: 1px solid #48544e; border-radius: 6px; background: #27312d; }
+    .image-pane figcaption { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 7px; color: #e9f0e9; font-size: .71rem; font-weight: 650; }
+    .image-pane figcaption span { color: #b2c5ba; font-weight: 400; }
+    .art-canvas { display: grid; place-items: center; height: clamp(205px, 28vw, 310px); overflow: hidden; background: #1d2422; }
+    .art { position: relative; width: min(67%, 220px); aspect-ratio: 0.73; overflow: hidden; border: 8px solid #9a9d94; box-shadow: 0 10px 22px #0008; background: radial-gradient(circle at 52% 45%, #3d6682, #172d47 53%, #0c1728 75%); }
+    .art::before { content: ""; position: absolute; inset: 7%; border: 2px solid #9baeb0; box-shadow: inset 0 0 0 5px #111c2a; }
+    .art::after { content: ""; position: absolute; width: 65%; height: 36%; top: 30%; left: 19%; border-radius: 50%; background: radial-gradient(circle at 36% 28%, #a9bec0, #386780 30%, #142d4c 72%); transform: rotate(-12deg); }
+    .art .top, .art .signature, .art .bottom { position: absolute; z-index: 2; left: 10%; right: 10%; }
+    .art .top { top: 5%; color: #e7e4cf; font-size: clamp(8px, .9vw, 12px); font-weight: 800; letter-spacing: .05em; }
+    .art .signature { top: 51%; left: 3%; right: 3%; color: #e2b653; font: italic 700 clamp(20px, 2.5vw, 34px) cursive; white-space: nowrap; transform: rotate(-8deg); text-shadow: 1px 2px #281e16; }
+    .art .bottom { bottom: 8%; height: 11%; border-top: 2px solid #a1adad; background: repeating-linear-gradient(to bottom, #aeb7b7 0 2px, transparent 2px 7px); }
+    .before .art { transform: rotate(-5deg) skew(-3deg, 2deg) scale(.88); }
+    .after .art { transform: none; }
+    .image-actions { justify-content: flex-start; flex-wrap: wrap; padding: 8px 11px; }
+    .image-actions button, .section-head button, .savebar button { border: 1px solid #c8d7d1; border-radius: 5px; padding: 6px 9px; background: #fff; color: #27636b; font-size: .74rem; font-weight: 650; }
+    .image-actions .primary, .savebar .primary { border-color: #28737b; background: #28737b; color: #fff; }
+    .single { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .65fr); gap: 10px; padding: 10px; background: #202825; }
+    .single .art-canvas { height: 170px; }
+    .single .art { width: min(42%, 120px); border-width: 5px; }
+    .single .art .signature { font-size: 17px; }
+    .single .note { display: grid; align-content: center; gap: 7px; color: #d0dfd5; font-size: .76rem; }
+    .single .note strong { color: #fff; }
+    .new-empty { display: none; min-height: 260px; place-items: center; padding: 25px; border: 1px dashed #b5c9c2; border-radius: 8px; background: #f7faf7; text-align: center; color: #536c65; }
+    .new-empty strong { display: block; margin-bottom: 5px; color: #254d50; font-size: .92rem; }
+    .new-empty p { max-width: 360px; margin: 0 auto; font-size: .77rem; }
+    .savebar { position: sticky; bottom: 0; z-index: 5; margin-top: 11px; padding: 10px 12px; border: 1px solid #cbdad3; border-radius: 8px; background: #f7faf7f2; box-shadow: 0 -4px 20px #24332d16; backdrop-filter: blur(8px); }
+    .savebar p { margin: 0; color: #64746f; font-size: .73rem; }
+    .savebar-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .layout-b .editor-body, .layout-c .editor-body { display: block; }
+    .layout-b .meta-stack { display: block; columns: 2; column-gap: 9px; }
+    .layout-b .meta-stack .section { break-inside: avoid; margin-bottom: 9px; }
+    .layout-c .meta-stack { grid-template-columns: 1fr; }
+    .layout-c .meta-stack .section { width: 100%; }
+    .layout-c .meta-stack .fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .layout-c .identity .field.span-two { grid-column: auto; }
+    .layout-c .details .field.span-two { grid-column: 1 / -1; }
+    .layout-c .publication .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .layout-b .media-stack, .layout-c .media-stack { margin-top: 10px; }
+    .layout-b .image-record, .layout-c .image-record { max-width: 1120px; }
+    .layout-b .art-canvas, .layout-c .art-canvas { height: clamp(220px, 27vw, 350px); }
+    .mode-add .existing-images { display: none; }
+    .mode-add .new-empty { display: grid; }
+    .mode-add .edit-only { display: none; }
+    @media (max-width: 1060px) { .editor-body { grid-template-columns: minmax(325px, 410px) minmax(0, 1fr); } .art-canvas { height: 220px; } .art { width: min(76%, 180px); } }
+    @media (max-width: 800px) { .shell { padding: 16px; } .view-panel { padding: 16px; } .admin-header { flex-wrap: wrap; } .admin-tabs button { flex-basis: 100px; } .heading { flex-wrap: wrap; } .editor-body, .layout-b .editor-body, .layout-c .editor-body { display: block; } .meta-stack, .layout-b .meta-stack, .layout-c .meta-stack { display: grid; columns: 1; grid-template-columns: 1fr; } .layout-c .meta-stack .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .layout-c .identity .field.span-two { grid-column: 1 / -1; } .media-stack { margin-top: 10px; } }
+    @media (max-width: 490px) { .layout-c .meta-stack .fields { grid-template-columns: 1fr; } .layout-c .meta-stack .field.span-two { grid-column: auto; } }
+    @media (max-width: 490px) { .compare { gap: 5px; } .image-stage { padding: 6px; } .image-pane { padding: 5px; } .art-canvas { height: 185px; } .art { width: 80%; border-width: 5px; } .art .signature { font-size: 16px; } .image-pane figcaption span { display: none; } .single { grid-template-columns: 1fr; } .savebar { align-items: start; flex-direction: column; } }
+  </style>
+</head>
+<body class="layout-b mode-edit width-current">
+  <main class="shell">
+    <header class="admin-header"><div><p class="eyebrow">Collection owner console</p><h1>Admin hub</h1><p class="session">Logged in. Private changes stay here until you publish.</p></div><button type="button">Log out</button></header>
+    <nav class="admin-tabs" aria-label="Admin workflow"><button type="button">Hub</button><button type="button" aria-current="page">Add item</button><button type="button">Items</button><button type="button">Signers</button><button type="button">Publish</button><button type="button">Diagnostics</button></nav>
+    <p class="prototype">Local workbench · dummy artwork · no requests or saves</p>
+    <section class="view-panel" aria-label="Item editor layout workbench">
+    <div class="heading"><div><h2 id="page-title">Edit item</h2><p id="page-subtitle">Keep the item fields close together while reviewing all associated images.</p></div><div class="heading-actions"><button class="secondary-action" type="button">Add another item</button><button class="secondary-action" type="button">Back to hub</button></div></div>
+    <div class="toolbar" aria-label="Workbench options">
+      <div class="segmented" role="group" aria-label="Layout variant"><button type="button" data-layout="a" aria-pressed="false">A · Metadata rail</button><button type="button" data-layout="b" aria-pressed="true">B · Wide grid</button><button type="button" data-layout="c" aria-pressed="false">C · Stacked sections</button></div>
+      <div class="segmented" role="group" aria-label="Item mode"><button type="button" data-mode="edit" aria-pressed="true">Edit item</button><button type="button" data-mode="add" aria-pressed="false">Add item</button></div>
+      <div class="segmented" role="group" aria-label="Admin shell width"><button type="button" data-width="current" aria-pressed="true">Current 1120px</button><button type="button" data-width="wide" aria-pressed="false">Wide 1500px</button></div>
+      <span class="toolbar-note">Switch views to compare spacing. Fields and actions are visual placeholders.</span>
+    </div>
+    <div class="editor-body">
+      <div class="meta-stack">
+        <section class="section identity"><div class="section-head"><h2>Identity</h2><small>Who and what</small></div><div class="fields"><div class="field span-two"><label for="title">Title</label><input id="title" value="Alex Rowan · Galactic Card 01"></div><div class="field span-two"><label for="characters">Characters</label><input id="characters" value="Captain Vela"></div><div class="field span-two edit-only"><label for="item-id">Item ID</label><input id="item-id" value="5d6-ra-7" readonly></div></div><div class="section-head" style="margin:10px 0 6px"><h2>Signers</h2><button type="button">Add signer</button></div><div class="signer-row"><div class="field"><label for="signer">Name</label><input id="signer" value="Alex Rowan"></div><div class="field"><label for="role">Role</label><input id="role" value="Actor"></div><div class="field"><label for="context">Context</label><input id="context" value="Captain Vela"></div></div></section>
+        <section class="section"><div class="section-head"><h2>Classification</h2><small>Public facets</small></div><div class="fields"><div class="field"><label for="format">Format</label><select id="format"><option>Trading Card</option></select></div><div class="field"><label for="language">Language</label><select id="language"><option>English</option></select></div><div class="field"><label for="franchise">Franchise</label><input id="franchise" value="Galactic Saga"></div><div class="field"><label for="product">Product line</label><input id="product" value="Collector Series"></div><div class="field"><label for="set">Set</label><input id="set" value="Series 2"></div><div class="field"><label for="tags">Loose tags</label><input id="tags" value="convention"></div></div><label class="checkline"><input type="checkbox">Custom item</label></section>
+        <section class="section details"><div class="section-head"><h2>Details</h2><small>Collection notes</small></div><div class="fields"><div class="field span-two"><label for="description">Description</label><textarea id="description">Signed Galactic Card 01, kept in archival sleeve.</textarea></div><div class="field"><label for="inscription">Inscription</label><input id="inscription" value="To Jamie"></div><div class="field"><label for="event">Event</label><input id="event" value="Fan Expo 2026"></div><div class="field"><label for="location">Event location</label><input id="location" value="New York"></div><div class="field"><label for="year">Estimated year</label><input id="year" value="2026"></div><div class="field"><label for="source">Source</label><input id="source" value="In person"></div><div class="field"><label for="reference">Object reference</label><input id="reference" value="Binder 3 / Page 8"></div></div></section>
+        <section class="section publication"><div class="section-head"><h2>Publication</h2><small>Save stays private</small></div><div class="fields"><div class="field"><label for="status">Status</label><select id="status"><option>Published</option><option>Draft</option></select></div><div class="field"><label for="alt">New image alt text</label><input id="alt" value="Signed Galactic Card 01"></div></div></section>
+      </div>
+      <div class="media-stack">
+        <section class="section"><div class="section-head"><div class="media-intro"><h2>Images</h2><p>Each adjusted image shows its source and saved result together.</p></div><button type="button">Upload images</button></div><div class="new-empty"><div><strong>Images appear after the item is saved</strong><p>Use this area to review the primary image, adjustments, and supporting images without leaving the item editor.</p></div></div><div class="existing-images">
+          <article class="image-record"><div class="image-head"><div class="image-name"><strong>Image 1 · Primary</strong><small>Saved perspective, rotation, and crop adjustment</small></div><span class="badge">Adjusted</span></div><div class="image-stage"><div class="compare"><figure class="image-pane before"><figcaption>Unadjusted source <span>Private original</span></figcaption><div class="art-canvas"><div class="art"><span class="top">★ GALACTIC CARD 01</span><span class="signature">Alex Rowan</span><span class="bottom"></span></div></div></figure><figure class="image-pane after"><figcaption>Saved result <span>Publish preview</span></figcaption><div class="art-canvas"><div class="art"><span class="top">★ GALACTIC CARD 01</span><span class="signature">Alex Rowan</span><span class="bottom"></span></div></div></figure></div></div><div class="image-actions"><button class="primary" type="button">Review adjustments</button><button type="button">Make primary</button><button type="button">Replace</button><button type="button">Remove</button></div></article>
+          <article class="image-record" style="margin-top:9px"><div class="image-head"><div class="image-name"><strong>Image 2 · Supporting</strong><small>No saved image adjustment</small></div><span class="badge muted">Original view</span></div><div class="single"><div class="art-canvas"><div class="art"><span class="top">★ GALACTIC CARD 02</span><span class="signature">Alex Rowan</span><span class="bottom"></span></div></div><div class="note"><strong>Single preview</strong><span>The side-by-side comparison appears only when adjustment JSON exists.</span></div></div><div class="image-actions"><button type="button">Review image</button><button type="button">Make primary</button><button type="button">Replace</button><button type="button">Remove</button></div></article>
+        </div></section>
+      </div>
+    </div>
+    <footer class="savebar"><p>Mockup only · no values are saved</p><div class="savebar-actions"><button class="primary" type="button">Save item</button><button type="button">Discard changes</button><button class="edit-only" type="button">Publish changes</button></div></footer>
+    </section>
+  </main>
+  <script>
+    const page = document.body;
+    const demoFields = [...document.querySelectorAll('.meta-stack input:not([type="checkbox"]), .meta-stack textarea')];
+    const editValues = demoFields.map((field) => field.value);
+    const setChoice = (kind, value) => {
+      const choices = { layout: ["a", "b", "c"], mode: ["edit", "add"], width: ["current", "wide"] };
+      page.classList.remove(...choices[kind].map((choice) => `${kind}-${choice}`));
+      page.classList.add(`${kind}-${value}`);
+      document.querySelectorAll(`[data-${kind}]`).forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset[kind] === value));
+      });
+      if (kind === "mode") {
+        const adding = value === "add";
+        document.querySelector("#page-title").textContent = adding ? "Add item" : "Edit item";
+        document.querySelector("#page-subtitle").textContent = adding
+          ? "Start with a compact item form. Images appear after the first save."
+          : "Keep the item fields close together while reviewing all associated images.";
+        demoFields.forEach((field, index) => { field.value = adding ? "" : editValues[index]; });
+      }
+    };
+    document.querySelectorAll("[data-layout], [data-mode], [data-width]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const kind = button.dataset.layout ? "layout" : button.dataset.mode ? "mode" : "width";
+        setChoice(kind, button.dataset[kind]);
+      });
+    });
+    const params = new URLSearchParams(window.location.search);
+    if (["a", "b", "c"].includes(params.get("layout"))) setChoice("layout", params.get("layout"));
+    if (params.get("mode") === "add") setChoice("mode", "add");
+    if (params.get("width") === "wide") setChoice("width", "wide");
+  </script>
+</body>
+</html>
