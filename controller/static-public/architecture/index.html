@@ -26,7 +26,7 @@
           <h2 id="diagram-title">System diagram</h2>
         </div>
         <div class="architecture-diagram">
-          <img class="architecture-diagram-image" src="./architecture-diagram.svg" width="1600" height="900" alt="Autographs architecture diagram with Cloudflare above GitHub, Porkbun above the admin user and end user, and Let's Encrypt above OCI. The admin user develops through GitHub and reaches the OCI runtime through a Cloudflare cache-bypass route. Public users reach the runtime through Cloudflare proxy and media cache. The runtime includes Caddy, Rust, a Podman volume for static content, Autonomous Database, private Object Storage, and OCI Vault.">
+          <img class="architecture-diagram-image" src="./architecture-diagram.svg" width="1700" height="960" alt="Autographs architecture diagram with Cloudflare above GitHub. End users, Porkbun, and the admin user are stacked to the left; Let's Encrypt sits between Cloudflare and GitHub near OCI. End users reach Caddy through Cloudflare's public proxy and media cache. The admin user develops through GitHub and reaches Caddy through Cloudflare with caching bypassed. A GitHub deployment box links to Cloudflare and the OCI runtime, which includes Caddy, Rust, a static Podman volume, Autonomous Database, private Object Storage, and OCI Vault.">
         </div>
       </section>
 
