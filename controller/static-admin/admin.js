@@ -1435,15 +1435,33 @@ function renderImages(images = [], cleanupWarnings = []) {
     return;
   }
   const warningsByImage = new Map(cleanupWarnings.map((warning) => [warning.imageId, warning]));
-  for (const image of [...images].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))) {
+  for (const [index, image] of [...images].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary)).entries()) {
     const tile = document.createElement("article");
     tile.className = image.isPrimary ? "image-tile primary-image" : "image-tile";
-    tile.append(
-      renderImagePreviewFrame(state.currentItem.id, image),
-      textNode("h4", image.isPrimary ? "Primary image" : "Supporting image"),
-      textNode("p", image.altText || "No alt text recorded."),
-      textNode("p", `${image.contentType || "image"} - ${image.byteSize || 0} bytes`, "helper-text")
+    const heading = document.createElement("div");
+    heading.className = "image-tile-heading";
+    const description = document.createElement("div");
+    description.append(
+      textNode("h4", `Image ${index + 1} · ${image.isPrimary ? "Primary" : "Supporting"}`),
+      textNode("p", image.altText || "No alt text recorded.", "helper-text")
     );
+    heading.append(description, textNode("span", image.adjustment ? "Adjusted" : "Original view", "status-pill"));
+    tile.append(heading);
+    const previews = document.createElement("div");
+    previews.className = image.adjustment ? "image-preview-comparison" : "image-preview-single";
+    if (image.adjustment) {
+      previews.append(
+        renderImagePreviewPane("Unadjusted source", renderImageSourcePreviewFrame(state.currentItem.id, image)),
+        renderImagePreviewPane("Saved result", renderImagePreviewFrame(state.currentItem.id, image))
+      );
+    } else {
+      previews.append(
+        renderImagePreviewPane("Current image", renderImagePreviewFrame(state.currentItem.id, image)),
+        textNode("p", "A source and result comparison appears when this image has saved adjustments.", "image-preview-note")
+      );
+    }
+    tile.append(previews);
+    tile.append(textNode("p", `${image.contentType || "image"} · ${image.byteSize || 0} bytes`, "image-file-details"));
     const warning = warningsByImage.get(image.id);
     if (warning) {
       tile.append(textNode("p", warning.adminMessage || copy.cleanupWarning, "status-warning"));
@@ -1465,15 +1483,33 @@ function renderImages(images = [], cleanupWarnings = []) {
 }
 
 function renderImagePreviewFrame(itemId, image) {
+  return createImagePreviewFrame(
+    endpoints.imagePreview(itemId, image.id, image.mediaRevision),
+    image.altText || "Private autograph image preview"
+  );
+}
+
+function renderImageSourcePreviewFrame(itemId, image) {
+  const sourceUrl = `${endpoints.imageSourcePreview(itemId, image.id)}?mediaRevision=${encodeURIComponent(image.mediaRevision)}`;
+  return createImagePreviewFrame(sourceUrl, `Unadjusted source: ${image.altText || "autograph image"}`);
+}
+
+function renderImagePreviewPane(label, frame) {
+  const pane = document.createElement("figure");
+  pane.className = "image-preview-pane";
+  pane.append(textNode("figcaption", label), frame);
+  return pane;
+}
+
+function createImagePreviewFrame(previewUrl, altText) {
   const frame = document.createElement("div");
   frame.className = "preview-frame review-matte";
   let attempt = 0;
   const loadPreview = () => {
     const preview = document.createElement("img");
-    const previewUrl = endpoints.imagePreview(itemId, image.id, image.mediaRevision);
     const separator = previewUrl.includes("?") ? "&" : "?";
     preview.src = `${previewUrl}${separator}retry=${attempt}`;
-    preview.alt = image.altText || "Private autograph image preview";
+    preview.alt = altText;
     preview.loading = "lazy";
     preview.addEventListener("error", () => {
       const failure = document.createElement("div");

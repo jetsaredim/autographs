@@ -669,7 +669,10 @@ fn static_admin_image_review_uses_dom_nodes_and_same_origin_endpoints() {
     for expected in [
         "document.createElement(\"img\")",
         "endpoints.imagePreview(itemId, image.id, image.mediaRevision)",
-        "preview.alt = image.altText || \"Private autograph image preview\";",
+        "preview.alt = altText;",
+        "Unadjusted source",
+        "Saved result",
+        "endpoints.imageSourcePreview(itemId, image.id)",
         "buttonNode(\"Retry preview\"",
         "element.textContent = text;",
         "request(endpoints.imageReview(itemId, imageId))",
