@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2020 960" role="img" aria-labelledby="title desc">
   <title id="title">Autographs architecture diagram</title>
-  <desc id="desc">Public visitors reach Caddy through the Cloudflare public cache and proxy route. The admin user develops through GitHub and reaches Caddy through the Cloudflare edge with caching bypassed. Porkbun delegates DNS to Cloudflare CDN configuration. GitHub CI workflows lint, validate syntax, and test. CD workflows use release-please, publish the controller image, and trigger deployment. Deployment uses Terraform for OCI and Cloudflare and Ansible for the runtime. Lets Encrypt provides the Caddy origin certificate.</desc>
+  <desc id="desc">Public visitors reach Caddy through the Cloudflare public cache and proxy route. The admin user develops through GitHub and reaches Caddy through the Cloudflare edge with caching bypassed. Porkbun delegates DNS to Cloudflare CDN configuration. GitHub CI workflows lint, validate syntax, and test. The CD pipeline uses release-please, publishes the controller image, and triggers deploy jobs. Deploy jobs use Terraform for OCI and Cloudflare and Ansible for the runtime. Lets Encrypt provides the Caddy origin certificate.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#315f66" />
@@ -29,34 +29,34 @@
   <rect x="340" y="540" width="680" height="320" rx="16" class="zone" />
   <text x="360" y="573" class="zone-title">GitHub</text>
   <text x="360" y="593" class="zone-small">Source, CI, releases, and workflows</text>
-  <rect x="1200" y="215" width="720" height="560" rx="16" class="zone" />
-  <text x="1220" y="248" class="zone-title">Oracle Cloud Infrastructure</text>
-  <text x="1220" y="268" class="zone-small">Runtime, database, private media, and secrets</text>
-  <rect x="1230" y="305" width="330" height="350" rx="16" class="panel" />
-  <text x="1250" y="338" class="zone-title">Runtime VM</text>
-  <text x="1250" y="358" class="zone-small">Podman containers and volume</text>
+  <rect x="1200" y="265" width="720" height="460" rx="16" class="zone" />
+  <text x="1220" y="298" class="zone-title">Oracle Cloud Infrastructure</text>
+  <text x="1220" y="318" class="zone-small">Runtime, database, private media, and secrets</text>
+  <rect x="1230" y="335" width="330" height="340" rx="16" class="panel" />
+  <text x="1250" y="368" class="zone-title">Runtime VM</text>
+  <text x="1250" y="388" class="zone-small">Podman containers and volume</text>
   <path d="M 240 270 C 360 270 445 245 560 245" class="flow" />
-  <path d="M 550 445 C 549.167 440.833 540.833 429.167 545 420 C 549.167 410.833 570 395 575 390" class="flow" />
+  <path d="M 600 445 L 600 390" class="flow" />
   <path d="M 675 325 C 675 317.5 675 287.5 675 280" class="flow" />
-  <path d="M 790 245 C 950 245 1100 290 1160 355 C 1180 385 1210 415 1255 415" class="flow" />
-  <path d="M 240 480 C 320 305 360 305 430 305 L 930 305 C 1040 305 1110 330 1160 385 C 1190 407 1210 415 1255 415" class="flow" />
+  <path d="M 790 245 C 950 245 1100 290 1160 375 C 1180 405 1210 435 1255 435" class="flow" />
+  <path d="M 240 480 C 320 305 360 305 430 305 L 930 305 C 1040 305 1110 330 1160 405 C 1190 427 1210 435 1255 435" class="flow" />
   <path d="M 240 490 C 270 530 300 725 365 725" class="flow" />
   <path d="M 495 725 C 540 725 545 662 590 662" class="flow" />
-  <path d="M 665 700 C 667.5 703.667 680 714.5 680 722 C 680 729.5 667.5 741.167 665 745" class="flow" />
+  <path d="M 665 700 L 665 745" class="flow" />
   <path d="M 740 792 C 775 792 800 792 835 792" class="flow" />
   <path d="M 740 765 C 785 765 790 668 835 668" class="flow" />
-  <path d="M 985 685 C 1080 685 1130 620 1230 620" class="flow" />
-  <path d="M 985 650 C 1050 650 1110 580 1200 580" class="flow" />
+  <path d="M 985 685 C 1080 685 1130 640 1230 640" class="flow" />
+  <path d="M 985 650 C 1050 650 1110 600 1200 600" class="flow" />
   <path d="M 835 650 C 800 570 690 540 690 390" class="flow" />
-  <path d="M 985 792 C 1120 792 1110 620 1230 620" class="flow" />
-  <path d="M 920 480 C 1050 480 1115 470 1160 445 C 1190 425 1210 415 1255 415" class="flow" />
-  <path d="M 1355 415 C 1366.67 415 1413.33 415 1425 415" class="flow" />
-  <path d="M 1305 450 C 1305 460 1305 500 1305 510" class="flow" />
-  <path d="M 1480 450 C 1480 460 1480 500 1480 510" class="flow" />
-  <path d="M 1535 415 C 1575 415 1580 327 1640 327" class="flow" />
-  <path d="M 1535 415 C 1575 415 1590 452 1640 452" class="flow" />
-  <path d="M 1535 415 C 1575 415 1580 585 1640 585" class="flow" />
-  <path d="M 1840 585 C 1925 585 1925 327 1840 327" class="flow" />
+  <path d="M 985 792 C 1120 792 1110 640 1230 640" class="flow" />
+  <path d="M 920 480 C 1050 480 1115 470 1160 465 C 1190 445 1210 435 1255 435" class="flow" />
+  <path d="M 1355 435 C 1366.67 435 1413.33 435 1425 435" class="flow" />
+  <path d="M 1305 470 C 1305 479.167 1305 515.833 1305 525" class="flow" />
+  <path d="M 1480 470 C 1480 479.167 1480 515.833 1480 525" class="flow" />
+  <path d="M 1535 435 C 1575 435 1580 377 1640 377" class="flow" />
+  <path d="M 1535 435 C 1575 435 1590 492 1640 492" class="flow" />
+  <path d="M 1535 435 C 1575 435 1580 620 1640 620" class="flow" />
+  <path d="M 1840 620 C 1925 620 1925 377 1840 377" class="flow" />
   <rect x="560" y="210" width="230" height="70" rx="12" class="box" />
   <text x="675.0" y="234" text-anchor="middle" class="box-title">Public route</text>
   <text x="675.0" y="252" text-anchor="middle" class="box-small">proxy + media cache</text>
@@ -70,37 +70,37 @@
   <text x="665.0" y="649" text-anchor="middle" class="box-title">CI workflows</text>
   <text x="665.0" y="667" text-anchor="middle" class="box-small">lint, syntax, test</text>
   <rect x="590" y="745" width="150" height="95" rx="12" class="box" />
-  <text x="665.0" y="767" text-anchor="middle" class="box-title">CD workflows</text>
+  <text x="665.0" y="767" text-anchor="middle" class="box-title">CD pipeline</text>
   <text x="665.0" y="785" text-anchor="middle" class="box-small">release-please</text>
   <text x="665.0" y="800" text-anchor="middle" class="box-small">controller image publish</text>
   <text x="665.0" y="815" text-anchor="middle" class="box-small">trigger deployment</text>
   <rect x="835" y="625" width="150" height="85" rx="12" class="box" />
-  <text x="910.0" y="647" text-anchor="middle" class="box-title">Deployment</text>
+  <text x="910.0" y="647" text-anchor="middle" class="box-title">Deploy jobs</text>
   <text x="910.0" y="665" text-anchor="middle" class="box-small">Terraform (OCI, CF)</text>
   <text x="910.0" y="680" text-anchor="middle" class="box-small">Ansible</text>
   <rect x="835" y="755" width="150" height="75" rx="12" class="box" />
   <text x="910.0" y="779" text-anchor="middle" class="box-title">GHCR</text>
   <text x="910.0" y="797" text-anchor="middle" class="box-small">controller image</text>
-  <rect x="1255" y="380" width="100" height="70" rx="12" class="box" />
-  <text x="1305.0" y="404" text-anchor="middle" class="box-title">Caddy</text>
-  <text x="1305.0" y="422" text-anchor="middle" class="box-small">HTTPS origin</text>
-  <rect x="1425" y="380" width="110" height="70" rx="12" class="box" />
-  <text x="1480.0" y="404" text-anchor="middle" class="box-title">Rust</text>
-  <text x="1480.0" y="422" text-anchor="middle" class="box-small">private API</text>
-  <rect x="1255" y="510" width="280" height="75" rx="12" class="box" />
-  <text x="1395.0" y="532" text-anchor="middle" class="box-title">Podman volume</text>
-  <text x="1395.0" y="550" text-anchor="middle" class="box-small">hosts static content</text>
-  <text x="1395.0" y="565" text-anchor="middle" class="box-small">HTML, JSON, WebP</text>
-  <rect x="1640" y="290" width="200" height="75" rx="12" class="box" />
-  <text x="1740.0" y="314" text-anchor="middle" class="box-title">Autonomous DB</text>
-  <text x="1740.0" y="332" text-anchor="middle" class="box-small">catalog metadata</text>
-  <rect x="1640" y="415" width="200" height="75" rx="12" class="box" />
-  <text x="1740.0" y="439" text-anchor="middle" class="box-title">Object Storage</text>
-  <text x="1740.0" y="457" text-anchor="middle" class="box-small">private originals</text>
-  <rect x="1640" y="540" width="200" height="90" rx="12" class="box accent" />
-  <text x="1740.0" y="562" text-anchor="middle" class="box-title">OCI Vault</text>
-  <text x="1740.0" y="580" text-anchor="middle" class="box-small">DB password, wallet secret</text>
-  <text x="1740.0" y="595" text-anchor="middle" class="box-small">admin password hash</text>
+  <rect x="1255" y="400" width="100" height="70" rx="12" class="box" />
+  <text x="1305.0" y="424" text-anchor="middle" class="box-title">Caddy</text>
+  <text x="1305.0" y="442" text-anchor="middle" class="box-small">HTTPS origin</text>
+  <rect x="1425" y="400" width="110" height="70" rx="12" class="box" />
+  <text x="1480.0" y="424" text-anchor="middle" class="box-title">Rust</text>
+  <text x="1480.0" y="442" text-anchor="middle" class="box-small">private API</text>
+  <rect x="1255" y="525" width="280" height="75" rx="12" class="box" />
+  <text x="1395.0" y="547" text-anchor="middle" class="box-title">Podman volume</text>
+  <text x="1395.0" y="565" text-anchor="middle" class="box-small">hosts static content</text>
+  <text x="1395.0" y="580" text-anchor="middle" class="box-small">HTML, JSON, WebP</text>
+  <rect x="1640" y="340" width="200" height="75" rx="12" class="box" />
+  <text x="1740.0" y="364" text-anchor="middle" class="box-title">Autonomous DB</text>
+  <text x="1740.0" y="382" text-anchor="middle" class="box-small">catalog metadata</text>
+  <rect x="1640" y="455" width="200" height="75" rx="12" class="box" />
+  <text x="1740.0" y="479" text-anchor="middle" class="box-title">Object Storage</text>
+  <text x="1740.0" y="497" text-anchor="middle" class="box-small">private originals</text>
+  <rect x="1640" y="575" width="200" height="90" rx="12" class="box accent" />
+  <text x="1740.0" y="597" text-anchor="middle" class="box-title">OCI Vault</text>
+  <text x="1740.0" y="615" text-anchor="middle" class="box-small">DB password, wallet secret</text>
+  <text x="1740.0" y="630" text-anchor="middle" class="box-small">admin password hash</text>
   <rect x="50" y="235" width="190" height="75" rx="12" class="box external" />
   <text x="145.0" y="259" text-anchor="middle" class="box-title">End user</text>
   <text x="145.0" y="277" text-anchor="middle" class="box-small">public browser</text>
