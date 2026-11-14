@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.1](https://github.com/jetsaredim/autographs/compare/v0.10.0...v0.10.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **deps:** adapt OCI signing to RSA 0.10 ([d6d3755](https://github.com/jetsaredim/autographs/commit/d6d3755c98ee8f41f21a37a7f2ca17ac238251ac))
+* **deps:** update routine dependency updates ([d11e51d](https://github.com/jetsaredim/autographs/commit/d11e51d516055e412d50441faf69cf1a2530dc04))
+* **deps:** update routine dependency updates ([fdd4b6f](https://github.com/jetsaredim/autographs/commit/fdd4b6f482a8578aaa69b543af8e8ca9596c3eec))
+* serialize Terraform plans and document current architecture ([e37aeb9](https://github.com/jetsaredim/autographs/commit/e37aeb914b0617d817c0445a68fb7bf2e66170b6))
+* serialize Terraform plans and update architecture diagram ([6c65ca7](https://github.com/jetsaredim/autographs/commit/6c65ca7c1873f34748eaa3fd4566f7ab0a576309))
+* use OCI backend locking for cross-workflow Terraform plans ([0e85a75](https://github.com/jetsaredim/autographs/commit/0e85a75f41173a5008d6747415af65262f74d9b2))
+
 ## [0.10.0](https://github.com/jetsaredim/autographs/compare/v0.9.1...v0.10.0) (2026-11-13)
 
 
