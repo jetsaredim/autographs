@@ -1,28 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2020 960" role="img" aria-labelledby="title desc">
   <title id="title">Autographs architecture diagram</title>
-  <desc id="desc">Public visitors reach Caddy through the Cloudflare public cache and proxy route. The admin user develops through GitHub and reaches Caddy through the Cloudflare edge with caching bypassed. Porkbun delegates DNS to Cloudflare CDN configuration. GitHub CI workflows lint, validate syntax, and test. The CD pipeline uses release-please, publishes the controller image, and triggers deploy jobs. Deploy jobs use Terraform for OCI and Cloudflare and Ansible for the runtime. Lets Encrypt provides the Caddy origin certificate.</desc>
+  <desc id="desc">Public visitors reach Caddy through the Cloudflare public cache and proxy route. The admin user develops through GitHub and reaches Caddy through the Cloudflare edge with caching bypassed. Porkbun delegates DNS to Cloudflare CDN configuration. GitHub CI workflows lint, validate syntax, and test. The CD pipeline uses release-please, publishes the Rust publisher image, and triggers deploy jobs. Deploy jobs use Terraform for OCI and Cloudflare and Ansible for the runtime. Lets Encrypt provides the Caddy origin certificate.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#315f66" />
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#222222" />
     </marker>
     <style>
   .page-title { fill:#111; font:700 28px Arial,Helvetica,sans-serif; }
   .subtitle { fill:#3f3f46; font:13px Arial,Helvetica,sans-serif; }
   .zone { fill:#f4f4f5; stroke:#a1a1aa; stroke-width:1.5; }
-  .edge-zone { fill:#eef6f7; stroke:#6b9aa0; }
+  .edge-zone { fill:#f4f4f4; stroke:#a3a3a3; }
   .panel { fill:#fff; stroke:#b8c3bf; stroke-width:1.5; }
   .box { fill:#fff; stroke:#52525b; stroke-width:1.4; }
-  .accent { fill:#eef8f6; }
-  .flow { fill:none; stroke:#315f66; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrow); }
+  .accent { fill:#f4f4f4; }
+  .flow { fill:none; stroke:#222222; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; marker-end:url(#arrow); }
   .zone-title { fill:#111; font:700 20px Arial,Helvetica,sans-serif; }
   .zone-small { fill:#3f3f46; font:12px Arial,Helvetica,sans-serif; }
   .box-title { fill:#111; font:700 15px Arial,Helvetica,sans-serif; }
   .box-small { fill:#3f3f46; font:11px Arial,Helvetica,sans-serif; }
-  .flow-label { fill:#315f66; font:600 11px Arial,Helvetica,sans-serif; paint-order:stroke; stroke:#fff; stroke-width:4px; stroke-linejoin:round; }
+  .flow-label { fill:#222222; font:600 11px Arial,Helvetica,sans-serif; paint-order:stroke; stroke:#fff; stroke-width:4px; stroke-linejoin:round; }
+
+  .compact-title { font-size:13px; }
+  .number-marker { fill:#111; stroke:#111; stroke-width:1.5; }
+  .number-label { fill:#fff; font:700 14px Arial,Helvetica,sans-serif; }
 </style>
   </defs>
   <text x="50" y="55" class="page-title">Autographs architecture</text>
-  <text x="50" y="84" class="subtitle">Cloudflare fronts the public site; OCI runs Caddy, the Rust controller, private media, metadata, and Vault secrets.</text>
+  <text x="50" y="84" class="subtitle">Cloudflare fronts the public site; OCI runs Caddy, the Rust publisher, private media, metadata, and Vault secrets.</text>
   <rect x="430" y="130" width="500" height="280" rx="16" class="zone edge-zone" />
   <text x="450" y="163" class="zone-title">Cloudflare</text>
   <text x="450" y="183" class="zone-small">Authoritative DNS and HTTPS edge</text>
@@ -36,7 +40,7 @@
   <text x="1250" y="368" class="zone-title">Runtime VM</text>
   <text x="1250" y="388" class="zone-small">Podman containers and volume</text>
   <path d="M 240 270 C 360 270 445 245 560 245" class="flow" />
-  <path d="M 600 445 L 600 390" class="flow" />
+  <path d="M 645 480 C 660 480 675 455 675 430 L 675 390" class="flow" />
   <path d="M 675 325 C 675 317.5 675 287.5 675 280" class="flow" />
   <path d="M 790 245 C 960 245 1110 300 1170 405 C 1195 440 1220 450 1255 450" class="flow" />
   <path d="M 240 480 C 320 305 360 305 430 305 L 930 305 C 1060 305 1110 450 1255 450" class="flow" />
@@ -45,10 +49,10 @@
   <path d="M 665 700 L 665 745" class="flow" />
   <path d="M 740 792 C 775 792 800 792 835 792" class="flow" />
   <path d="M 740 765 C 785 765 790 668 835 668" class="flow" />
-  <path d="M 985 685 C 1080 685 1130 640 1230 640" class="flow" />
+  <path d="M 985 685 C 1080 685 1115 640 1170 640 L 1230 640" class="flow" />
   <path d="M 985 650 C 1050 650 1110 600 1200 600" class="flow" />
-  <path d="M 835 650 C 800 570 690 540 690 390" class="flow" />
-  <path d="M 985 792 C 1120 792 1110 640 1230 640" class="flow" />
+  <path d="M 835 650 C 800 575 675 555 675 430 L 675 390" class="flow" />
+  <path d="M 985 792 C 1110 792 1095 640 1170 640 L 1230 640" class="flow" />
   <path d="M 920 480 C 1060 480 1140 450 1255 450" class="flow" />
   <path d="M 1355 450 C 1366.67 450 1413.33 450 1425 450" class="flow" />
   <path d="M 1305 485 C 1305 494.167 1305 530.833 1305 540" class="flow" />
@@ -72,7 +76,7 @@
   <rect x="590" y="745" width="150" height="95" rx="12" class="box" />
   <text x="665.0" y="767" text-anchor="middle" class="box-title">CD pipeline</text>
   <text x="665.0" y="785" text-anchor="middle" class="box-small">release-please</text>
-  <text x="665.0" y="800" text-anchor="middle" class="box-small">controller image publish</text>
+  <text x="665.0" y="800" text-anchor="middle" class="box-small">image build + publish</text>
   <text x="665.0" y="815" text-anchor="middle" class="box-small">trigger deployment</text>
   <rect x="835" y="625" width="150" height="85" rx="12" class="box" />
   <text x="910.0" y="647" text-anchor="middle" class="box-title">Deploy jobs</text>
@@ -80,12 +84,12 @@
   <text x="910.0" y="680" text-anchor="middle" class="box-small">Ansible</text>
   <rect x="835" y="755" width="150" height="75" rx="12" class="box" />
   <text x="910.0" y="779" text-anchor="middle" class="box-title">GHCR</text>
-  <text x="910.0" y="797" text-anchor="middle" class="box-small">controller image</text>
+  <text x="910.0" y="797" text-anchor="middle" class="box-small">Rust publisher image</text>
   <rect x="1255" y="415" width="100" height="70" rx="12" class="box" />
   <text x="1305.0" y="439" text-anchor="middle" class="box-title">Caddy</text>
   <text x="1305.0" y="457" text-anchor="middle" class="box-small">HTTPS origin</text>
   <rect x="1425" y="415" width="110" height="70" rx="12" class="box" />
-  <text x="1480.0" y="439" text-anchor="middle" class="box-title">Rust</text>
+  <text x="1480.0" y="439" text-anchor="middle" class="box-title compact-title">Rust publisher</text>
   <text x="1480.0" y="457" text-anchor="middle" class="box-small">private API</text>
   <rect x="1255" y="540" width="280" height="75" rx="12" class="box" />
   <text x="1395.0" y="562" text-anchor="middle" class="box-title">Podman volume</text>
@@ -96,7 +100,7 @@
   <text x="1740.0" y="382" text-anchor="middle" class="box-small">catalog metadata</text>
   <rect x="1640" y="455" width="200" height="75" rx="12" class="box" />
   <text x="1740.0" y="479" text-anchor="middle" class="box-title">Object Storage</text>
-  <text x="1740.0" y="497" text-anchor="middle" class="box-small">private originals</text>
+  <text x="1740.0" y="497" text-anchor="middle" class="box-small">original images</text>
   <rect x="1640" y="575" width="200" height="90" rx="12" class="box accent" />
   <text x="1740.0" y="597" text-anchor="middle" class="box-title">OCI Vault</text>
   <text x="1740.0" y="615" text-anchor="middle" class="box-small">DB password, wallet secret</text>
@@ -113,4 +117,84 @@
   <rect x="735" y="445" width="185" height="70" rx="12" class="box external" />
   <text x="827.5" y="469" text-anchor="middle" class="box-title">Let's Encrypt</text>
   <text x="827.5" y="487" text-anchor="middle" class="box-small">origin certificate</text>
+  <g aria-label="1. Run the free-tier VM">
+    <title>1. Run the free-tier VM</title>
+    <circle cx="1480" cy="375" r="17" class="number-marker" />
+    <text x="1480" y="380" text-anchor="middle" class="number-label">1</text>
+  </g>
+  <g aria-label="2. Manage the collection">
+    <title>2. Manage the collection</title>
+    <circle cx="1450" cy="512" r="17" class="number-marker" />
+    <text x="1450" y="517" text-anchor="middle" class="number-label">2</text>
+  </g>
+  <g aria-label="3. Use catalog metadata">
+    <title>3. Use catalog metadata</title>
+    <circle cx="1600" cy="391" r="17" class="number-marker" />
+    <text x="1600" y="396" text-anchor="middle" class="number-label">3</text>
+  </g>
+  <g aria-label="4. Store original images">
+    <title>4. Store original images</title>
+    <circle cx="1600" cy="481" r="17" class="number-marker" />
+    <text x="1600" y="486" text-anchor="middle" class="number-label">4</text>
+  </g>
+  <g aria-label="5. Load runtime secrets">
+    <title>5. Load runtime secrets</title>
+    <circle cx="1600" cy="586" r="17" class="number-marker" />
+    <text x="1600" y="591" text-anchor="middle" class="number-label">5</text>
+  </g>
+  <g aria-label="6. Build and serve static releases">
+    <title>6. Build and serve static releases</title>
+    <circle cx="1335" cy="512" r="17" class="number-marker" />
+    <text x="1335" y="517" text-anchor="middle" class="number-label">6</text>
+  </g>
+  <g aria-label="7. Secure origin HTTPS">
+    <title>7. Secure origin HTTPS</title>
+    <circle cx="1060" cy="470" r="17" class="number-marker" />
+    <text x="1060" y="475" text-anchor="middle" class="number-label">7</text>
+  </g>
+  <g aria-label="8. Validate changes">
+    <title>8. Validate changes</title>
+    <circle cx="540" cy="697" r="17" class="number-marker" />
+    <text x="540" y="702" text-anchor="middle" class="number-label">8</text>
+  </g>
+  <g aria-label="9. Gate the release">
+    <title>9. Gate the release</title>
+    <circle cx="640" cy="722" r="17" class="number-marker" />
+    <text x="640" y="727" text-anchor="middle" class="number-label">9</text>
+  </g>
+  <g aria-label="10. Publish the runtime image">
+    <title>10. Publish the runtime image</title>
+    <circle cx="785" cy="792" r="17" class="number-marker" />
+    <text x="785" y="797" text-anchor="middle" class="number-label">10</text>
+  </g>
+  <g aria-label="11. Trigger deploy jobs">
+    <title>11. Trigger deploy jobs</title>
+    <circle cx="785" cy="730" r="17" class="number-marker" />
+    <text x="785" y="735" text-anchor="middle" class="number-label">11</text>
+  </g>
+  <g aria-label="12. Apply OCI infrastructure">
+    <title>12. Apply OCI infrastructure</title>
+    <circle cx="1095" cy="621" r="17" class="number-marker" />
+    <text x="1095" y="626" text-anchor="middle" class="number-label">12</text>
+  </g>
+  <g aria-label="13. Configure the runtime VM">
+    <title>13. Configure the runtime VM</title>
+    <circle cx="1170" cy="640" r="17" class="number-marker" />
+    <text x="1170" y="645" text-anchor="middle" class="number-label">13</text>
+  </g>
+  <g aria-label="14. Manage DNS and edge configuration">
+    <title>14. Manage DNS and edge configuration</title>
+    <circle cx="675" cy="430" r="17" class="number-marker" />
+    <text x="675" y="435" text-anchor="middle" class="number-label">14</text>
+  </g>
+  <g aria-label="15. Manage content through the admin route">
+    <title>15. Manage content through the admin route</title>
+    <circle cx="345" cy="322" r="17" class="number-marker" />
+    <text x="345" y="327" text-anchor="middle" class="number-label">15</text>
+  </g>
+  <g aria-label="16. Deliver the public site">
+    <title>16. Deliver the public site</title>
+    <circle cx="370" cy="261" r="17" class="number-marker" />
+    <text x="370" y="266" text-anchor="middle" class="number-label">16</text>
+  </g>
 </svg>
