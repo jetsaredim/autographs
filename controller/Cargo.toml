@@ -30,15 +30,16 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 time = { version = "0.3.55", features = ["formatting", "serde"] }
 tokio = { version = "1.54.1", features = ["fs", "macros", "net", "rt-multi-thread", "sync", "time"] }
-uuid = { version = "1.29.0", features = ["serde", "v4"] }
+uuid = { version = "1.29.2", features = ["serde", "v4"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23" , features = ["env-filter", "fmt"] }
-oracledb = { version = "26.0.0-beta.5", optional = true }
+oracledb = { version = "26.0.0-beta.6", optional = true }
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"], optional = true }
-rsa = { version = "0.9.10", features = ["sha2"], optional = true }
-sha1 = { version = "0.10", optional = true }
-sha2 = "0.10"
+rsa = { version = "0.10.0", features = ["pkcs1v15"], optional = true }
+sha1 = { version = "0.11", optional = true }
+sha2 = "0.11"
 x509-parser = { version = "0.18.1", optional = true }
+getrandom = { version = "0.4", features = ["sys_rng"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"

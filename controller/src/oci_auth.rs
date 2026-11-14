@@ -6,16 +6,16 @@ use std::{
 use base64::{
     Engine as _, engine::general_purpose::STANDARD, engine::general_purpose::URL_SAFE_NO_PAD,
 };
+use getrandom::SysRng;
 use reqwest::{
     Client, Method,
     header::{HeaderMap, HeaderValue},
 };
 use rsa::{
-    RsaPrivateKey,
+    PrivateKey,
     pkcs1::DecodeRsaPrivateKey,
     pkcs1v15::SigningKey,
     pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding},
-    rand_core::OsRng,
     signature::{SignatureEncoding, Signer},
 };
 use serde::Deserialize;
@@ -139,7 +139,7 @@ impl OciInstancePrincipalClient {
         let intermediate_cert = self.metadata_text("/identity/intermediate.pem").await?;
         let tenancy_id = tenancy_id_from_cert(&leaf_cert)?;
 
-        let session_private_key = RsaPrivateKey::new(&mut OsRng, 2048).map_err(|error| {
+        let session_private_key = PrivateKey::new(&mut SysRng, 2048).map_err(|error| {
             format!("generate OCI instance-principal session private key: {error}")
         })?;
         let session_private_key_pem = session_private_key
@@ -291,9 +291,9 @@ fn sign_headers(
     Ok(headers)
 }
 
-fn parse_private_key(private_key_pem: &str) -> Result<RsaPrivateKey, String> {
-    RsaPrivateKey::from_pkcs8_pem(private_key_pem)
-        .or_else(|_| RsaPrivateKey::from_pkcs1_pem(private_key_pem))
+fn parse_private_key(private_key_pem: &str) -> Result<PrivateKey, String> {
+    PrivateKey::from_pkcs8_pem(private_key_pem)
+        .or_else(|_| PrivateKey::from_pkcs1_pem(private_key_pem))
         .map_err(|error| format!("parse OCI private key: {error}"))
 }
 
@@ -506,7 +506,7 @@ mod tests {
     }
 
     fn generated_private_key_pem() -> String {
-        RsaPrivateKey::new(&mut OsRng, 2048)
+        PrivateKey::new(&mut SysRng, 2048)
             .expect("test key generation")
             .to_pkcs8_pem(LineEnding::LF)
             .expect("test key encoding")

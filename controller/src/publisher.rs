@@ -2224,7 +2224,10 @@ fn history_dir(root: &Path) -> PathBuf {
 }
 
 fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn atomic_json<T: Serialize>(directory: &Path, name: &str, value: &T) -> Result<(), String> {
