@@ -4,11 +4,23 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Autographs | Architecture</title>
-    <meta name="description" content="End-to-end architecture for the Autographs deployment path from GitHub through OCI and Caddy.">
+    <meta name="description" content="Autographs architecture: GitHub delivery, Cloudflare DNS and caching, Caddy, Rust, and OCI private data and secrets.">
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" href="/icon.png" type="image/png">
     <link rel="apple-touch-icon" href="/icon.png">
     <link rel="stylesheet" href="/assets/site.css">
+    <style>
+      :root, body { background: #fafafa; color: #222; }
+      .architecture-shell { color: #222; }
+      .architecture-diagram { background: #f3f3f3; }
+      .architecture-diagram-image, .workflow-table { border-color: #d4d4d4; }
+      .workflow-table th, .workflow-table td { border-bottom-color: #d4d4d4; }
+      .workflow-table thead th { background: #ededed; color: #111; }
+      .workflow-table .flow-group th { background: #e4e4e4; color: #111; text-align: left; font-size: 0.88rem; letter-spacing: .02em; }
+      .workflow-table td:nth-child(3) { color: #555; }
+      .workflow-table .step-badge { background: #111; color: #fff; }
+    </style>
+    <link rel="stylesheet" href="/assets/architecture-zoom.css">
   </head>
   <body>
     <main class="architecture-shell">
@@ -18,7 +30,7 @@
           <span class="breadcrumb-item"><span aria-hidden="true">&gt;</span><span>About</span></span>
         </nav>
         <h1 id="architecture-title">Autographs system overview</h1>
-        <p class="lede">The goal is to serve my autograph collection images on a public website using only OCI Free Tier resources and GitHub CI/CD automation for management. This page documents the full target solution: GitHub owns source control, validation, image publishing, and deployment automation; OCI runs the Caddy-served static public site, Rust private controller, Autonomous Database metadata, and private Object Storage media.</p>
+        <p class="lede">GitHub validates changes and deploys released Rust publisher images. Cloudflare handles authoritative DNS, HTTPS proxying, and caching of public media. OCI runs Caddy, the static public site, Rust publisher, Autonomous Database, private Object Storage media, and Vault secrets.</p>
       </section>
 
       <section class="diagram-card" aria-labelledby="diagram-title">
@@ -26,13 +38,32 @@
           <h2 id="diagram-title">System diagram</h2>
         </div>
         <div class="architecture-diagram">
-          <img class="architecture-diagram-image" src="./architecture-diagram.svg" width="1280" height="760" alt="Autographs architecture diagram showing GitHub repository changes flowing through pull request CI, deploy workflow, GHCR image publishing, Terraform-managed OCI resources, an OCI runtime VM, Caddy, the generated static public site, the Rust private controller, Autonomous Database, private Object Storage, Let's Encrypt, public browser traffic, and collection management.">
+          <button type="button" class="architecture-zoom-trigger" id="architecture-zoom-trigger" aria-haspopup="dialog" aria-controls="architecture-zoom-dialog" aria-label="Open architecture diagram zoom view">
+            <img class="architecture-diagram-image" src="./architecture-diagram.svg" width="2020" height="960" alt="Numbered Autographs architecture diagram with Cloudflare above GitHub and a wider space before OCI. The public, admin, and Let's Encrypt paths converge at the middle of Caddy's left edge. The Rust publisher connects from one exit point to Autonomous Database, Object Storage, and Vault; Vault has a return arc to the database. GitHub deployment connects to CDN config and the runtime VM.">
+          </button>
         </div>
       </section>
 
+      <dialog id="architecture-zoom-dialog" class="architecture-zoom-dialog" aria-label="Architecture diagram zoom view">
+        <div class="architecture-zoom-toolbar">
+          <strong>Architecture diagram</strong>
+          <div class="architecture-zoom-actions">
+            <button type="button" data-zoom-out aria-label="Zoom out">−</button>
+            <output id="architecture-zoom-level" aria-live="off">Fit</output>
+            <button type="button" data-zoom-in aria-label="Zoom in">+</button>
+            <button type="button" data-zoom-reset>Fit</button>
+            <button type="button" data-zoom-close>Close</button>
+          </div>
+        </div>
+        <div class="architecture-zoom-viewport" id="architecture-zoom-viewport" tabindex="0" aria-label="Diagram: drag to pan; scroll to zoom">
+          <img id="architecture-zoom-image" src="./architecture-diagram.svg" width="2020" height="960" alt="Enlarged numbered Autographs architecture diagram" draggable="false">
+        </div>
+        <p class="architecture-zoom-hint">Scroll to zoom · drag to pan · press Esc to close</p>
+      </dialog>
+
       <section class="workflow-card" aria-labelledby="workflow-title">
         <div class="section-heading">
-          <p class="eyebrow">Numbered flows</p>
+          <p class="eyebrow">16 numbered flows</p>
           <h2 id="workflow-title">Workflow step definitions</h2>
         </div>
         <div class="workflow-table-wrap">
@@ -45,16 +76,26 @@
               </tr>
             </thead>
             <tbody>
-              <tr><td><span class="step-badge">1</span></td><td>Bootstrap tenancy with Terraform</td><td>The admin user runs the manual Terraform bootstrap that creates the compartment, deploy identity, policies, and state bucket.</td></tr>
-              <tr><td><span class="step-badge">2</span></td><td>Push code to GitHub</td><td>The admin/developer pushes application, infrastructure, and deployment changes to the GitHub repository.</td></tr>
-              <tr><td><span class="step-badge">3</span></td><td>Validate pull requests</td><td>Repository changes run the PR validation workflow before merge, including app and infrastructure checks.</td></tr>
-              <tr><td><span class="step-badge">4</span></td><td>Deploy from main</td><td>A merge to main starts the deploy workflow that builds the app and prepares the runtime update.</td></tr>
-              <tr><td><span class="step-badge">5</span></td><td>Provision OCI runtime with Terraform</td><td>GitHub Actions uses Terraform and the deploy identity to provision or update OCI resources, including the VCN, public subnet, runtime NSG, and VM.</td></tr>
-              <tr><td><span class="step-badge">6</span></td><td>Publish the app image</td><td>The deploy workflow publishes a Git-SHA-tagged container image to GHCR for the VM to pull.</td></tr>
-              <tr><td><span class="step-badge">7</span></td><td>Serve public traffic</td><td>End users reach Caddy over HTTPS through the public subnet and runtime NSG; Caddy serves the generated static release from the shared static volume.</td></tr>
-              <tr><td><span class="step-badge">8</span></td><td>Read and write private data</td><td>The Rust private controller uses controlled server-side paths to access Autonomous Database metadata and private Object Storage images while publishing public-safe static artifacts.</td></tr>
-              <tr><td><span class="step-badge">9</span></td><td>Manage TLS certificates</td><td>Caddy uses Let's Encrypt to obtain and renew the public HTTPS certificate for the Autographs domain.</td></tr>
-              <tr><td><span class="step-badge">10</span></td><td>Manage collection content</td><td>The Rust private controller and minimal static admin seed/publish path replace the temporary operator bridge; Phase 6 polishes the admin workflow, and Phase 7 later adds advisory AI metadata suggestions.</td></tr>
+              <tr class="flow-group"><th colspan="3" scope="colgroup">Runtime and private OCI services</th></tr>
+              <tr><td><span class="step-badge">1</span></td><td>Run the free-tier VM</td><td>The runtime is one OCI Always Free VM.Standard.E2.1.Micro instance with 1 OCPU and 1 GB of memory. Podman quadlets define the containers, network, and volumes that systemd manages.</td></tr>
+              <tr><td><span class="step-badge">2</span></td><td>Manage the collection</td><td>The Rust publisher is the private admin service. It saves autograph metadata to Autonomous Database, uploads original item images to private Object Storage, applies image adjustments, and publishes static releases.</td></tr>
+              <tr><td><span class="step-badge">3</span></td><td>Use catalog metadata</td><td>The Rust publisher reads and writes autograph catalog metadata in Autonomous Database.</td></tr>
+              <tr><td><span class="step-badge">4</span></td><td>Store original images</td><td>The Rust publisher uses the VM instance principal to upload and read original images of autographed items in private OCI Object Storage.</td></tr>
+              <tr><td><span class="step-badge">5</span></td><td>Load runtime secrets</td><td>Using the VM instance principal, the Rust publisher reads three Vault secrets: the Autonomous Database password, the database wallet password, and the admin password hash. OCI automatically generates and regularly rotates the ADB password in coordination with the database.</td></tr>
+              <tr><td><span class="step-badge">6</span></td><td>Build and serve static releases</td><td>The Rust publisher generates and validates public-safe releases in the Podman volume. Caddy serves the active HTML, JSON, and image derivatives: web-ready copies of the original images, such as thumbnails and detail images.</td></tr>
+              <tr><td><span class="step-badge">7</span></td><td>Secure origin HTTPS</td><td>Caddy obtains and renews its origin certificate with Let's Encrypt. Cloudflare validates the origin with Full (strict) TLS.</td></tr>
+              <tr class="flow-group"><th colspan="3" scope="colgroup">Delivery and infrastructure</th></tr>
+              <tr><td><span class="step-badge">8</span></td><td>Validate changes</td><td>The admin updates the repository. Pull requests run static code analysis, tests, infrastructure validation, and workflow checks; Terraform plans share the state lock.</td></tr>
+              <tr><td><span class="step-badge">9</span></td><td>Gate the release</td><td>Ordinary merges collect in a release-please PR. Merging that PR starts the production CD pipeline.</td></tr>
+              <tr><td><span class="step-badge">10</span></td><td>Publish the runtime image</td><td>The CD pipeline builds and publishes the released Rust publisher image to GHCR; the runtime VM pulls that image.</td></tr>
+              <tr><td><span class="step-badge">11</span></td><td>Trigger deploy jobs</td><td>The CD pipeline starts deploy jobs after the release is accepted and the Rust publisher image is available.</td></tr>
+              <tr><td><span class="step-badge">12</span></td><td>Apply OCI infrastructure</td><td>Terraform applies the OCI resources required by the runtime and its private services.</td></tr>
+              <tr><td><span class="step-badge">13</span></td><td>Configure the runtime VM</td><td>Ansible configures the VM, installs the quadlets, and deploys the Caddy and Rust publisher runtime files.</td></tr>
+              <tr><td><span class="step-badge">14</span></td><td>Manage DNS and edge configuration</td><td>Terraform manages Cloudflare DNS records and edge rules. Porkbun delegates jetsaredim.net to Cloudflare nameservers.</td></tr>
+              <tr class="flow-group"><th colspan="3" scope="colgroup">Admin workflow</th></tr>
+              <tr><td><span class="step-badge">15</span></td><td>Manage content through the admin route</td><td>Admin HTTPS requests cross Cloudflare without caching. Caddy routes them to the Rust publisher, where the admin saves item edits, uploads or adjusts images, reviews pending changes, and publishes them.</td></tr>
+              <tr class="flow-group"><th colspan="3" scope="colgroup">Public browsing</th></tr>
+              <tr><td><span class="step-badge">16</span></td><td>Deliver the public site</td><td>Visitors reach Cloudflare over HTTPS, and its public route forwards requests to Caddy. Cloudflare caches versioned web-ready image copies while public HTML and JSON stay fresh.</td></tr>
             </tbody>
           </table>
         </div>
@@ -63,5 +104,6 @@
       <footer class="public-footer"><a href="/">Jared Greenwald's Autograph Gallery</a><span aria-hidden="true">•</span><a href="/architecture/">About</a></footer>
       <script src="/assets/footer.js"></script>
     </main>
+    <script src="/assets/architecture-zoom.js"></script>
   </body>
 </html>

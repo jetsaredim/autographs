@@ -1,0 +1,116 @@
+.architecture-zoom-trigger {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.architecture-zoom-trigger:focus-visible {
+  outline: 3px solid #111;
+  outline-offset: 4px;
+}
+
+.architecture-zoom-dialog {
+  width: min(96vw, 1600px);
+  height: min(94vh, 1000px);
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 1px solid #555;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  overflow: hidden;
+}
+
+.architecture-zoom-dialog:not([open]) {
+  display: none;
+}
+
+.architecture-zoom-dialog[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.architecture-zoom-dialog::backdrop {
+  background: rgb(0 0 0 / 78%);
+}
+
+.architecture-zoom-toolbar,
+.architecture-zoom-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.architecture-zoom-toolbar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid #d4d4d4;
+}
+
+.architecture-zoom-actions button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid #888;
+  border-radius: 5px;
+  background: #fff;
+  color: #111;
+  cursor: pointer;
+}
+
+.architecture-zoom-actions button:hover {
+  background: #eee;
+}
+
+.architecture-zoom-actions output {
+  min-width: 48px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.architecture-zoom-viewport {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  cursor: zoom-in;
+  touch-action: none;
+  user-select: none;
+}
+
+.architecture-zoom-viewport.is-pannable {
+  cursor: grab;
+}
+
+.architecture-zoom-viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.architecture-zoom-viewport img {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+.architecture-zoom-hint {
+  margin: 0;
+  padding: 8px 16px;
+  border-top: 1px solid #d4d4d4;
+  color: #555;
+  font-size: 13px;
+}
+
+@media (max-width: 600px) {
+  .architecture-zoom-toolbar {
+    align-items: flex-start;
+  }
+
+  .architecture-zoom-actions {
+    flex-wrap: wrap;
+  }
+}
