@@ -522,6 +522,13 @@ when publishing fails; `None` means that stage was not reached. Media verificati
 and copying logs report file and byte totals; pruning logs report removed release
 directories and shared-media file and byte totals.
 
+The publish-history performance baseline and verification-call inventory are in
+`docs/publish-performance-review.md`. The cleanup path carries its verified
+history snapshot from post-commit reconciliation through both pruning steps.
+Expect three
+full `static publish media history verified` passes on a normal incremental
+publish after that change is deployed; a recovery or failure path may differ.
+
 The deployed env file sets:
 
 ```text
