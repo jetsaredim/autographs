@@ -82,10 +82,14 @@ so a controller deployment is unnecessary to validate a Terraform default or
 GitHub Actions fallback change. Do not delete the GitHub values before the
 new workflow code is on `main`. If the post-removal plan is not clean, restore
 both variables to `true` before any apply. This plan handles missing values
-under the existing conditional design. A later removal of the Terraform
-switches themselves would still require the full conditional-consumer and
-state-address refactor described above. IAC-002's broader destructive-plan
-policy remains a separate review decision.
+under the existing conditional design and keeps the existing `[0]` resource
+addresses. A later removal of the Terraform switches themselves must update
+their conditional consumers and move each affected counted instance, such as
+`module.data_services.oci_database_autonomous_database.catalog[0]` and
+`module.data_services.oci_objectstorage_bucket.media[0]`, to its new address
+with reviewed `moved` blocks or an equivalent state migration. That later PR
+must show a no-destroy, no-recreate production plan before apply. IAC-002's
+broader destructive-plan policy remains a separate review decision.
 
 ## Switch census and direct boundaries
 
