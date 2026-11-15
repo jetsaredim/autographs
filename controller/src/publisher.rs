@@ -51,7 +51,7 @@ const SAFE_RELEASE_CLEANUP_WARNING: &str = "The release is active, but old relea
 const SHARED_MEDIA_MIN_AGE_SECONDS: u64 = 86_400;
 const MEDIA_HISTORY_VERSION: u32 = 1;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct MediaCommitHistory {
     version: u32,
     current_release_id: Option<String>,
@@ -59,7 +59,7 @@ struct MediaCommitHistory {
     transitions: Vec<MediaCommitTransition>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct MediaCommitReceipt {
     manifest_sha256: String,
     media: BTreeMap<String, String>,
@@ -80,7 +80,7 @@ impl MediaReadStats {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct MediaCommitTransition {
     from: Option<String>,
     to: String,
@@ -1038,10 +1038,14 @@ impl LocalPublisher {
         }
 
         let cleanup_started = Instant::now();
-        let cleanup_warning = if commit_result.is_ok() {
-            post_promotion_cleanup(&self.root, &release_id, self.retention_policy)
-        } else {
-            Some(SAFE_RELEASE_CLEANUP_WARNING.to_owned())
+        let cleanup_warning = match &commit_result {
+            Ok(verified_history) => post_promotion_cleanup(
+                &self.root,
+                &release_id,
+                self.retention_policy,
+                verified_history,
+            ),
+            Err(_) => Some(SAFE_RELEASE_CLEANUP_WARNING.to_owned()),
         };
         tracing::info!(
             release_id = %release_id,
@@ -2343,18 +2347,6 @@ fn release_receipt_with_stats(
     })
 }
 
-fn load_history(root: &Path) -> Result<MediaCommitHistory, String> {
-    let path = history_dir(root).join("history.json");
-    let history: MediaCommitHistory = read_json(&path)?;
-    if history.version != MEDIA_HISTORY_VERSION
-        || history.current_release_id != current_release_name(root)?
-    {
-        return Err("media commit history and current pointer disagree".to_owned());
-    }
-    verify_history(root, &history)?;
-    Ok(history)
-}
-
 fn verify_history(root: &Path, history: &MediaCommitHistory) -> Result<(), String> {
     let started = Instant::now();
     if history.version != MEDIA_HISTORY_VERSION {
@@ -2548,7 +2540,7 @@ fn commit_candidate_with<F>(
     release_id: &str,
     manifest: &PublishManifest,
     promote: F,
-) -> Result<(), String>
+) -> Result<MediaCommitHistory, String>
 where
     F: FnOnce(&Path, &str) -> Result<(), String>,
 {
@@ -2604,10 +2596,10 @@ where
         }
         return Err(error);
     }
-    timed_publish_step(release_id, "reconcileAfterCommit", || {
+    let verified_history = timed_publish_step(release_id, "reconcileAfterCommit", || {
         reconcile_history(root)
     })?;
-    Ok(())
+    Ok(verified_history)
 }
 
 fn timed_publish_step<T>(
@@ -2740,8 +2732,9 @@ fn validate_manifest_tombstones(root: &Path, manifest: &PublishManifest) -> Resu
 fn prune_promoted_releases(
     root: &Path,
     retention_policy: ReleaseRetentionPolicy,
+    history: &MediaCommitHistory,
 ) -> Result<(), String> {
-    let history = load_history(root)?;
+    ensure_cleanup_history_snapshot(root, history)?;
     for release in release_directories(&root.join("releases"))? {
         if !history.releases.contains_key(&release.name) {
             retain_failed_candidates(root, &release.path, retention_policy)?;
@@ -2803,15 +2796,20 @@ fn post_promotion_cleanup(
     root: &Path,
     release_id: &str,
     retention_policy: ReleaseRetentionPolicy,
+    verified_history: &MediaCommitHistory,
 ) -> Option<String> {
     let result = (|| {
         timed_publish_step(release_id, "synchronizeCurrentMedia", || {
             copy_release_media_to_shared(root, &root.join("current"))
         })?;
+        // Post-commit reconciliation verified this snapshot; cleanup keeps checking
+        // the pointer and fresh tombstones while avoiding two full media rereads.
         timed_publish_step(release_id, "pruneReleases", || {
-            prune_promoted_releases(root, retention_policy)
+            prune_promoted_releases(root, retention_policy, verified_history)
         })?;
-        timed_publish_step(release_id, "pruneSharedMedia", || prune_shared_media(root))?;
+        timed_publish_step(release_id, "pruneSharedMedia", || {
+            prune_shared_media(root, verified_history)
+        })?;
         Ok::<(), String>(())
     })();
     match result {
@@ -2827,8 +2825,8 @@ fn post_promotion_cleanup(
     }
 }
 
-fn prune_shared_media(root: &Path) -> Result<(), String> {
-    let history = load_history(root)?;
+fn prune_shared_media(root: &Path, history: &MediaCommitHistory) -> Result<(), String> {
+    ensure_cleanup_history_snapshot(root, history)?;
     let mut referenced = BTreeSet::new();
     for release in release_directories(&root.join("releases"))? {
         if !history.releases.contains_key(&release.name) {
@@ -2902,6 +2900,21 @@ fn prune_shared_media(root: &Path) -> Result<(), String> {
         unknown_deleted_byte_count,
         "static publish shared media pruning completed"
     );
+    Ok(())
+}
+
+fn ensure_cleanup_history_snapshot(
+    root: &Path,
+    history: &MediaCommitHistory,
+) -> Result<(), String> {
+    if current_release_name(root)? != history.current_release_id {
+        return Err("media commit history and current pointer disagree".to_owned());
+    }
+    if history_dir(root).join("intent.json").exists()
+        || read_json::<MediaCommitHistory>(&history_dir(root).join("history.json"))? != *history
+    {
+        return Err("media commit history changed during cleanup".to_owned());
+    }
     Ok(())
 }
 
@@ -3637,7 +3650,7 @@ mod tests {
         commit_candidate_with(root.path(), "a", &a_manifest, promote_candidate).unwrap();
         copy_release_media_to_shared(root.path(), &root.path().join("current")).unwrap();
         let (b_path, _) = make_release("b", b"RIFF0000WEBPcandidate B");
-        let old = load_history(root.path()).unwrap();
+        let old = reconcile_history(root.path()).unwrap();
         let new_receipt = release_receipt(root.path(), "b").unwrap();
         let intent = MediaCommitIntent {
             version: MEDIA_HISTORY_VERSION,
@@ -3666,6 +3679,33 @@ mod tests {
         assert!(recovered.releases["a"].last_active_end.is_some());
         assert!(root.path().join(&a_path).exists());
         assert!(!history_dir(root.path()).join("intent.json").exists());
+        assert!(
+            prune_promoted_releases(root.path(), ReleaseRetentionPolicy::new(1, 1), &old).is_err()
+        );
+        assert!(prune_shared_media(root.path(), &old).is_err());
+        let mut drifted = recovered.clone();
+        drifted.version = 0;
+        atomic_json(&history_dir(root.path()), "history.json", &drifted).unwrap();
+        assert!(
+            prune_promoted_releases(root.path(), ReleaseRetentionPolicy::new(1, 1), &recovered)
+                .is_err()
+        );
+        atomic_json(&history_dir(root.path()), "history.json", &recovered).unwrap();
+        atomic_json(&history_dir(root.path()), "intent.json", &intent).unwrap();
+        assert!(prune_shared_media(root.path(), &recovered).is_err());
+        clear_intent(root.path()).unwrap();
+        fs::write(root.path().join(&a_path), b"corrupt shared media").unwrap();
+        assert_eq!(
+            post_promotion_cleanup(
+                root.path(),
+                "b",
+                ReleaseRetentionPolicy::new(1, 1),
+                &recovered,
+            )
+            .as_deref(),
+            Some(SAFE_RELEASE_CLEANUP_WARNING)
+        );
+        assert!(root.path().join("releases/a").is_dir());
         let mut corrupt = recovered;
         corrupt.version = 0;
         atomic_json(&history_dir(root.path()), "history.json", &corrupt).unwrap();
@@ -3711,16 +3751,50 @@ mod tests {
         fs::create_dir_all(releases.join("old-release")).unwrap();
         fs::create_dir_all(releases.join("new-release")).unwrap();
         fs::write(releases.join("new-release/index.html"), b"active").unwrap();
+        write_json(
+            &releases.join("new-release"),
+            "manifest.json",
+            &PublishManifest::new("new-release", "2026-01-01T00:00:00Z", vec![]),
+        )
+        .unwrap();
         write_admin_image_map(root.path(), "new-release", &[]).unwrap();
 
         let old_map = admin_image_map_path(root.path(), "old-release");
         fs::create_dir_all(&old_map).unwrap();
         promote_candidate(root.path(), "new-release").unwrap();
 
+        let verified_history = MediaCommitHistory {
+            version: MEDIA_HISTORY_VERSION,
+            current_release_id: Some("new-release".to_owned()),
+            releases: BTreeMap::from([
+                (
+                    "old-release".to_owned(),
+                    MediaCommitReceipt {
+                        manifest_sha256: "a".repeat(64),
+                        media: BTreeMap::new(),
+                        first_committed_at: 0,
+                        last_active_end: Some(0),
+                    },
+                ),
+                (
+                    "new-release".to_owned(),
+                    MediaCommitReceipt {
+                        manifest_sha256: "b".repeat(64),
+                        media: BTreeMap::new(),
+                        first_committed_at: 0,
+                        last_active_end: None,
+                    },
+                ),
+            ]),
+            transitions: Vec::new(),
+        };
+        atomic_json(&history_dir(root.path()), "history.json", &verified_history).unwrap();
+
         let warning = post_promotion_cleanup(
             root.path(),
             "new-release",
             ReleaseRetentionPolicy::new(1, 1),
+            &verified_history,
         );
 
         assert_eq!(warning.as_deref(), Some(SAFE_RELEASE_CLEANUP_WARNING));
