@@ -61,6 +61,28 @@ inventory. IAC-001 and IAC-002 share the stateful-resource preservation
 invariant and require a production state/plan audit plus producer and consumer
 trace before an implementation plan is selected.
 
+### Candidate resolution for IAC-001
+
+The owner proposed making `true` the code default for the two production
+resource-creation switches and then removing their GitHub Actions variables.
+That is a coherent simplification if it changes **both** the Terraform root
+defaults and the `vars.* || 'false'` fallbacks in CI, release deploy, and the
+Cloudflare operator workflow. Changing only Terraform's defaults would have no
+effect in those workflows because they always set `TF_VAR_*`. An explicit
+`false` remains available for the documented initial bootstrap before Vault
+secrets and the Object Storage namespace are ready.
+
+Sequence: change and validate the code while the GitHub variables remain
+`true`; obtain a production no-change plan; merge and deploy the new workflow
+defaults; remove the two GitHub variables; then run another read-only
+production plan to prove the fallback keeps the ADB and media bucket at their
+existing state addresses. Do not delete the GitHub values before the new
+workflow code is live. This plan handles missing values under the existing
+conditional design. A later removal of the Terraform switches themselves
+would still require the full conditional-consumer and state-address refactor
+described above. IAC-002's broader destructive-plan policy remains a separate
+review decision.
+
 ## Switch census and direct boundaries
 
 This census covers root Terraform Boolean/mode inputs, production Ansible
