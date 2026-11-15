@@ -33,13 +33,24 @@ The first three values differ from Terraform's `off`/`false` defaults. This
 variable query alone does not establish the corresponding Terraform state or
 plan result. Secret values were not read.
 
+There are two different cases in this review. **Missing configuration with the
+current code** means a GitHub Actions variable disappears while the workflow
+still supplies its `false` fallback; the existing Terraform `count` expressions
+then evaluate to zero. **Deliberately removing a switch from the code** is a
+refactor: its workflow input, root and module arguments, conditional resources
+and lookups, outputs, tests, and documentation must change together. Keeping a
+resource counted at one can preserve its `[0]` state address; removing `count`
+also changes that address and needs a reviewed Terraform `moved` transition.
+No finding below treats deletion of a variable declaration alone as a complete
+or valid refactor.
+
 ## Preliminary findings
 
 | ID | Severity | Finding and evidence | Disposition | Required proof or change |
 |---|---|---|---|---|
-| IAC-001 | Warning | The deploy, CI, and Cloudflare workflows substitute `false` when either `OCI_CREATE_AUTONOMOUS_DATABASE` or `OCI_CREATE_MEDIA_BUCKET` is missing, while production currently sets both `true`. The resource `count` values and database Vault lookup/rotation depend on them (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). A missing variable could therefore plan removal of managed production data resources. | Investigate before any fix | Capture state and current-input plan; trace all workflow inputs and protect both resources against missing-variable drift before changing defaults or switches. |
+| IAC-001 | Warning | With the current code unchanged, the deploy, CI, and Cloudflare workflows substitute `false` when either `OCI_CREATE_AUTONOMOUS_DATABASE` or `OCI_CREATE_MEDIA_BUCKET` GitHub Actions value is absent; production currently sets both `true`. The resulting resource `count` values become zero, and the database value also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). That configuration-loss path could plan removal of managed production data resources. | Investigate before any fix | Capture state and current-input plan; trace all workflow inputs. Evaluate an explicit-value guard separately from any coherent switch-removal refactor. |
 | IAC-002 | Warning | CI runs `terraform plan` against production state but does not classify or fail on destructive actions (`.github/workflows/ci.yml`). The release workflow rejects DNS changes, then applies the full remaining saved plan (`.github/workflows/deploy.yml`). | Investigate with IAC-001 | Inspect current plan and supported change policy; decide which stateful changes require an explicit operator gate. |
-| IAC-003 | Info | `create_network` and `create_runtime_instance` default `true`; their false paths remove counted network/compute resources. The release workflow does not set either variable, and runtime recreation is separately requested through a taint on retry. | Retain pending state review | Confirm both state addresses, default-path plan, and whether false is a supported operation before simplifying. |
+| IAC-003 | Info | `create_network` and `create_runtime_instance` default `true`; if passed `false` to the current code, their counted network/compute resources would be removed. The release workflow does not set either variable, and runtime recreation is separately requested through a taint on retry. | Retain pending state review | Confirm both state addresses and whether false is supported. Any switch removal must also revise the count/lookup contracts and preserve state addresses or use reviewed `moved` blocks. |
 | IAC-004 | Info | `cloudflare_mode` is `proxied` in production. A missing variable becomes `off` in ordinary deploy/CI, but the deploy saved-plan guard rejects changed Cloudflare resources. The operator workflow requires explicit `dns_only` or `proxied` and checks plan scope and fingerprint. | Retain pending plan proof | Confirm a no-change plan and a missing-mode rejection test; preserve proxy persistence and DNS mutation guard. |
 | IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Investigate as one contract | Trace preflight, full deploy, unfreeze, failure rescue, rollback, and fixtures before consolidating any flag. |
 | IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Investigate test seam | Verify both fixture paths and the production fail-closed behavior before changing the switch. |
@@ -56,7 +67,9 @@ This census covers root Terraform Boolean/mode inputs, production Ansible
 Boolean/mode inputs found in role defaults or workflow calls, and maintenance
 workflow dispatch modes. Module inputs that simply forward a root value are
 traced with the root input. Fixture probe overrides remain in the role-task
-inventory until their supported test paths are classified.
+inventory until their supported test paths are classified. Effects described
+for `false` or missing inputs refer to the code as it exists today, not to a
+proposed refactor that removes the input and its conditional consumers.
 
 | Switch or mode | Producer and current/default value | Direct consumer and unsafe transition | Review state |
 |---|---|---|---|
@@ -122,6 +135,9 @@ the missing-variable failure paths in IAC-001 and IAC-002.
 
 1. Complete the source inventory below and trace each switch through direct
    producers, consumers, mutation boundaries, reporting paths, and tests.
+   Treat missing workflow configuration and deliberate switch removal as
+   separate scenarios. A removal plan must rewrite every dependent branch and
+   show the resulting state-address effect.
 2. Capture production state and a sanitized current-input plan; review any
    proposed action with the owner before selecting code changes.
 3. Implement coherent contract changes in focused PRs. Post findings and
