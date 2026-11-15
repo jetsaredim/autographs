@@ -1,0 +1,271 @@
+# Terraform and Ansible operational review findings
+
+Status: inventory and contract review in progress for Phase 8 Plan 08-08 Task 5.
+This register records source evidence before cleanup changes are selected. A
+source inventory is not a final disposition or proof that production state
+matches configuration.
+
+## Operating boundary
+
+The tenancy root owns the project compartment, deploy identity and policies,
+and the OCI state bucket. The production root owns network, runtime compute,
+Vault secrets, the optional Oracle database and private media bucket, the
+Porkbun record during migration, and the Cloudflare zone, records, strict TLS,
+and cache rules. CI plans against production state. Release deployment saves a
+plan and applies that exact file only after rejecting Cloudflare or Porkbun DNS
+changes. The separate Cloudflare workflow accepts a reviewed change fingerprint
+and applies its own saved plan. Ansible handles deploy freeze, runtime
+replacement, health and unfreeze, rollback, security maintenance, and cleanup.
+
+The shared invariant for this review is: an ordinary release must preserve the
+existing stateful data and DNS ownership, keep publication frozen while the
+controller is replaced, and fail visibly before an unreviewed destructive
+change. Production state addresses and a sanitized current-input saved plan
+are required to prove that invariant; source defaults alone cannot prove it.
+
+## Production inputs observed
+
+On 2026-11-15, read-only GitHub variable queries returned
+`CLOUDFLARE_MODE=proxied`, `OCI_CREATE_AUTONOMOUS_DATABASE=true`,
+`OCI_CREATE_MEDIA_BUCKET=true`, and
+`OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`.
+The first three values differ from Terraform's `off`/`false` defaults. This
+variable query alone does not establish the corresponding Terraform state or
+plan result. Secret values were not read.
+
+## Preliminary findings
+
+| ID | Severity | Finding and evidence | Disposition | Required proof or change |
+|---|---|---|---|---|
+| IAC-001 | Warning | The deploy, CI, and Cloudflare workflows substitute `false` when either `OCI_CREATE_AUTONOMOUS_DATABASE` or `OCI_CREATE_MEDIA_BUCKET` is missing, while production currently sets both `true`. The resource `count` values and database Vault lookup/rotation depend on them (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). A missing variable could therefore plan removal of managed production data resources. | Investigate before any fix | Capture state and current-input plan; trace all workflow inputs and protect both resources against missing-variable drift before changing defaults or switches. |
+| IAC-002 | Warning | CI runs `terraform plan` against production state but does not classify or fail on destructive actions (`.github/workflows/ci.yml`). The release workflow rejects DNS changes, then applies the full remaining saved plan (`.github/workflows/deploy.yml`). | Investigate with IAC-001 | Inspect current plan and supported change policy; decide which stateful changes require an explicit operator gate. |
+| IAC-003 | Info | `create_network` and `create_runtime_instance` default `true`; their false paths remove counted network/compute resources. The release workflow does not set either variable, and runtime recreation is separately requested through a taint on retry. | Retain pending state review | Confirm both state addresses, default-path plan, and whether false is a supported operation before simplifying. |
+| IAC-004 | Info | `cloudflare_mode` is `proxied` in production. A missing variable becomes `off` in ordinary deploy/CI, but the deploy saved-plan guard rejects changed Cloudflare resources. The operator workflow requires explicit `dns_only` or `proxied` and checks plan scope and fingerprint. | Retain pending plan proof | Confirm a no-change plan and a missing-mode rejection test; preserve proxy persistence and DNS mutation guard. |
+| IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Investigate as one contract | Trace preflight, full deploy, unfreeze, failure rescue, rollback, and fixtures before consolidating any flag. |
+| IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Investigate test seam | Verify both fixture paths and the production fail-closed behavior before changing the switch. |
+| IAC-007 | Info | `create_runtime_instance` still describes a “Caddy to Next.js runtime” in `infra/terraform/variables.tf`, although the active runtime is Caddy plus the Rust controller. | Documentation correction candidate | Update the description after the operational contract review; no state effect. |
+
+No Critical or Warning finding is being point-fixed from this preliminary
+inventory. IAC-001 and IAC-002 share the stateful-resource preservation
+invariant and require a production state/plan audit plus producer and consumer
+trace before an implementation plan is selected.
+
+## Switch census and direct boundaries
+
+This census covers root Terraform Boolean/mode inputs, production Ansible
+Boolean/mode inputs found in role defaults or workflow calls, and maintenance
+workflow dispatch modes. Module inputs that simply forward a root value are
+traced with the root input. Fixture probe overrides remain in the role-task
+inventory until their supported test paths are classified.
+
+| Switch or mode | Producer and current/default value | Direct consumer and unsafe transition | Review state |
+|---|---|---|---|
+| `create_network` | Terraform default `true`; deploy/CI do not override | `module.network` counts VCN, subnet, gateway, routing, NSG and rules; false would remove managed network. | Both paths and state effect to verify. |
+| `create_runtime_instance` | Terraform default `true`; deploy/CI do not override | `module.compute` and image lookup; false would remove VM. Separate `recreate_runtime_instance` workflow input taints existing VM on retry. | Both paths and retry fixture to verify. |
+| `create_autonomous_database` | GitHub variable `true`, Terraform/workflow fallback `false` | ADB count, Vault lookups, readiness check, password rotation target. Missing variable risks database removal. | IAC-001; Warning. |
+| `create_media_bucket` | GitHub variable `true`, Terraform/workflow fallback `false` | Private bucket count and namespace precondition. Missing variable risks bucket removal. | IAC-001; Warning. |
+| `assign_public_ip` | Terraform default `true` | VM VNIC public IP; false would change SSH/edge reachability. | Supported alternative and plan impact to verify. |
+| `autonomous_database_is_free_tier` | Terraform default `true` | ADB service sizing/cost policy. | Confirm fixed policy and state effect. |
+| `autonomous_database_is_mtls_connection_required` | GitHub variable `true`, Terraform/workflow fallback `true` | ADB connection security and wallet contract. | Confirm fixed policy and false-path support. |
+| `cloudflare_mode` | GitHub variable `proxied`; root default and deploy/CI fallback `off` | Counts zone, records, TLS, rules; `dns_only` preserves zone but changes proxy flag; ordinary deploy DNS guard rejects changes. | IAC-004; preserve controlled transitions. |
+| `autographs_deploy_publish_frozen` | Role default and deploy input `true`; unfreeze sets `false` | Full-deploy assertion and exact Caddy publish gate. | IAC-005; trace as one cutover contract. |
+| `autographs_deploy_explicit_cutover` | Role default `true` | Full-deploy assertion and restart-handler suppression. | IAC-005; trace role notifications and fixtures. |
+| `autographs_deploy_allow_unfreeze` | Absent/false by default; unfreeze sets `true` | Allows removal of publish gate when frozen flag becomes false. | IAC-005; verify failure rescue and no bypass. |
+| `autographs_publish_unfreeze_verify_only` | Unfreeze default `false`; deploy invokes true then false | First invocation checks origin readiness without removing gate; second removes it after health. | Trace both paths and failed second step. |
+| `autographs_system_cleanup_dry_run` | Role default string `"false"`; image-cleanup workflow input | Controls Podman cleanup mutation. | Verify preview and execute paths. |
+| `security_patching_reboot_validate_dnf_noop` | Role default `true`; fixture overrides true/false | Gates DNF no-op proof before reboot cleanup. | IAC-006; verify production and test seam. |
+| Security update/reboot approval labels | GitHub issue labels and approved workflow events | Separate update and reboot paths validate current scanner state before mutation. | Trace issue update, approval removal, cleanup, and retry. |
+| `recreate_runtime_instance` | Deploy workflow dispatch Boolean, default false | Retry-only taint of tracked compute address before saved plan. | Verify replacement gate and rollback path. |
+| Cloudflare `operation` | Operator workflow choice `plan`/`apply` | Apply requires a matching nonempty plan fingerprint. | Current plan-only run passed; retain. |
+
+## Production state and plan evidence
+
+The [read-only operator plan run 43678520459](https://github.com/jetsaredim/autographs/actions/runs/43678520459)
+used current `main` (`363f3c6742045f32ec2f0fb52d35be4163224fbb`)
+and the production GitHub variables on 2026-11-15. It completed successfully
+with **No changes**, Cloudflare change count `0`, change-set fingerprint
+`37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570`,
+and the explicit `Plan only: no Terraform apply was run` result. Thus the
+saved plan proposed no create, update, replacement, or destruction at that
+point. The plan refreshed the Oracle database, private media bucket, runtime
+VM, Vault, network, Porkbun record, Cloudflare zone, three DNS records, strict
+TLS, and cache rules. The Oracle image and Vault data lookups completed.
+
+The log exposed 30 distinct refresh/read addresses, including these sensitive
+contract anchors (identifiers and values omitted):
+
+| Boundary | Observed address |
+|---|---|
+| Database | `module.data_services.oci_database_autonomous_database.catalog[0]` |
+| Private media | `module.data_services.oci_objectstorage_bucket.media[0]` |
+| Runtime VM | `module.compute.oci_core_instance.runtime[0]` |
+| Vault secrets | `oci_vault_secret.runtime["admin_password_hash"]`, `oci_vault_secret.runtime["oracle_db_password"]`, `oci_vault_secret.runtime["oracle_db_wallet_password"]` |
+| Database secret lookup | `data.oci_vault_secrets.oracle_db_password[0]` |
+| Secret readiness lookups | `data.oci_vault_secrets.runtime_readiness`, `data.oci_vault_secret.runtime_readiness["admin_password_hash"]`, `data.oci_vault_secret.runtime_readiness["oracle_db_password"]`, `data.oci_vault_secret.runtime_readiness["oracle_db_wallet_password"]` |
+| DNS and cache | `porkbun_dns_record.autographs`, `cloudflare_zone.domain[0]`, `cloudflare_dns_record.autographs[0]`, `cloudflare_dns_record.mail[0]`, `cloudflare_dns_record.spf[0]`, `cloudflare_zone_setting.strict_tls[0]`, `cloudflare_ruleset.autographs_cache[0]` |
+
+The workflow fingerprints the sorted changed-resource JSON; that value is not
+a digest of the complete saved plan. It does not print `terraform state list`
+or publish the saved plan JSON, so the refresh lines are evidence for those
+addresses, not an exhaustive state inventory. A final review must capture the
+full address list and a sanitized action summary from the saved plan. The
+no-change result supports the current configuration only; it does not resolve
+the missing-variable failure paths in IAC-001 and IAC-002.
+
+## Review and implementation sequence
+
+1. Complete the source inventory below and trace each switch through direct
+   producers, consumers, mutation boundaries, reporting paths, and tests.
+2. Capture production state and a sanitized current-input plan; review any
+   proposed action with the owner before selecting code changes.
+3. Implement coherent contract changes in focused PRs. Post findings and
+   resolution evidence to each PR before merging.
+4. Record final dispositions, merged PRs, CI results, and production no-change
+   plan evidence here. Only then close P8-POSTURE-006 and Plan 08-08 Task 5.
+
+## Source inventory
+
+This list enumerates Terraform blocks, Ansible entry points and role task files, and workflow callers. The disposition for each element remains **trace pending** until its supported states, failure path, and production plan effect are checked. Paths are relative to the repository root.
+
+### Terraform resources, lookups, modules, and providers
+
+| Block | Source | State owner / caller | Inputs, failure path, test, disposition |
+|---|---|---|---|
+| resource `cloudflare_zone.domain` | `infra/terraform/cloudflare.tf:6` | Production root / controlled DNS apply; routine deploy guarded | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `cloudflare_dns_record.autographs` | `infra/terraform/cloudflare.tf:16` | Production root / controlled DNS apply; routine deploy guarded | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `cloudflare_dns_record.mail` | `infra/terraform/cloudflare.tf:27` | Production root / controlled DNS apply; routine deploy guarded | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `cloudflare_dns_record.spf` | `infra/terraform/cloudflare.tf:39` | Production root / controlled DNS apply; routine deploy guarded | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `cloudflare_zone_setting.strict_tls` | `infra/terraform/cloudflare.tf:50` | Production root / controlled DNS apply; routine deploy guarded | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `cloudflare_ruleset.autographs_cache` | `infra/terraform/cloudflare.tf:58` | Production root / controlled DNS apply; routine deploy guarded | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `porkbun_dns_record.autographs` | `infra/terraform/dns.tf:1` | Production root / controlled DNS apply; routine deploy guarded | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| data `oci_core_images.oracle_linux_10` | `infra/terraform/images.tf:1` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| module `network` | `infra/terraform/main.tf:1` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| module `compute` | `infra/terraform/main.tf:15` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| module `data_services` | `infra/terraform/main.tf:34` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_core_instance.runtime` | `infra/terraform/modules/compute/main.tf:1` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_database_autonomous_database.catalog` | `infra/terraform/modules/data_services/main.tf:1` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_objectstorage_bucket.media` | `infra/terraform/modules/data_services/main.tf:24` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_compartment.project` | `infra/terraform/modules/iam/main.tf:26` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_group.deploy` | `infra/terraform/modules/iam/main.tf:36` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_group.operator` | `infra/terraform/modules/iam/main.tf:45` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_user.deploy` | `infra/terraform/modules/iam/main.tf:54` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_user_group_membership.deploy` | `infra/terraform/modules/iam/main.tf:64` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_dynamic_group.runtime_instances` | `infra/terraform/modules/iam/main.tf:71` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_api_key.deploy` | `infra/terraform/modules/iam/main.tf:83` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_policy.deploy` | `infra/terraform/modules/iam/main.tf:130` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_policy.operator` | `infra/terraform/modules/iam/main.tf:140` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_policy.runtime_object_access` | `infra/terraform/modules/iam/main.tf:150` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_core_vcn.main` | `infra/terraform/modules/network/main.tf:1` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_core_internet_gateway.main` | `infra/terraform/modules/network/main.tf:11` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_core_route_table.public` | `infra/terraform/modules/network/main.tf:21` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_core_network_security_group.runtime` | `infra/terraform/modules/network/main.tf:36` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_core_network_security_group_security_rule.ssh_ingress` | `infra/terraform/modules/network/main.tf:45` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_core_network_security_group_security_rule.http_ingress` | `infra/terraform/modules/network/main.tf:61` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_core_network_security_group_security_rule.https_ingress` | `infra/terraform/modules/network/main.tf:77` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_core_network_security_group_security_rule.egress_all` | `infra/terraform/modules/network/main.tf:93` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_core_subnet.public` | `infra/terraform/modules/network/main.tf:102` | Production root / release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_objectstorage_bucket.this` | `infra/terraform/modules/state_bucket/main.tf:6` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| provider `oci` | `infra/terraform/providers.tf:1` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| provider `porkbun` | `infra/terraform/providers.tf:11` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_kms_vault.runtime_secrets` | `infra/terraform/runtime_secrets.tf:21` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_kms_key.runtime_secrets` | `infra/terraform/runtime_secrets.tf:33` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| data `oci_vault_secrets.oracle_db_password` | `infra/terraform/runtime_secrets.tf:51` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| data `oci_vault_secrets.runtime_readiness` | `infra/terraform/runtime_secrets.tf:58` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| data `oci_vault_secret.runtime_readiness` | `infra/terraform/runtime_secrets.tf:75` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_vault_secret.runtime` | `infra/terraform/runtime_secrets.tf:81` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| data `oci_objectstorage_namespace.ns` | `infra/terraform/tenancy/main.tf:1` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| module `iam` | `infra/terraform/tenancy/main.tf:5` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| module `state_bucket` | `infra/terraform/tenancy/main.tf:28` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_policy.runtime_secret_bundle_access` | `infra/terraform/tenancy/main.tf:38` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| resource `oci_identity_policy.database_secret_access` | `infra/terraform/tenancy/main.tf:51` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| provider `oci` | `infra/terraform/tenancy/providers.tf:1` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| provider `oci` | `infra/terraform/tenancy/providers.tf:11` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+
+Terraform `moved` blocks in `modules/iam/main.tf` and `modules/state_bucket/main.tf`, plus the Porkbun `import` block in `dns.tf`, remain part of the state-transition review. The `required_providers` declarations in both roots and each module are included in the provider/version validation gate.
+
+### Ansible playbooks
+
+| Playbook | Caller / purpose | Supported states, failure/recovery, validation, disposition |
+|---|---|---|
+| `deploy/ansible/playbooks/controller-rollback.yml` | `deploy.yml`, `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/deploy-admin-credentials-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/deploy.yml` | `deploy.yml`, `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/publish-freeze-deploy-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/publish-freeze-preflight.yml` | `deploy.yml`, `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/publish-freeze-render-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/publish-freeze-role-reaudit-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/publish-unfreeze.yml` | `deploy.yml`, `ci.yml`, `complete-v0.5.0.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-create-issue-status-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-finding-classification-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-kernel-posture-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-patch-cleanup.yml` | `apply-security-updates.yml`, `ci.yml`, `reboot-security-runtime.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-patch.yml` | `apply-security-updates.yml`, `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-post-result-refresh-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-post-result-status-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-reboot-kernel-selection-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-reboot-preflight-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-reboot-result-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-reboot-state-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-reboot.yml` | `ci.yml`, `reboot-security-runtime.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-report-render-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-request-metadata-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-scan.yml` | `weekly-security-scan.yml`, `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-target-scope-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/security-update-reconciliation-validate-test.yml` | `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+| `deploy/ansible/playbooks/system-cleanup.yml` | `image-cleanup.yml`, `ci.yml` | Trace pending: variables, safe states, failed-run cleanup, test, final disposition. |
+
+### Ansible roles, task files, and handlers
+
+| Element | Caller / owner | Supported states, failure/recovery, validation, disposition |
+|---|---|---|
+| role `autographs_deploy` | Playbook imports / production runtime or maintenance | Trace pending: defaults, imports, privilege, check mode, final disposition. |
+| task file `tasks/admin_credentials.yml` | `autographs_deploy` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/assert_kernel_images.yml` | `autographs_deploy` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/assert_kernel_ownership.yml` | `autographs_deploy` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/derive_dnf_exclusions.yml` | `autographs_deploy` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/kernel_persistence.yml` | `autographs_deploy` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/main.yml` | `autographs_deploy` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/publish_freeze.yml` | `autographs_deploy` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/revalidate_uek_boot_state.yml` | `autographs_deploy` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/validate_kernel_boot_entry.yml` | `autographs_deploy` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| handler `Reload systemd` | `deploy/ansible/roles/autographs_deploy/handlers/main.yml` | Trace pending: notifications, cutover state, recovery, test, final disposition. |
+| handler `Restart controller container` | `deploy/ansible/roles/autographs_deploy/handlers/main.yml` | Trace pending: notifications, cutover state, recovery, test, final disposition. |
+| handler `Restart Caddy container` | `deploy/ansible/roles/autographs_deploy/handlers/main.yml` | Trace pending: notifications, cutover state, recovery, test, final disposition. |
+| role `autographs_system_cleanup` | Playbook imports / production runtime or maintenance | Trace pending: defaults, imports, privilege, check mode, final disposition. |
+| task file `tasks/main.yml` | `autographs_system_cleanup` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| role `security_patching` | Playbook imports / production runtime or maintenance | Trace pending: defaults, imports, privilege, check mode, final disposition. |
+| task file `tasks/classify_findings.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/classify_reboot_request.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/classify_update_request.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/cleanup_failed_request.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/create_issue.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/extract_issue_metadata.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/inspect_kernel_boot_entry.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/kernel_posture.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/patch.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/post_reboot_result.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/post_result.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/reboot_cleanup.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/resolve_reboot_kernel.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/revalidate_reboot_kernel.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/scan.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/validate_post_reboot_kernel.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/validate_reboot_state.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/validate_request.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+| task file `tasks/validate_target_scope.yml` | `security_patching` | Trace pending: direct producers/consumers, failure recovery, fixtures, final disposition. |
+
+### GitHub workflows and local actions
+
+| Entry point | Owned operation | Inputs, failure/recovery, test, disposition |
+|---|---|---|
+| `.github/workflows/apply-security-updates.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
+| `.github/workflows/ci.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
+| `.github/workflows/cloudflare-terraform.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
+| `.github/workflows/complete-v0.5.0.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
+| `.github/workflows/conventional-commits.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
+| `.github/workflows/deploy.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
+| `.github/workflows/image-cleanup.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
+| `.github/workflows/reboot-security-runtime.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
+| `.github/workflows/weekly-security-scan.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
+| `.github/actions/resolve-runtime-ip/action.yml` | Called by workflow steps | Trace pending: inputs/outputs, failure behavior, test, final disposition. |
