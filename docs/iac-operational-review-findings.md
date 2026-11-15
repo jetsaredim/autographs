@@ -73,15 +73,19 @@ effect in those workflows because they always set `TF_VAR_*`. An explicit
 secrets and the Object Storage namespace are ready.
 
 Sequence: change and validate the code while the GitHub variables remain
-`true`; obtain a production no-change plan; merge and deploy the new workflow
-defaults; remove the two GitHub variables; then run another read-only
-production plan to prove the fallback keeps the ADB and media bucket at their
-existing state addresses. Do not delete the GitHub values before the new
-workflow code is live. This plan handles missing values under the existing
-conditional design. A later removal of the Terraform switches themselves
-would still require the full conditional-consumer and state-address refactor
-described above. IAC-002's broader destructive-plan policy remains a separate
-review decision.
+`true`; require the PR CI production-state plan to show no infrastructure
+changes; merge the workflow code to `main`; remove the two GitHub variables;
+then run the CI Terraform plan and a read-only operator plan from `main` to
+prove the fallbacks keep the ADB and media bucket at their existing state
+addresses. The normal release workflow reads its configuration from `main`,
+so a controller deployment is unnecessary to validate a Terraform default or
+GitHub Actions fallback change. Do not delete the GitHub values before the
+new workflow code is on `main`. If the post-removal plan is not clean, restore
+both variables to `true` before any apply. This plan handles missing values
+under the existing conditional design. A later removal of the Terraform
+switches themselves would still require the full conditional-consumer and
+state-address refactor described above. IAC-002's broader destructive-plan
+policy remains a separate review decision.
 
 ## Switch census and direct boundaries
 
