@@ -69,10 +69,10 @@ On 2026-11-15, read-only GitHub variable queries returned
 `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`.
 The first three values differ from Terraform's `off`/`false` defaults. This
 variable query alone does not establish the corresponding Terraform state or
-plan result. Secret values were not read. The mTLS GitHub variable remains in
-place during PR #354 review, but the proposed workflow code no longer reads it.
-Remove it only after that code reaches `main` and a production no-change plan
-passes.
+plan result. Secret values were not read. The mTLS GitHub variable was removed
+after PR #354 stopped reading it and its production Terraform check reported
+`No changes`. The workflow on `main` still falls back to `true` until the PR
+merges.
 
 There are two different cases in this review. **Missing configuration with the
 current code** means a GitHub Actions variable disappears while the workflow
@@ -226,8 +226,8 @@ to test the current fallback behavior. The three runtime sizing variables
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, and `OCI_RUNTIME_MEMORY_GBS` matched
 the Terraform defaults. They were removed from the workflows and GitHub
 repository after PR #354's Terraform check on commit `a08c7ae` reported
-`No changes` (run `43776948364`). The mTLS GitHub variable is now unused
-by the PR code and should be removed only after merge. In contrast, the two
+`No changes` (run `43776948364`). The unused mTLS GitHub variable was also
+removed after the no-change check. In contrast, the two
 `OCI_CREATE_*` values are `true` while workflow fallbacks remain `false`, and
 `CLOUDFLARE_MODE` is `proxied` while its fallback is `off`; those are not
 redundant and remain under IAC-001/IAC-004 review.
