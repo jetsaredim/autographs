@@ -19,7 +19,7 @@ locals {
 }
 
 resource "oci_kms_vault" "runtime_secrets" {
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_ocid
   display_name   = "${var.name_prefix}-runtime-secrets-vault"
   vault_type     = "DEFAULT"
 
@@ -31,7 +31,7 @@ resource "oci_kms_vault" "runtime_secrets" {
 }
 
 resource "oci_kms_key" "runtime_secrets" {
-  compartment_id      = var.compartment_ocid
+  compartment_id      = local.compartment_ocid
   display_name        = "${var.name_prefix}-runtime-secrets-key"
   management_endpoint = oci_kms_vault.runtime_secrets.management_endpoint
   protection_mode     = "SOFTWARE"
@@ -50,13 +50,13 @@ resource "oci_kms_key" "runtime_secrets" {
 
 data "oci_vault_secrets" "oracle_db_password" {
   count          = var.create_autonomous_database ? 1 : 0
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_ocid
   vault_id       = oci_kms_vault.runtime_secrets.id
   name           = local.runtime_controller_secret_definitions.oracle_db_password.secret_name
 }
 
 data "oci_vault_secrets" "runtime_readiness" {
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_ocid
   vault_id       = oci_kms_vault.runtime_secrets.id
 }
 
@@ -81,7 +81,7 @@ data "oci_vault_secret" "runtime_readiness" {
 resource "oci_vault_secret" "runtime" {
   for_each = local.runtime_controller_secret_definitions
 
-  compartment_id         = var.compartment_ocid
+  compartment_id         = local.compartment_ocid
   description            = each.value.description
   enable_auto_generation = each.key == "oracle_db_password"
   key_id                 = oci_kms_key.runtime_secrets.id

@@ -1,6 +1,6 @@
 output "compartment_ocid" {
   description = "OCI compartment OCID that owns the project resources."
-  value       = var.compartment_ocid
+  value       = local.compartment_ocid
 }
 
 output "runtime_public_ip" {

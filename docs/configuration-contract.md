@@ -26,22 +26,29 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `OCI_FINGERPRINT` | deploy workflow | OCI API signing key fingerprint |
 | `OCI_PRIVATE_KEY_PEM` | deploy workflow | OCI API signing private key PEM |
 | `DEPLOY_SSH_PRIVATE_KEY` | deploy workflow | SSH private key for the OCI runtime VM |
-| `ORACLE_DB_PASSWORD` | legacy direct-value fallback only | Optional non-production transition value; leave unset for the OCI-generated production path |
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / runtime | Base64-encoded ADB wallet zip used for mTLS connections |
-| `ORACLE_DB_WALLET_PASSWORD` | deploy workflow / runtime | Wallet download password required by the `oracledb` driver when `ORACLE_DB_WALLET_DIR` is set |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Optional compatibility token for non-management diagnostics; not a collection-management credential |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | Rust controller runtime | Argon2 hash for the single-admin browser login |
 | `CLOUDFLARE_API_TOKEN` | Terraform CI/deploy and controlled Cloudflare apply | Scoped token for the active Cloudflare zone, records, TLS setting, cache rules, and edge certificate read checks |
 
 The current OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the controller image build, Terraform, or VM deployment steps.
 
+Production obtains the Oracle database and wallet passwords from OCI Vault
+secret IDs output by Terraform. Local Ansible runs may still pass direct
+`ORACLE_DB_PASSWORD` and `ORACLE_DB_WALLET_PASSWORD` values as a transition
+fallback; do not store those direct values as GitHub Secrets.
+
 ## GitHub Variables
 
 These are repo-level GitHub Variables unless an optional GitHub Environment overrides them.
 
+The production Terraform root discovers the project compartment by its
+`${name_prefix}-cmp` name under the tenancy OCID. Its `compartment_ocid` output
+remains available to downstream steps; GitHub does not supply a separate
+`OCI_COMPARTMENT_OCID` input after this change reaches `main`.
+
 | Variable | Purpose |
 |----------|---------|
-| `OCI_COMPARTMENT_OCID` | Project compartment OCID produced by the tenancy bootstrap root |
 | `OCI_AVAILABILITY_DOMAIN` | Availability domain for the runtime VM |
 | `OCI_RUNTIME_IMAGE_OCID` | Oracle Linux image OCID for the runtime VM |
 | `OCI_RUNTIME_SSH_PUBLIC_KEYS` | JSON list of SSH public keys injected into the VM |
@@ -51,7 +58,6 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME` | Display name for the Oracle Autonomous Database; defaults to `autographs-prod-adb` |
 | `OCI_CREATE_MEDIA_BUCKET` | Optional toggle for creating the private media Object Storage bucket; defaults to `false` until the namespace is confirmed |
 | `OCI_MEDIA_BUCKET_NAME` | Private Object Storage bucket for autograph images; defaults to `autographs-media-prod` |
-| `OCI_MEDIA_NAMESPACE` | Object Storage namespace for the private media bucket; usually matches `OCI_OBJECT_STORAGE_NAMESPACE` |
 | `CLOUDFLARE_ACCOUNT_ID` | Non-secret account ID for the Terraform-managed `jetsaredim.net` zone |
 | `CLOUDFLARE_MODE` | Production is `proxied`; use `dns_only` for a reviewed proxy rollback. `off` remains a bootstrap default and must not be used in the operator workflow |
 | `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |

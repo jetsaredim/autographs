@@ -211,6 +211,18 @@ fn workflows_and_current_examples_do_not_accept_plaintext_adb_password() {
 }
 
 #[test]
+fn production_deploy_uses_vault_ids_instead_of_direct_database_password_secrets() {
+    let deploy = read_repo(".github/workflows/deploy.yml");
+
+    assert!(!deploy.contains("secrets.ORACLE_DB_PASSWORD"));
+    assert!(!deploy.contains("secrets.ORACLE_DB_WALLET_PASSWORD"));
+    assert!(deploy.contains("steps.terraform_apply.outputs.oracle_db_password_vault_secret_id"));
+    assert!(
+        deploy.contains("steps.terraform_apply.outputs.oracle_db_wallet_password_vault_secret_id")
+    );
+}
+
+#[test]
 fn deploy_identity_can_manage_regional_vault_resources_in_project_compartment() {
     let iam_main = read_repo("infra/terraform/modules/iam/main.tf");
     let tenancy_main = read_repo("infra/terraform/tenancy/main.tf");

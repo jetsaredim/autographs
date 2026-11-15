@@ -214,6 +214,14 @@ historically or that other operators have no private overrides.
 | Tenancy identity and state-bucket names | Most local values match defaults or rely on defaults; the tenancy root has no GitHub workflow input. | They identify existing IAM and state resources. Review each name against tenancy state before any hardcoding. |
 | `runtime_image_ocid` | Default empty; no current GitHub variable, but workflows still pass the empty value. | Empty selects the Oracle Linux image lookup. It is a meaningful lookup mode, not a fixed image identifier. |
 
+The production root now looks up the project compartment under the tenancy
+by `${name_prefix}-cmp`. The deploy group already has `inspect compartments
+in tenancy`; the lookup removes the manually copied `OCI_COMPARTMENT_OCID`
+workflow input. Keep the stored variable until PR #354 merges because `main`
+still requires that Terraform input. Confirm the lookup resolves the existing
+compartment and produces no state change in PR CI before removing the stored
+variable after merge.
+
 Eight remaining GitHub variables duplicate every matching workflow fallback:
 `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `OCI_AUTONOMOUS_DATABASE_NAME`,
 `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, `OCI_MEDIA_BUCKET_NAME`,
@@ -231,6 +239,63 @@ removed after the no-change check. In contrast, the two
 `OCI_CREATE_*` values are `true` while workflow fallbacks remain `false`, and
 `CLOUDFLARE_MODE` is `proxied` while its fallback is `off`; those are not
 redundant and remain under IAC-001/IAC-004 review.
+
+## GitHub configuration inventory
+
+The 2026-11-15 repository inventory contains 19 GitHub Variables and 15
+GitHub Secrets after the runtime sizing and mTLS cleanup. The `production`
+GitHub Environment has no additional variables or secrets. Secret names were
+listed, but secret values were not read.
+
+GitHub Variables to retain:
+
+- `OCI_AVAILABILITY_DOMAIN`, `OCI_RUNTIME_SSH_PUBLIC_KEYS`, and
+  `OCI_OBJECT_STORAGE_NAMESPACE` supply tenancy-specific runtime coordinates.
+- `AUTOGRAPHS_DNS_RECORD_ID` and `CLOUDFLARE_ACCOUNT_ID` identify existing
+  DNS and Cloudflare resources. `RELEASE_PLEASE_APP_CLIENT_ID` identifies the
+  repository-installed GitHub App.
+- `OCI_CREATE_AUTONOMOUS_DATABASE=true`, `OCI_CREATE_MEDIA_BUCKET=true`, and
+  `CLOUDFLARE_MODE=proxied` differ from their unsafe workflow fallbacks. Keep
+  them until the IAC-001/IAC-004 switch contracts are revised.
+
+GitHub Variables queued for cleanup:
+
+- `OCI_COMPARTMENT_OCID` is required by `main` today. PR #354 replaces it with
+  a name-filtered OCI compartment lookup; remove it only after the PR merges.
+- `OCI_MEDIA_NAMESPACE` currently equals `OCI_OBJECT_STORAGE_NAMESPACE`.
+  PR #354 routes the Terraform media namespace and Ansible deploy directly
+  from `OCI_OBJECT_STORAGE_NAMESPACE`; remove the duplicate after a no-change
+  production plan.
+- `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `OCI_AUTONOMOUS_DATABASE_NAME`,
+  `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, `OCI_MEDIA_BUCKET_NAME`,
+  `AUTOGRAPHS_DNS_DOMAIN`, `AUTOGRAPHS_DNS_SUBDOMAIN`, and
+  `AUTOGRAPHS_DNS_TTL` equal their current workflow fallbacks and Terraform
+  defaults. Their workflow assignments and non-Terraform consumers need a
+  separate reviewed cleanup before deleting the stored values.
+
+GitHub Secrets to retain:
+
+- `OCI_CLI_USER_OCID`, `OCI_FINGERPRINT`, `OCI_PRIVATE_KEY_PEM`, and
+  `OCI_TENANCY_OCID` authenticate the OCI workflow path.
+- `DEPLOY_SSH_PRIVATE_KEY`, `GHCR_TOKEN`, `ORACLE_DB_WALLET_ZIP_BASE64`,
+  and `AUTOGRAPHS_OPERATOR_API_TOKEN` are still referenced by deployment.
+- `CLOUDFLARE_API_TOKEN`, `PORKBUN_API_KEY`, and `PORKBUN_SECRET_KEY` support
+  Terraform's DNS/CDN providers.
+- `RELEASE_PLEASE_APP_PRIVATE_KEY` supports the release-please workflow.
+
+GitHub Secrets queued for cleanup:
+
+- `ADB_ADMIN_PASSWORD` has no current workflow consumer; the plaintext
+  bootstrap path was retired when Terraform moved to OCI Vault.
+- `ORACLE_DB_PASSWORD` and `ORACLE_DB_WALLET_PASSWORD` are currently passed
+  directly by the deploy workflow, but the production runtime uses the
+  Terraform-output Vault IDs. PR #354 removes those workflow pass-throughs
+  and keeps local Ansible direct-value fallbacks. Delete the stored secrets
+  after the workflow change merges and production validation succeeds.
+
+`AUTOGRAPHS_ADMIN_PASSWORD_HASH` is referenced as an optional direct deploy
+fallback but is not stored in GitHub; production uses its Vault secret ID.
+`GITHUB_TOKEN` is GitHub's built-in token and is not listed as a stored secret.
 
 ## Production state and plan evidence
 

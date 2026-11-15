@@ -65,11 +65,6 @@ variable "owner_email" {
   default     = ""
 }
 
-variable "compartment_ocid" {
-  description = "Project compartment OCID produced by the tenancy bootstrap root."
-  type        = string
-}
-
 variable "create_network" {
   description = "Whether Terraform should create the VCN and subnet baseline."
   type        = bool

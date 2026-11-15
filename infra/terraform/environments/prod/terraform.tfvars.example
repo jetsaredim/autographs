@@ -22,7 +22,6 @@ private_key_path = "~/.oci/autographs_api_key.pem"
 
 region           = "us-ashburn-1"
 owner_email      = "collector@example.com"
-compartment_ocid = "ocid1.compartment.oc1..replace_me"
 
 create_network           = true
 vcn_cidr_block           = "10.42.0.0/16"

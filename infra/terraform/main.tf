@@ -3,7 +3,7 @@ module "network" {
 
   create_network           = var.create_network
   name_prefix              = var.name_prefix
-  compartment_id           = var.compartment_ocid
+  compartment_id           = local.compartment_ocid
   vcn_cidr_block           = var.vcn_cidr_block
   public_subnet_cidr_block = var.public_subnet_cidr_block
   ssh_ingress_cidrs        = var.ssh_ingress_cidrs
@@ -17,7 +17,7 @@ module "compute" {
 
   create_instance      = var.create_runtime_instance
   name_prefix          = var.name_prefix
-  compartment_id       = var.compartment_ocid
+  compartment_id       = local.compartment_ocid
   availability_domain  = var.availability_domain
   subnet_id            = module.network.public_subnet_id
   nsg_ids              = module.network.runtime_nsg_id != null ? [module.network.runtime_nsg_id] : []
@@ -41,6 +41,6 @@ module "data_services" {
   create_media_bucket                          = var.create_media_bucket
   media_bucket_namespace                       = var.media_bucket_namespace
   media_bucket_name                            = var.media_bucket_name
-  compartment_id                               = var.compartment_ocid
+  compartment_id                               = local.compartment_ocid
   tags                                         = local.tags
 }
