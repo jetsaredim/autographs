@@ -1,12 +1,12 @@
 {
-  "deployedControllerDigest": "sha256:39abc7c886c152e30a0bc0468bdc18a9fae41b93cb706a491f083a9186bf223e",
-  "deployedControllerVersion": "v0.10.0",
-  "deployedRepositoryVersion": "v0.10.0",
+  "deployedControllerDigest": "sha256:4627464076e43e93cabcbb3d29144de6236fe271fb5cff8f05ef8480310100ee",
+  "deployedControllerVersion": "v0.10.1",
+  "deployedRepositoryVersion": "v0.10.1",
   "lastDeployImpact": "controller-image",
-  "latestDeployImpactVersion": "v0.10.0",
-  "latestRepositoryVersion": "v0.10.0",
-  "previousControllerDigest": "sha256:8a066c1fe6188c65780cfecb003921e93456fa419f9b5d9cd557eed954d3663f",
-  "previousControllerVersion": "v0.9.1",
-  "sourceRevision": "0bed3319293e675a2efa467aaf242bbcad1541b5",
-  "updatedAt": "2026-11-13T15:58:50Z"
+  "latestDeployImpactVersion": "v0.10.1",
+  "latestRepositoryVersion": "v0.10.1",
+  "previousControllerDigest": "sha256:39abc7c886c152e30a0bc0468bdc18a9fae41b93cb706a491f083a9186bf223e",
+  "previousControllerVersion": "v0.10.0",
+  "sourceRevision": "99539e46e6440977fca782b5e29524ba18ad6b19",
+  "updatedAt": "2026-11-15T02:13:37Z"
 }
