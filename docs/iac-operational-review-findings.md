@@ -23,6 +23,44 @@ controller is replaced, and fail visibly before an unreviewed destructive
 change. Production state addresses and a sanitized current-input saved plan
 are required to prove that invariant; source defaults alone cannot prove it.
 
+### Terraform stack and module map
+
+```mermaid
+flowchart LR
+  operator[Operator CLI] --> tenancy
+  ci[PR CI plan] --> production
+  deploy[Release deploy plan and apply] --> production
+  cloudflare_workflow[Cloudflare operator plan and apply] --> production
+
+  subgraph tenancy_stack[Tenancy bootstrap stack]
+    tenancy[infra/terraform/tenancy]
+    tenancy --> iam[modules/iam: compartment, deploy identity, IAM]
+    tenancy --> state_bucket[modules/state_bucket: OCI state bucket]
+    tenancy --> tenancy_policies[tenancy/main.tf: runtime and DB secret policies]
+  end
+
+  subgraph production_stack[Production runtime stack]
+    production[infra/terraform]
+    production --> network[modules/network: VCN, subnet, NSG]
+    production --> compute[modules/compute: runtime VM]
+    production --> data_services[modules/data_services: ADB, private media bucket]
+    production --> vault[runtime_secrets.tf: Vault, key, runtime secrets]
+    production --> dns[dns.tf: Porkbun record]
+    production --> cloudflare_resources[cloudflare.tf: zone, records, TLS, cache]
+  end
+
+  state_bucket -. tenancy-bootstrap state key .-> tenancy
+  state_bucket -. production state key .-> production
+  iam -. compartment and deploy identity inputs .-> production
+```
+
+The two roots have separate state keys in the same OCI Object Storage bucket:
+`envs/prod/tenancy-bootstrap.tfstate` and `envs/prod/terraform.tfstate`.
+PR CI authenticates and plans only the production root; it initializes and
+validates the tenancy root without a live plan. The release and Cloudflare
+workflows also target the production root. Tenancy changes require a separate
+operator plan against the tenancy bootstrap state before apply.
+
 ## Production inputs observed
 
 On 2026-11-15, read-only GitHub variable queries returned

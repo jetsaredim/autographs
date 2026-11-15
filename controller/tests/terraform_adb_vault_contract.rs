@@ -69,8 +69,8 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     assert!(!tenancy_main.contains("resource \"oci_kms_vault\""));
     assert!(!tenancy_main.contains("resource \"oci_kms_key\""));
     assert!(!tenancy_main.contains("resource \"oci_vault_secret\""));
-    assert!(root_main.contains(
-        "autonomous_database_admin_password_secret_id    = local.autonomous_database_admin_password_secret_id"
+    assert!(normalize_whitespace(&root_main).contains(
+        "autonomous_database_admin_password_secret_id = local.autonomous_database_admin_password_secret_id"
     ));
     assert!(!root_main.contains("oci_vault_secret.runtime[\"oracle_db_password\"].id"));
     assert!(module_variables.contains("variable \"autonomous_database_admin_password_secret_id\""));
