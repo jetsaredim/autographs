@@ -27,7 +27,6 @@ module "compute" {
   boot_volume_size_gbs = var.runtime_boot_volume_size_gbs
   image_ocid           = local.runtime_image_ocid
   ssh_public_keys      = var.runtime_ssh_public_keys
-  assign_public_ip     = var.assign_public_ip
   tags                 = local.tags
 }
 

@@ -176,12 +176,6 @@ variable "runtime_deploy_path" {
   }
 }
 
-variable "assign_public_ip" {
-  description = "Whether the runtime VNIC should receive a public IP."
-  type        = bool
-  default     = true
-}
-
 variable "create_autonomous_database" {
   description = "Whether Terraform should create the Oracle Autonomous Database Free metadata store."
   type        = bool

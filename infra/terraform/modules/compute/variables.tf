@@ -46,10 +46,6 @@ variable "ssh_public_keys" {
   type = list(string)
 }
 
-variable "assign_public_ip" {
-  type = bool
-}
-
 variable "tags" {
   type = map(string)
 }
