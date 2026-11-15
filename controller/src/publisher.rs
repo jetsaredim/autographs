@@ -51,7 +51,7 @@ const SAFE_RELEASE_CLEANUP_WARNING: &str = "The release is active, but old relea
 const SHARED_MEDIA_MIN_AGE_SECONDS: u64 = 86_400;
 const MEDIA_HISTORY_VERSION: u32 = 1;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct MediaCommitHistory {
     version: u32,
     current_release_id: Option<String>,
@@ -59,7 +59,7 @@ struct MediaCommitHistory {
     transitions: Vec<MediaCommitTransition>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct MediaCommitReceipt {
     manifest_sha256: String,
     media: BTreeMap<String, String>,
@@ -80,7 +80,7 @@ impl MediaReadStats {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct MediaCommitTransition {
     from: Option<String>,
     to: String,
@@ -2734,9 +2734,7 @@ fn prune_promoted_releases(
     retention_policy: ReleaseRetentionPolicy,
     history: &MediaCommitHistory,
 ) -> Result<(), String> {
-    if current_release_name(root)? != history.current_release_id {
-        return Err("media commit history and current pointer disagree".to_owned());
-    }
+    ensure_cleanup_history_snapshot(root, history)?;
     for release in release_directories(&root.join("releases"))? {
         if !history.releases.contains_key(&release.name) {
             retain_failed_candidates(root, &release.path, retention_policy)?;
@@ -2828,9 +2826,7 @@ fn post_promotion_cleanup(
 }
 
 fn prune_shared_media(root: &Path, history: &MediaCommitHistory) -> Result<(), String> {
-    if current_release_name(root)? != history.current_release_id {
-        return Err("media commit history and current pointer disagree".to_owned());
-    }
+    ensure_cleanup_history_snapshot(root, history)?;
     let mut referenced = BTreeSet::new();
     for release in release_directories(&root.join("releases"))? {
         if !history.releases.contains_key(&release.name) {
@@ -2904,6 +2900,21 @@ fn prune_shared_media(root: &Path, history: &MediaCommitHistory) -> Result<(), S
         unknown_deleted_byte_count,
         "static publish shared media pruning completed"
     );
+    Ok(())
+}
+
+fn ensure_cleanup_history_snapshot(
+    root: &Path,
+    history: &MediaCommitHistory,
+) -> Result<(), String> {
+    if current_release_name(root)? != history.current_release_id {
+        return Err("media commit history and current pointer disagree".to_owned());
+    }
+    if history_dir(root).join("intent.json").exists()
+        || read_json::<MediaCommitHistory>(&history_dir(root).join("history.json"))? != *history
+    {
+        return Err("media commit history changed during cleanup".to_owned());
+    }
     Ok(())
 }
 
@@ -3672,6 +3683,17 @@ mod tests {
             prune_promoted_releases(root.path(), ReleaseRetentionPolicy::new(1, 1), &old).is_err()
         );
         assert!(prune_shared_media(root.path(), &old).is_err());
+        let mut drifted = recovered.clone();
+        drifted.version = 0;
+        atomic_json(&history_dir(root.path()), "history.json", &drifted).unwrap();
+        assert!(
+            prune_promoted_releases(root.path(), ReleaseRetentionPolicy::new(1, 1), &recovered)
+                .is_err()
+        );
+        atomic_json(&history_dir(root.path()), "history.json", &recovered).unwrap();
+        atomic_json(&history_dir(root.path()), "intent.json", &intent).unwrap();
+        assert!(prune_shared_media(root.path(), &recovered).is_err());
+        clear_intent(root.path()).unwrap();
         fs::write(root.path().join(&a_path), b"corrupt shared media").unwrap();
         assert_eq!(
             post_promotion_cleanup(
@@ -3766,6 +3788,7 @@ mod tests {
             ]),
             transitions: Vec::new(),
         };
+        atomic_json(&history_dir(root.path()), "history.json", &verified_history).unwrap();
 
         let warning = post_promotion_cleanup(
             root.path(),

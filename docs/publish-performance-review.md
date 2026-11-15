@@ -48,8 +48,9 @@ release pruning. These caused the fourth and fifth full verification passes.
 ## Proposed optimization
 
 Carry the verified history returned by post-commit reconciliation through both
-cleanup steps. Each pruning step checks that the current pointer still matches
-the snapshot. Shared-media pruning reads retained manifests, checks tombstones
+cleanup steps. Each pruning step checks that the current pointer and on-disk
+history still match the snapshot and that no new commit intent appeared.
+Shared-media pruning reads retained manifests, checks tombstones
 at each decision, and retains time-protected media. Release pruning rechecks
 each soon-to-be-removed release's media while copying it into shared storage;
 current-media synchronization checks bytes before either pruning step. The
