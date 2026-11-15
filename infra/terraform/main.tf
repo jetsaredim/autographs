@@ -34,19 +34,14 @@ module "compute" {
 module "data_services" {
   source = "./modules/data_services"
 
-  create_autonomous_database                      = var.create_autonomous_database
-  runtime_secret_values_ready                     = local.runtime_secret_values_ready
-  autonomous_database_name                        = var.autonomous_database_name
-  autonomous_database_display_name                = var.autonomous_database_display_name
-  autonomous_database_admin_password_secret_id    = local.autonomous_database_admin_password_secret_id
-  autonomous_database_is_mtls_connection_required = var.autonomous_database_is_mtls_connection_required
-  autonomous_database_db_workload                 = var.autonomous_database_db_workload
-  autonomous_database_license_model               = var.autonomous_database_license_model
-  autonomous_database_data_storage_size_in_tbs    = var.autonomous_database_data_storage_size_in_tbs
-  create_media_bucket                             = var.create_media_bucket
-  media_bucket_namespace                          = var.media_bucket_namespace
-  media_bucket_name                               = var.media_bucket_name
-  media_bucket_versioning                         = var.media_bucket_versioning
-  compartment_id                                  = var.compartment_ocid
-  tags                                            = local.tags
+  create_autonomous_database                   = var.create_autonomous_database
+  runtime_secret_values_ready                  = local.runtime_secret_values_ready
+  autonomous_database_name                     = var.autonomous_database_name
+  autonomous_database_display_name             = var.autonomous_database_display_name
+  autonomous_database_admin_password_secret_id = local.autonomous_database_admin_password_secret_id
+  create_media_bucket                          = var.create_media_bucket
+  media_bucket_namespace                       = var.media_bucket_namespace
+  media_bucket_name                            = var.media_bucket_name
+  compartment_id                               = var.compartment_ocid
+  tags                                         = local.tags
 }

@@ -45,4 +45,3 @@ EOT
 
 media_bucket_name         = "autographs-media-prod"
 state_bucket_name         = "autographs-tf-state"
-state_bucket_storage_tier = "Standard"

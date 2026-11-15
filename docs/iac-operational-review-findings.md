@@ -31,7 +31,10 @@ On 2026-11-15, read-only GitHub variable queries returned
 `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`.
 The first three values differ from Terraform's `off`/`false` defaults. This
 variable query alone does not establish the corresponding Terraform state or
-plan result. Secret values were not read.
+plan result. Secret values were not read. The mTLS GitHub variable remains in
+place during PR #354 review, but the proposed workflow code no longer reads it.
+Remove it only after that code reaches `main` and a production no-change plan
+passes.
 
 There are two different cases in this review. **Missing configuration with the
 current code** means a GitHub Actions variable disappears while the workflow
@@ -109,10 +112,10 @@ proposed refactor that removes the input and its conditional consumers.
 | `create_media_bucket` | GitHub variable `true`, Terraform/workflow fallback `false` | Private bucket count and namespace precondition. Missing variable risks bucket removal. | IAC-001; Warning. |
 | `assign_public_ip` | Terraform default `true` | VM VNIC public IP; false would change SSH/edge reachability. | Supported alternative and plan impact to verify. |
 | ADB `is_free_tier` | Hardcoded `true` in the data services resource; former root/module input removed | Fixes the database to Oracle Always Free. The existing counted resource address is unchanged. | Require PR CI production plan to show no changes before merging. |
-| `autonomous_database_is_mtls_connection_required` | GitHub variable `true`, Terraform/workflow fallback `true` | ADB connection security and wallet contract. | Confirm fixed policy and false-path support. |
-| `media_bucket_versioning` | Terraform default `Enabled`; accepts `Enabled`/`Disabled` | Changes private Object Storage recovery posture. | Confirm current state and whether disabling is a supported operation. |
+| ADB `is_mtls_connection_required` | Hardcoded `true` in the data services resource; former GitHub/workflow and Terraform inputs removed in PR #354 | Requires wallet-based connections. Existing counted resource address is unchanged. | Local validation passed; require production no-change PR plan. Remove the now-unused GitHub variable after merge. |
+| Media bucket `versioning` | Hardcoded `Enabled` in the data services resource in PR #354 | Preserves private Object Storage recovery posture. Existing counted resource address is unchanged. | Local validation passed; require production no-change PR plan. |
 | Root and tenancy OCI `auth` | Terraform default `APIKey`; accepts `APIKey`/`SecurityToken` | Selects OCI provider authentication for production or bootstrap state. | Confirm each root's operator entry point and credential source. |
-| `state_bucket_storage_tier` | Tenancy-root default `Standard`; accepts `Standard`/`InfrequentAccess`/`Archive` | Alters the Terraform state bucket retrieval posture. | Confirm state access and whether non-Standard modes are supported. |
+| State bucket `storage_tier` | Hardcoded `Standard` in the state bucket module in PR #354 | Keeps Terraform state promptly retrievable. Existing uncounted resource address is unchanged. | Tenancy-root local validation passed; separate authenticated tenancy plan is needed to prove live no-change behavior. |
 | `cloudflare_mode` | GitHub variable `proxied`; root default and deploy/CI fallback `off` | Counts zone, records, TLS, rules; `dns_only` preserves zone but changes proxy flag; ordinary deploy DNS guard rejects changes. | IAC-004; preserve controlled transitions. |
 | `runtime_secret_values_ready` | Derived from the three Vault CURRENT-version checks | Blocks ADB creation/update until the generated DB password and manually populated secrets are ready. | Preserve fail-closed precondition; verify missing and bootstrap versions. |
 | `autographs_deploy_publish_frozen` | Role default and deploy input `true`; unfreeze sets `false` | Full-deploy assertion and exact Caddy publish gate. | IAC-005; trace as one cutover contract. |
@@ -127,21 +130,25 @@ proposed refactor that removes the input and its conditional consumers.
 | Cloudflare `operation` | Operator workflow choice `plan`/`apply` | Apply requires a matching nonempty plan fingerprint. | Current plan-only run passed; retain. |
 | Image cleanup `dry_run` / `remote_operation` | Scheduled or manual `image-cleanup.yml`; manual options `inventory`/`delete` | Scheduled local Podman cleanup gets `dry_run=false` and may prune; scheduled GHCR remains dry-run. Manual GHCR deletion requires explicit `delete`; the manual local dry-run input is independent. | Trace both local and remote actions and protected tags. |
 
-### Similar fixed-policy candidates
+### Fixed-policy input validation
 
 The Always Free change removes one root/module pass-through and fixes the
 existing resource argument to `true`. It does not change the `count` expression
 or resource address. The production tfvars example no longer advertises a paid
-tier override. The PR CI plan must still confirm no live change before merge.
+tier override. Each additional input below was changed and validated locally
+one at a time. None of the changes alters a resource `count`, `for_each`, or
+Terraform address; the production PR CI plan must still confirm no live change
+before merge. Local validation used the pinned providers with an isolated
+`TF_DATA_DIR` and `-backend=false`; it did not read production or tenancy state.
 
-| Input | Current value and direct consumer | Assessment |
+| Former input | Fixed resource value and local check | Live proof still needed |
 |---|---|---|
-| `autonomous_database_is_mtls_connection_required` | `true` in Terraform and GitHub; ADB `is_mtls_connection_required`; wallet-based controller connection | Strong fixed-policy candidate, but remove the GitHub override, three workflow `TF_VAR_*` inputs, root/module pass-through, and configuration docs together. Validate the wallet path and a no-change production plan. |
-| `autonomous_database_db_workload` | Terraform default `OLTP`; ADB `db_workload` | Likely fixed to this catalog's transaction workload. Confirm whether any supported bootstrap or restore path needs another workload before hardcoding. |
-| `autonomous_database_license_model` | Terraform default `LICENSE_INCLUDED`; ADB `license_model` | Likely fixed under the Always Free policy; confirm provider/OCI behavior and plan because this is a billing-sensitive field. |
-| `autonomous_database_data_storage_size_in_tbs` | Terraform default `1`; ADB storage argument | OCI ignores this sizing input on Always Free databases. Keep it explicit for provider compatibility until its plan and any future paid-tier path are understood. Do not present `1` as the effective Always Free storage size. |
-| `media_bucket_versioning` | Terraform default `Enabled`; private bucket `versioning` | Recovery-policy candidate. Confirm the actual bucket state and supported disable/recovery operations before removing the override. |
-| `state_bucket_storage_tier` | Tenancy-root default `Standard`; state bucket `storage_tier` | State retrieval is operationally sensitive. Review the tenancy bootstrap path separately; this PR's production-root plan does not cover it. |
+| `autonomous_database_is_mtls_connection_required` | ADB `is_mtls_connection_required = true`; production-root `terraform validate` passed after removing the three workflow inputs and updating wallet docs. | Production-root no-change plan. Remove unused GitHub variable only after merge and recheck. |
+| `autonomous_database_db_workload` | ADB `db_workload = "OLTP"`; production-root `terraform validate` passed. | Production-root no-change plan. |
+| `autonomous_database_license_model` | ADB `license_model = "LICENSE_INCLUDED"`; production-root `terraform validate` passed. | Production-root no-change plan; especially confirm this billing-related argument. |
+| `autonomous_database_data_storage_size_in_tbs` | ADB `data_storage_size_in_tbs = 1`; production-root `terraform validate` passed. OCI ignores this sizing request on Always Free databases; it is not the effective storage size. | Production-root no-change plan. |
+| `media_bucket_versioning` | Private bucket `versioning = "Enabled"`; production-root `terraform validate` passed. | Production-root no-change plan. |
+| `state_bucket_storage_tier` | State bucket `storage_tier = "Standard"`; tenancy-root `terraform validate` passed. | Separate authenticated tenancy-root no-change plan; PR CI only validates the tenancy root's syntax and provider schema. |
 
 The resource-presence switches (`create_autonomous_database`,
 `create_media_bucket`, `create_network`, and `create_runtime_instance`) are a

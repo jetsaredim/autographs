@@ -135,14 +135,3 @@ variable "state_bucket_name" {
   type        = string
   default     = "autographs-tf-state"
 }
-
-variable "state_bucket_storage_tier" {
-  description = "Storage tier for the Terraform state bucket."
-  type        = string
-  default     = "Standard"
-
-  validation {
-    condition     = contains(["Standard", "InfrequentAccess", "Archive"], var.state_bucket_storage_tier)
-    error_message = "state_bucket_storage_tier must be Standard, InfrequentAccess, or Archive."
-  }
-}

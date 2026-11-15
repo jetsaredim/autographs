@@ -31,7 +31,6 @@ module "state_bucket" {
   compartment_id = module.iam.compartment_ocid
   namespace      = data.oci_objectstorage_namespace.ns.namespace
   bucket_name    = var.state_bucket_name
-  storage_tier   = var.state_bucket_storage_tier
   tags           = local.tags
 }
 
