@@ -44,9 +44,6 @@ These are repo-level GitHub Variables unless an optional GitHub Environment over
 | `OCI_COMPARTMENT_OCID` | Project compartment OCID produced by the tenancy bootstrap root |
 | `OCI_AVAILABILITY_DOMAIN` | Availability domain for the runtime VM |
 | `OCI_RUNTIME_IMAGE_OCID` | Oracle Linux image OCID for the runtime VM |
-| `OCI_RUNTIME_SHAPE` | Optional OCI compute shape override; defaults to `VM.Standard.E2.1.Micro` |
-| `OCI_RUNTIME_OCPUS` | Optional flex-shape OCPU count; ignored by fixed shapes |
-| `OCI_RUNTIME_MEMORY_GBS` | Optional flex-shape memory in GB; ignored by fixed shapes |
 | `OCI_RUNTIME_SSH_PUBLIC_KEYS` | JSON list of SSH public keys injected into the VM |
 | `OCI_OBJECT_STORAGE_NAMESPACE` | OCI Object Storage namespace for Terraform remote state |
 | `OCI_CREATE_AUTONOMOUS_DATABASE` | Optional toggle for creating the Oracle Autonomous Database; defaults to `false` until credentials are ready |

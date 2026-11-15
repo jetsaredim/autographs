@@ -148,7 +148,7 @@ proposed refactor that removes the input and its conditional consumers.
 | `create_runtime_instance` | Terraform default `true`; deploy/CI do not override | `module.compute` and image lookup; false would remove VM. Separate `recreate_runtime_instance` workflow input taints existing VM on retry. | Both paths and retry fixture to verify. |
 | `create_autonomous_database` | GitHub variable `true`, Terraform/workflow fallback `false` | ADB count, Vault lookups, readiness check, password rotation target. Missing variable risks database removal. | IAC-001; Warning. |
 | `create_media_bucket` | GitHub variable `true`, Terraform/workflow fallback `false` | Private bucket count and namespace precondition. Missing variable risks bucket removal. | IAC-001; Warning. |
-| `assign_public_ip` | Terraform default `true` | VM VNIC public IP; false would change SSH/edge reachability. | Supported alternative and plan impact to verify. |
+| `assign_public_ip` | Fixed `true` in the compute resource; root and module inputs removed | VM VNIC retains its public IP. | PR production plan to verify. |
 | ADB `is_free_tier` | Hardcoded `true` in the data services resource; former root/module input removed | Fixes the database to Oracle Always Free. The existing counted resource address is unchanged. | PR CI production plan returned no changes. |
 | ADB `is_mtls_connection_required` | Hardcoded `true` in the data services resource; former GitHub/workflow and Terraform inputs removed in PR #354 | Requires wallet-based connections. Existing counted resource address is unchanged. | Local validation and PR CI production no-change plan passed. Remove the now-unused GitHub variable after merge. |
 | Media bucket `versioning` | Hardcoded `Enabled` in the data services resource in PR #354 | Preserves private Object Storage recovery posture. Existing counted resource address is unchanged. | Local validation and PR CI production no-change plan passed. |
@@ -207,15 +207,14 @@ historically or that other operators have no private overrides.
 | Input group | Current observation | Contract and disposition |
 |---|---|---|
 | `create_network`, `create_runtime_instance` | Production defaults and local tfvars are `true`; no GitHub workflow override. | Both drive resource `count` expressions and related lookups/outputs. Retain until a full consumer inventory and reviewed `moved` transitions or equivalent state update make a switch-removal plan safe. |
-| `assign_public_ip` | Production default and local tfvars are `true`; no GitHub workflow override. | Direct VM VNIC setting, not a state-address switch. It may be fixed policy, but first confirm reachability and plan effect on the existing VM. |
+| `assign_public_ip` | Fixed `true` in the compute resource; no GitHub workflow override. | Root and module inputs were removed; confirm the existing VM has no production plan change. |
 | `runtime_boot_volume_size_gbs` | Production default, local tfvars, and example are `50`; no GitHub Actions variable or workflow override exists. | Keep the Terraform input configurable and retain the `50` default. No boot-volume sizing cleanup is proposed. |
 | `project_name`, `environment`, `name_prefix` | Defaults and local tfvars match in both roots; no production workflow override. | Feed tags, Vault secret names, IAM names, and runtime resource names. Preserve cross-root alignment; a harmless-looking name change can affect existing resources and secret lookups. |
 | `region`, `home_region`, network CIDRs and ingress CIDRs | Current local values match their defaults; no production workflow override. | These are location and network policy inputs. Retain operator control rather than treating the current values as proof of fixed policy. |
 | Tenancy identity and state-bucket names | Most local values match defaults or rely on defaults; the tenancy root has no GitHub workflow input. | They identify existing IAM and state resources. Review each name against tenancy state before any hardcoding. |
 | `runtime_image_ocid` | Default empty; no current GitHub variable, but workflows still pass the empty value. | Empty selects the Oracle Linux image lookup. It is a meaningful lookup mode, not a fixed image identifier. |
 
-Eleven current GitHub variables duplicate every matching workflow fallback:
-`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`,
+Eight remaining GitHub variables duplicate every matching workflow fallback:
 `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `OCI_AUTONOMOUS_DATABASE_NAME`,
 `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, `OCI_MEDIA_BUCKET_NAME`,
 `AUTOGRAPHS_DNS_DOMAIN`, `AUTOGRAPHS_DNS_SUBDOMAIN`, and
@@ -223,7 +222,10 @@ Eleven current GitHub variables duplicate every matching workflow fallback:
 non-Terraform workflow consumers with the same fallbacks. Their removal from
 GitHub is a configuration cleanup candidate, followed by CI and read-only
 production plan verification; no Terraform code change or state move is needed
-to test the current fallback behavior. The mTLS GitHub variable is now unused
+to test the current fallback behavior. The three runtime sizing variables
+`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, and `OCI_RUNTIME_MEMORY_GBS` matched
+the Terraform defaults and are being removed from GitHub after the PR plan
+confirms no changes. The mTLS GitHub variable is now unused
 by the PR code and should be removed only after merge. In contrast, the two
 `OCI_CREATE_*` values are `true` while workflow fallbacks remain `false`, and
 `CLOUDFLARE_MODE` is `proxied` while its fallback is `off`; those are not

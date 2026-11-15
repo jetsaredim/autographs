@@ -79,9 +79,6 @@ Populate repo-level GitHub Variables:
 - `OCI_COMPARTMENT_OCID`
 - `OCI_AVAILABILITY_DOMAIN`
 - `OCI_RUNTIME_IMAGE_OCID`
-- `OCI_RUNTIME_SHAPE`
-- `OCI_RUNTIME_OCPUS`
-- `OCI_RUNTIME_MEMORY_GBS`
 - `OCI_RUNTIME_SSH_PUBLIC_KEYS`
 - `OCI_OBJECT_STORAGE_NAMESPACE`
 - `OCI_CREATE_AUTONOMOUS_DATABASE`
@@ -110,7 +107,7 @@ Populate repo-level GitHub Variables:
 
 `GHCR_CONTROLLER_IMAGE_REPOSITORY` should be the exact `ghcr.io` image path used for the controller image, such as `ghcr.io/jetsaredim/autographs/controller`. The deployed runtime no longer publishes, pulls, or starts the old Next.js runner or tools images.
 
-`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
+Terraform defaults the runtime shape to `VM.Standard.E2.1.Micro` and the flex-shape OCPU and memory inputs to `1` each. Fixed shapes omit the Terraform `shape_config` block. `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
 Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, the three named Vault secrets, and runtime connection values are ready. Apply the runtime root once with ADB creation disabled. OCI generates a usable database password as version 1; do not populate or overwrite it. Populate only the Oracle wallet password and admin password hash `CURRENT` versions outside Terraform and verify that each advances beyond its intentionally invalid version-1 bootstrap placeholder. Terraform derives readiness from those version numbers; only then may ADB creation or the normal deployment consume the secret OCIDs. The ADB-enabled apply resolves the existing database password by exact deterministic name, provisions ADB from its stable OCID, and configures the ADB rotation target in the same deployment state. The deploy step passes runtime coordinates through VM-local quadlet environment files.
 
