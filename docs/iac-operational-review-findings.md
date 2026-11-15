@@ -224,8 +224,9 @@ GitHub is a configuration cleanup candidate, followed by CI and read-only
 production plan verification; no Terraform code change or state move is needed
 to test the current fallback behavior. The three runtime sizing variables
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, and `OCI_RUNTIME_MEMORY_GBS` matched
-the Terraform defaults and are being removed from GitHub after the PR plan
-confirms no changes. The mTLS GitHub variable is now unused
+the Terraform defaults. They were removed from the workflows and GitHub
+repository after PR #354's Terraform check on commit `a08c7ae` reported
+`No changes` (run `43776948364`). The mTLS GitHub variable is now unused
 by the PR code and should be removed only after merge. In contrast, the two
 `OCI_CREATE_*` values are `true` while workflow fallbacks remain `false`, and
 `CLOUDFLARE_MODE` is `proxied` while its fallback is `off`; those are not
