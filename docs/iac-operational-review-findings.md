@@ -196,6 +196,39 @@ different class. Their conditionals determine resource addresses and supported
 bootstrap paths. Do not hardcode or remove them as a simple pass-through
 cleanup; use the separate state-preservation sequence above.
 
+### Remaining defaults and current GitHub overrides
+
+On 2026-11-15, the two Terraform root variable files, local operator tfvars,
+three production Terraform workflow inputs, and current GitHub Actions variable
+names/values were compared. "Same" below means the current explicit value
+equals the code fallback; it does not prove the value was never changed
+historically or that other operators have no private overrides.
+
+| Input group | Current observation | Contract and disposition |
+|---|---|---|
+| `create_network`, `create_runtime_instance` | Production defaults and local tfvars are `true`; no GitHub workflow override. | Both drive resource `count` expressions and related lookups/outputs. Retain until a full consumer inventory and reviewed `moved` transitions or equivalent state update make a switch-removal plan safe. |
+| `assign_public_ip` | Production default and local tfvars are `true`; no GitHub workflow override. | Direct VM VNIC setting, not a state-address switch. It may be fixed policy, but first confirm reachability and plan effect on the existing VM. |
+| `runtime_boot_volume_size_gbs` | Production default and local tfvars are `50`; no GitHub workflow override. | Potential fixed sizing value; confirm VM replacement/update behavior before removing its input. |
+| `project_name`, `environment`, `name_prefix` | Defaults and local tfvars match in both roots; no production workflow override. | Feed tags, Vault secret names, IAM names, and runtime resource names. Preserve cross-root alignment; a harmless-looking name change can affect existing resources and secret lookups. |
+| `region`, `home_region`, network CIDRs and ingress CIDRs | Current local values match their defaults; no production workflow override. | These are location and network policy inputs. Retain operator control rather than treating the current values as proof of fixed policy. |
+| Tenancy identity and state-bucket names | Most local values match defaults or rely on defaults; the tenancy root has no GitHub workflow input. | They identify existing IAM and state resources. Review each name against tenancy state before any hardcoding. |
+| `runtime_image_ocid` | Default empty; no current GitHub variable, but workflows still pass the empty value. | Empty selects the Oracle Linux image lookup. It is a meaningful lookup mode, not a fixed image identifier. |
+
+Eleven current GitHub variables duplicate every matching workflow fallback:
+`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`,
+`DEPLOY_SSH_USER`, `DEPLOY_PATH`, `OCI_AUTONOMOUS_DATABASE_NAME`,
+`OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, `OCI_MEDIA_BUCKET_NAME`,
+`AUTOGRAPHS_DNS_DOMAIN`, `AUTOGRAPHS_DNS_SUBDOMAIN`, and
+`AUTOGRAPHS_DNS_TTL`. The deploy SSH/path and media bucket names also have
+non-Terraform workflow consumers with the same fallbacks. Their removal from
+GitHub is a configuration cleanup candidate, followed by CI and read-only
+production plan verification; no Terraform code change or state move is needed
+to test the current fallback behavior. The mTLS GitHub variable is now unused
+by the PR code and should be removed only after merge. In contrast, the two
+`OCI_CREATE_*` values are `true` while workflow fallbacks remain `false`, and
+`CLOUDFLARE_MODE` is `proxied` while its fallback is `off`; those are not
+redundant and remain under IAC-001/IAC-004 review.
+
 ## Production state and plan evidence
 
 The [read-only operator plan run 43678520459](https://github.com/jetsaredim/autographs/actions/runs/43678520459)
