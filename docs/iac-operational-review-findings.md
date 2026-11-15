@@ -67,7 +67,11 @@ inventory until their supported test paths are classified.
 | `assign_public_ip` | Terraform default `true` | VM VNIC public IP; false would change SSH/edge reachability. | Supported alternative and plan impact to verify. |
 | `autonomous_database_is_free_tier` | Terraform default `true` | ADB service sizing/cost policy. | Confirm fixed policy and state effect. |
 | `autonomous_database_is_mtls_connection_required` | GitHub variable `true`, Terraform/workflow fallback `true` | ADB connection security and wallet contract. | Confirm fixed policy and false-path support. |
+| `media_bucket_versioning` | Terraform default `Enabled`; accepts `Enabled`/`Disabled` | Changes private Object Storage recovery posture. | Confirm current state and whether disabling is a supported operation. |
+| Root and tenancy OCI `auth` | Terraform default `APIKey`; accepts `APIKey`/`SecurityToken` | Selects OCI provider authentication for production or bootstrap state. | Confirm each root's operator entry point and credential source. |
+| `state_bucket_storage_tier` | Tenancy-root default `Standard`; accepts `Standard`/`InfrequentAccess`/`Archive` | Alters the Terraform state bucket retrieval posture. | Confirm state access and whether non-Standard modes are supported. |
 | `cloudflare_mode` | GitHub variable `proxied`; root default and deploy/CI fallback `off` | Counts zone, records, TLS, rules; `dns_only` preserves zone but changes proxy flag; ordinary deploy DNS guard rejects changes. | IAC-004; preserve controlled transitions. |
+| `runtime_secret_values_ready` | Derived from the three Vault CURRENT-version checks | Blocks ADB creation/update until the generated DB password and manually populated secrets are ready. | Preserve fail-closed precondition; verify missing and bootstrap versions. |
 | `autographs_deploy_publish_frozen` | Role default and deploy input `true`; unfreeze sets `false` | Full-deploy assertion and exact Caddy publish gate. | IAC-005; trace as one cutover contract. |
 | `autographs_deploy_explicit_cutover` | Role default `true` | Full-deploy assertion and restart-handler suppression. | IAC-005; trace role notifications and fixtures. |
 | `autographs_deploy_allow_unfreeze` | Absent/false by default; unfreeze sets `true` | Allows removal of publish gate when frozen flag becomes false. | IAC-005; verify failure rescue and no bypass. |
@@ -76,6 +80,7 @@ inventory until their supported test paths are classified.
 | `security_patching_reboot_validate_dnf_noop` | Role default `true`; fixture overrides true/false | Gates DNF no-op proof before reboot cleanup. | IAC-006; verify production and test seam. |
 | Security update/reboot approval labels | GitHub issue labels and approved workflow events | Separate update and reboot paths validate current scanner state before mutation. | Trace issue update, approval removal, cleanup, and retry. |
 | `recreate_runtime_instance` | Deploy workflow dispatch Boolean, default false | Retry-only taint of tracked compute address before saved plan. | Verify replacement gate and rollback path. |
+| Release `operation` | Manual deploy workflow choice `retry`/`rollback`; push to `main` follows the release path | Selects retry or controller rollback on manual runs while normal release processing follows the push event. | Trace every branch through status reporting and failure cleanup. |
 | Cloudflare `operation` | Operator workflow choice `plan`/`apply` | Apply requires a matching nonempty plan fingerprint. | Current plan-only run passed; retain. |
 | Image cleanup `dry_run` / `remote_operation` | Scheduled or manual `image-cleanup.yml`; manual options `inventory`/`delete` | Scheduled local Podman cleanup gets `dry_run=false` and may prune; scheduled GHCR remains dry-run. Manual GHCR deletion requires explicit `delete`; the manual local dry-run input is independent. | Trace both local and remote actions and protected tags. |
 
