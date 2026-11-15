@@ -39,7 +39,6 @@ module "data_services" {
   autonomous_database_name                        = var.autonomous_database_name
   autonomous_database_display_name                = var.autonomous_database_display_name
   autonomous_database_admin_password_secret_id    = local.autonomous_database_admin_password_secret_id
-  autonomous_database_is_free_tier                = var.autonomous_database_is_free_tier
   autonomous_database_is_mtls_connection_required = var.autonomous_database_is_mtls_connection_required
   autonomous_database_db_workload                 = var.autonomous_database_db_workload
   autonomous_database_license_model               = var.autonomous_database_license_model

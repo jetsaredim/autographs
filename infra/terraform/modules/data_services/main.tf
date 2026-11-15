@@ -6,7 +6,7 @@ resource "oci_database_autonomous_database" "catalog" {
   display_name                = var.autonomous_database_display_name
   secret_id                   = var.autonomous_database_admin_password_secret_id
   db_workload                 = var.autonomous_database_db_workload
-  is_free_tier                = var.autonomous_database_is_free_tier
+  is_free_tier                = true
   is_mtls_connection_required = var.autonomous_database_is_mtls_connection_required
   license_model               = var.autonomous_database_license_model
   data_storage_size_in_tbs    = var.autonomous_database_data_storage_size_in_tbs

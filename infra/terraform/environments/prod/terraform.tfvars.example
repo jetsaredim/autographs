@@ -50,7 +50,6 @@ assign_public_ip = true
 create_autonomous_database                   = false
 autonomous_database_name                     = "autographsdb"
 autonomous_database_display_name             = "autographs-prod-adb"
-autonomous_database_is_free_tier             = true
 autonomous_database_is_mtls_connection_required = true
 autonomous_database_db_workload              = "OLTP"
 autonomous_database_license_model            = "LICENSE_INCLUDED"

@@ -28,11 +28,6 @@ variable "autonomous_database_admin_password_secret_id" {
   type        = string
 }
 
-variable "autonomous_database_is_free_tier" {
-  description = "Whether to request Oracle Always Free sizing."
-  type        = bool
-}
-
 variable "autonomous_database_is_mtls_connection_required" {
   description = "Whether Autonomous Database requires mTLS wallet authentication."
   type        = bool

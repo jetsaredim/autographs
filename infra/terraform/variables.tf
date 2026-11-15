@@ -205,12 +205,6 @@ variable "autonomous_database_display_name" {
   default     = "autographs-prod-adb"
 }
 
-variable "autonomous_database_is_free_tier" {
-  description = "Whether the Autonomous Database should use Oracle Always Free sizing."
-  type        = bool
-  default     = true
-}
-
 variable "autonomous_database_is_mtls_connection_required" {
   description = "Whether the Autonomous Database should require mTLS wallet authentication."
   type        = bool

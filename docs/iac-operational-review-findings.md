@@ -108,7 +108,7 @@ proposed refactor that removes the input and its conditional consumers.
 | `create_autonomous_database` | GitHub variable `true`, Terraform/workflow fallback `false` | ADB count, Vault lookups, readiness check, password rotation target. Missing variable risks database removal. | IAC-001; Warning. |
 | `create_media_bucket` | GitHub variable `true`, Terraform/workflow fallback `false` | Private bucket count and namespace precondition. Missing variable risks bucket removal. | IAC-001; Warning. |
 | `assign_public_ip` | Terraform default `true` | VM VNIC public IP; false would change SSH/edge reachability. | Supported alternative and plan impact to verify. |
-| `autonomous_database_is_free_tier` | Terraform default `true` | ADB service sizing/cost policy. | Confirm fixed policy and state effect. |
+| ADB `is_free_tier` | Hardcoded `true` in the data services resource; former root/module input removed | Fixes the database to Oracle Always Free. The existing counted resource address is unchanged. | Require PR CI production plan to show no changes before merging. |
 | `autonomous_database_is_mtls_connection_required` | GitHub variable `true`, Terraform/workflow fallback `true` | ADB connection security and wallet contract. | Confirm fixed policy and false-path support. |
 | `media_bucket_versioning` | Terraform default `Enabled`; accepts `Enabled`/`Disabled` | Changes private Object Storage recovery posture. | Confirm current state and whether disabling is a supported operation. |
 | Root and tenancy OCI `auth` | Terraform default `APIKey`; accepts `APIKey`/`SecurityToken` | Selects OCI provider authentication for production or bootstrap state. | Confirm each root's operator entry point and credential source. |
@@ -126,6 +126,28 @@ proposed refactor that removes the input and its conditional consumers.
 | Release `operation` | Manual deploy workflow choice `retry`/`rollback`; push to `main` follows the release path | Selects retry or controller rollback on manual runs while normal release processing follows the push event. | Trace every branch through status reporting and failure cleanup. |
 | Cloudflare `operation` | Operator workflow choice `plan`/`apply` | Apply requires a matching nonempty plan fingerprint. | Current plan-only run passed; retain. |
 | Image cleanup `dry_run` / `remote_operation` | Scheduled or manual `image-cleanup.yml`; manual options `inventory`/`delete` | Scheduled local Podman cleanup gets `dry_run=false` and may prune; scheduled GHCR remains dry-run. Manual GHCR deletion requires explicit `delete`; the manual local dry-run input is independent. | Trace both local and remote actions and protected tags. |
+
+### Similar fixed-policy candidates
+
+The Always Free change removes one root/module pass-through and fixes the
+existing resource argument to `true`. It does not change the `count` expression
+or resource address. The production tfvars example no longer advertises a paid
+tier override. The PR CI plan must still confirm no live change before merge.
+
+| Input | Current value and direct consumer | Assessment |
+|---|---|---|
+| `autonomous_database_is_mtls_connection_required` | `true` in Terraform and GitHub; ADB `is_mtls_connection_required`; wallet-based controller connection | Strong fixed-policy candidate, but remove the GitHub override, three workflow `TF_VAR_*` inputs, root/module pass-through, and configuration docs together. Validate the wallet path and a no-change production plan. |
+| `autonomous_database_db_workload` | Terraform default `OLTP`; ADB `db_workload` | Likely fixed to this catalog's transaction workload. Confirm whether any supported bootstrap or restore path needs another workload before hardcoding. |
+| `autonomous_database_license_model` | Terraform default `LICENSE_INCLUDED`; ADB `license_model` | Likely fixed under the Always Free policy; confirm provider/OCI behavior and plan because this is a billing-sensitive field. |
+| `autonomous_database_data_storage_size_in_tbs` | Terraform default `1`; ADB storage argument | OCI ignores this sizing input on Always Free databases. Keep it explicit for provider compatibility until its plan and any future paid-tier path are understood. Do not present `1` as the effective Always Free storage size. |
+| `media_bucket_versioning` | Terraform default `Enabled`; private bucket `versioning` | Recovery-policy candidate. Confirm the actual bucket state and supported disable/recovery operations before removing the override. |
+| `state_bucket_storage_tier` | Tenancy-root default `Standard`; state bucket `storage_tier` | State retrieval is operationally sensitive. Review the tenancy bootstrap path separately; this PR's production-root plan does not cover it. |
+
+The resource-presence switches (`create_autonomous_database`,
+`create_media_bucket`, `create_network`, and `create_runtime_instance`) are a
+different class. Their conditionals determine resource addresses and supported
+bootstrap paths. Do not hardcode or remove them as a simple pass-through
+cleanup; use the separate state-preservation sequence above.
 
 ## Production state and plan evidence
 
