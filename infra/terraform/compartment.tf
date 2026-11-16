@@ -1,6 +1,6 @@
 data "oci_identity_compartments" "project" {
   compartment_id = var.tenancy_ocid
-  name           = "${var.name_prefix}-cmp"
+  name           = "${local.name_prefix}-cmp"
   state          = "ACTIVE"
 }
 

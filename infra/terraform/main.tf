@@ -2,7 +2,8 @@ module "network" {
   source = "./modules/network"
 
   create_network           = var.create_network
-  name_prefix              = var.name_prefix
+  name_prefix              = local.name_prefix
+  project_name             = var.project_name
   compartment_id           = local.compartment_ocid
   vcn_cidr_block           = var.vcn_cidr_block
   public_subnet_cidr_block = var.public_subnet_cidr_block
@@ -16,7 +17,8 @@ module "compute" {
   source = "./modules/compute"
 
   create_instance      = var.create_runtime_instance
-  name_prefix          = var.name_prefix
+  name_prefix          = local.name_prefix
+  project_name         = var.project_name
   compartment_id       = local.compartment_ocid
   availability_domain  = var.availability_domain
   subnet_id            = module.network.public_subnet_id
@@ -35,12 +37,12 @@ module "data_services" {
 
   create_autonomous_database                   = var.create_autonomous_database
   runtime_secret_values_ready                  = local.runtime_secret_values_ready
-  autonomous_database_name                     = var.autonomous_database_name
-  autonomous_database_display_name             = var.autonomous_database_display_name
+  autonomous_database_name                     = local.autonomous_database_name
+  autonomous_database_display_name             = local.autonomous_database_display_name
   autonomous_database_admin_password_secret_id = local.autonomous_database_admin_password_secret_id
   create_media_bucket                          = var.create_media_bucket
   media_bucket_namespace                       = var.media_bucket_namespace
-  media_bucket_name                            = var.media_bucket_name
+  media_bucket_name                            = local.media_bucket_name
   compartment_id                               = local.compartment_ocid
   tags                                         = local.tags
 }

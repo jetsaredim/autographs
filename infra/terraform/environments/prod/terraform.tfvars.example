@@ -5,7 +5,6 @@
 
 project_name = "autographs"
 environment  = "prod"
-name_prefix  = "autographs-prod"
 
 auth                = "APIKey"
 config_file_profile = ""
@@ -46,12 +45,9 @@ runtime_deploy_path = "/opt/autographs"
 # Phase 2 data services. The runtime root owns the regional Vault resources and
 # passes its Oracle database password secret OCID directly to ADB.
 create_autonomous_database                   = false
-autonomous_database_name                     = "autographsdb"
-autonomous_database_display_name             = "autographs-prod-adb"
 
 create_media_bucket     = false
 media_bucket_namespace  = "replace-with-your-object-storage-namespace"
-media_bucket_name       = "autographs-media-prod"
 
 # Cloudflare full-zone migration. Advance only through reviewed DNS applies.
 cloudflare_mode       = "off"

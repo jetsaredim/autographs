@@ -2,18 +2,17 @@ variable "project_name" {
   description = "Project slug used in OCI display names."
   type        = string
   default     = "autographs"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9]{0,11}$", var.project_name))
+    error_message = "project_name must be lowercase alphanumeric, start with a letter, and be at most 12 characters so the derived Oracle DB name stays within 14 characters."
+  }
 }
 
 variable "environment" {
   description = "Environment name for this root."
   type        = string
   default     = "prod"
-}
-
-variable "name_prefix" {
-  description = "Prefix applied to OCI display names."
-  type        = string
-  default     = "autographs-prod"
 }
 
 variable "auth" {
@@ -177,23 +176,6 @@ variable "create_autonomous_database" {
   default     = false
 }
 
-variable "autonomous_database_name" {
-  description = "Oracle Autonomous Database DB name. Keep this short and alphanumeric for Oracle service constraints."
-  type        = string
-  default     = "autographsdb"
-
-  validation {
-    condition     = can(regex("^[A-Za-z][A-Za-z0-9]{0,13}$", var.autonomous_database_name))
-    error_message = "autonomous_database_name must start with a letter, contain only letters and numbers, and be at most 14 characters."
-  }
-}
-
-variable "autonomous_database_display_name" {
-  description = "Display name for the Oracle Autonomous Database metadata store."
-  type        = string
-  default     = "autographs-prod-adb"
-}
-
 variable "create_media_bucket" {
   description = "Whether Terraform should create the private Object Storage bucket for autograph images."
   type        = bool
@@ -204,12 +186,6 @@ variable "media_bucket_namespace" {
   description = "OCI Object Storage namespace for the private autograph media bucket."
   type        = string
   default     = ""
-}
-
-variable "media_bucket_name" {
-  description = "Name of the private Object Storage bucket for autograph images."
-  type        = string
-  default     = "autographs-media-prod"
 }
 
 variable "porkbun_api_key" {
@@ -230,12 +206,6 @@ variable "autographs_dns_domain" {
   description = "Porkbun domain that owns the autographs DNS record."
   type        = string
   default     = "jetsaredim.net"
-}
-
-variable "autographs_dns_subdomain" {
-  description = "Subdomain for the autographs app DNS record."
-  type        = string
-  default     = "autographs"
 }
 
 variable "autographs_dns_ttl" {

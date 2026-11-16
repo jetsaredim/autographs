@@ -1,4 +1,9 @@
 locals {
+  name_prefix                      = "${var.project_name}-${var.environment}"
+  autonomous_database_name         = "${var.project_name}db"
+  autonomous_database_display_name = "${local.name_prefix}-adb"
+  media_bucket_name                = "${var.project_name}-media-${var.environment}"
+
   tags = {
     project     = var.project_name
     environment = var.environment

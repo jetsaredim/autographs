@@ -209,13 +209,13 @@ historically or that other operators have no private overrides.
 | `create_network`, `create_runtime_instance` | Production defaults and local tfvars are `true`; no GitHub workflow override. | Both drive resource `count` expressions and related lookups/outputs. Retain until a full consumer inventory and reviewed `moved` transitions or equivalent state update make a switch-removal plan safe. |
 | `assign_public_ip` | Fixed `true` in the compute resource; no GitHub workflow override. | Root and module inputs were removed; confirm the existing VM has no production plan change. |
 | `runtime_boot_volume_size_gbs` | Production default, local tfvars, and example are `50`; no GitHub Actions variable or workflow override exists. | Keep the Terraform input configurable and retain the `50` default. No boot-volume sizing cleanup is proposed. |
-| `project_name`, `environment`, `name_prefix` | Defaults and local tfvars match in both roots; no production workflow override. | Feed tags, Vault secret names, IAM names, and runtime resource names. Preserve cross-root alignment; a harmless-looking name change can affect existing resources and secret lookups. |
+| `project_name`, `environment` | Defaults and local tfvars match in both roots; no production workflow override. | Feed tags and derived OCI, DNS, and media names. Preserve cross-root alignment; a change affects resource identity and secret lookups. |
 | `region`, `home_region`, network CIDRs and ingress CIDRs | Current local values match their defaults; no production workflow override. | These are location and network policy inputs. Retain operator control rather than treating the current values as proof of fixed policy. |
 | Tenancy identity and state-bucket names | Most local values match defaults or rely on defaults; the tenancy root has no GitHub workflow input. | They identify existing IAM and state resources. Review each name against tenancy state before any hardcoding. |
 | `runtime_image_ocid` | Default empty; no current GitHub variable, but workflows still pass the empty value. | Empty selects the Oracle Linux image lookup. It is a meaningful lookup mode, not a fixed image identifier. |
 
 The production root now looks up the project compartment under the tenancy
-by `${name_prefix}-cmp`. The deploy group already has `inspect compartments
+by `${project_name}-${environment}-cmp`. The deploy group already has `inspect compartments
 in tenancy`; the lookup removes the manually copied `OCI_COMPARTMENT_OCID`
 workflow input. Keep the stored variable until PR #354 merges because `main`
 still requires that Terraform input. PR CI run `43777689199` read the OCI
@@ -242,6 +242,32 @@ the production plan on commit `95ffd71` reported `No changes` (run
 `OCI_CREATE_*` values are `true` while workflow fallbacks remain `false`, and
 `CLOUDFLARE_MODE` is `proxied` while its fallback is `off`; those are not
 redundant and remain under IAC-001/IAC-004 review.
+
+### Derived naming contract in PR #354
+
+Both Terraform roots use `project_name=autographs` and `environment=prod`.
+They derive the following existing production names without changing resource
+addresses:
+
+- `${project_name}-${environment}` gives the OCI display-name prefix
+  `autographs-prod` and compartment `autographs-prod-cmp`.
+- `${project_name}db` gives Oracle DB name `autographsdb`; the display name
+  adds `-adb` to the OCI prefix, giving `autographs-prod-adb`.
+- `${project_name}-media-${environment}` gives the private media bucket
+  `autographs-media-prod` in both the runtime and tenancy stacks. Deployment
+  reads the runtime Terraform output and passes that exact name to Ansible.
+- `${project_name}` supplies the OCI VCN DNS label, VM hostname label, Porkbun
+  subdomain, and Cloudflare host. The public hostname remains
+  `autographs.jetsaredim.net` under the separately configured DNS domain.
+- The tenancy root derives deploy/operator group names, the runtime dynamic
+  group name, and the deployment user name from `project_name`.
+
+Terraform's backend bucket `autographs-tf-state` remains an explicit
+bootstrap coordinate because backend initialization happens before Terraform
+variables and locals are evaluated. Local paths, service unit names, and
+application identifiers remain stable runtime contracts. A production-root
+CI plan and a tenancy-root plan must both report no changes before the three
+stored GitHub variables for the database and media bucket names are removed.
 
 ## GitHub configuration inventory
 

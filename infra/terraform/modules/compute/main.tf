@@ -18,7 +18,7 @@ resource "oci_core_instance" "runtime" {
     subnet_id        = var.subnet_id
     assign_public_ip = "true"
     nsg_ids          = var.nsg_ids
-    hostname_label   = "autographs"
+    hostname_label   = var.project_name
   }
 
   source_details {

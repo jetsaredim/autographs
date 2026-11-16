@@ -245,12 +245,13 @@ fn runtime_bundle_policy_uses_stable_secret_names_instead_of_cross_state_ocids()
 
     assert!(tenancy_main.contains("where target.secret.name = '${secret_name}'"));
     assert!(!tenancy_main.contains("where target.secret.id"));
+    assert!(tenancy_locals.contains("${var.project_name}-${var.environment}"));
     for suffix in [
         "admin-password-hash",
         "oracle-db-password",
         "oracle-db-wallet-password",
     ] {
-        assert!(tenancy_locals.contains(&format!("${{var.name_prefix}}-{suffix}")));
+        assert!(tenancy_locals.contains(&format!("${{local.name_prefix}}-{suffix}")));
     }
 }
 

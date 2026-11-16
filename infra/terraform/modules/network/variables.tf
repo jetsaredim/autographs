@@ -6,6 +6,10 @@ variable "name_prefix" {
   type = string
 }
 
+variable "project_name" {
+  type = string
+}
+
 variable "compartment_id" {
   type = string
 }

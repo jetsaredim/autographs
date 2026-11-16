@@ -49,9 +49,13 @@ that may be unset. The current stored-name inventory is in
 [iac-operational-review-findings.md](iac-operational-review-findings.md).
 
 The production Terraform root discovers the project compartment by its
-`${name_prefix}-cmp` name under the tenancy OCID. Its `compartment_ocid` output
+`${project_name}-${environment}-cmp` name under the tenancy OCID. Its `compartment_ocid` output
 remains available to downstream steps; GitHub does not supply a separate
 `OCI_COMPARTMENT_OCID` input after this change reaches `main`.
+Terraform derives the database name, database display name, private media
+bucket name, and public subdomain from `project_name` and `environment`.
+The deploy workflow reads the database and media bucket names from Terraform
+outputs and passes them to Ansible.
 
 | Variable | Purpose |
 |----------|---------|
@@ -60,10 +64,7 @@ remains available to downstream steps; GitHub does not supply a separate
 | `OCI_RUNTIME_SSH_PUBLIC_KEYS` | JSON list of SSH public keys injected into the VM |
 | `OCI_OBJECT_STORAGE_NAMESPACE` | OCI Object Storage namespace for Terraform remote state |
 | `OCI_CREATE_AUTONOMOUS_DATABASE` | Optional toggle for creating the Oracle Autonomous Database; defaults to `false` until credentials are ready |
-| `OCI_AUTONOMOUS_DATABASE_NAME` | Short Oracle DB name used by wallet aliases and connection strings; defaults to `autographsdb` |
-| `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME` | Display name for the Oracle Autonomous Database; defaults to `autographs-prod-adb` |
 | `OCI_CREATE_MEDIA_BUCKET` | Optional toggle for creating the private media Object Storage bucket; defaults to `false` until the namespace is confirmed |
-| `OCI_MEDIA_BUCKET_NAME` | Private Object Storage bucket for autograph images; defaults to `autographs-media-prod` |
 | `CLOUDFLARE_ACCOUNT_ID` | Non-secret account ID for the Terraform-managed `jetsaredim.net` zone |
 | `CLOUDFLARE_MODE` | Production is `proxied`; use `dns_only` for a reviewed proxy rollback. `off` remains a bootstrap default and must not be used in the operator workflow |
 | `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |

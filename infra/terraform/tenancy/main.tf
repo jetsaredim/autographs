@@ -9,18 +9,18 @@ module "iam" {
     oci.home = oci.home
   }
 
-  name_prefix                = var.name_prefix
+  name_prefix                = local.name_prefix
   parent_compartment_ocid    = var.parent_compartment_ocid
   tenancy_ocid               = var.tenancy_ocid
   compartment_description    = var.compartment_description
-  deploy_group_name          = var.deploy_group_name
-  operator_group_name        = var.operator_group_name
-  runtime_dynamic_group_name = var.runtime_dynamic_group_name
-  deploy_user_name           = var.deploy_user_name
+  deploy_group_name          = local.deploy_group_name
+  operator_group_name        = local.operator_group_name
+  runtime_dynamic_group_name = local.runtime_dynamic_group_name
+  deploy_user_name           = local.deploy_user_name
   deploy_user_description    = var.deploy_user_description
   deploy_user_email          = var.deploy_user_email
   deploy_user_api_public_key = var.deploy_user_api_public_key
-  media_bucket_name          = var.media_bucket_name
+  media_bucket_name          = local.media_bucket_name
   state_bucket_name          = var.state_bucket_name
   tags                       = local.tags
 }
@@ -37,7 +37,7 @@ module "state_bucket" {
 resource "oci_identity_policy" "runtime_secret_bundle_access" {
   provider       = oci.home
   compartment_id = var.parent_compartment_ocid
-  name           = "${var.name_prefix}-runtime-secret-bundle-access-policy"
+  name           = "${local.name_prefix}-runtime-secret-bundle-access-policy"
   description    = "Allows Autographs runtime instance principals to read Terraform-managed OCI Vault secret bundles."
   statements = [
     for secret_name in values(local.runtime_controller_secret_names) :
@@ -50,7 +50,7 @@ resource "oci_identity_policy" "runtime_secret_bundle_access" {
 resource "oci_identity_policy" "database_secret_access" {
   provider       = oci.home
   compartment_id = var.parent_compartment_ocid
-  name           = "${var.name_prefix}-database-secret-access-policy"
+  name           = "${local.name_prefix}-database-secret-access-policy"
   description    = "Allows project Vault secret resource principals to rotate the generated Autonomous Database password and apply it to the target database."
   statements = [
     "Allow any-user to use secret-family in compartment id ${module.iam.compartment_ocid} where all {request.principal.type = 'vaultsecret', request.principal.compartment.id = '${module.iam.compartment_ocid}', target.secret.name = '${local.runtime_controller_secret_names.oracle_db_password}'}",
