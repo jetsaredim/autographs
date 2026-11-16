@@ -222,10 +222,8 @@ still requires that Terraform input. PR CI run `43777689199` read the OCI
 compartment data source and reported `No changes` on commit `76a54cf`.
 Remove the stored variable after merge.
 
-Five remaining GitHub variables duplicate every matching workflow fallback:
-`DEPLOY_SSH_USER`, `DEPLOY_PATH`, `OCI_AUTONOMOUS_DATABASE_NAME`,
-`OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, and `OCI_MEDIA_BUCKET_NAME`.
-The deploy SSH/path and media bucket names also have
+Two remaining GitHub variables duplicate every matching workflow fallback:
+`DEPLOY_SSH_USER` and `DEPLOY_PATH`. Both also have
 non-Terraform workflow consumers with the same fallbacks. Their removal from
 GitHub is a configuration cleanup candidate, followed by CI and read-only
 production plan verification; no Terraform code change or state move is needed
@@ -265,13 +263,16 @@ addresses:
 Terraform's backend bucket `autographs-tf-state` remains an explicit
 bootstrap coordinate because backend initialization happens before Terraform
 variables and locals are evaluated. Local paths, service unit names, and
-application identifiers remain stable runtime contracts. A production-root
-CI plan and a tenancy-root plan must both report no changes before the three
-stored GitHub variables for the database and media bucket names are removed.
+application identifiers remain stable runtime contracts. Production CI run
+`43786373351` and a read-only tenancy plan against
+`envs/prod/tenancy-bootstrap.tfstate` using the refreshed `DEFAULT` OCI
+session both reported `No changes` on 2026-11-15. The GitHub variables
+`OCI_AUTONOMOUS_DATABASE_NAME`, `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, and
+`OCI_MEDIA_BUCKET_NAME` were then removed and verified absent.
 
 ## GitHub configuration inventory
 
-The 2026-11-15 repository inventory contains 15 GitHub Variables and 14
+The 2026-11-15 repository inventory contains 12 GitHub Variables and 14
 GitHub Secrets after the runtime sizing, mTLS, media namespace, DNS, and
 retired ADB password cleanup. The `production`
 GitHub Environment has no additional variables or secrets. Secret names were
@@ -292,10 +293,9 @@ GitHub Variables queued for cleanup:
 
 - `OCI_COMPARTMENT_OCID` is required by `main` today. PR #354 replaces it with
   a name-filtered OCI compartment lookup; remove it only after the PR merges.
-- `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `OCI_AUTONOMOUS_DATABASE_NAME`,
-  `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, and `OCI_MEDIA_BUCKET_NAME` equal
-  their current workflow fallbacks and Terraform defaults. Their workflow
-  assignments and non-Terraform consumers need a
+- `DEPLOY_SSH_USER` and `DEPLOY_PATH` equal their current workflow fallbacks
+  and Terraform defaults. Their workflow assignments and non-Terraform
+  consumers need a
   separate reviewed cleanup before deleting the stored values.
 
 GitHub Secrets to retain:
