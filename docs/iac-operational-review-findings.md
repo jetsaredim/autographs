@@ -222,11 +222,10 @@ still requires that Terraform input. PR CI run `43777689199` read the OCI
 compartment data source and reported `No changes` on commit `76a54cf`.
 Remove the stored variable after merge.
 
-Eight remaining GitHub variables duplicate every matching workflow fallback:
+Five remaining GitHub variables duplicate every matching workflow fallback:
 `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `OCI_AUTONOMOUS_DATABASE_NAME`,
-`OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, `OCI_MEDIA_BUCKET_NAME`,
-`AUTOGRAPHS_DNS_DOMAIN`, `AUTOGRAPHS_DNS_SUBDOMAIN`, and
-`AUTOGRAPHS_DNS_TTL`. The deploy SSH/path and media bucket names also have
+`OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, and `OCI_MEDIA_BUCKET_NAME`.
+The deploy SSH/path and media bucket names also have
 non-Terraform workflow consumers with the same fallbacks. Their removal from
 GitHub is a configuration cleanup candidate, followed by CI and read-only
 production plan verification; no Terraform code change or state move is needed
@@ -235,16 +234,20 @@ to test the current fallback behavior. The three runtime sizing variables
 the Terraform defaults. They were removed from the workflows and GitHub
 repository after PR #354's Terraform check on commit `a08c7ae` reported
 `No changes` (run `43776948364`). The unused mTLS GitHub variable was also
-removed after the no-change check. In contrast, the two
+removed after the no-change check. The DNS GitHub variables
+`AUTOGRAPHS_DNS_DOMAIN`, `AUTOGRAPHS_DNS_SUBDOMAIN`, and
+`AUTOGRAPHS_DNS_TTL` also matched Terraform defaults and were removed after
+the production plan on commit `95ffd71` reported `No changes` (run
+`43784625375`). In contrast, the two
 `OCI_CREATE_*` values are `true` while workflow fallbacks remain `false`, and
 `CLOUDFLARE_MODE` is `proxied` while its fallback is `off`; those are not
 redundant and remain under IAC-001/IAC-004 review.
 
 ## GitHub configuration inventory
 
-The 2026-11-15 repository inventory contains 18 GitHub Variables and 14
-GitHub Secrets after the runtime sizing, mTLS, media namespace, and retired
-ADB password cleanup. The `production`
+The 2026-11-15 repository inventory contains 15 GitHub Variables and 14
+GitHub Secrets after the runtime sizing, mTLS, media namespace, DNS, and
+retired ADB password cleanup. The `production`
 GitHub Environment has no additional variables or secrets. Secret names were
 listed, but secret values were not read.
 
@@ -264,10 +267,9 @@ GitHub Variables queued for cleanup:
 - `OCI_COMPARTMENT_OCID` is required by `main` today. PR #354 replaces it with
   a name-filtered OCI compartment lookup; remove it only after the PR merges.
 - `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `OCI_AUTONOMOUS_DATABASE_NAME`,
-  `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, `OCI_MEDIA_BUCKET_NAME`,
-  `AUTOGRAPHS_DNS_DOMAIN`, `AUTOGRAPHS_DNS_SUBDOMAIN`, and
-  `AUTOGRAPHS_DNS_TTL` equal their current workflow fallbacks and Terraform
-  defaults. Their workflow assignments and non-Terraform consumers need a
+  `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, and `OCI_MEDIA_BUCKET_NAME` equal
+  their current workflow fallbacks and Terraform defaults. Their workflow
+  assignments and non-Terraform consumers need a
   separate reviewed cleanup before deleting the stored values.
 
 GitHub Secrets to retain:
