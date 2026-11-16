@@ -72,7 +72,9 @@ Populate repo-level GitHub Secrets:
 - `DEPLOY_SSH_PRIVATE_KEY`
 - `ORACLE_DB_WALLET_ZIP_BASE64` when using an mTLS wallet
 - `AUTOGRAPHS_OPERATOR_API_TOKEN`
-- `AUTOGRAPHS_ADMIN_PASSWORD_HASH`
+
+The production admin password hash is supplied through OCI Vault. A direct
+`AUTOGRAPHS_ADMIN_PASSWORD_HASH` GitHub Secret is not configured.
 
 Populate repo-level GitHub Variables:
 

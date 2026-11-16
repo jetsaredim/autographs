@@ -26,10 +26,12 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `OCI_FINGERPRINT` | deploy workflow | OCI API signing key fingerprint |
 | `OCI_PRIVATE_KEY_PEM` | deploy workflow | OCI API signing private key PEM |
 | `DEPLOY_SSH_PRIVATE_KEY` | deploy workflow | SSH private key for the OCI runtime VM |
+| `GHCR_TOKEN` | deploy workflow | Pull access for the controller image |
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / runtime | Base64-encoded ADB wallet zip used for mTLS connections |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Optional compatibility token for non-management diagnostics; not a collection-management credential |
-| `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | Rust controller runtime | Argon2 hash for the single-admin browser login |
 | `CLOUDFLARE_API_TOKEN` | Terraform CI/deploy and controlled Cloudflare apply | Scoped token for the active Cloudflare zone, records, TLS setting, cache rules, and edge certificate read checks |
+| `PORKBUN_API_KEY`, `PORKBUN_SECRET_KEY` | Terraform CI/deploy | Porkbun DNS provider credentials |
+| `RELEASE_PLEASE_APP_PRIVATE_KEY` | release workflow | GitHub App installation token signing key |
 
 The current OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the controller image build, Terraform, or VM deployment steps.
 
@@ -37,10 +39,14 @@ Production obtains the Oracle database and wallet passwords from OCI Vault
 secret IDs output by Terraform. Local Ansible runs may still pass direct
 `ORACLE_DB_PASSWORD` and `ORACLE_DB_WALLET_PASSWORD` values as a transition
 fallback; do not store those direct values as GitHub Secrets.
+Production also obtains the admin password hash from OCI Vault; the direct
+`AUTOGRAPHS_ADMIN_PASSWORD_HASH` GitHub Secret is not configured.
 
 ## GitHub Variables
 
-These are repo-level GitHub Variables unless an optional GitHub Environment overrides them.
+This table documents supported GitHub Variables, including optional inputs
+that may be unset. The current stored-name inventory is in
+[iac-operational-review-findings.md](iac-operational-review-findings.md).
 
 The production Terraform root discovers the project compartment by its
 `${name_prefix}-cmp` name under the tenancy OCID. Its `compartment_ocid` output

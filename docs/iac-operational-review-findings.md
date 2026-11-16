@@ -218,9 +218,9 @@ The production root now looks up the project compartment under the tenancy
 by `${name_prefix}-cmp`. The deploy group already has `inspect compartments
 in tenancy`; the lookup removes the manually copied `OCI_COMPARTMENT_OCID`
 workflow input. Keep the stored variable until PR #354 merges because `main`
-still requires that Terraform input. Confirm the lookup resolves the existing
-compartment and produces no state change in PR CI before removing the stored
-variable after merge.
+still requires that Terraform input. PR CI run `43777689199` read the OCI
+compartment data source and reported `No changes` on commit `76a54cf`.
+Remove the stored variable after merge.
 
 Eight remaining GitHub variables duplicate every matching workflow fallback:
 `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `OCI_AUTONOMOUS_DATABASE_NAME`,
@@ -242,8 +242,9 @@ redundant and remain under IAC-001/IAC-004 review.
 
 ## GitHub configuration inventory
 
-The 2026-11-15 repository inventory contains 19 GitHub Variables and 15
-GitHub Secrets after the runtime sizing and mTLS cleanup. The `production`
+The 2026-11-15 repository inventory contains 18 GitHub Variables and 14
+GitHub Secrets after the runtime sizing, mTLS, media namespace, and retired
+ADB password cleanup. The `production`
 GitHub Environment has no additional variables or secrets. Secret names were
 listed, but secret values were not read.
 
@@ -262,10 +263,6 @@ GitHub Variables queued for cleanup:
 
 - `OCI_COMPARTMENT_OCID` is required by `main` today. PR #354 replaces it with
   a name-filtered OCI compartment lookup; remove it only after the PR merges.
-- `OCI_MEDIA_NAMESPACE` currently equals `OCI_OBJECT_STORAGE_NAMESPACE`.
-  PR #354 routes the Terraform media namespace and Ansible deploy directly
-  from `OCI_OBJECT_STORAGE_NAMESPACE`; remove the duplicate after a no-change
-  production plan.
 - `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `OCI_AUTONOMOUS_DATABASE_NAME`,
   `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`, `OCI_MEDIA_BUCKET_NAME`,
   `AUTOGRAPHS_DNS_DOMAIN`, `AUTOGRAPHS_DNS_SUBDOMAIN`, and
@@ -283,12 +280,17 @@ GitHub Secrets to retain:
   Terraform's DNS/CDN providers.
 - `RELEASE_PLEASE_APP_PRIVATE_KEY` supports the release-please workflow.
 
+The duplicate `OCI_MEDIA_NAMESPACE` variable was removed after the production
+plan reported no changes. PR #354 routes the Terraform media namespace and
+Ansible deploy directly from `OCI_OBJECT_STORAGE_NAMESPACE`.
+
+The retired `ADB_ADMIN_PASSWORD` secret had no workflow consumer and was
+removed. Terraform uses OCI Vault for the database password.
+
 GitHub Secrets queued for cleanup:
 
-- `ADB_ADMIN_PASSWORD` has no current workflow consumer; the plaintext
-  bootstrap path was retired when Terraform moved to OCI Vault.
-- `ORACLE_DB_PASSWORD` and `ORACLE_DB_WALLET_PASSWORD` are currently passed
-  directly by the deploy workflow, but the production runtime uses the
+- `ORACLE_DB_PASSWORD` and `ORACLE_DB_WALLET_PASSWORD` are passed directly
+  by the current `main` deploy workflow, but the production runtime uses the
   Terraform-output Vault IDs. PR #354 removes those workflow pass-throughs
   and keeps local Ansible direct-value fallbacks. Delete the stored secrets
   after the workflow change merges and production validation succeeds.

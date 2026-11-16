@@ -325,10 +325,9 @@ fn deploy_wires_oracle_heartbeat_interval_override() {
     assert!(app_env.contains(
         "AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS={{ autographs_oracle_heartbeat_interval_seconds | default(86400) }}"
     ));
-    assert!(
-        deploy_workflow
-            .contains("ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}")
-    );
+    assert!(deploy_workflow.contains(
+        "ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID: ${{ steps.terraform_apply.outputs.oracle_db_wallet_password_vault_secret_id }}"
+    ));
     assert!(app_env.contains(
         "ORACLE_DB_WALLET_PASSWORD={{ '' if oracle_db_wallet_password_vault_secret_id | length > 0 else lookup('env', 'ORACLE_DB_WALLET_PASSWORD') | default('', true) }}"
     ));
