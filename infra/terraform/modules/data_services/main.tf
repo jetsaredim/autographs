@@ -23,8 +23,12 @@ resource "oci_database_autonomous_database" "catalog" {
 
 }
 
+moved {
+  from = oci_objectstorage_bucket.media[0]
+  to   = oci_objectstorage_bucket.media
+}
+
 resource "oci_objectstorage_bucket" "media" {
-  count = var.create_media_bucket ? 1 : 0
 
   compartment_id = var.compartment_id
   namespace      = var.media_bucket_namespace
@@ -38,8 +42,8 @@ resource "oci_objectstorage_bucket" "media" {
     prevent_destroy = true
 
     precondition {
-      condition     = !var.create_media_bucket || var.media_bucket_namespace != ""
-      error_message = "media_bucket_namespace is required when create_media_bucket is true."
+      condition     = var.media_bucket_namespace != ""
+      error_message = "media_bucket_namespace is required for the private media bucket."
     }
   }
 }

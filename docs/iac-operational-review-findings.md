@@ -9,7 +9,7 @@ matches configuration.
 
 The tenancy root owns the project compartment, deploy identity and policies,
 and the OCI state bucket. The production root owns network, runtime compute,
-Vault secrets, the optional Oracle database and private media bucket, the
+Vault secrets, the staged Oracle database and private media bucket, the
 Porkbun record during migration, and the Cloudflare zone, records, strict TLS,
 and cache rules. CI plans against production state. Release deployment saves a
 plan and applies that exact file only after rejecting Cloudflare or Porkbun DNS
@@ -156,7 +156,7 @@ proposed refactor that removes the input and its conditional consumers.
 | `create_network` | Terraform default `true`; deploy/CI do not override | `module.network` counts VCN, subnet, gateway, routing, NSG and rules; false would remove managed network. | Both paths and state effect to verify. |
 | `create_runtime_instance` | Terraform default `true`; deploy/CI do not override | `module.compute` and image lookup; false would remove VM. Separate `recreate_runtime_instance` workflow input taints existing VM on retry. | Both paths and retry fixture to verify. |
 | `create_autonomous_database` | Terraform and all workflow fallbacks `true`; GitHub variable removed | ADB count, Vault lookups, readiness check, password rotation target. Explicit `false` supports the fresh-tenancy Vault bootstrap. | IAC-001 closed; PR and post-removal production plans were clean. |
-| `create_media_bucket` | Terraform and all workflow fallbacks `true`; GitHub variable removed | Private bucket count and namespace precondition. Explicit `false` supports bootstrap before the namespace is confirmed. | IAC-001 closed; PR and post-removal production plans were clean. |
+| `create_media_bucket` | Being removed from the root, module, examples, and all three workflow environments | The private bucket remains managed from the first runtime-root apply; its namespace must be supplied. A `moved` block maps the existing `[0]` state address to the uncounted address. | Production no-change plan required before merge; no apply or resource replacement is acceptable. |
 | `assign_public_ip` | Fixed `true` in the compute resource; root and module inputs removed | VM VNIC retains its public IP. | PR production plan to verify. |
 | ADB `is_free_tier` | Hardcoded `true` in the data services resource; former root/module input removed | Fixes the database to Oracle Always Free. The existing counted resource address is unchanged. | PR CI production plan returned no changes. |
 | ADB `is_mtls_connection_required` | Hardcoded `true` in the data services resource; former GitHub/workflow and Terraform inputs removed in PR #354 | Requires wallet-based connections. Existing counted resource address is unchanged. | Local validation and PR CI production no-change plan passed. Remove the now-unused GitHub variable after merge. |
@@ -199,11 +199,63 @@ production or tenancy state.
 | `media_bucket_versioning` | Private bucket `versioning = "Enabled"`; production-root `terraform validate` passed. | PR CI production plan returned no changes. |
 | `state_bucket_storage_tier` | State bucket `storage_tier = "Standard"`; tenancy-root `terraform validate` passed. | Authenticated plan against `envs/prod/tenancy-bootstrap.tfstate` returned no changes on 2026-11-15; no apply. |
 
-The resource-presence switches (`create_autonomous_database`,
-`create_media_bucket`, `create_network`, and `create_runtime_instance`) are a
-different class. Their conditionals determine resource addresses and supported
-bootstrap paths. Do not hardcode or remove them as a simple pass-through
-cleanup; use the separate state-preservation sequence above.
+The remaining resource-presence switches (`create_autonomous_database`,
+`create_network`, and `create_runtime_instance`) determine resource addresses
+or supported bootstrap paths. Do not remove them as a simple pass-through
+cleanup. The media bucket has no secret-readiness dependency, so its switch can
+be removed with the state-preserving move and namespace precondition below.
+
+### Media bucket conditional retirement
+
+**Invariant:** The existing private bucket keeps its production identity and
+Terraform ownership, with no create, update, replacement, or destruction. A
+fresh runtime-root apply requires the real Object Storage namespace and may
+create the bucket before the manual Vault secrets are ready.
+
+The direct producer was root `create_media_bucket`, forwarded into
+`module.data_services` and set as `TF_VAR_create_media_bucket` by CI, release
+deploy, and the manual Cloudflare job. Its consumers were the bucket `count`,
+the namespace precondition, and documentation/example bootstrap overrides.
+The bucket name and namespace outputs do not depend on the Boolean. Terraform
+now manages the bucket unconditionally, rejects an empty namespace, and maps
+`module.data_services.oci_objectstorage_bucket.media[0]` to
+`module.data_services.oci_objectstorage_bucket.media` with a `moved` block.
+The release workflow still rejects DNS changes; the manual Cloudflare job
+rejects non-Cloudflare changes. Neither should apply this move without a
+reviewed production plan.
+
+The previous `false` state was used only to postpone bucket creation until the
+operator knew the namespace; there is no secret or data lookup dependency.
+Fresh bootstrap now supplies the namespace before its first runtime-root apply
+and keeps `create_autonomous_database=false` for Vault preparation. Local
+Terraform formatting/validation and workflow checks must pass. The PR CI
+production-state plan must report no changes and show the state move without
+replacement before merge. The final disposition and PR link belong here after
+that proof.
+
+### Database conditional retirement boundary
+
+`create_autonomous_database=false` remains a supported initial bootstrap
+state. The first runtime-root apply creates the Vault, key, and three secrets;
+OCI generates the database password, and the operator replaces the two manual
+secret placeholders. The switch suppresses the database-password secret list
+lookup, the per-secret readiness reads, the ADB resource, and the generated
+password secret's ADB rotation target. With `true`, those reads and the ADB
+precondition verify that the manual values are ready, then configure ADB and
+rotation. Production uses `true` and retains the counted ADB address.
+
+Removing this switch requires a new two-stage bootstrap contract, not only a
+`moved` block. A first apply must be able to create the generated and manual
+secrets without reading their nonexistent remote versions or adding an ADB
+rotation target that depends on the not-yet-created ADB. A later apply must
+verify the manual versions, create ADB using the generated password secret,
+and configure rotation. The current resource graph uses the switch to break
+those initial-read and rotation dependencies. Any redesign must show both a
+fresh-tenancy bootstrap test and a no-change, no-replacement production plan
+that moves `module.data_services.oci_database_autonomous_database.catalog[0]`
+to an uncounted address. Until that design is reviewed, retaining the switch
+is the safe disposition; its production default and all workflow fallbacks are
+`true`, so an absent GitHub variable no longer requests database removal.
 
 ### Remaining defaults and current GitHub overrides
 

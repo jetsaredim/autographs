@@ -40,7 +40,6 @@ module "data_services" {
   autonomous_database_name                     = local.autonomous_database_name
   autonomous_database_display_name             = local.autonomous_database_display_name
   autonomous_database_admin_password_secret_id = local.autonomous_database_admin_password_secret_id
-  create_media_bucket                          = var.create_media_bucket
   media_bucket_namespace                       = var.media_bucket_namespace
   media_bucket_name                            = local.media_bucket_name
   compartment_id                               = local.compartment_ocid

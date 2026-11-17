@@ -176,12 +176,6 @@ variable "create_autonomous_database" {
   default     = true
 }
 
-variable "create_media_bucket" {
-  description = "Whether Terraform should create the private Object Storage bucket for autograph images."
-  type        = bool
-  default     = true
-}
-
 variable "media_bucket_namespace" {
   description = "OCI Object Storage namespace for the private autograph media bucket."
   type        = string
