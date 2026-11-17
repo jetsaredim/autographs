@@ -156,7 +156,7 @@ proposed refactor that removes the input and its conditional consumers.
 | `create_network` | Terraform default `true`; deploy/CI do not override | `module.network` counts VCN, subnet, gateway, routing, NSG and rules; false would remove managed network. | Both paths and state effect to verify. |
 | `create_runtime_instance` | Terraform default `true`; deploy/CI do not override | `module.compute` and image lookup; false would remove VM. Separate `recreate_runtime_instance` workflow input taints existing VM on retry. | Both paths and retry fixture to verify. |
 | `create_autonomous_database` | Terraform and all workflow fallbacks `true`; GitHub variable removed | ADB count, Vault lookups, readiness check, password rotation target. Explicit `false` supports the fresh-tenancy Vault bootstrap. | IAC-001 closed; PR and post-removal production plans were clean. |
-| `create_media_bucket` | Being removed from the root, module, examples, and all three workflow environments | The private bucket remains managed from the first runtime-root apply; its namespace must be supplied. A `moved` block maps the existing `[0]` state address to the uncounted address. | Production no-change plan required before merge; no apply or resource replacement is acceptable. |
+| `create_media_bucket` | Removed from the root, module, examples, and all three workflow environments by [PR #360](https://github.com/jetsaredim/autographs/pull/360) | The private bucket remains managed from the first runtime-root apply; its namespace must be supplied. A `moved` block maps the existing `[0]` state address to the uncounted address. | Authenticated PR plan: `0 to add, 0 to change, 0 to destroy`; no apply. |
 | `assign_public_ip` | Fixed `true` in the compute resource; root and module inputs removed | VM VNIC retains its public IP. | PR production plan to verify. |
 | ADB `is_free_tier` | Hardcoded `true` in the data services resource; former root/module input removed | Fixes the database to Oracle Always Free. The existing counted resource address is unchanged. | PR CI production plan returned no changes. |
 | ADB `is_mtls_connection_required` | Hardcoded `true` in the data services resource; former GitHub/workflow and Terraform inputs removed in PR #354 | Requires wallet-based connections. Existing counted resource address is unchanged. | Local validation and PR CI production no-change plan passed. Remove the now-unused GitHub variable after merge. |
@@ -228,10 +228,12 @@ The previous `false` state was used only to postpone bucket creation until the
 operator knew the namespace; there is no secret or data lookup dependency.
 Fresh bootstrap now supplies the namespace before its first runtime-root apply
 and keeps `create_autonomous_database=false` for Vault preparation. Local
-Terraform formatting/validation and workflow checks must pass. The PR CI
-production-state plan must report no changes and show the state move without
-replacement before merge. The final disposition and PR link belong here after
-that proof.
+Terraform formatting/validation passed. The authenticated
+[PR #360 Terraform CI job](https://github.com/jetsaredim/autographs/actions/runs/44142634487/job/134249244704)
+reported the exact move from `media[0]` to `media` and `Plan: 0 to add, 0 to
+change, 0 to destroy`. No apply ran. The move requires no bucket replacement
+or loss of Terraform management. The remaining PR checks must pass before
+merge.
 
 ### Database conditional retirement boundary
 
