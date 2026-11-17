@@ -50,8 +50,8 @@ that may be unset. The current stored-name inventory is in
 
 The production Terraform root discovers the project compartment by its
 `${project_name}-${environment}-cmp` name under the tenancy OCID. Its `compartment_ocid` output
-remains available to downstream steps; GitHub does not supply a separate
-`OCI_COMPARTMENT_OCID` input after this change reaches `main`.
+remains available to downstream steps; GitHub no longer supplies a separate
+`OCI_COMPARTMENT_OCID` input.
 Terraform derives the database name, database display name, private media
 bucket name, and public subdomain from `project_name` and `environment`.
 The deploy workflow reads the database and media bucket names from Terraform
