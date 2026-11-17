@@ -45,9 +45,9 @@ Those commands run the same Rust, Terraform, and Ansible checks used by CI for t
 7. Follow [dns-runbook.md](dns-runbook.md) when enabling the public app hostname through Porkbun.
 
 The runtime Terraform root discovers the project compartment created by the
-tenancy root using its `${project_name}-${environment}-cmp` name and the tenancy OCID. The
-`OCI_COMPARTMENT_OCID` GitHub variable is needed only by workflows on `main`
-until PR #354 merges; remove it after that merge and a no-change production plan.
+tenancy root using its `${project_name}-${environment}-cmp` name and the tenancy OCID.
+The redundant `OCI_COMPARTMENT_OCID` GitHub variable was removed after PR #354
+merged and the production plan showed no changes.
 
 Important operator inputs:
 

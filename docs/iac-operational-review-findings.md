@@ -13,8 +13,8 @@ Vault secrets, the optional Oracle database and private media bucket, the
 Porkbun record during migration, and the Cloudflare zone, records, strict TLS,
 and cache rules. CI plans against production state. Release deployment saves a
 plan and applies that exact file only after rejecting Cloudflare or Porkbun DNS
-changes. The separate Cloudflare workflow accepts a reviewed change fingerprint
-and applies its own saved plan. Ansible handles deploy freeze, runtime
+changes. Manual Cloudflare operations in that workflow accept a reviewed
+change fingerprint and apply their own saved plan. Ansible handles deploy freeze, runtime
 replacement, health and unfreeze, rollback, security maintenance, and cleanup.
 
 The shared invariant for this review is: an ordinary release must preserve the
@@ -30,7 +30,7 @@ flowchart LR
   operator[Operator CLI] --> tenancy
   ci[PR CI plan] --> production
   deploy[Release deploy plan and apply] --> production
-  cloudflare_workflow[Cloudflare operator plan and apply] --> production
+  cloudflare_workflow[deploy.yml manual Cloudflare plan and apply] --> production
 
   subgraph tenancy_stack[Tenancy bootstrap stack]
     tenancy[infra/terraform/tenancy]
@@ -67,17 +67,16 @@ On 2026-11-15, read-only GitHub variable queries returned
 `CLOUDFLARE_MODE=proxied`, `OCI_CREATE_AUTONOMOUS_DATABASE=true`,
 `OCI_CREATE_MEDIA_BUCKET=true`, and
 `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`.
-The first three values differ from Terraform's `off`/`false` defaults. This
-variable query alone does not establish the corresponding Terraform state or
-plan result. Secret values were not read. The mTLS GitHub variable was removed
-after PR #354 stopped reading it and its production Terraform check reported
-`No changes`. The workflow on `main` still falls back to `true` until the PR
-merges.
+At that observation, the first three values differed from Terraform's
+`off`/`false` defaults. The query alone did not establish the corresponding
+Terraform state or plan result. Secret values were not read. PR #354 later
+merged and the mTLS variable was removed after its no-change production check.
 
-There are two different cases in this review. **Missing configuration with the
-current code** means a GitHub Actions variable disappears while the workflow
-still supplies its `false` fallback; the existing Terraform `count` expressions
-then evaluate to zero. **Deliberately removing a switch from the code** is a
+There are two different cases in this review. **Missing configuration before
+PR #358** meant a GitHub Actions variable disappeared while the workflows
+supplied their `false` fallback; the Terraform `count` expressions then
+evaluated to zero. PR #358 fixed that path. **Deliberately removing a switch
+from the code** is a
 refactor: its workflow input, root and module arguments, conditional resources
 and lookups, outputs, tests, and documentation must change together. Keeping a
 resource counted at one can preserve its `[0]` state address; removing `count`
@@ -89,7 +88,7 @@ or valid refactor.
 
 | ID | Severity | Finding and evidence | Disposition | Required proof or change |
 |---|---|---|---|---|
-| IAC-001 | Warning | On `main`, deploy, CI, and Cloudflare workflows substitute `false` when either `OCI_CREATE_AUTONOMOUS_DATABASE` or `OCI_CREATE_MEDIA_BUCKET` GitHub Actions value is absent; production currently sets both `true`. The resulting resource `count` values become zero, and the database value also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). That configuration-loss path could plan removal of managed production data resources. | Focused source fix prepared; production proof pending | Keep both GitHub values `true` through PR review; require a no-change production plan before and after removing them. |
+| IAC-001 | Warning | Before PR #358, CI, release deploy, and Cloudflare workflows substituted `false` when either optional resource-creation GitHub variable was absent. That could reduce the ADB or private media bucket `count` to zero; the database input also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). | Fixed by [PR #358](https://github.com/jetsaredim/autographs/pull/358) and verified after variable removal | The authenticated PR plan and post-removal read-only production plan both reported no changes. Explicit `false` remains available for initial bootstrap. |
 | IAC-002 | Warning | CI runs `terraform plan` against production state but does not classify or fail on destructive actions (`.github/workflows/ci.yml`). The release workflow rejects DNS changes, then applies the full remaining saved plan (`.github/workflows/deploy.yml`). | Investigate with IAC-001 | Inspect current plan and supported change policy; decide which stateful changes require an explicit operator gate. |
 | IAC-003 | Info | `create_network` and `create_runtime_instance` default `true`; if passed `false` to the current code, their counted network/compute resources would be removed. The release workflow does not set either variable, and runtime recreation is separately requested through a taint on retry. | Retain pending state review | Confirm both state addresses and whether false is supported. Any switch removal must also revise the count/lookup contracts and preserve state addresses or use reviewed `moved` blocks. |
 | IAC-004 | Info | `cloudflare_mode` is `proxied` in production. A missing variable becomes `off` in ordinary deploy/CI, but the deploy saved-plan guard rejects changed Cloudflare resources. The operator workflow requires explicit `dns_only` or `proxied` and checks plan scope and fingerprint. | Retain pending plan proof | Confirm a no-change plan and a missing-mode rejection test; preserve proxy persistence and DNS mutation guard. |
@@ -97,21 +96,19 @@ or valid refactor.
 | IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Investigate test seam | Verify both fixture paths and the production fail-closed behavior before changing the switch. |
 | IAC-007 | Info | `create_runtime_instance` still describes a “Caddy to Next.js runtime” in `infra/terraform/variables.tf`, although the active runtime is Caddy plus the Rust controller. | Documentation correction candidate | Update the description after the operational contract review; no state effect. |
 
-No Critical or Warning finding is being point-fixed from this preliminary
-inventory. IAC-001 and IAC-002 share the stateful-resource preservation
-invariant and require a production state/plan audit plus producer and consumer
-trace before an implementation plan is selected.
+IAC-001 and IAC-002 share the stateful-resource preservation invariant. The
+source and production-plan resolution for IAC-001 is recorded below; IAC-002
+still requires a complete mutation-policy review before a separate fix.
 
 PR #354 adds `prevent_destroy` to the ADB, private media bucket, and tenancy
 state bucket. This blocks a plan that destroys or replaces one of these
 resources while its resource block remains configured, including a counted ADB
 or media bucket whose `count` becomes zero. It does not protect a resource if
-its entire configuration is removed. The existing `false` workflow fallbacks
-and the missing destructive-plan policy remain IAC-001/IAC-002 work; this
-guard is a partial mitigation, not their final disposition. The runtime VM
+its entire configuration is removed. The missing destructive-plan policy
+remains IAC-002 work; this guard is a partial mitigation for that finding. The runtime VM
 keeps its intentional taint-and-replace recovery path.
 
-### Candidate resolution for IAC-001
+### IAC-001 resolution and production proof
 
 The owner proposed making `true` the code default for the two production
 resource-creation switches and then removing their GitHub Actions variables.
@@ -122,18 +119,19 @@ effect in those workflows because they always set `TF_VAR_*`. An explicit
 `false` remains available for the documented initial bootstrap before Vault
 secrets and the Object Storage namespace are ready.
 
-Sequence: change and validate the code while the GitHub variables remain
-`true`; require the PR CI production-state plan to show no infrastructure
-changes; merge the workflow code to `main`; remove the two GitHub variables;
-then run the CI Terraform plan and a read-only operator plan from `main` to
-prove the fallbacks keep the ADB and media bucket at their existing state
-addresses. The normal release workflow reads its configuration from `main`,
-so a controller deployment is unnecessary to validate a Terraform default or
-GitHub Actions fallback change. Do not delete the GitHub values before the
-new workflow code is on `main`. If the post-removal plan is not clean, restore
-both variables to `true` before any apply. This plan handles missing values
-under the existing conditional design and keeps the existing `[0]` resource
-addresses. A later removal of the Terraform switches themselves must update
+The sequence was completed: PR #358 merged as `797e387` after all required
+checks passed. Its [authenticated Terraform CI job](https://github.com/jetsaredim/autographs/actions/runs/44111310814/job/134137340094)
+reported `No changes` with both GitHub variables still `true`. The two
+repository variables were then deleted. The read-only
+[main operator plan run 44112638567](https://github.com/jetsaredim/autographs/actions/runs/44112638567)
+reported `No changes`, `Cloudflare change count: 0`, and `Plan only: no
+Terraform apply was run`. Its checked-out commit was `797e387`; the workflow
+required the existing Cloudflare state addresses before planning. This proves
+the missing-variable workflow fallback retains the managed resources under
+the current production inputs. The counted `[0]` resource addresses and
+explicit `false` bootstrap overrides are unchanged.
+
+A later removal of the Terraform switches themselves must update
 their conditional consumers and move each affected counted instance, such as
 `module.data_services.oci_database_autonomous_database.catalog[0]` and
 `module.data_services.oci_objectstorage_bucket.media[0]`, to its new address
@@ -141,16 +139,7 @@ with reviewed `moved` blocks or an equivalent state migration. That later PR
 must show a no-destroy, no-recreate production plan before apply. IAC-002's
 broader destructive-plan policy remains a separate review decision.
 
-The focused IAC-001 change is prepared on `fix/iac-resource-defaults`: the
-Terraform defaults and CI, release deploy, and Cloudflare operator fallbacks
-now all resolve to `true` when their optional GitHub variables are absent.
-The explicit `false` bootstrap override and counted resource addresses remain
-available. The existing production variables must stay `true` until this
-change is merged and its authenticated PR plan reports no infrastructure
-changes. After merge, remove the two repository variables and run a read-only
-production plan from `main`; restore them to `true` before any apply if that
-plan proposes a change. This source change does not close IAC-001 until the
-post-removal plan is recorded. IAC-002 remains open.
+This closes IAC-001. IAC-002 remains open.
 
 ## Switch census and direct boundaries
 
@@ -166,8 +155,8 @@ proposed refactor that removes the input and its conditional consumers.
 |---|---|---|---|
 | `create_network` | Terraform default `true`; deploy/CI do not override | `module.network` counts VCN, subnet, gateway, routing, NSG and rules; false would remove managed network. | Both paths and state effect to verify. |
 | `create_runtime_instance` | Terraform default `true`; deploy/CI do not override | `module.compute` and image lookup; false would remove VM. Separate `recreate_runtime_instance` workflow input taints existing VM on retry. | Both paths and retry fixture to verify. |
-| `create_autonomous_database` | GitHub variable `true`; `main` fallback `false`; focused branch fallback `true` | ADB count, Vault lookups, readiness check, password rotation target. Missing variable on `main` risks database removal. | IAC-001; production proof pending. |
-| `create_media_bucket` | GitHub variable `true`; `main` fallback `false`; focused branch fallback `true` | Private bucket count and namespace precondition. Missing variable on `main` risks bucket removal. | IAC-001; production proof pending. |
+| `create_autonomous_database` | Terraform and all workflow fallbacks `true`; GitHub variable removed | ADB count, Vault lookups, readiness check, password rotation target. Explicit `false` supports the fresh-tenancy Vault bootstrap. | IAC-001 closed; PR and post-removal production plans were clean. |
+| `create_media_bucket` | Terraform and all workflow fallbacks `true`; GitHub variable removed | Private bucket count and namespace precondition. Explicit `false` supports bootstrap before the namespace is confirmed. | IAC-001 closed; PR and post-removal production plans were clean. |
 | `assign_public_ip` | Fixed `true` in the compute resource; root and module inputs removed | VM VNIC retains its public IP. | PR production plan to verify. |
 | ADB `is_free_tier` | Hardcoded `true` in the data services resource; former root/module input removed | Fixes the database to Oracle Always Free. The existing counted resource address is unchanged. | PR CI production plan returned no changes. |
 | ADB `is_mtls_connection_required` | Hardcoded `true` in the data services resource; former GitHub/workflow and Terraform inputs removed in PR #354 | Requires wallet-based connections. Existing counted resource address is unchanged. | Local validation and PR CI production no-change plan passed. Remove the now-unused GitHub variable after merge. |
@@ -256,10 +245,10 @@ removed after the no-change check. The DNS GitHub variables
 `AUTOGRAPHS_DNS_DOMAIN`, `AUTOGRAPHS_DNS_SUBDOMAIN`, and
 `AUTOGRAPHS_DNS_TTL` also matched Terraform defaults and were removed after
 the production plan on commit `95ffd71` reported `No changes` (run
-`43784625375`). In contrast, the two
-`OCI_CREATE_*` values are `true` while workflow fallbacks remain `false`, and
-`CLOUDFLARE_MODE` is `proxied` while its fallback is `off`; those are not
-redundant and remain under IAC-001/IAC-004 review.
+`43784625375`). The two `OCI_CREATE_*` values were subsequently removed after
+PR #358 made their workflow fallbacks `true` and a post-removal plan reported
+no changes. `CLOUDFLARE_MODE` is `proxied` while its fallback is `off`; it
+remains under IAC-004 review.
 
 ### Derived naming contract in PR #354
 
@@ -292,11 +281,16 @@ session both reported `No changes` on 2026-11-15. The GitHub variables
 
 ## GitHub configuration inventory
 
-The 2026-11-15 repository inventory contains 12 GitHub Variables and 14
+The 2026-11-15 repository inventory contained 12 GitHub Variables and 14
 GitHub Secrets after the runtime sizing, mTLS, media namespace, DNS, and
 retired ADB password cleanup. The `production`
 GitHub Environment has no additional variables or secrets. Secret names were
 listed, but secret values were not read.
+
+After PR #358 and its post-removal plan passed on 2026-11-17, the two
+`OCI_CREATE_*` variables were removed. The unused `OCI_COMPARTMENT_OCID`
+variable was also removed after its only source references were confirmed to
+be historical documentation. The remaining repository variable count is nine.
 
 GitHub Variables to retain:
 
@@ -305,14 +299,11 @@ GitHub Variables to retain:
 - `AUTOGRAPHS_DNS_RECORD_ID` and `CLOUDFLARE_ACCOUNT_ID` identify existing
   DNS and Cloudflare resources. `RELEASE_PLEASE_APP_CLIENT_ID` identifies the
   repository-installed GitHub App.
-- `OCI_CREATE_AUTONOMOUS_DATABASE=true`, `OCI_CREATE_MEDIA_BUCKET=true`, and
-  `CLOUDFLARE_MODE=proxied` differ from their unsafe workflow fallbacks. Keep
-  them until the IAC-001/IAC-004 switch contracts are revised.
+- `CLOUDFLARE_MODE=proxied` differs from its `off` workflow fallback. Keep it
+  until the IAC-004 switch contract is revised.
 
 GitHub Variables queued for cleanup:
 
-- `OCI_COMPARTMENT_OCID` is required by `main` today. PR #354 replaces it with
-  a name-filtered OCI compartment lookup; remove it only after the PR merges.
 - `DEPLOY_SSH_USER` and `DEPLOY_PATH` equal their current workflow fallbacks
   and Terraform defaults. Their workflow assignments and non-Terraform
   consumers need a
@@ -378,8 +369,8 @@ a digest of the complete saved plan. It does not print `terraform state list`
 or publish the saved plan JSON, so the refresh lines are evidence for those
 addresses, not an exhaustive state inventory. A final review must capture the
 full address list and a sanitized action summary from the saved plan. The
-no-change result supports the current configuration only; it does not resolve
-the missing-variable failure paths in IAC-001 and IAC-002.
+no-change result supported the 2026-11-15 configuration only. PR #358 and the
+post-removal plan later resolved IAC-001; IAC-002 remains open.
 
 ### Authenticated tenancy-state plan
 
@@ -421,7 +412,7 @@ the separate production state key.
 | `apply-security-updates.yml` / `security-patch.yml` | Re-scan and approval validation precede advisory-scoped DNF mutation. | Failure workflow invokes `security-patch-cleanup.yml` to clear stale approval. | Verify drift and partial-apply paths against current fixtures. |
 | `reboot-security-runtime.yml` / `security-reboot.yml` | Re-scan and kernel/approval checks precede reboot and installonly cleanup. | Post-reboot scan reports remaining findings; failed workflow invokes cleanup. | Verify both DNF no-op flag values and target-scope fixtures. |
 | `image-cleanup.yml` / `system-cleanup.yml` | Podman and GHCR image pruning use independent dry-run/operation inputs. | Protected tags and retained counts guard active versions. | Verify scheduled and explicit-delete paths. |
-| `cloudflare-terraform.yml` | Plan-only or fingerprint-gated apply of an exact saved plan containing Cloudflare changes only. | Required state addresses and zone identity are checked before planning; non-Cloudflare changes abort. | Capture full state list and sanitized action summary without values. |
+| `deploy.yml` `cloudflare` job | Manual `cloudflare_plan` or fingerprint-gated `cloudflare_apply` of an exact saved plan containing Cloudflare changes only. | Required state addresses and zone identity are checked before planning; non-Cloudflare changes abort. The release job only accepts `retry` or `rollback`. | Capture full state list and sanitized action summary without values. |
 
 ## Source inventory
 
@@ -561,7 +552,7 @@ Terraform `moved` blocks in `modules/iam/main.tf` and `modules/state_bucket/main
 |---|---|---|
 | `.github/workflows/apply-security-updates.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
 | `.github/workflows/ci.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
-| `.github/workflows/cloudflare-terraform.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
+| `.github/workflows/deploy.yml` `cloudflare` job | Manual operator plan/apply in the release workflow | Main-only dispatch, production environment, active zone/state checks, Cloudflare-only plan scope, fingerprint-gated exact saved-plan apply; routing test prevents release deploy. |
 | `.github/workflows/complete-v0.5.0.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
 | `.github/workflows/conventional-commits.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |
 | `.github/workflows/deploy.yml` | Workflow event and job trace pending | Trace pending: event/input/secret sources, mutation gate, recovery, CI, final disposition. |

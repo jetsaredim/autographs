@@ -13,8 +13,8 @@ Connect copied the records and delegated nameservers. The one-time
 and [settings apply](https://github.com/jetsaredim/autographs/actions/runs/42738867482)
 are complete. The persistent GitHub `CLOUDFLARE_MODE` is `proxied`; the
 Cloudflare app A record uses automatic TTL. Routine deploys reject Cloudflare
-or Porkbun DNS changes. Use the separate operator workflow below for reviewed
-Cloudflare changes.
+or Porkbun DNS changes. Use the manual Cloudflare operations in the release and
+deploy workflow below for reviewed changes.
 
 The [guarded proxy cutover](https://github.com/jetsaredim/autographs/actions/runs/42748453909)
 passed active edge certificate and origin HTTPS checks, then updated only the
@@ -29,16 +29,16 @@ the adjusted WebP returned `CF-Cache-Status: MISS` then `HIT` while retaining
 ## Ongoing Cloudflare changes
 
 Change the Terraform configuration through a reviewed PR, then use the
-[Cloudflare Terraform workflow](../.github/workflows/cloudflare-terraform.yml)
+[release and deploy workflow](../.github/workflows/deploy.yml)
 on `main`:
 
-1. Dispatch `operation=plan`. Read the full Terraform plan in the run log and
+1. Dispatch `operation=cloudflare_plan`; leave `release_tag` empty. Read the full Terraform plan in the run log and
    confirm that only intended Cloudflare resources change. Record its printed
    `Cloudflare plan fingerprint`.
-2. Dispatch `operation=apply` with that fingerprint as `expected_plan_sha`.
+2. Dispatch `operation=cloudflare_apply` with that fingerprint as `expected_plan_sha`; leave `release_tag` empty.
    The workflow creates a fresh saved plan, refuses changes outside Cloudflare
    resources or a changed fingerprint, then applies that exact saved plan.
-3. Run `operation=plan` again and confirm `No changes`. Verify the affected
+3. Run `operation=cloudflare_plan` again and confirm `No changes`. Verify the affected
    live DNS or cache behavior.
 
 Both operations require the active `jetsaredim.net` zone and the already

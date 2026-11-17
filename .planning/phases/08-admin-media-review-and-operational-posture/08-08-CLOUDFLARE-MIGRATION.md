@@ -52,8 +52,8 @@ cache header. `/admin/` and unauthenticated `/admin/api/status` retained
 - Complete two authenticated admin API 200-response probes and Cloudflare
   Rule Trace, then record the rollback decision or exercise before closing
   Phase 8. The first rollback path is a reviewed `CLOUDFLARE_MODE=dns_only`
-  Terraform plan and fingerprint-gated apply through the ongoing Cloudflare
-  operator workflow.
+  Terraform plan and fingerprint-gated apply through the manual Cloudflare
+  operations in `deploy.yml`.
 
 ## Staged implementation
 
