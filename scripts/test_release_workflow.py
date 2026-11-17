@@ -469,6 +469,14 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn(guard, run)
         self.assertLess(run.index(guard), run.index('gh release view "$release_tag"'))
 
+    def test_runtime_recreation_handles_counted_state_migration(self):
+        run = self.production_steps["Terraform apply"]["run"]
+        self.assertIn("'module.compute.oci_core_instance.runtime'", run)
+        self.assertIn("'module.compute.oci_core_instance.runtime[0]'", run)
+        self.assertLess(run.index('terraform taint -lock-timeout=10m "$runtime_state_address"'),
+                        run.index('terraform plan -input=false -lock-timeout=10m'))
+        self.assertIn('"${{ inputs.recreate_runtime_instance }}" = "true"', run)
+
     def test_unresolved_draft_block(self):
         case = self.cases["unresolved_draft_block"]
         run = self.release_steps[case["step"]]["run"]

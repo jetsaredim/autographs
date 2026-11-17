@@ -1,7 +1,3 @@
-variable "create_instance" {
-  type = bool
-}
-
 variable "name_prefix" {
   type = string
 }

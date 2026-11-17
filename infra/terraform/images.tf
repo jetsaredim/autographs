@@ -1,5 +1,5 @@
 data "oci_core_images" "oracle_linux_10" {
-  count = var.create_runtime_instance && var.runtime_image_ocid == "" ? 1 : 0
+  count = var.runtime_image_ocid == "" ? 1 : 0
 
   compartment_id           = local.compartment_ocid
   operating_system         = "Oracle Linux"

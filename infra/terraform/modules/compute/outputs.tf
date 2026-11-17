@@ -1,11 +1,11 @@
 output "instance_id" {
-  value = var.create_instance ? oci_core_instance.runtime[0].id : null
+  value = oci_core_instance.runtime.id
 }
 
 output "public_ip" {
-  value = var.create_instance ? oci_core_instance.runtime[0].public_ip : null
+  value = oci_core_instance.runtime.public_ip
 }
 
 output "private_ip" {
-  value = var.create_instance ? oci_core_instance.runtime[0].private_ip : null
+  value = oci_core_instance.runtime.private_ip
 }

@@ -64,12 +64,6 @@ variable "owner_email" {
   default     = ""
 }
 
-variable "create_network" {
-  description = "Whether Terraform should create the VCN and subnet baseline."
-  type        = bool
-  default     = true
-}
-
 variable "vcn_cidr_block" {
   description = "CIDR block for the project VCN."
   type        = string
@@ -98,12 +92,6 @@ variable "https_ingress_cidrs" {
   description = "CIDRs allowed to reach the Caddy reverse proxy over HTTPS."
   type        = list(string)
   default     = ["0.0.0.0/0"]
-}
-
-variable "create_runtime_instance" {
-  description = "Whether Terraform should create the OCI VM used for the Caddy to Next.js runtime."
-  type        = bool
-  default     = true
 }
 
 variable "availability_domain" {

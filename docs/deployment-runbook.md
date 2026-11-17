@@ -642,7 +642,7 @@ pending and require their own implementation and production evidence.
 
 ### Runtime VM Recreation
 
-Terraform no longer embeds the runtime bootstrap state in cloud-init. If a clean VM is needed, manually run the deploy workflow with `recreate_runtime_instance=true`. The workflow taints `module.compute.oci_core_instance.runtime[0]` before `terraform apply`, forcing OCI to recreate the runtime VM and then letting Ansible converge the full production state onto the replacement instance.
+Terraform no longer embeds the runtime bootstrap state in cloud-init. If a clean VM is needed, manually run the deploy workflow with `recreate_runtime_instance=true`. The workflow taints `module.compute.oci_core_instance.runtime` before `terraform apply`, forcing OCI to recreate the runtime VM and then letting Ansible converge the full production state onto the replacement instance. During the counted-to-uncounted state migration, the retry path also accepts the old `[0]` address before the first apply of the moved block.
 
 Image cleanup runs weekly and by manual dispatch. Local cleanup protects active/previous controller references, container-used images, operator-protected tags, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` images. Remote GHCR cleanup runs inventory-only on schedules; manual `remote_operation=delete` explicitly enables deletion. Active/previous controller tags/digests, configured age/count windows, and untagged manifests are protected. `dry_run` controls local cleanup separately. See [retention](release-management.md#retention) before retiring Releases, source tags, or GHCR images.
 

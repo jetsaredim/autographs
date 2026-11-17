@@ -1,7 +1,6 @@
 module "network" {
   source = "./modules/network"
 
-  create_network           = var.create_network
   name_prefix              = local.name_prefix
   project_name             = var.project_name
   compartment_id           = local.compartment_ocid
@@ -16,7 +15,6 @@ module "network" {
 module "compute" {
   source = "./modules/compute"
 
-  create_instance      = var.create_runtime_instance
   name_prefix          = local.name_prefix
   project_name         = var.project_name
   compartment_id       = local.compartment_ocid
