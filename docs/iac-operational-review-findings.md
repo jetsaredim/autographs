@@ -102,6 +102,15 @@ inventory. IAC-001 and IAC-002 share the stateful-resource preservation
 invariant and require a production state/plan audit plus producer and consumer
 trace before an implementation plan is selected.
 
+PR #354 adds `prevent_destroy` to the ADB, private media bucket, and tenancy
+state bucket. This blocks a plan that destroys or replaces one of these
+resources while its resource block remains configured, including a counted ADB
+or media bucket whose `count` becomes zero. It does not protect a resource if
+its entire configuration is removed. The existing `false` workflow fallbacks
+and the missing destructive-plan policy remain IAC-001/IAC-002 work; this
+guard is a partial mitigation, not their final disposition. The runtime VM
+keeps its intentional taint-and-replace recovery path.
+
 ### Candidate resolution for IAC-001
 
 The owner proposed making `true` the code default for the two production

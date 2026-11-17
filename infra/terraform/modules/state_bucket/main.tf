@@ -13,4 +13,8 @@ resource "oci_objectstorage_bucket" "this" {
   auto_tiering   = "Disabled"
 
   freeform_tags = var.tags
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }

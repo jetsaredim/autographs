@@ -13,6 +13,8 @@ resource "oci_database_autonomous_database" "catalog" {
   freeform_tags               = var.tags
 
   lifecycle {
+    prevent_destroy = true
+
     precondition {
       condition     = !var.create_autonomous_database || var.runtime_secret_values_ready
       error_message = "All managed runtime secrets must have a non-bootstrap CURRENT version before create_autonomous_database can create or update ADB."
@@ -33,6 +35,8 @@ resource "oci_objectstorage_bucket" "media" {
   freeform_tags  = var.tags
 
   lifecycle {
+    prevent_destroy = true
+
     precondition {
       condition     = !var.create_media_bucket || var.media_bucket_namespace != ""
       error_message = "media_bucket_namespace is required when create_media_bucket is true."
