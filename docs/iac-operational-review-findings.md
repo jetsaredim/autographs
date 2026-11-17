@@ -89,7 +89,7 @@ or valid refactor.
 
 | ID | Severity | Finding and evidence | Disposition | Required proof or change |
 |---|---|---|---|---|
-| IAC-001 | Warning | With the current code unchanged, the deploy, CI, and Cloudflare workflows substitute `false` when either `OCI_CREATE_AUTONOMOUS_DATABASE` or `OCI_CREATE_MEDIA_BUCKET` GitHub Actions value is absent; production currently sets both `true`. The resulting resource `count` values become zero, and the database value also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). That configuration-loss path could plan removal of managed production data resources. | Investigate before any fix | Capture state and current-input plan; trace all workflow inputs. Evaluate an explicit-value guard separately from any coherent switch-removal refactor. |
+| IAC-001 | Warning | On `main`, deploy, CI, and Cloudflare workflows substitute `false` when either `OCI_CREATE_AUTONOMOUS_DATABASE` or `OCI_CREATE_MEDIA_BUCKET` GitHub Actions value is absent; production currently sets both `true`. The resulting resource `count` values become zero, and the database value also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). That configuration-loss path could plan removal of managed production data resources. | Focused source fix prepared; production proof pending | Keep both GitHub values `true` through PR review; require a no-change production plan before and after removing them. |
 | IAC-002 | Warning | CI runs `terraform plan` against production state but does not classify or fail on destructive actions (`.github/workflows/ci.yml`). The release workflow rejects DNS changes, then applies the full remaining saved plan (`.github/workflows/deploy.yml`). | Investigate with IAC-001 | Inspect current plan and supported change policy; decide which stateful changes require an explicit operator gate. |
 | IAC-003 | Info | `create_network` and `create_runtime_instance` default `true`; if passed `false` to the current code, their counted network/compute resources would be removed. The release workflow does not set either variable, and runtime recreation is separately requested through a taint on retry. | Retain pending state review | Confirm both state addresses and whether false is supported. Any switch removal must also revise the count/lookup contracts and preserve state addresses or use reviewed `moved` blocks. |
 | IAC-004 | Info | `cloudflare_mode` is `proxied` in production. A missing variable becomes `off` in ordinary deploy/CI, but the deploy saved-plan guard rejects changed Cloudflare resources. The operator workflow requires explicit `dns_only` or `proxied` and checks plan scope and fingerprint. | Retain pending plan proof | Confirm a no-change plan and a missing-mode rejection test; preserve proxy persistence and DNS mutation guard. |
@@ -141,6 +141,17 @@ with reviewed `moved` blocks or an equivalent state migration. That later PR
 must show a no-destroy, no-recreate production plan before apply. IAC-002's
 broader destructive-plan policy remains a separate review decision.
 
+The focused IAC-001 change is prepared on `fix/iac-resource-defaults`: the
+Terraform defaults and CI, release deploy, and Cloudflare operator fallbacks
+now all resolve to `true` when their optional GitHub variables are absent.
+The explicit `false` bootstrap override and counted resource addresses remain
+available. The existing production variables must stay `true` until this
+change is merged and its authenticated PR plan reports no infrastructure
+changes. After merge, remove the two repository variables and run a read-only
+production plan from `main`; restore them to `true` before any apply if that
+plan proposes a change. This source change does not close IAC-001 until the
+post-removal plan is recorded. IAC-002 remains open.
+
 ## Switch census and direct boundaries
 
 This census covers root Terraform Boolean/mode inputs, production Ansible
@@ -155,8 +166,8 @@ proposed refactor that removes the input and its conditional consumers.
 |---|---|---|---|
 | `create_network` | Terraform default `true`; deploy/CI do not override | `module.network` counts VCN, subnet, gateway, routing, NSG and rules; false would remove managed network. | Both paths and state effect to verify. |
 | `create_runtime_instance` | Terraform default `true`; deploy/CI do not override | `module.compute` and image lookup; false would remove VM. Separate `recreate_runtime_instance` workflow input taints existing VM on retry. | Both paths and retry fixture to verify. |
-| `create_autonomous_database` | GitHub variable `true`, Terraform/workflow fallback `false` | ADB count, Vault lookups, readiness check, password rotation target. Missing variable risks database removal. | IAC-001; Warning. |
-| `create_media_bucket` | GitHub variable `true`, Terraform/workflow fallback `false` | Private bucket count and namespace precondition. Missing variable risks bucket removal. | IAC-001; Warning. |
+| `create_autonomous_database` | GitHub variable `true`; `main` fallback `false`; focused branch fallback `true` | ADB count, Vault lookups, readiness check, password rotation target. Missing variable on `main` risks database removal. | IAC-001; production proof pending. |
+| `create_media_bucket` | GitHub variable `true`; `main` fallback `false`; focused branch fallback `true` | Private bucket count and namespace precondition. Missing variable on `main` risks bucket removal. | IAC-001; production proof pending. |
 | `assign_public_ip` | Fixed `true` in the compute resource; root and module inputs removed | VM VNIC retains its public IP. | PR production plan to verify. |
 | ADB `is_free_tier` | Hardcoded `true` in the data services resource; former root/module input removed | Fixes the database to Oracle Always Free. The existing counted resource address is unchanged. | PR CI production plan returned no changes. |
 | ADB `is_mtls_connection_required` | Hardcoded `true` in the data services resource; former GitHub/workflow and Terraform inputs removed in PR #354 | Requires wallet-based connections. Existing counted resource address is unchanged. | Local validation and PR CI production no-change plan passed. Remove the now-unused GitHub variable after merge. |

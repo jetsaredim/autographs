@@ -63,8 +63,8 @@ outputs and passes them to Ansible.
 | `OCI_RUNTIME_IMAGE_OCID` | Oracle Linux image OCID for the runtime VM |
 | `OCI_RUNTIME_SSH_PUBLIC_KEYS` | JSON list of SSH public keys injected into the VM |
 | `OCI_OBJECT_STORAGE_NAMESPACE` | OCI Object Storage namespace for Terraform remote state |
-| `OCI_CREATE_AUTONOMOUS_DATABASE` | Optional toggle for creating the Oracle Autonomous Database; defaults to `false` until credentials are ready |
-| `OCI_CREATE_MEDIA_BUCKET` | Optional toggle for creating the private media Object Storage bucket; defaults to `false` until the namespace is confirmed |
+| `OCI_CREATE_AUTONOMOUS_DATABASE` | Optional bootstrap override; defaults to `true` for the managed production database. Set `false` explicitly for the initial Vault bootstrap |
+| `OCI_CREATE_MEDIA_BUCKET` | Optional bootstrap override; defaults to `true` for the managed private media bucket. Set `false` explicitly until the Object Storage namespace is confirmed |
 | `CLOUDFLARE_ACCOUNT_ID` | Non-secret account ID for the Terraform-managed `jetsaredim.net` zone |
 | `CLOUDFLARE_MODE` | Production is `proxied`; use `dns_only` for a reviewed proxy rollback. `off` remains a bootstrap default and must not be used in the operator workflow |
 | `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |
@@ -101,7 +101,7 @@ Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, me
 
 ## Data Services
 
-Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both are guarded by explicit creation toggles so the live deployment does not accidentally request paid or tenancy-specific resources before the operator has supplied the correct namespace, named Vault secrets, and runtime connection values.
+Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both creation inputs default to `true` so losing an optional GitHub variable does not plan removal of a managed production resource. Set them explicitly to `false` during initial bootstrap until the namespace, named Vault secrets, and runtime connection values are ready.
 
 Fresh environments must first apply the runtime root with
 `create_autonomous_database=false`. OCI generates the Oracle database password
