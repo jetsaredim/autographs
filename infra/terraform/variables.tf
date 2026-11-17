@@ -173,13 +173,13 @@ variable "runtime_deploy_path" {
 variable "create_autonomous_database" {
   description = "Whether Terraform should create the Oracle Autonomous Database Free metadata store."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "create_media_bucket" {
   description = "Whether Terraform should create the private Object Storage bucket for autograph images."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "media_bucket_namespace" {
