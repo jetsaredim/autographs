@@ -6,4 +6,4 @@ publish = false
 
 [dependencies]
 oracledb = "26.0.0-beta.6"
-uuid = { version = "1.29.2", features = ["v4"] }
+uuid = { version = "1.29.3", features = ["v4"] }
