@@ -64,7 +64,6 @@ outputs and passes them to Ansible.
 | `OCI_RUNTIME_SSH_PUBLIC_KEYS` | JSON list of SSH public keys injected into the VM |
 | `OCI_OBJECT_STORAGE_NAMESPACE` | OCI Object Storage namespace for Terraform remote state |
 | `OCI_CREATE_AUTONOMOUS_DATABASE` | Optional bootstrap override; defaults to `true` for the managed production database. Set `false` explicitly for the initial Vault bootstrap |
-| `OCI_CREATE_MEDIA_BUCKET` | Optional bootstrap override; defaults to `true` for the managed private media bucket. Set `false` explicitly until the Object Storage namespace is confirmed |
 | `CLOUDFLARE_ACCOUNT_ID` | Non-secret account ID for the Terraform-managed `jetsaredim.net` zone |
 | `CLOUDFLARE_MODE` | Production is `proxied`; use `dns_only` for a reviewed proxy rollback. `off` remains a bootstrap default and must not be used in the operator workflow |
 | `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |
@@ -101,7 +100,7 @@ Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, me
 
 ## Data Services
 
-Terraform defines the end-state Oracle Autonomous Database Free metadata store and the private OCI Object Storage media bucket. Both creation inputs default to `true` so losing an optional GitHub variable does not plan removal of a managed production resource. Set them explicitly to `false` during initial bootstrap until the namespace, named Vault secrets, and runtime connection values are ready.
+Terraform manages the private OCI Object Storage media bucket whenever the runtime root is applied; supply the real `media_bucket_namespace` before the first apply. The Oracle Autonomous Database Free creation input defaults to `true` so losing an optional GitHub variable does not plan its removal. Set `create_autonomous_database=false` explicitly during initial Vault bootstrap until the named secrets and runtime connection values are ready.
 
 Fresh environments must first apply the runtime root with
 `create_autonomous_database=false`. OCI generates the Oracle database password

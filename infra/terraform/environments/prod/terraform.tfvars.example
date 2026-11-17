@@ -46,7 +46,6 @@ runtime_deploy_path = "/opt/autographs"
 # passes its Oracle database password secret OCID directly to ADB.
 create_autonomous_database                   = false
 
-create_media_bucket     = false
 media_bucket_namespace  = "replace-with-your-object-storage-namespace"
 
 # Cloudflare full-zone migration. Advance only through reviewed DNS applies.

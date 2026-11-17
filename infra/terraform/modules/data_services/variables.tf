@@ -28,11 +28,6 @@ variable "autonomous_database_admin_password_secret_id" {
   type        = string
 }
 
-variable "create_media_bucket" {
-  description = "Whether to create the private Object Storage media bucket."
-  type        = bool
-}
-
 variable "media_bucket_namespace" {
   description = "Object Storage namespace for the media bucket."
   type        = string
