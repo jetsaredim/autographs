@@ -90,11 +90,11 @@ or valid refactor.
 |---|---|---|---|---|
 | IAC-001 | Warning | Before PR #358, CI, release deploy, and Cloudflare workflows substituted `false` when either optional resource-creation GitHub variable was absent. That could reduce the ADB or private media bucket `count` to zero; the database input also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). | Fixed by [PR #358](https://github.com/jetsaredim/autographs/pull/358) and verified after variable removal | The authenticated PR plan and post-removal read-only production plan both reported no changes. Explicit `false` remains available for initial bootstrap. |
 | IAC-002 | Warning | CI runs `terraform plan` against production state but does not classify or fail on destructive actions (`.github/workflows/ci.yml`). The release workflow rejects DNS changes, then applies the full remaining saved plan (`.github/workflows/deploy.yml`). | Investigate with IAC-001 | Inspect current plan and supported change policy; decide which stateful changes require an explicit operator gate. |
-| IAC-003 | Info | `create_network` and `create_runtime_instance` default `true`; if passed `false` to the current code, their counted network/compute resources would be removed. The release workflow does not set either variable, and runtime recreation is separately requested through a taint on retry. | Retain pending state review | Confirm both state addresses and whether false is supported. Any switch removal must also revise the count/lookup contracts and preserve state addresses or use reviewed `moved` blocks. |
+| IAC-003 | Info | Before this cleanup, `create_network` and `create_runtime_instance` defaulted to `true`; explicit `false` would remove managed network/VM resources. No production workflow supplied either input. Runtime recreation uses a separate retry-only taint. | Switch removal prepared; production plan pending | Seven counted resources have `moved` mappings; ingress rule `for_each` keys remain stable. Require a no-change production plan and preserve the retry taint across both state addresses. |
 | IAC-004 | Info | `cloudflare_mode` is `proxied` in production. A missing variable becomes `off` in ordinary deploy/CI, but the deploy saved-plan guard rejects changed Cloudflare resources. The operator workflow requires explicit `dns_only` or `proxied` and checks plan scope and fingerprint. | Retain pending plan proof | Confirm a no-change plan and a missing-mode rejection test; preserve proxy persistence and DNS mutation guard. |
 | IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Investigate as one contract | Trace preflight, full deploy, unfreeze, failure rescue, rollback, and fixtures before consolidating any flag. |
 | IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Investigate test seam | Verify both fixture paths and the production fail-closed behavior before changing the switch. |
-| IAC-007 | Info | `create_runtime_instance` still describes a “Caddy to Next.js runtime” in `infra/terraform/variables.tf`, although the active runtime is Caddy plus the Rust controller. | Documentation correction candidate | Update the description after the operational contract review; no state effect. |
+| IAC-007 | Info | `create_runtime_instance` described a retired Caddy-to-Next.js runtime. | Resolved with IAC-003 switch removal | The obsolete variable description is removed; the VM remains the Caddy/Rust runtime. |
 
 IAC-001 and IAC-002 share the stateful-resource preservation invariant. The
 source and production-plan resolution for IAC-001 is recorded below; IAC-002
@@ -153,8 +153,8 @@ proposed refactor that removes the input and its conditional consumers.
 
 | Switch or mode | Producer and current/default value | Direct consumer and unsafe transition | Review state |
 |---|---|---|---|
-| `create_network` | Terraform default `true`; deploy/CI do not override | `module.network` counts VCN, subnet, gateway, routing, NSG and rules; false would remove managed network. | Both paths and state effect to verify. |
-| `create_runtime_instance` | Terraform default `true`; deploy/CI do not override | `module.compute` and image lookup; false would remove VM. Separate `recreate_runtime_instance` workflow input taints existing VM on retry. | Both paths and retry fixture to verify. |
+| `create_network` | Removed from root and module; no workflow override existed | VCN, subnet, gateway, route table, NSG, and egress rule move from `[0]` to uncounted addresses; ingress rule keys stay unchanged. | IAC-003; production state-move proof pending. |
+| `create_runtime_instance` | Removed from root and module; no workflow override existed | VM moves from `[0]` to uncounted address; image lookup still runs when no explicit image OCID is supplied. Retry-only `recreate_runtime_instance` remains. | IAC-003; production state-move proof pending. |
 | `create_autonomous_database` | Terraform and all workflow fallbacks `true`; GitHub variable removed | ADB count, Vault lookups, readiness check, password rotation target. Explicit `false` supports the fresh-tenancy Vault bootstrap. | IAC-001 closed; PR and post-removal production plans were clean. |
 | `create_media_bucket` | Removed from the root, module, examples, and all three workflow environments by [PR #360](https://github.com/jetsaredim/autographs/pull/360) | The private bucket remains managed from the first runtime-root apply; its namespace must be supplied. A `moved` block maps the existing `[0]` state address to the uncounted address. | Authenticated PR plan: `0 to add, 0 to change, 0 to destroy`; no apply. |
 | `assign_public_ip` | Fixed `true` in the compute resource; root and module inputs removed | VM VNIC retains its public IP. | PR production plan to verify. |
@@ -199,11 +199,11 @@ production or tenancy state.
 | `media_bucket_versioning` | Private bucket `versioning = "Enabled"`; production-root `terraform validate` passed. | PR CI production plan returned no changes. |
 | `state_bucket_storage_tier` | State bucket `storage_tier = "Standard"`; tenancy-root `terraform validate` passed. | Authenticated plan against `envs/prod/tenancy-bootstrap.tfstate` returned no changes on 2026-11-15; no apply. |
 
-The remaining resource-presence switches (`create_autonomous_database`,
-`create_network`, and `create_runtime_instance`) determine resource addresses
-or supported bootstrap paths. Do not remove them as a simple pass-through
-cleanup. The media bucket has no secret-readiness dependency, so its switch can
-be removed with the state-preserving move and namespace precondition below.
+The remaining database resource-presence switch determines a supported
+bootstrap path; the network and runtime switches had no production false-state
+use and are being removed with state-preserving moves. The media bucket had no
+secret-readiness dependency, so its switch was removed with the
+state-preserving move and namespace precondition below.
 
 ### Media bucket conditional retirement
 
@@ -234,6 +234,33 @@ reported the exact move from `media[0]` to `media` and `Plan: 0 to add, 0 to
 change, 0 to destroy`. No apply ran. The move requires no bucket replacement
 or loss of Terraform management. The remaining PR checks must pass before
 merge.
+
+### Network and runtime conditional retirement
+
+The network/VM switch removal is a separate contract change. Production and
+the local tfvars example used `true`; CI and release deploy supplied no
+override. The `false` paths could omit the VCN, subnet, gateway, route table,
+NSG/rules, VM, and image lookup, but no current operator runbook uses them for
+bootstrap or recovery. The supported VM replacement path is the explicit
+`recreate_runtime_instance=true` retry input.
+
+**Network and VM invariant:** Keep the existing VCN, subnet, gateway, route
+table, NSG/rules, and VM identities and Terraform ownership. The migration
+must make zero provider-side changes. The VCN, gateway, route table, NSG,
+egress rule, subnet, and VM receive `[0]`-to-uncounted `moved` blocks. SSH,
+HTTP, and HTTPS ingress rules keep their existing `for_each` CIDR keys.
+Module outputs and network/VM resource references use the new addresses. The
+Oracle Linux image lookup still has a count only for the explicit-image versus
+latest-image choice; production's current lookup remains reachable.
+
+The release workflow consumes the VM address in its deliberate taint path.
+That path accepts either the old `[0]` or the new uncounted state address
+during the first migration deploy, then plans the same requested replacement.
+The routine Terraform plan, output values passed to Ansible, DNS guard, and
+Cloudflare-only operator plan remain direct reporting/action consumers. Local
+Terraform formatting and validation, the workflow retry contract test, and
+an authenticated production plan are required. Any creation, update,
+replacement, destruction, or lost ingress-rule key stops the PR before merge.
 
 ### Database conditional retirement boundary
 
@@ -269,7 +296,7 @@ historically or that other operators have no private overrides.
 
 | Input group | Current observation | Contract and disposition |
 |---|---|---|
-| `create_network`, `create_runtime_instance` | Production defaults and local tfvars are `true`; no GitHub workflow override. | Both drive resource `count` expressions and related lookups/outputs. Retain until a full consumer inventory and reviewed `moved` transitions or equivalent state update make a switch-removal plan safe. |
+| `create_network`, `create_runtime_instance` | Production defaults and local tfvars were `true`; no GitHub workflow override. | Their source and direct consumers are now being removed with reviewed `moved` transitions. PR CI production-state plan must show no changes before merge. |
 | `assign_public_ip` | Fixed `true` in the compute resource; no GitHub workflow override. | Root and module inputs were removed; confirm the existing VM has no production plan change. |
 | `runtime_boot_volume_size_gbs` | Production default, local tfvars, and example are `50`; no GitHub Actions variable or workflow override exists. | Keep the Terraform input configurable and retain the `50` default. No boot-volume sizing cleanup is proposed. |
 | `project_name`, `environment` | Defaults and local tfvars match in both roots; no production workflow override. | Feed tags and derived OCI, DNS, and media names. Preserve cross-root alignment; a change affects resource identity and secret lookups. |

@@ -659,8 +659,17 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] \
             && [ "${{ steps.request.outputs.operation }}" = "retry" ] \
             && [ "${{ inputs.recreate_runtime_instance }}" = "true" ]; then
-            if terraform state list | grep -Fxq 'module.compute.oci_core_instance.runtime[0]'; then
-              terraform taint -lock-timeout=10m 'module.compute.oci_core_instance.runtime[0]'
+            runtime_state_address=""
+            for address in \
+              'module.compute.oci_core_instance.runtime' \
+              'module.compute.oci_core_instance.runtime[0]'; do
+              if terraform state list | grep -Fxq "$address"; then
+                runtime_state_address="$address"
+                break
+              fi
+            done
+            if [ -n "$runtime_state_address" ]; then
+              terraform taint -lock-timeout=10m "$runtime_state_address"
             else
               echo "Runtime instance is not in Terraform state; skipping taint."
             fi

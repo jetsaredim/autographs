@@ -1,5 +1,9 @@
+moved {
+  from = oci_core_instance.runtime[0]
+  to   = oci_core_instance.runtime
+}
+
 resource "oci_core_instance" "runtime" {
-  count               = var.create_instance ? 1 : 0
   availability_domain = var.availability_domain
   compartment_id      = var.compartment_id
   display_name        = "${var.name_prefix}-vm"
@@ -41,23 +45,23 @@ resource "oci_core_instance" "runtime" {
     ]
 
     precondition {
-      condition     = !var.create_instance || var.availability_domain != ""
-      error_message = "availability_domain must be set when create_instance is true."
+      condition     = var.availability_domain != ""
+      error_message = "availability_domain must be set for the runtime instance."
     }
 
     precondition {
-      condition     = !var.create_instance || var.subnet_id != null
-      error_message = "subnet_id must be available when create_instance is true."
+      condition     = var.subnet_id != null
+      error_message = "subnet_id must be available for the runtime instance."
     }
 
     precondition {
-      condition     = !var.create_instance || var.image_ocid != ""
-      error_message = "Provide runtime_image_ocid or ensure the Oracle Linux image lookup returns an image before creating the runtime instance."
+      condition     = var.image_ocid != ""
+      error_message = "Provide runtime_image_ocid or ensure the Oracle Linux image lookup returns an image for the runtime instance."
     }
 
     precondition {
-      condition     = !var.create_instance || length(var.ssh_public_keys) > 0
-      error_message = "At least one SSH public key is required when create_instance is true."
+      condition     = length(var.ssh_public_keys) > 0
+      error_message = "At least one SSH public key is required for the runtime instance."
     }
   }
 }

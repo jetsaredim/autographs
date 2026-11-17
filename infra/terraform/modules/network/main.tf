@@ -1,5 +1,34 @@
+moved {
+  from = oci_core_vcn.main[0]
+  to   = oci_core_vcn.main
+}
+
+moved {
+  from = oci_core_internet_gateway.main[0]
+  to   = oci_core_internet_gateway.main
+}
+
+moved {
+  from = oci_core_route_table.public[0]
+  to   = oci_core_route_table.public
+}
+
+moved {
+  from = oci_core_network_security_group.runtime[0]
+  to   = oci_core_network_security_group.runtime
+}
+
+moved {
+  from = oci_core_network_security_group_security_rule.egress_all[0]
+  to   = oci_core_network_security_group_security_rule.egress_all
+}
+
+moved {
+  from = oci_core_subnet.public[0]
+  to   = oci_core_subnet.public
+}
+
 resource "oci_core_vcn" "main" {
-  count          = var.create_network ? 1 : 0
   compartment_id = var.compartment_id
   cidr_block     = var.vcn_cidr_block
   display_name   = "${var.name_prefix}-vcn"
@@ -9,9 +38,8 @@ resource "oci_core_vcn" "main" {
 }
 
 resource "oci_core_internet_gateway" "main" {
-  count          = var.create_network ? 1 : 0
   compartment_id = var.compartment_id
-  vcn_id         = oci_core_vcn.main[0].id
+  vcn_id         = oci_core_vcn.main.id
   display_name   = "${var.name_prefix}-igw"
   enabled        = true
 
@@ -19,13 +47,12 @@ resource "oci_core_internet_gateway" "main" {
 }
 
 resource "oci_core_route_table" "public" {
-  count          = var.create_network ? 1 : 0
   compartment_id = var.compartment_id
-  vcn_id         = oci_core_vcn.main[0].id
+  vcn_id         = oci_core_vcn.main.id
   display_name   = "${var.name_prefix}-public-rt"
 
   route_rules {
-    network_entity_id = oci_core_internet_gateway.main[0].id
+    network_entity_id = oci_core_internet_gateway.main.id
     destination       = "0.0.0.0/0"
     destination_type  = "CIDR_BLOCK"
   }
@@ -34,17 +61,16 @@ resource "oci_core_route_table" "public" {
 }
 
 resource "oci_core_network_security_group" "runtime" {
-  count          = var.create_network ? 1 : 0
   compartment_id = var.compartment_id
-  vcn_id         = oci_core_vcn.main[0].id
+  vcn_id         = oci_core_vcn.main.id
   display_name   = "${var.name_prefix}-runtime-nsg"
 
   freeform_tags = var.tags
 }
 
 resource "oci_core_network_security_group_security_rule" "ssh_ingress" {
-  for_each                  = var.create_network ? toset(var.ssh_ingress_cidrs) : toset([])
-  network_security_group_id = oci_core_network_security_group.runtime[0].id
+  for_each                  = toset(var.ssh_ingress_cidrs)
+  network_security_group_id = oci_core_network_security_group.runtime.id
   direction                 = "INGRESS"
   protocol                  = "6"
   source                    = each.value
@@ -59,8 +85,8 @@ resource "oci_core_network_security_group_security_rule" "ssh_ingress" {
 }
 
 resource "oci_core_network_security_group_security_rule" "http_ingress" {
-  for_each                  = var.create_network ? toset(var.http_ingress_cidrs) : toset([])
-  network_security_group_id = oci_core_network_security_group.runtime[0].id
+  for_each                  = toset(var.http_ingress_cidrs)
+  network_security_group_id = oci_core_network_security_group.runtime.id
   direction                 = "INGRESS"
   protocol                  = "6"
   source                    = each.value
@@ -75,8 +101,8 @@ resource "oci_core_network_security_group_security_rule" "http_ingress" {
 }
 
 resource "oci_core_network_security_group_security_rule" "https_ingress" {
-  for_each                  = var.create_network ? toset(var.https_ingress_cidrs) : toset([])
-  network_security_group_id = oci_core_network_security_group.runtime[0].id
+  for_each                  = toset(var.https_ingress_cidrs)
+  network_security_group_id = oci_core_network_security_group.runtime.id
   direction                 = "INGRESS"
   protocol                  = "6"
   source                    = each.value
@@ -91,8 +117,7 @@ resource "oci_core_network_security_group_security_rule" "https_ingress" {
 }
 
 resource "oci_core_network_security_group_security_rule" "egress_all" {
-  count                     = var.create_network ? 1 : 0
-  network_security_group_id = oci_core_network_security_group.runtime[0].id
+  network_security_group_id = oci_core_network_security_group.runtime.id
   direction                 = "EGRESS"
   protocol                  = "all"
   destination               = "0.0.0.0/0"
@@ -100,13 +125,12 @@ resource "oci_core_network_security_group_security_rule" "egress_all" {
 }
 
 resource "oci_core_subnet" "public" {
-  count                      = var.create_network ? 1 : 0
   compartment_id             = var.compartment_id
-  vcn_id                     = oci_core_vcn.main[0].id
+  vcn_id                     = oci_core_vcn.main.id
   cidr_block                 = var.public_subnet_cidr_block
   display_name               = "${var.name_prefix}-public-subnet"
   dns_label                  = "public"
-  route_table_id             = oci_core_route_table.public[0].id
+  route_table_id             = oci_core_route_table.public.id
   prohibit_public_ip_on_vnic = false
 
   freeform_tags = var.tags

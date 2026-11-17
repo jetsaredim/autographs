@@ -22,14 +22,12 @@ private_key_path = "~/.oci/autographs_api_key.pem"
 region           = "us-ashburn-1"
 owner_email      = "collector@example.com"
 
-create_network           = true
 vcn_cidr_block           = "10.42.0.0/16"
 public_subnet_cidr_block = "10.42.10.0/24"
 ssh_ingress_cidrs        = ["203.0.113.10/32"]
 http_ingress_cidrs       = ["0.0.0.0/0"]
 https_ingress_cidrs      = ["0.0.0.0/0"]
 
-create_runtime_instance      = true
 availability_domain          = "DcRr:US-ASHBURN-AD-3"
 runtime_shape                = "VM.Standard.E2.1.Micro"
 runtime_ocpus                = 1
