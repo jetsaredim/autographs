@@ -1,6 +1,6 @@
 output "compartment_ocid" {
   description = "OCI compartment OCID that owns the project resources."
-  value       = var.compartment_ocid
+  value       = local.compartment_ocid
 }
 
 output "runtime_public_ip" {
@@ -81,5 +81,5 @@ output "media_bucket_namespace" {
 
 output "autographs_dns_fqdn" {
   description = "DNS name managed for the autographs runtime."
-  value       = "${var.autographs_dns_subdomain}.${var.autographs_dns_domain}"
+  value       = "${var.project_name}.${var.autographs_dns_domain}"
 }

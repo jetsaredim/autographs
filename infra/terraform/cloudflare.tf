@@ -9,7 +9,7 @@ resource "cloudflare_zone" "domain" {
   account = {
     id = var.cloudflare_account_id
   }
-  name = "jetsaredim.net"
+  name = var.autographs_dns_domain
   type = "full"
 }
 
@@ -17,7 +17,7 @@ resource "cloudflare_dns_record" "autographs" {
   count = local.cloudflare_configured ? 1 : 0
 
   zone_id = cloudflare_zone.domain[0].id
-  name    = "autographs.jetsaredim.net"
+  name    = "${var.project_name}.${var.autographs_dns_domain}"
   type    = "A"
   content = module.compute.public_ip
   ttl     = local.cloudflare_autographs_proxied ? 1 : 600
@@ -28,7 +28,7 @@ resource "cloudflare_dns_record" "mail" {
   count = local.cloudflare_configured ? 1 : 0
 
   zone_id  = cloudflare_zone.domain[0].id
-  name     = "jetsaredim.net"
+  name     = var.autographs_dns_domain
   type     = "MX"
   content  = "smtp.google.com"
   priority = 1
@@ -40,7 +40,7 @@ resource "cloudflare_dns_record" "spf" {
   count = local.cloudflare_configured ? 1 : 0
 
   zone_id = cloudflare_zone.domain[0].id
-  name    = "jetsaredim.net"
+  name    = var.autographs_dns_domain
   type    = "TXT"
   content = "\"v=spf1 include:_spf.google.com ~all\""
   ttl     = 600
@@ -59,7 +59,7 @@ resource "cloudflare_ruleset" "autographs_cache" {
   count = local.cloudflare_configured ? 1 : 0
 
   zone_id     = cloudflare_zone.domain[0].id
-  name        = "Autographs CDN cache contract"
+  name        = "${title(var.project_name)} CDN cache contract"
   description = "Bypass admin and short-lived documents; cache fingerprinted public media"
   kind        = "zone"
   phase       = "http_request_cache_settings"
@@ -69,7 +69,7 @@ resource "cloudflare_ruleset" "autographs_cache" {
       ref         = "bypass_admin_and_api"
       enabled     = true
       description = "Bypass admin shell and private API"
-      expression  = "(http.host eq \"autographs.jetsaredim.net\" and (http.request.uri.path eq \"/admin\" or starts_with(http.request.uri.path, \"/admin/\")))"
+      expression  = "(http.host eq \"${var.project_name}.${var.autographs_dns_domain}\" and (http.request.uri.path eq \"/admin\" or starts_with(http.request.uri.path, \"/admin/\")))"
       action      = "set_cache_settings"
       action_parameters = {
         cache = false
@@ -79,7 +79,7 @@ resource "cloudflare_ruleset" "autographs_cache" {
       ref         = "respect_rollback_documents"
       enabled     = true
       description = "Bypass edge cache for rollback-sensitive public HTML and JSON"
-      expression  = "(http.host eq \"autographs.jetsaredim.net\" and (http.request.uri.path eq \"/\" or http.request.uri.path eq \"/index.html\" or http.request.uri.path eq \"/404.html\" or http.request.uri.path eq \"/manifest.json\" or starts_with(http.request.uri.path, \"/collection/\") or starts_with(http.request.uri.path, \"/items/\") or starts_with(http.request.uri.path, \"/architecture/\") or starts_with(http.request.uri.path, \"/data/\")))"
+      expression  = "(http.host eq \"${var.project_name}.${var.autographs_dns_domain}\" and (http.request.uri.path eq \"/\" or http.request.uri.path eq \"/index.html\" or http.request.uri.path eq \"/404.html\" or http.request.uri.path eq \"/manifest.json\" or starts_with(http.request.uri.path, \"/collection/\") or starts_with(http.request.uri.path, \"/items/\") or starts_with(http.request.uri.path, \"/architecture/\") or starts_with(http.request.uri.path, \"/data/\")))"
       action      = "set_cache_settings"
       action_parameters = {
         cache = false
@@ -89,7 +89,7 @@ resource "cloudflare_ruleset" "autographs_cache" {
       ref         = "cache_fingerprinted_media_and_assets"
       enabled     = true
       description = "Cache public media and assets using origin freshness"
-      expression  = "(http.host eq \"autographs.jetsaredim.net\" and (starts_with(http.request.uri.path, \"/media/\") or starts_with(http.request.uri.path, \"/assets/\")))"
+      expression  = "(http.host eq \"${var.project_name}.${var.autographs_dns_domain}\" and (starts_with(http.request.uri.path, \"/media/\") or starts_with(http.request.uri.path, \"/assets/\")))"
       action      = "set_cache_settings"
       action_parameters = {
         cache = true

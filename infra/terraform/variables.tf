@@ -2,18 +2,17 @@ variable "project_name" {
   description = "Project slug used in OCI display names."
   type        = string
   default     = "autographs"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9]{0,11}$", var.project_name))
+    error_message = "project_name must be lowercase alphanumeric, start with a letter, and be at most 12 characters so the derived Oracle DB name stays within 14 characters."
+  }
 }
 
 variable "environment" {
   description = "Environment name for this root."
   type        = string
   default     = "prod"
-}
-
-variable "name_prefix" {
-  description = "Prefix applied to OCI display names."
-  type        = string
-  default     = "autographs-prod"
 }
 
 variable "auth" {
@@ -63,11 +62,6 @@ variable "owner_email" {
   description = "Optional owner tag value for OCI tagging."
   type        = string
   default     = ""
-}
-
-variable "compartment_ocid" {
-  description = "Project compartment OCID produced by the tenancy bootstrap root."
-  type        = string
 }
 
 variable "create_network" {
@@ -176,63 +170,10 @@ variable "runtime_deploy_path" {
   }
 }
 
-variable "assign_public_ip" {
-  description = "Whether the runtime VNIC should receive a public IP."
-  type        = bool
-  default     = true
-}
-
 variable "create_autonomous_database" {
   description = "Whether Terraform should create the Oracle Autonomous Database Free metadata store."
   type        = bool
   default     = false
-}
-
-variable "autonomous_database_name" {
-  description = "Oracle Autonomous Database DB name. Keep this short and alphanumeric for Oracle service constraints."
-  type        = string
-  default     = "autographsdb"
-
-  validation {
-    condition     = can(regex("^[A-Za-z][A-Za-z0-9]{0,13}$", var.autonomous_database_name))
-    error_message = "autonomous_database_name must start with a letter, contain only letters and numbers, and be at most 14 characters."
-  }
-}
-
-variable "autonomous_database_display_name" {
-  description = "Display name for the Oracle Autonomous Database metadata store."
-  type        = string
-  default     = "autographs-prod-adb"
-}
-
-variable "autonomous_database_is_free_tier" {
-  description = "Whether the Autonomous Database should use Oracle Always Free sizing."
-  type        = bool
-  default     = true
-}
-
-variable "autonomous_database_is_mtls_connection_required" {
-  description = "Whether the Autonomous Database should require mTLS wallet authentication."
-  type        = bool
-  default     = true
-}
-
-variable "autonomous_database_db_workload" {
-  description = "Autonomous Database workload type."
-  type        = string
-  default     = "OLTP"
-}
-
-variable "autonomous_database_license_model" {
-  description = "Autonomous Database license model."
-  type        = string
-  default     = "LICENSE_INCLUDED"
-}
-
-variable "autonomous_database_data_storage_size_in_tbs" {
-  description = "Autonomous Database storage size in TB."
-  type        = number
-  default     = 1
 }
 
 variable "create_media_bucket" {
@@ -245,23 +186,6 @@ variable "media_bucket_namespace" {
   description = "OCI Object Storage namespace for the private autograph media bucket."
   type        = string
   default     = ""
-}
-
-variable "media_bucket_name" {
-  description = "Name of the private Object Storage bucket for autograph images."
-  type        = string
-  default     = "autographs-media-prod"
-}
-
-variable "media_bucket_versioning" {
-  description = "Object Storage versioning mode for the private media bucket."
-  type        = string
-  default     = "Enabled"
-
-  validation {
-    condition     = contains(["Enabled", "Disabled"], var.media_bucket_versioning)
-    error_message = "media_bucket_versioning must be Enabled or Disabled."
-  }
 }
 
 variable "porkbun_api_key" {
@@ -282,12 +206,6 @@ variable "autographs_dns_domain" {
   description = "Porkbun domain that owns the autographs DNS record."
   type        = string
   default     = "jetsaredim.net"
-}
-
-variable "autographs_dns_subdomain" {
-  description = "Subdomain for the autographs app DNS record."
-  type        = string
-  default     = "autographs"
 }
 
 variable "autographs_dns_ttl" {

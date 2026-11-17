@@ -3,24 +3,24 @@ locals {
     admin_password_hash = {
       description   = "Autographs runtime admin password hash placeholder."
       secret_id_env = "AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID"
-      secret_name   = "${var.name_prefix}-admin-password-hash"
+      secret_name   = "${local.name_prefix}-admin-password-hash"
     }
     oracle_db_password = {
       description   = "Autographs runtime OCI-generated Oracle database password."
       secret_id_env = "ORACLE_DB_PASSWORD_VAULT_SECRET_ID"
-      secret_name   = "${var.name_prefix}-oracle-db-password"
+      secret_name   = "${local.name_prefix}-oracle-db-password"
     }
     oracle_db_wallet_password = {
       description   = "Autographs runtime Oracle wallet password placeholder."
       secret_id_env = "ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID"
-      secret_name   = "${var.name_prefix}-oracle-db-wallet-password"
+      secret_name   = "${local.name_prefix}-oracle-db-wallet-password"
     }
   }
 }
 
 resource "oci_kms_vault" "runtime_secrets" {
-  compartment_id = var.compartment_ocid
-  display_name   = "${var.name_prefix}-runtime-secrets-vault"
+  compartment_id = local.compartment_ocid
+  display_name   = "${local.name_prefix}-runtime-secrets-vault"
   vault_type     = "DEFAULT"
 
   lifecycle {
@@ -31,8 +31,8 @@ resource "oci_kms_vault" "runtime_secrets" {
 }
 
 resource "oci_kms_key" "runtime_secrets" {
-  compartment_id      = var.compartment_ocid
-  display_name        = "${var.name_prefix}-runtime-secrets-key"
+  compartment_id      = local.compartment_ocid
+  display_name        = "${local.name_prefix}-runtime-secrets-key"
   management_endpoint = oci_kms_vault.runtime_secrets.management_endpoint
   protection_mode     = "SOFTWARE"
 
@@ -50,13 +50,13 @@ resource "oci_kms_key" "runtime_secrets" {
 
 data "oci_vault_secrets" "oracle_db_password" {
   count          = var.create_autonomous_database ? 1 : 0
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_ocid
   vault_id       = oci_kms_vault.runtime_secrets.id
   name           = local.runtime_controller_secret_definitions.oracle_db_password.secret_name
 }
 
 data "oci_vault_secrets" "runtime_readiness" {
-  compartment_id = var.compartment_ocid
+  compartment_id = local.compartment_ocid
   vault_id       = oci_kms_vault.runtime_secrets.id
 }
 
@@ -81,7 +81,7 @@ data "oci_vault_secret" "runtime_readiness" {
 resource "oci_vault_secret" "runtime" {
   for_each = local.runtime_controller_secret_definitions
 
-  compartment_id         = var.compartment_ocid
+  compartment_id         = local.compartment_ocid
   description            = each.value.description
   enable_auto_generation = each.key == "oracle_db_password"
   key_id                 = oci_kms_key.runtime_secrets.id

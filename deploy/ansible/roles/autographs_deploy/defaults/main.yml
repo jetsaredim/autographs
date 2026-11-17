@@ -1,4 +1,8 @@
 autographs_deploy_user: opc
+autographs_deploy_project_name: autographs
+autographs_deploy_environment: prod
+autographs_deploy_oracle_db_name: "{{ autographs_deploy_project_name }}db"
+autographs_deploy_media_bucket_name: "{{ autographs_deploy_project_name }}-media-{{ autographs_deploy_environment }}"
 
 autographs_deploy_deploy_path: /opt/autographs
 autographs_deploy_env_path: "{{ autographs_deploy_deploy_path }}/env"

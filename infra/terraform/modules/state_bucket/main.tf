@@ -8,9 +8,13 @@ resource "oci_objectstorage_bucket" "this" {
   namespace      = var.namespace
   name           = var.bucket_name
   access_type    = "NoPublicAccess"
-  storage_tier   = var.storage_tier
+  storage_tier   = "Standard"
   versioning     = "Enabled"
   auto_tiering   = "Disabled"
 
   freeform_tags = var.tags
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }

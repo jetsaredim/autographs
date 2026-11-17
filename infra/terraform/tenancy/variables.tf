@@ -2,18 +2,17 @@ variable "project_name" {
   description = "Project slug used in OCI display names."
   type        = string
   default     = "autographs"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9]{0,11}$", var.project_name))
+    error_message = "project_name must be lowercase alphanumeric, start with a letter, and be at most 12 characters."
+  }
 }
 
 variable "environment" {
   description = "Environment name for this root."
   type        = string
   default     = "prod"
-}
-
-variable "name_prefix" {
-  description = "Prefix applied to OCI display names."
-  type        = string
-  default     = "autographs-prod"
 }
 
 variable "auth" {
@@ -82,30 +81,6 @@ variable "owner_email" {
   default     = ""
 }
 
-variable "deploy_group_name" {
-  description = "OCI group name used by GitHub deploy automation."
-  type        = string
-  default     = "autographs-deployers"
-}
-
-variable "operator_group_name" {
-  description = "OCI group name used by the human operator."
-  type        = string
-  default     = "autographs-operators"
-}
-
-variable "runtime_dynamic_group_name" {
-  description = "OCI dynamic group name used by Autographs runtime VM instance principals."
-  type        = string
-  default     = "autographs-runtime-instances"
-}
-
-variable "deploy_user_name" {
-  description = "Name of the OCI user used by GitHub deployment automation."
-  type        = string
-  default     = "autographs-github-deploy"
-}
-
 variable "deploy_user_description" {
   description = "Description for the OCI deployment user."
   type        = string
@@ -124,25 +99,8 @@ variable "deploy_user_api_public_key" {
   default     = ""
 }
 
-variable "media_bucket_name" {
-  description = "Private Object Storage bucket name that runtime instance principals can access."
-  type        = string
-  default     = "autographs-media-prod"
-}
-
 variable "state_bucket_name" {
   description = "Object Storage bucket name for Terraform state."
   type        = string
   default     = "autographs-tf-state"
-}
-
-variable "state_bucket_storage_tier" {
-  description = "Storage tier for the Terraform state bucket."
-  type        = string
-  default     = "Standard"
-
-  validation {
-    condition     = contains(["Standard", "InfrequentAccess", "Archive"], var.state_bucket_storage_tier)
-    error_message = "state_bucket_storage_tier must be Standard, InfrequentAccess, or Archive."
-  }
 }

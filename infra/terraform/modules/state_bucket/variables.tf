@@ -10,10 +10,6 @@ variable "bucket_name" {
   type = string
 }
 
-variable "storage_tier" {
-  type = string
-}
-
 variable "tags" {
   type = map(string)
 }

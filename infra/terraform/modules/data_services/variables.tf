@@ -28,31 +28,6 @@ variable "autonomous_database_admin_password_secret_id" {
   type        = string
 }
 
-variable "autonomous_database_is_free_tier" {
-  description = "Whether to request Oracle Always Free sizing."
-  type        = bool
-}
-
-variable "autonomous_database_is_mtls_connection_required" {
-  description = "Whether Autonomous Database requires mTLS wallet authentication."
-  type        = bool
-}
-
-variable "autonomous_database_db_workload" {
-  description = "Autonomous Database workload type."
-  type        = string
-}
-
-variable "autonomous_database_license_model" {
-  description = "Autonomous Database license model."
-  type        = string
-}
-
-variable "autonomous_database_data_storage_size_in_tbs" {
-  description = "Autonomous Database storage size in TB."
-  type        = number
-}
-
 variable "create_media_bucket" {
   description = "Whether to create the private Object Storage media bucket."
   type        = bool
@@ -65,11 +40,6 @@ variable "media_bucket_namespace" {
 
 variable "media_bucket_name" {
   description = "Private Object Storage media bucket name."
-  type        = string
-}
-
-variable "media_bucket_versioning" {
-  description = "Object Storage versioning mode."
   type        = string
 }
 

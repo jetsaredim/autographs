@@ -69,8 +69,8 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     assert!(!tenancy_main.contains("resource \"oci_kms_vault\""));
     assert!(!tenancy_main.contains("resource \"oci_kms_key\""));
     assert!(!tenancy_main.contains("resource \"oci_vault_secret\""));
-    assert!(root_main.contains(
-        "autonomous_database_admin_password_secret_id    = local.autonomous_database_admin_password_secret_id"
+    assert!(normalize_whitespace(&root_main).contains(
+        "autonomous_database_admin_password_secret_id = local.autonomous_database_admin_password_secret_id"
     ));
     assert!(!root_main.contains("oci_vault_secret.runtime[\"oracle_db_password\"].id"));
     assert!(module_variables.contains("variable \"autonomous_database_admin_password_secret_id\""));
@@ -211,6 +211,18 @@ fn workflows_and_current_examples_do_not_accept_plaintext_adb_password() {
 }
 
 #[test]
+fn production_deploy_uses_vault_ids_instead_of_direct_database_password_secrets() {
+    let deploy = read_repo(".github/workflows/deploy.yml");
+
+    assert!(!deploy.contains("secrets.ORACLE_DB_PASSWORD"));
+    assert!(!deploy.contains("secrets.ORACLE_DB_WALLET_PASSWORD"));
+    assert!(deploy.contains("steps.terraform_apply.outputs.oracle_db_password_vault_secret_id"));
+    assert!(
+        deploy.contains("steps.terraform_apply.outputs.oracle_db_wallet_password_vault_secret_id")
+    );
+}
+
+#[test]
 fn deploy_identity_can_manage_regional_vault_resources_in_project_compartment() {
     let iam_main = read_repo("infra/terraform/modules/iam/main.tf");
     let tenancy_main = read_repo("infra/terraform/tenancy/main.tf");
@@ -233,12 +245,13 @@ fn runtime_bundle_policy_uses_stable_secret_names_instead_of_cross_state_ocids()
 
     assert!(tenancy_main.contains("where target.secret.name = '${secret_name}'"));
     assert!(!tenancy_main.contains("where target.secret.id"));
+    assert!(tenancy_locals.contains("${var.project_name}-${var.environment}"));
     for suffix in [
         "admin-password-hash",
         "oracle-db-password",
         "oracle-db-wallet-password",
     ] {
-        assert!(tenancy_locals.contains(&format!("${{var.name_prefix}}-{suffix}")));
+        assert!(tenancy_locals.contains(&format!("${{local.name_prefix}}-{suffix}")));
     }
 }
 

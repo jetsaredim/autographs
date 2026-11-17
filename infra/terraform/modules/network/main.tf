@@ -3,7 +3,7 @@ resource "oci_core_vcn" "main" {
   compartment_id = var.compartment_id
   cidr_block     = var.vcn_cidr_block
   display_name   = "${var.name_prefix}-vcn"
-  dns_label      = "autographs"
+  dns_label      = var.project_name
 
   freeform_tags = var.tags
 }

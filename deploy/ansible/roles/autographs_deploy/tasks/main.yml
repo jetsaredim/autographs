@@ -203,7 +203,7 @@
         autographs_deploy_controller_media_storage_provider != 'oci-instance-principal'
         or (
           oci_media_namespace | default(lookup('env', 'OCI_MEDIA_NAMESPACE') | default('', true), true) | trim | length > 0
-          and oci_media_bucket_name | default('autographs-media-prod', true) | trim | length > 0
+          and oci_media_bucket_name | default(autographs_deploy_media_bucket_name, true) | trim | length > 0
         )
     fail_msg: >-
       Deployed controller providers must be persistent:

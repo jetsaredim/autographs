@@ -66,27 +66,16 @@ jobs:
           TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
           TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
           TF_VAR_private_key_path: ${{ runner.temp }}/oci/api_key.pem
-          TF_VAR_compartment_ocid: ${{ vars.OCI_COMPARTMENT_OCID }}
           TF_VAR_availability_domain: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
           TF_VAR_runtime_image_ocid: ${{ vars.OCI_RUNTIME_IMAGE_OCID }}
-          TF_VAR_runtime_shape: ${{ vars.OCI_RUNTIME_SHAPE || 'VM.Standard.E2.1.Micro' }}
-          TF_VAR_runtime_ocpus: ${{ vars.OCI_RUNTIME_OCPUS || 1 }}
-          TF_VAR_runtime_memory_gbs: ${{ vars.OCI_RUNTIME_MEMORY_GBS || 1 }}
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
           TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
           TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
           TF_VAR_create_autonomous_database: ${{ vars.OCI_CREATE_AUTONOMOUS_DATABASE || 'false' }}
-          TF_VAR_autonomous_database_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_NAME || 'autographsdb' }}
-          TF_VAR_autonomous_database_display_name: ${{ vars.OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME || 'autographs-prod-adb' }}
-          TF_VAR_autonomous_database_is_mtls_connection_required: ${{ vars.OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED || 'true' }}
           TF_VAR_create_media_bucket: ${{ vars.OCI_CREATE_MEDIA_BUCKET || 'false' }}
-          TF_VAR_media_bucket_namespace: ${{ vars.OCI_MEDIA_NAMESPACE || vars.OCI_OBJECT_STORAGE_NAMESPACE }}
-          TF_VAR_media_bucket_name: ${{ vars.OCI_MEDIA_BUCKET_NAME || 'autographs-media-prod' }}
+          TF_VAR_media_bucket_namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           TF_VAR_porkbun_api_key: ${{ secrets.PORKBUN_API_KEY }}
           TF_VAR_porkbun_secret_key: ${{ secrets.PORKBUN_SECRET_KEY }}
-          TF_VAR_autographs_dns_domain: ${{ vars.AUTOGRAPHS_DNS_DOMAIN || 'jetsaredim.net' }}
-          TF_VAR_autographs_dns_subdomain: ${{ vars.AUTOGRAPHS_DNS_SUBDOMAIN || 'autographs' }}
-          TF_VAR_autographs_dns_ttl: ${{ vars.AUTOGRAPHS_DNS_TTL || 600 }}
           TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
           TF_VAR_cloudflare_mode: ${{ vars.CLOUDFLARE_MODE }}
           TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}

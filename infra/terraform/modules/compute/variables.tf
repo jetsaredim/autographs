@@ -6,6 +6,10 @@ variable "name_prefix" {
   type = string
 }
 
+variable "project_name" {
+  type = string
+}
+
 variable "compartment_id" {
   type = string
 }
@@ -44,10 +48,6 @@ variable "image_ocid" {
 
 variable "ssh_public_keys" {
   type = list(string)
-}
-
-variable "assign_public_ip" {
-  type = bool
 }
 
 variable "tags" {

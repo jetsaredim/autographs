@@ -5,7 +5,6 @@
 
 project_name = "autographs"
 environment  = "prod"
-name_prefix  = "autographs-prod"
 
 auth                = "SecurityToken"
 config_file_profile = "DEFAULT"
@@ -26,12 +25,8 @@ compartment_description   = "Autographs production resources"
 
 owner_email = "collector@example.com"
 
-deploy_group_name   = "autographs-deployers"
-operator_group_name = "autographs-operators"
 
-runtime_dynamic_group_name = "autographs-runtime-instances"
 
-deploy_user_name        = "autographs-github-deploy"
 deploy_user_description = "GitHub Actions deployment user for Autographs."
 deploy_user_email       = ""
 
@@ -43,6 +38,4 @@ replace_me
 -----END PUBLIC KEY-----
 EOT
 
-media_bucket_name         = "autographs-media-prod"
 state_bucket_name         = "autographs-tf-state"
-state_bucket_storage_tier = "Standard"

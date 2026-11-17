@@ -44,18 +44,19 @@ Those commands run the same Rust, Terraform, and Ansible checks used by CI for t
 6. Run runtime Terraform locally once if needed to prove the baseline and obtain outputs.
 7. Follow [dns-runbook.md](dns-runbook.md) when enabling the public app hostname through Porkbun.
 
+The runtime Terraform root discovers the project compartment created by the
+tenancy root using its `${project_name}-${environment}-cmp` name and the tenancy OCID. The
+`OCI_COMPARTMENT_OCID` GitHub variable is needed only by workflows on `main`
+until PR #354 merges; remove it after that merge and a no-change production plan.
+
 Important operator inputs:
 
-- `OCI_COMPARTMENT_OCID`
 - `OCI_AVAILABILITY_DOMAIN`
 - `OCI_RUNTIME_IMAGE_OCID`
 - `OCI_RUNTIME_SSH_PUBLIC_KEYS`
 - `OCI_OBJECT_STORAGE_NAMESPACE`
 - `OCI_CREATE_AUTONOMOUS_DATABASE`
-- `OCI_AUTONOMOUS_DATABASE_NAME`
 - `OCI_CREATE_MEDIA_BUCKET`
-- `OCI_MEDIA_BUCKET_NAME`
-- `OCI_MEDIA_NAMESPACE`
 - `VM_PUBLIC_IP` when not relying on Terraform output
 
 ## GitHub Configuration
@@ -67,29 +68,20 @@ Populate repo-level GitHub Secrets:
 - `OCI_FINGERPRINT`
 - `OCI_PRIVATE_KEY_PEM`
 - `DEPLOY_SSH_PRIVATE_KEY`
-- `ORACLE_DB_PASSWORD` only for the legacy direct-value fallback; leave it unset
-  for the OCI-generated production path
 - `ORACLE_DB_WALLET_ZIP_BASE64` when using an mTLS wallet
-- `ORACLE_DB_WALLET_PASSWORD` when using the mTLS wallet path
 - `AUTOGRAPHS_OPERATOR_API_TOKEN`
-- `AUTOGRAPHS_ADMIN_PASSWORD_HASH`
+
+The production admin password hash is supplied through OCI Vault. A direct
+`AUTOGRAPHS_ADMIN_PASSWORD_HASH` GitHub Secret is not configured.
 
 Populate repo-level GitHub Variables:
 
-- `OCI_COMPARTMENT_OCID`
 - `OCI_AVAILABILITY_DOMAIN`
 - `OCI_RUNTIME_IMAGE_OCID`
-- `OCI_RUNTIME_SHAPE`
-- `OCI_RUNTIME_OCPUS`
-- `OCI_RUNTIME_MEMORY_GBS`
 - `OCI_RUNTIME_SSH_PUBLIC_KEYS`
 - `OCI_OBJECT_STORAGE_NAMESPACE`
 - `OCI_CREATE_AUTONOMOUS_DATABASE`
-- `OCI_AUTONOMOUS_DATABASE_NAME`
-- `OCI_AUTONOMOUS_DATABASE_DISPLAY_NAME`
 - `OCI_CREATE_MEDIA_BUCKET`
-- `OCI_MEDIA_BUCKET_NAME`
-- `OCI_MEDIA_NAMESPACE`
 - `ORACLE_DB_USER`
 - `ORACLE_DB_CONNECT_STRING`
 - `ORACLE_DB_WALLET_DIR` when using an mTLS wallet instead of walletless TLS
@@ -110,11 +102,11 @@ Populate repo-level GitHub Variables:
 
 `GHCR_CONTROLLER_IMAGE_REPOSITORY` should be the exact `ghcr.io` image path used for the controller image, such as `ghcr.io/jetsaredim/autographs/controller`. The deployed runtime no longer publishes, pulls, or starts the old Next.js runner or tools images.
 
-`OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, `OCI_RUNTIME_MEMORY_GBS`, `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The OCPU and memory inputs are used only for `.Flex` shapes; fixed shapes such as `VM.Standard.E2.1.Micro` omit the Terraform `shape_config` block. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
+Terraform defaults the runtime shape to `VM.Standard.E2.1.Micro` and the flex-shape OCPU and memory inputs to `1` each. Fixed shapes omit the Terraform `shape_config` block. `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
 Leave `OCI_CREATE_AUTONOMOUS_DATABASE` and `OCI_CREATE_MEDIA_BUCKET` as `false` until the tenancy-specific namespace, the three named Vault secrets, and runtime connection values are ready. Apply the runtime root once with ADB creation disabled. OCI generates a usable database password as version 1; do not populate or overwrite it. Populate only the Oracle wallet password and admin password hash `CURRENT` versions outside Terraform and verify that each advances beyond its intentionally invalid version-1 bootstrap placeholder. Terraform derives readiness from those version numbers; only then may ADB creation or the normal deployment consume the secret OCIDs. The ADB-enabled apply resolves the existing database password by exact deterministic name, provisions ADB from its stable OCID, and configures the ADB rotation target in the same deployment state. The deploy step passes runtime coordinates through VM-local quadlet environment files.
 
-For the initial production path, use the ADB wallet-based mTLS connection. Set `OCI_AUTONOMOUS_DATABASE_IS_MTLS_CONNECTION_REQUIRED=true`, set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Store the wallet download password in `ORACLE_DB_WALLET_PASSWORD`; the pure-Rust `oracledb` driver uses it to decrypt `ewallet.pem` even though the wallet has already been unpacked. The deploy workflow unpacks that wallet onto the VM and mounts it read-only into the Rust controller container.
+The production database requires mTLS. Set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Store the wallet download password in the OCI Vault wallet-password secret; the pure-Rust `oracledb` driver uses it to decrypt `ewallet.pem` even though the wallet has already been unpacked. The deploy workflow passes the Vault secret ID, unpacks the wallet onto the VM, and mounts it read-only into the Rust controller container. Local Ansible runs may still use a direct `ORACLE_DB_WALLET_PASSWORD` as a transition fallback.
 
 The regional runtime root owns the Vault, software key, and runtime secrets.
 OCI owns generation and coordinated ADB rotation for the database password;
