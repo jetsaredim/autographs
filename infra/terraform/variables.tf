@@ -158,10 +158,10 @@ variable "runtime_deploy_path" {
   }
 }
 
-variable "create_autonomous_database" {
-  description = "Whether Terraform should create the Oracle Autonomous Database Free metadata store."
+variable "bootstrap_runtime_secrets" {
+  description = "Use only for the explicit targeted Vault bootstrap before ADB exists. Omits remote secret reads and the ADB rotation target."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "media_bucket_namespace" {

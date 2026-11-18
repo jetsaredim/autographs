@@ -3,11 +3,6 @@ variable "compartment_id" {
   type        = string
 }
 
-variable "create_autonomous_database" {
-  description = "Whether to create the Oracle Autonomous Database metadata store."
-  type        = bool
-}
-
 variable "runtime_secret_values_ready" {
   description = "Whether the runtime Vault secrets have been populated with real out-of-band values."
   type        = bool

@@ -155,7 +155,7 @@ proposed refactor that removes the input and its conditional consumers.
 |---|---|---|---|
 | `create_network` | Removed from root and module in PR #361; no workflow override existed | VCN, subnet, gateway, route table, NSG, and egress rule move from `[0]` to uncounted addresses; ingress rule keys stay unchanged. | IAC-003; authenticated plan has no provider changes. |
 | `create_runtime_instance` | Removed from root and module in PR #361; no workflow override existed | VM moves from `[0]` to uncounted address; image lookup still runs when no explicit image OCID is supplied. Retry-only `recreate_runtime_instance` remains. | IAC-003; authenticated plan has no provider changes. |
-| `create_autonomous_database` | Terraform and all workflow fallbacks `true`; GitHub variable removed | ADB count, Vault lookups, readiness check, password rotation target. Explicit `false` supports the fresh-tenancy Vault bootstrap. | IAC-001 closed; PR and post-removal production plans were clean. |
+| `create_autonomous_database` | Removed from root, module, and workflows in the ADB bootstrap cleanup | A moved block maps the counted ADB state address to the uncounted resource; the reviewer-gated `bootstrap_secrets` operation owns fresh Vault setup. | Require authenticated no-destroy production plan before merge. |
 | `create_media_bucket` | Removed from the root, module, examples, and all three workflow environments by [PR #360](https://github.com/jetsaredim/autographs/pull/360) | The private bucket remains managed from the first runtime-root apply; its namespace must be supplied. A `moved` block maps the existing `[0]` state address to the uncounted address. | Authenticated PR plan: `0 to add, 0 to change, 0 to destroy`; no apply. |
 | `assign_public_ip` | Fixed `true` in the compute resource; root and module inputs removed | VM VNIC retains its public IP. | PR production plan to verify. |
 | ADB `is_free_tier` | Hardcoded `true` in the data services resource; former root/module input removed | Fixes the database to Oracle Always Free. The existing counted resource address is unchanged. | PR CI production plan returned no changes. |
@@ -164,7 +164,7 @@ proposed refactor that removes the input and its conditional consumers.
 | Root and tenancy OCI `auth` | Terraform default `APIKey`; accepts `APIKey`/`SecurityToken` | Selects OCI provider authentication for production or bootstrap state. | Confirm each root's operator entry point and credential source. |
 | State bucket `storage_tier` | Hardcoded `Standard` in the state bucket module in PR #354 | Keeps Terraform state promptly retrievable. Existing uncounted resource address is unchanged. | Local validation and authenticated tenancy-root no-change plan passed on 2026-11-15; no apply. |
 | `cloudflare_mode` | GitHub variable `proxied`; root default and deploy/CI fallback `off` | Counts zone, records, TLS, rules; `dns_only` preserves zone but changes proxy flag; ordinary deploy DNS guard rejects changes. | IAC-004; preserve controlled transitions. |
-| `runtime_secret_values_ready` | Derived from the three Vault CURRENT-version checks | Blocks ADB creation/update until the generated DB password and manually populated secrets are ready. | Preserve fail-closed precondition; verify missing and bootstrap versions. |
+| `runtime_secret_values_ready` | Derived from three Vault CURRENT-version checks during normal plans | Blocks ADB creation/update until the generated DB password and manually populated secrets are ready. Bootstrap skips the reads only during its saved targeted plan. | Preserve fail-closed precondition; verify missing and bootstrap versions. |
 | `autographs_deploy_publish_frozen` | Role default and deploy input `true`; unfreeze sets `false` | Full-deploy assertion and exact Caddy publish gate. | IAC-005; trace as one cutover contract. |
 | `autographs_deploy_explicit_cutover` | Role default `true` | Full-deploy assertion and restart-handler suppression. | IAC-005; trace role notifications and fixtures. |
 | `autographs_deploy_allow_unfreeze` | Absent/false by default; unfreeze sets `true` | Allows removal of publish gate when frozen flag becomes false. | IAC-005; verify failure rescue and no bypass. |
@@ -226,8 +226,8 @@ reviewed production plan.
 
 The previous `false` state was used only to postpone bucket creation until the
 operator knew the namespace; there is no secret or data lookup dependency.
-Fresh bootstrap now supplies the namespace before its first runtime-root apply
-and keeps `create_autonomous_database=false` for Vault preparation. Local
+At the time of PR #360, fresh bootstrap supplied the namespace before its first runtime-root apply
+and kept `create_autonomous_database=false` for Vault preparation. Local
 Terraform formatting/validation passed. The authenticated
 [PR #360 Terraform CI job](https://github.com/jetsaredim/autographs/actions/runs/44142634487/job/134249244704)
 reported the exact move from `media[0]` to `media` and `Plan: 0 to add, 0 to
@@ -269,27 +269,24 @@ the state moves.
 
 ### Database conditional retirement boundary
 
-`create_autonomous_database=false` remains a supported initial bootstrap
-state. The first runtime-root apply creates the Vault, key, and three secrets;
-OCI generates the database password, and the operator replaces the two manual
-secret placeholders. The switch suppresses the database-password secret list
-lookup, the per-secret readiness reads, the ADB resource, and the generated
-password secret's ADB rotation target. With `true`, those reads and the ADB
-precondition verify that the manual values are ready, then configure ADB and
-rotation. Production uses `true` and retains the counted ADB address.
+The ADB resource is now unconditional. A `moved` block maps
+`module.data_services.oci_database_autonomous_database.catalog[0]` to its
+uncounted address. Fresh setup is an explicit `bootstrap_secrets` dispatch in
+`deploy.yml`, gated by the `secret-audit` environment reviewer and `main` branch
+policy. Its saved target plan permits only new Vault, key, and secret resources;
+the bootstrap script replaces only exact version-1 manual placeholders from
+the two GitHub Secrets. Normal deploy verifies exact GitHub/Vault equality and
+fails before planning on drift. Neither path writes the OCI-generated database
+password.
 
-Removing this switch requires a new two-stage bootstrap contract, not only a
-`moved` block. A first apply must be able to create the generated and manual
-secrets without reading their nonexistent remote versions or adding an ADB
-rotation target that depends on the not-yet-created ADB. A later apply must
-verify the manual versions, create ADB using the generated password secret,
-and configure rotation. The current resource graph uses the switch to break
-those initial-read and rotation dependencies. Any redesign must show both a
-fresh-tenancy bootstrap test and a no-change, no-replacement production plan
-that moves `module.data_services.oci_database_autonomous_database.catalog[0]`
-to an uncounted address. Until that design is reviewed, retaining the switch
-is the safe disposition; its production default and all workflow fallbacks are
-`true`, so an absent GitHub variable no longer requests database removal.
+The generated password secret discovers an existing ADB by its exact display
+and DB names instead of referencing the managed ADB resource. This removes
+the secret-to-ADB graph edge during the targeted bootstrap. Normal deployment
+creates ADB after the manual versions are ready, then runs a second saved plan
+that may only attach the expected `P90D` ADB rotation target. Production plan
+evidence must prove the state move has no provider changes before merge; a
+fresh-tenancy live bootstrap remains operator-triggered and is not implied by
+the production no-change plan.
 
 ### Remaining defaults and current GitHub overrides
 
@@ -412,16 +409,14 @@ Ansible deploy directly from `OCI_OBJECT_STORAGE_NAMESPACE`.
 The retired `ADB_ADMIN_PASSWORD` secret had no workflow consumer and was
 removed. Terraform uses OCI Vault for the database password.
 
-GitHub Secrets queued for cleanup:
-
-- `ORACLE_DB_PASSWORD` and `ORACLE_DB_WALLET_PASSWORD` are passed directly
-  by the current `main` deploy workflow, but the production runtime uses the
-  Terraform-output Vault IDs. PR #354 removes those workflow pass-throughs
-  and keeps local Ansible direct-value fallbacks. Delete the stored secrets
-  after the workflow change merges and production validation succeeds.
-
-`AUTOGRAPHS_ADMIN_PASSWORD_HASH` is referenced as an optional direct deploy
-fallback but is not stored in GitHub; production uses its Vault secret ID.
+`ORACLE_DB_PASSWORD` is an unused GitHub Secret left from the old direct-value
+path and can be deleted after confirming no operator use. The GitHub Secrets
+`ORACLE_DB_WALLET_PASSWORD` and `AUTOGRAPHS_ADMIN_PASSWORD_HASH` now match their
+OCI Vault CURRENT bundles, as proven by reviewer-gated
+[run 44220300423](https://github.com/jetsaredim/autographs/actions/runs/44220300423).
+The new bootstrap operation uses them only to replace exact version-1 manual
+placeholders; normal deployment compares them and refuses drift. The controller
+continues to consume only the Vault secret IDs.
 `GITHUB_TOKEN` is GitHub's built-in token and is not listed as a stored secret.
 
 ## Production state and plan evidence

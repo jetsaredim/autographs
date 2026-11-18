@@ -88,9 +88,11 @@ cp infra/terraform/tenancy/environments/prod/terraform.tfvars.example \
   -var-file=environments/prod/terraform.tfvars
 ```
 
-8. After the tenancy root is applied, configure and run the regional deployment
-   root in `infra/terraform/`. Its remote backend should continue to use the
-   runtime state key, `envs/prod/terraform.tfstate`.
+8. After the tenancy root is applied, configure the regional deployment
+   inputs in `infra/terraform/`. Its remote backend uses the runtime state key,
+   `envs/prod/terraform.tfstate`. Initialize locally only if an operator needs
+   to inspect the state; the GitHub bootstrap operation initializes its own
+   runner and performs the first targeted apply.
 
 ```bash
 cp infra/terraform/environments/prod/terraform.tfvars.example \
@@ -99,33 +101,24 @@ cp infra/terraform/environments/prod/terraform.tfvars.example \
 .tools/terraform/terraform -chdir=infra/terraform init \
   -backend-config=bootstrap/backend.hcl \
   -backend-config=key=envs/prod/terraform.tfstate
-.tools/terraform/terraform -chdir=infra/terraform plan \
-  -var-file=environments/prod/terraform.tfvars
-.tools/terraform/terraform -chdir=infra/terraform apply \
-  -var-file=environments/prod/terraform.tfvars
 ```
 
-9. For a fresh environment, leave `create_autonomous_database` set to `false`
-   for the first runtime-root apply. That apply creates the Vault, key, and
-   three runtime secrets without allowing ADB or deploy automation to consume
-   them. OCI generates a usable Oracle database password as version 1. The
-   Oracle wallet password and Argon2 admin password hash alone start with
-   intentionally invalid version-1 bootstrap content. Replace only those two
-   manual secrets' `CURRENT` versions out of band. Never populate or overwrite
-   the OCI-generated database password, and never pass any secret content
-   through Terraform, committed files, or GitHub Variables.
+9. For a fresh environment, configure the GitHub Secrets
+   `AUTOGRAPHS_ADMIN_PASSWORD_HASH` and `ORACLE_DB_WALLET_PASSWORD`, then dispatch
+   `deploy.yml` from `main` with `operation=bootstrap_secrets`. Approve the
+   `secret-audit` environment review. The workflow targets only the Vault,
+   key, and three runtime secrets; it rejects ADB state and non-create changes.
+   OCI generates the database password as version 1. The workflow replaces only
+   the exact wallet-password and admin-hash version-1 placeholders from GitHub
+   and verifies the new CURRENT values. Never overwrite the generated database
+   password or pass secret contents through Terraform or committed files.
 
-10. After verifying that the generated database password has a usable version
-    1 and the wallet password and admin hash each have a real `CURRENT` version
-    2 or later, enable `create_autonomous_database` /
-    `OCI_CREATE_AUTONOMOUS_DATABASE` and run the normal deployment. Terraform
-    resolves the already-created database-password secret by its exact
-    deterministic name, creates ADB from that stable secret OCID, and configures
-    the managed ADB as the secret's rotation target in the same deployment
-    state. Readiness derives from Vault version metadata: the deploy workflow
-    withholds all three OCID outputs and stops before Ansible if the generated
-    password is unavailable or either manual secret still has its version-1
-    bootstrap placeholder.
+10. Run the normal release deployment after bootstrap. It compares both manual
+    GitHub Secrets against OCI Vault and fails before planning on a mismatch;
+    it never silently rotates them. Terraform checks secret version readiness,
+    creates ADB from the generated password secret OCID, then runs a guarded
+    second plan to attach scheduled database-password rotation after ADB exists.
+    A future wallet/admin rotation must be explicit and update both stores.
 
 ## IAM Boundary
 

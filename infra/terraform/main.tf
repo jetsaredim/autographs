@@ -33,7 +33,6 @@ module "compute" {
 module "data_services" {
   source = "./modules/data_services"
 
-  create_autonomous_database                   = var.create_autonomous_database
   runtime_secret_values_ready                  = local.runtime_secret_values_ready
   autonomous_database_name                     = local.autonomous_database_name
   autonomous_database_display_name             = local.autonomous_database_display_name

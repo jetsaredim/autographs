@@ -165,6 +165,27 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn('terraform apply -input=false -lock-timeout=10m "$plan_file"',
                       cloudflare_plan["run"])
 
+    def test_vault_bootstrap_and_routine_deploy_have_distinct_write_gates(self):
+        self.assertIn("bootstrap_secrets", self.workflow["on"]["workflow_dispatch"]["inputs"]["operation"]["options"])
+        bootstrap = self.workflow["jobs"]["bootstrap_secrets"]
+        self.assertIn("inputs.operation == 'bootstrap_secrets'", bootstrap["if"])
+        self.assertIn("github.ref == 'refs/heads/main'", bootstrap["if"])
+        self.assertEqual(bootstrap["environment"], "secret-audit")
+        bootstrap_run = next(step["run"] for step in bootstrap["steps"]
+                             if step.get("name") == "Create Vault resources and populate only untouched placeholders")
+        self.assertIn("-target=oci_vault_secret.runtime", bootstrap_run)
+        self.assertIn("terraform apply -input=false -lock-timeout=10m \"$bootstrap_plan\"", bootstrap_run)
+        self.assertIn("sync_runtime_vault_secrets.py bootstrap", bootstrap_run)
+
+        production_run = self.production_steps["Terraform apply"]["run"]
+        verify = production_run.index("sync_runtime_vault_secrets.py\" verify")
+        first_plan = production_run.index("terraform plan -input=false")
+        first_apply = production_run.index("terraform apply -input=false")
+        self.assertLess(verify, first_plan)
+        self.assertLess(first_plan, first_apply)
+        self.assertIn("Post-ADB plan contains changes beyond attaching", production_run)
+        self.assertNotIn("sync_runtime_vault_secrets.py\" bootstrap", production_run)
+
     def test_automatic_release(self):
         self.assert_ordered(self.cases["automatic_release"]["ordered_steps"])
         release_names = [step["name"] for step in named_steps(self.release_job)]
