@@ -1,6 +1,6 @@
 output "autonomous_database_id" {
-  description = "Oracle Autonomous Database OCID, when created."
-  value       = var.create_autonomous_database ? oci_database_autonomous_database.catalog[0].id : null
+  description = "Oracle Autonomous Database OCID."
+  value       = oci_database_autonomous_database.catalog.id
 }
 
 output "autonomous_database_name" {

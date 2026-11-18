@@ -49,7 +49,7 @@ resource "oci_kms_key" "runtime_secrets" {
 }
 
 data "oci_vault_secrets" "oracle_db_password" {
-  count          = var.create_autonomous_database ? 1 : 0
+  count          = var.bootstrap_runtime_secrets ? 0 : 1
   compartment_id = local.compartment_ocid
   vault_id       = oci_kms_vault.runtime_secrets.id
   name           = local.runtime_controller_secret_definitions.oracle_db_password.secret_name
@@ -60,8 +60,13 @@ data "oci_vault_secrets" "runtime_readiness" {
   vault_id       = oci_kms_vault.runtime_secrets.id
 }
 
+data "oci_database_autonomous_databases" "rotation_target" {
+  compartment_id = local.compartment_ocid
+  display_name   = local.autonomous_database_display_name
+}
+
 locals {
-  autonomous_database_admin_password_secret_id = var.create_autonomous_database ? one(data.oci_vault_secrets.oracle_db_password[0].secrets).id : null
+  autonomous_database_admin_password_secret_id = var.bootstrap_runtime_secrets ? null : one(data.oci_vault_secrets.oracle_db_password[0].secrets).id
   runtime_secret_metadata_by_name = {
     for secret in data.oci_vault_secrets.runtime_readiness.secrets :
     secret.secret_name => secret
@@ -70,10 +75,14 @@ locals {
       definition.secret_name
     ], secret.secret_name)
   }
+  existing_adb_rotation_target_id = one([
+    for database in data.oci_database_autonomous_databases.rotation_target.autonomous_databases :
+    database.id if database.db_name == local.autonomous_database_name
+  ])
 }
 
 data "oci_vault_secret" "runtime_readiness" {
-  for_each = var.create_autonomous_database ? local.runtime_controller_secret_definitions : {}
+  for_each = var.bootstrap_runtime_secrets ? {} : local.runtime_controller_secret_definitions
 
   secret_id = local.runtime_secret_metadata_by_name[each.value.secret_name].id
 }
@@ -108,14 +117,14 @@ resource "oci_vault_secret" "runtime" {
   }
 
   dynamic "rotation_config" {
-    for_each = each.key == "oracle_db_password" && var.create_autonomous_database ? [each.key] : []
+    for_each = each.key == "oracle_db_password" && !var.bootstrap_runtime_secrets && local.existing_adb_rotation_target_id != null ? [each.key] : []
     content {
       is_scheduled_rotation_enabled = true
       rotation_interval             = "P90D"
 
       target_system_details {
         target_system_type = "ADB"
-        adb_id             = module.data_services.autonomous_database_id
+        adb_id             = local.existing_adb_rotation_target_id
       }
     }
   }

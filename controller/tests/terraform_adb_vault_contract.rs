@@ -26,9 +26,9 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     assert!(runtime_secrets.contains("data \"oci_vault_secrets\" \"oracle_db_password\""));
     assert!(runtime_secrets.contains("data \"oci_vault_secrets\" \"runtime_readiness\""));
     assert!(runtime_secrets.contains("data \"oci_vault_secret\" \"runtime_readiness\""));
-    assert!(runtime_secrets.contains("count          = var.create_autonomous_database ? 1 : 0"));
+    assert!(runtime_secrets.contains("count          = var.bootstrap_runtime_secrets ? 0 : 1"));
     assert!(runtime_secrets.contains(
-        "for_each = var.create_autonomous_database ? local.runtime_controller_secret_definitions : {}"
+        "for_each = var.bootstrap_runtime_secrets ? {} : local.runtime_controller_secret_definitions"
     ));
     assert!(
         runtime_secrets.contains(
@@ -56,15 +56,12 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     assert!(runtime_secrets.contains("dynamic \"rotation_config\""));
     assert!(
         runtime_secrets
-            .contains("each.key == \"oracle_db_password\" && var.create_autonomous_database")
+            .contains("each.key == \"oracle_db_password\" && !var.bootstrap_runtime_secrets")
     );
     assert!(runtime_secrets.contains("is_scheduled_rotation_enabled = true"));
     assert!(runtime_secrets.contains("rotation_interval             = \"P90D\""));
     assert!(runtime_secrets.contains("target_system_type = \"ADB\""));
-    assert!(
-        runtime_secrets
-            .contains("adb_id             = module.data_services.autonomous_database_id")
-    );
+    assert!(runtime_secrets.contains("adb_id             = local.existing_adb_rotation_target_id"));
     assert!(runtime_secrets.contains("ignore_changes = [\n      secret_content,"));
     assert!(!tenancy_main.contains("resource \"oci_kms_vault\""));
     assert!(!tenancy_main.contains("resource \"oci_kms_key\""));
@@ -78,9 +75,11 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     assert!(module_main.contains(
         "secret_id                   = var.autonomous_database_admin_password_secret_id"
     ));
-    assert!(module_main.contains(
-        "condition     = !var.create_autonomous_database || var.runtime_secret_values_ready"
-    ));
+    assert!(module_main.contains("condition     = var.runtime_secret_values_ready"));
+    assert!(module_main.contains("from = oci_database_autonomous_database.catalog[0]"));
+    assert!(module_main.contains("to   = oci_database_autonomous_database.catalog"));
+    assert!(!root_variables.contains("variable \"create_autonomous_database\""));
+    assert!(!module_main.contains("count = var.create_autonomous_database"));
     assert!(runtime_outputs.contains("if local.runtime_secret_values_ready"));
 
     for source in [&runtime_secrets, &root_main, &root_variables, &module_main] {
@@ -126,15 +125,15 @@ fn fresh_runtime_bootstrap_fails_closed_until_secret_values_are_ready() {
         assert!(!source.contains("runtime_secrets_ready"));
         assert!(!source.contains("OCI_RUNTIME_SECRETS_READY"));
     }
-    assert!(deploy.contains("Oracle database password is OCI-generated"));
-    assert!(deploy.contains("Populate only the Oracle wallet password and admin password hash"));
-    assert!(!deploy.contains("Populate all three CURRENT values"));
-    assert!(bootstrap_words.contains("Readiness derives from Vault version metadata"));
-    assert!(bootstrap_words.contains("stops before Ansible"));
-    assert!(
-        bootstrap_words.contains("OCI generates a usable Oracle database password as version 1")
-    );
-    assert!(bootstrap_words.contains("Replace only those two manual secrets"));
+    assert!(deploy.contains("sync_runtime_vault_secrets.py\" verify"));
+    assert!(deploy.contains("sync_runtime_vault_secrets.py bootstrap"));
+    assert!(deploy.contains("environment: secret-audit"));
+    assert!(deploy.contains("TF_VAR_bootstrap_runtime_secrets: 'true'"));
+    assert!(bootstrap_words.contains("OCI generates the database password as version 1"));
+    assert!(bootstrap_words.contains(
+        "workflow replaces only the exact wallet-password and admin-hash version-1 placeholders"
+    ));
+    assert!(bootstrap_words.contains("fails before planning on a mismatch"));
     assert!(!bootstrap.contains("Replace all three `CURRENT` secret versions"));
 }
 
@@ -215,7 +214,16 @@ fn production_deploy_uses_vault_ids_instead_of_direct_database_password_secrets(
     let deploy = read_repo(".github/workflows/deploy.yml");
 
     assert!(!deploy.contains("secrets.ORACLE_DB_PASSWORD"));
-    assert!(!deploy.contains("secrets.ORACLE_DB_WALLET_PASSWORD"));
+    assert!(deploy.contains("ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}"));
+    let ansible_env = deploy
+        .split("- name: Run full deployment")
+        .nth(1)
+        .expect("full deployment step")
+        .split("        with:")
+        .next()
+        .expect("Ansible environment");
+    assert!(!ansible_env.contains("ORACLE_DB_WALLET_PASSWORD: ${{ secrets."));
+    assert!(!ansible_env.contains("AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets."));
     assert!(deploy.contains("steps.terraform_apply.outputs.oracle_db_password_vault_secret_id"));
     assert!(
         deploy.contains("steps.terraform_apply.outputs.oracle_db_wallet_password_vault_secret_id")

@@ -14,6 +14,7 @@ on:
         default: retry
         type: choice
         options:
+          - bootstrap_secrets
           - retry
           - rollback
           - cloudflare_plan
@@ -190,6 +191,15 @@ jobs:
         with:
           fetch-depth: "0"
           ref: ${{ steps.request.outputs.release_tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout current Vault verification code
+        if: steps.request.outputs.operation != 'rollback'
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          path: .vault-automation
+          sparse-checkout: scripts/sync_runtime_vault_secrets.py
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout dispatched main retry guard
@@ -574,6 +584,19 @@ jobs:
           terraform_version: "1.17.2"
           terraform_wrapper: false
 
+      - name: Select OCI CLI Python version
+        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install OCI CLI for Vault verification
+        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/oci-cli"
+          "$RUNNER_TEMP/oci-cli/bin/pip" install --disable-pip-version-check 'oci-cli==3.96.2'
+
       - name: Write OCI API private key
         if: steps.manifest.outputs.production_mutation_required == 'true' || steps.request.outputs.operation == 'rollback'
         env:
@@ -583,6 +606,24 @@ jobs:
           mkdir -p "$RUNNER_TEMP/oci"
           printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
           chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
+
+      - name: Configure OCI CLI for Vault verification
+        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
+        env:
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+          {
+            printf '[DEFAULT]\n'
+            printf 'user=%s\n' "$OCI_CLI_USER_OCID"
+            printf 'tenancy=%s\n' "$OCI_TENANCY_OCID"
+            printf 'fingerprint=%s\n' "$OCI_FINGERPRINT"
+            printf 'key_file=%s\n' "$RUNNER_TEMP/oci/api_key.pem"
+            printf 'region=us-ashburn-1\n'
+          } > "$RUNNER_TEMP/oci/config"
+          chmod 600 "$RUNNER_TEMP/oci/config"
 
       - name: Resolve runtime VM IP for rollback
         if: steps.request.outputs.operation == 'rollback'
@@ -633,7 +674,6 @@ jobs:
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
           TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
           TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
-          TF_VAR_create_autonomous_database: ${{ vars.OCI_CREATE_AUTONOMOUS_DATABASE || 'true' }}
           TF_VAR_media_bucket_namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           TF_VAR_porkbun_api_key: ${{ secrets.PORKBUN_API_KEY }}
           TF_VAR_porkbun_secret_key: ${{ secrets.PORKBUN_SECRET_KEY }}
@@ -641,6 +681,8 @@ jobs:
           TF_VAR_cloudflare_mode: ${{ vars.CLOUDFLARE_MODE || 'off' }}
           TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
+          ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
         run: |
           set -euo pipefail
           if [ "$TF_VAR_cloudflare_mode" != "off" ]; then
@@ -656,6 +698,9 @@ jobs:
             -backend-config="key=envs/prod/terraform.tfstate" \
             -backend-config="workspace_key_prefix=envs" \
             -backend-config="auth=APIKey"
+          python3 "$GITHUB_WORKSPACE/.vault-automation/scripts/sync_runtime_vault_secrets.py" verify \
+            --oci-bin "$RUNNER_TEMP/oci-cli/bin/oci" \
+            --oci-config-file "$RUNNER_TEMP/oci/config"
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] \
             && [ "${{ steps.request.outputs.operation }}" = "retry" ] \
             && [ "${{ inputs.recreate_runtime_instance }}" = "true" ]; then
@@ -686,13 +731,43 @@ jobs:
             exit 1
           }
           terraform apply -input=false -lock-timeout=10m "$terraform_plan_file"
+          rotation_plan_file="$RUNNER_TEMP/runtime-rotation.tfplan"
+          terraform plan -input=false -lock-timeout=10m -out="$rotation_plan_file"
+          terraform show -json "$rotation_plan_file" | jq -e \
+            --arg adb_id "$(terraform output -raw autonomous_database_id)" '
+            . as $plan |
+            [ $plan.planned_values.root_module.resources[]?
+              | select(.address == "oci_vault_secret.runtime[\"oracle_db_password\"]")
+            ] as $password_secrets |
+            ($password_secrets | length) == 1 and
+            ($password_secrets[0].values.rotation_config | length) == 1 and
+            $password_secrets[0].values.rotation_config[0].target_system_details[0].adb_id == $adb_id and
+            $password_secrets[0].values.rotation_config[0].is_scheduled_rotation_enabled == true and
+            $password_secrets[0].values.rotation_config[0].rotation_interval == "P90D" and
+            all($plan.resource_changes[]?;
+              .mode != "managed" or
+              .change.actions == ["no-op"] or
+              (
+                .address == "oci_vault_secret.runtime[\"oracle_db_password\"]" and
+                .change.actions == ["update"] and
+                ((.change.before.rotation_config // []) | length) == 0 and
+                .change.after.rotation_config[0].target_system_details[0].adb_id == $adb_id and
+                .change.after.rotation_config[0].is_scheduled_rotation_enabled == true and
+                .change.after.rotation_config[0].rotation_interval == "P90D"
+              )
+            )
+          ' >/dev/null || {
+            echo "::error::Post-ADB plan does not contain the expected database password rotation target or proposes unrelated changes."
+            exit 1
+          }
+          terraform apply -input=false -lock-timeout=10m "$rotation_plan_file"
           runtime_secret_ids="$(terraform output -json runtime_secret_id_env_vars)"
           if ! jq -e '
             type == "object" and
             length == 3 and
             all(.[]; type == "string" and length > 0)
           ' <<< "$runtime_secret_ids" >/dev/null; then
-            echo "::error::Terraform withheld the runtime Vault secret OCIDs. The Oracle database password is OCI-generated and must not be populated or overwritten out of band. Populate only the Oracle wallet password and admin password hash CURRENT values, then retry."
+            echo "::error::Terraform withheld the runtime Vault secret OCIDs; verify the GitHub/Vault values and retry."
             exit 1
           fi
           admin_password_hash_vault_secret_id="$(jq -er '.AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID' <<< "$runtime_secret_ids")"
@@ -732,7 +807,6 @@ jobs:
         env:
           ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
           AUTOGRAPHS_OPERATOR_API_TOKEN: ${{ secrets.AUTOGRAPHS_OPERATOR_API_TOKEN }}
-          AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
           AUTOGRAPHS_ADMIN_PASSWORD_HASH_VAULT_SECRET_ID: ${{ steps.terraform_apply.outputs.admin_password_hash_vault_secret_id }}
           GITHUB_ACTOR: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
@@ -1039,7 +1113,6 @@ jobs:
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
           TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
           TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
-          TF_VAR_create_autonomous_database: ${{ vars.OCI_CREATE_AUTONOMOUS_DATABASE || 'true' }}
           TF_VAR_media_bucket_namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           TF_VAR_porkbun_api_key: ${{ secrets.PORKBUN_API_KEY }}
           TF_VAR_porkbun_secret_key: ${{ secrets.PORKBUN_SECRET_KEY }}
@@ -1134,3 +1207,115 @@ jobs:
           else
             echo "Plan only: no Terraform apply was run."
           fi
+
+  bootstrap_secrets:
+    name: Populate initial runtime Vault secrets
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'bootstrap_secrets' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: secret-audit
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Require both GitHub source secrets
+        env:
+          AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
+          ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$AUTOGRAPHS_ADMIN_PASSWORD_HASH" ] || [ -z "$ORACLE_DB_WALLET_PASSWORD" ]; then
+            echo "::error::Both manual runtime values must be configured as GitHub Secrets before bootstrap."
+            exit 1
+          fi
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.17.2"
+          terraform_wrapper: false
+
+      - name: Select OCI CLI Python version
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install OCI CLI
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/oci-cli"
+          "$RUNNER_TEMP/oci-cli/bin/pip" install --disable-pip-version-check 'oci-cli==3.96.2'
+
+      - name: Configure OCI API authentication
+        env:
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 "$RUNNER_TEMP/oci"
+          printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
+          chmod 0600 "$RUNNER_TEMP/oci/api_key.pem"
+          {
+            printf '[DEFAULT]\n'
+            printf 'user=%s\n' "$OCI_CLI_USER_OCID"
+            printf 'tenancy=%s\n' "$OCI_TENANCY_OCID"
+            printf 'fingerprint=%s\n' "$OCI_FINGERPRINT"
+            printf 'key_file=%s\n' "$RUNNER_TEMP/oci/api_key.pem"
+            printf 'region=us-ashburn-1\n'
+          } > "$RUNNER_TEMP/oci/config"
+          chmod 0600 "$RUNNER_TEMP/oci/config"
+
+      - name: Create Vault resources and populate only untouched placeholders
+        working-directory: infra/terraform
+        env:
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
+          OCI_REGION: us-ashburn-1
+          TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
+          TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          TF_VAR_private_key_path: ${{ runner.temp }}/oci/api_key.pem
+          TF_VAR_bootstrap_runtime_secrets: 'true'
+          TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
+          TF_VAR_media_bucket_namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
+          TF_VAR_cloudflare_mode: ${{ vars.CLOUDFLARE_MODE || 'off' }}
+          TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
+          ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
+        run: |
+          set -euo pipefail
+          terraform init \
+            -backend-config="bucket=autographs-tf-state" \
+            -backend-config="namespace=${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}" \
+            -backend-config="region=us-ashburn-1" \
+            -backend-config="key=envs/prod/terraform.tfstate" \
+            -backend-config="workspace_key_prefix=envs" \
+            -backend-config="auth=APIKey"
+          bootstrap_plan="$RUNNER_TEMP/runtime-vault-bootstrap.tfplan"
+          terraform plan -input=false -lock-timeout=10m \
+            -target=oci_vault_secret.runtime -out="$bootstrap_plan"
+          terraform show -json "$bootstrap_plan" | jq -e '
+            ([.prior_state.values.root_module.child_modules[]?.resources[]?
+              | select(.type == "oci_database_autonomous_database")] | length) == 0 and
+            ([.resource_changes[]? | select(.mode == "managed" and .change.actions != ["no-op"])] |
+              all(.[];
+                .change.actions == ["create"] and
+                (.address == "oci_kms_vault.runtime_secrets" or
+                 .address == "oci_kms_key.runtime_secrets" or
+                 (.address | startswith("oci_vault_secret.runtime[")))))
+          ' >/dev/null || {
+            echo "::error::Bootstrap plan is not limited to new Vault resources, or ADB already exists in state. No apply ran."
+            exit 1
+          }
+          terraform apply -input=false -lock-timeout=10m "$bootstrap_plan"
+          python3 ../../scripts/sync_runtime_vault_secrets.py bootstrap \
+            --oci-bin "$RUNNER_TEMP/oci-cli/bin/oci" \
+            --oci-config-file "$RUNNER_TEMP/oci/config"

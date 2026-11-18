@@ -55,7 +55,6 @@ Important operator inputs:
 - `OCI_RUNTIME_IMAGE_OCID`
 - `OCI_RUNTIME_SSH_PUBLIC_KEYS`
 - `OCI_OBJECT_STORAGE_NAMESPACE`
-- `OCI_CREATE_AUTONOMOUS_DATABASE`
 - `VM_PUBLIC_IP` when not relying on Terraform output
 
 ## GitHub Configuration
@@ -68,10 +67,13 @@ Populate repo-level GitHub Secrets:
 - `OCI_PRIVATE_KEY_PEM`
 - `DEPLOY_SSH_PRIVATE_KEY`
 - `ORACLE_DB_WALLET_ZIP_BASE64` when using an mTLS wallet
+- `ORACLE_DB_WALLET_PASSWORD` matching the wallet zip and OCI Vault CURRENT value
+- `AUTOGRAPHS_ADMIN_PASSWORD_HASH` matching the OCI Vault CURRENT value
 - `AUTOGRAPHS_OPERATOR_API_TOKEN`
 
-The production admin password hash is supplied through OCI Vault. A direct
-`AUTOGRAPHS_ADMIN_PASSWORD_HASH` GitHub Secret is not configured.
+The controller reads the admin hash and wallet password from OCI Vault. Their
+GitHub Secret copies seed only exact first-bootstrap placeholders and let
+routine deployment detect drift; Ansible does not pass the hash directly.
 
 Populate repo-level GitHub Variables:
 
@@ -79,7 +81,6 @@ Populate repo-level GitHub Variables:
 - `OCI_RUNTIME_IMAGE_OCID`
 - `OCI_RUNTIME_SSH_PUBLIC_KEYS`
 - `OCI_OBJECT_STORAGE_NAMESPACE`
-- `OCI_CREATE_AUTONOMOUS_DATABASE`
 - `ORACLE_DB_USER`
 - `ORACLE_DB_CONNECT_STRING`
 - `ORACLE_DB_WALLET_DIR` when using an mTLS wallet instead of walletless TLS
@@ -102,7 +103,7 @@ Populate repo-level GitHub Variables:
 
 Terraform defaults the runtime shape to `VM.Standard.E2.1.Micro` and the flex-shape OCPU and memory inputs to `1` each. Fixed shapes omit the Terraform `shape_config` block. `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
-For initial bootstrap, supply the tenancy-specific Object Storage namespace and explicitly set `OCI_CREATE_AUTONOMOUS_DATABASE=false` until the three named Vault secrets and runtime connection values are ready. The media bucket is managed from the first runtime-root apply; the database input defaults to `true` after bootstrap. Apply the runtime root once with ADB creation disabled. OCI generates a usable database password as version 1; do not populate or overwrite it. Populate only the Oracle wallet password and admin password hash `CURRENT` versions outside Terraform and verify that each advances beyond its intentionally invalid version-1 bootstrap placeholder. Terraform derives readiness from those version numbers; only then may ADB creation or the normal deployment consume the secret OCIDs. The ADB-enabled apply resolves the existing database password by exact deterministic name, provisions ADB from its stable OCID, and configures the ADB rotation target in the same deployment state. The deploy step passes runtime coordinates through VM-local quadlet environment files.
+For initial bootstrap, supply the tenancy-specific Object Storage namespace and both manual GitHub Secrets. Dispatch `deploy.yml` from `main` with `operation=bootstrap_secrets` and approve the `secret-audit` environment review. Its saved, targeted Terraform plan may only create the Vault, key, and three secrets; it refuses an existing ADB state or resource updates. OCI generates the database password as version 1, which must never be overwritten out of band. The bootstrap step updates only the exact version-1 wallet-password and admin-hash placeholders from GitHub, then verifies their CURRENT bundles. It refuses any other mismatch. Afterward, a normal release deploy verifies GitHub and Vault still match, creates ADB from the generated password secret, and runs a guarded second Terraform plan to attach the ADB rotation target. The deploy step passes runtime coordinates through VM-local quadlet environment files.
 
 The production database requires mTLS. Set `ORACLE_DB_CONNECT_STRING` to a wallet alias such as `autographsdb_medium`, set `ORACLE_DB_WALLET_DIR=/opt/autographs/wallet`, and store the base64-encoded wallet zip in the `ORACLE_DB_WALLET_ZIP_BASE64` GitHub Secret. Store the wallet download password in the OCI Vault wallet-password secret; the pure-Rust `oracledb` driver uses it to decrypt `ewallet.pem` even though the wallet has already been unpacked. The deploy workflow passes the Vault secret ID, unpacks the wallet onto the VM, and mounts it read-only into the Rust controller container. Local Ansible runs may still use a direct `ORACLE_DB_WALLET_PASSWORD` as a transition fallback.
 

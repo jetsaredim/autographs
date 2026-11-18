@@ -165,6 +165,82 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn('terraform apply -input=false -lock-timeout=10m "$plan_file"',
                       cloudflare_plan["run"])
 
+    def test_vault_bootstrap_and_routine_deploy_have_distinct_write_gates(self):
+        self.assertIn("bootstrap_secrets", self.workflow["on"]["workflow_dispatch"]["inputs"]["operation"]["options"])
+        bootstrap = self.workflow["jobs"]["bootstrap_secrets"]
+        self.assertIn("inputs.operation == 'bootstrap_secrets'", bootstrap["if"])
+        self.assertIn("github.ref == 'refs/heads/main'", bootstrap["if"])
+        self.assertEqual(bootstrap["environment"], "secret-audit")
+        bootstrap_run = next(step["run"] for step in bootstrap["steps"]
+                             if step.get("name") == "Create Vault resources and populate only untouched placeholders")
+        self.assertIn("-target=oci_vault_secret.runtime", bootstrap_run)
+        self.assertIn("terraform apply -input=false -lock-timeout=10m \"$bootstrap_plan\"", bootstrap_run)
+        self.assertIn("sync_runtime_vault_secrets.py bootstrap", bootstrap_run)
+
+        production_run = self.production_steps["Terraform apply"]["run"]
+        verify = production_run.index("sync_runtime_vault_secrets.py\" verify")
+        first_plan = production_run.index("terraform plan -input=false")
+        first_apply = production_run.index("terraform apply -input=false")
+        self.assertLess(verify, first_plan)
+        self.assertLess(first_plan, first_apply)
+        self.assertIn("Post-ADB plan does not contain the expected database password rotation target", production_run)
+        self.assertNotIn("sync_runtime_vault_secrets.py\" bootstrap", production_run)
+
+        bootstrap_env = next(step["env"] for step in bootstrap["steps"]
+                             if step.get("name") == "Create Vault resources and populate only untouched placeholders")
+        self.assertEqual(bootstrap_env["TF_VAR_autographs_dns_record_id"],
+                         "${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}")
+        root_variables = (ROOT / "infra/terraform/variables.tf").read_text(encoding="utf-8")
+        required = {
+            name for name, body in re.findall(
+                r'^variable "([^"]+)" \{(.*?)^\}', root_variables, re.MULTILINE | re.DOTALL
+            ) if not re.search(r'^\s+default\s*=', body, re.MULTILINE)
+        }
+        self.assertTrue({f"TF_VAR_{name}" for name in required} <= bootstrap_env.keys())
+
+    def test_post_adb_plan_requires_rotation_even_when_no_changes_are_planned(self):
+        run = self.production_steps["Terraform apply"]["run"]
+        marker = '--arg adb_id "$(terraform output -raw autonomous_database_id)" \'\n'
+        jq_filter = run.split(marker, 1)[1].split("\n' >/dev/null", 1)[0]
+        adb_id = "ocid1.autonomousdatabase.oc1.test"
+        address = 'oci_vault_secret.runtime["oracle_db_password"]'
+        rotation = [{
+            "target_system_details": [{"adb_id": adb_id}],
+            "is_scheduled_rotation_enabled": True,
+            "rotation_interval": "P90D",
+        }]
+
+        def accepted(config, changes):
+            plan = {
+                "planned_values": {"root_module": {"resources": [
+                    {"address": address, "values": {"rotation_config": config}}
+                ]}},
+                "resource_changes": changes,
+            }
+            result = subprocess.run(
+                ["jq", "-e", "--arg", "adb_id", adb_id, jq_filter],
+                input=json.dumps(plan), text=True, capture_output=True, check=False,
+            )
+            return result.returncode == 0
+
+        no_op = [{"address": address, "mode": "managed", "change": {"actions": ["no-op"]}}]
+        self.assertFalse(accepted([], no_op))
+        self.assertTrue(accepted(rotation, no_op))
+        self.assertFalse(accepted([{**rotation[0], "rotation_interval": "P30D"}], no_op))
+        self.assertFalse(accepted([{
+            **rotation[0], "target_system_details": [{"adb_id": "another-adb"}]
+        }], no_op))
+        self.assertFalse(accepted([], []))
+        attach = [{"address": address, "mode": "managed", "change": {
+            "actions": ["update"], "before": {"rotation_config": []},
+            "after": {"rotation_config": rotation},
+        }}]
+        self.assertTrue(accepted(rotation, attach))
+        self.assertFalse(accepted(rotation, attach + [{
+            "address": "module.compute.oci_core_instance.runtime", "mode": "managed",
+            "change": {"actions": ["update"]},
+        }]))
+
     def test_automatic_release(self):
         self.assert_ordered(self.cases["automatic_release"]["ordered_steps"])
         release_names = [step["name"] for step in named_steps(self.release_job)]

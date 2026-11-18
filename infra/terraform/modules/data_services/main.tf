@@ -1,5 +1,9 @@
+moved {
+  from = oci_database_autonomous_database.catalog[0]
+  to   = oci_database_autonomous_database.catalog
+}
+
 resource "oci_database_autonomous_database" "catalog" {
-  count = var.create_autonomous_database ? 1 : 0
 
   compartment_id              = var.compartment_id
   db_name                     = var.autonomous_database_name
@@ -16,8 +20,8 @@ resource "oci_database_autonomous_database" "catalog" {
     prevent_destroy = true
 
     precondition {
-      condition     = !var.create_autonomous_database || var.runtime_secret_values_ready
-      error_message = "All managed runtime secrets must have a non-bootstrap CURRENT version before create_autonomous_database can create or update ADB."
+      condition     = var.runtime_secret_values_ready
+      error_message = "All managed runtime secrets must have a non-bootstrap CURRENT version before ADB can be created or updated. Run the explicit Vault bootstrap first."
     }
   }
 

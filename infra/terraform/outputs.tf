@@ -37,10 +37,9 @@ output "runtime_secrets_key_id" {
 }
 
 output "runtime_secret_ids" {
-  description = "Deployment-managed Autographs runtime Vault secret OCIDs keyed by runtime secret name after the generated DB password exists and the manual secrets advance beyond their bootstrap versions."
+  description = "Deployment-managed Autographs runtime Vault secret OCIDs keyed by runtime secret name, including during explicit bootstrap."
   value = {
     for name, secret in oci_vault_secret.runtime : name => secret.id
-    if local.runtime_secret_values_ready
   }
 }
 
