@@ -206,6 +206,7 @@ Resume file: None
 
 | # | Description | Date | Commit | Status | Directory |
 | --- | ------------- | ------ | -------- | -------- | ----------- |
+| 63 | Compared GitHub admin hash and wallet password secrets against OCI Vault CURRENT values in reviewer-gated one-off run 44220300423; both matched, and removed the temporary workflow. | 2026-11-18 | `2917edb` | complete | `.planning/quick/261117-soc-add-one-off-protected-oci-github-secret-/` |
 | 62 | Updated the architecture diagram for Cloudflare and OCI Vault and added OCI state lock waits across workflows. | 2026-11-13 | `e37aeb9` | needs_review | `.planning/quick/261113-architecture-and-terraform-state-lock/` |
 | 61 | Applied approved option C to the admin item editor with compact stacked sections and side-by-side previews for saved image adjustments. | 2026-11-13 | `aa6e1a8` | needs_review | `.planning/quick/261113-compact-item-editor-option-c/` |
 | 60 | Removed PR #301's unaudited `v0.5.0` helper overlay after reviewer Warning; preserved the immutable retry audit and documented separate current-release recovery. | 2026-11-01 | `365c271` | complete | `.planning/quick/261101-r4t-review-301-recovery-provenance/` |

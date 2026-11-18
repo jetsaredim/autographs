@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: complete
 created: 2026-11-17
 branch: gsd/quick-add-one-off-protected-oci-github-secret-
 ---
