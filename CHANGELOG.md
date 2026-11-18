@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.2](https://github.com/jetsaredim/autographs/compare/v0.10.1...v0.10.2) (2026-11-18)
+
+
+### Bug Fixes
+
+* consolidate Cloudflare plans in release workflow ([#359](https://github.com/jetsaredim/autographs/issues/359)) ([8481e29](https://github.com/jetsaredim/autographs/commit/8481e290542fb1965cfdccbb84d058dbba0f7b3f))
+* **deps:** update rust crate getrandom to 0.4.3 ([#351](https://github.com/jetsaredim/autographs/issues/351)) ([363f3c6](https://github.com/jetsaredim/autographs/commit/363f3c6742045f32ec2f0fb52d35be4163224fbb))
+* **deps:** update rust crate uuid to 1.29.3 ([#357](https://github.com/jetsaredim/autographs/issues/357)) ([c2ab904](https://github.com/jetsaredim/autographs/commit/c2ab9040dc287d9e65677297938ee9b52b3fc127))
+* guard Vault bootstrap and retire ADB creation switch ([#364](https://github.com/jetsaredim/autographs/issues/364)) ([2c1d6e9](https://github.com/jetsaredim/autographs/commit/2c1d6e920561beda05e82e6c2d017740a67b4234))
+* preserve managed data resources when workflow variables are absent ([#358](https://github.com/jetsaredim/autographs/issues/358)) ([797e387](https://github.com/jetsaredim/autographs/commit/797e387237dc1c8919ce4d8c67e9f5304acb5137))
+* remove conditional private media bucket creation ([#360](https://github.com/jetsaredim/autographs/issues/360)) ([ac1cc79](https://github.com/jetsaredim/autographs/commit/ac1cc796be98484b6fe78629853d5096716e07e5))
+* remove unused network and runtime creation switches ([#361](https://github.com/jetsaredim/autographs/issues/361)) ([0b7c20a](https://github.com/jetsaredim/autographs/commit/0b7c20adbe8b00b1d964337b1f4b758c50ccfb42))
+* simplify OCI configuration and protect stateful resources ([#354](https://github.com/jetsaredim/autographs/issues/354)) ([d4eb8b4](https://github.com/jetsaredim/autographs/commit/d4eb8b4ccb9cc9ee97858e75407a80871d40e8c5))
+
 ## [0.10.1](https://github.com/jetsaredim/autographs/compare/v0.10.0...v0.10.1) (2026-11-15)
 
 
