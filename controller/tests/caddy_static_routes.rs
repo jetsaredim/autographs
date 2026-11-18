@@ -354,11 +354,12 @@ fn deploy_exports_managed_vault_secret_ids_without_github_variables() {
     assert!(runtime_outputs.contains("output \"runtime_secret_id_env_vars\""));
     assert!(runtime_outputs.contains("if local.runtime_secret_values_ready"));
     assert!(tenancy_iam.contains("to manage secret-family in compartment id"));
-    assert!(deploy_workflow.contains("The Oracle database password is OCI-generated"));
-    assert!(deploy_workflow.contains(
-        "Populate only the Oracle wallet password and admin password hash CURRENT values"
-    ));
-    assert!(!deploy_workflow.contains("Populate all three CURRENT values"));
+    assert!(
+        runtime_secrets.contains("enable_auto_generation = each.key == \"oracle_db_password\"")
+    );
+    assert!(deploy_workflow.contains("sync_runtime_vault_secrets.py\" verify"));
+    assert!(deploy_workflow.contains("sync_runtime_vault_secrets.py bootstrap"));
+    assert!(deploy_workflow.contains("Bootstrap plan is not limited to new Vault resources"));
 
     for (env_name, output_name) in [
         (
