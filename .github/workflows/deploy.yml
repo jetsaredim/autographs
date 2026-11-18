@@ -735,7 +735,16 @@ jobs:
           terraform plan -input=false -lock-timeout=10m -out="$rotation_plan_file"
           terraform show -json "$rotation_plan_file" | jq -e \
             --arg adb_id "$(terraform output -raw autonomous_database_id)" '
-            all(.resource_changes[]?;
+            . as $plan |
+            [ $plan.planned_values.root_module.resources[]?
+              | select(.address == "oci_vault_secret.runtime[\"oracle_db_password\"]")
+            ] as $password_secrets |
+            ($password_secrets | length) == 1 and
+            ($password_secrets[0].values.rotation_config | length) == 1 and
+            $password_secrets[0].values.rotation_config[0].target_system_details[0].adb_id == $adb_id and
+            $password_secrets[0].values.rotation_config[0].is_scheduled_rotation_enabled == true and
+            $password_secrets[0].values.rotation_config[0].rotation_interval == "P90D" and
+            all($plan.resource_changes[]?;
               .mode != "managed" or
               .change.actions == ["no-op"] or
               (
@@ -748,7 +757,7 @@ jobs:
               )
             )
           ' >/dev/null || {
-            echo "::error::Post-ADB plan contains changes beyond attaching the expected database password rotation target."
+            echo "::error::Post-ADB plan does not contain the expected database password rotation target or proposes unrelated changes."
             exit 1
           }
           terraform apply -input=false -lock-timeout=10m "$rotation_plan_file"
@@ -1274,6 +1283,7 @@ jobs:
           TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
           TF_VAR_private_key_path: ${{ runner.temp }}/oci/api_key.pem
           TF_VAR_bootstrap_runtime_secrets: 'true'
+          TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
           TF_VAR_media_bucket_namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           TF_VAR_cloudflare_mode: ${{ vars.CLOUDFLARE_MODE || 'off' }}
           TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
