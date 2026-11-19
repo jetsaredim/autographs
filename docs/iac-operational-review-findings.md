@@ -508,6 +508,16 @@ the separate production state key.
 
 This list enumerates Terraform blocks, Ansible entry points and role task files, and workflow callers. The disposition for each element remains **trace pending** until its supported states, failure path, and production plan effect are checked. Paths are relative to the repository root.
 
+The authenticated [PR #371 state inventory and plan](https://github.com/jetsaredim/autographs/actions/runs/44462171052/job/135351338460)
+listed 32 Terraform state addresses and no changed managed-resource actions.
+The production runtime state includes six counted Cloudflare resources, the
+uncounted Porkbun rollback record, network/compute/data-services resources
+at their new uncounted module addresses, three Vault secret instances, the
+vault and key, and the OCI data lookups. Tenancy bootstrap has separate state.
+The CI log prints addresses and action types only, not resource values. A
+no-change plan proves the current inputs do not mutate state; it does not
+prove future inputs or removed configuration are safe.
+
 ### Terraform resources, lookups, modules, and providers
 
 | Block | Source | State owner / caller | Inputs, failure path, test, disposition |
@@ -520,6 +530,7 @@ This list enumerates Terraform blocks, Ansible entry points and role task files,
 | resource `cloudflare_ruleset.autographs_cache` | `infra/terraform/cloudflare.tf:58` | Production root / controlled DNS apply; routine deploy guarded | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | resource `porkbun_dns_record.autographs` | `infra/terraform/dns.tf:1` | Production root / controlled DNS apply; routine deploy guarded | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | data `oci_core_images.oracle_linux_10` | `infra/terraform/images.tf:1` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| data `oci_identity_compartments.project` | `infra/terraform/compartment.tf:1` | Production root / CI plan and release deploy | Looks up the project compartment by name; lookup failure blocks planning. Retain; present in production state and no-change plan. |
 | module `network` | `infra/terraform/main.tf:1` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | module `compute` | `infra/terraform/main.tf:15` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | module `data_services` | `infra/terraform/main.tf:34` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
@@ -548,10 +559,12 @@ This list enumerates Terraform blocks, Ansible entry points and role task files,
 | resource `oci_objectstorage_bucket.this` | `infra/terraform/modules/state_bucket/main.tf:6` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | provider `oci` | `infra/terraform/providers.tf:1` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | provider `porkbun` | `infra/terraform/providers.tf:11` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| provider `cloudflare` | `infra/terraform/versions.tf` | Production root / CI plan and controlled DNS apply | The workflow supplies the scoped token in active modes. Retain for the proxied zone and cache/DNS resources. |
 | resource `oci_kms_vault.runtime_secrets` | `infra/terraform/runtime_secrets.tf:21` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | resource `oci_kms_key.runtime_secrets` | `infra/terraform/runtime_secrets.tf:33` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | data `oci_vault_secrets.oracle_db_password` | `infra/terraform/runtime_secrets.tf:51` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | data `oci_vault_secrets.runtime_readiness` | `infra/terraform/runtime_secrets.tf:58` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| data `oci_database_autonomous_databases.rotation_target` | `infra/terraform/runtime_secrets.tf:63` | Production root / CI plan and release deploy | Looks up the existing ADB for Vault password rotation; an absent target withholds the rotation block. Retain; present in production state and no-change plan. |
 | data `oci_vault_secret.runtime_readiness` | `infra/terraform/runtime_secrets.tf:75` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | resource `oci_vault_secret.runtime` | `infra/terraform/runtime_secrets.tf:81` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | data `oci_objectstorage_namespace.ns` | `infra/terraform/tenancy/main.tf:1` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
