@@ -588,7 +588,7 @@ jobs:
         if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
         uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: '3.15.2'
 
       - name: Install OCI CLI for Vault verification
         if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
@@ -1241,7 +1241,7 @@ jobs:
       - name: Select OCI CLI Python version
         uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: '3.15.2'
 
       - name: Install OCI CLI
         run: |
