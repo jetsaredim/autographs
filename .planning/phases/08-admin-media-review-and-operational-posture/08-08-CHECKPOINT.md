@@ -70,9 +70,13 @@ Do not close `08-08-SUMMARY.md` or Phase 8 until the human production gate is sa
   `public, max-age=60, must-revalidate` and `DYNAMIC`, and two GETs of the
   adjusted fingerprinted detail WebP returned 200 with the one-day origin
   cache header and Cloudflare `MISS` then `HIT`.
-- Authenticated admin API bypass headers and Cloudflare Rule Trace remain
-  unrecorded. Browser access was offered, but the browser connector reported
-  no accessible host; an attached tab or sanitized evidence is still needed.
+- The operator supplied two signed-in browser Network screenshots of
+  `GET /admin/api/publish/status` on 2026-11-19 at 05:07:43 and 05:07:55 UTC.
+  Both responses were 200 with `Cache-Control: no-store` and
+  `CF-Cache-Status: DYNAMIC`; neither was an edge HIT. This satisfies the
+  repeated authenticated admin API header check on a live admin endpoint.
+  Cloudflare Rule Trace remains unrecorded. The browser connector reported
+  no accessible host, so the screenshots are operator-provided evidence.
 - Rollback exercise or a specific safe-deferral reason, post-publish
   pending-change confirmation, and the completed Terraform/Ansible operating
   inventory remain open. Do not mark Plan 08-08 or Phase 8 complete.
