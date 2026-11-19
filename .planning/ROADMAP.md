@@ -246,9 +246,8 @@ Plans:
   6. Static publishing applies saved image adjustments to generated public derivatives, includes adjustment metadata in derivative cache invalidation, and keeps privacy/static contract validation intact.
   7. The admin media UI and supporting docs/tests are polished enough that image review and correction feel like part of the normal collection workflow rather than a maintenance workaround.
 
-**Plans**: 7/9 plans executed
+**Plans**: 7/8 execution plans complete; PR-specific review plans are tracked as review records
 Plans:
-- [ ] 08-PR-261-WR-05-REVISED-PLAN.md
 
 **Wave 1**
 

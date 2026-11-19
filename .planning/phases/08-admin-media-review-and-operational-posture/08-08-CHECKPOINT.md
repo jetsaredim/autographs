@@ -61,7 +61,15 @@ Do not close `08-08-SUMMARY.md` or Phase 8 until the human production gate is sa
   remains successful live apply-path evidence; no dry-run apply is claimed.
 - Local closeout gates passed: controller formatting, default tests, strict
   Clippy, production-persistence check, admin JavaScript syntax, repository
-  automation tests and hygiene, Ansible syntax, and Ansible lint.
+  automation tests and hygiene, Ansible syntax, and Ansible lint. The ignored
+  live static publish test compiled and skipped because its explicit live flag
+  was absent; compiling it exposed and resolved a digest-formatting error in
+  `live_persistence_smoke.rs`.
+- On 2026-11-19, public edge probes returned `/admin/` 200 with `no-store`
+  and `CF-Cache-Status: DYNAMIC`, `/data/collection.json` 200 with
+  `public, max-age=60, must-revalidate` and `DYNAMIC`, and two GETs of the
+  adjusted fingerprinted detail WebP returned 200 with the one-day origin
+  cache header and Cloudflare `MISS` then `HIT`.
 - Authenticated admin API bypass headers and Cloudflare Rule Trace remain
   unrecorded. Browser access was offered, but the browser connector reported
   no accessible host; an attached tab or sanitized evidence is still needed.
