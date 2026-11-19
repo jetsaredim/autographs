@@ -187,15 +187,31 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("Post-ADB plan does not contain the expected database password rotation target", production_run)
         self.assertNotIn("sync_runtime_vault_secrets.py\" bootstrap", production_run)
 
-        policy = production_run.index("scripts/validate_terraform_plan.py")
-        first_apply = production_run.index("terraform apply -input=false")
-        self.assertLess(policy, first_apply)
-        self.assertIn("plan_policy_args+=(--allow-runtime-replacement)", production_run)
+        self.assertNotIn("scripts/validate_terraform_plan.py", production_run)
         ci = yaml.load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
-        ci_plan = next(step["run"] for step in ci["jobs"]["terraform-checks"]["steps"]
+        ci_plan_step = next(step for step in ci["jobs"]["terraform-checks"]["steps"]
                        if step.get("name") == "Terraform plan")
-        self.assertIn("scripts/validate_terraform_plan.py", ci_plan)
+        ci_plan = ci_plan_step["run"]
+        self.assertIn('index("delete")', ci_plan)
+        self.assertIn('index("forget")', ci_plan)
+        self.assertIn('if [ "$DESTRUCTIVE_PLAN_APPROVED" != "true" ]', ci_plan)
+        self.assertIn("terraform-destructive-plan-approved", ci_plan_step["env"]["DESTRUCTIVE_PLAN_APPROVED"])
+        self.assertIn("labeled", ci["on"]["pull_request"]["types"])
+        self.assertIn("unlabeled", ci["on"]["pull_request"]["types"])
         self.assertIn("terraform state list | sort", ci_plan)
+        jq_filter = ci_plan.split('destructive_actions="$(terraform show -json "$terraform_plan_file" | jq -r \'', 1)[1].split("\n')\"", 1)[0]
+        plan = {"resource_changes": [
+            {"mode": "managed", "address": "oci_core_instance.runtime", "change": {"actions": ["delete", "create"]}},
+            {"mode": "managed", "address": "oci_core_vcn.main", "change": {"actions": ["update"]}},
+            {"mode": "managed", "address": "oci_objectstorage_bucket.retired", "change": {"actions": ["forget"]}},
+            {"mode": "data", "address": "data.oci_identity_compartments.project", "change": {"actions": ["read"]}},
+        ]}
+        result = subprocess.run(["jq", "-r", jq_filter], input=json.dumps(plan),
+                                text=True, capture_output=True, check=True)
+        self.assertEqual(result.stdout.splitlines(), [
+            "oci_core_instance.runtime: delete,create",
+            "oci_objectstorage_bucket.retired: forget",
+        ])
 
         bootstrap_env = next(step["env"] for step in bootstrap["steps"]
                              if step.get("name") == "Create Vault resources and populate only untouched placeholders")
