@@ -420,13 +420,24 @@ Manual dispatch selects an existing `release_tag` and `operation=retry` or
 automation and skipping Terraform. Image tags are verified against the recorded
 digest before production mutation.
 
+PR CI plans the production Terraform stack and reports managed-resource
+deletes, replacements, or state removals. That check fails
+unless a maintainer adds the `terraform-destructive-plan-approved` PR label
+after reviewing the plan output. CI accepts a destructive plan only on the
+event that adds that label; a later commit triggers a new failing plan check.
+After reviewing the updated plan, remove and re-add the label to rerun CI.
+The label
+does not override a Terraform `prevent_destroy` error or the release workflow's
+DNS guard. Tenancy bootstrap plans remain a separate operator review.
+
 When deployment is required, the deploy workflow:
 
 1. publishes or selects the semver-tagged Rust controller image in `ghcr.io`,
 2. enters the serialized `deploy-production` section and refuses superseded
    deploys before touching production,
 3. optionally taints and recreates the runtime VM when manually requested,
-4. saves a Terraform plan, rejects any Cloudflare or Porkbun DNS change during an ordinary deploy, then applies that exact plan,
+4. saves a Terraform plan, rejects any Cloudflare or Porkbun DNS change during
+   an ordinary deploy, then applies that exact plan,
 5. connects to the OCI VM over SSH through Ansible,
 6. installs/maintains Podman, firewalld, swap, and masked systemd services,
 7. copies wallet and OCI API key material to protected VM paths,

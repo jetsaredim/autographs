@@ -89,24 +89,39 @@ or valid refactor.
 | ID | Severity | Finding and evidence | Disposition | Required proof or change |
 |---|---|---|---|---|
 | IAC-001 | Warning | Before PR #358, CI, release deploy, and Cloudflare workflows substituted `false` when either optional resource-creation GitHub variable was absent. That could reduce the ADB or private media bucket `count` to zero; the database input also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). | Fixed by [PR #358](https://github.com/jetsaredim/autographs/pull/358) and verified after variable removal | The authenticated PR plan and post-removal read-only production plan both reported no changes. Explicit `false` remains available for initial bootstrap. |
-| IAC-002 | Warning | CI runs `terraform plan` against production state but does not classify or fail on destructive actions (`.github/workflows/ci.yml`). The release workflow rejects DNS changes, then applies the full remaining saved plan (`.github/workflows/deploy.yml`). | Investigate with IAC-001 | Inspect current plan and supported change policy; decide which stateful changes require an explicit operator gate. |
+| IAC-002 | Warning | CI planned against production state without making destructive actions an explicit PR review decision; routine deployment checked DNS changes before applying the saved plan. | PR review gate implemented; production proof pending | CI reports managed-resource deletion, replacement, and state-forget actions and fails unless the current PR head triggers the `terraform-destructive-plan-approved` label-add event. The release workflow still applies its saved plan after the existing DNS guard; it does not impose a second general destruction gate. Confirm the authenticated production plan and PR checks before final disposition. |
 | IAC-003 | Info | Before this cleanup, `create_network` and `create_runtime_instance` defaulted to `true`; explicit `false` would remove managed network/VM resources. No production workflow supplied either input. Runtime recreation uses a separate retry-only taint. | Resolved by [PR #361](https://github.com/jetsaredim/autographs/pull/361), pending all CI gates | Seven counted resources have `moved` mappings; ingress rule `for_each` keys remain stable. The authenticated production plan reported `0 to add, 0 to change, 0 to destroy`; retry taint accepts both state addresses. |
-| IAC-004 | Info | `cloudflare_mode` is `proxied` in production. A missing variable becomes `off` in ordinary deploy/CI, but the deploy saved-plan guard rejects changed Cloudflare resources. The operator workflow requires explicit `dns_only` or `proxied` and checks plan scope and fingerprint. | Retain pending plan proof | Confirm a no-change plan and a missing-mode rejection test; preserve proxy persistence and DNS mutation guard. |
-| IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Investigate as one contract | Trace preflight, full deploy, unfreeze, failure rescue, rollback, and fixtures before consolidating any flag. |
-| IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Investigate test seam | Verify both fixture paths and the production fail-closed behavior before changing the switch. |
+| IAC-004 | Info | `cloudflare_mode` is `proxied` in production. A missing variable becomes `off` in ordinary deploy/CI, but the deploy saved-plan guard rejects changed Cloudflare resources. The operator workflow requires explicit `dns_only` or `proxied` and checks plan scope and fingerprint. | Retain | The authenticated PR #371 plan reported no changes with the current inputs. A missing mode would propose deletion of counted Cloudflare resources, which CI flags for PR review; the existing DNS guard rejects routine DNS mutation during deployment. The manual operation still requires active mode, known state addresses, Cloudflare-only changes, and matching plan fingerprint. |
+| IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Retain | The workflow sets frozen=true for full deploy, and role assertions reject false. The unfreeze playbook alone sets frozen=false with allow_unfreeze=true; `publish_freeze.yml` rejects false without that override. Explicit cutover suppresses restart handlers until the workflow's health gate; production and render fixtures cover both freeze states. Removing one flag would weaken a distinct assertion or require a broader operation-state contract. |
+| IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Retain as fixture seam | No production workflow overrides the true role default. The false fixture path tests reboot-state classification without running DNF, while true fixtures exercise the no-op validation and failure behavior; `security-reboot-state-validate-test.yml` and `validate_reboot_state.yml` cover both values. |
 | IAC-007 | Info | `create_runtime_instance` described a retired Caddy-to-Next.js runtime. | Resolved with IAC-003 switch removal | The obsolete variable description is removed; the VM remains the Caddy/Rust runtime. |
 
 IAC-001 and IAC-002 share the stateful-resource preservation invariant. The
-source and production-plan resolution for IAC-001 is recorded below; IAC-002
-still requires a complete mutation-policy review before a separate fix.
+source and production-plan resolution for IAC-001 is recorded below. IAC-002
+now has a CI plan review check over the saved plan JSON in `.github/workflows/ci.yml`.
+It reports deletes, replacements, and state forgets, and fails unless a
+maintainer adds `terraform-destructive-plan-approved`
+to the PR after reviewing the plan. Only the label-add event accepts a
+destructive plan; a new commit fails until the label is removed and re-added
+after review of the new plan.
+In-place updates and creates pass the check. The ordinary release workflow
+does not repeat this general check; its saved-plan and DNS guards remain.
+The authenticated
+[PR #371 Terraform check](https://github.com/jetsaredim/autographs/actions/runs/44461153658/job/135347968960)
+reported `No changes. Your infrastructure matches the configuration.` under
+the earlier strict policy. All PR checks passed; the revised label gate still
+requires its own CI result.
+Final IAC-002 closure requires the reviewed PR to merge and the remaining
+operating-contract inventory to be completed.
 
 PR #354 adds `prevent_destroy` to the ADB, private media bucket, and tenancy
 state bucket. This blocks a plan that destroys or replaces one of these
 resources while its resource block remains configured, including a counted ADB
 or media bucket whose `count` becomes zero. It does not protect a resource if
-its entire configuration is removed. The missing destructive-plan policy
-remains IAC-002 work; this guard is a partial mitigation for that finding. The runtime VM
-keeps its intentional taint-and-replace recovery path.
+its entire configuration is removed. The PR #371 CI review check exposes this
+case and requires the review label, while the release workflow does not repeat
+the general guard. The runtime VM keeps its intentional taint-and-replace
+recovery path only on an explicit retry.
 
 ### IAC-001 resolution and production proof
 
@@ -499,6 +514,16 @@ the separate production state key.
 
 This list enumerates Terraform blocks, Ansible entry points and role task files, and workflow callers. The disposition for each element remains **trace pending** until its supported states, failure path, and production plan effect are checked. Paths are relative to the repository root.
 
+The authenticated [PR #371 state inventory and plan](https://github.com/jetsaredim/autographs/actions/runs/44462171052/job/135351338460)
+listed 32 Terraform state addresses and no changed managed-resource actions.
+The production runtime state includes six counted Cloudflare resources, the
+uncounted Porkbun rollback record, network/compute/data-services resources
+at their new uncounted module addresses, three Vault secret instances, the
+vault and key, and the OCI data lookups. Tenancy bootstrap has separate state.
+The CI log prints addresses and action types only, not resource values. A
+no-change plan proves the current inputs do not mutate state; it does not
+prove future inputs or removed configuration are safe.
+
 ### Terraform resources, lookups, modules, and providers
 
 | Block | Source | State owner / caller | Inputs, failure path, test, disposition |
@@ -511,6 +536,7 @@ This list enumerates Terraform blocks, Ansible entry points and role task files,
 | resource `cloudflare_ruleset.autographs_cache` | `infra/terraform/cloudflare.tf:58` | Production root / controlled DNS apply; routine deploy guarded | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | resource `porkbun_dns_record.autographs` | `infra/terraform/dns.tf:1` | Production root / controlled DNS apply; routine deploy guarded | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | data `oci_core_images.oracle_linux_10` | `infra/terraform/images.tf:1` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| data `oci_identity_compartments.project` | `infra/terraform/compartment.tf:1` | Production root / CI plan and release deploy | Looks up the project compartment by name; lookup failure blocks planning. Retain; present in production state and no-change plan. |
 | module `network` | `infra/terraform/main.tf:1` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | module `compute` | `infra/terraform/main.tf:15` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | module `data_services` | `infra/terraform/main.tf:34` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
@@ -539,10 +565,12 @@ This list enumerates Terraform blocks, Ansible entry points and role task files,
 | resource `oci_objectstorage_bucket.this` | `infra/terraform/modules/state_bucket/main.tf:6` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | provider `oci` | `infra/terraform/providers.tf:1` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | provider `porkbun` | `infra/terraform/providers.tf:11` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| provider `cloudflare` | `infra/terraform/versions.tf` | Production root / CI plan and controlled DNS apply | The workflow supplies the scoped token in active modes. Retain for the proxied zone and cache/DNS resources. |
 | resource `oci_kms_vault.runtime_secrets` | `infra/terraform/runtime_secrets.tf:21` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | resource `oci_kms_key.runtime_secrets` | `infra/terraform/runtime_secrets.tf:33` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | data `oci_vault_secrets.oracle_db_password` | `infra/terraform/runtime_secrets.tf:51` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | data `oci_vault_secrets.runtime_readiness` | `infra/terraform/runtime_secrets.tf:58` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
+| data `oci_database_autonomous_databases.rotation_target` | `infra/terraform/runtime_secrets.tf:63` | Production root / CI plan and release deploy | Looks up the existing ADB for Vault password rotation; an absent target withholds the rotation block. Retain; present in production state and no-change plan. |
 | data `oci_vault_secret.runtime_readiness` | `infra/terraform/runtime_secrets.tf:75` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | resource `oci_vault_secret.runtime` | `infra/terraform/runtime_secrets.tf:81` | Production root / CI plan and release deploy | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
 | data `oci_objectstorage_namespace.ns` | `infra/terraform/tenancy/main.tf:1` | Tenancy bootstrap / operator | Trace pending: inputs, state address, failure/recovery, validation, final disposition. |
