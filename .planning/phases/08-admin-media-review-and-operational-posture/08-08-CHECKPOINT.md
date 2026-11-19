@@ -75,8 +75,13 @@ Do not close `08-08-SUMMARY.md` or Phase 8 until the human production gate is sa
   Both responses were 200 with `Cache-Control: no-store` and
   `CF-Cache-Status: DYNAMIC`; neither was an edge HIT. This satisfies the
   repeated authenticated admin API header check on a live admin endpoint.
-  Cloudflare Rule Trace remains unrecorded. The browser connector reported
-  no accessible host, so the screenshots are operator-provided evidence.
+  The operator also supplied a Cloudflare Rules simulator screenshot for
+  `GET /admin/api/publish/status`. It shows the matched Cache Rule
+  "Bypass admin shell and private API". The matching Terraform rule has
+  `action_parameters.cache = false`. The simulated request ended 401 without
+  an admin session; the authenticated browser requests above establish the
+  separate 200 response behavior. The browser connector reported no
+  accessible host, so these screenshots are operator-provided evidence.
 - Rollback exercise or a specific safe-deferral reason, post-publish
   pending-change confirmation, and the completed Terraform/Ansible operating
   inventory remain open. Do not mark Plan 08-08 or Phase 8 complete.
