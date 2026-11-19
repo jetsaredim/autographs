@@ -195,6 +195,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         ci_plan = next(step["run"] for step in ci["jobs"]["terraform-checks"]["steps"]
                        if step.get("name") == "Terraform plan")
         self.assertIn("scripts/validate_terraform_plan.py", ci_plan)
+        self.assertIn("terraform state list | sort", ci_plan)
 
         bootstrap_env = next(step["env"] for step in bootstrap["steps"]
                              if step.get("name") == "Create Vault resources and populate only untouched placeholders")
