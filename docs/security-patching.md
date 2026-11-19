@@ -5,15 +5,28 @@ This runbook describes the production OS security update scanner and one-click a
 ## Phase 8 production verification
 
 Record `security_scan_run_id` and `dry_run_apply_run_id` in the Phase 8
-closeout summary. The latest checked scanner run
+closeout summary. [Production report #326](https://github.com/jetsaredim/autographs/issues/326)
+provides the complete approved update and reboot audit trail:
+
+1. [First update run 43556618370](https://github.com/jetsaredim/autographs/actions/runs/43556618370)
+   re-scanned the two approved advisories, found four current advisories, and
+   made no package changes. The issue was refreshed for a new approval.
+2. [Second update run 43630320143](https://github.com/jetsaredim/autographs/actions/runs/43630320143)
+   applied the four approved advisories through DNF. The post-update scan
+   reported two remaining reboot/installonly findings, with no further DNF
+   package work, and requested the separate reboot approval.
+3. [Reboot run 43631340188](https://github.com/jetsaredim/autographs/actions/runs/43631340188)
+   rebooted into the selected UEK kernel, completed installonly cleanup, and
+   reported zero remaining OpenSCAP findings and zero RHCK drift packages.
+   The issue was closed automatically.
+
+All three workflow jobs and their update/reboot playbook steps succeeded.
+Set `dry_run_apply_run_id: not performed`: the approval-label workflow has no
+dry-run mode, and these successful live update and reboot runs already exercise
+the production path. Do not relabel them as a dry run. The latest checked scanner run
 [`43932933877`](https://github.com/jetsaredim/autographs/actions/runs/43932933877)
 completed successfully on 2026-11-16, including its `Run security scan
-playbook` step. Apply run
-[`42042147529`](https://github.com/jetsaredim/autographs/actions/runs/42042147529)
-completed successfully on 2026-11-05, including `Run security update playbook`;
-it is live apply-path evidence, not a dry-run claim. If a safe dry run is not
-available, record `dry_run_apply_run_id: not performed` with that reason rather
-than triggering updates solely for closeout. Preserve the approver allowlist,
+playbook` step. Preserve the approver allowlist,
 exact issue metadata, drift refusal, and stale-label cleanup checks when
 reviewing any future apply run.
 

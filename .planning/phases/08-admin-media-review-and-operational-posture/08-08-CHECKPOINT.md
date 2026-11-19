@@ -51,14 +51,25 @@ Do not close `08-08-SUMMARY.md` or Phase 8 until the human production gate is sa
 
 ## 2026-11-19 closeout progress
 
-- [PR #371](https://github.com/jetsaredim/autographs/pull/371) adds a shared
-  destructive-plan policy to authenticated CI planning and routine release
-  applies. Its Terraform check reported a no-change production plan and all
-  initial PR checks passed. The PR remains open for review and merge.
-- [Security scan run 43932933877](https://github.com/jetsaredim/autographs/actions/runs/43932933877)
-  completed successfully on 2026-11-16, including the Ansible scan step.
-  [Apply run 42042147529](https://github.com/jetsaredim/autographs/actions/runs/42042147529)
-  remains successful live apply-path evidence; no dry-run apply is claimed.
+- [PR #371](https://github.com/jetsaredim/autographs/pull/371) merged as
+  `abc17a0` with passing PR checks. It flags destructive actions in the
+  authenticated CI plan and requires a fresh PR label-add event after review;
+  routine release deployment retains its saved-plan and DNS guards.
+- `security_scan_run_id: 43932933877` — the
+  [2026-11-16 scanner run](https://github.com/jetsaredim/autographs/actions/runs/43932933877)
+  succeeded. [Security report #326](https://github.com/jetsaredim/autographs/issues/326)
+  records the earlier approval sequence: first
+  [update run 43556618370](https://github.com/jetsaredim/autographs/actions/runs/43556618370)
+  detected advisory drift (two approved, four current) and made no package
+  changes; second
+  [update run 43630320143](https://github.com/jetsaredim/autographs/actions/runs/43630320143)
+  applied the four approved advisories and left two reboot/installonly
+  findings; [reboot run 43631340188](https://github.com/jetsaredim/autographs/actions/runs/43631340188)
+  rebooted, cleaned installonly packages, and reported zero remaining findings.
+  All three jobs and their playbook steps succeeded; the issue closed.
+  `dry_run_apply_run_id: not performed` because the approval-label update
+  workflow has no dry-run mode and the production apply/reboot path was
+  exercised live. The real runs are not described as dry runs.
 - Local closeout gates passed: controller formatting, default tests, strict
   Clippy, production-persistence check, admin JavaScript syntax, repository
   automation tests and hygiene, Ansible syntax, and Ansible lint. The ignored
