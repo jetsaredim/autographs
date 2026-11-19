@@ -17,7 +17,8 @@ FROM chef AS builder
 COPY --from=planner /workspace/recipe.json ./recipe.json
 COPY controller/image-processing ./image-processing
 
-RUN cargo chef cook --release --features production-persistence --recipe-path recipe.json \
+# cargo-chef builds placeholder targets before real source is copied in.
+RUN CARGO_BUILD_WARNINGS=allow cargo chef cook --release --features production-persistence --recipe-path recipe.json \
     && rm -rf src
 
 COPY controller/Cargo.toml controller/Cargo.lock ./
