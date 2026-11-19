@@ -136,6 +136,50 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
     def assert_action_repository(self, step: dict, repository: str) -> None:
         self.assertRegex(step["uses"], rf"^{re.escape(repository)}@[^@]+$")
 
+    def test_ci_scopes_expensive_jobs_without_skipping_required_checks(self):
+        ci = yaml.load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        jobs = ci["jobs"]
+        classifier = next(step["run"] for step in jobs["impact"]["steps"]
+                          if step.get("name") == "Classify changed paths")
+        jq_filter = classifier.split("jq -r '", 1)[1].split("' <<<\"$classification\"", 1)[0]
+        expected = {
+            "docs/phase-08-posture-findings.md": set(),
+            "controller/src/main.rs": {"controller-image", "controller-checks", "dockerfile-checks"},
+            "infra/terraform/main.tf": {"controller-checks", "terraform-checks"},
+            "deploy/ansible/playbooks/deploy.yml": {"controller-checks", "ansible-checks"},
+            "quality/ast-grep/rules/no-distributed-env-read.yml": {"controller-checks"},
+            "docs/cdn-cache-contract.md": {"controller-checks"},
+            "docs/deployment-runbook.md": {"controller-checks"},
+            ".gitignore": {"controller-checks"},
+            ".github/.env.github.example": {"controller-checks"},
+            ".github/workflows/deploy.yml": {"controller-checks", "terraform-checks", "ansible-checks"},
+            ".github/workflows/ci.yml": {
+                "controller-image", "controller-checks", "terraform-checks",
+                "ansible-checks", "dockerfile-checks",
+            },
+        }
+        for path, enabled in expected.items():
+            with self.subTest(path=path):
+                classification = release._classify_paths([path])
+                result = subprocess.run(["jq", "-r", jq_filter],
+                                        input=json.dumps(classification),
+                                        text=True, capture_output=True, check=True)
+                outputs = dict(line.split("=", 1) for line in result.stdout.splitlines())
+                self.assertEqual({name for name, value in outputs.items() if value == "true"}, enabled)
+        for name, output in {
+            "controller-checks": "controller-checks",
+            "terraform-checks": "terraform-checks",
+            "validate-ansible": "ansible-checks",
+            "dockerfile-checks": "dockerfile-checks",
+            "image-build": "controller-image",
+        }.items():
+            job = jobs[name]
+            self.assertEqual(job["needs"], "impact")
+            self.assertIn("needs.impact.result != 'success'", job["if"])
+            self.assertIn(f"needs.impact.outputs.{output} == 'true'", job["if"])
+        self.assertNotIn("paths", ci["on"]["pull_request"])
+        self.assertIn("'controller-checks=true'", classifier)
+
     def test_normal_push_gating(self):
         case = self.cases["normal_push_gating"]
         release_names = [step["name"] for step in named_steps(self.release_job)]

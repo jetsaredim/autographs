@@ -18,6 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       controller-image: ${{ steps.classify.outputs.controller-image }}
+      controller-checks: ${{ steps.classify.outputs.controller-checks }}
+      terraform-checks: ${{ steps.classify.outputs.terraform-checks }}
+      ansible-checks: ${{ steps.classify.outputs.ansible-checks }}
+      dockerfile-checks: ${{ steps.classify.outputs.dockerfile-checks }}
     steps:
       - name: Checkout history
         uses: actions/checkout@v7
@@ -33,16 +37,42 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            controller_image=true
+            printf '%s\n' \
+              'controller-image=true' \
+              'controller-checks=true' \
+              'terraform-checks=true' \
+              'ansible-checks=true' \
+              'dockerfile-checks=true' >> "$GITHUB_OUTPUT"
           else
             classification="$(python3 scripts/release.py classify-refs \
               --base "$BASE_SHA" \
               --head "$HEAD_SHA")"
-            controller_image="$(jq -r \
-              '.controllerChanged or (.changedPaths | index(".github/workflows/ci.yml") != null)' \
-              <<<"$classification")"
+            jq -r '
+              .changedPaths as $paths |
+              ($paths | index(".github/workflows/ci.yml") != null) as $ci |
+              ($paths | any(.[];
+                startswith("deploy/ansible/") or
+                startswith("quality/ast-grep/") or
+                . == "sgconfig.yml" or
+                . == "scripts/validate-runtime.sh" or
+                . == ".gitignore" or
+                . == ".env.example" or
+                . == ".github/.env.github.example" or
+                . == "docs/cdn-cache-contract.md" or
+                . == "docs/configuration-contract.md" or
+                . == "docs/deployment-runbook.md" or
+                . == "docs/oci-bootstrap.md" or
+                . == "docs/static-runtime-runbook.md"
+              )) as $runtime_contract |
+              {
+                "controller-image": (.controllerChanged or $ci),
+                "controller-checks": (.controllerChanged or .terraformChanged or .ansibleOrDeployChanged or $runtime_contract or $ci),
+                "terraform-checks": (.terraformChanged or ($paths | index(".github/workflows/deploy.yml") != null) or $ci),
+                "ansible-checks": (.ansibleOrDeployChanged or $ci),
+                "dockerfile-checks": (.controllerChanged or $ci)
+              } | to_entries[] | "\(.key)=\(.value)"
+            ' <<<"$classification" >> "$GITHUB_OUTPUT"
           fi
-          echo "controller-image=$controller_image" >> "$GITHUB_OUTPUT"
 
   workflow-checks:
     name: Workflow checks
@@ -90,6 +120,8 @@ jobs:
 
   dockerfile-checks:
     name: Dockerfile checks
+    needs: impact
+    if: ${{ !cancelled() && (needs.impact.result != 'success' || needs.impact.outputs.dockerfile-checks == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -103,6 +135,8 @@ jobs:
 
   controller-checks:
     name: Controller checks
+    needs: impact
+    if: ${{ !cancelled() && (needs.impact.result != 'success' || needs.impact.outputs.controller-checks == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -177,7 +211,7 @@ jobs:
   image-build:
     name: Build runtime images
     needs: impact
-    if: needs.impact.outputs.controller-image == 'true'
+    if: ${{ !cancelled() && (needs.impact.result != 'success' || needs.impact.outputs.controller-image == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -200,6 +234,8 @@ jobs:
 
   terraform-checks:
     name: Terraform checks
+    needs: impact
+    if: ${{ !cancelled() && (needs.impact.result != 'success' || needs.impact.outputs.terraform-checks == 'true') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -301,6 +337,8 @@ jobs:
 
   validate-ansible:
     name: Ansible syntax and lint
+    needs: impact
+    if: ${{ !cancelled() && (needs.impact.result != 'success' || needs.impact.outputs.ansible-checks == 'true') }}
     runs-on: ubuntu-latest
 
     steps:

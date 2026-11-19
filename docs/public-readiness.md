@@ -6,7 +6,10 @@ Use this checklist before making the repository public, before merging a hardeni
 
 - Confirm the current branch is not `main` or `master` before committing changes.
 - Open a normal pull request, not a draft PR.
-- Let GitHub Actions validate the PR. Treat CI as the authoritative validation gate for the current runtime: read-only workflow checks, repository secret scanning, controller formatting, controller tests, production-persistence checks, controller build, controller image build, Dockerfile linting, Terraform checks, and Ansible syntax/lint checks.
+- Let GitHub Actions validate the PR. Workflow checks and secret scanning run
+  for every PR; controller, image, Dockerfile, Terraform, and Ansible jobs run
+  when their inputs change. Documentation-only PRs keep the same check names
+  with unrelated jobs skipped.
 - Do not require retired Node app gates. The former `corepack pnpm --filter app lint`, `typecheck`, `test`, and `build` checks applied to the retired Next.js app package and are no longer part of the current static-runtime/controller surface.
 - Confirm the PR review feedback is written back to the PR as GitHub comments.
 - Confirm repository badges in `README.md` map to real workflows or clearly documented static signals.
