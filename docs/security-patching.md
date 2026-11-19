@@ -5,9 +5,9 @@ This runbook describes the production OS security update scanner and one-click a
 ## Phase 8 production verification
 
 Record `security_scan_run_id` and `dry_run_apply_run_id` in the Phase 8
-closeout summary. Scanner run
-[`41503635270`](https://github.com/jetsaredim/autographs/actions/runs/41503635270)
-completed successfully on 2026-11-02, including its `Run security scan
+closeout summary. The latest checked scanner run
+[`43932933877`](https://github.com/jetsaredim/autographs/actions/runs/43932933877)
+completed successfully on 2026-11-16, including its `Run security scan
 playbook` step. Apply run
 [`42042147529`](https://github.com/jetsaredim/autographs/actions/runs/42042147529)
 completed successfully on 2026-11-05, including `Run security update playbook`;

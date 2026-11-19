@@ -98,5 +98,7 @@ shared-media pruning took 73 ms and deleted no files. The later release had
 but not identical. This is one before/after production pair, not a controlled
 throughput benchmark.
 
-The route success log proves the publish job was recorded. The post-publish
-admin pending-change count is awaiting owner confirmation.
+The route success log proves the publish job was recorded. On 2026-11-19,
+the owner confirmed that the admin UI showed 0 pending changes. This is a
+later clean-state observation; no immediate post-publish screenshot was
+captured for the 2026-11-15 run.

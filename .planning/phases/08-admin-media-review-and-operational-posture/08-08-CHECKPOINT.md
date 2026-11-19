@@ -48,3 +48,43 @@ On 2026-11-06, public responses showed `/admin/` 200 with `Cache-Control: no-sto
 3. Capture repeated current media requests reaching `CF-Cache-Status: HIT`, public document freshness, and rollback evidence or a precise reason a rollback exercise could not be safely run.
 
 Do not close `08-08-SUMMARY.md` or Phase 8 until the human production gate is satisfied.
+
+## 2026-11-19 closeout progress
+
+- [PR #371](https://github.com/jetsaredim/autographs/pull/371) adds a shared
+  destructive-plan policy to authenticated CI planning and routine release
+  applies. Its Terraform check reported a no-change production plan and all
+  initial PR checks passed. The PR remains open for review and merge.
+- [Security scan run 43932933877](https://github.com/jetsaredim/autographs/actions/runs/43932933877)
+  completed successfully on 2026-11-16, including the Ansible scan step.
+  [Apply run 42042147529](https://github.com/jetsaredim/autographs/actions/runs/42042147529)
+  remains successful live apply-path evidence; no dry-run apply is claimed.
+- Local closeout gates passed: controller formatting, default tests, strict
+  Clippy, production-persistence check, admin JavaScript syntax, repository
+  automation tests and hygiene, Ansible syntax, and Ansible lint. The ignored
+  live static publish test compiled and skipped because its explicit live flag
+  was absent; compiling it exposed and resolved a digest-formatting error in
+  `live_persistence_smoke.rs`.
+- On 2026-11-19, public edge probes returned `/admin/` 200 with `no-store`
+  and `CF-Cache-Status: DYNAMIC`, `/data/collection.json` 200 with
+  `public, max-age=60, must-revalidate` and `DYNAMIC`, and two GETs of the
+  adjusted fingerprinted detail WebP returned 200 with the one-day origin
+  cache header and Cloudflare `MISS` then `HIT`.
+- The operator supplied two signed-in browser Network screenshots of
+  `GET /admin/api/publish/status` on 2026-11-19 at 05:07:43 and 05:07:55 UTC.
+  Both responses were 200 with `Cache-Control: no-store` and
+  `CF-Cache-Status: DYNAMIC`; neither was an edge HIT. This satisfies the
+  repeated authenticated admin API header check on a live admin endpoint.
+  The operator also supplied a Cloudflare Rules simulator screenshot for
+  `GET /admin/api/publish/status`. It shows the matched Cache Rule
+  "Bypass admin shell and private API". The matching Terraform rule has
+  `action_parameters.cache = false`. The simulated request ended 401 without
+  an admin session; the authenticated browser requests above establish the
+  separate 200 response behavior. The browser connector reported no
+  accessible host, so these screenshots are operator-provided evidence.
+- On 2026-11-19, the owner confirmed the admin UI currently shows 0 pending
+  changes. This is a later clean-state observation following the measured
+  2026-11-15 publish, not a capture immediately after that run.
+- Rollback exercise or a specific safe-deferral reason and the completed
+  Terraform/Ansible operating inventory remain open. Do not mark Plan 08-08
+  or Phase 8 complete.

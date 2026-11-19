@@ -226,6 +226,10 @@ mod live {
                 .await
                 .expect("read media revision image A"),
         );
+        let checksum_a_hex = checksum_a
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
         let checksum_b = Sha256::digest(&image_b);
         assert_ne!(checksum_a.as_slice(), checksum_b.as_slice());
         let app = router_with_stores(
@@ -306,13 +310,13 @@ mod live {
                 )
                 .await
                 .unwrap();
-            assert_redacted_live_conflict(response, original_key, &format!("{checksum_a:x}")).await;
+            assert_redacted_live_conflict(response, original_key, &checksum_a_hex).await;
         }
         let source = app.clone().oneshot(
             Request::get(format!("/admin/api/items/{item_id}/images/{image_id}/preview/source?mediaRevision={revision_a}"))
                 .header(header::COOKIE, &cookie).body(Body::empty()).unwrap()
         ).await.unwrap();
-        assert_redacted_live_conflict(source, original_key, &format!("{checksum_a:x}")).await;
+        assert_redacted_live_conflict(source, original_key, &checksum_a_hex).await;
 
         let review_b = live_json(
             app.clone()
