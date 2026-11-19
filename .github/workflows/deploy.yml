@@ -721,6 +721,14 @@ jobs:
           fi
           terraform_plan_file="$RUNNER_TEMP/runtime.tfplan"
           terraform plan -input=false -lock-timeout=10m -out="$terraform_plan_file"
+          plan_policy_args=()
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] \
+            && [ "${{ steps.request.outputs.operation }}" = "retry" ] \
+            && [ "${{ inputs.recreate_runtime_instance }}" = "true" ]; then
+            plan_policy_args+=(--allow-runtime-replacement)
+          fi
+          terraform show -json "$terraform_plan_file" \
+            | python3 "$GITHUB_WORKSPACE/scripts/validate_terraform_plan.py" "${plan_policy_args[@]}"
           terraform show -json "$terraform_plan_file" | jq -e '
             [ .resource_changes[]?
               | select(.address | test("^(cloudflare_|porkbun_dns_record\\.)"))

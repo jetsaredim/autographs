@@ -16,6 +16,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github/workflows/deploy.yml"
+CI_WORKFLOW_PATH = ROOT / ".github/workflows/ci.yml"
 FIXTURE_PATH = ROOT / "scripts/test-fixtures/release-workflow/cases.json"
 ROLE_TASKS_PATH = ROOT / "deploy/ansible/roles/autographs_deploy/tasks/main.yml"
 APP_ENV_PATH = ROOT / "deploy/ansible/roles/autographs_deploy/templates/app.env.j2"
@@ -185,6 +186,15 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertLess(first_plan, first_apply)
         self.assertIn("Post-ADB plan does not contain the expected database password rotation target", production_run)
         self.assertNotIn("sync_runtime_vault_secrets.py\" bootstrap", production_run)
+
+        policy = production_run.index("scripts/validate_terraform_plan.py")
+        first_apply = production_run.index("terraform apply -input=false")
+        self.assertLess(policy, first_apply)
+        self.assertIn("plan_policy_args+=(--allow-runtime-replacement)", production_run)
+        ci = yaml.load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        ci_plan = next(step["run"] for step in ci["jobs"]["terraform-checks"]["steps"]
+                       if step.get("name") == "Terraform plan")
+        self.assertIn("scripts/validate_terraform_plan.py", ci_plan)
 
         bootstrap_env = next(step["env"] for step in bootstrap["steps"]
                              if step.get("name") == "Create Vault resources and populate only untouched placeholders")

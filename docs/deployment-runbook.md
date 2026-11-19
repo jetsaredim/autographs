@@ -426,7 +426,7 @@ When deployment is required, the deploy workflow:
 2. enters the serialized `deploy-production` section and refuses superseded
    deploys before touching production,
 3. optionally taints and recreates the runtime VM when manually requested,
-4. saves a Terraform plan, rejects any Cloudflare or Porkbun DNS change during an ordinary deploy, then applies that exact plan,
+4. saves a Terraform plan, rejects destructive managed-resource actions and any Cloudflare or Porkbun DNS change during an ordinary deploy, then applies that exact plan,
 5. connects to the OCI VM over SSH through Ansible,
 6. installs/maintains Podman, firewalld, swap, and masked systemd services,
 7. copies wallet and OCI API key material to protected VM paths,

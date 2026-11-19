@@ -89,7 +89,7 @@ or valid refactor.
 | ID | Severity | Finding and evidence | Disposition | Required proof or change |
 |---|---|---|---|---|
 | IAC-001 | Warning | Before PR #358, CI, release deploy, and Cloudflare workflows substituted `false` when either optional resource-creation GitHub variable was absent. That could reduce the ADB or private media bucket `count` to zero; the database input also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). | Fixed by [PR #358](https://github.com/jetsaredim/autographs/pull/358) and verified after variable removal | The authenticated PR plan and post-removal read-only production plan both reported no changes. Explicit `false` remains available for initial bootstrap. |
-| IAC-002 | Warning | CI runs `terraform plan` against production state but does not classify or fail on destructive actions (`.github/workflows/ci.yml`). The release workflow rejects DNS changes, then applies the full remaining saved plan (`.github/workflows/deploy.yml`). | Investigate with IAC-001 | Inspect current plan and supported change policy; decide which stateful changes require an explicit operator gate. |
+| IAC-002 | Warning | CI planned against production state without rejecting destructive actions; routine deployment checked only DNS changes before applying the saved plan. | Guard implemented; production proof pending | CI and routine deploy now reject managed-resource delete, replacement, and state-forget actions from the saved plan. An explicit retry with `recreate_runtime_instance=true` permits replacement of only the runtime VM. Confirm the authenticated production plan and PR checks before final disposition. |
 | IAC-003 | Info | Before this cleanup, `create_network` and `create_runtime_instance` defaulted to `true`; explicit `false` would remove managed network/VM resources. No production workflow supplied either input. Runtime recreation uses a separate retry-only taint. | Resolved by [PR #361](https://github.com/jetsaredim/autographs/pull/361), pending all CI gates | Seven counted resources have `moved` mappings; ingress rule `for_each` keys remain stable. The authenticated production plan reported `0 to add, 0 to change, 0 to destroy`; retry taint accepts both state addresses. |
 | IAC-004 | Info | `cloudflare_mode` is `proxied` in production. A missing variable becomes `off` in ordinary deploy/CI, but the deploy saved-plan guard rejects changed Cloudflare resources. The operator workflow requires explicit `dns_only` or `proxied` and checks plan scope and fingerprint. | Retain pending plan proof | Confirm a no-change plan and a missing-mode rejection test; preserve proxy persistence and DNS mutation guard. |
 | IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Investigate as one contract | Trace preflight, full deploy, unfreeze, failure rescue, rollback, and fixtures before consolidating any flag. |
@@ -97,8 +97,14 @@ or valid refactor.
 | IAC-007 | Info | `create_runtime_instance` described a retired Caddy-to-Next.js runtime. | Resolved with IAC-003 switch removal | The obsolete variable description is removed; the VM remains the Caddy/Rust runtime. |
 
 IAC-001 and IAC-002 share the stateful-resource preservation invariant. The
-source and production-plan resolution for IAC-001 is recorded below; IAC-002
-still requires a complete mutation-policy review before a separate fix.
+source and production-plan resolution for IAC-001 is recorded below. IAC-002
+now has a shared plan policy in `scripts/validate_terraform_plan.py`, called
+by CI and the ordinary release workflow before apply. The policy rejects
+deletes, replacements, state forgets, and unknown managed-resource actions;
+the explicit runtime recreation retry admits only a replacement of the
+runtime VM. The existing DNS guard remains separate. Final IAC-002 closure
+requires an authenticated PR plan, passing CI, and review of the remaining
+operating-contract inventory.
 
 PR #354 adds `prevent_destroy` to the ADB, private media bucket, and tenancy
 state bucket. This blocks a plan that destroys or replaces one of these
