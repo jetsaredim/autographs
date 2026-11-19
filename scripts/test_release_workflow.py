@@ -195,7 +195,10 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn('index("delete")', ci_plan)
         self.assertIn('index("forget")', ci_plan)
         self.assertIn('if [ "$DESTRUCTIVE_PLAN_APPROVED" != "true" ]', ci_plan)
-        self.assertIn("terraform-destructive-plan-approved", ci_plan_step["env"]["DESTRUCTIVE_PLAN_APPROVED"])
+        approval_gate = ci_plan_step["env"]["DESTRUCTIVE_PLAN_APPROVED"]
+        self.assertIn("github.event.action == 'labeled'", approval_gate)
+        self.assertIn("github.event.label.name == 'terraform-destructive-plan-approved'", approval_gate)
+        self.assertNotIn("labels.*.name", approval_gate)
         self.assertIn("labeled", ci["on"]["pull_request"]["types"])
         self.assertIn("unlabeled", ci["on"]["pull_request"]["types"])
         self.assertIn("terraform state list | sort", ci_plan)

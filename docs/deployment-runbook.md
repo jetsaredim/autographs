@@ -423,9 +423,10 @@ digest before production mutation.
 PR CI plans the production Terraform stack and reports managed-resource
 deletes, replacements, or state removals. That check fails
 unless a maintainer adds the `terraform-destructive-plan-approved` PR label
-after reviewing the plan output. Adding or removing the label reruns CI.
-If the Terraform inputs or PR head change afterward, review the new plan and
-remove the label until the new destructive actions are accepted. The label
+after reviewing the plan output. CI accepts a destructive plan only on the
+event that adds that label; a later commit triggers a new failing plan check.
+After reviewing the updated plan, remove and re-add the label to rerun CI.
+The label
 does not override a Terraform `prevent_destroy` error or the release workflow's
 DNS guard. Tenancy bootstrap plans remain a separate operator review.
 
