@@ -41,13 +41,17 @@ Both new URLs returned 200 with `Cache-Control: public, max-age=86400`; the hash
 
 On 2026-11-06, public responses showed `/admin/` 200 with `Cache-Control: no-store`, unauthenticated `/admin/api/status` 401 with `no-store`, `/data/collection.json` 200 with `public, max-age=60, must-revalidate`, and the current detail WebP 200 with `public, max-age=86400`. The public responses showed `server: Caddy` and no `CF-Cache-Status` header. `dig NS jetsaredim.net` returned four Porkbun nameservers. These are origin observations and do not prove Cloudflare participation or authenticated API bypass.
 
-## Remaining gate
+## Current closeout gates
 
-1. Choose a supported Cloudflare full-zone migration or eligible partial/CNAME setup. Configure the documented bypass and public cache rules, then enable proxying. The adjusted-media and origin pre-proxy checks above passed.
-2. Capture post-proxy `/admin/` no-store, two authenticated 200 `GET /admin/api/status` responses with no-store and no edge HIT, and a matching Cloudflare Rule Trace without cookies or private bodies.
-3. Capture repeated current media requests reaching `CF-Cache-Status: HIT`, public document freshness, and rollback evidence or a precise reason a rollback exercise could not be safely run.
+The Cloudflare cutover, authenticated admin bypass, public document headers,
+and repeated media cache HIT are recorded in the progress below. Remaining:
 
-Do not close `08-08-SUMMARY.md` or Phase 8 until the human production gate is satisfied.
+1. Record a safe rollback exercise or the exact reason it was deferred, along
+   with the documented recovery path.
+2. Complete the Terraform/Ansible operating-contract inventory and final
+   P8-POSTURE-006 disposition.
+3. Write `08-08-SUMMARY.md` and update Phase 8 state and requirement status
+   after those gates are satisfied.
 
 ## 2026-11-19 closeout progress
 
