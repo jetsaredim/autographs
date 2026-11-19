@@ -150,6 +150,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             "quality/ast-grep/rules/no-distributed-env-read.yml": {"controller-checks"},
             "docs/cdn-cache-contract.md": {"controller-checks"},
             "docs/deployment-runbook.md": {"controller-checks"},
+            ".gitignore": {"controller-checks"},
             ".github/.env.github.example": {"controller-checks"},
             ".github/workflows/deploy.yml": {"controller-checks", "terraform-checks", "ansible-checks"},
             ".github/workflows/ci.yml": {

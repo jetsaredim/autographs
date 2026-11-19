@@ -55,6 +55,7 @@ jobs:
                 startswith("quality/ast-grep/") or
                 . == "sgconfig.yml" or
                 . == "scripts/validate-runtime.sh" or
+                . == ".gitignore" or
                 . == ".env.example" or
                 . == ".github/.env.github.example" or
                 . == "docs/cdn-cache-contract.md" or
