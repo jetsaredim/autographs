@@ -398,7 +398,12 @@ schemaVersion 2 taxonomy data.
 
 ## Workflow Behavior
 
-Pull requests run `.github/workflows/ci.yml`. The CI workflow checks the Rust controller, builds the controller image without pushing it, validates Terraform, and runs Ansible syntax/lint checks for the quadlet deployment.
+Pull requests run `.github/workflows/ci.yml`. Workflow checks and secret
+scanning run on every PR. The change classifier runs controller tests/image
+builds, Terraform validation and the authenticated plan, Dockerfile lint, and
+Ansible syntax/lint when the corresponding source or workflow inputs change.
+Manual CI dispatch runs the full set. Job-level skips keep the check names
+visible on documentation-only PRs without running unrelated toolchains.
 
 Ordinary merges run release-please to update its ready Release PR. Merging that
 PR creates a semantic tag and draft GitHub Release. The same workflow then
