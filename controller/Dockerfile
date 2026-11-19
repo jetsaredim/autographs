@@ -16,15 +16,18 @@ FROM chef AS builder
 
 COPY --from=planner /workspace/recipe.json ./recipe.json
 COPY controller/image-processing ./image-processing
+COPY controller/filter-cargo-chef-log.awk ./filter-cargo-chef-log.awk
 
-# cargo-chef builds placeholder targets; keep its log for failures only.
+# cargo-chef builds placeholder targets; filter their manifest warnings on success.
 RUN set -eu; \
-    if ! cargo chef cook --release --features production-persistence --recipe-path recipe.json \
+    if cargo chef cook --release --features production-persistence --recipe-path recipe.json \
         > /tmp/cargo-chef-cook.log 2>&1; then \
+        awk -f filter-cargo-chef-log.awk /tmp/cargo-chef-cook.log; \
+    else \
         cat /tmp/cargo-chef-cook.log; \
         exit 1; \
     fi; \
-    rm -rf src /tmp/cargo-chef-cook.log
+    rm -rf src /tmp/cargo-chef-cook.log filter-cargo-chef-log.awk
 
 COPY controller/Cargo.toml controller/Cargo.lock ./
 COPY controller/src ./src
