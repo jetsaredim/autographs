@@ -48,3 +48,23 @@ On 2026-11-06, public responses showed `/admin/` 200 with `Cache-Control: no-sto
 3. Capture repeated current media requests reaching `CF-Cache-Status: HIT`, public document freshness, and rollback evidence or a precise reason a rollback exercise could not be safely run.
 
 Do not close `08-08-SUMMARY.md` or Phase 8 until the human production gate is satisfied.
+
+## 2026-11-19 closeout progress
+
+- [PR #371](https://github.com/jetsaredim/autographs/pull/371) adds a shared
+  destructive-plan policy to authenticated CI planning and routine release
+  applies. Its Terraform check reported a no-change production plan and all
+  initial PR checks passed. The PR remains open for review and merge.
+- [Security scan run 43932933877](https://github.com/jetsaredim/autographs/actions/runs/43932933877)
+  completed successfully on 2026-11-16, including the Ansible scan step.
+  [Apply run 42042147529](https://github.com/jetsaredim/autographs/actions/runs/42042147529)
+  remains successful live apply-path evidence; no dry-run apply is claimed.
+- Local closeout gates passed: controller formatting, default tests, strict
+  Clippy, production-persistence check, admin JavaScript syntax, repository
+  automation tests and hygiene, Ansible syntax, and Ansible lint.
+- Authenticated admin API bypass headers and Cloudflare Rule Trace remain
+  unrecorded. Browser access was offered, but the browser connector reported
+  no accessible host; an attached tab or sanitized evidence is still needed.
+- Rollback exercise or a specific safe-deferral reason, post-publish
+  pending-change confirmation, and the completed Terraform/Ansible operating
+  inventory remain open. Do not mark Plan 08-08 or Phase 8 complete.
