@@ -91,9 +91,9 @@ or valid refactor.
 | IAC-001 | Warning | Before PR #358, CI, release deploy, and Cloudflare workflows substituted `false` when either optional resource-creation GitHub variable was absent. That could reduce the ADB or private media bucket `count` to zero; the database input also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). | Fixed by [PR #358](https://github.com/jetsaredim/autographs/pull/358) and verified after variable removal | The authenticated PR plan and post-removal read-only production plan both reported no changes. Explicit `false` remains available for initial bootstrap. |
 | IAC-002 | Warning | CI planned against production state without rejecting destructive actions; routine deployment checked only DNS changes before applying the saved plan. | Guard implemented; production proof pending | CI and routine deploy now reject managed-resource delete, replacement, and state-forget actions from the saved plan. An explicit retry with `recreate_runtime_instance=true` permits replacement of only the runtime VM. Confirm the authenticated production plan and PR checks before final disposition. |
 | IAC-003 | Info | Before this cleanup, `create_network` and `create_runtime_instance` defaulted to `true`; explicit `false` would remove managed network/VM resources. No production workflow supplied either input. Runtime recreation uses a separate retry-only taint. | Resolved by [PR #361](https://github.com/jetsaredim/autographs/pull/361), pending all CI gates | Seven counted resources have `moved` mappings; ingress rule `for_each` keys remain stable. The authenticated production plan reported `0 to add, 0 to change, 0 to destroy`; retry taint accepts both state addresses. |
-| IAC-004 | Info | `cloudflare_mode` is `proxied` in production. A missing variable becomes `off` in ordinary deploy/CI, but the deploy saved-plan guard rejects changed Cloudflare resources. The operator workflow requires explicit `dns_only` or `proxied` and checks plan scope and fingerprint. | Retain pending plan proof | Confirm a no-change plan and a missing-mode rejection test; preserve proxy persistence and DNS mutation guard. |
-| IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Investigate as one contract | Trace preflight, full deploy, unfreeze, failure rescue, rollback, and fixtures before consolidating any flag. |
-| IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Investigate test seam | Verify both fixture paths and the production fail-closed behavior before changing the switch. |
+| IAC-004 | Info | `cloudflare_mode` is `proxied` in production. A missing variable becomes `off` in ordinary deploy/CI, but the deploy saved-plan guard rejects changed Cloudflare resources. The operator workflow requires explicit `dns_only` or `proxied` and checks plan scope and fingerprint. | Retain | The authenticated PR #371 plan reported no changes with the current inputs. A missing mode would propose deletion of counted Cloudflare resources, which the new shared policy rejects in CI and deployment; the existing DNS guard also rejects routine DNS mutation. The manual operation still requires active mode, known state addresses, Cloudflare-only changes, and matching plan fingerprint. |
+| IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Retain | The workflow sets frozen=true for full deploy, and role assertions reject false. The unfreeze playbook alone sets frozen=false with allow_unfreeze=true; `publish_freeze.yml` rejects false without that override. Explicit cutover suppresses restart handlers until the workflow's health gate; production and render fixtures cover both freeze states. Removing one flag would weaken a distinct assertion or require a broader operation-state contract. |
+| IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Retain as fixture seam | No production workflow overrides the true role default. The false fixture path tests reboot-state classification without running DNF, while true fixtures exercise the no-op validation and failure behavior; `security-reboot-state-validate-test.yml` and `validate_reboot_state.yml` cover both values. |
 | IAC-007 | Info | `create_runtime_instance` described a retired Caddy-to-Next.js runtime. | Resolved with IAC-003 switch removal | The obsolete variable description is removed; the VM remains the Caddy/Rust runtime. |
 
 IAC-001 and IAC-002 share the stateful-resource preservation invariant. The
@@ -102,17 +102,20 @@ now has a shared plan policy in `scripts/validate_terraform_plan.py`, called
 by CI and the ordinary release workflow before apply. The policy rejects
 deletes, replacements, state forgets, and unknown managed-resource actions;
 the explicit runtime recreation retry admits only a replacement of the
-runtime VM. The existing DNS guard remains separate. Final IAC-002 closure
-requires an authenticated PR plan, passing CI, and review of the remaining
-operating-contract inventory.
+runtime VM. The existing DNS guard remains separate. The authenticated
+[PR #371 Terraform check](https://github.com/jetsaredim/autographs/actions/runs/44461153658/job/135347968960)
+reported `No changes. Your infrastructure matches the configuration.` and
+`Terraform managed-resource actions are permitted.` All PR checks passed.
+Final IAC-002 closure requires the reviewed PR to merge and the remaining
+operating-contract inventory to be completed.
 
 PR #354 adds `prevent_destroy` to the ADB, private media bucket, and tenancy
 state bucket. This blocks a plan that destroys or replaces one of these
 resources while its resource block remains configured, including a counted ADB
 or media bucket whose `count` becomes zero. It does not protect a resource if
-its entire configuration is removed. The missing destructive-plan policy
-remains IAC-002 work; this guard is a partial mitigation for that finding. The runtime VM
-keeps its intentional taint-and-replace recovery path.
+its entire configuration is removed. The shared saved-plan policy in PR #371
+also guards this case. The runtime VM keeps its intentional taint-and-replace
+recovery path only on an explicit retry.
 
 ### IAC-001 resolution and production proof
 
