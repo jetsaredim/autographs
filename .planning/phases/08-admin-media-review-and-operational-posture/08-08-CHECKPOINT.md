@@ -44,13 +44,12 @@ On 2026-11-06, public responses showed `/admin/` 200 with `Cache-Control: no-sto
 ## Current closeout gates
 
 The Cloudflare cutover, authenticated admin bypass, public document headers,
-and repeated media cache HIT are recorded in the progress below. Remaining:
+repeated media cache HIT, and owner-approved rollback deferral are recorded
+below. Remaining:
 
-1. Record a safe rollback exercise or the exact reason it was deferred, along
-   with the documented recovery path.
-2. Complete the Terraform/Ansible operating-contract inventory and final
+1. Complete the Terraform/Ansible operating-contract inventory and final
    P8-POSTURE-006 disposition.
-3. Write `08-08-SUMMARY.md` and update Phase 8 state and requirement status
+2. Write `08-08-SUMMARY.md` and update Phase 8 state and requirement status
    after those gates are satisfied.
 
 ## 2026-11-19 closeout progress
@@ -100,6 +99,15 @@ and repeated media cache HIT are recorded in the progress below. Remaining:
 - On 2026-11-19, the owner confirmed the admin UI currently shows 0 pending
   changes. This is a later clean-state observation following the measured
   2026-11-15 publish, not a capture immediately after that run.
-- Rollback exercise or a specific safe-deferral reason and the completed
-  Terraform/Ansible operating inventory remain open. Do not mark Plan 08-08
-  or Phase 8 complete.
+- `rollback_evidence: deferred by owner on 2026-11-20`. A rehearsal would
+  intentionally change the live Cloudflare proxy or DNS delegation without an
+  incident, introducing availability and admin-access risk for a low-probability
+  recovery scenario. The owner judged that disruption unnecessary. The
+  [DNS runbook](../../../docs/dns-runbook.md#ongoing-cloudflare-changes)
+  documents a reviewed `CLOUDFLARE_MODE=dns_only` plan and exact saved-plan
+  apply, followed by restoration to `proxied` after an incident. Short-lived
+  HTML/JSON and fingerprinted media give release rollback its documented
+  freshness behavior. No live rollback was performed or claimed.
+- The Terraform/Ansible operating inventory remains open: 120 source rows
+  still need entry-specific input, supported-state, failure/recovery, test, and
+  disposition evidence. Do not mark Plan 08-08 or Phase 8 complete.

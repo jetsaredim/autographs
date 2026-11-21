@@ -180,6 +180,14 @@ Record these fields in `08-08-SUMMARY.md` before closing Phase 8:
 | `cdn_media_cache_evidence` | Post-proxy repeated requests for one current fingerprinted `/media/*` path, including a `CF-Cache-Status: HIT` after an initial request and the origin cache header. |
 | `rollback_evidence` | A safe rollback exercise, or the exact reason it was deferred plus the documented recovery path. |
 
+For Phase 8, the owner deferred a live rollback rehearsal on 2026-11-20.
+Reversing the production proxy or DNS delegation without an incident would
+deliberately risk public availability and admin access for a low-probability
+recovery scenario. The [DNS runbook](dns-runbook.md#ongoing-cloudflare-changes)
+gives the reviewed `CLOUDFLARE_MODE=dns_only` plan and apply path, with a
+return to `proxied` after the incident. This is documented recovery guidance,
+not a claim that rollback was exercised.
+
 The owner reports production image adjustments and publishes. On 2026-11-06,
 `/data/items/5d6-ra-7-fivedesix.json` referenced
 `/media/5d6-ra-7-fivedesix/image-1-detail-70c219182f1ace41.webp`;
