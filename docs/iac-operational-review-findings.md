@@ -11,9 +11,9 @@ and the OCI state bucket. The production root owns network, runtime compute,
 Vault secrets, the staged Oracle database and private media bucket, the
 Porkbun record during migration, and the Cloudflare zone, records, strict TLS,
 and cache rules. CI plans against production state. Release deployment saves a
-plan and applies that exact file only after rejecting Cloudflare or Porkbun DNS
-changes. Manual Cloudflare operations in that workflow accept a reviewed
-change fingerprint and apply their own saved plan. Ansible handles deploy freeze, runtime
+plan and applies that exact file. PR #377 proposes that reviewed Cloudflare
+and Porkbun DNS changes use this ordinary deployment path, with `proxied` as
+the default and no separate Cloudflare dispatch job. Ansible handles deploy freeze, runtime
 replacement, health and unfreeze, rollback, security maintenance, and cleanup.
 
 The shared invariant for this review is: an ordinary release must preserve the
@@ -29,7 +29,6 @@ flowchart LR
   operator[Operator CLI] --> tenancy
   ci[PR CI plan] --> production
   deploy[Release deploy plan and apply] --> production
-  cloudflare_workflow[deploy.yml manual Cloudflare plan and apply] --> production
 
   subgraph tenancy_stack[Tenancy bootstrap stack]
     tenancy[infra/terraform/tenancy]
@@ -56,8 +55,9 @@ flowchart LR
 The two roots have separate state keys in the same OCI Object Storage bucket:
 `envs/prod/tenancy-bootstrap.tfstate` and `envs/prod/terraform.tfstate`.
 PR CI authenticates and plans only the production root; it initializes and
-validates the tenancy root without a live plan. The release and Cloudflare
-workflows also target the production root. Tenancy changes require a separate
+validates the tenancy root without a live plan. The release workflow also targets the production root. PR #377 removes its
+separate manual Cloudflare job while retaining Cloudflare resources in the
+production root and state. Tenancy changes require a separate
 operator plan against the tenancy bootstrap state before apply.
 
 ## Production inputs observed
@@ -87,13 +87,13 @@ or valid refactor.
 
 | ID | Severity | Finding and evidence | Disposition | Required proof or change |
 |---|---|---|---|---|
-| IAC-001 | Warning | Before PR #358, CI, release deploy, and Cloudflare workflows substituted `false` when either optional resource-creation GitHub variable was absent. That could reduce the ADB or private media bucket `count` to zero; the database input also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). | Fixed by [PR #358](https://github.com/jetsaredim/autographs/pull/358) and verified after variable removal | The authenticated PR plan and post-removal read-only production plan both reported no changes. Explicit `false` remains available for initial bootstrap. |
-| IAC-002 | Warning | CI planned against production state without making destructive actions an explicit PR review decision; routine deployment checked DNS changes before applying the saved plan. | Gate merged in [PR #371](https://github.com/jetsaredim/autographs/pull/371); final operating review pending | CI reports managed-resource deletion, replacement, and state-forget actions and fails unless the current PR head triggers the `terraform-destructive-plan-approved` label-add event. The release workflow still applies its saved plan after the existing DNS guard; it does not impose a second general destruction gate. The PR passed checks and merged as `abc17a0`; its authenticated production plan reported no changes. |
+| IAC-001 | Warning | Before PR #358, CI, release deploy, and the former Cloudflare job substituted `false` when either optional resource-creation GitHub variable was absent. That could reduce the ADB or private media bucket `count` to zero; the database input also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). | Fixed by [PR #358](https://github.com/jetsaredim/autographs/pull/358) and verified after variable removal | The authenticated PR plan and post-removal read-only production plan both reported no changes. Explicit `false` remains available for initial bootstrap. |
+| IAC-002 | Warning | CI planned against production state without making destructive actions an explicit PR review decision; routine deployment checked DNS changes before applying the saved plan. | Gate merged in [PR #371](https://github.com/jetsaredim/autographs/pull/371); final operating review pending | CI reports managed-resource deletion, replacement, and state-forget actions and fails unless the current PR head triggers the `terraform-destructive-plan-approved` label-add event. The release workflow currently applies its saved plan after the DNS guard; PR #377 removes that guard and uses the ordinary reviewed release path; it does not impose a second general destruction gate. The PR passed checks and merged as `abc17a0`; its authenticated production plan reported no changes. |
 | IAC-003 | Info | Before this cleanup, `create_network` and `create_runtime_instance` defaulted to `true`; explicit `false` would remove managed network/VM resources. No production workflow supplied either input. Runtime recreation uses a separate retry-only taint. | Resolved by [PR #361](https://github.com/jetsaredim/autographs/pull/361), merged as `0b7c20a` | Seven counted resources have `moved` mappings; ingress rule `for_each` keys remain stable. The authenticated production plan reported `0 to add, 0 to change, 0 to destroy`; retry taint accepts both state addresses. |
-| IAC-004 | Info | `cloudflare_mode` is `proxied` in production. A missing variable becomes `off` in ordinary deploy/CI, but the deploy saved-plan guard rejects changed Cloudflare resources. The operator workflow requires explicit `dns_only` or `proxied` and checks plan scope and fingerprint. | Retain | The authenticated PR #371 plan reported no changes with the current inputs. A missing mode would propose deletion of counted Cloudflare resources, which CI flags for PR review; the existing DNS guard rejects routine DNS mutation during deployment. The manual operation still requires active mode, known state addresses, Cloudflare-only changes, and matching plan fingerprint. |
+| IAC-004 | Warning | The current GitHub variable is `proxied`, but the Terraform and ordinary workflow defaults are `off`. Removing the variable prematurely would plan deletion of counted Cloudflare resources. | Change proposed in [PR #377](https://github.com/jetsaredim/autographs/pull/377); production verification pending | Set Terraform and CI/deploy defaults to `proxied`, retain the optional override for `dns_only` rollback or first bootstrap `off`, and route reviewed DNS/cache changes through the ordinary saved release plan. After the workflow reaches production, remove the GitHub variable and confirm a subsequent authenticated plan has no changes. |
 | IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Retain | The workflow sets frozen=true for full deploy, and role assertions reject false. The unfreeze playbook alone sets frozen=false with allow_unfreeze=true; `publish_freeze.yml` rejects false without that override. Explicit cutover suppresses restart handlers until the workflow's health gate; production and render fixtures cover both freeze states. Removing one flag would weaken a distinct assertion or require a broader operation-state contract. |
 | IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Retain as fixture seam | No production workflow overrides the true role default. The false fixture path tests reboot-state classification without running DNF, while true fixtures exercise the no-op validation and failure behavior; `security-reboot-state-validate-test.yml` and `validate_reboot_state.yml` cover both values. |
-| IAC-007 | Info | `create_runtime_instance` described a retired Caddy-to-Next.js runtime. | Resolved with IAC-003 switch removal | The obsolete variable description is removed; the VM remains the Caddy/Rust runtime. |
+| IAC-007 | Info | `create_runtime_instance` formerly described the retired Node runtime, and the Ansible deploy role still stopped and removed the old `autographs-app` unit, quadlet, and container. | Terraform description resolved with IAC-003; Ansible cleanup proposed in [PR #376](https://github.com/jetsaredim/autographs/pull/376) | Remove the three obsolete cleanup tasks and active runbook instructions. Confirm no active deploy reference remains and Ansible syntax/lint pass; PR review and CI remain pending. |
 
 IAC-001 and IAC-002 share the stateful-resource preservation invariant. The
 source and production-plan resolution for IAC-001 is recorded below. IAC-002
@@ -104,7 +104,7 @@ to the PR after reviewing the plan. Only the label-add event accepts a
 destructive plan; a new commit fails until the label is removed and re-added
 after review of the new plan.
 In-place updates and creates pass the check. The ordinary release workflow
-does not repeat this general check; its saved-plan and DNS guards remain.
+does not repeat this general check; it applies a saved plan. PR #377 removes the DNS-only guard after Release PR review.
 The authenticated
 [PR #371 Terraform check](https://github.com/jetsaredim/autographs/actions/runs/44461153658/job/135347968960)
 reported `No changes. Your infrastructure matches the configuration.` under
@@ -176,7 +176,7 @@ proposed refactor that removes the input and its conditional consumers.
 | Media bucket `versioning` | Hardcoded `Enabled` in the data services resource in PR #354 | Preserves private Object Storage recovery posture. Existing counted resource address is unchanged. | Local validation and PR CI production no-change plan passed. |
 | Root and tenancy OCI `auth` | Terraform default `APIKey`; accepts `APIKey`/`SecurityToken` | Selects OCI provider authentication for production or bootstrap state. | Confirm each root's operator entry point and credential source. |
 | State bucket `storage_tier` | Hardcoded `Standard` in the state bucket module in PR #354 | Keeps Terraform state promptly retrievable. Existing uncounted resource address is unchanged. | Local validation and authenticated tenancy-root no-change plan passed on 2026-11-15; no apply. |
-| `cloudflare_mode` | GitHub variable `proxied`; root default and deploy/CI fallback `off` | Counts zone, records, TLS, rules; `dns_only` preserves zone but changes proxy flag; ordinary deploy DNS guard rejects changes. | IAC-004; preserve controlled transitions. |
+| `cloudflare_mode` | Current GitHub variable `proxied`; PR #377 makes root and workflow fallback `proxied` | Counts zone, records, TLS, rules; `dns_only` preserves the zone but changes the app A-record proxy flag. | IAC-004; remove the stored variable only after the new workflow reaches production and verify a no-change plan. |
 | `bootstrap_runtime_secrets` | Root Terraform Boolean defaults `false`; reviewer-gated `bootstrap_secrets` dispatch sets `true` in `deploy.yml` | `false` reads password/readiness bundles and can attach ADB rotation; `true` omits those reads and rotation during targeted Vault creation before ADB exists. Using `true` in an ordinary deploy would bypass readiness, so only the scoped bootstrap job supplies it. | Retain. Normal path has a production no-change plan; bootstrap guards and `test_release_workflow.py` cover the true route, with no live bootstrap claim. |
 | `runtime_secret_values_ready` | Derived from three Vault CURRENT-version checks during normal plans | Blocks ADB creation/update until the generated DB password and manually populated secrets are ready. Bootstrap skips the reads only during its saved targeted plan. | Preserve fail-closed precondition; verify missing and bootstrap versions. |
 | `autographs_deploy_publish_frozen` | Role default and deploy input `true`; unfreeze sets `false` | Full-deploy assertion and exact Caddy publish gate. | IAC-005; trace as one cutover contract. |
@@ -186,18 +186,75 @@ proposed refactor that removes the input and its conditional consumers.
 | `autographs_publish_freeze_fixture_mode` | Preflight default `false`; disposable `test_publish_freeze_deploy.py` supplies `true` | `false` runs production systemd Caddy restart and controller stop; `true` substitutes local Caddy reload and simulated stop only after local connection, `media-probe.invalid`, temporary path, and environment assertions. | Retain test adapter. Source and Python fixture cover the branch; CI syntax-checks the playbook but does not execute this integration fixture. |
 | `autographs_publish_unfreeze_fixture_mode` | Unfreeze default `false`; disposable `test_publish_freeze_deploy.py` supplies `true` | `false` uses systemd on success/rescue; `true` reloads local fixture Caddy under the same local/domain/path/environment guard. | Retain test adapter; source and Python fixture cover both branches, with no CI behavior-run claim. |
 | `autographs_deploy_fixture_mode` | Deploy role defaults to `false`; `publish-freeze-role-reaudit-test.yml` sets `true` | `false` starts/restarts production Caddy under cutover; `true` uses guarded local fixture reload in success and rescue, preventing a fixture from touching production services. | Retain test adapter; CI syntax/lint only for this fixture, behavior execution remains unproven here. |
-| `autographs_system_cleanup_dry_run` | Role default string `"false"`; image-cleanup workflow input | Controls Podman cleanup mutation. | Verify preview and execute paths. |
+| `autographs_system_cleanup_dry_run` | Role default string `"false"`; image-cleanup workflow input | `true` reports selected images and a would-prune message; `false` removes selected old images and prunes dangling images. Scheduled local cleanup uses `false`; manual input may preview. | Retain; preview and execute are distinct operator choices. |
 | `security_patching_reboot_validate_dnf_noop` | Role default `true`; fixture overrides true/false | Gates DNF no-op proof before reboot cleanup. | IAC-006; verify production and test seam. |
 | `security_patching_require_request_instance_match` | Target-scope helper defaults `false`; approval, update/reboot classification, and result tasks pass `true` | `false` still requires a configured nonempty live target group for scanner publication; `true` also requires the approved issue host set to match it exactly before mutation or success reporting. | Retain. Target-scope fixture passed locally with its declared inventory; production apply/reboot runs cover selected true paths. |
 | `security_patching_ksplice_apply_mode` | Patch task fixes `report_only`; result template reports it | No mutating Ksplice mode is reachable; changing this value would alter the maintenance contract and needs a separate reviewed plan. | Retain as fixed reporting value; update-result fixture and Python source test cover `report_only`. |
 | Security update/reboot approval labels | GitHub issue labels and approved workflow events | Separate update and reboot paths validate current scanner state before mutation. | Trace issue update, approval removal, cleanup, and retry. |
 | `recreate_runtime_instance` | Deploy workflow dispatch Boolean, default false | Retry-only taint of tracked compute address before saved plan. | Verify replacement gate and rollback path. |
 | CI `DESTRUCTIVE_PLAN_APPROVED` | False for ordinary PR events; true only on a fresh `terraform-destructive-plan-approved` label-add event for the current PR head | False rejects managed deletes, replacements, and state forgets; true permits the reviewed plan to pass CI, with a new commit requiring a fresh label event. | Retain; `test_release_workflow.py` exercises the jq action classifier and label event gate; PR #371 passed and merged. |
-| Release `operation` | Push to `main` follows normal release; manual choices are `retry`, `rollback`, `bootstrap_secrets`, `cloudflare_plan`, and `cloudflare_apply` | Retry can taint/replace the VM, rollback selects a verified controller digest, bootstrap targets only Vault resources, and Cloudflare apply requires a matching saved-plan fingerprint; each is gated to its own job. | Retain separate transitions; `test_release_workflow.py` covers routing, but only cited production runs prove live paths. |
-| Cloudflare `operation` | Manual `cloudflare_plan` or `cloudflare_apply` | Plan is read-only; apply requires a matching nonempty fingerprint and Cloudflare-only changed resources, preventing DNS mutations during ordinary deploy. | Current plan-only and guarded cutover runs passed; retain. |
+| Release `operation` | Push to `main` follows normal release; PR #377 retains manual `retry`, `rollback`, and `bootstrap_secrets` | Retry can taint/replace the VM, rollback selects a verified controller digest, and bootstrap targets only Vault resources. Cloudflare changes use the ordinary release plan/apply. | PR #377 workflow tests pass locally; production CI and deployment proof remain pending. |
+| Cloudflare `operation` | Historical manual `cloudflare_plan` or `cloudflare_apply`; removed by PR #377 | The same Terraform root and state remain. The ordinary release creates and applies a saved plan and logs changed DNS resource addresses/actions. | Superseded by the owner-selected ordinary deploy path after PR review; keep historical migration evidence. |
 | Historical v0.5.0 `operation` | `complete-v0.5.0.yml` manual `complete` or `finalize` | `complete` requires exact frozen release and origin state before unfreeze; `finalize` requires a prior successful unfreeze run before GitHub bookkeeping. Current proxied DNS likely fails its fixed origin-IP guard. | Retain as historical, fail-closed record pending a separate retirement decision; do not present as current recovery procedure. |
 | Controller provider modes | Deploy defaults `oracle` and `oci-instance-principal`; role/config also allow `local` | Production selections keep Oracle metadata and private OCI originals; local values route to nonproduction adapters and must not be used for production release. | Retain for local/CI work; deploy assertions and configuration contract guard production values. |
 | Image cleanup `dry_run` / `remote_operation` | Scheduled or manual `image-cleanup.yml`; manual options `inventory`/`delete` | Scheduled local Podman cleanup gets `dry_run=false` and may prune; scheduled GHCR remains dry-run. Manual GHCR deletion requires explicit `delete`; the manual local dry-run input is independent. | Trace both local and remote actions and protected tags. |
+
+### Cutover, cleanup, and reboot flows for owner review
+
+```mermaid
+flowchart LR
+  preflight[Freeze preflight records release and digest] --> full[Full deploy: frozen and explicit cutover]
+  full --> health[Controller and Caddy health checks]
+  health --> verify[Unfreeze verify-only: prove origin readiness]
+  verify --> unfreeze[Unfreeze: remove Caddy publish gate]
+  unfreeze --> postcheck[Confirm private publish routes require auth]
+```
+
+The full deploy role requires both `autographs_deploy_publish_frozen=true` and
+`autographs_deploy_explicit_cutover=true` before changing runtime files. The
+first inserts the Caddy gate that returns 503 for full and incremental publish
+requests while leaving status routed to the controller. The second suppresses
+ordinary restart handlers so service changes occur at the workflow's explicit
+cutover point. Neither switch is an operator choice in the ordinary release.
+The dedicated unfreeze playbook alone sets `publish_frozen=false` together
+with `allow_unfreeze=true`; the shared Caddy task rejects gate removal without
+that allowance. The workflow calls the playbook first with
+`autographs_publish_unfreeze_verify_only=true` for origin/marker proof, then
+with `false` to remove the gate, restart Caddy, and confirm publish requests
+return authentication responses without starting a publish. A failed proof
+keeps or restores the gate and its durable freeze record. Sources:
+`deploy.yml`, `roles/autographs_deploy/tasks/main.yml`,
+`roles/autographs_deploy/tasks/publish_freeze.yml`,
+`roles/autographs_deploy/handlers/main.yml`, and `publish-unfreeze.yml`.
+
+`autographs_system_cleanup_dry_run` is a local Podman image cleanup switch,
+separate from GHCR cleanup. The scheduled workflow passes `false`, so it may
+remove selected old images and prune dangling images; a manual `true` run
+prints candidates and a would-prune message without those mutations. The
+role's string default is `"false"`; callers must request preview explicitly.
+Sources: `image-cleanup.yml` and
+`roles/autographs_system_cleanup/tasks/main.yml`.
+
+`security_patching_reboot_validate_dnf_noop` defaults to `true` in production.
+Before an approved reboot, the role runs `dnf --assumeno upgrade-minimal
+--security` for the approved advisories and requires a successful no-work
+result. It records bounded failure evidence if package work remains. Test
+fixtures set the switch to `false` only to exercise reboot-state branches
+without invoking live DNF; other fixtures leave it `true` and inject bounded
+probe results. Sources: `roles/security_patching/defaults/main.yml`,
+`roles/security_patching/tasks/validate_reboot_state.yml`, and
+`playbooks/security-reboot-state-validate-test.yml`.
+
+`runtime_secret_values_ready` is a Terraform-derived readiness check, not a
+GitHub Secret. Before the first normal ADB create/update, Vault must show
+CURRENT versions greater than one for the manually populated admin password
+hash and wallet password, and greater than one for the DB password unless its
+first version was generated automatically. The `bootstrap_secrets` workflow
+uses the GitHub Secrets to populate untouched Vault placeholders under the
+separate secret-audit gate. Merely setting the GitHub Secrets does not make
+the normal Terraform precondition pass: the Vault versions must be present.
+Sources: `infra/terraform/runtime_secrets.tf`,
+`infra/terraform/modules/data_services/main.tf`, and `deploy.yml`.
 
 ### Fixture probe adapter census
 
@@ -261,9 +318,9 @@ The bucket name and namespace outputs do not depend on the Boolean. Terraform
 now manages the bucket unconditionally, rejects an empty namespace, and maps
 `module.data_services.oci_objectstorage_bucket.media[0]` to
 `module.data_services.oci_objectstorage_bucket.media` with a `moved` block.
-The release workflow still rejects DNS changes; the manual Cloudflare job
-rejects non-Cloudflare changes. Neither should apply this move without a
-reviewed production plan.
+At the time of this move, release deploy rejected DNS changes and the manual
+Cloudflare job rejected non-Cloudflare changes. PR #377 changes that later
+operating contract; the original state move required a reviewed production plan.
 
 The previous `false` state was used only to postpone bucket creation until the
 operator knew the namespace; there is no secret or data lookup dependency.
@@ -297,8 +354,9 @@ latest-image choice; production's current lookup remains reachable.
 The release workflow consumes the VM address in its deliberate taint path.
 That path accepts either the old `[0]` or the new uncounted state address
 during the first migration deploy, then plans the same requested replacement.
-The routine Terraform plan, output values passed to Ansible, DNS guard, and
-Cloudflare-only operator plan remain direct reporting/action consumers. Local
+The routine Terraform plan and output values passed to Ansible remain direct
+reporting/action consumers; the then-current DNS guard and operator plan also
+consumed the address before PR #377 proposed their retirement. Local
 Terraform formatting and validation, the workflow retry contract test, and
 an authenticated production plan are required. The
 [PR #361 Terraform check](https://github.com/jetsaredim/autographs/actions/runs/44186083100/job/134402863195)
@@ -371,8 +429,9 @@ removed after the no-change check. The DNS GitHub variables
 the production plan on commit `95ffd71` reported `No changes` (run
 `43784625375`). The two `OCI_CREATE_*` values were subsequently removed after
 PR #358 made their workflow fallbacks `true` and a post-removal plan reported
-no changes. `CLOUDFLARE_MODE` is `proxied` while its fallback is `off`; it
-remains under IAC-004 review.
+no changes. `CLOUDFLARE_MODE` remains set to `proxied` in GitHub. PR #377 changes its
+Terraform and workflow defaults to `proxied`; remove the stored variable only
+after that workflow reaches production, then verify a no-change plan.
 
 ### Derived naming contract in PR #354
 
@@ -581,7 +640,7 @@ the separate production state key.
 | `apply-security-updates.yml` / `security-patch.yml` | Re-scan and approval validation precede advisory-scoped DNF mutation. | Failure workflow invokes `security-patch-cleanup.yml` to clear stale approval. | Verify drift and partial-apply paths against current fixtures. |
 | `reboot-security-runtime.yml` / `security-reboot.yml` | Re-scan and kernel/approval checks precede reboot and installonly cleanup. | Post-reboot scan reports remaining findings; failed workflow invokes cleanup. | Verify both DNF no-op flag values and target-scope fixtures. |
 | `image-cleanup.yml` / `system-cleanup.yml` | Podman and GHCR image pruning use independent dry-run/operation inputs. | Protected tags and retained counts guard active versions. | Verify scheduled and explicit-delete paths. |
-| `deploy.yml` `cloudflare` job | Manual `cloudflare_plan` or fingerprint-gated `cloudflare_apply` of an exact saved plan containing Cloudflare changes only. | Required state addresses and zone identity are checked before planning; non-Cloudflare changes abort. The release job only accepts `retry` or `rollback`. | Capture full state list and sanitized action summary without values. |
+| `deploy.yml` `cloudflare` job | Historical manual plan/apply of Cloudflare-only changes; PR #377 removes this job. | Cloudflare remains in the shared production root. Release deploy logs changed DNS actions and applies its saved plan after Release PR review. | PR #377 CI and post-release verification pending. |
 
 ## Source inventory
 
@@ -612,13 +671,13 @@ changed plan without review. A source-only test is identified as such.
 
 | Block | Source | State owner / caller | Inputs, failure path, test, disposition |
 |---|---|---|---|
-| resource `cloudflare_zone.domain` | `infra/terraform/cloudflare.tf:6` | Production root / controlled DNS apply; routine deploy guarded | Mode `off` removes counted zone; `dns_only` or `proxied` requires account ID and full-zone name. State `cloudflare_zone.domain[0]`; controlled DNS apply rejects absent zone/state or changed fingerprint, routine deploy rejects DNS changes. Production no-change plan and DNS cutover run `42748453909`; retain. |
-| resource `cloudflare_dns_record.autographs` | `infra/terraform/cloudflare.tf:16` | Production root / controlled DNS apply; routine deploy guarded | Count follows active mode; compute public IP supplies A target; only `proxied` sets proxy and automatic TTL. State `cloudflare_dns_record.autographs[0]`; operator saved-plan gate controls changes and DNS runbook gives `dns_only` incident recovery. No-change plan plus post-cutover run `42748759564`; retain. |
-| resource `cloudflare_dns_record.mail` | `infra/terraform/cloudflare.tf:27` | Production root / controlled DNS apply; routine deploy guarded | Active-mode MX at zone apex targets `smtp.google.com`, priority 1, DNS-only. State `cloudflare_dns_record.mail[0]`; operator-only change and post-cutover three-record check protect mail routing. No-change plan and run `42748759564`; retain. |
-| resource `cloudflare_dns_record.spf` | `infra/terraform/cloudflare.tf:39` | Production root / controlled DNS apply; routine deploy guarded | Active-mode DNS-only TXT SPF at zone apex; a wrong value can break mail policy. State `cloudflare_dns_record.spf[0]`; operator saved-plan review and three-record post-cutover check are recovery gates. No-change plan and run `42748759564`; retain. |
-| resource `cloudflare_zone_setting.strict_tls` | `infra/terraform/cloudflare.tf:50` | Production root / controlled DNS apply; routine deploy guarded | Active mode pins SSL setting to `strict` on the managed zone; failed certificate validation blocks safe proxy use. State `cloudflare_zone_setting.strict_tls[0]`; controlled apply precedes proxy activation, DNS runbook checks origin HTTPS. No-change plan and guarded cutover; retain. |
-| resource `cloudflare_ruleset.autographs_cache` | `infra/terraform/cloudflare.tf:58` | Production root / controlled DNS apply; routine deploy guarded | Active mode installs admin/API bypass, rollback-sensitive document bypass, and origin-respecting media/assets cache rules. State `cloudflare_ruleset.autographs_cache[0]`; controlled apply and edge checks detect misrouting. No-change plan, admin Rule Trace, media MISS/HIT checkpoint; retain. |
-| resource `porkbun_dns_record.autographs` | `infra/terraform/dns.tf:1` | Production root / controlled DNS apply; routine deploy guarded | Existing record ID imports the A record; module compute IP feeds target and TTL input remains operator-set. State `porkbun_dns_record.autographs`; routine deploy refuses DNS mutation, record retained as registrar-side recovery copy. Production no-change plan; retain until separately reviewed state retirement. |
+| resource `cloudflare_zone.domain` | `infra/terraform/cloudflare.tf:6` | Production root; PR #377 routes DNS changes through ordinary release deploy | Mode `off` removes counted zone; `dns_only` or `proxied` requires account ID and full-zone name. State `cloudflare_zone.domain[0]`; the prior manual DNS apply checked zone/state and fingerprint; PR #377 retires that route. Production no-change plan and DNS cutover run `42748453909`; retain. |
+| resource `cloudflare_dns_record.autographs` | `infra/terraform/cloudflare.tf:16` | Production root; PR #377 routes DNS changes through ordinary release deploy | Count follows active mode; compute public IP supplies A target; only `proxied` sets proxy and automatic TTL. State `cloudflare_dns_record.autographs[0]`; operator saved-plan gate controls changes and DNS runbook gives `dns_only` incident recovery. No-change plan plus post-cutover run `42748759564`; retain. |
+| resource `cloudflare_dns_record.mail` | `infra/terraform/cloudflare.tf:27` | Production root; PR #377 routes DNS changes through ordinary release deploy | Active-mode MX at zone apex targets `smtp.google.com`, priority 1, DNS-only. State `cloudflare_dns_record.mail[0]`; operator-only change and post-cutover three-record check protect mail routing. No-change plan and run `42748759564`; retain. |
+| resource `cloudflare_dns_record.spf` | `infra/terraform/cloudflare.tf:39` | Production root; PR #377 routes DNS changes through ordinary release deploy | Active-mode DNS-only TXT SPF at zone apex; a wrong value can break mail policy. State `cloudflare_dns_record.spf[0]`; operator saved-plan review and three-record post-cutover check are recovery gates. No-change plan and run `42748759564`; retain. |
+| resource `cloudflare_zone_setting.strict_tls` | `infra/terraform/cloudflare.tf:50` | Production root; PR #377 routes DNS changes through ordinary release deploy | Active mode pins SSL setting to `strict` on the managed zone; failed certificate validation blocks safe proxy use. State `cloudflare_zone_setting.strict_tls[0]`; controlled apply precedes proxy activation, DNS runbook checks origin HTTPS. No-change plan and guarded cutover; retain. |
+| resource `cloudflare_ruleset.autographs_cache` | `infra/terraform/cloudflare.tf:58` | Production root; PR #377 routes DNS changes through ordinary release deploy | Active mode installs admin/API bypass, rollback-sensitive document bypass, and origin-respecting media/assets cache rules. State `cloudflare_ruleset.autographs_cache[0]`; controlled apply and edge checks detect misrouting. No-change plan, admin Rule Trace, media MISS/HIT checkpoint; retain. |
+| resource `porkbun_dns_record.autographs` | `infra/terraform/dns.tf:1` | Production root; PR #377 routes DNS changes through ordinary release deploy | Existing record ID imports the A record; module compute IP feeds target and TTL input remains operator-set. State `porkbun_dns_record.autographs`; routine deploy refuses DNS mutation, record retained as registrar-side recovery copy. Production no-change plan; retain until separately reviewed state retirement. |
 | data `oci_core_images.oracle_linux_10` | `infra/terraform/images.tf:1` | Production root / CI plan and release deploy | Empty explicit image OCID enables one newest AVAILABLE Oracle Linux 10 lookup for configured shape; explicit OCID disables it. State `data.oci_core_images.oracle_linux_10[0]` when enabled; no match fails VM image precondition, while source-ID drift is ignored until explicit retry taint. Production no-change plan; retain. |
 | data `oci_identity_compartments.project` | `infra/terraform/compartment.tf:1` | Production root / CI plan and release deploy | Looks up the project compartment by name; lookup failure blocks planning. Retain; present in production state and no-change plan. |
 | module `network` | `infra/terraform/main.tf:1` | Production root / CI plan and release deploy | Uncounted production module receives compartment, VCN/subnet CIDRs, SSH/HTTP/HTTPS CIDR allowlists and tags; publishes subnet/NSG IDs to compute. Child moved blocks preserve former `[0]` addresses; bad CIDRs or provider errors fail saved plan. Production no-change plan after PR #361; retain. |
@@ -648,7 +707,7 @@ changed plan without review. A source-only test is identified as such.
 | resource `oci_core_subnet.public` | `infra/terraform/modules/network/main.tf:127` | Production root / release deploy | State `module.network.oci_core_subnet.public`; CIDR, public-IP allowance and route table supply VM subnet. `[0]` move preserves state; replacement can cut origin, so review destructive plan and rollback/deploy health. Production no-change plan; retain. |
 | resource `oci_objectstorage_bucket.this` | `infra/terraform/modules/state_bucket/main.tf:6` | Tenancy bootstrap / operator | State `module.state_bucket.oci_objectstorage_bucket.this`; namespace/name create private versioned Standard state bucket with `prevent_destroy`. `[0]` move preserves address; loss would strand both state keys, so review tenancy plan before apply. Tenancy no-change plan and address listing; retain. |
 | provider `oci` | `infra/terraform/providers.tf:1` | Production root / CI plan and release deploy | Production provider takes auth mode, tenancy/user/fingerprint/key/profile and region from workflow/operator inputs. Bad credentials/region fail refresh before saved-plan apply; CI authenticated no-change plan checks current path. Retain. |
-| provider `porkbun` | `infra/terraform/providers.tf:11` | Production root / CI plan and release deploy | Provider takes scoped API/secret keys; missing or invalid keys fail record refresh/plan. Ordinary deploy DNS guard blocks changed plan, while controlled cutover retains the imported record. Production no-change plan; retain until reviewed state retirement. |
+| provider `porkbun` | `infra/terraform/providers.tf:11` | Production root / CI plan and release deploy | Provider takes scoped API/secret keys; missing or invalid keys fail record refresh/plan. The old deploy DNS guard blocks changed plans; PR #377 routes reviewed changes through ordinary deploy while retaining the imported record. Production no-change plan; retain until reviewed state retirement. |
 | provider `cloudflare` | `infra/terraform/versions.tf` | Production root / CI plan and controlled DNS apply | The workflow supplies the scoped token in active modes. Retain for the proxied zone and cache/DNS resources. |
 | resource `oci_kms_vault.runtime_secrets` | `infra/terraform/runtime_secrets.tf:21` | Production root / CI plan and release deploy | State `oci_kms_vault.runtime_secrets`; project compartment/name create Vault. `prevent_destroy` blocks destructive plan while configured; missing Vault prevents secret lookups and ADB readiness. Production no-change plan; retain. |
 | resource `oci_kms_key.runtime_secrets` | `infra/terraform/runtime_secrets.tf:33` | Production root / CI plan and release deploy | State `oci_kms_key.runtime_secrets`; vault endpoint and AES-256 software key encrypt three runtime secrets. `prevent_destroy` blocks deletion; bad key breaks secret creation, reviewed plan guards rotation. Production no-change plan; retain. |
@@ -786,7 +845,7 @@ review surface and may contain private production inputs.
 | `.github/workflows/deploy.yml` `cloudflare` job | Manual operator plan/apply in the release workflow | Main-only dispatch, production environment, active zone/state checks, Cloudflare-only plan scope, fingerprint-gated exact saved-plan apply; routing test prevents release deploy. |
 | `.github/workflows/complete-v0.5.0.yml` | Historical frozen release completion | Manual `complete` or `finalize` from main only; fixed v0.5.0 tag/source/runtime IP and GH token plus SSH key. Exact tag, manifest, immutable recovery assets and playbook byte digests precede verify-only unfreeze, actual unfreeze and release publication; `finalize` requires prior successful run evidence. Failure leaves draft or frozen state for retry; historical one-off, retain as recovery record pending explicit retirement review. |
 | `.github/workflows/conventional-commits.yml` | Conventional commit PR gate | PR opened/edited/reopened/synchronize; checkout PR head/base and run `validate_release_please_inputs.py` with event file, no production secrets or mutation. Invalid commit types block PR check; local release-input tests and CI gate cover it. Retain. |
-| `.github/workflows/deploy.yml` | Release, production deploy, Cloudflare operation and Vault bootstrap | Push to main accumulates Release Please PR; Release PR merge creates a draft release and triggers production. Main-only manual `retry`, `rollback`, `bootstrap_secrets`, `cloudflare_plan/apply` use GitHub release/OCI/Vault/DNS/SSH credentials and configured variables. Saved Terraform plan blocks DNS changes in ordinary deploy; freeze, role deploy, health, verify-only then explicit unfreeze gate release publication. Rollback is digest-mapped controller-only; failure leaves draft/frozen diagnostics. Cloudflare and bootstrap jobs have separate scoped gates. Local `test_release_workflow.py` pass and production deploy history; retain. |
+| `.github/workflows/deploy.yml` | Release, production deploy, and Vault bootstrap | Push to main accumulates Release Please PR; Release PR merge creates a draft release and triggers production. PR #377 retains main-only manual `retry`, `rollback`, and `bootstrap_secrets`, and removes `cloudflare_plan/apply`. The saved Terraform plan includes reviewed DNS/cache changes on the ordinary release path; freeze, role deploy, health, verify-only then explicit unfreeze gate release publication. Rollback is digest-mapped controller-only; failure leaves draft/frozen diagnostics. Local `test_release_workflow.py` passes; PR #377 CI and production release proof remain pending. |
 | `.github/workflows/image-cleanup.yml` | Runtime and GHCR image retention | Weekly schedule or manual `dry_run` and `remote_operation`; OCI state credential/IP fallback and SSH key target runtime, GitHub token manages GHCR, variables set repository/retention/protected tags. Scheduled GHCR is inventory-only; explicit `remote_operation=delete` is required for remote deletion, while local dry run controls Podman pruning. Missing runtime IP fails before host action; local `test_cleanup_ghcr_images.py` pass, no live deletion claimed; retain. |
 | `.github/workflows/reboot-security-runtime.yml` | Approved production reboot and kernel cleanup | Issue `labeled` event only for non-PR `approved-production-reboot`; GH token/actor/issue, OCI state/IP fallback, SSH key and domain feed playbook. Target/advisory/kernel/DNF no-op preflight precedes reboot; failed playbook always invokes label cleanup and fails job. Local security issue-task tests and successful production reboot `43631340188`; retain. |
 | `.github/workflows/weekly-security-scan.yml` | Scheduled and manual security scan | Monday schedule or manual dispatch; GH token/repository/run ID, OCI state credentials/namespace/IP fallback and SSH key feed runner OpenSCAP and target inventory. `security-scan.yml` refuses incomplete host scan before issue publication; failure leaves no actionable approval. Production scan `43932933877` and local security issue-task tests; retain. |
