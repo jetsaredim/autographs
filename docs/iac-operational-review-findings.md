@@ -119,7 +119,8 @@ to the PR after reviewing the plan. Only the label-add event accepts a
 destructive plan; a new commit fails until the label is removed and re-added
 after review of the new plan.
 In-place updates and creates pass the check. The ordinary release workflow
-does not repeat this general check; it applies a saved plan. PR #377 removes the DNS-only guard after Release PR review.
+does not repeat this general check; it applies a saved plan. PR #377 added a
+DNS-only deploy comparison, and PR #378 removes that extra gate.
 The authenticated
 [PR #371 Terraform check](https://github.com/jetsaredim/autographs/actions/runs/44461153658/job/135347968960)
 reported `No changes. Your infrastructure matches the configuration.` under
@@ -165,7 +166,8 @@ their conditional consumers and move each affected counted instance, such as
 `module.data_services.oci_objectstorage_bucket.media[0]`, to its new address
 with reviewed `moved` blocks or an equivalent state migration. That later PR
 must show a no-destroy, no-recreate production plan before apply. IAC-002's
-broader destructive-plan policy remains a separate review decision.
+broader destructive-plan policy is implemented in PR CI; final owner disposition
+remains open.
 
 This closes IAC-001. IAC-002 remains open.
 
@@ -777,7 +779,7 @@ the separate production state key.
 
 | Entry point | Mutation boundary | Failure and recovery boundary | Validation still needed |
 |---|---|---|---|
-| `deploy.yml` release/retry | Saved Terraform plan, DNS-change rejection, then exact-file apply; publisher freeze preflight precedes full Ansible deploy. | Health and frozen-origin checks precede explicit unfreeze and release status. Retry recovery and controller-only rollback are separate paths. | Verify a failed non-DNS plan cannot remove ADB, bucket, or Vault rotation; exercise freeze/unfreeze and rollback fixtures. |
+| `deploy.yml` release/retry | Fresh saved Terraform plan and exact-file apply; publisher freeze preflight precedes full Ansible deploy. Destructive managed-resource actions require CI label approval on the normal and Release PR. | Health and frozen-origin checks precede explicit unfreeze and release status. Retry recovery and controller-only rollback are separate paths. | Review the latest PR plans and verify the corrected ordinary release path after deployment; freeze/unfreeze and rollback fixtures retain their documented evidence limits. |
 | `publish-freeze-preflight.yml` | Installs an exact Caddy publish gate and stops the old publisher before replacing it. | Durable freeze record and old-process checks block an unsafe handoff. | Confirm interrupted preflight leaves a recoverable frozen state. |
 | `deploy.yml` Ansible role | Installs runtime packages, secret-backed environments, quadlets, Caddy, and controller under the frozen gate. | Full role asserts frozen publication and explicit cutover; restart handlers are suppressed in this mode. | Trace every handler notification and both flag values. |
 | `publish-unfreeze.yml` | Verify-only invocation checks origin readiness; second invocation removes the gate after health. | Failed unfreeze restores the frozen Caddyfile and retains the durable record. | Run existing role/fixture tests and inspect partial-failure evidence. |
