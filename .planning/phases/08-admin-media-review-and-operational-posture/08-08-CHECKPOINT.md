@@ -113,9 +113,15 @@ below. Remaining:
   On 2026-11-21, the owner named IAC-004 and IAC-007, asked to review six
   operational switch flows, and chose ordinary release deployment after PR
   review for Cloudflare changes. [PR #376](https://github.com/jetsaredim/autographs/pull/376)
-  removes obsolete Node deploy cleanup; [PR #377](https://github.com/jetsaredim/autographs/pull/377)
-  changes the proxied default and shared release apply path. PR #375's
+  removed obsolete Node deploy cleanup, passed two reviews and CI, and merged
+  as `b724d75`. [PR #377](https://github.com/jetsaredim/autographs/pull/377)
+  changed the proxied default and shared release apply path, passed CI and its
+  second review, and merged as `e84d58f`. Its first review
+  found a critical unreviewed-DNS-action path; the revised gate binds DNS
+  actions to the successful Release PR CI record.
+  PR #375's
   inventory and `/tmp/autographs-iac-operational-review.html` now explain the
-  switches and runtime-secret readiness. These PRs require green CI and review;
+  switches and runtime-secret readiness. PR #375 passed its mandatory third
+  review and CI; PR #377 still needs release-path verification;
   the owner has not yet accepted the revised inventory. P8-POSTURE-006 has no
   final owner disposition. Do not mark Plan 08-08 or Phase 8 complete.
