@@ -95,7 +95,7 @@ or valid refactor.
 | IAC-001 | Warning | Before PR #358, CI, release deploy, and the former Cloudflare job substituted `false` when either optional resource-creation GitHub variable was absent. That could reduce the ADB or private media bucket `count` to zero; the database input also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). | Fixed by [PR #358](https://github.com/jetsaredim/autographs/pull/358) and verified after variable removal | The authenticated PR plan and post-removal read-only production plan both reported no changes. Explicit `false` remains available for initial bootstrap. |
 | IAC-002 | Warning | CI planned against production state without making destructive actions an explicit PR review decision; routine deployment checked DNS changes before applying the saved plan. | Gate merged in [PR #371](https://github.com/jetsaredim/autographs/pull/371); final operating review pending | CI reports managed-resource deletion, replacement, and state-forget actions and fails unless the current PR head triggers the `terraform-destructive-plan-approved` label-add event. The release workflow currently applies its saved plan after the DNS guard; PR #377 removes that guard and uses the ordinary reviewed release path; it does not impose a second general destruction gate. The PR passed checks and merged as `abc17a0`; its authenticated production plan reported no changes. |
 | IAC-003 | Info | Before this cleanup, `create_network` and `create_runtime_instance` defaulted to `true`; explicit `false` would remove managed network/VM resources. No production workflow supplied either input. Runtime recreation uses a separate retry-only taint. | Resolved by [PR #361](https://github.com/jetsaredim/autographs/pull/361), merged as `0b7c20a` | Seven counted resources have `moved` mappings; ingress rule `for_each` keys remain stable. The authenticated production plan reported `0 to add, 0 to change, 0 to destroy`; retry taint accepts both state addresses. |
-| IAC-004 | Warning | The current GitHub variable is `proxied`, but the Terraform and ordinary workflow defaults are `off`. Removing the variable prematurely would plan deletion of counted Cloudflare resources. | Code merged in [PR #377](https://github.com/jetsaredim/autographs/pull/377) as `e84d58f`; production verification pending | Set Terraform and CI/deploy defaults to `proxied`, retain the optional override for `dns_only` rollback or first bootstrap `off`, and route reviewed DNS/cache changes through the ordinary saved release plan. The release gate compares its DNS change digest, mode, Terraform tree, and state lineage/serial with successful Release PR CI and rejects `off` while the zone exists. After the workflow reaches production, remove the GitHub variable and confirm a subsequent authenticated plan has no changes. |
+| IAC-004 | Warning | Before PR #377, the GitHub variable was `proxied` while Terraform and ordinary workflow defaults were `off`; removing it prematurely would have planned deletion of counted Cloudflare resources. | Code merged in [PR #377](https://github.com/jetsaredim/autographs/pull/377) as `e84d58f`; stored variable removed 2026-11-21; post-removal authenticated plan had no changes | Terraform and CI/deploy now default to `proxied`, with an optional `dns_only` rollback or fresh-bootstrap `off` override. Reviewed DNS/cache changes use the ordinary saved release plan. The release gate compares its DNS change digest, mode, Terraform tree, and state lineage/serial with successful Release PR CI and rejects `off` while the zone exists. [Post-removal Terraform CI](https://github.com/jetsaredim/autographs/actions/runs/44908578055/job/136859340147) used `proxied` and reported no changes. Later production deployment of the new workflow remains unproven. |
 | IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Retain | The workflow sets frozen=true for full deploy, and role assertions reject false. The unfreeze playbook alone sets frozen=false with allow_unfreeze=true; `publish_freeze.yml` rejects false without that override. Explicit cutover suppresses restart handlers until the workflow's health gate; production and render fixtures cover both freeze states. Removing one flag would weaken a distinct assertion or require a broader operation-state contract. |
 | IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Retain as fixture seam | No production workflow overrides the true role default. The false fixture path tests reboot-state classification without running DNF, while true fixtures exercise the no-op validation and failure behavior; `security-reboot-state-validate-test.yml` and `validate_reboot_state.yml` cover both values. |
 | IAC-007 | Info | `create_runtime_instance` formerly described the retired Node runtime, and the Ansible deploy role still stopped and removed the old `autographs-app` unit, quadlet, and container. | Resolved by [PR #376](https://github.com/jetsaredim/autographs/pull/376), merged as `b724d75` | The three obsolete cleanup tasks and active runbook instructions were removed. The controller contract test now asserts their absence; Ansible syntax/lint, controller CI, and two review rounds passed. |
@@ -181,7 +181,7 @@ proposed refactor that removes the input and its conditional consumers.
 | Media bucket `versioning` | Hardcoded `Enabled` in the data services resource in PR #354 | Preserves private Object Storage recovery posture. Existing counted resource address is unchanged. | Local validation and PR CI production no-change plan passed. |
 | Root and tenancy OCI `auth` | Terraform default `APIKey`; accepts `APIKey`/`SecurityToken` | Selects OCI provider authentication for production or bootstrap state. | Confirm each root's operator entry point and credential source. |
 | State bucket `storage_tier` | Hardcoded `Standard` in the state bucket module in PR #354 | Keeps Terraform state promptly retrievable. Existing uncounted resource address is unchanged. | Local validation and authenticated tenancy-root no-change plan passed on 2026-11-15; no apply. |
-| `cloudflare_mode` | Current GitHub variable `proxied`; PR #377 merged root and workflow fallback `proxied`; the release gate is pending | Counts zone, records, TLS, rules; `dns_only` preserves the zone but changes the app A-record proxy flag. | IAC-004; remove the stored variable only after the new workflow reaches production and verify a no-change plan. |
+| `cloudflare_mode` | GitHub variable removed 2026-11-21; root and workflow fallback `proxied` merged in PR #377 | Counts zone, records, TLS, rules; `dns_only` preserves the zone but changes the app A-record proxy flag. | IAC-004; post-removal authenticated no-change plan passed; later release deploy verification pending. |
 | `bootstrap_runtime_secrets` | Root Terraform Boolean defaults `false`; reviewer-gated `bootstrap_secrets` dispatch sets `true` in `deploy.yml` | `false` reads password/readiness bundles and can attach ADB rotation; `true` omits those reads and rotation during targeted Vault creation before ADB exists. Using `true` in an ordinary deploy would bypass readiness, so only the scoped bootstrap job supplies it. | Retain. Normal path has a production no-change plan; bootstrap guards and `test_release_workflow.py` cover the true route, with no live bootstrap claim. |
 | `runtime_secret_values_ready` | Derived from three Vault CURRENT-version checks during normal plans | Blocks ADB creation/update until the generated DB password and manually populated secrets are ready. Bootstrap skips the reads only during its saved targeted plan. | Preserve fail-closed precondition; verify missing and bootstrap versions. |
 | `autographs_deploy_publish_frozen` | Role default and deploy input `true`; unfreeze sets `false` | Full-deploy assertion and exact Caddy publish gate. | IAC-005; trace as one cutover contract. |
@@ -434,9 +434,12 @@ removed after the no-change check. The DNS GitHub variables
 the production plan on commit `95ffd71` reported `No changes` (run
 `43784625375`). The two `OCI_CREATE_*` values were subsequently removed after
 PR #358 made their workflow fallbacks `true` and a post-removal plan reported
-no changes. `CLOUDFLARE_MODE` remains set to `proxied` in GitHub. PR #377 merged its
-Terraform and workflow defaults to `proxied`; remove the stored variable only
-after that workflow reaches production, then verify a no-change plan.
+no changes. PR #377 merged Terraform and workflow defaults of `proxied`.
+The duplicate `CLOUDFLARE_MODE=proxied` GitHub variable was removed on
+2026-11-21 after the Release PR's authenticated no-change plan; a post-removal
+read-only [CI plan](https://github.com/jetsaredim/autographs/actions/runs/44908578055/job/136859340147)
+used the fallback `proxied` and reported `No changes. Your infrastructure matches
+the configuration.` No apply ran.
 
 ### Derived naming contract in PR #354
 
@@ -478,7 +481,8 @@ listed, but secret values were not read.
 After PR #358 and its post-removal plan passed on 2026-11-17, the two
 `OCI_CREATE_*` variables were removed. The unused `OCI_COMPARTMENT_OCID`
 variable was also removed after its only source references were confirmed to
-be historical documentation. The remaining repository variable count is nine.
+be historical documentation. The repository variable count was nine at that
+observation; removal of `CLOUDFLARE_MODE` on 2026-11-21 reduced it by one.
 
 GitHub Variables to retain:
 
@@ -487,9 +491,11 @@ GitHub Variables to retain:
 - `AUTOGRAPHS_DNS_RECORD_ID` and `CLOUDFLARE_ACCOUNT_ID` identify existing
   DNS and Cloudflare resources. `RELEASE_PLEASE_APP_CLIENT_ID` identifies the
   repository-installed GitHub App.
-- `CLOUDFLARE_MODE=proxied` remains stored during transition. PR #377 merged
-  `proxied` as the default; remove the stored variable after the new deploy
-  workflow reaches production and verify a no-change plan.
+
+`CLOUDFLARE_MODE` was removed from GitHub after PR #377 merged its `proxied`
+default. The optional Terraform/workflow override remains available for a
+reviewed DNS-only rollback or fresh bootstrap. The post-removal authenticated
+CI plan passed with no changes; production deployment remains unproven.
 
 GitHub Variables queued for cleanup:
 

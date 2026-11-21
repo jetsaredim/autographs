@@ -119,6 +119,11 @@ below. Remaining:
   second review, and merged as `e84d58f`. Its first review
   found a critical unreviewed-DNS-action path; the revised gate binds DNS
   actions to the successful Release PR CI record.
+  The duplicate `CLOUDFLARE_MODE=proxied` GitHub variable was removed after
+  the new default merged. The authenticated
+  [post-removal Terraform CI job](https://github.com/jetsaredim/autographs/actions/runs/44908578055/job/136859340147)
+  used the fallback `proxied` and reported no changes. No apply ran. The
+  Release PR has not been merged or deployed.
   PR #375's
   inventory and `/tmp/autographs-iac-operational-review.html` now explain the
   switches and runtime-secret readiness. PR #375 passed its mandatory third
