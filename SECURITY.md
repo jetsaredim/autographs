@@ -8,16 +8,13 @@ separate supported versions.
 
 ## Reporting a vulnerability
 
-Please do not publish exploit details, credentials, private media, or private
-infrastructure identifiers in a public issue or pull request. If GitHub's
-private vulnerability reporting is available for this repository, use the
-**Report a vulnerability** action on its Security tab. If that action is not
-available, open a public issue requesting a private contact channel **without
-including vulnerability details**. The maintainer can arrange private
-follow-up before any technical information is shared.
+Please use GitHub's [private vulnerability reporting](https://github.com/jetsaredim/autographs/security/advisories/new)
+to report a suspected security flaw. Do not publish exploit details,
+credentials, private media, or private infrastructure identifiers in a public
+issue or pull request.
 
 Include the affected behavior or version, impact, reproduction steps, and a
-suggested fix if known once a private channel is established. The maintainer
+suggested fix if known in the private report. The maintainer
 will assess the report and coordinate a fix and disclosure with the reporter.
 
 For ordinary deployment or security patching procedures, see

@@ -55,10 +55,10 @@ below. Remaining:
 3. Write `08-08-SUMMARY.md` and update Phase 8 state and requirement status
    after those gates are satisfied.
 
-The root `SECURITY.md` now exists. GitHub private vulnerability reporting was
-disabled when checked on 2026-11-21, so the policy directs reporters to request
-a private channel in a public issue without disclosing vulnerability details.
-Confirm or improve that reporting route at final closeout.
+The root `SECURITY.md` now exists. The owner enabled GitHub private
+vulnerability reporting, and the repository API returned `enabled: true` on
+2026-11-21. The policy points directly to the private advisory form. Recheck
+the link and current-state guidance at final closeout.
 
 ## 2026-11-19 closeout progress
 
