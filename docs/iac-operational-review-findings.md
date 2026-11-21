@@ -4,6 +4,15 @@ Status: source inventory complete; final owner review and Phase 8 disposition
 remain open for Plan 08-08 Task 5. This register records source, local test,
 and production plan evidence. The inventory alone does not close the review.
 
+**Requested setting details:** [publish frozen](#autographs-deploy-publish-frozen),
+[explicit cutover](#autographs-deploy-explicit-cutover),
+[allow unfreeze](#autographs-deploy-allow-unfreeze),
+[verify-only unfreeze](#autographs-publish-unfreeze-verify-only),
+[cleanup dry run](#autographs-system-cleanup-dry-run), and
+[DNF no-op validation](#security-patching-reboot-validate-dnf-noop).
+Each link opens a dedicated producer, action, failure, and disposition trace
+in the [detailed operational switch review](#detailed-operational-switch-review).
+
 ## Operating boundary
 
 The tenancy root owns the project compartment, deploy identity and policies,
@@ -204,7 +213,11 @@ proposed refactor that removes the input and its conditional consumers.
 | Controller provider modes | Deploy defaults `oracle` and `oci-instance-principal`; role/config also allow `local` | Production selections keep Oracle metadata and private OCI originals; local values route to nonproduction adapters and must not be used for production release. | Retain for local/CI work; deploy assertions and configuration contract guard production values. |
 | Image cleanup `dry_run` / `remote_operation` | Scheduled or manual `image-cleanup.yml`; manual options `inventory`/`delete` | Scheduled local Podman cleanup gets `dry_run=false` and may prune; scheduled GHCR remains dry-run. Manual GHCR deletion requires explicit `delete`; the manual local dry-run input is independent. | Trace both local and remote actions and protected tags. |
 
-### Cutover, cleanup, and reboot flows for owner review
+## Detailed operational switch review
+
+This section traces the six settings requested by the owner from their
+producer to the action or refusal they control. The [deployment workflow](../.github/workflows/deploy.yml)
+is the entry point for the first four. Its ordinary sequence is:
 
 ```mermaid
 flowchart LR
@@ -215,51 +228,166 @@ flowchart LR
   unfreeze --> postcheck[Confirm private publish routes require auth]
 ```
 
-The full deploy role requires both `autographs_deploy_publish_frozen=true` and
-`autographs_deploy_explicit_cutover=true` before changing runtime files. The
-first inserts the Caddy gate that returns 503 for full and incremental publish
-requests while leaving status routed to the controller. The second suppresses
-ordinary restart handlers so service changes occur at the workflow's explicit
-cutover point. Neither switch is an operator choice in the ordinary release.
-The dedicated unfreeze playbook alone sets `publish_frozen=false` together
-with `allow_unfreeze=true`; the shared Caddy task rejects gate removal without
-that allowance. The workflow calls the playbook first with
-`autographs_publish_unfreeze_verify_only=true` for origin/marker proof, then
-with `false` to remove the gate, restart Caddy, and confirm publish requests
-return authentication responses without starting a publish. A failed proof
-keeps or restores the gate and its durable freeze record. Sources:
-`deploy.yml`, `roles/autographs_deploy/tasks/main.yml`,
-`roles/autographs_deploy/tasks/publish_freeze.yml`,
-`roles/autographs_deploy/handlers/main.yml`, and `publish-unfreeze.yml`.
+### `autographs_deploy_publish_frozen`
 
-`autographs_system_cleanup_dry_run` is a local Podman image cleanup switch,
-separate from GHCR cleanup. The scheduled workflow passes `false`, so it may
-remove selected old images and prune dangling images; a manual `true` run
-prints candidates and a would-prune message without those mutations. The
-role's string default is `"false"`; callers must request preview explicitly.
-Sources: `image-cleanup.yml` and
-`roles/autographs_system_cleanup/tasks/main.yml`.
+**Purpose and producer.** The [deploy role default](../deploy/ansible/roles/autographs_deploy/defaults/main.yml)
+is `true`, and the production workflow explicitly passes `true` to the full
+Ansible deployment. The [role's first assertion](../deploy/ansible/roles/autographs_deploy/tasks/main.yml)
+rejects `false` before runtime files change. A preceding freeze preflight
+records the exact release tag, controller digest, old process, static pointer,
+and publication state. The full role checks that record again before routing
+to the replacement controller.
 
-`security_patching_reboot_validate_dnf_noop` defaults to `true` in production.
-Before an approved reboot, the role runs `dnf --assumeno upgrade-minimal
---security` for the approved advisories and requires a successful no-work
-result. It records bounded failure evidence if package work remains. Test
-fixtures set the switch to `false` only to exercise reboot-state branches
-without invoking live DNF; other fixtures leave it `true` and inject bounded
-probe results. Sources: `roles/security_patching/defaults/main.yml`,
-`roles/security_patching/tasks/validate_reboot_state.yml`, and
-`playbooks/security-reboot-state-validate-test.yml`.
+**Effect.** The [shared publish-freeze task](../deploy/ansible/roles/autographs_deploy/tasks/publish_freeze.yml)
+inserts a managed Caddy block ahead of the general admin API proxy. It returns
+503 with `Cache-Control: no-store` for `/admin/api/publish/full` and
+`/admin/api/publish/incremental`; `/admin/api/publish/status` remains proxied
+to the controller with a frozen header. The role starts/restarts Caddy and
+checks that both mutating routes still return 503. A cutover route failure
+restores the saved frozen Caddyfile where available and retains the durable
+freeze record. The release workflow will not run unfreeze unless deployment
+health passes.
 
-`runtime_secret_values_ready` is a Terraform-derived readiness check, not a
-GitHub Secret. Before the first normal ADB create/update, Vault must show
-CURRENT versions greater than one for the manually populated admin password
-hash and wallet password, and greater than one for the DB password unless its
-first version was generated automatically. The `bootstrap_secrets` workflow
-uses the GitHub Secrets to populate untouched Vault placeholders under the
-separate secret-audit gate. Merely setting the GitHub Secrets does not make
-the normal Terraform precondition pass: the Vault versions must be present.
-Sources: `infra/terraform/runtime_secrets.tf`,
-`infra/terraform/modules/data_services/main.tf`, and `deploy.yml`.
+**Reachability and decision.** `false` is used by the dedicated unfreeze
+playbook, not by a full deployment. Keep the explicit frozen assertion while
+the full role and unfreeze playbook share the Caddy task. This is a publication
+state guard, not a routine deploy tuning option.
+
+### `autographs_deploy_explicit_cutover`
+
+**Purpose and producer.** The deploy role defaults this to `true`; the
+production workflow does not override it. The same first role assertion
+requires `true`, so `false` cannot complete a full deploy. The
+[handler file](../deploy/ansible/roles/autographs_deploy/handlers/main.yml)
+contains restart/reload handlers conditional on `not explicit_cutover`.
+
+**Effect.** Template and quadlet tasks can notify those handlers, but they do
+not restart Caddy or the controller during the required explicit-cutover
+path. The role instead reloads systemd, starts the reviewed controller,
+compares its running image ID with the verified image, checks release/source
+health, and then restarts Caddy with frozen routes. The Caddy cutover block
+checks preview and public origin behavior, including the frozen publish
+responses. Its rescue path restores the old frozen Caddyfile and fails while
+preserving the freeze record.
+
+**Reachability and decision.** The `false` handler path is effectively
+unreachable through the current full role because its entry assertion refuses
+it. The present value documents and enforces the cutover contract, but the
+Boolean and conditional handlers could be simplified in a separate reviewed
+refactor if all producers and tests move to an unconditional explicit cutover.
+That refactor is not needed to close the current inventory.
+
+### `autographs_deploy_allow_unfreeze`
+
+**Purpose and producer.** There is no permissive role default. The
+[unfreeze playbook](../deploy/ansible/playbooks/publish-unfreeze.yml) sets
+`autographs_deploy_publish_frozen=false` and
+`autographs_deploy_allow_unfreeze=true` together. The shared Caddy task
+asserts `publish_frozen or allow_unfreeze` before it can remove the gate.
+
+**Effect and failure.** This flag authorizes the gate-removal branch of that
+shared task; it does not itself remove the gate or restart Caddy. The unfreeze
+playbook must first match the durable freeze record to the exact release and
+image digest, revalidate current pointer/manifest/history/markers and both
+origins, and confirm the old publisher process is gone. If a caller sets
+`publish_frozen=false` without the allowance, the task fails before editing
+the Caddyfile. If later unfreeze checks fail, the rescue block restores the
+frozen Caddyfile, restarts Caddy, and keeps the durable record.
+
+**Decision.** Keep as a narrow authorization on the shared task. It is only
+expected from the dedicated unfreeze playbook, not from full deployment.
+
+### `autographs_publish_unfreeze_verify_only`
+
+**Purpose and producer.** The unfreeze playbook defaults this to `false`.
+After the full deploy and public/controller health checks, the workflow calls
+that playbook twice for the same release, digest, and source revision: first
+with `true` in “Verify frozen origin readiness,” then with `false` in
+“Explicitly unfreeze verified production publication.” The second call is
+conditional on a successful first call.
+
+**True path.** The playbook checks the freeze record and current release
+identity, probes public HTTPS and the private preview origin, and tests exact
+media marker denial. Its disposable probe file and marker are removed. The
+block that edits the Caddy gate is skipped, so publication stays frozen.
+
+**False path and failure.** The playbook repeats the readiness checks, saves
+the frozen Caddyfile, removes the managed gate, restarts Caddy, and expects
+unauthenticated full/incremental publish requests to return 401 or 403 rather
+than 503. It also checks private status auth, current 200s, exact-marker 404s,
+and retained-old-media 200s on public and preview origins. Only after all
+postchecks does it record the approved digest and remove the freeze record.
+Its rescue block restores frozen Caddy and leaves that record for retry. The
+release completion gate requires the real unfreeze step to succeed.
+
+**Decision.** Keep: `true` is a non-opening proof step; `false` is the guarded
+mutation. The two calls are intentional even though they repeat checks.
+
+### `autographs_system_cleanup_dry_run`
+
+**Purpose and producer.** The [cleanup role default](../deploy/ansible/roles/autographs_system_cleanup/defaults/main.yml)
+is the string `"false"`. In [image-cleanup.yml](../.github/workflows/image-cleanup.yml),
+the manual `dry_run` input defaults to `"true"`; the weekly schedule has no
+input, so its expression falls back to `"false"`. This variable affects local
+Podman cleanup on the VM. GHCR inventory/deletion uses separate
+`remote_operation` and `GHCR_CLEANUP_DRY_RUN` controls.
+
+**Selection before mutation.** The role requires active controller image
+metadata from `app.env`, reads the previous image, containers, and local
+images, then calls `select-removable-images.py`. That selector protects the
+current and previous image, images attached to containers, configured
+protected tags, and the newest configured count (default three) for the
+controller repository. Missing active image metadata stops cleanup.
+
+**True versus false.** Both paths log selected candidates. `true` prints
+“Would remove” and “Would run podman image prune” messages. `false` runs
+`podman rmi --force` only on selected IDs, then `podman image prune --force`
+for dangling images. There is no automatic rollback after image deletion;
+retained/protected images are the recovery margin. A manual GHCR `delete`
+does not change this local dry-run input, and a local `false` does not by
+itself request GHCR deletion.
+
+**Decision.** Keep the preview path, but treat the weekly schedule as an
+intentional mutating maintenance job. The manual entry defaults to preview.
+
+### `security_patching_reboot_validate_dnf_noop`
+
+**Purpose and producer.** The [security-patching role default](../deploy/ansible/roles/security_patching/defaults/main.yml)
+is `true`; production workflows do not set it to `false`. The
+[reboot-state validation task](../deploy/ansible/roles/security_patching/tasks/validate_reboot_state.yml)
+first checks that approved advisory IDs match the current scan, that the
+authoritative next action is `reboot`, and that finding packages are eligible
+for the reboot path.
+
+**True path.** It runs `dnf --assumeno upgrade-minimal --security` limited to
+approved advisories. The result must have exit code zero and a “nothing to
+do” or “no packages marked” signal. A non-no-op result writes bounded
+failure context without dumping the full DNF output. Only a proven no-op
+permits target-kernel resolution and contributes to
+`security_patching_reboot_preflight_ready`, which must be true before reboot
+mutation.
+
+**False path and fixture seam.** `false` skips the live DNF probe, but it also
+leaves `security_patching_reboot_dnf_noop_proven=false`; therefore it cannot
+make the reboot preflight ready or authorize a production reboot. The
+reboot-state fixture uses `false` to test classification branches without
+calling DNF. Other fixture cases use `true` with a bounded probe override to
+test no-op success and refusal. Keep the production default; this is a test
+seam, not an operator bypass.
+
+### `runtime_secret_values_ready` (related Terraform gate)
+
+This is a Terraform-derived readiness check, not a GitHub Secret. Before the
+first normal ADB create/update, Vault must show CURRENT versions greater than
+one for the manually populated admin password hash and wallet password, and
+greater than one for the DB password unless its first version was generated
+automatically. The `bootstrap_secrets` workflow uses the GitHub Secrets to
+populate untouched Vault placeholders under the separate secret-audit gate.
+Merely setting GitHub Secrets does not make the normal Terraform precondition
+pass: the Vault versions must be present. Sources:
+[runtime_secrets.tf](../infra/terraform/runtime_secrets.tf),
+[data_services/main.tf](../infra/terraform/modules/data_services/main.tf), and
+[deploy.yml](../.github/workflows/deploy.yml).
 
 ### Fixture probe adapter census
 
