@@ -17,7 +17,7 @@ final_tree_cleanup_review: fix_applied_pending_confirmation
 **Fixed at:** 2026-10-24T20:23:17Z
 **Source review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md`
 **Approved assumptions:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-ASSUMPTIONS.md`
-**Reviewed plan:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-REVISED-PLAN.md`
+**Reviewed plan:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-REVISED-WORKPLAN.md`
 **Plan review:** `.planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-PLAN-REVIEW.md` (`passed`, cycle 3)
 **Iteration:** 3
 

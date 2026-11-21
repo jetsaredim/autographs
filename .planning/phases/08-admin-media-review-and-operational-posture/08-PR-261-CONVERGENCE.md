@@ -4,7 +4,7 @@ pr: 261
 finding: WR-05
 status: ready_to_resume
 trigger_review: 08-PR-261-REVIEW-ITER3.md
-assumption_revision_evidence: 08-PR-261-WR-05-REVISED-PLAN.md#contract-decision
+assumption_revision_evidence: 08-PR-261-WR-05-REVISED-WORKPLAN.md#contract-decision
 implementation_plan_review_evidence: 08-PR-261-WR-05-PLAN-REVIEW-ITER2.md
 ---
 
@@ -58,7 +58,7 @@ The enabled Oracle edit-event constraint must admit every value in `EditEventKin
 
 ## Revised Plan Requirements
 
-See `08-PR-261-WR-05-REVISED-PLAN.md`. The initial plan review identified unsafe whole-predicate lowercasing in `08-PR-261-WR-05-PLAN-REVIEW.md`; the plan was revised to preserve string-literal bytes and independently approved in `08-PR-261-WR-05-PLAN-REVIEW-ITER2.md`. Both required evidence references are recorded in frontmatter, so the reassessment is ready for one coherent coder resumption.
+See `08-PR-261-WR-05-REVISED-WORKPLAN.md`. The initial plan review identified unsafe whole-predicate lowercasing in `08-PR-261-WR-05-PLAN-REVIEW.md`; the plan was revised to preserve string-literal bytes and independently approved in `08-PR-261-WR-05-PLAN-REVIEW-ITER2.md`. Both required evidence references are recorded in frontmatter, so the reassessment is ready for one coherent coder resumption.
 
 ## Resume Criteria
 

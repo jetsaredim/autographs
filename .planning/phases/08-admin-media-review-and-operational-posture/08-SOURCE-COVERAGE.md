@@ -1,6 +1,6 @@
 # Phase 8 source coverage
 
-This audit maps the Phase 8 goal, requirements, research, and locked context decisions to the canonical execution plans. PR-specific `*-REVISED-PLAN.md` files are review records, not additional phase execution plans.
+This audit maps the Phase 8 goal, requirements, research, and locked context decisions to the canonical execution plans. PR-specific `*-REVISED-WORKPLAN.md` files are review records, not additional phase execution plans.
 
 ## Goal coverage
 

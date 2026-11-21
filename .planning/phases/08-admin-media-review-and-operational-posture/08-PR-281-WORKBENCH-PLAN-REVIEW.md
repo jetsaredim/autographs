@@ -4,7 +4,7 @@ blocker_count: 0
 warning_count: 0
 info_count: 0
 reviewed_assumptions: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-ASSUMPTIONS.md
-reviewed_plan: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-REVISED-PLAN.md
+reviewed_plan: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-REVISED-WORKPLAN.md
 source_review: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
 reviewed_head: 71f43f5b38d97077874d7e7edfdeb7f9feed8c42
 review_cycle: 3

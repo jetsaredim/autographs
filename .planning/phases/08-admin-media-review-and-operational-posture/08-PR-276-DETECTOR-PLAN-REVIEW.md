@@ -6,7 +6,7 @@ reviewed_head: 85db903d4dd0ef70887816c9849101fac2827c7a
 reassessment_iteration: 3
 review_cycle: 2
 reviewed_assumptions: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-ASSUMPTIONS.md
-reviewed_plan: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-PLAN.md
+reviewed_plan: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-WORKPLAN.md
 source_review: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
 prior_cycle_result: blocked_2
 status: passed
