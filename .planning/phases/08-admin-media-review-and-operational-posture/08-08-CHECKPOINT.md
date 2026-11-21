@@ -104,14 +104,18 @@ below. Remaining:
   incident, introducing availability and admin-access risk for a low-probability
   recovery scenario. The owner judged that disruption unnecessary. The
   [DNS runbook](../../../docs/dns-runbook.md#ongoing-cloudflare-changes)
-  documents a reviewed `CLOUDFLARE_MODE=dns_only` plan and exact saved-plan
-  apply, followed by restoration to `proxied` after an incident. Short-lived
+  documents a reviewed `CLOUDFLARE_MODE=dns_only` override and saved release
+  plan/apply, followed by restoration to `proxied` after an incident. Short-lived
   HTML/JSON and fingerprinted media give release rollback its documented
   freshness behavior. No live rollback was performed or claimed.
 - The Terraform/Ansible/workflow source inventory now has entry-specific
   inputs, supported states, failure/recovery paths, tests, and dispositions.
-  The owner requested changes to that inventory on 2026-11-20 and has not yet
-  named or accepted the affected entries. PR #375's focused review also found
-  evidence and switch-census gaps that require fixes and a clean follow-up
-  review. P8-POSTURE-006 has no final owner disposition. Do not mark Plan
-  08-08 or Phase 8 complete.
+  On 2026-11-21, the owner named IAC-004 and IAC-007, asked to review six
+  operational switch flows, and chose ordinary release deployment after PR
+  review for Cloudflare changes. [PR #376](https://github.com/jetsaredim/autographs/pull/376)
+  removes obsolete Node deploy cleanup; [PR #377](https://github.com/jetsaredim/autographs/pull/377)
+  changes the proxied default and shared release apply path. PR #375's
+  inventory and `/tmp/autographs-iac-operational-review.html` now explain the
+  switches and runtime-secret readiness. These PRs require green CI and review;
+  the owner has not yet accepted the revised inventory. P8-POSTURE-006 has no
+  final owner disposition. Do not mark Plan 08-08 or Phase 8 complete.
