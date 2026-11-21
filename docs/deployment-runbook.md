@@ -431,9 +431,10 @@ unless a maintainer adds the `terraform-destructive-plan-approved` PR label
 after reviewing the plan output. CI accepts a destructive plan only on the
 event that adds that label; a later commit triggers a new failing plan check.
 After reviewing the updated plan, remove and re-add the label to rerun CI.
-The label
-does not override a Terraform `prevent_destroy` error or the release workflow's
-DNS guard. Tenancy bootstrap plans remain a separate operator review.
+The label does not override a Terraform `prevent_destroy` error. After the
+Release PR merges, the release workflow applies its fresh saved plan without
+a separate DNS or destructive-action approval gate. Tenancy bootstrap plans
+remain a separate operator review.
 
 When deployment is required, the deploy workflow:
 
@@ -441,8 +442,8 @@ When deployment is required, the deploy workflow:
 2. enters the serialized `deploy-production` section and refuses superseded
    deploys before touching production,
 3. optionally taints and recreates the runtime VM when manually requested,
-4. saves a Terraform plan, rejects any Cloudflare or Porkbun DNS change during
-   an ordinary deploy, then applies that exact plan,
+4. saves a Terraform plan, reports changed resource addresses and actions,
+   then applies that exact plan, including reviewed DNS/cache changes,
 5. connects to the OCI VM over SSH through Ansible,
 6. installs/maintains Podman, firewalld, swap, and masked systemd services,
 7. copies wallet and OCI API key material to protected VM paths,

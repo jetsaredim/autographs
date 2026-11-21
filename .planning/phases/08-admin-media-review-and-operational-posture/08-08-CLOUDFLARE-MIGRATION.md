@@ -15,9 +15,9 @@ approach: terraform_managed_full_zone
 > [the DNS runbook](../../../docs/dns-runbook.md). Normal production now defaults
 > to `proxied`; `CLOUDFLARE_MODE` remains an optional override.
 
-## Decision and ownership
+## Current ownership
 
-Use the existing `infra/terraform/` runtime root and its current OCI state object for the Cloudflare full zone, every reviewed `jetsaredim.net` DNS record, strict TLS, and cache rules. The owner prefers one Terraform root and state. The existing deploy workflow auto-applies this root, so it refuses Cloudflare or Porkbun DNS changes. Ordinary runtime deployments may proceed only when the DNS plan has no changes; a controlled operator plan/apply handles DNS changes.
+The `infra/terraform/` runtime root and its current OCI state object manage the Cloudflare full zone, reviewed `jetsaredim.net` DNS records, strict TLS, and cache rules. The owner chose one Terraform root and state. CI plans on normal and Release PRs; destructive managed-resource actions require the PR approval label. After the Release PR merges, the ordinary deploy workflow applies its fresh saved plan, including reviewed Cloudflare or Porkbun changes. There is no additional DNS-specific apply gate.
 
 Porkbun remains the registrar, and Cloudflare is now authoritative. Proxy only `autographs.jetsaredim.net`; mail records remain DNS-only. Keep the current `porkbun_dns_record.autographs` and its import block until Cloudflare has passed the live checkpoint. Both old and new autograph A records may be managed during migration because they are at different DNS providers. After verification, retire the Porkbun resource with a reviewed `removed` block and `destroy = false`, preserving its real record for rollback.
 
@@ -55,15 +55,21 @@ cache header. `/admin/` and unauthenticated `/admin/api/status` retained
 - The owner confirmed the complete Porkbun inventory: `autographs.jetsaredim.net A 129.213.166.159 TTL 600`; `jetsaredim.net MX 1 smtp.google.com TTL 600`; `jetsaredim.net TXT "v=spf1 include:_spf.google.com ~all" TTL 600`. Public DNS returned the same values on 2026-11-06. Keep a copy for rollback.
 - Cloudflare account ID: `162e3fcbeb9e3479a73529a6d51806bc` (provided by the owner and saved as repository GitHub Actions variable `CLOUDFLARE_ACCOUNT_ID`).
 
-## Remaining verification
+## Verification record
 
-- Complete two authenticated admin API 200-response probes and Cloudflare
-  Rule Trace, then record the rollback decision or exercise before closing
-  Phase 8. The first rollback path is a reviewed `CLOUDFLARE_MODE=dns_only`
+- The [Phase 8 checkpoint](08-08-CHECKPOINT.md) records two authenticated
+  admin API 200-response probes, Cloudflare Rule Trace, media cache HIT, and
+  the owner's decision to defer a disruptive live rollback rehearsal. The
+  documented first rollback path uses a reviewed `CLOUDFLARE_MODE=dns_only`
   Terraform plan in the shared deploy stack, reviewed on a normal PR and
   Release PR before the ordinary production apply.
 
-## Staged implementation
+## Historical staged implementation
+
+The following steps describe the completed migration and its former manual
+Cloudflare operation. They are retained as evidence, not instructions for
+current deployment. Use the [DNS runbook](../../../docs/dns-runbook.md) for
+current changes and rollback.
 
 ### A. Prepare the existing Terraform root
 
@@ -91,7 +97,10 @@ cache header. `/admin/` and unauthenticated `/admin/api/status` retained
 
 After production verification and a documented rollback window, replace `porkbun_dns_record.autographs` with a Terraform `removed` block using `destroy = false`. Remove its import block and Porkbun-only provider variables/secrets/workflow inputs only after a plan proves state-only removal. Keep the real Porkbun record and zone export for emergency reversal. Update the DNS runbook and Phase 8 summary to the new current state.
 
-## Required gates
+## Historical migration gates
+
+The list below records the cutover controls used during the migration. The
+current PR CI and ordinary release apply path are described above.
 
 - Nameserver delegation has already happened through Porkbun Connect; verify the authoritative record inventory and complete the state import before any further DNS change.
 - No routine deployment may apply a DNS mutation; controlled operator DNS applies use the exact reviewed plan.
