@@ -30,9 +30,16 @@ the adjusted WebP returned `CF-Cache-Status: MISS` then `HIT` while retaining
 
 Change the Terraform configuration through a reviewed PR. Inspect the
 production Terraform plan in CI, including changed managed-resource actions,
-before merging the Release PR. The [release and deploy workflow](../.github/workflows/deploy.yml)
-then creates a fresh saved plan from the same root and state on `main`, prints
-changed Cloudflare and Porkbun DNS actions, and applies that exact saved plan.
+before merging the Release PR. The Release PR CI records a hash of the full
+Cloudflare/Porkbun change objects, its Terraform tree, mode, and production
+state lineage/serial in the successful Terraform job log. The
+[release and deploy workflow](../.github/workflows/deploy.yml) creates a fresh
+saved plan from the same root and state on `main`. If it contains DNS/cache
+changes, deployment requires an exact match to that Release PR CI record
+before applying the saved plan. A changed GitHub override, state, or plan
+stops the deployment; `off` is always rejected when the zone is already in
+production state. The release job also prints the changed DNS addresses and
+actions without printing plan values.
 Check the production deploy log and verify the affected DNS or cache behavior
 after deployment. Unexpected plan actions require stopping the release before
 the Release PR merge or investigating the deployment before any retry.
@@ -40,8 +47,9 @@ the Release PR merge or investigating the deployment before any retry.
 The active `jetsaredim.net` zone and its imported Terraform state remain in
 the shared root. A missing state resource requires investigation; routine
 deployment does not import it. For DNS-only rollback, set the optional
-`CLOUDFLARE_MODE` GitHub variable to `dns_only`, run CI on the Release PR and
-review the one-record proxy change before merge. Remove the override to restore
+`CLOUDFLARE_MODE` GitHub variable to `dns_only` before the Release PR CI run,
+then review the one-record proxy change before merge. Remove the override
+before the next Release PR CI run to restore
 the default `proxied` posture through a later reviewed release.
 Keep MX and SPF unchanged. The original staged migration and
 recovery details remain in the
