@@ -561,9 +561,13 @@ empty: no managed creates, in-place updates, replacements, destructions, or
 state-forget actions were proposed. No apply ran. That CI version filtered
 `terraform show -json` to `.mode == "managed"`, so its empty action list does
 not account for data-source reads or refreshed values. PR #375 adds a separate
-address-and-action-only data lookup report; its authenticated run must be
-reviewed before the data-lookup gate closes. The addresses below omit provider
-IDs and values.
+address-and-action-only data lookup report. The authenticated
+[PR #375 Terraform job](https://github.com/jetsaredim/autographs/actions/runs/44856718722/job/136700571520)
+also reported `No changes`, the same 32 state addresses, an empty changed
+managed-resource action list, and an empty data lookup action list. An empty
+data action list means the saved plan proposed no data-source read action; it
+does not mean no data source was refreshed or listed in state. Neither run
+applied changes. The addresses below omit provider IDs and values.
 
 ```text
 cloudflare_dns_record.autographs[0]
