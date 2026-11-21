@@ -209,7 +209,7 @@ variable "autographs_dns_record_id" {
 variable "cloudflare_mode" {
   description = "Cloudflare migration stage: off, DNS-only, or proxied."
   type        = string
-  default     = "off"
+  default     = "proxied"
 
   validation {
     condition     = contains(["off", "dns_only", "proxied"], var.cloudflare_mode)

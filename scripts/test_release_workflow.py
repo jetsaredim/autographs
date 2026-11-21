@@ -190,25 +190,28 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             self.assertIn(term, condition)
         self.assertNotIn("release", self.workflow["on"])
 
-    def test_cloudflare_dispatch_isolated_from_release_deploy(self):
+    def test_cloudflare_changes_use_reviewed_release_deploy(self):
         jobs = self.workflow["jobs"]
         production_gate = jobs["production"]["if"]
-        cloudflare_gate = jobs["cloudflare"]["if"]
         self.assertIn("inputs.operation == 'retry' || inputs.operation == 'rollback'", production_gate)
-        self.assertIn("inputs.operation == 'cloudflare_plan' || inputs.operation == 'cloudflare_apply'", cloudflare_gate)
-        self.assertIn("github.ref == 'refs/heads/main'", cloudflare_gate)
+        self.assertNotIn("cloudflare", jobs)
+        options = self.workflow["on"]["workflow_dispatch"]["inputs"]["operation"]["options"]
+        self.assertNotIn("cloudflare_plan", options)
+        self.assertNotIn("cloudflare_apply", options)
+        self.assertNotIn("expected_plan_sha", self.workflow["on"]["workflow_dispatch"]["inputs"])
         self.assertFalse((WORKFLOW_PATH.parent / "cloudflare-terraform.yml").exists())
 
         production_plan = self.production_steps["Terraform apply"]
-        cloudflare_plan = next(step for step in jobs["cloudflare"]["steps"]
-                               if step.get("name") == "Plan or apply reviewed Cloudflare changes")
-        self.assertIn("Routine deploy cannot change Cloudflare or Porkbun DNS resources",
+        self.assertIn("Changed Cloudflare and Porkbun DNS resources in the saved release plan",
                       production_plan["run"])
-        self.assertIn('all(.[]; .mode == "managed" and (.address | startswith("cloudflare_")))',
-                      cloudflare_plan["run"])
-        self.assertIn('"$plan_sha" != "$EXPECTED_PLAN_SHA"', cloudflare_plan["run"])
-        self.assertIn('terraform apply -input=false -lock-timeout=10m "$plan_file"',
-                      cloudflare_plan["run"])
+        self.assertIn('terraform apply -input=false -lock-timeout=10m "$terraform_plan_file"',
+                      production_plan["run"])
+        self.assertNotIn("Routine deploy cannot change Cloudflare", production_plan["run"])
+        self.assertIn("vars.CLOUDFLARE_MODE || 'proxied'", production_plan["env"]["TF_VAR_cloudflare_mode"])
+        ci = yaml.load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        ci_plan = next(step for step in ci["jobs"]["terraform-checks"]["steps"]
+                       if step.get("name") == "Terraform plan")
+        self.assertIn("vars.CLOUDFLARE_MODE || 'proxied'", ci_plan["env"]["TF_VAR_cloudflare_mode"])
 
     def test_vault_bootstrap_and_routine_deploy_have_distinct_write_gates(self):
         self.assertIn("bootstrap_secrets", self.workflow["on"]["workflow_dispatch"]["inputs"]["operation"]["options"])

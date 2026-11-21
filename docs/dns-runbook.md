@@ -11,10 +11,10 @@ zone, the three DNS records, Full (strict) TLS, and cache rules. Porkbun
 Connect copied the records and delegated nameservers. The one-time
 [state import](https://github.com/jetsaredim/autographs/actions/runs/42689411270)
 and [settings apply](https://github.com/jetsaredim/autographs/actions/runs/42738867482)
-are complete. The persistent GitHub `CLOUDFLARE_MODE` is `proxied`; the
-Cloudflare app A record uses automatic TTL. Routine deploys reject Cloudflare
-or Porkbun DNS changes. Use the manual Cloudflare operations in the release and
-deploy workflow below for reviewed changes.
+are complete. The Terraform and workflow default for `CLOUDFLARE_MODE` is `proxied`;
+the GitHub variable is optional and normally unset. The Cloudflare app A record
+uses automatic TTL. Reviewed Cloudflare and Porkbun DNS changes apply through
+the ordinary release deployment from the shared Terraform root and state.
 
 The [guarded proxy cutover](https://github.com/jetsaredim/autographs/actions/runs/42748453909)
 passed active edge certificate and origin HTTPS checks, then updated only the
@@ -28,25 +28,22 @@ the adjusted WebP returned `CF-Cache-Status: MISS` then `HIT` while retaining
 
 ## Ongoing Cloudflare changes
 
-Change the Terraform configuration through a reviewed PR, then use the
-[release and deploy workflow](../.github/workflows/deploy.yml)
-on `main`:
+Change the Terraform configuration through a reviewed PR. Inspect the
+production Terraform plan in CI, including changed managed-resource actions,
+before merging the Release PR. The [release and deploy workflow](../.github/workflows/deploy.yml)
+then creates a fresh saved plan from the same root and state on `main`, prints
+changed Cloudflare and Porkbun DNS actions, and applies that exact saved plan.
+Check the production deploy log and verify the affected DNS or cache behavior
+after deployment. Unexpected plan actions require stopping the release before
+the Release PR merge or investigating the deployment before any retry.
 
-1. Dispatch `operation=cloudflare_plan`; leave `release_tag` empty. Read the full Terraform plan in the run log and
-   confirm that only intended Cloudflare resources change. Record its printed
-   `Cloudflare plan fingerprint`.
-2. Dispatch `operation=cloudflare_apply` with that fingerprint as `expected_plan_sha`; leave `release_tag` empty.
-   The workflow creates a fresh saved plan, refuses changes outside Cloudflare
-   resources or a changed fingerprint, then applies that exact saved plan.
-3. Run `operation=cloudflare_plan` again and confirm `No changes`. Verify the affected
-   live DNS or cache behavior.
-
-Both operations require the active `jetsaredim.net` zone and the already
-imported Terraform state. A missing state resource requires investigation;
-the workflow does not import it. For DNS-only rollback, change the persistent
-`CLOUDFLARE_MODE` to `dns_only`, plan and review the one-record proxy change,
-then apply its fingerprint. Restore `proxied` through the same process after
-the incident. Keep MX and SPF unchanged. The original staged migration and
+The active `jetsaredim.net` zone and its imported Terraform state remain in
+the shared root. A missing state resource requires investigation; routine
+deployment does not import it. For DNS-only rollback, set the optional
+`CLOUDFLARE_MODE` GitHub variable to `dns_only`, run CI on the Release PR and
+review the one-record proxy change before merge. Remove the override to restore
+the default `proxied` posture through a later reviewed release.
+Keep MX and SPF unchanged. The original staged migration and
 recovery details remain in the
 [Wave 8 migration record](../.planning/phases/08-admin-media-review-and-operational-posture/08-08-CLOUDFLARE-MIGRATION.md).
 
