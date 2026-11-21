@@ -447,10 +447,9 @@ When deployment is required, the deploy workflow:
 6. installs/maintains Podman, firewalld, swap, and masked systemd services,
 7. copies wallet and OCI API key material to protected VM paths,
 8. installs systemd quadlets for the dedicated Podman network, private controller, shared static volume, and Caddy container,
-9. stops, disables, and removes the retired Next.js app runtime if present,
-10. pulls the published controller image and restarts the quadlet services,
-11. checks the Caddy-fronted static release and Rust controller health routes,
-12. records repository/controller state in `.release-status.json`, then publishes
+9. pulls the published controller image and restarts the quadlet services,
+10. checks the Caddy-fronted static release and Rust controller health routes,
+11. records repository/controller state in `.release-status.json`, then publishes
     the GitHub Release last.
 
 The VM pulls images built by GitHub Actions. The VM does not build application code or generate catalog content during deploy.
@@ -481,8 +480,6 @@ The `/admin` shell and `/admin/api/*` controller proxy are available through the
 - `/api/operator/*` continues to return `404`.
 - Anonymous public traffic serves `/srv/autographs/static/current` directly.
 - `127.0.0.1:8081` on the VM maps to Caddy's static preview listener and serves `/srv/autographs/static`.
-
-The deploy role stops and disables the retired `autographs-app.service`, removes its quadlet, and force-removes any leftover `autographs-app` Podman container.
 
 The Ansible-managed `/opt/autographs/env/controller.env` intentionally uses persistent controller providers in deployment: `AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle` and `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER=oci-instance-principal`. The controller-specific environment also sets `OCI_AUTH_MODE=instance_principal` and relies on `OCI_MEDIA_NAMESPACE` plus `OCI_MEDIA_BUCKET_NAME` from the Ansible-managed runtime environment. Do not rely on a manual edit to `controller.env`; Ansible owns that file on each deploy. The deploy workflow verifies `/admin/api/health` reports those active provider modes before it succeeds.
 
@@ -682,16 +679,7 @@ shape.
 
 2. Confirm the active controller image in `${DEPLOY_PATH}/env/app.env` is not in
    the removal set, then rerun without dry-run only if the preview is correct.
-3. Confirm retired service absence on the VM:
-
-   ```bash
-   sudo systemctl status autographs-app.service || true
-   sudo podman ps --all --filter name=autographs-app
-   ```
-
-   The service/container should be absent or inactive; do not recreate the
-   retired Next.js runtime.
-4. Verify static release retention from the controller publish status and VM
+3. Verify static release retention from the controller publish status and VM
    filesystem:
 
    ```bash
@@ -702,7 +690,7 @@ shape.
 
    The expected defaults are five promoted releases and one failed candidate
    unless the Ansible-rendered retention variables were intentionally changed.
-5. Verify Caddy route shape and cache headers:
+4. Verify Caddy route shape and cache headers:
 
    ```bash
    curl -I "https://${AUTOGRAPHS_DOMAIN}/media/<item-slug>/<image-slug>-detail-<fingerprint>.webp"
