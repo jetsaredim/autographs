@@ -61,7 +61,7 @@ guidance.
 | SEC-06-10 | Static public privacy boundary | Fixed | Public output remains generated static HTML, JSON, and WebP derivatives; private Oracle, Object Storage, object-key, and original-file details stay inside the controller/runtime boundary. |
 | SEC-06-11 | Live smoke guidance | Accepted | Local/CI checks verify the ignored live static smoke remains gated by default; operator-run live proof still requires real Oracle, private Object Storage, deployed controller, Caddy preview, and runtime admin credentials. |
 | SEC-06-12 | CDN/cache and image-size optimization | Fixed | Phase 6 plan `06-09` reduced detail derivative bounds, added Caddy cache headers, and kept admin/API responses out of cache. Phase 8 now owns the CDN/cache contract before enablement so adjusted media, purge behavior, and rollback are proven together. |
-| SEC-06-13 | Post-Phase 6 runtime cleanup posture | Accepted | Deployment docs now include operator-run checks for VM-local image cleanup dry-run, retired service absence, static release retention, failed candidate retention, route shape, and cache headers; destructive live cleanup remains operator-approved only. |
+| SEC-06-13 | Post-Phase 6 runtime cleanup posture | Accepted | The retired Node service absence check was part of the historical cutover. Current deployment docs cover VM-local image cleanup preview, static release retention, failed candidate retention, route shape, and cache headers; live cleanup follows the documented operator workflow. |
 
 No high-severity Phase 6 admin finding remains without a fixed or documented
 mitigation. Phase 7 metadata taxonomy is reviewed below; Phase 8 admin
