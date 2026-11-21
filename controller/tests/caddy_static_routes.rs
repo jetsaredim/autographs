@@ -80,9 +80,9 @@ fn caddy_static_routes_serve_admin_and_current_static_release() {
     );
     assert!(!deploy_tasks.contains("Remove staged admin shell before restaging"));
     assert!(!deploy_tasks.contains("Copy admin shell into promoted static release"));
-    assert!(deploy_tasks.contains("Stop and disable retired Next.js app service"));
-    assert!(deploy_tasks.contains("Remove retired Next.js app quadlet"));
-    assert!(deploy_tasks.contains("Remove retired Next.js app container"));
+    assert!(!deploy_tasks.contains("Stop and disable retired Next.js app service"));
+    assert!(!deploy_tasks.contains("Remove retired Next.js app quadlet"));
+    assert!(!deploy_tasks.contains("Remove retired Next.js app container"));
     assert!(!deploy_tasks.contains("src: autographs-app.container.j2"));
     assert!(!deploy_tasks.contains("autographs_app_image"));
     assert!(

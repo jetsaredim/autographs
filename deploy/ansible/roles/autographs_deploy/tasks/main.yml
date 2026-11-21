@@ -671,31 +671,6 @@
     registry: ghcr.io
   failed_when: false
 
-- name: Stop and disable retired Next.js app service
-  ansible.builtin.systemd:
-    name: autographs-app.service
-    state: stopped
-    enabled: false
-    daemon_reload: true
-  failed_when: false
-
-- name: Remove retired Next.js app quadlet
-  ansible.builtin.file:
-    path: "{{ autographs_deploy_quadlet_path }}/autographs-app.container"
-    state: absent
-  notify: Reload systemd
-
-- name: Remove retired Next.js app container
-  ansible.builtin.command:
-    argv:
-      - podman
-      - rm
-      - --force
-      - autographs-app
-  register: autographs_deploy_remove_app_container
-  changed_when: autographs_deploy_remove_app_container.rc == 0
-  failed_when: false
-
 - name: Install Podman quadlet units
   ansible.builtin.template:
     src: "{{ item.src }}"

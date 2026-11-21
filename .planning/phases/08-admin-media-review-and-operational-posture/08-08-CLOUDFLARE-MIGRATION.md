@@ -7,6 +7,14 @@ approach: terraform_managed_full_zone
 
 # Cloudflare DNS and CDN migration for Wave 8
 
+> **Current operating decision (2026-11-21):** Cloudflare remains in the shared
+> `infra/terraform/` deploy stack and OCI state. The owner chose ordinary
+> deployment after Release PR review for future DNS/cache changes. The
+> separate `cloudflare_plan`/`cloudflare_apply` dispatch route described below
+> records the historical migration method and is superseded by
+> [the DNS runbook](../../../docs/dns-runbook.md). Normal production now defaults
+> to `proxied`; `CLOUDFLARE_MODE` remains an optional override.
+
 ## Decision and ownership
 
 Use the existing `infra/terraform/` runtime root and its current OCI state object for the Cloudflare full zone, every reviewed `jetsaredim.net` DNS record, strict TLS, and cache rules. The owner prefers one Terraform root and state. The existing deploy workflow auto-applies this root, so it refuses Cloudflare or Porkbun DNS changes. Ordinary runtime deployments may proceed only when the DNS plan has no changes; a controlled operator plan/apply handles DNS changes.

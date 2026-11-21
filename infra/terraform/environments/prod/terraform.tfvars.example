@@ -45,6 +45,6 @@ runtime_deploy_path = "/opt/autographs"
 
 media_bucket_namespace  = "replace-with-your-object-storage-namespace"
 
-# Cloudflare full-zone migration. Advance only through reviewed DNS applies.
-cloudflare_mode       = "off"
+# Normal production is proxied. Use an explicit override only for a reviewed rollback or fresh bootstrap.
+cloudflare_mode       = "proxied"
 cloudflare_account_id = "replace-with-cloudflare-account-id"
