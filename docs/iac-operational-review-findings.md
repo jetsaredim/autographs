@@ -466,6 +466,49 @@ full address list and a sanitized action summary from the saved plan. The
 no-change result supported the 2026-11-15 configuration only. PR #358 and the
 post-removal plan later resolved IAC-001; IAC-002 remains open.
 
+The later authenticated [PR #371 Terraform job](https://github.com/jetsaredim/autographs/actions/runs/44462171052/job/135351338460)
+printed the complete production state address list below on 2026-11-19. Its
+saved plan reported `No changes. Your infrastructure matches the
+configuration.` The sanitized changed managed-resource action list was empty:
+zero data lookup changes, creates, in-place updates, replacements,
+destructions, or state-forget actions were proposed. No apply ran. These are
+addresses only; provider IDs and values are omitted.
+
+```text
+cloudflare_dns_record.autographs[0]
+cloudflare_dns_record.mail[0]
+cloudflare_dns_record.spf[0]
+cloudflare_ruleset.autographs_cache[0]
+cloudflare_zone.domain[0]
+cloudflare_zone_setting.strict_tls[0]
+data.oci_core_images.oracle_linux_10[0]
+data.oci_database_autonomous_databases.rotation_target
+data.oci_identity_compartments.project
+data.oci_vault_secret.runtime_readiness["admin_password_hash"]
+data.oci_vault_secret.runtime_readiness["oracle_db_password"]
+data.oci_vault_secret.runtime_readiness["oracle_db_wallet_password"]
+data.oci_vault_secrets.oracle_db_password[0]
+data.oci_vault_secrets.runtime_readiness
+module.compute.oci_core_instance.runtime
+module.data_services.oci_database_autonomous_database.catalog
+module.data_services.oci_objectstorage_bucket.media
+module.network.oci_core_internet_gateway.main
+module.network.oci_core_network_security_group.runtime
+module.network.oci_core_network_security_group_security_rule.egress_all
+module.network.oci_core_network_security_group_security_rule.http_ingress["0.0.0.0/0"]
+module.network.oci_core_network_security_group_security_rule.https_ingress["0.0.0.0/0"]
+module.network.oci_core_network_security_group_security_rule.ssh_ingress["0.0.0.0/0"]
+module.network.oci_core_route_table.public
+module.network.oci_core_subnet.public
+module.network.oci_core_vcn.main
+oci_kms_key.runtime_secrets
+oci_kms_vault.runtime_secrets
+oci_vault_secret.runtime["admin_password_hash"]
+oci_vault_secret.runtime["oracle_db_password"]
+oci_vault_secret.runtime["oracle_db_wallet_password"]
+porkbun_dns_record.autographs
+```
+
 ### Authenticated tenancy-state plan
 
 On 2026-11-15, with the current PR head `c8ebd75` and a freshly authenticated
