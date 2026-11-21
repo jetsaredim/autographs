@@ -5,7 +5,7 @@ reviewed_head: 85db903d4dd0ef70887816c9849101fac2827c7a
 finding_family: auto_assist_outer_boundary_confidence
 status: implemented_with_accepted_limitation
 source_review: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
-revised_plan: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-PLAN.md
+revised_plan: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-REVISED-WORKPLAN.md
 reassessment_iteration: 3
 checker_review: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-276-DETECTOR-PLAN-REVIEW.md
 checker_status: passed_cycle_2

@@ -12,7 +12,7 @@ info: 0
 
 ## ISSUES FOUND
 
-**Plan:** `08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md`
+**Plan:** `08-PR-263-CANDIDATE-OWNERSHIP-REVISED-WORKPLAN.md`
 **Reviewed commit:** `e114fb3`
 **Verdict:** **CHANGES REQUIRED — 1 Blocker, 0 Warning, 0 Info**
 
@@ -76,7 +76,7 @@ by the independent plan reviewer.
 
 ## ISSUES FOUND — Second Review
 
-**Plan:** `08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md`
+**Plan:** `08-PR-263-CANDIDATE-OWNERSHIP-REVISED-WORKPLAN.md`
 **Reviewed commit:** `bd6deac`
 **Verdict:** **CHANGES REQUIRED — 1 Blocker, 0 Warning, 0 Info**
 
@@ -132,7 +132,7 @@ Do not change convergence status to `ready_to_resume` yet.
 
 # PR 263 Candidate Ownership Plan Review — Iteration 3
 
-**Reviewed plan:** `08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md`
+**Reviewed plan:** `08-PR-263-CANDIDATE-OWNERSHIP-REVISED-WORKPLAN.md`
 **Reviewed commit:** `d60ce68`
 **Verdict:** **APPROVED — 0 Blocker, 0 Warning, 0 Info**
 

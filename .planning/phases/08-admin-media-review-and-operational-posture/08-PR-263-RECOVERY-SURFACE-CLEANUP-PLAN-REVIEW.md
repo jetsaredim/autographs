@@ -1,7 +1,7 @@
 ---
 phase: 08-admin-media-review-and-operational-posture
 pr: 263
-reviewed_plan: 08-PR-263-RECOVERY-SURFACE-CLEANUP-REVISED-PLAN.md
+reviewed_plan: 08-PR-263-RECOVERY-SURFACE-CLEANUP-REVISED-WORKPLAN.md
 reviewed_commit: 2a258e2
 reviewed: 2026-10-11
 verdict: approved

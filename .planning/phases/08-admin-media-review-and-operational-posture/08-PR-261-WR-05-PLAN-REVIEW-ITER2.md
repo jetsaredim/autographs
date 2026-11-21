@@ -7,7 +7,7 @@ status: approved
 reviewed_artifacts:
   - 08-PR-261-REVIEW-ITER3.md
   - 08-PR-261-CONVERGENCE.md
-  - 08-PR-261-WR-05-REVISED-PLAN.md
+  - 08-PR-261-WR-05-REVISED-WORKPLAN.md
 ---
 
 # WR-05 Revised Plan Review — Iteration 2

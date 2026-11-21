@@ -1,6 +1,6 @@
 # Phase 8 source coverage
 
-This audit maps the Phase 8 goal, requirements, research, and locked context decisions to the canonical execution plans. PR-specific `*-REVISED-PLAN.md` files are review records, not additional phase execution plans.
+This audit maps the Phase 8 goal, requirements, research, and locked context decisions to the canonical execution plans. PR-specific `*-REVISED-WORKPLAN.md` files are review records, not additional phase execution plans.
 
 ## Goal coverage
 
@@ -15,8 +15,8 @@ This audit maps the Phase 8 goal, requirements, research, and locked context dec
 
 | Requirement | Plans | Closeout state |
 |---|---|---|
-| OPS-01 | 08-01, 08-08 | Implementation complete; live scan and dry-run evidence remain operator checks. |
-| OPS-02 | 08-02, 08-03, 08-07, 08-08 | Posture and cache contract complete; production CDN enablement and edge verification remain open. |
+| OPS-01 | 08-01, 08-08 | Scanner and live apply/reboot evidence are recorded; the apply workflow has no dry-run mode. |
+| OPS-02 | 08-02, 08-03, 08-07, 08-08 | Production CDN, admin bypass, and media HIT are evidenced; the IaC operating review remains open. |
 | MEDIA-05 | 08-06, 08-08 | Private authenticated preview implemented; security review and owner UAT recorded at closeout. |
 | MEDIA-06 | 08-04, 08-05, 08-06, 08-07, 08-08 | Non-destructive corrections and adjusted publishing implemented; operator UAT supports the workflow. |
 | ADMIN-06 | 08-06, 08-08 | Focused image workbench implemented; owner UAT and closeout review complete the requirement. |
@@ -55,4 +55,4 @@ This audit maps the Phase 8 goal, requirements, research, and locked context dec
 
 ## Live evidence boundary
 
-The owner reports multiple production publishes and image adjustments. On 2026-11-06, the public item JSON for `5d6-ra-7-fivedesix` referenced `/media/5d6-ra-7-fivedesix/image-1-detail-70c219182f1ace41.webp`; the URL returned 200 and its SHA-256 began with `70c219182f1ace41`. This proves the current public reference and final-byte fingerprint agree. No earlier URL was retained for this item, so this observation alone does not prove a before/after URL transition. The credential-gated automated static smoke was not run live in 08-07. CDN cache participation remains unverified.
+The [Wave 8 checkpoint](08-08-CHECKPOINT.md) records a same-image before/after thumbnail and detail URL pair, hashes matching the final-byte fingerprints, the production Cloudflare cutover, repeated media `MISS` then `HIT`, and authenticated admin bypass evidence. The owner deferred a live rollback rehearsal because changing production DNS or proxy behavior without an incident would introduce avoidable availability risk; the DNS runbook retains the reviewed recovery path. The credential-gated automated static smoke was not run live in 08-07. The Terraform/Ansible operating inventory remains open before Phase 8 closeout.
