@@ -57,7 +57,8 @@ below. Remaining:
 - [PR #371](https://github.com/jetsaredim/autographs/pull/371) merged as
   `abc17a0` with passing PR checks. It flags destructive actions in the
   authenticated CI plan and requires a fresh PR label-add event after review;
-  routine release deployment retains its saved-plan and DNS guards.
+  routine release deployment retains its saved-plan apply. PR #378 removes
+  the DNS comparison added later in PR #377.
 - `security_scan_run_id: 43932933877` — the
   [2026-11-16 scanner run](https://github.com/jetsaredim/autographs/actions/runs/43932933877)
   succeeded. [Security report #326](https://github.com/jetsaredim/autographs/issues/326)
@@ -118,11 +119,15 @@ below. Remaining:
   changed the proxied default and shared release apply path, passed CI and its
   second review, and merged as `e84d58f`. Its first review
   found a critical unreviewed-DNS-action path; the revised gate binds DNS
-  actions to the successful Release PR CI record.
+  actions to the successful Release PR CI record. The owner subsequently
+  clarified that this extra apply gate is unwanted; PR #378 removes it and
+  leaves destructive-plan approval in normal and Release PR CI.
   The duplicate `CLOUDFLARE_MODE=proxied` GitHub variable was removed after
   the new default merged. The authenticated
   [post-removal Terraform CI job](https://github.com/jetsaredim/autographs/actions/runs/44908578055/job/136859340147)
-  used the fallback `proxied` and reported no changes. No apply ran. The
+  used the then-current workflow fallback `proxied` and reported no changes.
+  PR #378 makes Terraform's default the sole source unless an override is set.
+  No apply ran. The
   Release PR has not been merged or deployed.
   PR #375's
   inventory and `/tmp/autographs-iac-operational-review.html` now explain the
