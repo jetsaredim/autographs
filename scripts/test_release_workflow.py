@@ -196,7 +196,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             self.assertIn(term, condition)
         self.assertNotIn("release", self.workflow["on"])
 
-    def test_cloudflare_changes_use_reviewed_release_deploy(self):
+    def test_terraform_changes_use_reviewed_release_deploy(self):
         jobs = self.workflow["jobs"]
         production_gate = jobs["production"]["if"]
         self.assertIn("inputs.operation == 'retry' || inputs.operation == 'rollback'", production_gate)
@@ -208,21 +208,25 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertFalse((WORKFLOW_PATH.parent / "cloudflare-terraform.yml").exists())
 
         production_plan = self.production_steps["Terraform apply"]
-        self.assertIn("Changed Cloudflare and Porkbun DNS resources in the saved release plan",
+        self.assertIn("Changed Terraform resources in the saved release plan",
                       production_plan["run"])
         self.assertIn('terraform apply -input=false -lock-timeout=10m "$terraform_plan_file"',
                       production_plan["run"])
-        self.assertLess(production_plan["run"].index("dns_plan_review.py\" verify"),
-                        production_plan["run"].index('terraform apply -input=false -lock-timeout=10m "$terraform_plan_file"'))
-        self.assertIn("actions", self.production_job["permissions"])
-        self.assertIn("pull-requests", self.production_job["permissions"])
+        self.assertNotIn("plan_review.py", production_plan["run"])
         self.assertNotIn("Routine deploy cannot change Cloudflare", production_plan["run"])
-        self.assertIn("vars.CLOUDFLARE_MODE || 'proxied'", production_plan["env"]["TF_VAR_cloudflare_mode"])
+        self.assertNotIn("TF_VAR_cloudflare_mode", production_plan["env"])
+        self.assertIn("vars.CLOUDFLARE_MODE", production_plan["env"]["CLOUDFLARE_MODE_OVERRIDE"])
+        self.assertIn('if [ -n "$CLOUDFLARE_MODE_OVERRIDE" ]; then', production_plan["run"])
+        self.assertIn('export TF_VAR_cloudflare_mode="$CLOUDFLARE_MODE_OVERRIDE"', production_plan["run"])
         ci = yaml.load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
         ci_plan = next(step for step in ci["jobs"]["terraform-checks"]["steps"]
                        if step.get("name") == "Terraform plan")
-        self.assertIn("vars.CLOUDFLARE_MODE || 'proxied'", ci_plan["env"]["TF_VAR_cloudflare_mode"])
-        self.assertIn("dns_plan_review.py\" emit", ci_plan["run"])
+        self.assertNotIn("TF_VAR_cloudflare_mode", ci_plan["env"])
+        self.assertIn("vars.CLOUDFLARE_MODE", ci_plan["env"]["CLOUDFLARE_MODE_OVERRIDE"])
+        self.assertIn('export TF_VAR_cloudflare_mode="$CLOUDFLARE_MODE_OVERRIDE"', ci_plan["run"])
+        self.assertNotIn("plan_review.py", ci_plan["run"])
+        self.assertIn("terraform-destructive-plan-approved", ci_plan["run"])
+        self.assertIn('default     = "proxied"', (ROOT / "infra/terraform/variables.tf").read_text())
         self.assertIn("release-please--branches--main", ci["jobs"]["impact"]["steps"][1]["run"])
 
     def test_vault_bootstrap_and_routine_deploy_have_distinct_write_gates(self):
@@ -233,6 +237,10 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertEqual(bootstrap["environment"], "secret-audit")
         bootstrap_run = next(step["run"] for step in bootstrap["steps"]
                              if step.get("name") == "Create Vault resources and populate only untouched placeholders")
+        bootstrap_step = next(step for step in bootstrap["steps"]
+                              if step.get("name") == "Create Vault resources and populate only untouched placeholders")
+        self.assertNotIn("TF_VAR_cloudflare_mode", bootstrap_step["env"])
+        self.assertIn('export TF_VAR_cloudflare_mode="$CLOUDFLARE_MODE_OVERRIDE"', bootstrap_run)
         self.assertIn("-target=oci_vault_secret.runtime", bootstrap_run)
         self.assertIn("terraform apply -input=false -lock-timeout=10m \"$bootstrap_plan\"", bootstrap_run)
         self.assertIn("sync_runtime_vault_secrets.py bootstrap", bootstrap_run)

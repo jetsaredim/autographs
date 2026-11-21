@@ -68,7 +68,7 @@ outputs and passes them to Ansible.
 | `OCI_RUNTIME_SSH_PUBLIC_KEYS` | JSON list of SSH public keys injected into the VM |
 | `OCI_OBJECT_STORAGE_NAMESPACE` | OCI Object Storage namespace for Terraform remote state |
 | `CLOUDFLARE_ACCOUNT_ID` | Non-secret account ID for the Terraform-managed `jetsaredim.net` zone |
-| `CLOUDFLARE_MODE` | Defaults to `proxied` in Terraform and workflows; leave the GitHub variable unset in normal production. Set `dns_only` only for a reviewed proxy rollback, or explicitly set `off` for a fresh bootstrap before the Cloudflare zone exists. Set any override before Release PR CI and review its plan; ordinary deployment rejects DNS changes that differ from that successful CI record. |
+| `CLOUDFLARE_MODE` | Optional override for Terraform's `proxied` default; leave the GitHub variable unset in normal production. Set `dns_only` for a reviewed proxy rollback, or `off` for a fresh bootstrap before the Cloudflare zone exists. Set any override before Release PR CI and review its plan. Destructive actions require the PR approval label; routine deployment applies its fresh saved plan after release merge. |
 | `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |
 | `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect alias or descriptor; use the wallet alias such as `autographsdb_medium` for mTLS |
 | `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the Rust controller container; defaults to `/opt/autographs/wallet` in deploy |
