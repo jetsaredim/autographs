@@ -141,7 +141,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         jobs = ci["jobs"]
         classifier = next(step["run"] for step in jobs["impact"]["steps"]
                           if step.get("name") == "Classify changed paths")
-        jq_filter = classifier.split("jq -r '", 1)[1].split("' <<<\"$classification\"", 1)[0]
+        jq_filter = classifier.split("jq -r '", 1)[1].split("' --arg head_ref", 1)[0]
         expected = {
             "docs/phase-08-posture-findings.md": set(),
             "controller/src/main.rs": {"controller-image", "controller-checks", "dockerfile-checks"},
@@ -161,11 +161,17 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         for path, enabled in expected.items():
             with self.subTest(path=path):
                 classification = release._classify_paths([path])
-                result = subprocess.run(["jq", "-r", jq_filter],
+                result = subprocess.run(["jq", "-r", "--arg", "head_ref", "feature-branch", jq_filter],
                                         input=json.dumps(classification),
                                         text=True, capture_output=True, check=True)
                 outputs = dict(line.split("=", 1) for line in result.stdout.splitlines())
                 self.assertEqual({name for name, value in outputs.items() if value == "true"}, enabled)
+        release_result = subprocess.run(
+            ["jq", "-r", "--arg", "head_ref", "release-please--branches--main--components--autographs", jq_filter],
+            input=json.dumps(release._classify_paths(["docs/phase-08-posture-findings.md"])),
+            text=True, capture_output=True, check=True,
+        )
+        self.assertIn("terraform-checks=true", release_result.stdout)
         for name, output in {
             "controller-checks": "controller-checks",
             "terraform-checks": "terraform-checks",
@@ -190,25 +196,34 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             self.assertIn(term, condition)
         self.assertNotIn("release", self.workflow["on"])
 
-    def test_cloudflare_dispatch_isolated_from_release_deploy(self):
+    def test_cloudflare_changes_use_reviewed_release_deploy(self):
         jobs = self.workflow["jobs"]
         production_gate = jobs["production"]["if"]
-        cloudflare_gate = jobs["cloudflare"]["if"]
         self.assertIn("inputs.operation == 'retry' || inputs.operation == 'rollback'", production_gate)
-        self.assertIn("inputs.operation == 'cloudflare_plan' || inputs.operation == 'cloudflare_apply'", cloudflare_gate)
-        self.assertIn("github.ref == 'refs/heads/main'", cloudflare_gate)
+        self.assertNotIn("cloudflare", jobs)
+        options = self.workflow["on"]["workflow_dispatch"]["inputs"]["operation"]["options"]
+        self.assertNotIn("cloudflare_plan", options)
+        self.assertNotIn("cloudflare_apply", options)
+        self.assertNotIn("expected_plan_sha", self.workflow["on"]["workflow_dispatch"]["inputs"])
         self.assertFalse((WORKFLOW_PATH.parent / "cloudflare-terraform.yml").exists())
 
         production_plan = self.production_steps["Terraform apply"]
-        cloudflare_plan = next(step for step in jobs["cloudflare"]["steps"]
-                               if step.get("name") == "Plan or apply reviewed Cloudflare changes")
-        self.assertIn("Routine deploy cannot change Cloudflare or Porkbun DNS resources",
+        self.assertIn("Changed Cloudflare and Porkbun DNS resources in the saved release plan",
                       production_plan["run"])
-        self.assertIn('all(.[]; .mode == "managed" and (.address | startswith("cloudflare_")))',
-                      cloudflare_plan["run"])
-        self.assertIn('"$plan_sha" != "$EXPECTED_PLAN_SHA"', cloudflare_plan["run"])
-        self.assertIn('terraform apply -input=false -lock-timeout=10m "$plan_file"',
-                      cloudflare_plan["run"])
+        self.assertIn('terraform apply -input=false -lock-timeout=10m "$terraform_plan_file"',
+                      production_plan["run"])
+        self.assertLess(production_plan["run"].index("dns_plan_review.py\" verify"),
+                        production_plan["run"].index('terraform apply -input=false -lock-timeout=10m "$terraform_plan_file"'))
+        self.assertIn("actions", self.production_job["permissions"])
+        self.assertIn("pull-requests", self.production_job["permissions"])
+        self.assertNotIn("Routine deploy cannot change Cloudflare", production_plan["run"])
+        self.assertIn("vars.CLOUDFLARE_MODE || 'proxied'", production_plan["env"]["TF_VAR_cloudflare_mode"])
+        ci = yaml.load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        ci_plan = next(step for step in ci["jobs"]["terraform-checks"]["steps"]
+                       if step.get("name") == "Terraform plan")
+        self.assertIn("vars.CLOUDFLARE_MODE || 'proxied'", ci_plan["env"]["TF_VAR_cloudflare_mode"])
+        self.assertIn("dns_plan_review.py\" emit", ci_plan["run"])
+        self.assertIn("release-please--branches--main", ci["jobs"]["impact"]["steps"][1]["run"])
 
     def test_vault_bootstrap_and_routine_deploy_have_distinct_write_gates(self):
         self.assertIn("bootstrap_secrets", self.workflow["on"]["workflow_dispatch"]["inputs"]["operation"]["options"])
