@@ -177,18 +177,46 @@ proposed refactor that removes the input and its conditional consumers.
 | Root and tenancy OCI `auth` | Terraform default `APIKey`; accepts `APIKey`/`SecurityToken` | Selects OCI provider authentication for production or bootstrap state. | Confirm each root's operator entry point and credential source. |
 | State bucket `storage_tier` | Hardcoded `Standard` in the state bucket module in PR #354 | Keeps Terraform state promptly retrievable. Existing uncounted resource address is unchanged. | Local validation and authenticated tenancy-root no-change plan passed on 2026-11-15; no apply. |
 | `cloudflare_mode` | GitHub variable `proxied`; root default and deploy/CI fallback `off` | Counts zone, records, TLS, rules; `dns_only` preserves zone but changes proxy flag; ordinary deploy DNS guard rejects changes. | IAC-004; preserve controlled transitions. |
+| `bootstrap_runtime_secrets` | Root Terraform Boolean defaults `false`; reviewer-gated `bootstrap_secrets` dispatch sets `true` in `deploy.yml` | `false` reads password/readiness bundles and can attach ADB rotation; `true` omits those reads and rotation during targeted Vault creation before ADB exists. Using `true` in an ordinary deploy would bypass readiness, so only the scoped bootstrap job supplies it. | Retain. Normal path has a production no-change plan; bootstrap guards and `test_release_workflow.py` cover the true route, with no live bootstrap claim. |
 | `runtime_secret_values_ready` | Derived from three Vault CURRENT-version checks during normal plans | Blocks ADB creation/update until the generated DB password and manually populated secrets are ready. Bootstrap skips the reads only during its saved targeted plan. | Preserve fail-closed precondition; verify missing and bootstrap versions. |
 | `autographs_deploy_publish_frozen` | Role default and deploy input `true`; unfreeze sets `false` | Full-deploy assertion and exact Caddy publish gate. | IAC-005; trace as one cutover contract. |
 | `autographs_deploy_explicit_cutover` | Role default `true` | Full-deploy assertion and restart-handler suppression. | IAC-005; trace role notifications and fixtures. |
 | `autographs_deploy_allow_unfreeze` | Absent/false by default; unfreeze sets `true` | Allows removal of publish gate when frozen flag becomes false. | IAC-005; verify failure rescue and no bypass. |
 | `autographs_publish_unfreeze_verify_only` | Unfreeze default `false`; deploy invokes true then false | First invocation checks origin readiness without removing gate; second removes it after health. | Trace both paths and failed second step. |
+| `autographs_publish_freeze_fixture_mode` | Preflight default `false`; disposable `test_publish_freeze_deploy.py` supplies `true` | `false` runs production systemd Caddy restart and controller stop; `true` substitutes local Caddy reload and simulated stop only after local connection, `media-probe.invalid`, temporary path, and environment assertions. | Retain test adapter. Source and Python fixture cover the branch; CI syntax-checks the playbook but does not execute this integration fixture. |
+| `autographs_publish_unfreeze_fixture_mode` | Unfreeze default `false`; disposable `test_publish_freeze_deploy.py` supplies `true` | `false` uses systemd on success/rescue; `true` reloads local fixture Caddy under the same local/domain/path/environment guard. | Retain test adapter; source and Python fixture cover both branches, with no CI behavior-run claim. |
+| `autographs_deploy_fixture_mode` | Deploy role defaults to `false`; `publish-freeze-role-reaudit-test.yml` sets `true` | `false` starts/restarts production Caddy under cutover; `true` uses guarded local fixture reload in success and rescue, preventing a fixture from touching production services. | Retain test adapter; CI syntax/lint only for this fixture, behavior execution remains unproven here. |
 | `autographs_system_cleanup_dry_run` | Role default string `"false"`; image-cleanup workflow input | Controls Podman cleanup mutation. | Verify preview and execute paths. |
 | `security_patching_reboot_validate_dnf_noop` | Role default `true`; fixture overrides true/false | Gates DNF no-op proof before reboot cleanup. | IAC-006; verify production and test seam. |
+| `security_patching_require_request_instance_match` | Target-scope helper defaults `false`; approval, update/reboot classification, and result tasks pass `true` | `false` still requires a configured nonempty live target group for scanner publication; `true` also requires the approved issue host set to match it exactly before mutation or success reporting. | Retain. Target-scope fixture passed locally with its declared inventory; production apply/reboot runs cover selected true paths. |
+| `security_patching_ksplice_apply_mode` | Patch task fixes `report_only`; result template reports it | No mutating Ksplice mode is reachable; changing this value would alter the maintenance contract and needs a separate reviewed plan. | Retain as fixed reporting value; update-result fixture and Python source test cover `report_only`. |
 | Security update/reboot approval labels | GitHub issue labels and approved workflow events | Separate update and reboot paths validate current scanner state before mutation. | Trace issue update, approval removal, cleanup, and retry. |
 | `recreate_runtime_instance` | Deploy workflow dispatch Boolean, default false | Retry-only taint of tracked compute address before saved plan. | Verify replacement gate and rollback path. |
-| Release `operation` | Manual deploy workflow choice `retry`/`rollback`; push to `main` follows the release path | Selects retry or controller rollback on manual runs while normal release processing follows the push event. | Trace every branch through status reporting and failure cleanup. |
-| Cloudflare `operation` | Operator workflow choice `plan`/`apply` | Apply requires a matching nonempty plan fingerprint. | Current plan-only run passed; retain. |
+| CI `DESTRUCTIVE_PLAN_APPROVED` | False for ordinary PR events; true only on a fresh `terraform-destructive-plan-approved` label-add event for the current PR head | False rejects managed deletes, replacements, and state forgets; true permits the reviewed plan to pass CI, with a new commit requiring a fresh label event. | Retain; `test_release_workflow.py` exercises the jq action classifier and label event gate; PR #371 passed and merged. |
+| Release `operation` | Push to `main` follows normal release; manual choices are `retry`, `rollback`, `bootstrap_secrets`, `cloudflare_plan`, and `cloudflare_apply` | Retry can taint/replace the VM, rollback selects a verified controller digest, bootstrap targets only Vault resources, and Cloudflare apply requires a matching saved-plan fingerprint; each is gated to its own job. | Retain separate transitions; `test_release_workflow.py` covers routing, but only cited production runs prove live paths. |
+| Cloudflare `operation` | Manual `cloudflare_plan` or `cloudflare_apply` | Plan is read-only; apply requires a matching nonempty fingerprint and Cloudflare-only changed resources, preventing DNS mutations during ordinary deploy. | Current plan-only and guarded cutover runs passed; retain. |
+| Historical v0.5.0 `operation` | `complete-v0.5.0.yml` manual `complete` or `finalize` | `complete` requires exact frozen release and origin state before unfreeze; `finalize` requires a prior successful unfreeze run before GitHub bookkeeping. Current proxied DNS likely fails its fixed origin-IP guard. | Retain as historical, fail-closed record pending a separate retirement decision; do not present as current recovery procedure. |
+| Controller provider modes | Deploy defaults `oracle` and `oci-instance-principal`; role/config also allow `local` | Production selections keep Oracle metadata and private OCI originals; local values route to nonproduction adapters and must not be used for production release. | Retain for local/CI work; deploy assertions and configuration contract guard production values. |
 | Image cleanup `dry_run` / `remote_operation` | Scheduled or manual `image-cleanup.yml`; manual options `inventory`/`delete` | Scheduled local Podman cleanup gets `dry_run=false` and may prune; scheduled GHCR remains dry-run. Manual GHCR deletion requires explicit `delete`; the manual local dry-run input is independent. | Trace both local and remote actions and protected tags. |
+
+### Fixture probe adapter census
+
+The 15 named `security_patching_*probe_override` adapters below have two
+reachable states: absent or non-mapping in production invokes the real host
+probe; a fixture-supplied mapping substitutes bounded command results. The
+substitution prevents localhost tests from querying or changing host kernel
+and package state. None is a supported production operation flag. Each listed
+fixture passed locally on 2026-11-20; CI syntax-checks the playbooks but does
+not run them.
+
+| Adapter names | Direct consumer | Fixture and proof |
+|---|---|---|
+| `security_patching_classification_dnf_probe_override` | `classify_findings.yml` DNF classification | `security-finding-classification-validate-test.yml` exercises applicable, no-op, and unsafe classifications. |
+| `security_patching_running_kernel_probe_override`, `security_patching_running_kernel_owner_probe_override`, `security_patching_default_kernel_probe_override`, `security_patching_default_kernel_owner_probe_override`, `security_patching_installed_package_names_probe_override` | `kernel_posture.yml` kernel and RPM facts | `security-kernel-posture-validate-test.yml` covers complete and missing/inconsistent inventory. |
+| `security_patching_kernel_boot_entry_probe_override`, `security_patching_kernel_entry_probe_override` | `kernel_posture.yml` passes the selected mapping into `inspect_kernel_boot_entry.yml` | `security-kernel-posture-validate-test.yml` drives the outer override; the inner adapter is reached through that import. |
+| `security_patching_reboot_dnf_noop_probe_override` | `validate_reboot_state.yml` DNF no-op gate | `security-reboot-state-validate-test.yml` covers no-op and actionable work before reboot approval. |
+| `security_patching_reboot_kernel_candidate_probe_override`, `security_patching_reboot_kernel_owner_probe_override`, `security_patching_reboot_kernel_boot_entry_probe_override` | `resolve_reboot_kernel.yml` candidate selection | `security-reboot-kernel-selection-validate-test.yml` covers valid and invalid candidate evidence. |
+| `security_patching_reboot_premutation_candidate_probe_override`, `security_patching_reboot_premutation_owner_probe_override`, `security_patching_reboot_premutation_boot_entry_probe_override` | `revalidate_reboot_kernel.yml` immediately before boot mutation | `security-reboot-kernel-selection-validate-test.yml` covers drift refusal at the mutation boundary. |
 
 ### Fixed-policy input validation
 
@@ -469,10 +497,14 @@ post-removal plan later resolved IAC-001; IAC-002 remains open.
 The later authenticated [PR #371 Terraform job](https://github.com/jetsaredim/autographs/actions/runs/44462171052/job/135351338460)
 printed the complete production state address list below on 2026-11-19. Its
 saved plan reported `No changes. Your infrastructure matches the
-configuration.` The sanitized changed managed-resource action list was empty:
-zero data lookup changes, creates, in-place updates, replacements,
-destructions, or state-forget actions were proposed. No apply ran. These are
-addresses only; provider IDs and values are omitted.
+configuration.` The sanitized changed **managed-resource** action list was
+empty: no managed creates, in-place updates, replacements, destructions, or
+state-forget actions were proposed. No apply ran. That CI version filtered
+`terraform show -json` to `.mode == "managed"`, so its empty action list does
+not account for data-source reads or refreshed values. PR #375 adds a separate
+address-and-action-only data lookup report; its authenticated run must be
+reviewed before the data-lookup gate closes. The addresses below omit provider
+IDs and values.
 
 ```text
 cloudflare_dns_record.autographs[0]

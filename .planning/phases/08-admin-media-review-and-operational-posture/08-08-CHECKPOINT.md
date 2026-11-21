@@ -108,6 +108,10 @@ below. Remaining:
   apply, followed by restoration to `proxied` after an incident. Short-lived
   HTML/JSON and fingerprinted media give release rollback its documented
   freshness behavior. No live rollback was performed or claimed.
-- The Terraform/Ansible operating inventory remains open: 120 source rows
-  still need entry-specific input, supported-state, failure/recovery, test, and
-  disposition evidence. Do not mark Plan 08-08 or Phase 8 complete.
+- The Terraform/Ansible/workflow source inventory now has entry-specific
+  inputs, supported states, failure/recovery paths, tests, and dispositions.
+  The owner requested changes to that inventory on 2026-11-20 and has not yet
+  named or accepted the affected entries. PR #375's focused review also found
+  evidence and switch-census gaps that require fixes and a clean follow-up
+  review. P8-POSTURE-006 has no final owner disposition. Do not mark Plan
+  08-08 or Phase 8 complete.

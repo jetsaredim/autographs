@@ -259,6 +259,12 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             "oci_core_instance.runtime: delete,create",
             "oci_objectstorage_bucket.retired: forget",
         ])
+        data_filter = ci_plan.split('echo "Data lookup actions:"', 1)[1].split("| jq -r '", 1)[1].split("'", 1)[0]
+        data_result = subprocess.run(["jq", "-r", data_filter], input=json.dumps(plan),
+                                     text=True, capture_output=True, check=True)
+        self.assertEqual(data_result.stdout.splitlines(), [
+            "data.oci_identity_compartments.project: read",
+        ])
 
         bootstrap_env = next(step["env"] for step in bootstrap["steps"]
                              if step.get("name") == "Create Vault resources and populate only untouched placeholders")

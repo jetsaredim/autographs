@@ -334,6 +334,9 @@ jobs:
           echo "Changed managed-resource actions:"
           terraform show -json "$terraform_plan_file" \
             | jq -r '.resource_changes[]? | select(.mode == "managed" and .change.actions != ["no-op"]) | "\(.address): \(.change.actions | join(","))"'
+          echo "Data lookup actions:"
+          terraform show -json "$terraform_plan_file" \
+            | jq -r '.resource_changes[]? | select(.mode == "data") | "\(.address): \(.change.actions | join(","))"'
 
   validate-ansible:
     name: Ansible syntax and lint
