@@ -49,8 +49,16 @@ below. Remaining:
 
 1. Complete the Terraform/Ansible operating-contract inventory and final
    P8-POSTURE-006 disposition.
-2. Write `08-08-SUMMARY.md` and update Phase 8 state and requirement status
+2. Review `AGENTS.md` against the current architecture and Phase 8 status,
+   update stale guidance and its source maps, and ensure the root `SECURITY.md`
+   gives a usable vulnerability reporting path.
+3. Write `08-08-SUMMARY.md` and update Phase 8 state and requirement status
    after those gates are satisfied.
+
+The root `SECURITY.md` now exists. GitHub private vulnerability reporting was
+disabled when checked on 2026-11-21, so the policy directs reporters to request
+a private channel in a public issue without disclosing vulnerability details.
+Confirm or improve that reporting route at final closeout.
 
 ## 2026-11-19 closeout progress
 

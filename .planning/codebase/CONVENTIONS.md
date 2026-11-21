@@ -110,14 +110,14 @@
   profiles, item signer credits, first-class taxonomy fields, schema version 2
   public facets, signer merge repair, taxonomy backfill artifacts, rollout docs,
   and security review.
-- Phase 8 starts with production security patching repair, aggressive repo-wide
-  posture cleanup in separate pre-media PRs, enforceable CI hygiene guardrails
-  where feasible, and CDN/cache contract work. Admin-private image
-  preview/adjustment foundations then include required auto-assisted
-  deskew/perspective correction with manual fallback, and production CDN
-  enablement is verified after adjusted-media cache behavior is proven. Phase 9
-  owns optional franchise/product-line/set/non-default-language taxonomy media
-  cues, and Phase 10 owns advisory AI-assisted ingest.
+- Phase 8 plans 08-01 through 08-07 are implemented. Security patching repair,
+  repository hygiene, admin-private image preview and adjustment with
+  auto-assisted deskew/perspective correction, adjustment-aware publishing,
+  and CDN cache behavior have recorded evidence. Plan 08-08 remains open for
+  IaC operating-contract disposition and final release-path verification.
+  Keep `AGENTS.md` and `SECURITY.md` aligned with current behavior at closeout.
+  Phase 9 owns optional franchise/product-line/set/non-default-language
+  taxonomy media cues, and Phase 10 owns advisory AI-assisted ingest.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage
   URLs, or a split multi-service architecture for v1.
 

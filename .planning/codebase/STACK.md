@@ -122,12 +122,13 @@
 - Keep Phase 6 admin changes inside the Rust/static/Caddy/Oracle/Object Storage
   architecture; do not introduce public accounts, multi-admin roles, bulk import,
   direct Object Storage URLs, or a split public service for v1.
-- Start Phase 8 with production security patching repair, aggressive repo
-  posture cleanup in separate pre-media PRs, CI hygiene guardrails where
-  feasible, and CDN/cache contract work. Then add admin-private image
-  preview/adjustment foundations with required auto-assisted deskew/perspective
-  correction and verify production CDN after adjusted-media cache behavior is
-  proven. Keep Phase 9 taxonomy media cues grounded in the Phase 7 taxonomy
+- Phase 8 plans 08-01 through 08-07 have implemented security patching repair,
+  repository hygiene, admin-private image preview/adjustment with auto-assisted
+  deskew/perspective correction, and adjustment-aware publishing. Production
+  CDN cache and admin bypass evidence is recorded; Plan 08-08 still needs IaC
+  operating-contract disposition and final release-path verification. Keep
+  `AGENTS.md` and root `SECURITY.md` current at closeout. Keep Phase 9 taxonomy
+  media cues grounded in the Phase 7 taxonomy
   model, and keep Phase 10 AI work advisory; do not move cataloging control
   away from the manual admin workflow.
 

@@ -60,7 +60,7 @@ Autographs is a production-lean personal autograph collection website where you 
 ## Project Maturity
 - Phase 5 plans 05-01 through 05-07 are done, and the static runtime migration foundation is implemented in code/docs with live static publish proof, UAT, security review, and verification closeout artifacts.
 - The repository is no longer planning-only; it contains Rust/controller, static public/admin, infrastructure, deployment, maintenance, testing, and operator documentation artifacts.
-- Do not re-scaffold the retired Next.js app or infra. Phase 6 polished admin workflow and Phase 7 metadata taxonomy/public facets are complete; Phase 8 starts with production security patching repair, aggressive repo hygiene/CI guardrails, CDN/cache contract work, then admin media preview/adjustment and post-media CDN verification before Phase 9 taxonomy media cues and Phase 10 advisory AI-assisted ingest.
+- Do not re-scaffold the retired Next.js app or infra. Phase 6 polished admin workflow and Phase 7 metadata taxonomy/public facets are complete. Phase 8 security patching repair, repo hygiene, private media preview/adjustment, adjusted publishing, and production CDN verification are implemented or evidenced; the IaC operating-contract disposition and final release-path verification remain open. Phase 9 taxonomy media cues and Phase 10 advisory AI-assisted ingest follow separately.
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
@@ -104,7 +104,7 @@ Autographs is a production-lean personal autograph collection website where you 
 - Keep operator docs procedural and explicit about manual prerequisites, secret handling, approval labels, and live-smoke requirements.
 - Update `.planning/codebase/*` after substantial codebase drift so future agents do not resurrect planning-only assumptions.
 ## Current Guidance
-- Phase 5 foundation, Phase 6 admin collection workflow, and Phase 7 metadata taxonomy/public facets are complete; do not rebuild finished work, and treat the Rust/static cutover and Next.js retirement as validated. Phase 8 starts with production security patching repair, aggressive repo-wide posture cleanup in separate pre-media PRs, enforceable CI hygiene guardrails where feasible, and the CDN/cache contract before admin-private image preview/adjustment foundations with required auto-assisted deskew/perspective correction. Verify CDN enablement only after adjusted-media cache behavior is proven. Phase 9 owns optional franchise/product-line/set/non-default-language taxonomy media cues with text-only fallback intact, and Phase 10 owns advisory AI-assisted ingest.
+- Phase 5 foundation, Phase 6 admin collection workflow, and Phase 7 metadata taxonomy/public facets are complete; do not rebuild finished work, and treat the Rust/static cutover and Next.js retirement as validated. Phase 8 plans 08-01 through 08-07 are implemented. Production security patching, admin-private previews and image adjustments with auto-assisted deskew/perspective correction, adjustment-aware publishing, and CDN cache behavior have recorded evidence. Plan 08-08 remains open for the IaC operating-contract disposition and final release-path verification. Keep `SECURITY.md` and these instructions aligned with the current system during closeout. Phase 9 owns optional franchise/product-line/set/non-default-language taxonomy media cues with text-only fallback intact, and Phase 10 owns advisory AI-assisted ingest.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage URLs, or a split frontend/backend service architecture for v1.
 <!-- GSD:conventions-end -->
 
@@ -138,10 +138,10 @@ Autographs is a production-lean personal autograph collection website where you 
 ## Current Phase Boundary
 - Phase 5 plans 05-01 through 05-07 are complete, and the Rust/static foundation is present with live static publish proof and closeout artifacts.
 - Phase 6 admin collection workflow and Phase 7 metadata taxonomy/public facets are complete on the Rust/static foundation.
-- Phase 8 should first repair production security patching, run aggressive repo-wide posture cleanup with CI hygiene guardrails, define the CDN/cache contract, add admin image preview/adjustment foundations with required auto-assisted deskew/perspective correction, and verify production CDN after adjusted-media cache behavior is proven.
+- Phase 8 plans 08-01 through 08-07 have implemented security patching repair, repo hygiene, the CDN/cache contract, private image preview/adjustment, and adjustment-aware publishing. Live CDN cache and admin bypass evidence is recorded. Plan 08-08 remains open for the IaC operating-contract disposition and final release-path verification.
 - Do not re-scaffold the retired Next.js app or replace the delivery spine.
 ## Notable Absences
-- Admin image previews/adjustments with auto-assisted deskew/perspective correction, optional taxonomy/media thumbnail cues, and AI-assisted metadata suggestions are not implemented yet.
+- Optional taxonomy/media thumbnail cues and AI-assisted metadata suggestions are not implemented yet; they belong to Phases 9 and 10.
 <!-- GSD:architecture-end -->
 
 <!-- GSD:skills-start source:skills/ -->
