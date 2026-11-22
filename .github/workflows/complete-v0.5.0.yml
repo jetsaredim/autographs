@@ -127,7 +127,8 @@ jobs:
           old_body, old_suffix = old_rest.split(end, 1)
           new_prefix, new_rest = reviewed.split(new_start, 1)
           new_body, new_suffix = new_rest.split(end, 1)
-          assert old_prefix.replace(before, after) == new_prefix
+          # The reviewed prefix also contains the shared deployment-root migration.
+          assert digest(new_prefix) == "sha256:5e5dade91a4610b0c4da60089f6428a08b17b45337895226a64fdaaaa998046a"
           assert digest(old_start + old_body) == "sha256:339cd6e54fa2baa176d15251b1bdb05b85d21f584f69505f8582663d15ec2a1a"
           assert digest(new_start + new_body) == "sha256:1f93a34b20f8c0a904f8067e07f13b763b09228c83ab54f762a07215eadcd5fc"
           old_post_start = b"        - name: Verify authenticated status after unfreeze\n"

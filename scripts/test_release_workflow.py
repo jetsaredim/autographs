@@ -7,6 +7,7 @@ import importlib.util
 import json
 import re
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -264,6 +265,20 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             workflow_env = workflow["jobs"]["complete"]["env"] if name == "complete-v0.5.0.yml" else workflow["env"]
             self.assertIn("vars.DEPLOY_SSH_USER", workflow_env["AUTOGRAPHS_DEPLOY_SSH_USER_OVERRIDE"])
             self.assertNotIn("ansible_user=", (ROOT / ".github/workflows" / name).read_text())
+
+    def test_frozen_completion_guard_accepts_reviewed_unfreeze_playbook(self):
+        workflow = yaml.load((ROOT / ".github/workflows/complete-v0.5.0.yml").read_text(), Loader=yaml.BaseLoader)
+        step = next(step for step in workflow["jobs"]["complete"]["steps"]
+                    if step.get("name") == "Verify immutable release inputs and exact playbook correction")
+        python_code = step["run"].split("python3 - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+        guard = python_code[python_code.index('path = "deploy/ansible/playbooks/publish-unfreeze.yml"'):
+                            python_code.index("attempt = {")]
+        source = workflow["jobs"]["complete"]["env"]["SOURCE_REVISION"]
+        script = ("import hashlib, pathlib, subprocess\n"
+                  f"source = {source!r}\n" + guard)
+        result = subprocess.run([sys.executable, "-c", script], cwd=ROOT,
+                                capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_vault_bootstrap_and_routine_deploy_have_distinct_write_gates(self):
         self.assertIn("bootstrap_secrets", self.workflow["on"]["workflow_dispatch"]["inputs"]["operation"]["options"])
