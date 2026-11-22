@@ -685,7 +685,9 @@ of the changed unfreeze playbook. The reviewer received an
 and the thread was resolved. A later owner review confirmed that v0.5.0 had
 already been published, while both one-off operations required a draft.
 PR #379 therefore removes the obsolete workflow and its dedicated guard test,
-while preserving the released tag and historical records.
+while preserving the released tag and historical records. All nine PR checks
+passed on `710f959`, and the [fresh Codex review](https://github.com/jetsaredim/autographs/pull/379#issuecomment-7072392055)
+reported no major issues; the original inline thread remains resolved.
 
 `OCI_RUNTIME_SSH_PUBLIC_KEYS` is different: Terraform passes its JSON list to
 `module.compute` and joins the keys into the OCI instance's
