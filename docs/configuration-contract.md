@@ -76,7 +76,7 @@ outputs and passes them to Ansible.
 | `RUST_LOG` | Runtime controller log filter; defaults to `autographs_controller=info,tower_http=info` and can be raised temporarily for debugging |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
 | `DEPLOY_SSH_USER` | SSH user for deploys, usually `opc` |
-| `DEPLOY_PATH` | Directory on the VM that stores Ansible-managed env, Caddy config, wallet, and secret files |
+| `DEPLOY_PATH` | Optional GitHub variable overriding Ansible's `/opt/autographs` host deployment root across freeze, deploy, unfreeze, rollback, and image cleanup. Leave unset for normal production; a path change on an existing VM needs a coordinated migration. |
 | `DEPLOY_SSH_READY_TIMEOUT_SECONDS` | Maximum time deploy waits for SSH after VM creation or replacement; defaults to `900` |
 | `DEPLOY_SSH_READY_INTERVAL_SECONDS` | Poll interval while waiting for SSH readiness; defaults to `10` |
 | `AUTOGRAPHS_DOMAIN` | Public hostname served by Caddy with automatic TLS; defaults to `autographs.jetsaredim.net` |
@@ -143,7 +143,7 @@ family. This permission is limited to the dedicated Autographs project
 compartment rather than the tenancy and lets the deployment root own the full
 lifecycle of those regional resources.
 
-Runtime containers receive database and media coordinates through Ansible-managed environment files consumed by Podman quadlets, not committed files. The deploy workflow writes VM-local env files under `${DEPLOY_PATH}/env`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values.
+Runtime containers receive database and media coordinates through Ansible-managed environment files consumed by Podman quadlets, not committed files. Ansible writes VM-local env files under its deployment root (`/opt/autographs/env` by default); the optional `DEPLOY_PATH` GitHub variable overrides that host root. Container-internal wallet paths remain `/opt/autographs/wallet`. Keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values.
 
 When production persistence uses Oracle, the controller starts a read-only heartbeat that connects and runs `select 1 from dual` once after startup, then repeats on the configured interval. This keeps Always Free Autonomous Database inactivity tracking fresh without writing synthetic catalog records and gives operators an immediate success or failure log after a deploy or reboot.
 

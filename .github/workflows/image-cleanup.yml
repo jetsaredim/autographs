@@ -39,6 +39,7 @@ env:
   GHCR_CLEANUP_DRY_RUN: ${{ github.event_name != 'workflow_dispatch' || inputs.remote_operation != 'delete' }}
   LOCAL_CLEANUP_DRY_RUN: ${{ inputs.dry_run || 'false' }}
   AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT: ${{ vars.AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT || '3' }}
+  AUTOGRAPHS_DEPLOY_PATH_OVERRIDE: ${{ vars.DEPLOY_PATH }}
 
 jobs:
   resolve-runtime:
@@ -86,7 +87,6 @@ jobs:
             --extra-vars autographs_system_cleanup_retain_count=${{ env.AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT }}
             --extra-vars 'autographs_system_cleanup_protected_tags=${{ env.GHCR_CLEANUP_PROTECTED_TAGS }}'
             --extra-vars autographs_system_cleanup_dry_run=${{ env.LOCAL_CLEANUP_DRY_RUN }}
-            --extra-vars autographs_system_cleanup_deploy_path=${{ vars.DEPLOY_PATH || '/opt/autographs' }}
 
   ghcr-cleanup:
     name: Remove old GHCR controller images

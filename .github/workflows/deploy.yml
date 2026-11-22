@@ -43,6 +43,7 @@ env:
   AUTOGRAPHS_CONTROLLER_DB_PROVIDER: ${{ vars.AUTOGRAPHS_CONTROLLER_DB_PROVIDER || 'oracle' }}
   AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER: ${{ vars.AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER || 'oci-instance-principal' }}
   AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS: ${{ vars.AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS || '86400' }}
+  AUTOGRAPHS_DEPLOY_PATH_OVERRIDE: ${{ vars.DEPLOY_PATH }}
 
 jobs:
   release:
@@ -669,7 +670,6 @@ jobs:
           TF_VAR_runtime_image_ocid: ${{ vars.OCI_RUNTIME_IMAGE_OCID }}
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
           TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
-          TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
           TF_VAR_media_bucket_namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           TF_VAR_porkbun_api_key: ${{ secrets.PORKBUN_API_KEY }}
           TF_VAR_porkbun_secret_key: ${{ secrets.PORKBUN_SECRET_KEY }}

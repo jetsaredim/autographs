@@ -1,0 +1,17 @@
+- name: Verify shared runtime deployment root
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../roles/autographs_deploy/defaults/main.yml
+    - ../roles/autographs_system_cleanup/defaults/main.yml
+  tasks:
+    - name: Require the expected root across deployment and cleanup roles
+      ansible.builtin.assert:
+        that:
+          - autographs_deploy_path == lookup('env', 'EXPECTED_DEPLOY_PATH')
+          - autographs_deploy_env_path == autographs_deploy_path ~ '/env'
+          - autographs_deploy_wallet_path == autographs_deploy_path ~ '/wallet'
+          - autographs_deploy_caddy_path == autographs_deploy_path ~ '/caddy'
+          - autographs_deploy_publish_freeze_record_path == autographs_deploy_path ~ '/private/publish-freeze.json'
+          - autographs_system_cleanup_env_path == autographs_deploy_path ~ '/env'

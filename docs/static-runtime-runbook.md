@@ -10,8 +10,8 @@ and API routes out of CDN cache.
 
 The GitHub production deploy starts the controller with persistent Oracle and
 OCI instance-principal media adapters. Configure these repo-level values before
-deploying so Ansible renders `/opt/autographs/env/controller.env`
-intentionally:
+deploying so Ansible renders `controller.env` under its host deployment root
+(`/opt/autographs/env` by default):
 
 ```text
 AUTOGRAPHS_CONTROLLER_DB_PROVIDER=oracle

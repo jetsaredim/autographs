@@ -1,0 +1,2 @@
+autographs_deploy_path: >-
+  {{ lookup('env', 'AUTOGRAPHS_DEPLOY_PATH_OVERRIDE') | default('/opt/autographs', true) }}

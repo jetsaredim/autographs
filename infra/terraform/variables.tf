@@ -147,17 +147,6 @@ variable "runtime_deploy_user" {
   }
 }
 
-variable "runtime_deploy_path" {
-  description = "Absolute path on the runtime VM used by Ansible for quadlet, Caddy, wallet, and secret deployment files."
-  type        = string
-  default     = "/opt/autographs"
-
-  validation {
-    condition     = can(regex("^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$", var.runtime_deploy_path))
-    error_message = "runtime_deploy_path must be /opt/autographs or a safe child path under /opt/autographs without dot-only path segments."
-  }
-}
-
 variable "bootstrap_runtime_secrets" {
   description = "Use only for the explicit targeted Vault bootstrap before ADB exists. Omits remote secret reads and the ADB rotation target."
   type        = bool
