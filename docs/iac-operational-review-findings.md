@@ -17,6 +17,7 @@ catalogue, not a claim that the owner approved each row.
 | Item | Completed review and evidence |
 |---|---|
 | [IAC-001](#preliminary-findings), [IAC-003](#preliminary-findings) | Resource-presence defaults and counted network/VM retirement were reviewed in PRs #358 and #361; authenticated production plans showed no changes. |
+| [IAC-002](#preliminary-findings) | The destructive-plan label gate merged in PR #371. The owner accepted its CI review and ordinary saved-plan deployment boundary on 2026-11-22; the authenticated plan and limitation are recorded below. |
 | [IAC-004](#preliminary-findings) code path | Proxied Cloudflare default and ordinary release apply were selected by the owner, reviewed, and merged through PRs #377 and #378. Post-variable-removal plans showed no changes. The new release path still needs its first production run. |
 | [IAC-007](#preliminary-findings) | Obsolete Node deployment cleanup was removed, reviewed, and merged in PR #376. |
 | [Deployment defaults](#deployment-defaults-and-ssh-key-ownership) | Terraform's unused deploy path and SSH user inputs were removed in reviewed PR #379. Ansible owns both defaults; the duplicate GitHub variables were removed after no-change plans, with post-removal plans also showing no changes. |
@@ -26,7 +27,6 @@ catalogue, not a claim that the owner approved each row.
 
 | Item | Decision needed |
 |---|---|
-| [IAC-002](#preliminary-findings) | Accept the general CI destructive-plan label policy and its stated limit: ordinary deployment applies a fresh saved plan without repeating that approval gate. The code is merged; final operating-contract disposition remains open. |
 | [IAC-005 and IAC-006](#preliminary-findings), plus [cleanup dry-run](#autographs-system-cleanup-dry-run) | Accept or revise the documented reasons for retaining the freeze/cutover/unfreeze controls, cleanup dry-run, and security reboot DNF no-op fixture seam. Their [producer-to-action traces](#detailed-operational-switch-review) are written. |
 | Source inventory: [Terraform](#terraform-resources-lookups-modules-and-providers), [Ansible](#ansible-playbooks), [workflows](#github-workflows-and-local-actions) | Review the proposed retain/remove dispositions and named limitations across these traced entries; this is the remaining owner acceptance for P8-POSTURE-006 and PR #375. |
 
@@ -138,7 +138,7 @@ or valid refactor.
 | ID | Severity | Finding and evidence | Disposition | Required proof or change |
 |---|---|---|---|---|
 | IAC-001 | Warning | Before PR #358, CI, release deploy, and the former Cloudflare job substituted `false` when either optional resource-creation GitHub variable was absent. That could reduce the ADB or private media bucket `count` to zero; the database input also gates Vault lookups and rotation (`infra/terraform/main.tf`, `runtime_secrets.tf`, `modules/data_services/main.tf`). | Fixed by [PR #358](https://github.com/jetsaredim/autographs/pull/358) and verified after variable removal | The authenticated PR plan and post-removal read-only production plan both reported no changes. Explicit `false` remains available for initial bootstrap. |
-| IAC-002 | Warning | CI planned against production state without making destructive actions an explicit PR review decision. | Gate merged in [PR #371](https://github.com/jetsaredim/autographs/pull/371); final operating review pending | CI reports managed-resource deletion, replacement, and state-forget actions and fails unless the current PR head triggers the `terraform-destructive-plan-approved` label-add event. The normal PR and Release PR each require this approval if destructive actions appear. PR #378 removes the separate deploy-time DNS comparison; production applies its fresh saved plan after merge. PR #371 passed checks and merged as `abc17a0`; its authenticated production plan reported no changes. |
+| IAC-002 | Warning | CI planned against production state without making destructive actions an explicit PR review decision. | Closed: gate merged in [PR #371](https://github.com/jetsaredim/autographs/pull/371) as `abc17a0`; owner accepted the policy and its deployment limit on 2026-11-22 | CI reports managed-resource deletion, replacement, and state-forget actions and fails unless the current PR head triggers the `terraform-destructive-plan-approved` label-add event. The normal PR and Release PR each require this approval if destructive actions appear. PR #378 removed the separate deploy-time DNS comparison; production applies its fresh saved plan after merge. PR #371's authenticated production plan reported no changes. |
 | IAC-003 | Info | Before this cleanup, `create_network` and `create_runtime_instance` defaulted to `true`; explicit `false` would remove managed network/VM resources. No production workflow supplied either input. Runtime recreation uses a separate retry-only taint. | Resolved by [PR #361](https://github.com/jetsaredim/autographs/pull/361), merged as `0b7c20a` | Seven counted resources have `moved` mappings; ingress rule `for_each` keys remain stable. The authenticated production plan reported `0 to add, 0 to change, 0 to destroy`; retry taint accepts both state addresses. |
 | IAC-004 | Warning | Before PR #377, the GitHub variable was `proxied` while Terraform and ordinary workflow defaults were `off`; removing it prematurely would have planned deletion of counted Cloudflare resources. | Code merged in [PR #377](https://github.com/jetsaredim/autographs/pull/377) as `e84d58f`; stored variable removed 2026-11-21; post-removal authenticated plan had no changes | Terraform defaults to `proxied`; PR #378 removes the redundant workflow assignment while retaining an optional `dns_only` rollback or fresh-bootstrap `off` override. Reviewed DNS/cache changes use the ordinary saved release plan. Destructive actions require approval in normal and Release PR CI; no deploy-time comparison is intended. [Post-removal Terraform CI](https://github.com/jetsaredim/autographs/actions/runs/44908578055/job/136859340147) reported no changes. Later production deployment of the new workflow remains unproven. |
 | IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Retain | The workflow sets frozen=true for full deploy, and role assertions reject false. The unfreeze playbook alone sets frozen=false with allow_unfreeze=true; `publish_freeze.yml` rejects false without that override. Explicit cutover suppresses restart handlers until the workflow's health gate; production and render fixtures cover both freeze states. Removing one flag would weaken a distinct assertion or require a broader operation-state contract. |
@@ -160,8 +160,9 @@ The authenticated
 [PR #371 Terraform check](https://github.com/jetsaredim/autographs/actions/runs/44461153658/job/135347968960)
 reported `No changes. Your infrastructure matches the configuration.` under
 the earlier strict policy. The revised gate passed PR checks and merged as
-`abc17a0`. Final IAC-002 closure requires owner review of the completed
-operating-contract inventory and its remaining limitations.
+`abc17a0`. The owner accepted the CI review gate and the stated ordinary
+saved-plan deployment limit on 2026-11-22, closing IAC-002. The full
+P8-POSTURE-006 inventory still awaits separate final owner acceptance.
 
 PR #354 adds `prevent_destroy` to the ADB, private media bucket, and tenancy
 state bucket. This blocks a plan that destroys or replaces one of these
@@ -201,10 +202,10 @@ their conditional consumers and move each affected counted instance, such as
 `module.data_services.oci_objectstorage_bucket.media[0]`, to its new address
 with reviewed `moved` blocks or an equivalent state migration. That later PR
 must show a no-destroy, no-recreate production plan before apply. IAC-002's
-broader destructive-plan policy is implemented in PR CI; final owner disposition
-remains open.
+broader destructive-plan policy is implemented in PR CI and its owner
+disposition is accepted.
 
-This closes IAC-001. IAC-002 remains open.
+IAC-001 and IAC-002 are closed.
 
 ## Switch census and direct boundaries
 
@@ -834,7 +835,8 @@ or publish the saved plan JSON, so the refresh lines are evidence for those
 addresses, not an exhaustive state inventory. A final review must capture the
 full address list and a sanitized action summary from the saved plan. The
 no-change result supported the 2026-11-15 configuration only. PR #358 and the
-post-removal plan later resolved IAC-001; IAC-002 remains open.
+post-removal plan later resolved IAC-001. IAC-002 was closed after PR #371's
+later plan evidence and the owner's 2026-11-22 acceptance.
 
 The later authenticated [PR #371 Terraform job](https://github.com/jetsaredim/autographs/actions/runs/44462171052/job/135351338460)
 printed the complete production state address list below on 2026-11-19. Its
