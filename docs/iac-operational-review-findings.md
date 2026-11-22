@@ -660,8 +660,9 @@ and private recovery files before it is changed. The stored variable was
 removed and verified absent on 2026-11-21 after the
 [PR #379 no-change plan](https://github.com/jetsaredim/autographs/actions/runs/44970656246/job/137049520005).
 Once PR #379 merges, Ansible will use its own default in production while
-leaving the override available for a future migration. A follow-up CI run
-will verify the plan with the variable unset.
+leaving the override available for a future migration. The
+[follow-up CI plan with the variable unset](https://github.com/jetsaredim/autographs/actions/runs/44970907943/job/137050287645)
+also reported `No changes` and no changed managed-resource actions.
 
 `OCI_RUNTIME_SSH_PUBLIC_KEYS` is different: Terraform passes its JSON list to
 `module.compute` and joins the keys into the OCI instance's
