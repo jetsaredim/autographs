@@ -570,8 +570,11 @@ removes the unused Terraform `runtime_deploy_path` input, gives Ansible one
 `/opt/autographs` default across deploy and recovery playbooks, and preserves
 an optional GitHub override. PR #379's authenticated Terraform plan reported
 `No changes`; the stored `DEPLOY_PATH` was then removed on 2026-11-21.
-`DEPLOY_SSH_USER` remains
-a separate cleanup candidate. The three runtime sizing variables
+The same PR now removes Terraform's unused `runtime_deploy_user` input,
+makes `opc` Ansible's shared SSH user default, and retains an optional
+`DEPLOY_SSH_USER` GitHub override for all active Ansible workflows. Its
+authenticated plan reported `No changes`; the stored `DEPLOY_SSH_USER=opc`
+variable was then removed and verified absent on 2026-11-21. The three runtime sizing variables
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, and `OCI_RUNTIME_MEMORY_GBS` matched
 the Terraform defaults. They were removed from the workflows and GitHub
 repository after PR #354's Terraform check on commit `a08c7ae` reported
@@ -631,7 +634,7 @@ After PR #358 and its post-removal plan passed on 2026-11-17, the two
 variable was also removed after its only source references were confirmed to
 be historical documentation. The repository variable count was nine at that
 observation; removal of `CLOUDFLARE_MODE` on 2026-11-21 reduced it by one.
-Removing `DEPLOY_PATH` the same day reduced it to seven.
+Removing `DEPLOY_PATH` and `DEPLOY_SSH_USER` the same day reduced it to six.
 
 GitHub Variables to retain:
 
@@ -647,7 +650,7 @@ override remains available for a
 reviewed DNS-only rollback or fresh bootstrap. The post-removal authenticated
 CI plan passed with no changes; production deployment remains unproven.
 
-### Deployment root and SSH key ownership
+### Deployment defaults and SSH key ownership
 
 `DEPLOY_PATH=/opt/autographs` was stored as a GitHub variable, but
 Terraform's `runtime_deploy_path` input has no resource or output consumer.
@@ -664,6 +667,18 @@ leaving the override available for a future migration. The
 [follow-up CI plan with the variable unset](https://github.com/jetsaredim/autographs/actions/runs/44970907943/job/137050287645)
 also reported `No changes` and no changed managed-resource actions.
 
+Terraform's `runtime_deploy_user` input likewise had no resource, module, or
+output consumer. PR #379 removes it and its CI/deploy `TF_VAR` assignments.
+Ansible's shared `ansible_user` now defaults to `opc`; the optional
+`DEPLOY_SSH_USER` GitHub variable is forwarded through the workflow environment
+for deploy, rollback, image cleanup, security maintenance, and the frozen
+v0.5.0 completion path. The former `DEPLOY_SSH_USER=opc` repository variable
+was removed after the [updated PR Terraform plan](https://github.com/jetsaredim/autographs/actions/runs/44971742316/job/137052881069)
+reported `No changes`. The default and alternate-user paths passed the local
+Ansible contract playbook. The
+[post-removal Terraform CI plan](https://github.com/jetsaredim/autographs/actions/runs/44971860391/job/137053220820)
+also reported `No changes` and no changed managed-resource actions.
+
 `OCI_RUNTIME_SSH_PUBLIC_KEYS` is different: Terraform passes its JSON list to
 `module.compute` and joins the keys into the OCI instance's
 `ssh_authorized_keys` metadata. OCI uses those public keys to authorize VM SSH
@@ -672,11 +687,6 @@ logins; Ansible subsequently connects with the matching
 list. Keep the GitHub variable as the production source. The committed tfvars
 example contains only a replace-me public-key example for local Terraform
 operators, not a second production value.
-
-GitHub Variables queued for cleanup:
-
-- `DEPLOY_SSH_USER` matches its current workflow fallback and Terraform
-  default, but its workflow consumers need a separate review before deletion.
 
 GitHub Secrets to retain:
 
