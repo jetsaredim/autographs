@@ -289,8 +289,6 @@ jobs:
           TF_VAR_availability_domain: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
           TF_VAR_runtime_image_ocid: ${{ vars.OCI_RUNTIME_IMAGE_OCID }}
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
-          TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
-          TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
           TF_VAR_media_bucket_namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           TF_VAR_porkbun_api_key: ${{ secrets.PORKBUN_API_KEY }}
           TF_VAR_porkbun_secret_key: ${{ secrets.PORKBUN_SECRET_KEY }}
@@ -364,6 +362,7 @@ jobs:
             deploy/ansible/playbooks/publish-freeze-render-test.yml \
             deploy/ansible/playbooks/publish-freeze-deploy-test.yml \
             deploy/ansible/playbooks/publish-freeze-role-reaudit-test.yml \
+            deploy/ansible/playbooks/deploy-path-contract-test.yml \
             deploy/ansible/playbooks/controller-rollback.yml \
             deploy/ansible/playbooks/system-cleanup.yml \
             deploy/ansible/playbooks/security-scan.yml \
@@ -388,3 +387,16 @@ jobs:
 
       - name: Lint Ansible playbook
         run: ANSIBLE_CONFIG=deploy/ansible/ansible.cfg ansible-lint deploy/ansible/
+
+      - name: Verify Ansible deployment defaults and overrides
+        run: |
+          EXPECTED_DEPLOY_PATH=/opt/autographs \
+            EXPECTED_DEPLOY_SSH_USER=opc \
+            ANSIBLE_CONFIG=deploy/ansible/ansible.cfg \
+            ansible-playbook deploy/ansible/playbooks/deploy-path-contract-test.yml
+          EXPECTED_DEPLOY_PATH=/srv/autographs \
+            EXPECTED_DEPLOY_SSH_USER=alternate-user \
+            AUTOGRAPHS_DEPLOY_PATH_OVERRIDE=/srv/autographs \
+            AUTOGRAPHS_DEPLOY_SSH_USER_OVERRIDE=alternate-user \
+            ANSIBLE_CONFIG=deploy/ansible/ansible.cfg \
+            ansible-playbook deploy/ansible/playbooks/deploy-path-contract-test.yml

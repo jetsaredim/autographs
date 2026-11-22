@@ -13,6 +13,9 @@ concurrency:
   group: production-security-patching
   cancel-in-progress: false
 
+env:
+  AUTOGRAPHS_DEPLOY_SSH_USER_OVERRIDE: ${{ vars.DEPLOY_SSH_USER }}
+
 jobs:
   update:
     name: Apply approved production security updates
@@ -73,7 +76,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            production ansible_host=${{ steps.resolve.outputs.runtime_public_ip }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+            production ansible_host=${{ steps.resolve.outputs.runtime_public_ip }}
           requirements: collections/requirements.yml
           options: |
             --extra-vars security_patching_issue_number=${{ github.event.issue.number }}

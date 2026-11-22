@@ -1,3 +1,8 @@
+- name: Require a safe absolute runtime deployment path
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_path is match('^/[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$')
+
 - name: Refuse unfrozen full deployment
   ansible.builtin.assert:
     that:
@@ -163,7 +168,7 @@
     group: "{{ item.group }}"
     mode: "{{ item.mode }}"
   loop:
-    - path: "{{ autographs_deploy_deploy_path }}"
+    - path: "{{ autographs_deploy_path }}"
       owner: "{{ autographs_deploy_user }}"
       group: "{{ autographs_deploy_user }}"
       mode: "0755"
@@ -484,7 +489,7 @@
   ansible.builtin.command:
     argv:
       - python3
-      - "{{ autographs_deploy_publish_audit_script_path | default('/opt/autographs/private/publish_freeze_audit.py') }}"
+      - "{{ autographs_deploy_publish_audit_script_path | default(autographs_deploy_path ~ '/private/publish_freeze_audit.py') }}"
       - --static-root
       - "{{ autographs_deploy_static_volume.stdout | trim }}"
       - --quarantine
@@ -574,7 +579,7 @@
 
 - name: Remove legacy OCI private key from controller runtime
   ansible.builtin.file:
-    path: "{{ autographs_deploy_deploy_path }}/secrets/oci_api_key.pem"
+    path: "{{ autographs_deploy_path }}/secrets/oci_api_key.pem"
     state: absent
   no_log: true
   notify:

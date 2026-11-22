@@ -229,6 +229,45 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn('default     = "proxied"', (ROOT / "infra/terraform/variables.tf").read_text())
         self.assertIn("release-please--branches--main", ci["jobs"]["impact"]["steps"][1]["run"])
 
+    def test_runtime_deploy_path_is_owned_by_ansible(self):
+        production_plan = self.production_steps["Terraform apply"]
+        self.assertNotIn("TF_VAR_runtime_deploy_path", production_plan["env"])
+        ci = yaml.load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        ci_plan = next(step for step in ci["jobs"]["terraform-checks"]["steps"]
+                       if step.get("name") == "Terraform plan")
+        self.assertNotIn("TF_VAR_runtime_deploy_path", ci_plan["env"])
+        self.assertNotIn("runtime_deploy_path", (ROOT / "infra/terraform/variables.tf").read_text())
+
+        self.assertIn("vars.DEPLOY_PATH", self.workflow["env"]["AUTOGRAPHS_DEPLOY_PATH_OVERRIDE"])
+        group_defaults = (ROOT / "deploy/ansible/playbooks/group_vars/all.yml").read_text()
+        self.assertIn("AUTOGRAPHS_DEPLOY_PATH_OVERRIDE", group_defaults)
+        self.assertIn("/opt/autographs", group_defaults)
+        cleanup = yaml.load((ROOT / ".github/workflows/image-cleanup.yml").read_text(), Loader=yaml.BaseLoader)
+        self.assertIn("vars.DEPLOY_PATH", cleanup["env"]["AUTOGRAPHS_DEPLOY_PATH_OVERRIDE"])
+        local_cleanup = next(step for step in cleanup["jobs"]["runtime-cleanup"]["steps"]
+                             if step.get("name") == "Clean up local Podman images")
+        self.assertNotIn("autographs_system_cleanup_deploy_path=", local_cleanup["with"]["options"])
+
+    def test_runtime_deploy_user_is_owned_by_ansible(self):
+        production_plan = self.production_steps["Terraform apply"]
+        self.assertNotIn("TF_VAR_runtime_deploy_user", production_plan["env"])
+        ci = yaml.load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        ci_plan = next(step for step in ci["jobs"]["terraform-checks"]["steps"]
+                       if step.get("name") == "Terraform plan")
+        self.assertNotIn("TF_VAR_runtime_deploy_user", ci_plan["env"])
+        self.assertNotIn("runtime_deploy_user", (ROOT / "infra/terraform/variables.tf").read_text())
+
+        group_defaults = (ROOT / "deploy/ansible/playbooks/group_vars/all.yml").read_text()
+        self.assertIn("AUTOGRAPHS_DEPLOY_SSH_USER_OVERRIDE", group_defaults)
+        self.assertIn("default('opc', true)", group_defaults)
+        for name in (
+            "deploy.yml", "image-cleanup.yml", "weekly-security-scan.yml",
+            "apply-security-updates.yml", "reboot-security-runtime.yml",
+        ):
+            workflow = yaml.load((ROOT / ".github/workflows" / name).read_text(), Loader=yaml.BaseLoader)
+            self.assertIn("vars.DEPLOY_SSH_USER", workflow["env"]["AUTOGRAPHS_DEPLOY_SSH_USER_OVERRIDE"])
+            self.assertNotIn("ansible_user=", (ROOT / ".github/workflows" / name).read_text())
+
     def test_vault_bootstrap_and_routine_deploy_have_distinct_write_gates(self):
         self.assertIn("bootstrap_secrets", self.workflow["on"]["workflow_dispatch"]["inputs"]["operation"]["options"])
         bootstrap = self.workflow["jobs"]["bootstrap_secrets"]

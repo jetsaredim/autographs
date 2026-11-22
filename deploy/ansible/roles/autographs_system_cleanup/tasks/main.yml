@@ -1,3 +1,8 @@
+- name: Require a safe absolute runtime deployment path
+  ansible.builtin.assert:
+    that:
+      - autographs_deploy_path is match('^/[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$')
+
 - name: Read deployed controller image
   ansible.builtin.command:
     argv:

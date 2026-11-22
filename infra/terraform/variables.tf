@@ -136,28 +136,6 @@ variable "runtime_ssh_public_keys" {
   default     = []
 }
 
-variable "runtime_deploy_user" {
-  description = "OS user that receives deployment files and runs container deployment commands."
-  type        = string
-  default     = "opc"
-
-  validation {
-    condition     = can(regex("^[A-Za-z_][A-Za-z0-9_-]*$", var.runtime_deploy_user))
-    error_message = "runtime_deploy_user must be a Linux username containing only letters, numbers, underscores, and hyphens, and must not start with a number."
-  }
-}
-
-variable "runtime_deploy_path" {
-  description = "Absolute path on the runtime VM used by Ansible for quadlet, Caddy, wallet, and secret deployment files."
-  type        = string
-  default     = "/opt/autographs"
-
-  validation {
-    condition     = can(regex("^/opt/autographs(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$", var.runtime_deploy_path))
-    error_message = "runtime_deploy_path must be /opt/autographs or a safe child path under /opt/autographs without dot-only path segments."
-  }
-}
-
 variable "bootstrap_runtime_secrets" {
   description = "Use only for the explicit targeted Vault bootstrap before ADB exists. Omits remote secret reads and the ADB rotation target."
   type        = bool
