@@ -4,6 +4,39 @@ Status: source inventory complete; final owner review and Phase 8 disposition
 remain open for Plan 08-08 Task 5. This register records source, local test,
 and production plan evidence. The inventory alone does not close the review.
 
+## Review status at a glance
+
+**Reviewed** below means a focused change or operating decision has source,
+test, and plan evidence and its PR review is complete. **Awaiting review**
+means this register has a proposed disposition but the owner has not accepted
+it for P8-POSTURE-006. The [source inventory](#source-inventory) is a traced
+catalogue, not a claim that the owner approved each row.
+
+### Reviewed decisions and changes
+
+| Item | Completed review and evidence |
+|---|---|
+| [IAC-001](#preliminary-findings), [IAC-003](#preliminary-findings) | Resource-presence defaults and counted network/VM retirement were reviewed in PRs #358 and #361; authenticated production plans showed no changes. |
+| [IAC-004](#preliminary-findings) code path | Proxied Cloudflare default and ordinary release apply were selected by the owner, reviewed, and merged through PRs #377 and #378. Post-variable-removal plans showed no changes. The new release path still needs its first production run. |
+| [IAC-007](#preliminary-findings) | Obsolete Node deployment cleanup was removed, reviewed, and merged in PR #376. |
+| [Deployment defaults](#deployment-defaults-and-ssh-key-ownership) | Terraform's unused deploy path and SSH user inputs were removed in reviewed PR #379. Ansible owns both defaults; the duplicate GitHub variables were removed after no-change plans, with post-removal plans also showing no changes. |
+| [Security patching execution](#security-patching-decision-flow) | Production scan, advisory drift refusal, approved DNF update, reboot, and clean follow-up were exercised. The 15 probe adapters have named local fixture evidence in the [census](#fixture-probe-adapter-census). |
+
+### Awaiting owner review or acceptance
+
+| Item | Decision needed |
+|---|---|
+| [IAC-002](#preliminary-findings) | Accept the general CI destructive-plan label policy and its stated limit: ordinary deployment applies a fresh saved plan without repeating that approval gate. The code is merged; final operating-contract disposition remains open. |
+| [IAC-005 and IAC-006](#preliminary-findings), plus [cleanup dry-run](#autographs-system-cleanup-dry-run) | Accept or revise the documented reasons for retaining the freeze/cutover/unfreeze controls, cleanup dry-run, and security reboot DNF no-op fixture seam. Their [producer-to-action traces](#detailed-operational-switch-review) are written. |
+| Source inventory: [Terraform](#terraform-resources-lookups-modules-and-providers), [Ansible](#ansible-playbooks), [workflows](#github-workflows-and-local-actions) | Review the proposed retain/remove dispositions and named limitations across these traced entries; this is the remaining owner acceptance for P8-POSTURE-006 and PR #375. |
+
+### Evidence still pending after the review
+
+| Item | Remaining proof or limitation |
+|---|---|
+| [Ordinary release path](#production-execution-paths-traced-so-far) | Merge Release PR #370 after its plan review, then record the production saved-plan apply, deploy health, and publication result for the merged Cloudflare and Ansible changes. |
+| [Five Ansible entries](#ansible-playbooks) | The freeze deploy, freeze render, role reaudit, unfreeze, and security report render entries currently record CI syntax/lint but no behavior run in this review. Decide whether existing related tests and live proofs suffice or run those fixtures before final acceptance. |
+
 **Requested setting details:** [publish frozen](#autographs-deploy-publish-frozen),
 [explicit cutover](#autographs-deploy-explicit-cutover),
 [allow unfreeze](#autographs-deploy-allow-unfreeze),
