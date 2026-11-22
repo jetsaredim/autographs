@@ -399,29 +399,28 @@ pass: the Vault versions must be present. Sources:
 The [security patching runbook](security-patching.md) has the full operator
 procedure. This is the decision path that places the probe adapters below:
 
-```text
-Weekly/manual scan
-  -> complete OpenSCAP OVAL result + kernel posture + advisory-scoped DNF probe
-  -> classify: close | configure | update | reboot | investigate
-       close/configure/investigate: no approval for package or reboot mutation
-       update: scanner issue offers approved-production-update
-       reboot: scanner issue offers approved-production-reboot
-
-Update-label event
-  -> allowlisted actor + open scanner issue + exact metadata/target checks
-  -> fresh complete scan of every target; compare approved and current ELSA IDs
-       drift/action changed: refresh issue, consume stale label, no DNF mutation
-       exact update: DNF only those advisory IDs -> rescan -> refresh/close issue
-
-Separate reboot-label event
-  -> same actor/issue/metadata checks -> fresh scan of every target
-  -> exact IDs + reboot classification + reboot-family allowlist + DNF no-op
-  -> newest installed bootable UEK image, RPM owner, boot entry, initramfs
-       drift/action changed: refresh issue, no reboot
-       unsafe proof: fail, remove approval label, report bounded reason
-       all targets ready: recheck UEK target immediately before mutation
-         -> set default, reboot -> verify booted UEK and services/origin health
-         -> remove old installonly kernels -> rescan -> refresh/close issue
+```mermaid
+flowchart TD
+    Scan["Weekly or manual OpenSCAP scan"] --> Complete{"Complete results?"}
+    Complete -->|No| FailScan["Fail; no approvable result"]
+    Complete -->|Yes| Classify["Kernel posture + advisory-scoped DNF probe"]
+    Classify --> Action{"Next action"}
+    Action -->|Close, configure, investigate| Report["Close or report; no mutation approval"]
+    Action -->|Update| UpdateLabel["Separate update approval"]
+    Action -->|Reboot| RebootLabel["Separate reboot approval"]
+    UpdateLabel --> UpdateAuth["Validate actor, issue, and metadata"]
+    UpdateAuth --> UpdateRescan{"Fresh scan: exact advisory IDs and update action?"}
+    UpdateRescan -->|No| Reconcile["Refresh issue; consume stale label; no mutation"]
+    UpdateRescan -->|Yes| DNF["DNF approved advisory IDs only"]
+    DNF --> UpdateResult["Rescan and refresh or close issue"]
+    RebootLabel --> RebootAuth["Validate actor, issue, and metadata"]
+    RebootAuth --> RebootGate{"Fresh scan: exact IDs, reboot action, allowed packages, DNF no-op, bootable UEK?"}
+    RebootGate -->|Drift or action changed| Reconcile
+    RebootGate -->|Unsafe proof| FailApproval["Fail; remove approval label; report reason"]
+    RebootGate -->|All targets ready| Recheck{"UEK target unchanged immediately before mutation?"}
+    Recheck -->|No| FailApproval
+    Recheck -->|Yes| Boot["Set default; reboot; verify booted UEK and service health"]
+    Boot --> Cleanup["Remove old installonly kernels; rescan; refresh or close issue"]
 ```
 
 The scan/update/reboot workflows share one GitHub Actions concurrency group.
