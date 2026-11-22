@@ -31,7 +31,7 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `ORACLE_DB_WALLET_PASSWORD` | approved Vault bootstrap and deploy verification | Wallet password source value; must match the OCI Vault CURRENT bundle and wallet zip |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | approved Vault bootstrap and deploy verification | Argon2 admin hash source value; must match the OCI Vault CURRENT bundle |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Optional compatibility token for non-management diagnostics; not a collection-management credential |
-| `CLOUDFLARE_API_TOKEN` | Terraform CI/deploy and controlled Cloudflare apply | Scoped token for the active Cloudflare zone, records, TLS setting, cache rules, and edge certificate read checks |
+| `CLOUDFLARE_API_TOKEN` | Terraform CI/deploy | Scoped token for the active Cloudflare zone, records, TLS setting, cache rules, and edge certificate read checks |
 | `PORKBUN_API_KEY`, `PORKBUN_SECRET_KEY` | Terraform CI/deploy | Porkbun DNS provider credentials |
 | `RELEASE_PLEASE_APP_PRIVATE_KEY` | release workflow | GitHub App installation token signing key |
 
@@ -68,15 +68,15 @@ outputs and passes them to Ansible.
 | `OCI_RUNTIME_SSH_PUBLIC_KEYS` | JSON list of SSH public keys injected into the VM |
 | `OCI_OBJECT_STORAGE_NAMESPACE` | OCI Object Storage namespace for Terraform remote state |
 | `CLOUDFLARE_ACCOUNT_ID` | Non-secret account ID for the Terraform-managed `jetsaredim.net` zone |
-| `CLOUDFLARE_MODE` | Defaults to `proxied` in Terraform and workflows; leave the GitHub variable unset in normal production. Set `dns_only` only for a reviewed proxy rollback, or explicitly set `off` for a fresh bootstrap before the Cloudflare zone exists. Set any override before Release PR CI and review its plan; ordinary deployment rejects DNS changes that differ from that successful CI record. |
+| `CLOUDFLARE_MODE` | Optional override for Terraform's `proxied` default; leave the GitHub variable unset in normal production. Set `dns_only` for a reviewed proxy rollback, or `off` for a fresh bootstrap before the Cloudflare zone exists. Set any override before Release PR CI and review its plan. Destructive actions require the PR approval label; routine deployment applies its fresh saved plan after release merge. |
 | `ORACLE_DB_USER` | Runtime database user for the Rust controller container; defaults to `ADMIN` for the first bootstrap path |
 | `ORACLE_DB_CONNECT_STRING` | Runtime Oracle connect alias or descriptor; use the wallet alias such as `autographsdb_medium` for mTLS |
 | `ORACLE_DB_WALLET_DIR` | Runtime wallet directory inside the Rust controller container; defaults to `/opt/autographs/wallet` in deploy |
 | `TNS_ADMIN` | Runtime Oracle network configuration directory retained for tool compatibility; deployed controller and one-shot smoke containers set this to `/opt/autographs/wallet` |
 | `RUST_LOG` | Runtime controller log filter; defaults to `autographs_controller=info,tower_http=info` and can be raised temporarily for debugging |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
-| `DEPLOY_SSH_USER` | SSH user for deploys, usually `opc` |
-| `DEPLOY_PATH` | Directory on the VM that stores Ansible-managed env, Caddy config, wallet, and secret files |
+| `DEPLOY_SSH_USER` | Optional GitHub override for Ansible's `opc` SSH user default across deploy, rollback, image cleanup, and security maintenance. Leave unset for normal production. |
+| `DEPLOY_PATH` | Optional GitHub variable overriding Ansible's `/opt/autographs` host deployment root across freeze, deploy, unfreeze, rollback, and image cleanup. Leave unset for normal production; a path change on an existing VM needs a coordinated migration. |
 | `DEPLOY_SSH_READY_TIMEOUT_SECONDS` | Maximum time deploy waits for SSH after VM creation or replacement; defaults to `900` |
 | `DEPLOY_SSH_READY_INTERVAL_SECONDS` | Poll interval while waiting for SSH readiness; defaults to `10` |
 | `AUTOGRAPHS_DOMAIN` | Public hostname served by Caddy with automatic TLS; defaults to `autographs.jetsaredim.net` |
@@ -143,7 +143,7 @@ family. This permission is limited to the dedicated Autographs project
 compartment rather than the tenancy and lets the deployment root own the full
 lifecycle of those regional resources.
 
-Runtime containers receive database and media coordinates through Ansible-managed environment files consumed by Podman quadlets, not committed files. The deploy workflow writes VM-local env files under `${DEPLOY_PATH}/env`; keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values.
+Runtime containers receive database and media coordinates through Ansible-managed environment files consumed by Podman quadlets, not committed files. Ansible writes VM-local env files under its deployment root (`/opt/autographs/env` by default); the optional `DEPLOY_PATH` GitHub variable overrides that host root. Container-internal wallet paths remain `/opt/autographs/wallet`. Keep wallet material, wallet passwords, real database passwords, operator tokens, and API signing material out of git. Multiline API signing keys are delivered as protected VM files rather than flattened environment values.
 
 When production persistence uses Oracle, the controller starts a read-only heartbeat that connects and runs `select 1 from dual` once after startup, then repeats on the configured interval. This keeps Always Free Autonomous Database inactivity tracking fresh without writing synthetic catalog records and gives operators an immediate success or failure log after a deploy or reboot.
 

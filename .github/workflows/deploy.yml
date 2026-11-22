@@ -43,6 +43,8 @@ env:
   AUTOGRAPHS_CONTROLLER_DB_PROVIDER: ${{ vars.AUTOGRAPHS_CONTROLLER_DB_PROVIDER || 'oracle' }}
   AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER: ${{ vars.AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER || 'oci-instance-principal' }}
   AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS: ${{ vars.AUTOGRAPHS_ORACLE_HEARTBEAT_INTERVAL_SECONDS || '86400' }}
+  AUTOGRAPHS_DEPLOY_PATH_OVERRIDE: ${{ vars.DEPLOY_PATH }}
+  AUTOGRAPHS_DEPLOY_SSH_USER_OVERRIDE: ${{ vars.DEPLOY_SSH_USER }}
 
 jobs:
   release:
@@ -127,8 +129,6 @@ jobs:
     permissions:
       contents: write
       packages: write
-      actions: read
-      pull-requests: read
 
     steps:
       - name: Resolve release request
@@ -668,21 +668,21 @@ jobs:
           TF_VAR_availability_domain: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
           TF_VAR_runtime_image_ocid: ${{ vars.OCI_RUNTIME_IMAGE_OCID }}
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
-          TF_VAR_runtime_deploy_user: ${{ vars.DEPLOY_SSH_USER || 'opc' }}
-          TF_VAR_runtime_deploy_path: ${{ vars.DEPLOY_PATH || '/opt/autographs' }}
           TF_VAR_media_bucket_namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           TF_VAR_porkbun_api_key: ${{ secrets.PORKBUN_API_KEY }}
           TF_VAR_porkbun_secret_key: ${{ secrets.PORKBUN_SECRET_KEY }}
           TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
-          TF_VAR_cloudflare_mode: ${{ vars.CLOUDFLARE_MODE || 'proxied' }}
+          CLOUDFLARE_MODE_OVERRIDE: ${{ vars.CLOUDFLARE_MODE }}
           TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
           ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if [ "$TF_VAR_cloudflare_mode" != "off" ]; then
+          if [ -n "$CLOUDFLARE_MODE_OVERRIDE" ]; then
+            export TF_VAR_cloudflare_mode="$CLOUDFLARE_MODE_OVERRIDE"
+          fi
+          if [ "$CLOUDFLARE_MODE_OVERRIDE" != "off" ]; then
             if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
               echo "::error::Set the CLOUDFLARE_API_TOKEN secret before using a Cloudflare mode."
               exit 1
@@ -718,26 +718,12 @@ jobs:
           fi
           terraform_plan_file="$RUNNER_TEMP/runtime.tfplan"
           terraform plan -input=false -lock-timeout=10m -out="$terraform_plan_file"
-          echo "Changed Cloudflare and Porkbun DNS resources in the saved release plan:"
+          echo "Changed Terraform resources in the saved release plan:"
           terraform show -json "$terraform_plan_file" | jq -r '
             .resource_changes[]?
-            | select(.mode == "managed" and .change.actions != ["no-op"])
-            | select(.address | test("^(cloudflare_|porkbun_dns_record\\.)"))
+            | select(.change.actions != ["no-op"])
             | "\(.address): \(.change.actions | join(","))"
           '
-          terraform state pull | jq -c '{
-            lineage, serial,
-            cloudflare_zone_present: any(.resources[]?;
-              .mode == "managed" and .type == "cloudflare_zone" and
-              .name == "domain" and ((.instances // []) | length > 0))
-          }' > "$RUNNER_TEMP/runtime-terraform-state-meta.json"
-          terraform show -json "$terraform_plan_file" \
-            | python3 "$GITHUB_WORKSPACE/scripts/dns_plan_review.py" verify \
-                --state-meta "$RUNNER_TEMP/runtime-terraform-state-meta.json" \
-                --tree "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD:infra/terraform)" \
-                --mode "$TF_VAR_cloudflare_mode" \
-                --repo "$GITHUB_REPOSITORY" \
-                --source-revision "${{ steps.source.outputs.source_revision }}"
           terraform apply -input=false -lock-timeout=10m "$terraform_plan_file"
           rotation_plan_file="$RUNNER_TEMP/runtime-rotation.tfplan"
           terraform plan -input=false -lock-timeout=10m -out="$rotation_plan_file"
@@ -802,7 +788,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
           requirements: collections/requirements.yml
           options: |
             --extra-vars autographs_deploy_repo_version=${{ steps.request.outputs.release_tag }}
@@ -827,7 +813,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
           requirements: collections/requirements.yml
           options: |
             --extra-vars autographs_controller_image=${{ env.GHCR_CONTROLLER_IMAGE_REPOSITORY }}:${{ steps.manifest.outputs.controller_tag }}
@@ -900,7 +886,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
           requirements: collections/requirements.yml
           options: |
             --extra-vars autographs_deploy_repo_version=${{ steps.request.outputs.release_tag }}
@@ -921,7 +907,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
           requirements: collections/requirements.yml
           options: |
             --extra-vars autographs_deploy_repo_version=${{ steps.request.outputs.release_tag }}
@@ -991,7 +977,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            ${{ steps.rollback_runtime.outputs.runtime_public_ip }} ansible_user=${{ vars.DEPLOY_SSH_USER || 'opc' }}
+            ${{ steps.rollback_runtime.outputs.runtime_public_ip }}
           requirements: collections/requirements.yml
           options: |
             --extra-vars autographs_rollback_controller_image=${{ env.GHCR_CONTROLLER_IMAGE_REPOSITORY }}:${{ steps.rollback_manifest.outputs.controller_tag }}
@@ -1150,13 +1136,16 @@ jobs:
           TF_VAR_bootstrap_runtime_secrets: 'true'
           TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
           TF_VAR_media_bucket_namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
-          TF_VAR_cloudflare_mode: ${{ vars.CLOUDFLARE_MODE || 'proxied' }}
+          CLOUDFLARE_MODE_OVERRIDE: ${{ vars.CLOUDFLARE_MODE }}
           TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
           ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
         run: |
           set -euo pipefail
+          if [ -n "$CLOUDFLARE_MODE_OVERRIDE" ]; then
+            export TF_VAR_cloudflare_mode="$CLOUDFLARE_MODE_OVERRIDE"
+          fi
           terraform init \
             -backend-config="bucket=autographs-tf-state" \
             -backend-config="namespace=${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}" \

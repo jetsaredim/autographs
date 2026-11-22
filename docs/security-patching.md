@@ -361,10 +361,11 @@ Both workflows use the same host alias to avoid exposing the raw production IP a
 
 ```ini
 [runtime]
-production ansible_host=<runtime_public_ip from Terraform, or VM_PUBLIC_IP fallback> ansible_user=<DEPLOY_SSH_USER or opc>
+production ansible_host=<runtime_public_ip from Terraform, or VM_PUBLIC_IP fallback>
 ```
 
 The workflows first read Terraform state and use the `runtime_public_ip` output for this inventory host. `VM_PUBLIC_IP` remains a fallback repository variable for unusual cases where Terraform state is unavailable or does not yet expose the output.
+The shared Ansible group variables select `opc` as the SSH user unless the optional `DEPLOY_SSH_USER` GitHub variable overrides it.
 
 ## Apply flow
 

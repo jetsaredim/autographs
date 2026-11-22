@@ -4,11 +4,10 @@ autographs_deploy_environment: prod
 autographs_deploy_oracle_db_name: "{{ autographs_deploy_project_name }}db"
 autographs_deploy_media_bucket_name: "{{ autographs_deploy_project_name }}-media-{{ autographs_deploy_environment }}"
 
-autographs_deploy_deploy_path: /opt/autographs
-autographs_deploy_env_path: "{{ autographs_deploy_deploy_path }}/env"
-autographs_deploy_wallet_path: "{{ autographs_deploy_deploy_path }}/wallet"
-autographs_deploy_caddy_path: "{{ autographs_deploy_deploy_path }}/caddy"
-autographs_deploy_static_path: "{{ autographs_deploy_deploy_path }}/static"
+autographs_deploy_env_path: "{{ autographs_deploy_path }}/env"
+autographs_deploy_wallet_path: "{{ autographs_deploy_path }}/wallet"
+autographs_deploy_caddy_path: "{{ autographs_deploy_path }}/caddy"
+autographs_deploy_static_path: "{{ autographs_deploy_path }}/static"
 
 autographs_deploy_quadlet_path: /etc/containers/systemd
 autographs_deploy_network_name: autographs
@@ -38,9 +37,9 @@ autographs_deploy_static_promoted_release_retain_count: 5
 autographs_deploy_static_failed_candidate_retain_count: 1
 autographs_deploy_publish_frozen: true
 autographs_deploy_explicit_cutover: true
-autographs_deploy_publish_freeze_record_path: /opt/autographs/private/publish-freeze.json
-autographs_deploy_publish_quarantine_path: /opt/autographs/private/media-quarantine
-autographs_deploy_old_frozen_caddyfile_path: /opt/autographs/private/Caddyfile.pre-cutover-frozen
+autographs_deploy_publish_freeze_record_path: "{{ autographs_deploy_path }}/private/publish-freeze.json"
+autographs_deploy_publish_quarantine_path: "{{ autographs_deploy_path }}/private/media-quarantine"
+autographs_deploy_old_frozen_caddyfile_path: "{{ autographs_deploy_path }}/private/Caddyfile.pre-cutover-frozen"
 
 autographs_deploy_packages:
   - podman

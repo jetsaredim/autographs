@@ -2,12 +2,17 @@
   hosts: runtime
   become: true
   vars:
-    autographs_rollback_env_path: /opt/autographs/env/app.env
-    autographs_rollback_env_stage_path: /opt/autographs/env/app.env.rollback
+    autographs_rollback_env_path: "{{ autographs_deploy_path }}/env/app.env"
+    autographs_rollback_env_stage_path: "{{ autographs_deploy_path }}/env/app.env.rollback"
     autographs_rollback_quadlet_path: /etc/containers/systemd/autographs-controller.container
     autographs_rollback_quadlet_stage_path: /etc/containers/systemd/autographs-controller.container.rollback
     autographs_rollback_controller_container_name: autographs-controller
   pre_tasks:
+    - name: Require a safe absolute runtime deployment path
+      ansible.builtin.assert:
+        that:
+          - autographs_deploy_path is match('^/[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$')
+
     - name: Wait for runtime SSH readiness
       ansible.builtin.wait_for_connection:
         timeout: 900
@@ -15,12 +20,12 @@
 
     - name: Read active Caddy media routing before rollback
       ansible.builtin.slurp:
-        src: /opt/autographs/caddy/Caddyfile
+        src: "{{ autographs_deploy_path }}/caddy/Caddyfile"
       register: rollback_caddyfile
 
     - name: Inspect verified pointer-first digest registry
       ansible.builtin.stat:
-        path: /opt/autographs/private/pointer-first-approved-digests
+        path: "{{ autographs_deploy_path }}/private/pointer-first-approved-digests"
       register: rollback_approved_digests_stat
 
     - name: Refuse old publisher behind shared-media routing without approval record
@@ -33,7 +38,7 @@
 
     - name: Read verified pointer-first digest registry
       ansible.builtin.slurp:
-        src: /opt/autographs/private/pointer-first-approved-digests
+        src: "{{ autographs_deploy_path }}/private/pointer-first-approved-digests"
       register: rollback_approved_digests
       when: rollback_approved_digests_stat.stat.isreg | default(false)
 

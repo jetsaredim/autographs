@@ -3,20 +3,25 @@
   hosts: runtime
   become: true
   vars:
-    freeze_record_path: /opt/autographs/private/publish-freeze.json
-    caddyfile_path: /opt/autographs/caddy/Caddyfile
-    frozen_stage_path: /opt/autographs/private/Caddyfile.ready-frozen
-    autographs_deploy_caddy_path: /opt/autographs/caddy
+    freeze_record_path: "{{ autographs_deploy_path }}/private/publish-freeze.json"
+    caddyfile_path: "{{ autographs_deploy_path }}/caddy/Caddyfile"
+    frozen_stage_path: "{{ autographs_deploy_path }}/private/Caddyfile.ready-frozen"
+    autographs_deploy_caddy_path: "{{ autographs_deploy_path }}/caddy"
     autographs_deploy_publish_frozen: false
     autographs_deploy_allow_unfreeze: true
     autographs_publish_unfreeze_verify_only: false
-    audit_script_path: /opt/autographs/private/publish_freeze_audit.py
-    app_env_path: /opt/autographs/env/app.env
-    approved_digests_path: /opt/autographs/private/pointer-first-approved-digests
+    audit_script_path: "{{ autographs_deploy_path }}/private/publish_freeze_audit.py"
+    app_env_path: "{{ autographs_deploy_path }}/env/app.env"
+    approved_digests_path: "{{ autographs_deploy_path }}/private/pointer-first-approved-digests"
     autographs_publish_unfreeze_fixture_mode: false
     autographs_publish_file_owner: root
     autographs_publish_file_group: root
   tasks:
+    - name: Require a safe absolute runtime deployment path
+      ansible.builtin.assert:
+        that:
+          - autographs_deploy_path is match('^/[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$')
+
     - name: Restrict runtime adapter to the disposable local origin fixture
       ansible.builtin.assert:
         that:
@@ -77,7 +82,7 @@
           - --static-root
           - "{{ unfreeze_history_mount.stdout | trim }}"
           - --quarantine
-          - /opt/autographs/private/media-quarantine
+          - "{{ autographs_deploy_path }}/private/media-quarantine"
           - --record
           - "{{ freeze_record_path }}"
           - --release-tag

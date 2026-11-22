@@ -85,8 +85,6 @@ Populate repo-level GitHub Variables:
 - `ORACLE_DB_CONNECT_STRING`
 - `ORACLE_DB_WALLET_DIR` when using an mTLS wallet instead of walletless TLS
 - `VM_PUBLIC_IP`
-- `DEPLOY_SSH_USER`
-- `DEPLOY_PATH`
 - `DEPLOY_SSH_READY_TIMEOUT_SECONDS`
 - `DEPLOY_SSH_READY_INTERVAL_SECONDS`
 - `GHCR_CONTROLLER_IMAGE_REPOSITORY`
@@ -99,9 +97,18 @@ Populate repo-level GitHub Variables:
 - `AUTOGRAPHS_CONTROLLER_DB_PROVIDER`
 - `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER`
 
-`GHCR_CONTROLLER_IMAGE_REPOSITORY` should be the exact `ghcr.io` image path used for the controller image, such as `ghcr.io/jetsaredim/autographs/controller`. The deployed runtime no longer publishes, pulls, or starts the old Next.js runner or tools images.
+`GHCR_CONTROLLER_IMAGE_REPOSITORY` should be the exact `ghcr.io` image path used for the controller image, such as `ghcr.io/jetsaredim/autographs/controller`. The deployed runtime no longer publishes, pulls, or starts the old Next.js runner or tools images. Ansible defaults the SSH user to `opc`; set the optional `DEPLOY_SSH_USER` GitHub variable only if the VM uses another account.
 
-Terraform defaults the runtime shape to `VM.Standard.E2.1.Micro` and the flex-shape OCPU and memory inputs to `1` each. Fixed shapes omit the Terraform `shape_config` block. `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
+Terraform defaults the runtime shape to `VM.Standard.E2.1.Micro` and the flex-shape OCPU and memory inputs to `1` each. Fixed shapes omit the Terraform `shape_config` block. `VM_PUBLIC_IP`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
+
+Ansible uses `/opt/autographs` as the shared host deployment root for freeze,
+deploy, unfreeze, rollback, and local image cleanup. Leave the `DEPLOY_PATH`
+GitHub variable unset for that default. Set it only when a different host root
+is required; the workflow passes it as an Ansible environment override across
+those operations. Changing the root on an existing VM requires a coordinated
+migration of its env, wallet, Caddy, private freeze records, and recovery files
+before the next release. Terraform does not consume this path. The controller
+container still uses `/opt/autographs/wallet` internally.
 
 For initial bootstrap, supply the tenancy-specific Object Storage namespace and both manual GitHub Secrets. Dispatch `deploy.yml` from `main` with `operation=bootstrap_secrets` and approve the `secret-audit` environment review. Its saved, targeted Terraform plan may only create the Vault, key, and three secrets; it refuses an existing ADB state or resource updates. OCI generates the database password as version 1, which must never be overwritten out of band. The bootstrap step updates only the exact version-1 wallet-password and admin-hash placeholders from GitHub, then verifies their CURRENT bundles. It refuses any other mismatch. Afterward, a normal release deploy verifies GitHub and Vault still match, creates ADB from the generated password secret, and runs a guarded second Terraform plan to attach the ADB rotation target. The deploy step passes runtime coordinates through VM-local quadlet environment files.
 
@@ -431,9 +438,10 @@ unless a maintainer adds the `terraform-destructive-plan-approved` PR label
 after reviewing the plan output. CI accepts a destructive plan only on the
 event that adds that label; a later commit triggers a new failing plan check.
 After reviewing the updated plan, remove and re-add the label to rerun CI.
-The label
-does not override a Terraform `prevent_destroy` error or the release workflow's
-DNS guard. Tenancy bootstrap plans remain a separate operator review.
+The label does not override a Terraform `prevent_destroy` error. After the
+Release PR merges, the release workflow applies its fresh saved plan without
+a separate DNS or destructive-action approval gate. Tenancy bootstrap plans
+remain a separate operator review.
 
 When deployment is required, the deploy workflow:
 
@@ -441,8 +449,8 @@ When deployment is required, the deploy workflow:
 2. enters the serialized `deploy-production` section and refuses superseded
    deploys before touching production,
 3. optionally taints and recreates the runtime VM when manually requested,
-4. saves a Terraform plan, rejects any Cloudflare or Porkbun DNS change during
-   an ordinary deploy, then applies that exact plan,
+4. saves a Terraform plan, reports changed resource addresses and actions,
+   then applies that exact plan, including reviewed DNS/cache changes,
 5. connects to the OCI VM over SSH through Ansible,
 6. installs/maintains Podman, firewalld, swap, and masked systemd services,
 7. copies wallet and OCI API key material to protected VM paths,
