@@ -85,7 +85,6 @@ Populate repo-level GitHub Variables:
 - `ORACLE_DB_CONNECT_STRING`
 - `ORACLE_DB_WALLET_DIR` when using an mTLS wallet instead of walletless TLS
 - `VM_PUBLIC_IP`
-- `DEPLOY_SSH_USER`
 - `DEPLOY_SSH_READY_TIMEOUT_SECONDS`
 - `DEPLOY_SSH_READY_INTERVAL_SECONDS`
 - `GHCR_CONTROLLER_IMAGE_REPOSITORY`
@@ -98,9 +97,9 @@ Populate repo-level GitHub Variables:
 - `AUTOGRAPHS_CONTROLLER_DB_PROVIDER`
 - `AUTOGRAPHS_CONTROLLER_MEDIA_STORAGE_PROVIDER`
 
-`GHCR_CONTROLLER_IMAGE_REPOSITORY` should be the exact `ghcr.io` image path used for the controller image, such as `ghcr.io/jetsaredim/autographs/controller`. The deployed runtime no longer publishes, pulls, or starts the old Next.js runner or tools images.
+`GHCR_CONTROLLER_IMAGE_REPOSITORY` should be the exact `ghcr.io` image path used for the controller image, such as `ghcr.io/jetsaredim/autographs/controller`. The deployed runtime no longer publishes, pulls, or starts the old Next.js runner or tools images. Ansible defaults the SSH user to `opc`; set the optional `DEPLOY_SSH_USER` GitHub variable only if the VM uses another account.
 
-Terraform defaults the runtime shape to `VM.Standard.E2.1.Micro` and the flex-shape OCPU and memory inputs to `1` each. Fixed shapes omit the Terraform `shape_config` block. `VM_PUBLIC_IP`, `DEPLOY_SSH_USER`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
+Terraform defaults the runtime shape to `VM.Standard.E2.1.Micro` and the flex-shape OCPU and memory inputs to `1` each. Fixed shapes omit the Terraform `shape_config` block. `VM_PUBLIC_IP`, `DEPLOY_SSH_READY_TIMEOUT_SECONDS`, `DEPLOY_SSH_READY_INTERVAL_SECONDS`, `GHCR_CONTROLLER_IMAGE_REPOSITORY`, image cleanup settings, and `AUTOGRAPHS_DOMAIN` have workflow defaults or fallbacks. The availability domain, runtime image OCID, SSH public keys, and Object Storage namespace are tenancy-specific and should be set explicitly.
 
 Ansible uses `/opt/autographs` as the shared host deployment root for freeze,
 deploy, unfreeze, rollback, and local image cleanup. Leave the `DEPLOY_PATH`

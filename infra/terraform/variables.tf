@@ -136,17 +136,6 @@ variable "runtime_ssh_public_keys" {
   default     = []
 }
 
-variable "runtime_deploy_user" {
-  description = "OS user that receives deployment files and runs container deployment commands."
-  type        = string
-  default     = "opc"
-
-  validation {
-    condition     = can(regex("^[A-Za-z_][A-Za-z0-9_-]*$", var.runtime_deploy_user))
-    error_message = "runtime_deploy_user must be a Linux username containing only letters, numbers, underscores, and hyphens, and must not start with a number."
-  }
-}
-
 variable "bootstrap_runtime_secrets" {
   description = "Use only for the explicit targeted Vault bootstrap before ADB exists. Omits remote secret reads and the ADB rotation target."
   type        = bool

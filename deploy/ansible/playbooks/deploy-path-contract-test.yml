@@ -15,3 +15,4 @@
           - autographs_deploy_caddy_path == autographs_deploy_path ~ '/caddy'
           - autographs_deploy_publish_freeze_record_path == autographs_deploy_path ~ '/private/publish-freeze.json'
           - autographs_system_cleanup_env_path == autographs_deploy_path ~ '/env'
+          - ansible_user == lookup('env', 'EXPECTED_DEPLOY_SSH_USER')

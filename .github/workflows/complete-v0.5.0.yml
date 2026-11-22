@@ -41,6 +41,7 @@ jobs:
       AUTOGRAPHS_DOMAIN: autographs.jetsaredim.net
       ASSET_DIR: /tmp/autographs-v0.5.0-assets
       OPERATION: ${{ inputs.operation }}
+      AUTOGRAPHS_DEPLOY_SSH_USER_OVERRIDE: ${{ vars.DEPLOY_SSH_USER }}
       UNFREEZE_RUN_ID: ${{ inputs.unfreeze_run_id }}
       UNFREEZE_RUN_ATTEMPT: ${{ inputs.unfreeze_run_attempt }}
 
@@ -198,7 +199,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            129.213.166.159 ansible_user=opc
+            129.213.166.159
           requirements: collections/requirements.yml
           options: |
             --extra-vars autographs_deploy_repo_version=v0.5.0
@@ -218,7 +219,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            129.213.166.159 ansible_user=opc
+            129.213.166.159
           requirements: collections/requirements.yml
           options: |
             --extra-vars autographs_deploy_repo_version=v0.5.0

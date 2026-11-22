@@ -75,7 +75,7 @@ outputs and passes them to Ansible.
 | `TNS_ADMIN` | Runtime Oracle network configuration directory retained for tool compatibility; deployed controller and one-shot smoke containers set this to `/opt/autographs/wallet` |
 | `RUST_LOG` | Runtime controller log filter; defaults to `autographs_controller=info,tower_http=info` and can be raised temporarily for debugging |
 | `VM_PUBLIC_IP` | Runtime VM public IP; Terraform output can replace this when available |
-| `DEPLOY_SSH_USER` | SSH user for deploys, usually `opc` |
+| `DEPLOY_SSH_USER` | Optional GitHub override for Ansible's `opc` SSH user default across deploy, rollback, image cleanup, and security maintenance. Leave unset for normal production. |
 | `DEPLOY_PATH` | Optional GitHub variable overriding Ansible's `/opt/autographs` host deployment root across freeze, deploy, unfreeze, rollback, and image cleanup. Leave unset for normal production; a path change on an existing VM needs a coordinated migration. |
 | `DEPLOY_SSH_READY_TIMEOUT_SECONDS` | Maximum time deploy waits for SSH after VM creation or replacement; defaults to `900` |
 | `DEPLOY_SSH_READY_INTERVAL_SECONDS` | Poll interval while waiting for SSH readiness; defaults to `10` |

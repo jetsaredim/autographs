@@ -1,2 +1,4 @@
 autographs_deploy_path: >-
   {{ lookup('env', 'AUTOGRAPHS_DEPLOY_PATH_OVERRIDE') | default('/opt/autographs', true) }}
+ansible_user: >-
+  {{ lookup('env', 'AUTOGRAPHS_DEPLOY_SSH_USER_OVERRIDE') | default('opc', true) }}
