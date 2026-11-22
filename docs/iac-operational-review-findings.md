@@ -678,6 +678,13 @@ reported `No changes`. The default and alternate-user paths passed the local
 Ansible contract playbook. The
 [post-removal Terraform CI plan](https://github.com/jetsaredim/autographs/actions/runs/44971860391/job/137053220820)
 also reported `No changes` and no changed managed-resource actions.
+An [inline PR review finding](https://github.com/jetsaredim/autographs/pull/379#discussion_r4655955086)
+identified the frozen v0.5.0 completion workflow's exact playbook check as a
+consumer of the changed unfreeze playbook. PR #379 pins the reviewed prefix
+digest and runs that workflow guard in a regression test with the pinned tag
+history available in CI. The fix was [replied to inline](https://github.com/jetsaredim/autographs/pull/379#discussion_r4655966939)
+and the review thread was resolved; workflow checks passed on the corrected
+head.
 
 `OCI_RUNTIME_SSH_PUBLIC_KEYS` is different: Terraform passes its JSON list to
 `module.compute` and joins the keys into the OCI instance's
