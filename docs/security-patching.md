@@ -285,7 +285,7 @@ The scan path starts in `.github/workflows/weekly-security-scan.yml`, then runs 
    | `reboot` | DNF proves a no-op and every package is in the UEK reboot/installonly family allowlist | Offer `approved-production-reboot` |
    | `investigate` | Running/default kernel is not verified UEK, package metadata is missing, no-op findings are mixed, DNF evidence is failed/unrecognized, or host classifications conflict | Offer no approval label; kernel-state reports include UEK selection/reboot recovery steps |
 
-The runtime host must have `openscap-scanner` installed so `oscap-ssh` can execute `oscap` remotely. The base deployment role installs that package during instance setup. The workflow inventory supplies `ansible_user`, and the workflow passes a temp deploy key through `SSH_ADDITIONAL_OPTIONS`; local runs can omit `ansible_user` and let SSH config provide `User` and `IdentityFile` for the production IP.
+The runtime host must have `openscap-scanner` installed so `oscap-ssh` can execute `oscap` remotely. The base deployment role installs that package during instance setup. Shared Ansible group variables default `ansible_user` to `opc`, with an optional `DEPLOY_SSH_USER` GitHub variable override. The workflow passes a temporary deploy key through `SSH_ADDITIONAL_OPTIONS`; local runs can override the Ansible user and key for the production IP.
 
 `tasks/create_issue.yml` runs on `localhost` after all hosts have scan facts:
 

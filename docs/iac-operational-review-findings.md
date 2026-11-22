@@ -394,6 +394,51 @@ pass: the Vault versions must be present. Sources:
 [data_services/main.tf](../infra/terraform/modules/data_services/main.tf), and
 [deploy.yml](../.github/workflows/deploy.yml).
 
+### Security patching decision flow
+
+The [security patching runbook](security-patching.md) has the full operator
+procedure. This is the decision path that places the probe adapters below:
+
+```text
+Weekly/manual scan
+  -> complete OpenSCAP OVAL result + kernel posture + advisory-scoped DNF probe
+  -> classify: close | configure | update | reboot | investigate
+       close/configure/investigate: no approval for package or reboot mutation
+       update: scanner issue offers approved-production-update
+       reboot: scanner issue offers approved-production-reboot
+
+Update-label event
+  -> allowlisted actor + open scanner issue + exact metadata/target checks
+  -> fresh complete scan of every target; compare approved and current ELSA IDs
+       drift/action changed: refresh issue, consume stale label, no DNF mutation
+       exact update: DNF only those advisory IDs -> rescan -> refresh/close issue
+
+Separate reboot-label event
+  -> same actor/issue/metadata checks -> fresh scan of every target
+  -> exact IDs + reboot classification + reboot-family allowlist + DNF no-op
+  -> newest installed bootable UEK image, RPM owner, boot entry, initramfs
+       drift/action changed: refresh issue, no reboot
+       unsafe proof: fail, remove approval label, report bounded reason
+       all targets ready: recheck UEK target immediately before mutation
+         -> set default, reboot -> verify booted UEK and services/origin health
+         -> remove old installonly kernels -> rescan -> refresh/close issue
+```
+
+The scan/update/reboot workflows share one GitHub Actions concurrency group.
+An incomplete scan never creates an approvable result. Update and reboot
+approvals are separate: package approval cannot authorize downtime. A failed
+approval workflow runs cleanup that removes the stale approval label and
+reports the failure. The probe adapters substitute command results only in
+local fixtures; production runs the real host commands.
+
+| Census rows | Gate and purpose |
+|---|---|
+| 1 | Advisory-scoped DNF classification decides whether there is update work, reboot-only follow-up, or an unsafe result. |
+| 2–8 | Installed RHCK/UEK inventory and running/default kernel, ownership, boot-entry, and initramfs proofs prevent unsafe kernel classification. |
+| 9 | Reboot preflight repeats the advisory-scoped DNF no-op proof so a reboot cannot replace pending package updates. |
+| 10–12 | Reboot preflight selects and validates the newest installed bootable UEK target before allowing downtime. |
+| 13–15 | Immediate pre-mutation recheck catches a changed UEK candidate, RPM owner, or boot entry before `grubby --set-default`. |
+
 ### Fixture probe adapter census
 
 The 15 named security-patching probe adapters below have two reachable states:
