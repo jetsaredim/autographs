@@ -563,12 +563,14 @@ still requires that Terraform input. PR CI run `43777689199` read the OCI
 compartment data source and reported `No changes` on commit `76a54cf`.
 Remove the stored variable after merge.
 
-Two remaining GitHub variables duplicate every matching workflow fallback:
-`DEPLOY_SSH_USER` and `DEPLOY_PATH`. Both also have
-non-Terraform workflow consumers with the same fallbacks. Their removal from
-GitHub is a configuration cleanup candidate, followed by CI and read-only
-production plan verification; no Terraform code change or state move is needed
-to test the current fallback behavior. The three runtime sizing variables
+The earlier review identified `DEPLOY_SSH_USER` and `DEPLOY_PATH` as stored
+values equal to workflow fallbacks. The owner now chose Ansible ownership for
+the deployment root: [PR #379](https://github.com/jetsaredim/autographs/pull/379)
+removes the unused Terraform `runtime_deploy_path` input, gives Ansible one
+`/opt/autographs` default across deploy and recovery playbooks, and preserves
+an optional GitHub override. The stored `DEPLOY_PATH` can be removed after the
+reviewed PR plan verifies no infrastructure change; `DEPLOY_SSH_USER` remains
+a separate cleanup candidate. The three runtime sizing variables
 `OCI_RUNTIME_SHAPE`, `OCI_RUNTIME_OCPUS`, and `OCI_RUNTIME_MEMORY_GBS` matched
 the Terraform defaults. They were removed from the workflows and GitHub
 repository after PR #354's Terraform check on commit `a08c7ae` reported
@@ -643,12 +645,34 @@ override remains available for a
 reviewed DNS-only rollback or fresh bootstrap. The post-removal authenticated
 CI plan passed with no changes; production deployment remains unproven.
 
+### Deployment root and SSH key ownership
+
+`DEPLOY_PATH=/opt/autographs` is currently stored as a GitHub variable, but
+Terraform's `runtime_deploy_path` input has no resource or output consumer.
+PR #379 removes that dead input. Ansible's shared `autographs_deploy_path`
+defaults to `/opt/autographs`; an optional `DEPLOY_PATH` GitHub variable is
+passed through the workflow environment to freeze, full deploy, unfreeze,
+rollback, and local image cleanup. An override changes the host filesystem
+root, so an existing VM needs a coordinated migration of env, wallet, Caddy,
+and private recovery files before it is changed. Removing the stored value
+after a no-change plan exercises the Ansible default while leaving the
+override available for a future migration.
+
+`OCI_RUNTIME_SSH_PUBLIC_KEYS` is different: Terraform passes its JSON list to
+`module.compute` and joins the keys into the OCI instance's
+`ssh_authorized_keys` metadata. OCI uses those public keys to authorize VM SSH
+logins; Ansible subsequently connects with the matching
+`DEPLOY_SSH_PRIVATE_KEY` secret. Ansible does not hold or install the public-key
+list. Keep the GitHub variable as the production source. The committed tfvars
+example contains only a replace-me public-key example for local Terraform
+operators, not a second production value.
+
 GitHub Variables queued for cleanup:
 
-- `DEPLOY_SSH_USER` and `DEPLOY_PATH` equal their current workflow fallbacks
-  and Terraform defaults. Their workflow assignments and non-Terraform
-  consumers need a
-  separate reviewed cleanup before deleting the stored values.
+- `DEPLOY_PATH` may be deleted after PR #379's authenticated no-change plan;
+  Ansible then uses its default. The optional workflow override remains.
+- `DEPLOY_SSH_USER` matches its current workflow fallback and Terraform
+  default, but its workflow consumers need a separate review before deletion.
 
 GitHub Secrets to retain:
 
