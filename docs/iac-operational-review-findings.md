@@ -214,7 +214,7 @@ proposed refactor that removes the input and its conditional consumers.
 | CI `DESTRUCTIVE_PLAN_APPROVED` | False for ordinary PR events; true only on a fresh `terraform-destructive-plan-approved` label-add event for the current PR head | False rejects managed deletes, replacements, and state forgets; true permits the reviewed plan to pass CI, with a new commit requiring a fresh label event. | Retain; `test_release_workflow.py` exercises the jq action classifier and label event gate; PR #371 passed and merged. |
 | Release `operation` | Push to `main` follows normal release; PR #377 retains manual `retry`, `rollback`, and `bootstrap_secrets` | Retry can taint/replace the VM, rollback selects a verified controller digest, and bootstrap targets only Vault resources. Cloudflare changes use the ordinary release plan/apply. PR #378 removes the additional DNS comparison; destructive plans require approval in normal and Release PR CI. | PR #377 passed local tests, authenticated Terraform CI, and second review; deployment proof remains pending. |
 | Cloudflare `operation` | Historical manual `cloudflare_plan` or `cloudflare_apply`; removed by PR #377 | The same Terraform root and state remain. The ordinary release logs changed Terraform addresses/actions and applies its fresh saved plan after merge. | Superseded by the owner-selected ordinary deploy path after PR review; keep historical migration evidence. |
-| Historical v0.5.0 `operation` | `complete-v0.5.0.yml` manual `complete` or `finalize` | `complete` requires exact frozen release and origin state before unfreeze; `finalize` requires a prior successful unfreeze run before GitHub bookkeeping. Current proxied DNS likely fails its fixed origin-IP guard. | Retain as historical, fail-closed record pending a separate retirement decision; do not present as current recovery procedure. |
+| Historical v0.5.0 `operation` | `complete-v0.5.0.yml` manual `complete` or `finalize` | Both paths require the v0.5.0 release to remain a draft. GitHub shows it was published on 2026-11-02; the workflow cannot complete either operation. | Retired by PR #379; the Git tag, release assets, and planning/debug history remain as the audit record. |
 | Controller provider modes | Deploy defaults `oracle` and `oci-instance-principal`; role/config also allow `local` | Production selections keep Oracle metadata and private OCI originals; local values route to nonproduction adapters and must not be used for production release. | Retain for local/CI work; deploy assertions and configuration contract guard production values. |
 | Image cleanup `dry_run` / `remote_operation` | Scheduled or manual `image-cleanup.yml`; manual options `inventory`/`delete` | Scheduled local Podman cleanup gets `dry_run=false` and may prune; scheduled GHCR remains dry-run. Manual GHCR deletion requires explicit `delete`; the manual local dry-run input is independent. | Trace both local and remote actions and protected tags. |
 
@@ -671,20 +671,21 @@ Terraform's `runtime_deploy_user` input likewise had no resource, module, or
 output consumer. PR #379 removes it and its CI/deploy `TF_VAR` assignments.
 Ansible's shared `ansible_user` now defaults to `opc`; the optional
 `DEPLOY_SSH_USER` GitHub variable is forwarded through the workflow environment
-for deploy, rollback, image cleanup, security maintenance, and the frozen
-v0.5.0 completion path. The former `DEPLOY_SSH_USER=opc` repository variable
+for deploy, rollback, image cleanup, and security maintenance. The former
+`DEPLOY_SSH_USER=opc` repository variable
 was removed after the [updated PR Terraform plan](https://github.com/jetsaredim/autographs/actions/runs/44971742316/job/137052881069)
 reported `No changes`. The default and alternate-user paths passed the local
 Ansible contract playbook. The
 [post-removal Terraform CI plan](https://github.com/jetsaredim/autographs/actions/runs/44971860391/job/137053220820)
 also reported `No changes` and no changed managed-resource actions.
 An [inline PR review finding](https://github.com/jetsaredim/autographs/pull/379#discussion_r4655955086)
-identified the frozen v0.5.0 completion workflow's exact playbook check as a
-consumer of the changed unfreeze playbook. PR #379 pins the reviewed prefix
-digest and runs that workflow guard in a regression test with the pinned tag
-history available in CI. The fix was [replied to inline](https://github.com/jetsaredim/autographs/pull/379#discussion_r4655966939)
-and the review thread was resolved; workflow checks passed on the corrected
-head.
+identified the v0.5.0 completion workflow's exact playbook check as a consumer
+of the changed unfreeze playbook. The reviewer received an
+[inline fix reply](https://github.com/jetsaredim/autographs/pull/379#discussion_r4655966939)
+and the thread was resolved. A later owner review confirmed that v0.5.0 had
+already been published, while both one-off operations required a draft.
+PR #379 therefore removes the obsolete workflow and its dedicated guard test,
+while preserving the released tag and historical records.
 
 `OCI_RUNTIME_SSH_PUBLIC_KEYS` is different: Terraform passes its JSON list to
 `module.compute` and joins the keys into the OCI instance's
@@ -1050,7 +1051,7 @@ review surface and may contain private production inputs.
 | `.github/workflows/apply-security-updates.yml` | Issue label approval and advisory apply | Issue `labeled` event only for non-PR `approved-production-update`; GitHub token/actor and issue number, OCI state credentials/namespace/IP fallback, SSH key supply scan and host access. `security-patch.yml` rechecks allowlist, scanner metadata, target hosts and advisory drift before DNF; `continue-on-error` invokes label-removing cleanup then fails. Local security issue-task tests and successful/drift production runs in checkpoint; retain. |
 | `.github/workflows/ci.yml` | PR validation and authenticated plan review | PR opened/synchronize/reopened/labeled/unlabeled or manual dispatch; impact job scopes checks, OCI/Porkbun/Cloudflare credentials and repo variables feed read-only production Terraform plan. Destructive managed-resource changes require fresh `terraform-destructive-plan-approved` label-add event; source/format/syntax/lint/test failures block merge. Run `44462171052` showed 32 state addresses and no changes; `test_release_workflow.py` local pass; retain. |
 | `.github/workflows/deploy.yml` historical `cloudflare` job | Former manual operator plan/apply in the release workflow | Removed by PR #377. PR #378 removes the separate DNS comparison from ordinary deploy; reviewed Terraform changes use the release saved-plan apply. Retain the migration record as history. |
-| `.github/workflows/complete-v0.5.0.yml` | Historical frozen release completion | Manual `complete` or `finalize` from main only; fixed v0.5.0 tag/source/runtime IP and GH token plus SSH key. Exact tag, manifest, immutable recovery assets and playbook byte digests precede verify-only unfreeze, actual unfreeze and release publication; `finalize` requires prior successful run evidence. Failure leaves draft or frozen state for retry; historical one-off, retain as recovery record pending explicit retirement review. |
+| `.github/workflows/complete-v0.5.0.yml` | Historical frozen release completion | The manual `complete` and `finalize` paths both require the GitHub release to be a draft. v0.5.0 was published on 2026-11-02, so neither path is reachable now. PR #379 removes the workflow; the immutable tag, release assets, and historical planning/debug records remain. |
 | `.github/workflows/conventional-commits.yml` | Conventional commit PR gate | PR opened/edited/reopened/synchronize; checkout PR head/base and run `validate_release_please_inputs.py` with event file, no production secrets or mutation. Invalid commit types block PR check; local release-input tests and CI gate cover it. Retain. |
 | `.github/workflows/deploy.yml` | Release, production deploy, and Vault bootstrap | Push to main accumulates Release Please PR; Release PR merge creates a draft release and triggers production. PR #377 retains main-only manual `retry`, `rollback`, and `bootstrap_secrets`, and removes `cloudflare_plan/apply`. The saved Terraform plan includes reviewed DNS/cache changes on the ordinary release path; freeze, role deploy, health, verify-only then explicit unfreeze gate release publication. Rollback is digest-mapped controller-only; failure leaves draft/frozen diagnostics. Local `test_release_workflow.py` passes; PR #377 merged after Terraform CI and second review; production release proof remains pending. |
 | `.github/workflows/image-cleanup.yml` | Runtime and GHCR image retention | Weekly schedule or manual `dry_run` and `remote_operation`; OCI state credential/IP fallback and SSH key target runtime, GitHub token manages GHCR, variables set repository/retention/protected tags. Scheduled GHCR is inventory-only; explicit `remote_operation=delete` is required for remote deletion, while local dry run controls Podman pruning. Missing runtime IP fails before host action; local `test_cleanup_ghcr_images.py` pass, no live deletion claimed; retain. |
