@@ -96,7 +96,6 @@ jobs:
           python3 -m unittest \
             scripts/test_release.py \
             scripts/test_release_workflow.py \
-            scripts/test_dns_plan_review.py \
             scripts/test_sync_runtime_vault_secrets.py \
             scripts/test_validate_release_please_inputs.py \
             scripts/test_select_removable_images.py \
@@ -296,14 +295,15 @@ jobs:
           TF_VAR_porkbun_api_key: ${{ secrets.PORKBUN_API_KEY }}
           TF_VAR_porkbun_secret_key: ${{ secrets.PORKBUN_SECRET_KEY }}
           TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
-          TF_VAR_cloudflare_mode: ${{ vars.CLOUDFLARE_MODE || 'proxied' }}
+          CLOUDFLARE_MODE_OVERRIDE: ${{ vars.CLOUDFLARE_MODE }}
           TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          if [ "$TF_VAR_cloudflare_mode" != "off" ]; then
+          if [ -n "$CLOUDFLARE_MODE_OVERRIDE" ]; then
+            export TF_VAR_cloudflare_mode="$CLOUDFLARE_MODE_OVERRIDE"
+          fi
+          if [ "$CLOUDFLARE_MODE_OVERRIDE" != "off" ]; then
             if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
               echo "::error::Set the CLOUDFLARE_API_TOKEN secret before using a Cloudflare mode."
               exit 1
@@ -338,20 +338,6 @@ jobs:
           echo "Changed managed-resource actions:"
           terraform show -json "$terraform_plan_file" \
             | jq -r '.resource_changes[]? | select(.mode == "managed" and .change.actions != ["no-op"]) | "\(.address): \(.change.actions | join(","))"'
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            terraform state pull | jq -c '{
-              lineage, serial,
-              cloudflare_zone_present: any(.resources[]?;
-                .mode == "managed" and .type == "cloudflare_zone" and
-                .name == "domain" and ((.instances // []) | length > 0))
-            }' > "$RUNNER_TEMP/ci-terraform-state-meta.json"
-            terraform show -json "$terraform_plan_file" \
-              | python3 "$GITHUB_WORKSPACE/scripts/dns_plan_review.py" emit \
-                  --state-meta "$RUNNER_TEMP/ci-terraform-state-meta.json" \
-                  --tree "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD:infra/terraform)" \
-                  --mode "$TF_VAR_cloudflare_mode" \
-                  --head "$PR_HEAD_SHA" --pr "$PR_NUMBER"
-          fi
 
   validate-ansible:
     name: Ansible syntax and lint

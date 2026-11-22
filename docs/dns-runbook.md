@@ -11,7 +11,7 @@ zone, the three DNS records, Full (strict) TLS, and cache rules. Porkbun
 Connect copied the records and delegated nameservers. The one-time
 [state import](https://github.com/jetsaredim/autographs/actions/runs/42689411270)
 and [settings apply](https://github.com/jetsaredim/autographs/actions/runs/42738867482)
-are complete. The Terraform and workflow default for `CLOUDFLARE_MODE` is `proxied`;
+are complete. The Terraform default for `cloudflare_mode` is `proxied`;
 the GitHub variable is optional and normally unset. The Cloudflare app A record
 uses automatic TTL. Reviewed Cloudflare and Porkbun DNS changes apply through
 the ordinary release deployment from the shared Terraform root and state.
@@ -29,17 +29,14 @@ the adjusted WebP returned `CF-Cache-Status: MISS` then `HIT` while retaining
 ## Ongoing Cloudflare changes
 
 Change the Terraform configuration through a reviewed PR. Inspect the
-production Terraform plan in CI, including changed managed-resource actions,
-before merging the Release PR. The Release PR CI records a hash of the full
-Cloudflare/Porkbun change objects, its Terraform tree, mode, and production
-state lineage/serial in the successful Terraform job log. The
-[release and deploy workflow](../.github/workflows/deploy.yml) creates a fresh
-saved plan from the same root and state on `main`. If it contains DNS/cache
-changes, deployment requires an exact match to that Release PR CI record
-before applying the saved plan. A changed GitHub override, state, or plan
-stops the deployment; `off` is always rejected when the zone is already in
-production state. The release job also prints the changed DNS addresses and
-actions without printing plan values.
+production Terraform plan in CI on both the normal PR and Release PR. CI fails
+if either plan contains destructive managed-resource actions until the
+`terraform-destructive-plan-approved` label is applied for that PR head. After
+the Release PR merges, the
+[release and deploy workflow](../.github/workflows/deploy.yml) creates and
+applies a fresh saved plan from the same root and state on `main`. There is no
+second apply approval gate. The release job prints changed resource addresses
+and actions without printing plan values.
 Check the production deploy log and verify the affected DNS or cache behavior
 after deployment. Unexpected plan actions require stopping the release before
 the Release PR merge or investigating the deployment before any retry.
