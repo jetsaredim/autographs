@@ -12,6 +12,8 @@ and production plan evidence. The inventory alone does not close the review.
 [DNF no-op validation](#security-patching-reboot-validate-dnf-noop).
 Each link opens a dedicated producer, action, failure, and disposition trace
 in the [detailed operational switch review](#detailed-operational-switch-review).
+The [fixture probe adapter census](#fixture-probe-adapter-census) explains what
+each of the 15 security-patching test adapters is used to prove.
 
 ## Operating boundary
 
@@ -394,22 +396,34 @@ pass: the Vault versions must be present. Sources:
 
 ### Fixture probe adapter census
 
-The 15 named `security_patching_*probe_override` adapters below have two
-reachable states: absent or non-mapping in production invokes the real host
-probe; a fixture-supplied mapping substitutes bounded command results. The
-substitution prevents localhost tests from querying or changing host kernel
-and package state. None is a supported production operation flag. Each listed
-fixture passed locally on 2026-11-20; CI syntax-checks the playbooks but does
-not run them.
+The 15 named security-patching probe adapters below have two reachable states:
+absent or non-mapping in production invokes the real host probe; a
+fixture-supplied mapping substitutes a bounded command result. The adapters
+let local tests present safe, unsafe, and changed host evidence without
+depending on the test runner's RPM database, bootloader, or kernel. They do
+not disable filesystem checks or provide a supported production operation
+mode. Each listed fixture passed locally on 2026-11-20; CI syntax-checks the
+playbooks but does not run these behavior fixtures. The first eight adapters
+classify findings and the existing boot posture. The remaining seven control
+reboot approval and the final check immediately before boot mutation.
 
-| Adapter names | Direct consumer | Fixture and proof |
-|---|---|---|
-| `security_patching_classification_dnf_probe_override` | `classify_findings.yml` DNF classification | `security-finding-classification-validate-test.yml` exercises applicable, no-op, and unsafe classifications. |
-| `security_patching_running_kernel_probe_override`, `security_patching_running_kernel_owner_probe_override`, `security_patching_default_kernel_probe_override`, `security_patching_default_kernel_owner_probe_override`, `security_patching_installed_package_names_probe_override` | `kernel_posture.yml` kernel and RPM facts | `security-kernel-posture-validate-test.yml` covers complete and missing/inconsistent inventory. |
-| `security_patching_kernel_boot_entry_probe_override`, `security_patching_kernel_entry_probe_override` | `kernel_posture.yml` passes the selected mapping into `inspect_kernel_boot_entry.yml` | `security-kernel-posture-validate-test.yml` drives the outer override; the inner adapter is reached through that import. |
-| `security_patching_reboot_dnf_noop_probe_override` | `validate_reboot_state.yml` DNF no-op gate | `security-reboot-state-validate-test.yml` covers no-op and actionable work before reboot approval. |
-| `security_patching_reboot_kernel_candidate_probe_override`, `security_patching_reboot_kernel_owner_probe_override`, `security_patching_reboot_kernel_boot_entry_probe_override` | `resolve_reboot_kernel.yml` candidate selection | `security-reboot-kernel-selection-validate-test.yml` covers valid and invalid candidate evidence. |
-| `security_patching_reboot_premutation_candidate_probe_override`, `security_patching_reboot_premutation_owner_probe_override`, `security_patching_reboot_premutation_boot_entry_probe_override` | `revalidate_reboot_kernel.yml` immediately before boot mutation | `security-reboot-kernel-selection-validate-test.yml` covers drift refusal at the mutation boundary. |
+| Adapter | What it lets the fixture establish | Real probe and direct consumer | Fixture evidence |
+|---|---|---|---|
+| `security_patching_classification_dnf_probe_override` | Whether the current advisory set still has package work, is already a DNF no-op, or has an unsafe/unrecognized result. This determines the reported next action before an approval issue is treated as actionable. | Advisory-scoped `dnf --assumeno upgrade-minimal --security` in `classify_findings.yml`. | `security-finding-classification-validate-test.yml` exercises work, no-op, and unsafe outputs. |
+| `security_patching_installed_package_names_probe_override` | Whether RHCK packages remain installed alongside the expected UEK packages, including a missing or inconsistent package inventory that must be reported rather than treated as healthy. | `rpm -qa` package-name inventory in `kernel_posture.yml`. | `security-kernel-posture-validate-test.yml` supplies complete and drifted inventories. |
+| `security_patching_running_kernel_probe_override` | Which kernel is actually running now, so the scan can distinguish a booted UEK from an old or unexpected kernel even if packages are installed. | `uname -r` in `kernel_posture.yml`. | `security-kernel-posture-validate-test.yml` varies the running release. |
+| `security_patching_default_kernel_probe_override` | Which image the bootloader would select on the next reboot; a good running kernel alone cannot prove the next boot is safe. | `grubby --default-kernel` in `kernel_posture.yml`. | `security-kernel-posture-validate-test.yml` supplies matching and inconsistent defaults. |
+| `security_patching_running_kernel_owner_probe_override` | Whether the running kernel image belongs to an installed UEK RPM rather than being an unowned or mismatched file. | `rpm -qf` for the running image in `kernel_posture.yml`. | `security-kernel-posture-validate-test.yml` covers valid, missing, and mismatched ownership. |
+| `security_patching_default_kernel_owner_probe_override` | Whether the default-boot image belongs to an installed UEK RPM, protecting the next reboot even when the currently running image is valid. | `rpm -qf` for the default image in `kernel_posture.yml`. | `security-kernel-posture-validate-test.yml` covers valid, missing, and mismatched ownership. |
+| `security_patching_kernel_boot_entry_probe_overrides` | Supplies separate boot-entry results for `running` and `default`, so the fixture can prove each image has an exact boot entry and concrete initramfs rather than treating either kernel name as sufficient. | `kernel_posture.yml` selects a mapping by label and passes it to `inspect_kernel_boot_entry.yml`. | `security-kernel-posture-validate-test.yml` provides valid and missing-entry cases. |
+| `security_patching_kernel_entry_probe_override` | Delivers the selected running or default boot-entry result to the shared parser; invalid image or initramfs lines must yield an unsafe entry result. This is the inner per-entry adapter, not a second independent host probe. | `grubby --info=<image>` in `inspect_kernel_boot_entry.yml`. | Reached through `security-kernel-posture-validate-test.yml` and the outer mapping. |
+| `security_patching_reboot_dnf_noop_probe_override` | Proves that an approved reboot is only a reboot follow-up: the approved advisories must have no pending DNF package transaction. Actionable work or ambiguous output blocks reboot approval. | Advisory-scoped `dnf --assumeno upgrade-minimal --security` in `validate_reboot_state.yml`. | `security-reboot-state-validate-test.yml` supplies no-op and still-actionable results. |
+| `security_patching_reboot_kernel_candidate_probe_override` | Selects the newest installed UEK core package by RPM ordering as the proposed reboot target; missing or malformed candidate output must refuse selection. | `dnf repoquery --installed --latest-limit=1` in `resolve_reboot_kernel.yml`. | `security-reboot-kernel-selection-validate-test.yml` covers valid and invalid candidates. |
+| `security_patching_reboot_kernel_owner_probe_override` | Proves the proposed target kernel image is owned by an installed UEK package before choosing it as a boot target. | `rpm -qf` for the selected image in `resolve_reboot_kernel.yml`. | `security-reboot-kernel-selection-validate-test.yml` covers valid and invalid ownership. |
+| `security_patching_reboot_kernel_boot_entry_probe_override` | Proves the proposed target has an exact boot entry pointing to its image and an existing concrete initramfs before any default-boot change. | `grubby --info=<selected image>` in `resolve_reboot_kernel.yml`. | `security-reboot-kernel-selection-validate-test.yml` covers valid and invalid entries. |
+| `security_patching_reboot_premutation_candidate_probe_override` | Re-queries the newest UEK immediately before changing the boot default; a newly installed or changed target since approval must stop the mutation. | `dnf repoquery --installed --latest-limit=1` in `revalidate_reboot_kernel.yml`. | `security-reboot-kernel-selection-validate-test.yml` exercises pre-mutation candidate drift. |
+| `security_patching_reboot_premutation_owner_probe_override` | Rechecks that the selected kernel image still has the expected RPM owner immediately before boot mutation; ownership drift must stop the reboot path. | `rpm -qf` for the selected image in `revalidate_reboot_kernel.yml`. | `security-reboot-kernel-selection-validate-test.yml` exercises pre-mutation owner drift. |
+| `security_patching_reboot_premutation_boot_entry_probe_override` | Rechecks the selected image's exact boot entry and initramfs before mutation; changed or missing boot evidence must stop the reboot path. | `grubby --info=<selected image>` in `revalidate_reboot_kernel.yml`. | `security-reboot-kernel-selection-validate-test.yml` exercises pre-mutation boot-entry drift. |
 
 ### Fixed-policy input validation
 
