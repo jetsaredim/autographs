@@ -41,7 +41,6 @@ catalogue, not a claim that the owner approved each row.
 
 | Item | Remaining proof or limitation |
 |---|---|
-| [Ordinary release path](#production-execution-paths-traced-so-far) | Merge Release PR #370 after its plan review, then record the production saved-plan apply, deploy health, and publication result for the merged Cloudflare and Ansible changes. |
 | [Three Ansible entries](#ansible-playbooks) | The freeze deploy, freeze render, and security report render fixture playbooks currently record CI syntax/lint but no behavior run in this review. The role reaudit and unfreeze playbooks passed the local real-Caddy integration fixture on 2026-11-22. Decide whether existing related tests and live proofs suffice for the three remaining fixtures or run them before final acceptance. |
 
 **Requested setting details:** [publish frozen](#autographs-deploy-publish-frozen),

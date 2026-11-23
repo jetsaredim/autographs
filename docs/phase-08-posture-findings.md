@@ -34,7 +34,7 @@ Terraform/Ansible inventory, review, and change gates are in [the IaC operationa
 review plan](iac-operational-review-plan.md). The [active review queue](iac-operational-review-open-items.md)
 contains only decisions still awaiting input; the [evidence register](iac-operational-review-findings.md)
 preserves the complete inventory and resolved decisions. P8-POSTURE-006 closes
-only after the remaining dispositions and release evidence are recorded.
+only after the remaining dispositions and required evidence are recorded.
 
 ## Pre-media evidence
 
