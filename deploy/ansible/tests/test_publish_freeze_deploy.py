@@ -1125,19 +1125,20 @@ handle /admin/api/publish/incremental {
         named = {step.get("name"): (index, step) for index, step in enumerate(steps)}
         preflight = named["Freeze and verify publisher cutover preflight"]
         deploy = named["Run full deployment"]
-        readiness = named["Verify frozen origin readiness"]
         unfreeze = named["Explicitly unfreeze verified production publication"]
         gate = named["Validate release completion gate"]
         self.assertLess(preflight[0], deploy[0])
-        self.assertLess(deploy[0], readiness[0])
-        self.assertLess(readiness[0], unfreeze[0])
+        self.assertLess(deploy[0], unfreeze[0])
         self.assertLess(unfreeze[0], gate[0])
+        self.assertNotIn("Verify frozen origin readiness", named)
+        self.assertEqual(sum(step.get("with", {}).get("playbook") == "playbooks/publish-unfreeze.yml"
+                             for step in steps), 1)
         self.assertEqual(preflight[1]["with"]["playbook"], "playbooks/publish-freeze-preflight.yml")
         self.assertIn("autographs_deploy_publish_frozen=true", deploy[1]["with"]["options"])
         self.assertIn("steps.publish_freeze_preflight.outcome == 'success'", deploy[1]["if"])
         self.assertIn("production_mutation_required == 'true'", preflight[1]["if"])
         self.assertIn("production_mutation_required == 'true'", unfreeze[1]["if"])
-        self.assertIn("autographs_publish_unfreeze_verify_only=true", readiness[1]["with"]["options"])
+        self.assertIn("steps.deployment_health.outputs.verified == 'true'", unfreeze[1]["if"])
         self.assertIn("autographs_publish_unfreeze_verify_only=false", unfreeze[1]["with"]["options"])
         self.assertIn("PUBLISH_UNFREEZE_OUTCOME", gate[1]["env"])
 
@@ -1169,6 +1170,12 @@ handle /admin/api/publish/incremental {
         unfreeze = yaml.safe_load((PLAYBOOKS / "publish-unfreeze.yml").read_text())[0]["tasks"]
         unfreeze_names = [task["name"] for task in unfreeze]
         self.assertLess(unfreeze_names.index("Verify current pointer, manifest, history, and marker inventory before unfreeze"),
+                        unfreeze_names.index("Remove managed gate only after readiness"))
+        self.assertLess(unfreeze_names.index("Require static 200 and no-store frozen POSTs"),
+                        unfreeze_names.index("Remove managed gate only after readiness"))
+        self.assertLess(unfreeze_names.index("Require every persistent exact marker denied at both origins"),
+                        unfreeze_names.index("Remove managed gate only after readiness"))
+        self.assertLess(unfreeze_names.index("Probe marked shared media on both origin routes"),
                         unfreeze_names.index("Remove managed gate only after readiness"))
         self.assertLess(unfreeze_names.index("Require dual-origin old committed media reachability"),
                         unfreeze_names.index("Remove managed gate only after readiness"))

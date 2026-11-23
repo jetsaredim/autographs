@@ -290,8 +290,11 @@ deployments must preserve a previously committed old URL through preflight and
 role reaudit. The origin readiness probe is a verified unmarked current WebP,
 or `/manifest.json` when the current release is empty or every active image is
 exactly marked. Verify-only and mutating unfreeze require 200 for the selected
-path and 404 for every persistent marker on public and preview origins, before
-and after the Caddy restart; unmarked byte corruption keeps the gate frozen.
+path and 404 for every persistent marker on public and preview origins. The
+ordinary deploy invokes mutating unfreeze once after health; it runs these
+checks before removing the gate and repeats origin checks after the Caddy
+restart. The optional verify-only mode performs the prechecks without opening
+publication. Unmarked byte corruption keeps the gate frozen.
 Pre-stop checks prove only frozen document availability and publish denial;
 a pending publication intent is reconciled after verified old-process exit.
 The already-created `v0.5.0` tag predates the automatic gate installation. Its

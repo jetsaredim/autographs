@@ -18,7 +18,7 @@ catalogue, not a claim that the owner approved each row.
 |---|---|
 | [IAC-001](#preliminary-findings), [IAC-003](#preliminary-findings) | Resource-presence defaults and counted network/VM retirement were reviewed in PRs #358 and #361; authenticated production plans showed no changes. |
 | [IAC-002](#preliminary-findings) | The destructive-plan label gate merged in PR #371. The owner accepted its CI review and ordinary saved-plan deployment boundary on 2026-11-22; the authenticated plan and limitation are recorded below. |
-| [IAC-005 and IAC-006](#preliminary-findings) | The owner accepted the freeze/unfreeze publication gate and the security patching approval/reboot flow on 2026-11-22. The process-reduction assessment is recorded below. |
+| [IAC-005 and IAC-006](#preliminary-findings) | The owner accepted the freeze/unfreeze publication gate and the security patching approval/reboot flow on 2026-11-22. The redundant production verify-only unfreeze invocation was removed; the single mutating call still runs all prechecks. |
 | [IAC-004](#preliminary-findings) code path | Proxied Cloudflare default and ordinary release apply were selected by the owner, reviewed, and merged through PRs #377 and #378. Post-variable-removal plans showed no changes. The new release path still needs its first production run. |
 | [IAC-007](#preliminary-findings) | Obsolete Node deployment cleanup was removed, reviewed, and merged in PR #376. |
 | [Caddy freeze preflight](#ansible-playbooks) | The owner confirmed production already uses the decoupled Caddy quadlet; the [0.10.2 release run](https://github.com/jetsaredim/autographs/actions/runs/44450585851) completed full deployment with that template. Preflight now checks the dependency without rewriting the unit or restarting Caddy; it reloads the in-place freeze gate and verifies live routes before stopping the old controller. |
@@ -37,7 +37,7 @@ catalogue, not a claim that the owner approved each row.
 | Item | Remaining proof or limitation |
 |---|---|
 | [Ordinary release path](#production-execution-paths-traced-so-far) | Merge Release PR #370 after its plan review, then record the production saved-plan apply, deploy health, and publication result for the merged Cloudflare and Ansible changes. |
-| [Five Ansible entries](#ansible-playbooks) | The freeze deploy, freeze render, role reaudit, unfreeze, and security report render entries currently record CI syntax/lint but no behavior run in this review. Decide whether existing related tests and live proofs suffice or run those fixtures before final acceptance. |
+| [Three Ansible entries](#ansible-playbooks) | The freeze deploy, freeze render, and security report render fixture playbooks currently record CI syntax/lint but no behavior run in this review. The role reaudit and unfreeze playbooks passed the local real-Caddy integration fixture on 2026-11-22. Decide whether existing related tests and live proofs suffice for the three remaining fixtures or run them before final acceptance. |
 
 **Requested setting details:** [publish frozen](#autographs-deploy-publish-frozen),
 [explicit cutover](#autographs-deploy-explicit-cutover),
@@ -143,7 +143,7 @@ or valid refactor.
 | IAC-002 | Warning | CI planned against production state without making destructive actions an explicit PR review decision. | Closed: gate merged in [PR #371](https://github.com/jetsaredim/autographs/pull/371) as `abc17a0`; owner accepted the policy and its deployment limit on 2026-11-22 | CI reports managed-resource deletion, replacement, and state-forget actions and fails unless the current PR head triggers the `terraform-destructive-plan-approved` label-add event. The normal PR and Release PR each require this approval if destructive actions appear. PR #378 removed the separate deploy-time DNS comparison; production applies its fresh saved plan after merge. PR #371's authenticated production plan reported no changes. |
 | IAC-003 | Info | Before this cleanup, `create_network` and `create_runtime_instance` defaulted to `true`; explicit `false` would remove managed network/VM resources. No production workflow supplied either input. Runtime recreation uses a separate retry-only taint. | Resolved by [PR #361](https://github.com/jetsaredim/autographs/pull/361), merged as `0b7c20a` | Seven counted resources have `moved` mappings; ingress rule `for_each` keys remain stable. The authenticated production plan reported `0 to add, 0 to change, 0 to destroy`; retry taint accepts both state addresses. |
 | IAC-004 | Warning | Before PR #377, the GitHub variable was `proxied` while Terraform and ordinary workflow defaults were `off`; removing it prematurely would have planned deletion of counted Cloudflare resources. | Code merged in [PR #377](https://github.com/jetsaredim/autographs/pull/377) as `e84d58f`; stored variable removed 2026-11-21; post-removal authenticated plan had no changes | Terraform defaults to `proxied`; PR #378 removes the redundant workflow assignment while retaining an optional `dns_only` rollback or fresh-bootstrap `off` override. Reviewed DNS/cache changes use the ordinary saved release plan. Destructive actions require approval in normal and Release PR CI; no deploy-time comparison is intended. [Post-removal Terraform CI](https://github.com/jetsaredim/autographs/actions/runs/44908578055/job/136859340147) reported no changes. Later production deployment of the new workflow remains unproven. |
-| IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Retain; owner accepted the publication-blocking pattern on 2026-11-22 | The workflow sets frozen=true for full deploy, and role assertions reject false. The unfreeze playbook alone sets frozen=false with allow_unfreeze=true; `publish_freeze.yml` rejects false without that override. Explicit cutover suppresses restart handlers until the workflow's health gate; production and render fixtures cover both freeze states. The duplicate verify-only invocation is a possible later process reduction, not a reason to reopen the safety decision. |
+| IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Retain safety gates; owner accepted the publication-blocking pattern on 2026-11-22 | The workflow sets frozen=true for full deploy, and role assertions reject false. The unfreeze playbook alone sets frozen=false with allow_unfreeze=true; `publish_freeze.yml` rejects false without that override. Explicit cutover suppresses restart handlers until the workflow's health gate; production and render fixtures cover both freeze states. The redundant verify-only workflow invocation was removed; the remaining unfreeze call performs all readiness checks before gate removal. |
 | IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Retain as fixture seam; owner accepted the patching flow on 2026-11-22 | No production workflow overrides the true role default. The false fixture path tests reboot-state classification without running DNF, while true fixtures exercise the no-op validation and failure behavior; `security-reboot-state-validate-test.yml` and `validate_reboot_state.yml` cover both values. |
 | IAC-007 | Info | `create_runtime_instance` formerly described the retired Node runtime, and the Ansible deploy role still stopped and removed the old `autographs-app` unit, quadlet, and container. | Resolved by [PR #376](https://github.com/jetsaredim/autographs/pull/376), merged as `b724d75` | The three obsolete cleanup tasks and active runbook instructions were removed. The controller contract test now asserts their absence; Ansible syntax/lint, controller CI, and two review rounds passed. |
 
@@ -237,7 +237,7 @@ proposed refactor that removes the input and its conditional consumers.
 | `autographs_deploy_publish_frozen` | Role default and deploy input `true`; unfreeze sets `false` | Full-deploy assertion and exact Caddy publish gate. | IAC-005; trace as one cutover contract. |
 | `autographs_deploy_explicit_cutover` | Role default `true` | Full-deploy assertion and restart-handler suppression. | IAC-005; trace role notifications and fixtures. |
 | `autographs_deploy_allow_unfreeze` | Absent/false by default; unfreeze sets `true` | Allows removal of publish gate when frozen flag becomes false. | IAC-005; verify failure rescue and no bypass. |
-| `autographs_publish_unfreeze_verify_only` | Unfreeze default `false`; deploy invokes true then false | First invocation checks origin readiness without removing gate; second removes it after health. | Trace both paths and failed second step. |
+| `autographs_publish_unfreeze_verify_only` | Unfreeze default `false`; ordinary deploy invokes only `false` | Optional `true` mode checks origin readiness without removing the gate; the ordinary `false` call checks readiness before removal after health. | Retain the optional read-only mode for diagnostics/fixtures; remove the duplicate production invocation. |
 | `autographs_publish_freeze_fixture_mode` | Preflight default `false`; disposable `test_publish_freeze_deploy.py` supplies `true` | Both paths reload the in-place Caddy publish gate and require live frozen-route proof. Production then stops the old controller; the fixture simulates that stop only after local connection, `media-probe.invalid`, temporary path, and environment assertions. | Retain test adapter. Source and Python fixture cover the branch; CI syntax-checks the playbook but does not execute this integration fixture. |
 | `autographs_publish_unfreeze_fixture_mode` | Unfreeze default `false`; disposable `test_publish_freeze_deploy.py` supplies `true` | `false` uses systemd on success/rescue; `true` reloads local fixture Caddy under the same local/domain/path/environment guard. | Retain test adapter; source and Python fixture cover both branches, with no CI behavior-run claim. |
 | `autographs_deploy_fixture_mode` | Deploy role defaults to `false`; `publish-freeze-role-reaudit-test.yml` sets `true` | `false` starts/restarts production Caddy under cutover; `true` uses guarded local fixture reload in success and rescue, preventing a fixture from touching production services. | Retain test adapter; CI syntax/lint only for this fixture, behavior execution remains unproven here. |
@@ -262,13 +262,11 @@ is the entry point for the first four. Its ordinary sequence is:
 
 **Process-reduction pass (2026-11-22).** The preflight's redundant systemd
 rewrite and Caddy restart were removed after the owner confirmed production
-already runs the decoupled quadlet. The workflow still invokes the same
-unfreeze playbook twice: the first invocation verifies readiness without
-removing the gate, and the second repeats those checks before opening it.
-Removing the first invocation could save one Ansible connection and probe
-pass while preserving the second invocation's fail-closed checks. That
-requires a separate review of workflow failure reporting and fixture
-expectations; no cutover step is removed in this closeout. The patching
+already runs the decoupled quadlet. The ordinary workflow now makes one
+unfreeze playbook call after deployment health: it runs the frozen-state and
+origin readiness checks before removing the gate, then checks the open route
+and clears the freeze record only after success. The optional read-only
+verify-only mode remains available for diagnostics and fixtures. The patching
 scan, separate update/reboot approvals, fresh drift checks, DNF no-op proof,
 and failure-label cleanup each guard a distinct action. No patching process
 reduction is recommended from this review.
@@ -277,8 +275,7 @@ reduction is recommended from this review.
 flowchart LR
   preflight[Freeze preflight records release and digest] --> full[Full deploy: frozen and explicit cutover]
   full --> health[Controller and Caddy health checks]
-  health --> verify[Unfreeze verify-only: prove origin readiness]
-  verify --> unfreeze[Unfreeze: remove Caddy publish gate]
+  health --> unfreeze[Unfreeze: recheck frozen origin, then remove Caddy publish gate]
   unfreeze --> postcheck[Confirm private publish routes require auth]
 ```
 
@@ -355,17 +352,16 @@ expected from the dedicated unfreeze playbook, not from full deployment.
 
 **Purpose and producer.** The unfreeze playbook defaults this to `false`.
 After the full deploy and public/controller health checks, the workflow calls
-that playbook twice for the same release, digest, and source revision: first
-with `true` in “Verify frozen origin readiness,” then with `false` in
-“Explicitly unfreeze verified production publication.” The second call is
-conditional on a successful first call.
+that playbook once with `false` in “Explicitly unfreeze verified production
+publication.” The `true` mode remains available as a read-only diagnostic
+path and is exercised by fixtures.
 
 **True path.** The playbook checks the freeze record and current release
 identity, probes public HTTPS and the private preview origin, and tests exact
 media marker denial. Its disposable probe file and marker are removed. The
 block that edits the Caddy gate is skipped, so publication stays frozen.
 
-**False path and failure.** The playbook repeats the readiness checks, saves
+**False path and failure.** The playbook performs the readiness checks, saves
 the frozen Caddyfile, removes the managed gate, restarts Caddy, and expects
 unauthenticated full/incremental publish requests to return 401 or 403 rather
 than 503. It also checks private status auth, current 200s, exact-marker 404s,
@@ -374,11 +370,9 @@ postchecks does it record the approved digest and remove the freeze record.
 Its rescue block restores frozen Caddy and leaves that record for retry. The
 release completion gate requires the real unfreeze step to succeed.
 
-**Decision.** Keep the current two-call sequence for this closeout: `true`
-is a non-opening proof step and `false` is the guarded mutation. The second
-call repeats the readiness checks, so the first workflow invocation is a
-candidate for a separate process-reduction change after its reporting and
-fixture expectations are reviewed.
+**Decision.** Ordinary deploy uses only the guarded `false` path, with all
+readiness checks before gate removal. Retain the optional non-opening `true`
+path for targeted diagnostics and fixture coverage.
 
 ### `autographs_system_cleanup_dry_run`
 
@@ -941,7 +935,7 @@ the separate production state key.
 | `deploy.yml` release/retry | Fresh saved Terraform plan and exact-file apply; publisher freeze preflight precedes full Ansible deploy. Destructive managed-resource actions require CI label approval on the normal and Release PR. | Health and frozen-origin checks precede explicit unfreeze and release status. Retry recovery and controller-only rollback are separate paths. | Review the latest PR plans and verify the corrected ordinary release path after deployment; freeze/unfreeze and rollback fixtures retain their documented evidence limits. |
 | `publish-freeze-preflight.yml` | Installs and reloads an exact Caddy publish gate, checks the installed quadlet has no controller dependency, then stops the old publisher before replacement. | Live frozen-route proof, the read-only dependency assertion, durable freeze record, and old-process checks block an unsafe handoff. | Confirm interrupted preflight leaves a recoverable frozen state. |
 | `deploy.yml` Ansible role | Installs runtime packages, secret-backed environments, quadlets, Caddy, and controller under the frozen gate. | Full role asserts frozen publication and explicit cutover; restart handlers are suppressed in this mode. | Trace every handler notification and both flag values. |
-| `publish-unfreeze.yml` | Verify-only invocation checks origin readiness; second invocation removes the gate after health. | Failed unfreeze restores the frozen Caddyfile and retains the durable record. | Run existing role/fixture tests and inspect partial-failure evidence. |
+| `publish-unfreeze.yml` | One ordinary invocation checks origin readiness before removing the gate after health; optional verify-only mode remains available. | Failed unfreeze restores the frozen Caddyfile and retains the durable record. | Run existing role/fixture tests and inspect partial-failure evidence. |
 | `controller-rollback.yml` | Replaces only the controller image after digest and mapping checks. | Refuses an old publisher behind shared-media routing without a verified digest record. | Verify rollback cannot bypass a frozen or incompatible media contract. |
 | `weekly-security-scan.yml` / `security-scan.yml` | Read-only OpenSCAP scan followed by issue creation/update. | An incomplete host scan prevents an actionable approval issue. | Check degraded scan, stale-label removal, and issue-render fixtures. |
 | `apply-security-updates.yml` / `security-patch.yml` | Re-scan and approval validation precede advisory-scoped DNF mutation. | Failure workflow invokes `security-patch-cleanup.yml` to clear stale approval. | Verify drift and partial-apply paths against current fixtures. |
@@ -1050,8 +1044,8 @@ the Phase 8 checkpoint.
 | `deploy/ansible/playbooks/publish-freeze-deploy-test.yml` | `ci.yml` | Disposable local real-Caddy fixture exercises freeze, role deployment and unfreeze against HTTP origins; must prove denied publishing and healthy static route, then remove fixture directory. CI syntax/lint only; behavior result pending; retain integration fixture. |
 | `deploy/ansible/playbooks/publish-freeze-preflight.yml` | `deploy.yml`, `ci.yml` | Fresh VM and installed runtime are separate states; validates release/digest, reloads live 503 publish gate in place, verifies Caddy's installed quadlet is independent of the controller, audits old process and media before stop, persists freeze record. No preflight systemd rewrite or restart is needed after the production quadlet conversion. Failure leaves frozen old route or refuses cutover; local real-Caddy integration fixture passed on 2026-11-22, and Ansible syntax/lint passed; retain. |
 | `deploy/ansible/playbooks/publish-freeze-render-test.yml` | `ci.yml` | Disposable copied Caddyfile renders both frozen and normal `publish_freeze.yml` states; asserts exact routes and restart notification. CI syntax/lint only; behavior result pending; retain rendering fixture. |
-| `deploy/ansible/playbooks/publish-freeze-role-reaudit-test.yml` | `ci.yml` | Local disposable origin imports production role reaudit tasks to verify frozen Caddy and static media contract; fixture guard rejects a nonlocal path. CI syntax/lint only; behavior result pending; retain role-boundary fixture. |
-| `deploy/ansible/playbooks/publish-unfreeze.yml` | `deploy.yml`, `ci.yml` | Verify-only state checks frozen release and origin readiness; explicit unfreeze state removes Caddy gate after health. Failed unfreeze restores frozen Caddyfile and durable record; freeze integration fixture and CI syntax/lint, behavior result pending; retain. |
+| `deploy/ansible/playbooks/publish-freeze-role-reaudit-test.yml` | `ci.yml` | Local disposable origin imports production role reaudit tasks to verify frozen Caddy and static media contract; fixture guard rejects a nonlocal path. Local real-Caddy integration fixture passed on 2026-11-22, along with CI syntax/lint; retain role-boundary fixture. |
+| `deploy/ansible/playbooks/publish-unfreeze.yml` | `deploy.yml`, `ci.yml` | Optional verify-only state checks frozen release and origin readiness; the single ordinary mutating invocation checks readiness before removing the Caddy gate after health. Failed unfreeze restores frozen Caddyfile and durable record; both modes and failure recovery passed the local real-Caddy integration fixture on 2026-11-22, along with CI syntax/lint; retain. |
 | `deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml` | `ci.yml` | Local fixture invokes production kernel image/owner/boot-entry and DNF exclusion tasks with good and bad probes; asserts scoped idempotent exclusion merge and rejects unsafe boot state. CI syntax/lint only; local behavior pass (see evidence note); retain kernel safety fixture. |
 | `deploy/ansible/playbooks/security-create-issue-status-validate-test.yml` | `ci.yml` | Fixture mixes complete/degraded scans and fake GitHub outcomes; issue creation must refuse incomplete host evidence and unsafe kernel approval. CI syntax/lint only; local behavior pass (see evidence note); retain issue safety fixture. |
 | `deploy/ansible/playbooks/security-finding-classification-validate-test.yml` | `ci.yml` | Fixture covers DNF-applicable, reboot and investigation classifications using probe overrides; wrong/missing metadata must not produce approval. CI syntax/lint only; local behavior pass (see evidence note); retain classification fixture. |
@@ -1152,7 +1146,7 @@ review surface and may contain private production inputs.
 | `.github/workflows/deploy.yml` historical `cloudflare` job | Former manual operator plan/apply in the release workflow | Removed by PR #377. PR #378 removes the separate DNS comparison from ordinary deploy; reviewed Terraform changes use the release saved-plan apply. Retain the migration record as history. |
 | `.github/workflows/complete-v0.5.0.yml` | Historical frozen release completion | The manual `complete` and `finalize` paths both require the GitHub release to be a draft. v0.5.0 was published on 2026-11-02, so neither path is reachable now. PR #379 removes the workflow; the immutable tag, release assets, and historical planning/debug records remain. |
 | `.github/workflows/conventional-commits.yml` | Conventional commit PR gate | PR opened/edited/reopened/synchronize; checkout PR head/base and run `validate_release_please_inputs.py` with event file, no production secrets or mutation. Invalid commit types block PR check; local release-input tests and CI gate cover it. Retain. |
-| `.github/workflows/deploy.yml` | Release, production deploy, and Vault bootstrap | Push to main accumulates Release Please PR; Release PR merge creates a draft release and triggers production. PR #377 retains main-only manual `retry`, `rollback`, and `bootstrap_secrets`, and removes `cloudflare_plan/apply`. The saved Terraform plan includes reviewed DNS/cache changes on the ordinary release path; freeze, role deploy, health, verify-only then explicit unfreeze gate release publication. Rollback is digest-mapped controller-only; failure leaves draft/frozen diagnostics. Local `test_release_workflow.py` passes; PR #377 merged after Terraform CI and second review; production release proof remains pending. |
+| `.github/workflows/deploy.yml` | Release, production deploy, and Vault bootstrap | Push to main accumulates Release Please PR; Release PR merge creates a draft release and triggers production. PR #377 retains main-only manual `retry`, `rollback`, and `bootstrap_secrets`, and removes `cloudflare_plan/apply`. The saved Terraform plan includes reviewed DNS/cache changes on the ordinary release path; freeze, role deploy, health, then one readiness-backed explicit unfreeze gate release publication. Rollback is digest-mapped controller-only; failure leaves draft/frozen diagnostics. Local `test_release_workflow.py` passes; PR #377 merged after Terraform CI and second review; production release proof remains pending. |
 | `.github/workflows/image-cleanup.yml` | Runtime and GHCR image retention | Weekly schedule or manual `dry_run` and `remote_operation`; OCI state credential/IP fallback and SSH key target runtime, GitHub token manages GHCR, variables set repository/retention/protected tags. Scheduled GHCR is inventory-only; explicit `remote_operation=delete` is required for remote deletion, while local dry run controls Podman pruning. Missing runtime IP fails before host action; local `test_cleanup_ghcr_images.py` pass, no live deletion claimed; retain. |
 | `.github/workflows/reboot-security-runtime.yml` | Approved production reboot and kernel cleanup | Issue `labeled` event only for non-PR `approved-production-reboot`; GH token/actor/issue, OCI state/IP fallback, SSH key and domain feed playbook. Target/advisory/kernel/DNF no-op preflight precedes reboot; failed playbook always invokes label cleanup and fails job. Local security issue-task tests and successful production reboot `43631340188`; retain. |
 | `.github/workflows/weekly-security-scan.yml` | Scheduled and manual security scan | Monday schedule or manual dispatch; GH token/repository/run ID, OCI state credentials/namespace/IP fallback and SSH key feed runner OpenSCAP and target inventory. `security-scan.yml` refuses incomplete host scan before issue publication; failure leaves no actionable approval. Production scan `43932933877` and local security issue-task tests; retain. |

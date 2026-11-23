@@ -874,30 +874,9 @@ jobs:
             <<< "$controller_health" >/dev/null
           echo "verified=true" >> "$GITHUB_OUTPUT"
 
-      - name: Verify frozen origin readiness
-        id: frozen_origin_readiness
-        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true' && steps.deployment_health.outputs.verified == 'true'
-        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
-        env:
-          ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
-        with:
-          playbook: playbooks/publish-unfreeze.yml
-          directory: deploy/ansible
-          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-          inventory: |
-            [runtime]
-            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
-          requirements: collections/requirements.yml
-          options: |
-            --extra-vars autographs_deploy_repo_version=${{ steps.request.outputs.release_tag }}
-            --extra-vars autographs_deploy_controller_digest=${{ steps.manifest.outputs.controller_digest }}
-            --extra-vars autographs_deploy_source_revision=${{ steps.source.outputs.source_revision }}
-            --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
-            --extra-vars autographs_publish_unfreeze_verify_only=true
-
       - name: Explicitly unfreeze verified production publication
         id: publish_unfreeze
-        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true' && steps.deployment_health.outputs.verified == 'true' && steps.frozen_origin_readiness.outcome == 'success'
+        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true' && steps.deployment_health.outputs.verified == 'true'
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
