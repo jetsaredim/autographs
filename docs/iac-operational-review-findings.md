@@ -18,6 +18,7 @@ catalogue, not a claim that the owner approved each row.
 |---|---|
 | [IAC-001](#preliminary-findings), [IAC-003](#preliminary-findings) | Resource-presence defaults and counted network/VM retirement were reviewed in PRs #358 and #361; authenticated production plans showed no changes. |
 | [IAC-002](#preliminary-findings) | The destructive-plan label gate merged in PR #371. The owner accepted its CI review and ordinary saved-plan deployment boundary on 2026-11-22; the authenticated plan and limitation are recorded below. |
+| [IAC-005 and IAC-006](#preliminary-findings) | The owner accepted the freeze/unfreeze publication gate and the security patching approval/reboot flow on 2026-11-22. The process-reduction assessment is recorded below. |
 | [IAC-004](#preliminary-findings) code path | Proxied Cloudflare default and ordinary release apply were selected by the owner, reviewed, and merged through PRs #377 and #378. Post-variable-removal plans showed no changes. The new release path still needs its first production run. |
 | [IAC-007](#preliminary-findings) | Obsolete Node deployment cleanup was removed, reviewed, and merged in PR #376. |
 | [Caddy freeze preflight](#ansible-playbooks) | The owner confirmed production already uses the decoupled Caddy quadlet; the [0.10.2 release run](https://github.com/jetsaredim/autographs/actions/runs/44450585851) completed full deployment with that template. Preflight now checks the dependency without rewriting the unit or restarting Caddy; it reloads the in-place freeze gate and verifies live routes before stopping the old controller. |
@@ -28,7 +29,7 @@ catalogue, not a claim that the owner approved each row.
 
 | Item | Decision needed |
 |---|---|
-| [IAC-005 and IAC-006](#preliminary-findings), plus [cleanup dry-run](#autographs-system-cleanup-dry-run) | Accept or revise the documented reasons for retaining the freeze/cutover/unfreeze controls, cleanup dry-run, and security reboot DNF no-op fixture seam. Their [producer-to-action traces](#detailed-operational-switch-review) are written. |
+| [Cleanup dry-run](#autographs-system-cleanup-dry-run) | Accept or revise the proposed distinction between manual preview and scheduled local image pruning. |
 | Source inventory: [Terraform](#terraform-resources-lookups-modules-and-providers), [Ansible](#ansible-playbooks), [workflows](#github-workflows-and-local-actions) | Review the proposed retain/remove dispositions and named limitations across these traced entries; this is the remaining owner acceptance for P8-POSTURE-006 and PR #375. |
 
 ### Evidence still pending after the review
@@ -142,8 +143,8 @@ or valid refactor.
 | IAC-002 | Warning | CI planned against production state without making destructive actions an explicit PR review decision. | Closed: gate merged in [PR #371](https://github.com/jetsaredim/autographs/pull/371) as `abc17a0`; owner accepted the policy and its deployment limit on 2026-11-22 | CI reports managed-resource deletion, replacement, and state-forget actions and fails unless the current PR head triggers the `terraform-destructive-plan-approved` label-add event. The normal PR and Release PR each require this approval if destructive actions appear. PR #378 removed the separate deploy-time DNS comparison; production applies its fresh saved plan after merge. PR #371's authenticated production plan reported no changes. |
 | IAC-003 | Info | Before this cleanup, `create_network` and `create_runtime_instance` defaulted to `true`; explicit `false` would remove managed network/VM resources. No production workflow supplied either input. Runtime recreation uses a separate retry-only taint. | Resolved by [PR #361](https://github.com/jetsaredim/autographs/pull/361), merged as `0b7c20a` | Seven counted resources have `moved` mappings; ingress rule `for_each` keys remain stable. The authenticated production plan reported `0 to add, 0 to change, 0 to destroy`; retry taint accepts both state addresses. |
 | IAC-004 | Warning | Before PR #377, the GitHub variable was `proxied` while Terraform and ordinary workflow defaults were `off`; removing it prematurely would have planned deletion of counted Cloudflare resources. | Code merged in [PR #377](https://github.com/jetsaredim/autographs/pull/377) as `e84d58f`; stored variable removed 2026-11-21; post-removal authenticated plan had no changes | Terraform defaults to `proxied`; PR #378 removes the redundant workflow assignment while retaining an optional `dns_only` rollback or fresh-bootstrap `off` override. Reviewed DNS/cache changes use the ordinary saved release plan. Destructive actions require approval in normal and Release PR CI; no deploy-time comparison is intended. [Post-removal Terraform CI](https://github.com/jetsaredim/autographs/actions/runs/44908578055/job/136859340147) reported no changes. Later production deployment of the new workflow remains unproven. |
-| IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Retain | The workflow sets frozen=true for full deploy, and role assertions reject false. The unfreeze playbook alone sets frozen=false with allow_unfreeze=true; `publish_freeze.yml` rejects false without that override. Explicit cutover suppresses restart handlers until the workflow's health gate; production and render fixtures cover both freeze states. Removing one flag would weaken a distinct assertion or require a broader operation-state contract. |
-| IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Retain as fixture seam | No production workflow overrides the true role default. The false fixture path tests reboot-state classification without running DNF, while true fixtures exercise the no-op validation and failure behavior; `security-reboot-state-validate-test.yml` and `validate_reboot_state.yml` cover both values. |
+| IAC-005 | Info | Full deploy requires `autographs_deploy_publish_frozen` and `autographs_deploy_explicit_cutover`; unfreeze uses `autographs_deploy_allow_unfreeze`, and restart handlers are suppressed during explicit cutover. | Retain; owner accepted the publication-blocking pattern on 2026-11-22 | The workflow sets frozen=true for full deploy, and role assertions reject false. The unfreeze playbook alone sets frozen=false with allow_unfreeze=true; `publish_freeze.yml` rejects false without that override. Explicit cutover suppresses restart handlers until the workflow's health gate; production and render fixtures cover both freeze states. The duplicate verify-only invocation is a possible later process reduction, not a reason to reopen the safety decision. |
+| IAC-006 | Info | `security_patching_reboot_validate_dnf_noop` defaults true and is set false in reboot-state fixtures; production validation tasks use it to gate DNF no-op checks. | Retain as fixture seam; owner accepted the patching flow on 2026-11-22 | No production workflow overrides the true role default. The false fixture path tests reboot-state classification without running DNF, while true fixtures exercise the no-op validation and failure behavior; `security-reboot-state-validate-test.yml` and `validate_reboot_state.yml` cover both values. |
 | IAC-007 | Info | `create_runtime_instance` formerly described the retired Node runtime, and the Ansible deploy role still stopped and removed the old `autographs-app` unit, quadlet, and container. | Resolved by [PR #376](https://github.com/jetsaredim/autographs/pull/376), merged as `b724d75` | The three obsolete cleanup tasks and active runbook instructions were removed. The controller contract test now asserts their absence; Ansible syntax/lint, controller CI, and two review rounds passed. |
 
 IAC-001 and IAC-002 share the stateful-resource preservation invariant. The
@@ -259,6 +260,19 @@ This section traces the six settings requested by the owner from their
 producer to the action or refusal they control. The [deployment workflow](../.github/workflows/deploy.yml)
 is the entry point for the first four. Its ordinary sequence is:
 
+**Process-reduction pass (2026-11-22).** The preflight's redundant systemd
+rewrite and Caddy restart were removed after the owner confirmed production
+already runs the decoupled quadlet. The workflow still invokes the same
+unfreeze playbook twice: the first invocation verifies readiness without
+removing the gate, and the second repeats those checks before opening it.
+Removing the first invocation could save one Ansible connection and probe
+pass while preserving the second invocation's fail-closed checks. That
+requires a separate review of workflow failure reporting and fixture
+expectations; no cutover step is removed in this closeout. The patching
+scan, separate update/reboot approvals, fresh drift checks, DNF no-op proof,
+and failure-label cleanup each guard a distinct action. No patching process
+reduction is recommended from this review.
+
 ```mermaid
 flowchart LR
   preflight[Freeze preflight records release and digest] --> full[Full deploy: frozen and explicit cutover]
@@ -360,8 +374,11 @@ postchecks does it record the approved digest and remove the freeze record.
 Its rescue block restores frozen Caddy and leaves that record for retry. The
 release completion gate requires the real unfreeze step to succeed.
 
-**Decision.** Keep: `true` is a non-opening proof step; `false` is the guarded
-mutation. The two calls are intentional even though they repeat checks.
+**Decision.** Keep the current two-call sequence for this closeout: `true`
+is a non-opening proof step and `false` is the guarded mutation. The second
+call repeats the readiness checks, so the first workflow invocation is a
+candidate for a separate process-reduction change after its reporting and
+fixture expectations are reviewed.
 
 ### `autographs_system_cleanup_dry_run`
 
