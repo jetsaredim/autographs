@@ -6,21 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Preview local image cleanup without deleting images"
+        description: "Preview local and GHCR image cleanup without deleting images"
         required: false
         default: "false"
         type: choice
         options:
           - "false"
           - "true"
-      remote_operation:
-        description: "GHCR inventory or explicit deletion after reviewing inventory"
-        required: true
-        default: inventory
-        type: choice
-        options:
-          - inventory
-          - delete
 
 concurrency:
   group: deploy-production
@@ -36,7 +28,7 @@ env:
   GHCR_CLEANUP_RETAIN_SEMVER_TAGGED: ${{ vars.GHCR_CLEANUP_RETAIN_SEMVER_TAGGED || vars.GHCR_CLEANUP_RETAIN_TAGGED || '3' }}
   GHCR_CLEANUP_MIN_AGE_DAYS: ${{ vars.GHCR_CLEANUP_MIN_AGE_DAYS || '7' }}
   GHCR_CLEANUP_PROTECTED_TAGS: ${{ vars.GHCR_CLEANUP_PROTECTED_TAGS || '' }}
-  GHCR_CLEANUP_DRY_RUN: ${{ github.event_name != 'workflow_dispatch' || inputs.remote_operation != 'delete' }}
+  GHCR_CLEANUP_DRY_RUN: ${{ inputs.dry_run || 'false' }}
   LOCAL_CLEANUP_DRY_RUN: ${{ inputs.dry_run || 'false' }}
   AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT: ${{ vars.AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT || '3' }}
   AUTOGRAPHS_DEPLOY_PATH_OVERRIDE: ${{ vars.DEPLOY_PATH }}

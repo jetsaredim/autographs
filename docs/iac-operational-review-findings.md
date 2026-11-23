@@ -27,7 +27,7 @@ catalogue, not a claim that the owner approved each row.
 | [IAC-004](#preliminary-findings) code path | Proxied Cloudflare default and ordinary release apply were selected by the owner, reviewed, and merged through PRs #377 and #378. Post-variable-removal plans showed no changes. The new release path still needs its first production run. |
 | [IAC-007](#preliminary-findings) | Obsolete Node deployment cleanup was removed, reviewed, and merged in PR #376. |
 | [Caddy freeze preflight](#ansible-playbooks) | The owner confirmed production already uses the decoupled Caddy quadlet; the [0.10.2 release run](https://github.com/jetsaredim/autographs/actions/runs/44450585851) completed full deployment with that template. Preflight now checks the dependency without rewriting the unit or restarting Caddy; it reloads the in-place freeze gate and verifies live routes before stopping the old controller. |
-| [Local image cleanup](#autographs-system-cleanup-dry-run) | The owner selected real cleanup as the manual workflow default on 2026-11-22. `dry_run=true` remains an explicit preview override; scheduled local cleanup already executed by default, and GHCR deletion still requires its separate `remote_operation=delete` choice. |
+| [Local and GHCR image cleanup](#autographs-system-cleanup-dry-run) | The owner selected real cleanup as the manual workflow default on 2026-11-22, then applied the same `dry_run` setting to GHCR. Scheduled and ordinary manual runs execute both; `dry_run=true` previews both. |
 | [Deployment defaults](#deployment-defaults-and-ssh-key-ownership) | Terraform's unused deploy path and SSH user inputs were removed in reviewed PR #379. Ansible owns both defaults; the duplicate GitHub variables were removed after no-change plans, with post-removal plans also showing no changes. |
 | [Security patching execution](#security-patching-decision-flow) | Production scan, advisory drift refusal, approved DNF update, reboot, and clean follow-up were exercised. The 15 probe adapters have named local fixture evidence in the [census](#fixture-probe-adapter-census). |
 
@@ -245,7 +245,7 @@ proposed refactor that removes the input and its conditional consumers.
 | `autographs_publish_freeze_fixture_mode` | Preflight default `false`; disposable `test_publish_freeze_deploy.py` supplies `true` | Both paths reload the in-place Caddy publish gate and require live frozen-route proof. Production then stops the old controller; the fixture simulates that stop only after local connection, `media-probe.invalid`, temporary path, and environment assertions. | Retain test adapter. Source and Python fixture cover the branch; CI syntax-checks the playbook but does not execute this integration fixture. |
 | `autographs_publish_unfreeze_fixture_mode` | Unfreeze default `false`; disposable `test_publish_freeze_deploy.py` supplies `true` | `false` uses systemd on success/rescue; `true` reloads local fixture Caddy under the same local/domain/path/environment guard. | Retain test adapter; source and Python fixture cover both branches, with no CI behavior-run claim. |
 | `autographs_deploy_fixture_mode` | Deploy role defaults to `false`; `publish-freeze-role-reaudit-test.yml` sets `true` | `false` starts/restarts production Caddy under cutover; `true` uses guarded local fixture reload in success and rescue, preventing a fixture from touching production services. | Retain test adapter; CI syntax/lint only for this fixture, behavior execution remains unproven here. |
-| `autographs_system_cleanup_dry_run` | Role and image-cleanup workflow defaults `"false"` | `true` reports selected images and a would-prune message; `false` removes selected old images and prunes dangling images. Scheduled and ordinary manual local cleanup execute; a manual `true` override previews. | Retain the explicit preview override; owner accepted execution as the manual default on 2026-11-22. |
+| `autographs_system_cleanup_dry_run` | Role and image-cleanup workflow defaults `"false"` | `true` reports selected local images and a would-prune message; `false` removes selected old images and prunes dangling images. The workflow's shared manual `dry_run` input previews both local and GHCR cleanup. | Retain the explicit preview override; scheduled and ordinary manual runs execute by default. |
 | `security_patching_reboot_validate_dnf_noop` | Role default `true`; fixture overrides true/false | Gates DNF no-op proof before reboot cleanup. | IAC-006; verify production and test seam. |
 | `security_patching_require_request_instance_match` | Target-scope helper defaults `false`; approval, update/reboot classification, and result tasks pass `true` | `false` still requires a configured nonempty live target group for scanner publication; `true` also requires the approved issue host set to match it exactly before mutation or success reporting. | Retain. Target-scope fixture passed locally with its declared inventory; production apply/reboot runs cover selected true paths. |
 | `security_patching_ksplice_apply_mode` | Patch task fixes `report_only`; result template reports it | No mutating Ksplice mode is reachable; changing this value would alter the maintenance contract and needs a separate reviewed plan. | Retain as fixed reporting value; update-result fixture and Python source test cover `report_only`. |
@@ -256,7 +256,7 @@ proposed refactor that removes the input and its conditional consumers.
 | Cloudflare `operation` | Historical manual `cloudflare_plan` or `cloudflare_apply`; removed by PR #377 | The same Terraform root and state remain. The ordinary release logs changed Terraform addresses/actions and applies its fresh saved plan after merge. | Superseded by the owner-selected ordinary deploy path after PR review; keep historical migration evidence. |
 | Historical v0.5.0 `operation` | `complete-v0.5.0.yml` manual `complete` or `finalize` | Both paths require the v0.5.0 release to remain a draft. GitHub shows it was published on 2026-11-02; the workflow cannot complete either operation. | Retired by PR #379; the Git tag, release assets, and planning/debug history remain as the audit record. |
 | Controller provider modes | Deploy defaults `oracle` and `oci-instance-principal`; role/config also allow `local` | Production selections keep Oracle metadata and private OCI originals; local values route to nonproduction adapters and must not be used for production release. | Retain for local/CI work; deploy assertions and configuration contract guard production values. |
-| Image cleanup `dry_run` / `remote_operation` | Scheduled or manual `image-cleanup.yml`; manual options `inventory`/`delete` | Scheduled local Podman cleanup gets `dry_run=false` and may prune; scheduled GHCR remains dry-run. Manual GHCR deletion requires explicit `delete`; the manual local dry-run input is independent. | Trace both local and remote actions and protected tags. |
+| Image cleanup `dry_run` | Scheduled or manual `image-cleanup.yml`; manual options `false`/`true` | Both local Podman and GHCR cleanup get `false` by default, including on schedule, and may delete selected images. Manual `true` previews both. | Trace both local and remote actions and protected tags. |
 
 ## Detailed operational switch review
 
@@ -384,8 +384,8 @@ path for targeted diagnostics and fixture coverage.
 is the string `"false"`. In [image-cleanup.yml](../.github/workflows/image-cleanup.yml),
 the manual `dry_run` input also defaults to `"false"`; the weekly schedule has no
 input and falls back to `"false"`. This variable affects local
-Podman cleanup on the VM. GHCR inventory/deletion uses separate
-`remote_operation` and `GHCR_CLEANUP_DRY_RUN` controls.
+Podman cleanup on the VM. The same workflow input sets `GHCR_CLEANUP_DRY_RUN`
+for GHCR cleanup.
 
 **Selection before mutation.** The role requires active controller image
 metadata from `app.env`, reads the previous image, containers, and local
@@ -398,14 +398,15 @@ controller repository. Missing active image metadata stops cleanup.
 “Would remove” and “Would run podman image prune” messages. `false` runs
 `podman rmi --force` only on selected IDs, then `podman image prune --force`
 for dangling images. There is no automatic rollback after image deletion;
-retained/protected images are the recovery margin. A manual GHCR `delete`
-does not change this local dry-run input, and a local `false` does not by
-itself request GHCR deletion.
+retained/protected images are the recovery margin. The workflow applies
+the same `dry_run` value to both local and GHCR cleanup. A manual `true`
+previews both; ordinary manual and scheduled runs delete selected images
+in both locations.
 
 **Decision.** Keep the explicit preview override for troubleshooting. Both
-weekly and ordinary manual dispatch perform local cleanup; the owner selected
-that manual default after recent manual runs were used to remove images. GHCR
-remains inventory-only unless `remote_operation=delete` is selected separately.
+weekly and ordinary manual dispatch perform local and GHCR cleanup; the owner
+selected that manual default after recent manual runs were used to remove images,
+then requested a shared dry-run setting for both parts of the workflow.
 
 ### `security_patching_reboot_validate_dnf_noop`
 
@@ -946,7 +947,7 @@ the separate production state key.
 | `weekly-security-scan.yml` / `security-scan.yml` | Read-only OpenSCAP scan followed by issue creation/update. | An incomplete host scan prevents an actionable approval issue. | Check degraded scan, stale-label removal, and issue-render fixtures. |
 | `apply-security-updates.yml` / `security-patch.yml` | Re-scan and approval validation precede advisory-scoped DNF mutation. | Failure workflow invokes `security-patch-cleanup.yml` to clear stale approval. | Verify drift and partial-apply paths against current fixtures. |
 | `reboot-security-runtime.yml` / `security-reboot.yml` | Re-scan and kernel/approval checks precede reboot and installonly cleanup. | Post-reboot scan reports remaining findings; failed workflow invokes cleanup. | Verify both DNF no-op flag values and target-scope fixtures. |
-| `image-cleanup.yml` / `system-cleanup.yml` | Podman and GHCR image pruning use independent dry-run/operation inputs. | Protected tags and retained counts guard active versions. | Verify scheduled and explicit-delete paths. |
+| `image-cleanup.yml` / `system-cleanup.yml` | Podman and GHCR image pruning use the same workflow dry-run input, defaulting to execution on schedules and manual dispatch. | Protected tags and retained counts guard active versions. | Verify scheduled execution and manual preview paths. |
 | `deploy.yml` historical `cloudflare` job | Former manual plan/apply of Cloudflare-only changes; PR #377 removed this job. | Cloudflare remains in the shared production root. PR #378 removes the added DNS comparison, leaving ordinary saved-plan apply after PR review. | PR #377 merged after Terraform CI and second review; post-release verification pending. |
 
 ## Source inventory
@@ -1153,7 +1154,7 @@ review surface and may contain private production inputs.
 | `.github/workflows/complete-v0.5.0.yml` | Historical frozen release completion | The manual `complete` and `finalize` paths both require the GitHub release to be a draft. v0.5.0 was published on 2026-11-02, so neither path is reachable now. PR #379 removes the workflow; the immutable tag, release assets, and historical planning/debug records remain. |
 | `.github/workflows/conventional-commits.yml` | Conventional commit PR gate | PR opened/edited/reopened/synchronize; checkout PR head/base and run `validate_release_please_inputs.py` with event file, no production secrets or mutation. Invalid commit types block PR check; local release-input tests and CI gate cover it. Retain. |
 | `.github/workflows/deploy.yml` | Release, production deploy, and Vault bootstrap | Push to main accumulates Release Please PR; Release PR merge creates a draft release and triggers production. PR #377 retains main-only manual `retry`, `rollback`, and `bootstrap_secrets`, and removes `cloudflare_plan/apply`. The saved Terraform plan includes reviewed DNS/cache changes on the ordinary release path; freeze, role deploy, health, then one readiness-backed explicit unfreeze gate release publication. Rollback is digest-mapped controller-only; failure leaves draft/frozen diagnostics. Local `test_release_workflow.py` passes; PR #377 merged after Terraform CI and second review; production release proof remains pending. |
-| `.github/workflows/image-cleanup.yml` | Runtime and GHCR image retention | Weekly schedule or manual `dry_run` and `remote_operation`; OCI state credential/IP fallback and SSH key target runtime, GitHub token manages GHCR, variables set repository/retention/protected tags. Scheduled GHCR is inventory-only; explicit `remote_operation=delete` is required for remote deletion, while local dry run controls Podman pruning. Missing runtime IP fails before host action; local `test_cleanup_ghcr_images.py` pass, no live deletion claimed; retain. |
+| `.github/workflows/image-cleanup.yml` | Runtime and GHCR image retention | Weekly schedule or manual `dry_run`; OCI state credential/IP fallback and SSH key target runtime, GitHub token manages GHCR, variables set repository/retention/protected tags. Both local and GHCR cleanup execute by default; manual `dry_run=true` previews both. Missing runtime IP fails before host action; local `test_cleanup_ghcr_images.py` pass, no live deletion claimed; retain. |
 | `.github/workflows/reboot-security-runtime.yml` | Approved production reboot and kernel cleanup | Issue `labeled` event only for non-PR `approved-production-reboot`; GH token/actor/issue, OCI state/IP fallback, SSH key and domain feed playbook. Target/advisory/kernel/DNF no-op preflight precedes reboot; failed playbook always invokes label cleanup and fails job. Local security issue-task tests and successful production reboot `43631340188`; retain. |
 | `.github/workflows/weekly-security-scan.yml` | Scheduled and manual security scan | Monday schedule or manual dispatch; GH token/repository/run ID, OCI state credentials/namespace/IP fallback and SSH key feed runner OpenSCAP and target inventory. `security-scan.yml` refuses incomplete host scan before issue publication; failure leaves no actionable approval. Production scan `43932933877` and local security issue-task tests; retain. |
 | `.github/actions/resolve-runtime-ip/action.yml` | Resolve production runtime address for maintenance workflows | Composite action receives OCI API key identity, state bucket/namespace/key/region and optional `VM_PUBLIC_IP`; reads Terraform `runtime_public_ip` output, then falls back only if state init/output unavailable. Empty both fails before SSH/Ansible, nonempty output is passed to deploy/security/cleanup callers. `scripts/test_release_workflow.py` local pass covers caller contract; state-read fallback is source-reviewed, not a live failure injection. Retain. |
