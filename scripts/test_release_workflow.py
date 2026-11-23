@@ -248,6 +248,26 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
                              if step.get("name") == "Clean up local Podman images")
         self.assertNotIn("autographs_system_cleanup_deploy_path=", local_cleanup["with"]["options"])
 
+    def test_manual_local_image_cleanup_deletes_by_default_with_preview_override(self):
+        cleanup = yaml.load(
+            (ROOT / ".github/workflows/image-cleanup.yml").read_text(),
+            Loader=yaml.BaseLoader,
+        )
+        dry_run = cleanup["on"]["workflow_dispatch"]["inputs"]["dry_run"]
+        self.assertEqual(dry_run["default"], "false")
+        self.assertEqual(dry_run["options"], ["false", "true"])
+        self.assertEqual(cleanup["env"]["LOCAL_CLEANUP_DRY_RUN"], "${{ inputs.dry_run || 'false' }}")
+        self.assertIn("inputs.remote_operation != 'delete'",
+                      cleanup["env"]["GHCR_CLEANUP_DRY_RUN"])
+        local_cleanup = next(
+            step for step in cleanup["jobs"]["runtime-cleanup"]["steps"]
+            if step.get("name") == "Clean up local Podman images"
+        )
+        self.assertIn(
+            "autographs_system_cleanup_dry_run=${{ env.LOCAL_CLEANUP_DRY_RUN }}",
+            local_cleanup["with"]["options"],
+        )
+
     def test_runtime_deploy_user_is_owned_by_ansible(self):
         production_plan = self.production_steps["Terraform apply"]
         self.assertNotIn("TF_VAR_runtime_deploy_user", production_plan["env"])

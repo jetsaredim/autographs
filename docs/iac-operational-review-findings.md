@@ -27,6 +27,7 @@ catalogue, not a claim that the owner approved each row.
 | [IAC-004](#preliminary-findings) code path | Proxied Cloudflare default and ordinary release apply were selected by the owner, reviewed, and merged through PRs #377 and #378. Post-variable-removal plans showed no changes. The new release path still needs its first production run. |
 | [IAC-007](#preliminary-findings) | Obsolete Node deployment cleanup was removed, reviewed, and merged in PR #376. |
 | [Caddy freeze preflight](#ansible-playbooks) | The owner confirmed production already uses the decoupled Caddy quadlet; the [0.10.2 release run](https://github.com/jetsaredim/autographs/actions/runs/44450585851) completed full deployment with that template. Preflight now checks the dependency without rewriting the unit or restarting Caddy; it reloads the in-place freeze gate and verifies live routes before stopping the old controller. |
+| [Local image cleanup](#autographs-system-cleanup-dry-run) | The owner selected real cleanup as the manual workflow default on 2026-11-22. `dry_run=true` remains an explicit preview override; scheduled local cleanup already executed by default, and GHCR deletion still requires its separate `remote_operation=delete` choice. |
 | [Deployment defaults](#deployment-defaults-and-ssh-key-ownership) | Terraform's unused deploy path and SSH user inputs were removed in reviewed PR #379. Ansible owns both defaults; the duplicate GitHub variables were removed after no-change plans, with post-removal plans also showing no changes. |
 | [Security patching execution](#security-patching-decision-flow) | Production scan, advisory drift refusal, approved DNF update, reboot, and clean follow-up were exercised. The 15 probe adapters have named local fixture evidence in the [census](#fixture-probe-adapter-census). |
 
@@ -34,7 +35,6 @@ catalogue, not a claim that the owner approved each row.
 
 | Item | Decision needed |
 |---|---|
-| [Cleanup dry-run](#autographs-system-cleanup-dry-run) | Accept or revise the proposed distinction between manual preview and scheduled local image pruning. |
 | Source inventory: [Terraform](#terraform-resources-lookups-modules-and-providers), [Ansible](#ansible-playbooks), [workflows](#github-workflows-and-local-actions) | Review the proposed retain/remove dispositions and named limitations across these traced entries; this is the remaining owner acceptance for P8-POSTURE-006 and PR #375. |
 
 ### Evidence still pending after the review
@@ -245,7 +245,7 @@ proposed refactor that removes the input and its conditional consumers.
 | `autographs_publish_freeze_fixture_mode` | Preflight default `false`; disposable `test_publish_freeze_deploy.py` supplies `true` | Both paths reload the in-place Caddy publish gate and require live frozen-route proof. Production then stops the old controller; the fixture simulates that stop only after local connection, `media-probe.invalid`, temporary path, and environment assertions. | Retain test adapter. Source and Python fixture cover the branch; CI syntax-checks the playbook but does not execute this integration fixture. |
 | `autographs_publish_unfreeze_fixture_mode` | Unfreeze default `false`; disposable `test_publish_freeze_deploy.py` supplies `true` | `false` uses systemd on success/rescue; `true` reloads local fixture Caddy under the same local/domain/path/environment guard. | Retain test adapter; source and Python fixture cover both branches, with no CI behavior-run claim. |
 | `autographs_deploy_fixture_mode` | Deploy role defaults to `false`; `publish-freeze-role-reaudit-test.yml` sets `true` | `false` starts/restarts production Caddy under cutover; `true` uses guarded local fixture reload in success and rescue, preventing a fixture from touching production services. | Retain test adapter; CI syntax/lint only for this fixture, behavior execution remains unproven here. |
-| `autographs_system_cleanup_dry_run` | Role default string `"false"`; image-cleanup workflow input | `true` reports selected images and a would-prune message; `false` removes selected old images and prunes dangling images. Scheduled local cleanup uses `false`; manual input may preview. | Retain; preview and execute are distinct operator choices. |
+| `autographs_system_cleanup_dry_run` | Role and image-cleanup workflow defaults `"false"` | `true` reports selected images and a would-prune message; `false` removes selected old images and prunes dangling images. Scheduled and ordinary manual local cleanup execute; a manual `true` override previews. | Retain the explicit preview override; owner accepted execution as the manual default on 2026-11-22. |
 | `security_patching_reboot_validate_dnf_noop` | Role default `true`; fixture overrides true/false | Gates DNF no-op proof before reboot cleanup. | IAC-006; verify production and test seam. |
 | `security_patching_require_request_instance_match` | Target-scope helper defaults `false`; approval, update/reboot classification, and result tasks pass `true` | `false` still requires a configured nonempty live target group for scanner publication; `true` also requires the approved issue host set to match it exactly before mutation or success reporting. | Retain. Target-scope fixture passed locally with its declared inventory; production apply/reboot runs cover selected true paths. |
 | `security_patching_ksplice_apply_mode` | Patch task fixes `report_only`; result template reports it | No mutating Ksplice mode is reachable; changing this value would alter the maintenance contract and needs a separate reviewed plan. | Retain as fixed reporting value; update-result fixture and Python source test cover `report_only`. |
@@ -382,8 +382,8 @@ path for targeted diagnostics and fixture coverage.
 
 **Purpose and producer.** The [cleanup role default](../deploy/ansible/roles/autographs_system_cleanup/defaults/main.yml)
 is the string `"false"`. In [image-cleanup.yml](../.github/workflows/image-cleanup.yml),
-the manual `dry_run` input defaults to `"true"`; the weekly schedule has no
-input, so its expression falls back to `"false"`. This variable affects local
+the manual `dry_run` input also defaults to `"false"`; the weekly schedule has no
+input and falls back to `"false"`. This variable affects local
 Podman cleanup on the VM. GHCR inventory/deletion uses separate
 `remote_operation` and `GHCR_CLEANUP_DRY_RUN` controls.
 
@@ -402,8 +402,10 @@ retained/protected images are the recovery margin. A manual GHCR `delete`
 does not change this local dry-run input, and a local `false` does not by
 itself request GHCR deletion.
 
-**Decision.** Keep the preview path, but treat the weekly schedule as an
-intentional mutating maintenance job. The manual entry defaults to preview.
+**Decision.** Keep the explicit preview override for troubleshooting. Both
+weekly and ordinary manual dispatch perform local cleanup; the owner selected
+that manual default after recent manual runs were used to remove images. GHCR
+remains inventory-only unless `remote_operation=delete` is selected separately.
 
 ### `security_patching_reboot_validate_dnf_noop`
 

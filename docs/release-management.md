@@ -63,7 +63,7 @@ Legacy tags predating manifests are not automatically eligible for this dispatch
 
 ## Retention
 
-VM image cleanup remains scheduled. It preserves the active controller, previous controller, container-referenced images, explicitly protected tags, and the configured newest-image window. Other unused release-tagged images may be removed. Manual local cleanup defaults to dry-run.
+VM image cleanup remains scheduled. It preserves the active controller, previous controller, container-referenced images, explicitly protected tags, and the configured newest-image window. Other unused release-tagged images may be removed. Manual local cleanup performs deletion by default; select `dry_run=true` to preview. GHCR deletion still requires the separate `remote_operation=delete` choice.
 
 Remote GHCR cleanup is inventory-only on schedules. Run an inventory first:
 

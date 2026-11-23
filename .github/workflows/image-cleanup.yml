@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Show what would be deleted without deleting images"
+        description: "Preview local image cleanup without deleting images"
         required: false
-        default: "true"
+        default: "false"
         type: choice
         options:
           - "false"
