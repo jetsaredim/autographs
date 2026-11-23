@@ -31,9 +31,10 @@ flags. Wave 8 replaced those flags with one validated `cloudflare_mode` value:
 
 This is a starting map, not a disposition for the full operating contract. The
 Terraform/Ansible inventory, review, and change gates are in [the IaC operational
-review plan](iac-operational-review-plan.md). P8-POSTURE-006 closes only when
-`docs/iac-operational-review-findings.md` records the evidence and final
-disposition for every finding.
+review plan](iac-operational-review-plan.md). The [active review queue](iac-operational-review-open-items.md)
+contains only decisions still awaiting input; the [evidence register](iac-operational-review-findings.md)
+preserves the complete inventory and resolved decisions. P8-POSTURE-006 closes
+only after the remaining dispositions and release evidence are recorded.
 
 ## Pre-media evidence
 

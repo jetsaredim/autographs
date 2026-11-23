@@ -1,4 +1,9 @@
-# Terraform and Ansible operational review findings
+# Terraform and Ansible operational review evidence
+
+For the short list of decisions still awaiting input, use the
+[active review queue](iac-operational-review-open-items.md). This file is the
+complete evidence register and audit trail; resolved decisions remain here
+for traceability.
 
 Status: source inventory complete; final owner review and Phase 8 disposition
 remain open for Plan 08-08 Task 5. This register records source, local test,
