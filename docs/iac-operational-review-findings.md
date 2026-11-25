@@ -469,20 +469,20 @@ checks actual GitHub/Vault equality. See
 
 #### Approval for manual secret rotation
 
-The [runtime secret rotation workflow](../.github/workflows/runtime-secret-rotation.yml)
-uses a read-only check from `main` followed by a fresh issue-label approval.
-The check signs the request, selected credential's candidate, expected CURRENT
-Vault version, and wallet ZIP when applicable. The apply job takes the same
-lock as production deploy, consumes the approval, and checks those inputs
-before using the shared Vault helper to write and read back the new version.
-The manual credentials stay outside Terraform. Ordinary deploys still stop on
-mismatch, and OCI keeps its own generated database password rotation schedule.
+[Runtime secret CI](../.github/workflows/ci-runtime-secrets.yml) reads GitHub
+and OCI Vault from trusted base-branch code and flags drift on the PR head.
+The repository owner can add `approved-secret-rotation` to recheck and
+authorize one credential for the exact PR head, label event, candidate
+and expected CURRENT Vault version. Adding the label runs the check.
+Merging the checked PR triggers rotation before normal release processing.
 
-Rotation reuses the deployment wallet tasks and checks the Oracle-backed
-controller after restart. When a Vault write succeeded but runtime convergence
-failed, a freshly approved reconcile request repairs the runtime using the
-same Vault version. See the [operator runbook](deployment-runbook.md#rotate-the-admin-hash-or-oracle-wallet-password)
-for setup, approval, and failure recovery.
+The reusable [rotation job](../.github/workflows/runtime-secret-rotation.yml)
+shares the production deployment lock, validates the signed check, updates
+Vault outside Terraform, and restarts and verifies the Oracle-backed controller.
+Wallet rotation reuses the deployment's wallet tasks and installs the checked
+ZIP. A rerun recognizes the version produced by that merge run and can finish
+runtime convergence. OCI continues to rotate the generated DB password on
+its own schedule. See the [operator runbook](deployment-runbook.md#rotate-the-admin-hash-or-oracle-wallet-password).
 
 ### Security patching decision flow
 
@@ -1196,6 +1196,7 @@ review surface and may contain private production inputs.
 | `.github/workflows/deploy.yml` | Release, production deploy, and Vault bootstrap | Push to main accumulates Release Please PR; Release PR merge creates a draft release and triggers production. PR #377 retains main-only manual `retry`, `rollback`, and `bootstrap_secrets`, and removes `cloudflare_plan/apply`. The saved Terraform plan includes reviewed DNS/cache changes on the ordinary release path; freeze, role deploy, health, then one readiness-backed explicit unfreeze gate release publication. Rollback is digest-mapped controller-only; failure leaves draft/frozen diagnostics. Local `test_release_workflow.py` passes; PR #377 merged after Terraform CI and second review; production release proof remains pending. |
 | `.github/workflows/image-cleanup.yml` | Runtime and GHCR image retention | Weekly schedule or manual `dry_run`; OCI state credential/IP fallback and SSH key target runtime, GitHub token manages GHCR, variables set repository/retention/protected tags. Both local and GHCR cleanup execute by default; manual `dry_run=true` previews both. Missing runtime IP fails before host action; local `test_cleanup_ghcr_images.py` pass, no live deletion claimed; retain. |
 | `.github/workflows/reboot-security-runtime.yml` | Approved production reboot and kernel cleanup | Issue `labeled` event only for non-PR `approved-production-reboot`; GH token/actor/issue, OCI state/IP fallback, SSH key and domain feed playbook. Target/advisory/kernel/DNF no-op preflight precedes reboot; failed playbook always invokes label cleanup and fails job. Local security issue-task tests and successful production reboot `43631340188`; retain. |
-| `.github/workflows/runtime-secret-rotation.yml` | Manual admin hash and wallet password rotation | Read-only check on main, fresh issue-label authorization, candidate and Vault version recheck, production deployment lock, and shared Vault and runtime tasks. No live rotation evidence yet. |
+| `.github/workflows/ci-runtime-secrets.yml` | Live credential drift check in CI | Trusted base-branch workflow reports status on the PR head and signs a fresh label approval for that head. |
+| `.github/workflows/runtime-secret-rotation.yml` | Manual admin hash and wallet password rotation | Reusable PR CI check and merge-time rotation. The PR label authorizes a signed candidate and Vault version for the reviewed head. The main push takes the production deployment lock and completes rotation before release processing. No live rotation evidence yet. |
 | `.github/workflows/weekly-security-scan.yml` | Scheduled and manual security scan | Monday schedule or manual dispatch; GH token/repository/run ID, OCI state credentials/namespace/IP fallback and SSH key feed runner OpenSCAP and target inventory. `security-scan.yml` refuses incomplete host scan before issue publication; failure leaves no actionable approval. Production scan `43932933877` and local security issue-task tests; retain. |
 | `.github/actions/resolve-runtime-ip/action.yml` | Resolve production runtime address for maintenance workflows | Composite action receives OCI API key identity, state bucket/namespace/key/region and optional `VM_PUBLIC_IP`; reads Terraform `runtime_public_ip` output, then falls back only if state init/output unavailable. Empty both fails before SSH/Ansible, nonempty output is passed to deploy/security/cleanup callers. `scripts/test_release_workflow.py` local pass covers caller contract; state-read fallback is source-reviewed, not a live failure injection. Retain. |

@@ -5,6 +5,7 @@
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -195,6 +196,72 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         for term in case["production_condition_terms"]:
             self.assertIn(term, condition)
         self.assertNotIn("release", self.workflow["on"])
+
+    def test_secret_rotation_is_read_only_before_merge_and_precedes_release(self):
+        source = WORKFLOW_PATH.parent
+        check = yaml.load((source / "ci-runtime-secrets.yml").read_text(), Loader=yaml.BaseLoader)
+        reused = yaml.load((source / "runtime-secret-rotation.yml").read_text(), Loader=yaml.BaseLoader)
+        caller = self.workflow["jobs"]["runtime-secrets"]
+        self.assertEqual(check["jobs"]["drift"]["with"]["mode"], "check")
+        self.assertIn("pull_request_target", check["on"])
+        self.assertEqual(caller["with"]["mode"], "apply")
+        self.assertEqual(self.release_job["needs"], "runtime-secrets")
+        self.assertNotIn("issues", reused["on"])
+        job = reused["jobs"]["rotation"]
+        checkout = next(step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout"))
+        self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
+        runtime = next(step for step in job["steps"] if step["name"] == "Apply runtime credentials and verify controller health")
+        self.assertIn("inputs.mode == 'apply'", runtime["if"])
+
+    def test_merge_rotation_uses_the_reviewed_pr_head_and_latest_premerge_label(self):
+        workflow = yaml.load(
+            (WORKFLOW_PATH.parent / "runtime-secret-rotation.yml").read_text(), Loader=yaml.BaseLoader,
+        )
+        resolver = next(step["run"] for step in workflow["jobs"]["rotation"]["steps"] if step.get("id") == "request")
+        head, merged_sha = "a" * 40, "b" * 40
+        merged_at = "2026-11-25T12:30:00Z"
+        label = "approved-secret-rotation"
+        label_event = {"id": 41, "event": "labeled", "label": {"name": label},
+                       "actor": {"login": "owner"}, "created_at": "2026-11-25T12:20:00Z"}
+        pr = {
+            "merged_at": merged_at, "merge_commit_sha": merged_sha, "number": 123,
+            "base": {"ref": "main"}, "head": {"sha": head, "repo": {"full_name": "owner/repo"}},
+            "user": {"login": "owner"}, "labels": [{"name": label}],
+        }
+
+        def comment(checked_head, event_id):
+            record = {"request": {"head": checked_head, "label_event": event_id, "credential": "admin_password_hash"}}
+            return {"body": "<!-- AUTOGRAPHS_PR_ROTATION " + json.dumps(record) + " -->",
+                    "created_at": "2026-11-25T12:25:00Z", "user": {"login": "github-actions[bot]"}}
+
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            fake_gh = directory / "gh"
+            fake_gh.write_text(
+                '#!/bin/bash\ncase "$2" in\n'
+                '  */events) cat "$RUNNER_TEMP/events";;\n'
+                '  */comments) cat "$RUNNER_TEMP/comments";;\n'
+                '  */pulls) cat "$RUNNER_TEMP/pulls";;\n'
+                '  *) exit 1;;\nesac\n'
+            )
+            fake_gh.chmod(0o700)
+            env = {
+                **os.environ, "PATH": f"{temp}:{os.environ['PATH']}", "RUNNER_TEMP": temp,
+                "GITHUB_OUTPUT": str(directory / "output"), "MODE": "apply", "OWNER": "owner",
+                "GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": merged_sha,
+                "GITHUB_REPOSITORY": "owner/repo", "APPROVAL_LABEL": label,
+            }
+            for event, receipt, expected in [
+                (label_event, comment(head, 41), True),
+                (label_event, comment("c" * 40, 41), False),
+                ({**label_event, "id": 42}, comment(head, 41), False),
+                ({**label_event, "created_at": "2026-11-25T12:31:00Z"}, comment(head, 41), False),
+            ]:
+                with self.subTest(event=event, receipt=receipt):
+                    for filename, data in {"pulls": [pr], "events": [event], "comments": [receipt]}.items():
+                        (directory / filename).write_text(json.dumps(data))
+                    result = subprocess.run(["bash", "-c", resolver], env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode == 0, expected, result.stderr)
 
     def test_terraform_changes_use_reviewed_release_deploy(self):
         jobs = self.workflow["jobs"]

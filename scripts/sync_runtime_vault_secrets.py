@@ -17,6 +17,7 @@ import tempfile
 import time
 import zipfile
 
+from datetime import datetime
 from pathlib import Path
 
 
@@ -45,7 +46,7 @@ def secret_ids():
         raise SyncError("Runtime Terraform state does not contain both manual Vault secret IDs") from error
 
 
-def current_bundle(oci_bin, config_file, secret_id):
+def current_bundle(oci_bin, config_file, secret_id, *, include_name=False):
     try:
         data = json.loads(command([
             oci_bin, "secrets", "secret-bundle", "get",
@@ -54,7 +55,7 @@ def current_bundle(oci_bin, config_file, secret_id):
         ]))["data"]
         content = base64.b64decode(data["secret-bundle-content"]["content"], validate=True)
         version = int(data["version-number"])
-        return content, version
+        return (content, version, data.get("version-name")) if include_name else (content, version)
     except (ValueError, KeyError, TypeError) as error:
         raise SyncError("OCI returned an invalid CURRENT secret bundle") from error
 
@@ -85,7 +86,7 @@ def current_etag(oci_bin, config_file, secret_id, expected_version):
 
 
 def update_current(oci_bin, config_file, secret_id, name, value, previous_version, operation, *, etag=None):
-    version_name = f"github-{operation}-{os.environ.get('GITHUB_RUN_ID', 'manual')}-{name}"
+    version_name = write_version_name(operation, name)
     arguments = [
         oci_bin, "vault", "secret", "update-base64",
         "--config-file", config_file,
@@ -158,31 +159,30 @@ def wallet_archive():
     return data
 
 
-def rotation_candidate(name, operation, oci_bin, config_file):
+def write_version_name(operation, name):
+    return f"github-{operation}-{os.environ.get('GITHUB_RUN_ID', 'manual')}-{name}"
+
+
+def rotation_inputs(oci_bin, config_file):
     ids = secret_ids()
-    selected = None
-    for secret_name, github_env, placeholder in MANUAL_SECRETS:
+    results = {}
+    for name, github_env, placeholder in MANUAL_SECRETS:
         candidate = source_value(github_env, placeholder)
-        actual, version = current_bundle(oci_bin, config_file, ids[secret_name])
-        matches = hmac.compare_digest(actual, candidate)
+        actual, version, version_name = current_bundle(
+            oci_bin, config_file, ids[name], include_name=True,
+        )
         if version < 2 or actual == placeholder:
-            raise SyncError(f"{secret_name} requires initial bootstrap before rotation")
-        if secret_name == name:
-            if matches != (operation == "reconcile"):
-                raise SyncError("Rotate requires a changed value; reconcile requires a matching value")
-            selected = (ids[secret_name], candidate, version)
-        elif not matches:
-            raise SyncError(f"{secret_name} also differs from GitHub; stage one credential at a time")
-    if selected is None:
-        raise SyncError("Unknown manual rotation credential")
-    secret_id, candidate, version = selected
+            raise SyncError(f"{name} requires initial bootstrap before rotation")
+        results[name] = (ids[name], candidate, actual, version, version_name)
+    return results
+
+
+def validated_archive(name, candidate):
     if name == "admin_password_hash":
         if not re.fullmatch(rb"\$argon2id\$v=19\$m=[0-9]+,t=[0-9]+,p=[0-9]+\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+", candidate):
             raise SyncError("The admin credential must be an Argon2id password hash")
-        archive = b""
-    else:
-        archive = wallet_archive()
-    return secret_id, candidate, version, archive
+        return b""
+    return wallet_archive()
 
 
 def rotation_signature(record, secret_id, candidate, archive):
@@ -196,50 +196,81 @@ def rotation_signature(record, secret_id, candidate, archive):
     return hmac.digest(key, payload, "sha256").hex()
 
 
-def preflight_rotation(name, operation, repository, issue, oci_bin, config_file):
-    secret_id, candidate, version, archive = rotation_candidate(name, operation, oci_bin, config_file)
-    record = {"credential": name, "operation": operation, "repository": repository, "issue": issue,
-              "version": version, "checked_at": int(time.time()), "run_id": os.environ.get("GITHUB_RUN_ID", "")}
+def preflight_rotation(repository, pull_request, head, label_event, oci_bin, config_file, *, label_present=False):
+    inputs = rotation_inputs(oci_bin, config_file)
+    drift = [name for name, (_, candidate, current, _, _) in inputs.items()
+             if not hmac.compare_digest(candidate, current)]
+    if not drift:
+        if label_present or label_event:
+            raise SyncError("GitHub and Vault already match. Remove approved-secret-rotation.")
+        print("GitHub and OCI Vault match")
+        return None
+    if len(drift) > 1:
+        raise SyncError("Both manual credentials differ from GitHub. Stage one at a time.")
+    name = drift[0]
+    if not label_event:
+        raise SyncError(f"GitHub and Vault differ for {name}. Add approved-secret-rotation to review this PR.")
+    secret_id, candidate, _, version, _ = inputs[name]
+    archive = validated_archive(name, candidate)
+    record = {
+        "credential": name, "repository": repository, "pull_request": pull_request,
+        "head": head, "label_event": label_event, "version": version,
+        "checked_at": int(time.time()),
+    }
+    print(f"{name}: approved candidate checked against Vault CURRENT version {version}")
     return {"request": record, "signature": rotation_signature(record, secret_id, candidate, archive)}
 
 
-def apply_rotation(approval, repository, issue, oci_bin, config_file):
+def apply_rotation(approval, repository, pull_request, head, label_event, merged_at, oci_bin, config_file):
     try:
         record = approval["request"]
         signature = approval["signature"]
         name = record["credential"]
-        operation = record["operation"]
+        merge_time = datetime.fromisoformat(merged_at.replace("Z", "+00:00")).timestamp()
         if (
-            record["repository"] != repository or record["issue"] != issue
-            or not isinstance(signature, str) or operation not in ("rotate", "reconcile")
-            or not 0 <= time.time() - record["checked_at"] <= 86400
+            record["repository"] != repository or record["pull_request"] != pull_request
+            or record["head"] != head or record["label_event"] != label_event
+            or not isinstance(signature, str) or not 0 <= merge_time - record["checked_at"] <= 86400
+            or name not in {name for name, _, _ in MANUAL_SECRETS}
+            or type(record["version"]) is not int
         ):
             raise ValueError
     except (KeyError, TypeError, ValueError) as error:
-        raise SyncError("Invalid or expired secret rotation preflight") from error
+        raise SyncError("Rotation approval does not match the merged PR or has expired") from error
 
-    secret_id, candidate, version, archive = rotation_candidate(name, operation, oci_bin, config_file)
+    inputs = rotation_inputs(oci_bin, config_file)
+    for other, (_, candidate, current, _, _) in inputs.items():
+        if other != name and not hmac.compare_digest(candidate, current):
+            raise SyncError(f"{other} also differs from GitHub; stage one credential at a time")
+    secret_id, candidate, current, version, version_name = inputs[name]
+    archive = validated_archive(name, candidate)
     expected = rotation_signature(record, secret_id, candidate, archive)
-    if version != record["version"] or not hmac.compare_digest(signature, expected):
-        raise SyncError("The Vault version or GitHub candidate changed after preflight")
-    if operation == "rotate":
+    if not hmac.compare_digest(signature, expected):
+        raise SyncError("The GitHub candidate changed after approval")
+    if version == record["version"] and not hmac.compare_digest(current, candidate):
         etag = current_etag(oci_bin, config_file, secret_id, version)
         version = update_current(
             oci_bin, config_file, secret_id, name, candidate, version, "rotation", etag=etag,
         )
+    elif not (version > record["version"]
+              and version_name == write_version_name("rotation", name)
+              and hmac.compare_digest(current, candidate)):
+        raise SyncError("The Vault version changed after approval")
     print(f"{name}: CURRENT version {version} verified")
     return archive
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("verify", "bootstrap", "rotation-preflight", "rotation-apply"))
+    parser.add_argument("mode", choices=("verify", "bootstrap", "rotation-check", "rotation-apply"))
     parser.add_argument("--oci-bin", required=True)
     parser.add_argument("--oci-config-file", required=True)
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"))
-    parser.add_argument("--issue", type=int)
-    parser.add_argument("--credential", choices=[name for name, _, _ in MANUAL_SECRETS])
-    parser.add_argument("--operation", choices=("rotate", "reconcile"), default="rotate")
+    parser.add_argument("--pull-request", type=int)
+    parser.add_argument("--head")
+    parser.add_argument("--label-event", type=int, default=0)
+    parser.add_argument("--label-present", action="store_true")
+    parser.add_argument("--merged-at")
     parser.add_argument("--approval", type=Path)
     parser.add_argument("--wallet-output", type=Path)
     args = parser.parse_args()
@@ -247,20 +278,24 @@ def main():
         if args.mode in ("bootstrap", "verify"):
             sync(args.mode, args.oci_bin, args.oci_config_file)
         else:
-            if not args.repository or not args.issue or args.issue < 1 or args.approval is None:
-                parser.error("rotation requires a repository, issue number and preflight file")
-            if args.mode == "rotation-preflight":
-                if args.credential is None:
-                    parser.error("rotation-preflight requires a credential")
-                record = preflight_rotation(args.credential, args.operation, args.repository, args.issue,
-                                            args.oci_bin, args.oci_config_file)
-                args.approval.write_text(json.dumps(record) + "\n", encoding="utf-8")
+            if (not args.repository or not args.pull_request or args.pull_request < 1
+                    or not args.head or not re.fullmatch(r"[a-f0-9]{40}", args.head)
+                    or args.approval is None):
+                parser.error("rotation requires the repository, PR, head SHA and approval file")
+            if args.mode == "rotation-check":
+                record = preflight_rotation(args.repository, args.pull_request, args.head, args.label_event,
+                                            args.oci_bin, args.oci_config_file, label_present=args.label_present)
+                if record:
+                    args.approval.write_text(json.dumps(record) + "\n", encoding="utf-8")
             else:
+                if not args.merged_at or not args.label_event:
+                    parser.error("rotation-apply requires the merge time and approved label event")
                 try:
                     approval = json.loads(args.approval.read_text(encoding="utf-8"))
                 except (OSError, ValueError) as error:
-                    raise SyncError("Could not read the rotation preflight") from error
-                archive = apply_rotation(approval, args.repository, args.issue, args.oci_bin, args.oci_config_file)
+                    raise SyncError("Could not read the rotation approval") from error
+                archive = apply_rotation(approval, args.repository, args.pull_request, args.head, args.label_event,
+                                         args.merged_at, args.oci_bin, args.oci_config_file)
                 if archive and args.wallet_output:
                     args.wallet_output.write_bytes(base64.b64encode(archive))
     except SyncError as error:

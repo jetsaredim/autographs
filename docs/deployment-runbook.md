@@ -170,38 +170,41 @@ or later.
 
 ## Rotate the admin hash or Oracle wallet password
 
-Set up the `approved-secret-rotation` issue label and a dedicated repository
-secret to sign preflight requests. From the repository checkout, run:
+Set up the `approved-secret-rotation` PR label and the repository secret that
+signs the checked candidate. From the repository checkout, run:
 
 ```bash
-gh label create approved-secret-rotation --description "Approve one checked runtime secret rotation"
+gh label create approved-secret-rotation --description "Approve runtime secret rotation on PR merge"
 openssl rand -hex 32 | gh secret set RUNTIME_SECRET_ROTATION_AUTH_KEY
 ```
 
-1. As the repository owner, open an issue for the rotation and update one
-   GitHub credential. Use a new Argon2id hash for
-   `AUTOGRAPHS_ADMIN_PASSWORD_HASH`. For wallet rotation, update
-   `ORACLE_DB_WALLET_PASSWORD` and the corresponding
-   `ORACLE_DB_WALLET_ZIP_BASE64` together. Keep credentials and wallet files
-   out of the issue. Stage the second credential in a later request.
-2. Dispatch **Runtime Secret Rotation** from `main` with the issue number,
-   credential, and operation `rotate`. The run checks runtime availability,
-   the current Vault values, and the candidate. For a wallet it checks that
-   the supplied password opens the archive's PKCS#12 wallet. A successful
-   check comments on the issue with the credential and current Vault version.
-3. Review the comment and apply `approved-secret-rotation` within 24 hours.
-   The apply run takes the production deployment lock, consumes the approval,
-   and rechecks the saved request against GitHub and Vault. It writes the
-   selected value directly to Vault, then verifies the new CURRENT version.
-   A wallet change also installs the checked ZIP before the controller starts.
-   Controller health after restart confirms Oracle startup succeeded.
+After the workflow lands on `main`, make the **Runtime secret drift** status a
+required PR check if branch protection should block merges on drift. The check
+runs trusted base-branch code. Fork and Dependabot PRs have no live-secret
+check and cannot authorize rotation.
 
-If the run fails, inspect the Actions run and the current Vault version. If
-Vault still needs the new value, submit a fresh `rotate` check. If Vault
-already matches GitHub, submit a `reconcile` check for the same credential.
-Approve either request with a fresh label. Reconcile reinstalls the checked
-wallet when applicable and restarts and verifies the controller using the
-existing Vault version. Routine deployment continues to stop on mismatches.
+1. Set the new GitHub secret for one credential. Use an Argon2id hash for
+   `AUTOGRAPHS_ADMIN_PASSWORD_HASH`. For a wallet rotation, update
+   `ORACLE_DB_WALLET_PASSWORD` and the matching `ORACLE_DB_WALLET_ZIP_BASE64`
+   together. Keep values and wallet files out of source and PR comments.
+2. Open or update a same-repository PR targeting `main`. Changing a GitHub
+   secret does not trigger CI by itself. The next **Runtime secret drift**
+   check flags the mismatch and names the credential.
+3. As the repository owner, add `approved-secret-rotation` to that PR. The
+   check reruns and records the checked candidate, Vault version, PR head,
+   and label event. Wallet checks also verify the password can open the
+   checked PKCS#12 wallet. Wait for the green check, then merge within 24 hours.
+   If the PR changes or the check has expired, remove and reapply the label.
+4. The resulting `main` push applies the rotation before release processing.
+   It rechecks the exact approved candidate and Vault version under the
+   production deployment lock. After updating Vault, it restarts and verifies
+   the controller. Wallet rotation installs the verified ZIP before restart.
+
+If the merge run fails after updating Vault, rerun the failed rotation job
+from that same Actions run. The job recognizes the Vault version it created
+and retries runtime convergence without creating another version. If the
+candidate or Vault version changed after approval, use a fresh PR and approval.
+Ordinary releases continue to fail on an unapproved mismatch.
 
 ## OCI-Managed Database Password Rotation Rollout
 

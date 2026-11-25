@@ -30,7 +30,7 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / runtime | Base64-encoded ADB wallet zip used for mTLS connections |
 | `ORACLE_DB_WALLET_PASSWORD` | approved Vault bootstrap, manual rotation, and deploy verification | Wallet password source value. The approved rotation includes the matching wallet ZIP. |
 | `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | approved Vault bootstrap, manual rotation, and deploy verification | Argon2id admin hash source value. Deploy requires an exact match with the OCI Vault CURRENT bundle. |
-| `RUNTIME_SECRET_ROTATION_AUTH_KEY` | manual rotation preflight and approval | Random key used to bind an issue approval to the checked credential, current Vault version, and wallet ZIP where applicable. |
+| `RUNTIME_SECRET_ROTATION_AUTH_KEY` | manual rotation preflight and approval | Random key used to bind a PR approval to the checked credential, current Vault version, and wallet ZIP where applicable. |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Optional compatibility token for non-management diagnostics; not a collection-management credential |
 | `CLOUDFLARE_API_TOKEN` | Terraform CI/deploy | Scoped token for the active Cloudflare zone, records, TLS setting, cache rules, and edge certificate read checks |
 | `PORKBUN_API_KEY`, `PORKBUN_SECRET_KEY` | Terraform CI/deploy | Porkbun DNS provider credentials |
@@ -43,8 +43,8 @@ hash from OCI Vault secret IDs output by Terraform. GitHub stores copies of
 only the wallet password and admin hash to seed exact Terraform placeholders
 during an approved `bootstrap_secrets` dispatch and detect later drift.
 Normal releases stop on a Vault mismatch. The [manual rotation workflow](deployment-runbook.md#rotate-the-admin-hash-or-oracle-wallet-password)
-checks the GitHub candidate and waits for issue-label approval before updating
-Vault. OCI manages the separate generated database password. Local Ansible may
+checks GitHub/Vault drift in PR CI. A checked label approval authorizes the
+merge workflow to update Vault. OCI manages the separate generated database password. Local Ansible may
 still pass direct values as a transition fallback.
 
 ## GitHub Variables

@@ -47,8 +47,20 @@ env:
   AUTOGRAPHS_DEPLOY_SSH_USER_OVERRIDE: ${{ vars.DEPLOY_SSH_USER }}
 
 jobs:
+  runtime-secrets:
+    name: Rotate approved runtime credentials from the merged PR
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/runtime-secret-rotation.yml
+    with:
+      mode: apply
+    secrets: inherit
+
   release:
     name: Update Release PR or create draft Release
+    needs: runtime-secrets
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
