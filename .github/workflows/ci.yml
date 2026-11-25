@@ -367,6 +367,7 @@ jobs:
             deploy/ansible/playbooks/publish-freeze-role-reaudit-test.yml \
             deploy/ansible/playbooks/deploy-path-contract-test.yml \
             deploy/ansible/playbooks/controller-rollback.yml \
+            deploy/ansible/playbooks/rotate-runtime-secret.yml \
             deploy/ansible/playbooks/system-cleanup.yml \
             deploy/ansible/playbooks/security-scan.yml \
             deploy/ansible/playbooks/security-patch.yml \

@@ -467,6 +467,23 @@ checks actual GitHub/Vault equality. See
 [runtime_secrets.tf](../infra/terraform/runtime_secrets.tf) and
 [deploy.yml](../.github/workflows/deploy.yml).
 
+#### Approval for manual secret rotation
+
+The [runtime secret rotation workflow](../.github/workflows/runtime-secret-rotation.yml)
+uses a read-only check from `main` followed by a fresh issue-label approval.
+The check signs the request, selected credential's candidate, expected CURRENT
+Vault version, and wallet ZIP when applicable. The apply job takes the same
+lock as production deploy, consumes the approval, and checks those inputs
+before using the shared Vault helper to write and read back the new version.
+The manual credentials stay outside Terraform. Ordinary deploys still stop on
+mismatch, and OCI keeps its own generated database password rotation schedule.
+
+Rotation reuses the deployment wallet tasks and checks the Oracle-backed
+controller after restart. When a Vault write succeeded but runtime convergence
+failed, a freshly approved reconcile request repairs the runtime using the
+same Vault version. See the [operator runbook](deployment-runbook.md#rotate-the-admin-hash-or-oracle-wallet-password)
+for setup, approval, and failure recovery.
+
 ### Security patching decision flow
 
 The [security patching runbook](security-patching.md) has the full operator
@@ -1057,7 +1074,7 @@ Terraform `moved` blocks in `modules/iam/main.tf` and `modules/state_bucket/main
 
 ### Ansible playbooks
 
-CI syntax-checks all 27 playbooks and runs Ansible lint; those gates do not
+CI syntax-checks all 28 playbooks and runs Ansible lint; those gates do not
 execute a playbook. Validation playbooks below are runnable behavior fixtures,
 and their local behavior results are recorded below. Fixture existence and CI
 syntax coverage alone are not a passing behavior result.
@@ -1074,6 +1091,7 @@ the Phase 8 checkpoint.
 | `deploy/ansible/playbooks/publish-freeze-render-test.yml` | `ci.yml` | Disposable copied Caddyfile renders both frozen and normal `publish_freeze.yml` states; asserts exact routes and restart notification. CI syntax/lint only; behavior result pending; retain rendering fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/publish-freeze-role-reaudit-test.yml` | `ci.yml` | Local disposable origin imports production role reaudit tasks to verify frozen Caddy and static media contract; fixture guard rejects a nonlocal path. Local real-Caddy integration fixture passed on 2026-11-22, along with CI syntax/lint; retain role-boundary fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/publish-unfreeze.yml` | `deploy.yml`, `ci.yml` | Optional verify-only state checks frozen release and origin readiness; the single ordinary mutating invocation checks readiness before removing the Caddy gate after health. Failed unfreeze restores frozen Caddyfile and durable record; both modes and failure recovery passed the local real-Caddy integration fixture on 2026-11-22, along with CI syntax/lint; retain. | **Dispositioned** · Retain readiness checks and one production invocation · IAC-005 |
+| `deploy/ansible/playbooks/rotate-runtime-secret.yml` | `runtime-secret-rotation.yml` | Checks the installed controller and deploy freeze record, reuses the wallet install tasks when needed, and verifies Oracle startup after restart. Production rotation evidence is pending. | **Dispositioned** · Add the approved rotation runtime step |
 | `deploy/ansible/playbooks/runtime-kernel-persistence-validate-test.yml` | `ci.yml` | Local fixture invokes production kernel image/owner/boot-entry and DNF exclusion tasks with good and bad probes; asserts scoped idempotent exclusion merge and rejects unsafe boot state. CI syntax/lint only; local behavior pass (see evidence note); retain kernel safety fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/security-create-issue-status-validate-test.yml` | `ci.yml` | Fixture mixes complete/degraded scans and fake GitHub outcomes; issue creation must refuse incomplete host evidence and unsafe kernel approval. CI syntax/lint only; local behavior pass (see evidence note); retain issue safety fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/security-finding-classification-validate-test.yml` | `ci.yml` | Fixture covers DNF-applicable, reboot and investigation classifications using probe overrides; wrong/missing metadata must not produce approval. CI syntax/lint only; local behavior pass (see evidence note); retain classification fixture. | **Proposed · owner review pending** |
@@ -1114,6 +1132,7 @@ run IDs in the Phase 8 checkpoint are live evidence for those paths only.
 | task file `tasks/publish_freeze.yml` | `autographs_deploy` | Role copies exact publish status/full/incremental routes into Caddyfile when frozen; unfreeze removes them only with `allow_unfreeze=true`. Missing unique proxy insertion point blocks edit; `publish-freeze-render-test.yml` tests both states; retain. | **Dispositioned** · Retain freeze and cutover contract · IAC-005 |
 | task file `tasks/revalidate_uek_boot_state.yml` | `autographs_deploy` | Immediately before RHCK removal, role rechecks running/default UEK identity, image files, RPM owner and exact boot entries; drift aborts removal. Kernel persistence fixture; retain. | **Proposed · owner review pending** |
 | task file `tasks/validate_kernel_boot_entry.yml` | `autographs_deploy` | Looped running/default UEK task validates exact grubby entry, kernel image and concrete initramfs components; fixture probe override exercises missing/incomplete entry. Kernel persistence fixture; retain. | **Proposed · owner review pending** |
+| task file `tasks/wallet.yml` | `autographs_deploy` and `rotate-runtime-secret.yml` | Installs the Oracle wallet with restricted permissions and normalized network configuration. Both normal deployment and approved wallet rotation call it. | **Dispositioned** · Share the wallet installation tasks |
 | handler `Reload systemd` | `deploy/ansible/roles/autographs_deploy/handlers/main.yml` | Notified by kernel/coredump or service files; runs only when `explicit_cutover=false`. During full cutover, workflow owns ordered reload after freeze; suppression avoids premature service changes. Source condition plus freeze deploy fixture; retain. | **Proposed · owner review pending** |
 | handler `Restart controller container` | `deploy/ansible/roles/autographs_deploy/handlers/main.yml` | Notified by controller quadlet/env changes; suppressed when `explicit_cutover=true` so workflow controls replacement and health gate. In ordinary role mode it restarts service; source condition and freeze deploy fixture; retain. | **Proposed · owner review pending** |
 | handler `Restart Caddy container` | `deploy/ansible/roles/autographs_deploy/handlers/main.yml` | Notified by Caddyfile/quadlet and freeze task; suppressed during explicit cutover to preserve live frozen route until workflow switch. Non-cutover mode restarts; render/role reaudit fixtures; retain. | **Proposed · owner review pending** |
@@ -1177,5 +1196,6 @@ review surface and may contain private production inputs.
 | `.github/workflows/deploy.yml` | Release, production deploy, and Vault bootstrap | Push to main accumulates Release Please PR; Release PR merge creates a draft release and triggers production. PR #377 retains main-only manual `retry`, `rollback`, and `bootstrap_secrets`, and removes `cloudflare_plan/apply`. The saved Terraform plan includes reviewed DNS/cache changes on the ordinary release path; freeze, role deploy, health, then one readiness-backed explicit unfreeze gate release publication. Rollback is digest-mapped controller-only; failure leaves draft/frozen diagnostics. Local `test_release_workflow.py` passes; PR #377 merged after Terraform CI and second review; production release proof remains pending. |
 | `.github/workflows/image-cleanup.yml` | Runtime and GHCR image retention | Weekly schedule or manual `dry_run`; OCI state credential/IP fallback and SSH key target runtime, GitHub token manages GHCR, variables set repository/retention/protected tags. Both local and GHCR cleanup execute by default; manual `dry_run=true` previews both. Missing runtime IP fails before host action; local `test_cleanup_ghcr_images.py` pass, no live deletion claimed; retain. |
 | `.github/workflows/reboot-security-runtime.yml` | Approved production reboot and kernel cleanup | Issue `labeled` event only for non-PR `approved-production-reboot`; GH token/actor/issue, OCI state/IP fallback, SSH key and domain feed playbook. Target/advisory/kernel/DNF no-op preflight precedes reboot; failed playbook always invokes label cleanup and fails job. Local security issue-task tests and successful production reboot `43631340188`; retain. |
+| `.github/workflows/runtime-secret-rotation.yml` | Manual admin hash and wallet password rotation | Read-only check on main, fresh issue-label authorization, candidate and Vault version recheck, production deployment lock, and shared Vault and runtime tasks. No live rotation evidence yet. |
 | `.github/workflows/weekly-security-scan.yml` | Scheduled and manual security scan | Monday schedule or manual dispatch; GH token/repository/run ID, OCI state credentials/namespace/IP fallback and SSH key feed runner OpenSCAP and target inventory. `security-scan.yml` refuses incomplete host scan before issue publication; failure leaves no actionable approval. Production scan `43932933877` and local security issue-task tests; retain. |
 | `.github/actions/resolve-runtime-ip/action.yml` | Resolve production runtime address for maintenance workflows | Composite action receives OCI API key identity, state bucket/namespace/key/region and optional `VM_PUBLIC_IP`; reads Terraform `runtime_public_ip` output, then falls back only if state init/output unavailable. Empty both fails before SSH/Ansible, nonempty output is passed to deploy/security/cleanup callers. `scripts/test_release_workflow.py` local pass covers caller contract; state-read fallback is source-reviewed, not a live failure injection. Retain. |

@@ -168,6 +168,41 @@ the generated database password exists and the wallet/admin intentionally
 invalid version-1 bootstrap values have been replaced by `CURRENT` versions 2
 or later.
 
+## Rotate the admin hash or Oracle wallet password
+
+Set up the `approved-secret-rotation` issue label and a dedicated repository
+secret to sign preflight requests. From the repository checkout, run:
+
+```bash
+gh label create approved-secret-rotation --description "Approve one checked runtime secret rotation"
+openssl rand -hex 32 | gh secret set RUNTIME_SECRET_ROTATION_AUTH_KEY
+```
+
+1. As the repository owner, open an issue for the rotation and update one
+   GitHub credential. Use a new Argon2id hash for
+   `AUTOGRAPHS_ADMIN_PASSWORD_HASH`. For wallet rotation, update
+   `ORACLE_DB_WALLET_PASSWORD` and the corresponding
+   `ORACLE_DB_WALLET_ZIP_BASE64` together. Keep credentials and wallet files
+   out of the issue. Stage the second credential in a later request.
+2. Dispatch **Runtime Secret Rotation** from `main` with the issue number,
+   credential, and operation `rotate`. The run checks runtime availability,
+   the current Vault values, and the candidate. For a wallet it checks that
+   the supplied password opens the archive's PKCS#12 wallet. A successful
+   check comments on the issue with the credential and current Vault version.
+3. Review the comment and apply `approved-secret-rotation` within 24 hours.
+   The apply run takes the production deployment lock, consumes the approval,
+   and rechecks the saved request against GitHub and Vault. It writes the
+   selected value directly to Vault, then verifies the new CURRENT version.
+   A wallet change also installs the checked ZIP before the controller starts.
+   Controller health after restart confirms Oracle startup succeeded.
+
+If the run fails, inspect the Actions run and the current Vault version. If
+Vault still needs the new value, submit a fresh `rotate` check. If Vault
+already matches GitHub, submit a `reconcile` check for the same credential.
+Approve either request with a fresh label. Reconcile reinstalls the checked
+wallet when applicable and restarts and verifies the controller using the
+existing Vault version. Routine deployment continues to stop on mismatches.
+
 ## OCI-Managed Database Password Rotation Rollout
 
 Treat the first deployment that enables OCI generation and ADB-coordinated
