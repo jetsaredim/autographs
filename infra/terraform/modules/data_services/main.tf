@@ -18,13 +18,7 @@ resource "oci_database_autonomous_database" "catalog" {
 
   lifecycle {
     prevent_destroy = true
-
-    precondition {
-      condition     = var.runtime_secret_values_ready
-      error_message = "All managed runtime secrets must have a non-bootstrap CURRENT version before ADB can be created or updated. Run the explicit Vault bootstrap first."
-    }
   }
-
 }
 
 moved {

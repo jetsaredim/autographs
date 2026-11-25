@@ -115,9 +115,10 @@ cp infra/terraform/environments/prod/terraform.tfvars.example \
 
 10. Run the normal release deployment after bootstrap. It compares both manual
     GitHub Secrets against OCI Vault and fails before planning on a mismatch;
-    it never silently rotates them. Terraform checks secret version readiness,
-    creates ADB from the generated password secret OCID, then runs a guarded
-    second plan to attach scheduled database-password rotation after ADB exists.
+    it never silently rotates them. Terraform uses the managed, generated
+    password secret OCID to order ADB creation. It checks secret version
+    readiness before returning the controller's secret IDs. The workflow runs
+    a guarded second plan to attach scheduled rotation after ADB exists.
     A future wallet/admin rotation must be explicit and update both stores.
 
 ## IAM Boundary

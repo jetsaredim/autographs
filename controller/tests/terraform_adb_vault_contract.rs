@@ -23,25 +23,10 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     assert!(
         runtime_secrets.contains("enable_auto_generation = each.key == \"oracle_db_password\"")
     );
-    assert!(runtime_secrets.contains("data \"oci_vault_secrets\" \"oracle_db_password\""));
-    assert!(runtime_secrets.contains("data \"oci_vault_secrets\" \"runtime_readiness\""));
-    assert!(runtime_secrets.contains("data \"oci_vault_secret\" \"runtime_readiness\""));
-    assert!(runtime_secrets.contains("count          = var.bootstrap_runtime_secrets ? 0 : 1"));
-    assert!(runtime_secrets.contains(
-        "for_each = var.bootstrap_runtime_secrets ? {} : local.runtime_controller_secret_definitions"
-    ));
     assert!(
-        runtime_secrets.contains(
-            "secret_id = local.runtime_secret_metadata_by_name[each.value.secret_name].id"
-        )
+        runtime_secrets.contains("data \"oci_database_autonomous_databases\" \"rotation_target\"")
     );
-    assert!(runtime_secrets.contains("vault_id       = oci_kms_vault.runtime_secrets.id"));
-    assert!(runtime_secrets.contains(
-        "name           = local.runtime_controller_secret_definitions.oracle_db_password.secret_name"
-    ));
-    assert!(
-        runtime_secrets.contains("one(data.oci_vault_secrets.oracle_db_password[0].secrets).id")
-    );
+    assert!(!runtime_secrets.contains("data \"oci_vault_secrets\""));
     assert!(runtime_secrets.contains("dynamic \"secret_content\""));
     assert!(
         runtime_secrets.contains("for_each = each.key == \"oracle_db_password\" ? [] : [each.key]")
@@ -67,15 +52,16 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
     assert!(!tenancy_main.contains("resource \"oci_kms_key\""));
     assert!(!tenancy_main.contains("resource \"oci_vault_secret\""));
     assert!(normalize_whitespace(&root_main).contains(
-        "autonomous_database_admin_password_secret_id = local.autonomous_database_admin_password_secret_id"
+        "autonomous_database_admin_password_secret_id = oci_vault_secret.runtime[\"oracle_db_password\"].id"
     ));
-    assert!(!root_main.contains("oci_vault_secret.runtime[\"oracle_db_password\"].id"));
     assert!(module_variables.contains("variable \"autonomous_database_admin_password_secret_id\""));
-    assert!(module_variables.contains("variable \"runtime_secret_values_ready\""));
+    assert!(!root_main.contains("runtime_secret_values_ready"));
+    assert!(!module_variables.contains("runtime_secret_values_ready"));
     assert!(module_main.contains(
         "secret_id                   = var.autonomous_database_admin_password_secret_id"
     ));
-    assert!(module_main.contains("condition     = var.runtime_secret_values_ready"));
+    assert!(!module_main.contains("runtime_secret_values_ready"));
+    assert!(module_main.contains("prevent_destroy = true"));
     assert!(module_main.contains("from = oci_database_autonomous_database.catalog[0]"));
     assert!(module_main.contains("to   = oci_database_autonomous_database.catalog"));
     assert!(!root_variables.contains("variable \"create_autonomous_database\""));
@@ -96,7 +82,7 @@ fn deployment_root_owns_runtime_vault_resources_and_supplies_adb_secret_ocid() {
 }
 
 #[test]
-fn fresh_runtime_bootstrap_fails_closed_until_secret_values_are_ready() {
+fn runtime_secret_output_and_deploy_require_secret_readiness() {
     let runtime_secrets = read_repo("infra/terraform/runtime_secrets.tf");
     let variables = read_repo("infra/terraform/variables.tf");
     let example = read_repo("infra/terraform/environments/prod/terraform.tfvars.example");
@@ -106,20 +92,11 @@ fn fresh_runtime_bootstrap_fails_closed_until_secret_values_are_ready() {
     let runtime_secret_words = normalize_whitespace(&runtime_secrets);
     let bootstrap_words = normalize_whitespace(&bootstrap);
 
-    assert!(runtime_secrets.contains("runtime_secret_values_ready = alltrue(["));
-    assert!(
-        runtime_secrets
-            .contains("for name, definition in local.runtime_controller_secret_definitions")
-    );
-    assert!(runtime_secrets.contains("name == \"oracle_db_password\""));
     assert!(runtime_secret_words.contains(
-        "name == \"oracle_db_password\" ? ( try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) > 1 || ( try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) >= 1 && try(data.oci_vault_secret.runtime_readiness[name].is_auto_generation_enabled, false) ) )"
+        "for name, secret in oci_vault_secret.runtime : try(coalesce(tonumber(secret.current_version_number), 0), 0) > 1"
     ));
     assert!(runtime_secret_words.contains(
-        ") : try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) > 1"
-    ));
-    assert!(!runtime_secrets.contains(
-        "local.runtime_secret_metadata_by_name[definition.secret_name].current_version_number"
+        "name == \"oracle_db_password\" && try(coalesce(tonumber(secret.current_version_number), 0), 0) == 1 && coalesce(secret.is_auto_generation_enabled, false)"
     ));
     for source in [variables, example, ci, deploy.clone()] {
         assert!(!source.contains("runtime_secrets_ready"));

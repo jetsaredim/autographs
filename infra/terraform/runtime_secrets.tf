@@ -48,43 +48,17 @@ resource "oci_kms_key" "runtime_secrets" {
   freeform_tags = local.tags
 }
 
-data "oci_vault_secrets" "oracle_db_password" {
-  count          = var.bootstrap_runtime_secrets ? 0 : 1
-  compartment_id = local.compartment_ocid
-  vault_id       = oci_kms_vault.runtime_secrets.id
-  name           = local.runtime_controller_secret_definitions.oracle_db_password.secret_name
-}
-
-data "oci_vault_secrets" "runtime_readiness" {
-  compartment_id = local.compartment_ocid
-  vault_id       = oci_kms_vault.runtime_secrets.id
-}
-
+# Look up an existing database so rotation does not make secret creation depend on the managed ADB.
 data "oci_database_autonomous_databases" "rotation_target" {
   compartment_id = local.compartment_ocid
   display_name   = local.autonomous_database_display_name
 }
 
 locals {
-  autonomous_database_admin_password_secret_id = var.bootstrap_runtime_secrets ? null : one(data.oci_vault_secrets.oracle_db_password[0].secrets).id
-  runtime_secret_metadata_by_name = {
-    for secret in data.oci_vault_secrets.runtime_readiness.secrets :
-    secret.secret_name => secret
-    if contains([
-      for definition in values(local.runtime_controller_secret_definitions) :
-      definition.secret_name
-    ], secret.secret_name)
-  }
   existing_adb_rotation_target_id = one([
     for database in data.oci_database_autonomous_databases.rotation_target.autonomous_databases :
     database.id if database.db_name == local.autonomous_database_name
   ])
-}
-
-data "oci_vault_secret" "runtime_readiness" {
-  for_each = var.bootstrap_runtime_secrets ? {} : local.runtime_controller_secret_definitions
-
-  secret_id = local.runtime_secret_metadata_by_name[each.value.secret_name].id
 }
 
 resource "oci_vault_secret" "runtime" {
@@ -145,15 +119,11 @@ locals {
     definition.secret_id_env => try(oci_vault_secret.runtime[name].id, null)
   }
   runtime_secret_values_ready = alltrue([
-    for name, definition in local.runtime_controller_secret_definitions :
-    name == "oracle_db_password" ?
-    (
-      try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) > 1 ||
-      (
-        try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) >= 1 &&
-        try(data.oci_vault_secret.runtime_readiness[name].is_auto_generation_enabled, false)
-      )
-    ) :
-    try(tonumber(data.oci_vault_secret.runtime_readiness[name].current_version_number), 0) > 1
+    for name, secret in oci_vault_secret.runtime :
+    try(coalesce(tonumber(secret.current_version_number), 0), 0) > 1 || (
+      name == "oracle_db_password" &&
+      try(coalesce(tonumber(secret.current_version_number), 0), 0) == 1 &&
+      coalesce(secret.is_auto_generation_enabled, false)
+    )
   ])
 }

@@ -3,11 +3,6 @@ variable "compartment_id" {
   type        = string
 }
 
-variable "runtime_secret_values_ready" {
-  description = "Whether the runtime Vault secrets have been populated with real out-of-band values."
-  type        = bool
-}
-
 variable "autonomous_database_name" {
   description = "Oracle Autonomous Database DB name."
   type        = string

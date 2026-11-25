@@ -137,7 +137,7 @@ variable "runtime_ssh_public_keys" {
 }
 
 variable "bootstrap_runtime_secrets" {
-  description = "Use only for the explicit targeted Vault bootstrap before ADB exists. Omits remote secret reads and the ADB rotation target."
+  description = "Use only for the targeted Vault bootstrap to omit the ADB rotation configuration."
   type        = bool
   default     = false
 }

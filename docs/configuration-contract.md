@@ -115,17 +115,19 @@ admin password hash receive intentionally invalid Terraform bootstrap content;
 the bootstrap operation replaces only those exact version-1 placeholders from
 the two GitHub Secrets, then verifies their `CURRENT` versions advanced to at
 least 2. Any other mismatch fails without overwriting Vault. The generated database
-password must never be populated or overwritten out of band. Terraform derives
-readiness from non-secret Vault version metadata: until the generated password
-exists and both manual secrets have advanced, an ADB request fails its Terraform
-precondition. Normal deployment compares both manual Vault bundles with GitHub
-before planning and fails on mismatch. Secret contents do not enter Terraform
-inputs or state.
+password must never be populated or overwritten out of band. Terraform uses
+Vault version metadata to withhold secret IDs from the controller deployment
+until the generated password is ready and both manual secrets have advanced.
+Normal deployment compares both manual Vault bundles with GitHub before
+planning and fails on mismatch. The real secret values stay outside Terraform
+inputs and state.
 
 The runtime Terraform root owns the regional Vault, software key, and controller
 secrets and passes the managed Oracle database password secret OCID to the
-Autonomous Database resource as `secret_id`. ADB obtains that OCID through an
-exact-name lookup of the already-created secret. The managed secret discovers
+Autonomous Database resource as `secret_id`. The direct resource reference
+orders the password secret before ADB, including when both are created in one
+Terraform apply. The wallet password and admin hash are controller prerequisites.
+The managed secret discovers
 the existing ADB by its exact display and DB names for its OCI rotation target;
 the deploy workflow runs a guarded second plan after initial ADB creation to
 attach scheduled rotation. Only
