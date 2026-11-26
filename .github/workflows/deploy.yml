@@ -48,14 +48,14 @@ env:
 
 jobs:
   runtime-secrets:
-    name: Rotate approved runtime credentials from the merged PR
+    name: Resolve approved runtime credential rotation
     if: github.event_name == 'push'
     permissions:
       contents: read
       pull-requests: read
     uses: ./.github/workflows/runtime-secret-rotation.yml
     with:
-      mode: apply
+      mode: resolve
     secrets: inherit
 
   release:
@@ -116,7 +116,7 @@ jobs:
 
   production:
     name: Reconcile production release
-    needs: release
+    needs: [release, runtime-secrets]
     if: >-
       ${{
         always() &&
@@ -124,8 +124,9 @@ jobs:
           (
             github.event_name == 'push' &&
             needs.release.result == 'success' &&
-            needs.release.outputs.release_created == 'true' &&
-            needs.release.outputs.tag_name != ''
+            ((needs.release.outputs.release_created == 'true' &&
+              needs.release.outputs.tag_name != '') ||
+             needs.runtime-secrets.outputs.approval != '')
           ) ||
           (
             github.event_name == 'workflow_dispatch' &&
@@ -147,6 +148,8 @@ jobs:
         id: request
         env:
           AUTOMATIC_TAG: ${{ needs.release.outputs.tag_name }}
+          AUTOMATIC_RELEASE_CREATED: ${{ needs.release.outputs.release_created }}
+          ROTATION_APPROVAL: ${{ needs.runtime-secrets.outputs.approval }}
           DISPATCH_OPERATION: ${{ inputs.operation }}
           DISPATCH_TAG: ${{ inputs.release_tag }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -161,6 +164,10 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             operation=automatic
             release_tag="$AUTOMATIC_TAG"
+            if [[ "$AUTOMATIC_RELEASE_CREATED" != true && -n "$ROTATION_APPROVAL" ]]; then
+              echo 'operation=rotation' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           else
             operation="$DISPATCH_OPERATION"
             release_tag="$DISPATCH_TAG"
@@ -194,18 +201,25 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout selected release tag
-        if: steps.request.outputs.operation != 'rollback'
+        if: steps.request.outputs.operation != 'rollback' && steps.request.outputs.operation != 'rotation'
         uses: actions/checkout@v7
         with:
           fetch-depth: "0"
           ref: ${{ steps.request.outputs.release_tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Checkout merged automation for credential-only rotation
+        if: steps.request.outputs.operation == 'rotation'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
       - name: Checkout current Vault verification code
         if: steps.request.outputs.operation != 'rollback'
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ needs.runtime-secrets.outputs.approval != '' && github.sha || 'main' }}
           path: .vault-automation
           sparse-checkout: scripts/sync_runtime_vault_secrets.py
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -231,6 +245,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Validate selected release source
+        if: steps.request.outputs.operation != 'rotation'
         id: source
         env:
           RELEASE_TAG: ${{ steps.request.outputs.release_tag }}
@@ -358,10 +373,11 @@ jobs:
           fi
 
       - name: Set up Docker Buildx
+        if: steps.request.outputs.operation != 'rotation'
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to ghcr.io
-        if: steps.request.outputs.operation != 'rollback'
+        if: steps.request.outputs.operation != 'rollback' && steps.request.outputs.operation != 'rotation'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -377,7 +393,7 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Resolve controller image plan
-        if: steps.request.outputs.operation != 'rollback'
+        if: steps.request.outputs.operation != 'rollback' && steps.request.outputs.operation != 'rotation'
         id: image_plan
         env:
           OPERATION: ${{ steps.request.outputs.operation }}
@@ -501,7 +517,7 @@ jobs:
           provenance: false
 
       - name: Reconcile release manifest
-        if: steps.request.outputs.operation != 'rollback'
+        if: steps.request.outputs.operation != 'rollback' && steps.request.outputs.operation != 'rotation'
         id: manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -586,27 +602,29 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Setup Terraform
-        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
+        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true' && needs.runtime-secrets.outputs.approval == ''
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.17.2"
           terraform_wrapper: false
 
       - name: Select OCI CLI Python version
-        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
+        if: steps.manifest.outputs.production_mutation_required == 'true' || needs.runtime-secrets.outputs.approval != ''
         uses: actions/setup-python@v7
         with:
           python-version: '3.15.2'
 
       - name: Install OCI CLI for Vault verification
-        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
+        if: steps.manifest.outputs.production_mutation_required == 'true' || needs.runtime-secrets.outputs.approval != ''
         run: |
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/oci-cli"
           "$RUNNER_TEMP/oci-cli/bin/pip" install --disable-pip-version-check 'oci-cli==3.96.2'
 
       - name: Write OCI API private key
-        if: steps.manifest.outputs.production_mutation_required == 'true' || steps.request.outputs.operation == 'rollback'
+        if: >-
+          needs.runtime-secrets.outputs.approval == '' &&
+          (steps.manifest.outputs.production_mutation_required == 'true' || steps.request.outputs.operation == 'rollback')
         env:
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
         run: |
@@ -615,8 +633,20 @@ jobs:
           printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
           chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
 
+      - name: Resolve runtime VM IP for rollback or secret rotation
+        if: steps.request.outputs.operation == 'rollback' || needs.runtime-secrets.outputs.approval != ''
+        id: rollback_runtime
+        uses: ./.github/actions/resolve-runtime-ip
+        with:
+          oci-private-key-pem: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+          oci-cli-user-ocid: ${{ secrets.OCI_CLI_USER_OCID }}
+          oci-tenancy-ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          oci-fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          oci-object-storage-namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
+          vm-public-ip: ${{ vars.VM_PUBLIC_IP }}
+
       - name: Configure OCI CLI for Vault verification
-        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
+        if: steps.manifest.outputs.production_mutation_required == 'true' || needs.runtime-secrets.outputs.approval != ''
         env:
           OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
@@ -633,17 +663,31 @@ jobs:
           } > "$RUNNER_TEMP/oci/config"
           chmod 600 "$RUNNER_TEMP/oci/config"
 
-      - name: Resolve runtime VM IP for rollback
-        if: steps.request.outputs.operation == 'rollback'
-        id: rollback_runtime
-        uses: ./.github/actions/resolve-runtime-ip
-        with:
-          oci-private-key-pem: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-          oci-cli-user-ocid: ${{ secrets.OCI_CLI_USER_OCID }}
-          oci-tenancy-ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          oci-fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          oci-object-storage-namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
-          vm-public-ip: ${{ vars.VM_PUBLIC_IP }}
+      - name: Revalidate approved rotation before taking the controller down
+        if: needs.runtime-secrets.outputs.approval != ''
+        id: rotation_validation
+        working-directory: infra/terraform
+        env:
+          ROTATION_APPROVAL: ${{ needs.runtime-secrets.outputs.approval }}
+          RUNTIME_SECRET_ROTATION_AUTH_KEY: ${{ secrets.RUNTIME_SECRET_ROTATION_AUTH_KEY }}
+          AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
+          ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
+          ORACLE_DB_WALLET_ZIP_BASE64: ${{ secrets.ORACLE_DB_WALLET_ZIP_BASE64 }}
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
+          OCI_REGION: us-ashburn-1
+        run: |
+          set -euo pipefail
+          umask 077
+          approval="$RUNNER_TEMP/runtime-secret-approval.json"
+          printf '%s\n' "$ROTATION_APPROVAL" > "$approval"
+          python3 "$GITHUB_WORKSPACE/.vault-automation/scripts/sync_runtime_vault_secrets.py" rotation-validate \
+            --approval "$approval" --oci-bin "$RUNNER_TEMP/oci-cli/bin/oci" \
+            --oci-config-file "$RUNNER_TEMP/oci/config"
+          credential="$(jq -er '.approval.request.credential' "$approval")"
+          echo "credential=$credential" >> "$GITHUB_OUTPUT"
 
       - name: Recheck controller digest before full deployment
         if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
@@ -687,6 +731,7 @@ jobs:
           CLOUDFLARE_MODE_OVERRIDE: ${{ vars.CLOUDFLARE_MODE }}
           TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ROTATION_VALIDATED: ${{ steps.rotation_validation.outcome }}
           AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
           ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
         run: |
@@ -707,9 +752,11 @@ jobs:
             -backend-config="key=envs/prod/terraform.tfstate" \
             -backend-config="workspace_key_prefix=envs" \
             -backend-config="auth=APIKey"
-          python3 "$GITHUB_WORKSPACE/.vault-automation/scripts/sync_runtime_vault_secrets.py" verify \
-            --oci-bin "$RUNNER_TEMP/oci-cli/bin/oci" \
-            --oci-config-file "$RUNNER_TEMP/oci/config"
+          if [[ "$ROTATION_VALIDATED" != success ]]; then
+            python3 "$GITHUB_WORKSPACE/.vault-automation/scripts/sync_runtime_vault_secrets.py" verify \
+              --oci-bin "$RUNNER_TEMP/oci-cli/bin/oci" \
+              --oci-config-file "$RUNNER_TEMP/oci/config"
+          fi
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] \
             && [ "${{ steps.request.outputs.operation }}" = "retry" ] \
             && [ "${{ inputs.recreate_runtime_instance }}" = "true" ]; then
@@ -788,9 +835,63 @@ jobs:
             echo "oracle_db_wallet_password_vault_secret_id=${oracle_db_wallet_password_vault_secret_id}"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Select release or credential-only cutover identity
+        if: steps.manifest.outputs.production_mutation_required == 'true' || steps.rotation_validation.outcome == 'success'
+        id: cutover
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_RELEASE: ${{ steps.manifest.outputs.production_mutation_required }}
+          RELEASE_TAG: ${{ steps.request.outputs.release_tag }}
+          RELEASE_DIGEST: ${{ steps.manifest.outputs.controller_digest }}
+          RELEASE_SOURCE: ${{ steps.source.outputs.source_revision }}
+          RELEASE_RUNTIME: ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
+          ROTATION_RUNTIME: ${{ steps.rollback_runtime.outputs.runtime_public_ip }}
+        run: |
+          set -euo pipefail
+          if [[ "$DEPLOY_RELEASE" == true ]]; then
+            mode=release
+            repo_version="$RELEASE_TAG"
+            controller_digest="$RELEASE_DIGEST"
+            source_revision="$RELEASE_SOURCE"
+            runtime_ip="$RELEASE_RUNTIME"
+          else
+            mode=rotation
+            status="$(gh api -H 'Accept: application/vnd.github.raw+json' \
+              "repos/$GITHUB_REPOSITORY/contents/.release-status.json?ref=main")"
+            repo_version="$(jq -er '.deployedRepositoryVersion' <<< "$status")"
+            controller_digest="$(jq -er '.deployedControllerDigest' <<< "$status")"
+            source_revision="$(jq -er '.sourceRevision' <<< "$status")"
+            runtime_ip="$ROTATION_RUNTIME"
+          fi
+          [[ "$repo_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ &&
+             "$controller_digest" =~ ^sha256:[0-9a-f]{64}$ &&
+             "$source_revision" =~ ^[0-9a-f]{40}$ && -n "$runtime_ip" ]]
+          printf '%s\n' "mode=$mode" "repo_version=$repo_version" "controller_digest=$controller_digest" \
+            "source_revision=$source_revision" "runtime_ip=$runtime_ip" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the installed controller identity before credential-only freeze
+        if: steps.cutover.outputs.mode == 'rotation'
+        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
+        env:
+          ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
+          ROTATION_CREDENTIAL: ${{ steps.rotation_validation.outputs.credential }}
+        with:
+          playbook: playbooks/rotate-runtime-secret.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            ${{ steps.cutover.outputs.runtime_ip }}
+          requirements: collections/requirements.yml
+          options: |
+            --tags rotation_identity
+            --extra-vars autographs_deploy_repo_version=${{ steps.cutover.outputs.repo_version }}
+            --extra-vars autographs_deploy_controller_digest=${{ steps.cutover.outputs.controller_digest }}
+            --extra-vars autographs_deploy_source_revision=${{ steps.cutover.outputs.source_revision }}
+
       - name: Freeze and verify publisher cutover preflight
         id: publish_freeze_preflight
-        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true'
+        if: steps.cutover.outputs.mode != ''
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
@@ -800,15 +901,83 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
+            ${{ steps.cutover.outputs.runtime_ip }}
           requirements: collections/requirements.yml
           options: |
-            --extra-vars autographs_deploy_repo_version=${{ steps.request.outputs.release_tag }}
-            --extra-vars autographs_deploy_controller_digest=${{ steps.manifest.outputs.controller_digest }}
+            --extra-vars autographs_deploy_repo_version=${{ steps.cutover.outputs.repo_version }}
+            --extra-vars autographs_deploy_controller_digest=${{ steps.cutover.outputs.controller_digest }}
             --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
 
+      - name: Prove the frozen controller is stopped before rotating Vault
+        if: steps.rotation_validation.outcome == 'success' && steps.publish_freeze_preflight.outcome == 'success'
+        id: rotation_stopped
+        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
+        env:
+          ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
+          ROTATION_CREDENTIAL: ${{ steps.rotation_validation.outputs.credential }}
+        with:
+          playbook: playbooks/rotate-runtime-secret.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            ${{ steps.cutover.outputs.runtime_ip }}
+          requirements: collections/requirements.yml
+          options: |
+            --tags rotation_stopped
+            --extra-vars autographs_deploy_repo_version=${{ steps.cutover.outputs.repo_version }}
+            --extra-vars autographs_deploy_controller_digest=${{ steps.cutover.outputs.controller_digest }}
+
+      - name: Apply the approved rotation while the controller is stopped
+        if: steps.rotation_stopped.outcome == 'success'
+        id: rotation_apply
+        working-directory: infra/terraform
+        env:
+          RUNTIME_SECRET_ROTATION_AUTH_KEY: ${{ secrets.RUNTIME_SECRET_ROTATION_AUTH_KEY }}
+          AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
+          ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
+          ORACLE_DB_WALLET_ZIP_BASE64: ${{ secrets.ORACLE_DB_WALLET_ZIP_BASE64 }}
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
+          OCI_REGION: us-ashburn-1
+        run: |
+          set -euo pipefail
+          umask 077
+          wallet_file="$RUNNER_TEMP/rotation-wallet.b64"
+          python3 "$GITHUB_WORKSPACE/.vault-automation/scripts/sync_runtime_vault_secrets.py" rotation-apply \
+            --approval "$RUNNER_TEMP/runtime-secret-approval.json" --oci-bin "$RUNNER_TEMP/oci-cli/bin/oci" \
+            --oci-config-file "$RUNNER_TEMP/oci/config" --wallet-output "$wallet_file"
+          if [[ -f "$wallet_file" ]]; then
+            echo "wallet_file=$wallet_file" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Start and verify the current controller after credential-only rotation
+        if: steps.cutover.outputs.mode == 'rotation' && steps.rotation_apply.outcome == 'success'
+        id: rotation_resume
+        uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
+        env:
+          ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
+          ROTATION_CREDENTIAL: ${{ steps.rotation_validation.outputs.credential }}
+          AUTOGRAPHS_VERIFIED_WALLET_FILE: ${{ steps.rotation_apply.outputs.wallet_file }}
+        with:
+          playbook: playbooks/rotate-runtime-secret.yml
+          directory: deploy/ansible
+          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          inventory: |
+            [runtime]
+            ${{ steps.cutover.outputs.runtime_ip }}
+          requirements: collections/requirements.yml
+          options: |
+            --tags rotation_resume
+            --extra-vars autographs_deploy_repo_version=${{ steps.cutover.outputs.repo_version }}
+            --extra-vars autographs_deploy_controller_digest=${{ steps.cutover.outputs.controller_digest }}
+
       - name: Run full deployment
-        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true' && steps.publish_freeze_preflight.outcome == 'success'
+        if: >-
+          steps.cutover.outputs.mode == 'release' && steps.publish_freeze_preflight.outcome == 'success' &&
+          (needs.runtime-secrets.outputs.approval == '' || steps.rotation_apply.outcome == 'success')
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
@@ -818,6 +987,7 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           ORACLE_DB_PASSWORD_VAULT_SECRET_ID: ${{ steps.terraform_apply.outputs.oracle_db_password_vault_secret_id }}
           ORACLE_DB_WALLET_PASSWORD_VAULT_SECRET_ID: ${{ steps.terraform_apply.outputs.oracle_db_wallet_password_vault_secret_id }}
+          AUTOGRAPHS_VERIFIED_WALLET_FILE: ${{ steps.rotation_apply.outputs.wallet_file }}
           ORACLE_DB_WALLET_ZIP_BASE64: ${{ secrets.ORACLE_DB_WALLET_ZIP_BASE64 }}
         with:
           playbook: playbooks/deploy.yml
@@ -888,7 +1058,8 @@ jobs:
 
       - name: Explicitly unfreeze verified production publication
         id: publish_unfreeze
-        if: steps.request.outputs.operation != 'rollback' && steps.manifest.outputs.production_mutation_required == 'true' && steps.deployment_health.outputs.verified == 'true'
+        if: >-
+          steps.deployment_health.outputs.verified == 'true' || steps.rotation_resume.outcome == 'success'
         uses: dawidd6/action-ansible-playbook@126642a1c6ce512da255ef2b41e8ee90f0077474 # v9
         env:
           ANSIBLE_CONFIG: ${{ format('{0}/deploy/ansible/ansible.cfg', github.workspace) }}
@@ -898,17 +1069,17 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           inventory: |
             [runtime]
-            ${{ steps.terraform_apply.outputs.runtime_public_ip || vars.VM_PUBLIC_IP }}
+            ${{ steps.cutover.outputs.runtime_ip }}
           requirements: collections/requirements.yml
           options: |
-            --extra-vars autographs_deploy_repo_version=${{ steps.request.outputs.release_tag }}
-            --extra-vars autographs_deploy_controller_digest=${{ steps.manifest.outputs.controller_digest }}
-            --extra-vars autographs_deploy_source_revision=${{ steps.source.outputs.source_revision }}
+            --extra-vars autographs_deploy_repo_version=${{ steps.cutover.outputs.repo_version }}
+            --extra-vars autographs_deploy_controller_digest=${{ steps.cutover.outputs.controller_digest }}
+            --extra-vars autographs_deploy_source_revision=${{ steps.cutover.outputs.source_revision }}
             --extra-vars autographs_deploy_domain=${{ env.AUTOGRAPHS_DOMAIN }}
             --extra-vars autographs_publish_unfreeze_verify_only=false
 
       - name: Validate release completion gate
-        if: steps.request.outputs.operation != 'rollback'
+        if: steps.request.outputs.operation != 'rollback' && steps.request.outputs.operation != 'rotation'
         id: release_gate
         env:
           OPERATION: ${{ steps.request.outputs.operation }}
@@ -916,10 +1087,17 @@ jobs:
           DEPLOYMENT_VERIFIED: ${{ steps.deployment_health.outputs.verified }}
           PUBLISH_UNFREEZE_OUTCOME: ${{ steps.publish_unfreeze.outcome }}
           RETRY_RECOVERY_VERIFIED: ${{ steps.retry_recovery.outputs.verified }}
+          ROTATION_REQUIRED: ${{ needs.runtime-secrets.outputs.approval != '' }}
+          ROTATION_OUTCOME: ${{ steps.rotation_apply.outcome }}
         run: |
           set -euo pipefail
           if [ "$OPERATION" = "retry" ] && [ "$RETRY_RECOVERY_VERIFIED" != "true" ]; then
             echo "Retry completion requires a verified recovery audit." >&2
+            exit 1
+          fi
+          if [[ "$ROTATION_REQUIRED" == true &&
+            ( "$ROTATION_OUTCOME" != success || "$PUBLISH_UNFREEZE_OUTCOME" != success ) ]]; then
+            echo "Release completion requires the approved rotation and verified publication unfreeze." >&2
             exit 1
           fi
           case "$PRODUCTION_MUTATION_REQUIRED" in

@@ -195,16 +195,22 @@ check and cannot authorize rotation.
    and label event. Wallet checks also verify the password can open the
    checked PKCS#12 wallet. Wait for the green check, then merge within 24 hours.
    If the PR changes or the check has expired, remove and reapply the label.
-4. The resulting `main` push applies the rotation before release processing.
-   It rechecks the exact approved candidate and Vault version under the
-   production deployment lock. After updating Vault, it restarts and verifies
-   the controller. Wallet rotation installs the verified ZIP before restart.
+4. The resulting `main` push selects the reviewed release if it deploys
+   runtime changes, or verifies the installed release for a credential-only
+   cutover. Under the production deployment lock, it revalidates the approval,
+   freezes publishing, and proves the controller is stopped. The runner then
+   writes and verifies the Vault version. Wallet rotation installs the checked
+   ZIP while the controller is still down. The job starts the controller once
+   and verifies Oracle health before unfreezing. A release that also changes
+   the runtime uses its existing cutover for all of these steps.
 
-If the merge run fails after updating Vault, rerun the failed rotation job
-from that same Actions run. The job recognizes the Vault version it created
-and retries runtime convergence without creating another version. If the
-candidate or Vault version changed after approval, use a fresh PR and approval.
-Ordinary releases continue to fail on an unapproved mismatch.
+If the cutover fails, rerun the failed production job from that same Actions
+run. Leave publishing frozen until the controller has started successfully and
+the unfreeze checks pass. A retry recognizes the Vault version written by the
+same run and finishes the cutover without creating another version. If the
+candidate or Vault version changed after approval, restore the approved
+candidate where applicable or resolve any outstanding draft before requesting
+fresh approval. Ordinary releases continue to fail on an unapproved mismatch.
 
 ## OCI-Managed Database Password Rotation Rollout
 

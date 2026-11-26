@@ -221,7 +221,7 @@ def preflight_rotation(repository, pull_request, head, label_event, oci_bin, con
     return {"request": record, "signature": rotation_signature(record, secret_id, candidate, archive)}
 
 
-def apply_rotation(approval, repository, pull_request, head, label_event, merged_at, oci_bin, config_file):
+def apply_rotation(approval, repository, pull_request, head, label_event, merged_at, oci_bin, config_file, *, write=True):
     try:
         record = approval["request"]
         signature = approval["signature"]
@@ -248,21 +248,22 @@ def apply_rotation(approval, repository, pull_request, head, label_event, merged
     if not hmac.compare_digest(signature, expected):
         raise SyncError("The GitHub candidate changed after approval")
     if version == record["version"] and not hmac.compare_digest(current, candidate):
-        etag = current_etag(oci_bin, config_file, secret_id, version)
-        version = update_current(
-            oci_bin, config_file, secret_id, name, candidate, version, "rotation", etag=etag,
-        )
+        if write:
+            etag = current_etag(oci_bin, config_file, secret_id, version)
+            version = update_current(
+                oci_bin, config_file, secret_id, name, candidate, version, "rotation", etag=etag,
+            )
     elif not (version > record["version"]
               and version_name == write_version_name("rotation", name)
               and hmac.compare_digest(current, candidate)):
         raise SyncError("The Vault version changed after approval")
-    print(f"{name}: CURRENT version {version} verified")
+    print(f"{name}: CURRENT version {version} verified" if write else f"{name}: rotation approval revalidated")
     return archive
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("verify", "bootstrap", "rotation-check", "rotation-apply"))
+    parser.add_argument("mode", choices=("verify", "bootstrap", "rotation-check", "rotation-validate", "rotation-apply"))
     parser.add_argument("--oci-bin", required=True)
     parser.add_argument("--oci-config-file", required=True)
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"))
@@ -270,34 +271,34 @@ def main():
     parser.add_argument("--head")
     parser.add_argument("--label-event", type=int, default=0)
     parser.add_argument("--label-present", action="store_true")
-    parser.add_argument("--merged-at")
     parser.add_argument("--approval", type=Path)
     parser.add_argument("--wallet-output", type=Path)
     args = parser.parse_args()
     try:
         if args.mode in ("bootstrap", "verify"):
             sync(args.mode, args.oci_bin, args.oci_config_file)
-        else:
+        elif args.mode == "rotation-check":
             if (not args.repository or not args.pull_request or args.pull_request < 1
                     or not args.head or not re.fullmatch(r"[a-f0-9]{40}", args.head)
                     or args.approval is None):
-                parser.error("rotation requires the repository, PR, head SHA and approval file")
-            if args.mode == "rotation-check":
-                record = preflight_rotation(args.repository, args.pull_request, args.head, args.label_event,
-                                            args.oci_bin, args.oci_config_file, label_present=args.label_present)
-                if record:
-                    args.approval.write_text(json.dumps(record) + "\n", encoding="utf-8")
-            else:
-                if not args.merged_at or not args.label_event:
-                    parser.error("rotation-apply requires the merge time and approved label event")
-                try:
-                    approval = json.loads(args.approval.read_text(encoding="utf-8"))
-                except (OSError, ValueError) as error:
-                    raise SyncError("Could not read the rotation approval") from error
-                archive = apply_rotation(approval, args.repository, args.pull_request, args.head, args.label_event,
-                                         args.merged_at, args.oci_bin, args.oci_config_file)
-                if archive and args.wallet_output:
-                    args.wallet_output.write_bytes(base64.b64encode(archive))
+                parser.error("rotation checking requires the repository, PR, head SHA and approval file")
+            record = preflight_rotation(args.repository, args.pull_request, args.head, args.label_event,
+                                        args.oci_bin, args.oci_config_file, label_present=args.label_present)
+            if record:
+                args.approval.write_text(json.dumps(record) + "\\n", encoding="utf-8")
+        else:
+            if not args.repository or args.approval is None:
+                parser.error("rotation requires the repository and resolved approval file")
+            try:
+                context = json.loads(args.approval.read_text(encoding="utf-8"))
+                approval = context["approval"]
+                merge = [context[key] for key in ("pull_request", "head", "label_event", "merged_at")]
+            except (OSError, KeyError, TypeError, ValueError) as error:
+                raise SyncError("Could not read the resolved rotation approval") from error
+            write = args.mode == "rotation-apply"
+            archive = apply_rotation(approval, args.repository, *merge, args.oci_bin, args.oci_config_file, write=write)
+            if write and archive and args.wallet_output:
+                args.wallet_output.write_bytes(base64.b64encode(archive))
     except SyncError as error:
         print(f"Vault secret check failed: {error}", file=sys.stderr)
         return 1

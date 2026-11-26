@@ -125,11 +125,11 @@ class RuntimeVaultRotationTests(unittest.TestCase):
             self.label_event if label_event is None else label_event, "oci", "config",
         )
 
-    def apply(self, approval, *, head=None, label_event=None, merged_at=None):
+    def apply(self, approval, *, head=None, label_event=None, merged_at=None, write=True):
         return sync.apply_rotation(
             approval, self.repository, self.pull_request, head or self.head,
             label_event or self.label_event,
-            merged_at or datetime.now(timezone.utc).isoformat(), "oci", "config",
+            merged_at or datetime.now(timezone.utc).isoformat(), "oci", "config", write=write,
         )
 
     def test_ci_flags_live_drift_without_label_and_a_labeled_check_never_writes(self):
@@ -137,7 +137,9 @@ class RuntimeVaultRotationTests(unittest.TestCase):
             self.check(label_event=0)
         approval = self.check()
         self.assertNotIn(self.admin_candidate, json.dumps(approval))
+        self.apply(approval, write=False)
         self.write.assert_not_called()
+        self.metadata.assert_not_called()
         self.apply(approval)
         self.write.assert_called_once_with(
             "oci", "config", "admin-id", self.credential, self.admin_candidate.encode(), 7,

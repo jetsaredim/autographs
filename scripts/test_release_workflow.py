@@ -197,21 +197,43 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             self.assertIn(term, condition)
         self.assertNotIn("release", self.workflow["on"])
 
-    def test_secret_rotation_is_read_only_before_merge_and_precedes_release(self):
+    def test_secret_rotation_is_read_only_until_the_controller_is_frozen_and_stopped(self):
         source = WORKFLOW_PATH.parent
         check = yaml.load((source / "ci-runtime-secrets.yml").read_text(), Loader=yaml.BaseLoader)
         reused = yaml.load((source / "runtime-secret-rotation.yml").read_text(), Loader=yaml.BaseLoader)
         caller = self.workflow["jobs"]["runtime-secrets"]
         self.assertEqual(check["jobs"]["drift"]["with"]["mode"], "check")
         self.assertIn("pull_request_target", check["on"])
-        self.assertEqual(caller["with"]["mode"], "apply")
+        self.assertEqual(caller["with"]["mode"], "resolve")
         self.assertEqual(self.release_job["needs"], "runtime-secrets")
         self.assertNotIn("issues", reused["on"])
         job = reused["jobs"]["rotation"]
         checkout = next(step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout"))
         self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
-        runtime = next(step for step in job["steps"] if step["name"] == "Apply runtime credentials and verify controller health")
-        self.assertIn("inputs.mode == 'apply'", runtime["if"])
+        self.assertFalse(any("rotation-apply" in step.get("run", "") for step in job["steps"]))
+        frozen = "Freeze and verify publisher cutover preflight"
+        stopped = "Prove the frozen controller is stopped before rotating Vault"
+        update = "Apply the approved rotation while the controller is stopped"
+        resume = "Start and verify the current controller after credential-only rotation"
+        unfreeze = "Explicitly unfreeze verified production publication"
+        self.assert_ordered([
+            "Revalidate approved rotation before taking the controller down",
+            frozen, stopped, update, resume, "Run full deployment",
+            "Verify deployment health", unfreeze,
+        ])
+        steps = self.production_steps
+        self.assertIn("steps.publish_freeze_preflight.outcome == 'success'", steps[stopped]["if"])
+        self.assertEqual(steps[update]["if"], "steps.rotation_stopped.outcome == 'success'")
+        self.assertIn("steps.cutover.outputs.mode == 'rotation'", steps[resume]["if"])
+        self.assertIn("steps.rotation_apply.outcome == 'success'", steps[resume]["if"])
+        deploy = steps["Run full deployment"]
+        self.assertIn("steps.cutover.outputs.mode == 'release'", deploy["if"])
+        self.assertIn("steps.rotation_apply.outcome == 'success'", deploy["if"])
+        for step in (steps[resume], deploy):
+            self.assertEqual(step["env"]["AUTOGRAPHS_VERIFIED_WALLET_FILE"],
+                             "${{ steps.rotation_apply.outputs.wallet_file }}")
+        self.assertIn("steps.rotation_resume.outcome == 'success'", steps[unfreeze]["if"])
+        self.assertIn("steps.deployment_health.outputs.verified == 'true'", steps[unfreeze]["if"])
 
     def test_merge_rotation_uses_the_reviewed_pr_head_and_latest_premerge_label(self):
         workflow = yaml.load(
@@ -247,7 +269,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             fake_gh.chmod(0o700)
             env = {
                 **os.environ, "PATH": f"{temp}:{os.environ['PATH']}", "RUNNER_TEMP": temp,
-                "GITHUB_OUTPUT": str(directory / "output"), "MODE": "apply", "OWNER": "owner",
+                "GITHUB_OUTPUT": str(directory / "output"), "MODE": "resolve", "OWNER": "owner",
                 "GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": merged_sha,
                 "GITHUB_REPOSITORY": "owner/repo", "APPROVAL_LABEL": label,
             }
@@ -882,7 +904,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         gate = self.production_steps[gate_name]
         self.assertEqual(gate["id"], "release_gate")
         self.assertEqual(
-            gate["if"], "steps.request.outputs.operation != 'rollback'"
+            gate["if"], "steps.request.outputs.operation != 'rollback' && steps.request.outputs.operation != 'rotation'"
         )
         self.assertEqual(
             gate["env"]["PRODUCTION_MUTATION_REQUIRED"],

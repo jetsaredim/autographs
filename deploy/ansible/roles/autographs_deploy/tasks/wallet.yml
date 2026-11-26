@@ -10,10 +10,15 @@
 
     - name: Write Oracle DB wallet archive
       ansible.builtin.copy:
-        content: "{{ lookup('env', 'ORACLE_DB_WALLET_ZIP_BASE64') | default('', true) }}"
+        content: >-
+          {{ lookup('ansible.builtin.file', autographs_verified_wallet_file)
+             if autographs_verified_wallet_file else
+             lookup('env', 'ORACLE_DB_WALLET_ZIP_BASE64') }}
         dest: "{{ autographs_deploy_wallet_staging.path }}/wallet.zip.b64"
         mode: "0600"
       no_log: true
+      vars:
+        autographs_verified_wallet_file: "{{ lookup('env', 'AUTOGRAPHS_VERIFIED_WALLET_FILE') }}"
 
     - name: Decode Oracle DB wallet archive
       ansible.builtin.shell:
