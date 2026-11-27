@@ -161,7 +161,7 @@ jobs:
           components: clippy,rustfmt
 
       - name: Install Rust coverage tooling
-        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2
+        uses: taiki-e/install-action@073e1fd0bc889c9aee68dbaaa927cde1b5653a83 # v2
         with:
           tool: cargo-llvm-cov@0.8.7
           fallback: none
