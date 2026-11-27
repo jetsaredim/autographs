@@ -195,21 +195,19 @@ separate credentials.
    Leave `OCI_TENANCY_OCID` configured. While `legacy` is selected, keep the
    existing `OCI_CLI_USER_OCID`, `OCI_FINGERPRINT`, and `OCI_PRIVATE_KEY_PEM`
    secrets available.
-4. Open a same-repository PR that changes only
-   `.github/oci-deploy-identity.json`. Set `slot` to the candidate slot,
-   `fingerprint` to its OCI fingerprint, and `approval_pr` to that PR's number.
-   If needed, open the PR with the slot and fingerprint first, then update it
-   with the PR number. The trusted check loads the selector as data, verifies
-   the RSA fingerprint, reads the existing regional state, runs a refresh-only
-   plan, and tests access to a CURRENT Vault bundle without printing its
-   contents.
-5. After the candidate proof passes, the repository owner applies
-   `approved-oci-signing-key-rotation`. Create the label once if it does not
-   exist. Applying the label reruns the proof and records approval for that PR
-   head, slot, fingerprint, and label event. If the PR changes, remove and
-   reapply the label. Merge after **OCI signing key rotation** is green.
-   Subsequent jobs select the approved signer from the merged file and
-   check the recorded approval and matching credential before authenticating.
+4. In GitHub Actions, open **Rotate OCI deploy signing key** and run it from
+   `main` as the repository owner. Supply the staged slot and its OCI
+   fingerprint. Leave **Switch the active signer after verification** off
+   to test the candidate without switching. The runner verifies the RSA
+   fingerprint, reads existing regional state, runs a refresh-only Terraform
+   plan, and reads a CURRENT Vault bundle without printing its contents.
+5. To switch, dispatch the same workflow with **Switch the active signer
+   after verification** on. It repeats every check and records the slot and
+   fingerprint in the GitHub deployment history for `oci-deploy-signer`
+   only after they pass. All regional OCI jobs read the latest successful
+   selection. Each job verifies its configured key against the recorded
+   fingerprint when it starts. Before the first successful switch, jobs use
+   the legacy credentials.
 6. Verify the selected signer in a fresh normal Terraform CI or production
    workflow. Wait for old-key jobs to finish, then use a separate tenancy
    admin plan and apply to remove only the retired registration. Remove the
@@ -217,12 +215,12 @@ separate credentials.
    remove the old `deploy_user_api_public_key` input as well as any `a` entry
    from the map. Run retries from the current `main` workflow after retirement.
 
-If activation needs to be reversed, keep the old credential available and
-open a selector-only PR pointing to it with the new PR number and its
-fingerprint. Use `legacy` if the old credential still uses the three legacy
-repo secrets. The same check and label authorize rollback. The tenancy
-administrator can restore a missing public-key registration using the OCI
-Console while retaining access to the tenancy stack.
+To roll back, run the workflow again with activation enabled and select the
+previously verified slot and its fingerprint. Use `legacy` if the outgoing
+key still uses the three legacy repo secrets. Keep that credential staged
+and its public key registered until the incoming signer is verified. The
+tenancy administrator can restore a missing public-key registration in the
+OCI Console while retaining access to the tenancy stack.
 
 ## IAM Boundary
 

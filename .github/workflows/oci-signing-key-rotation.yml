@@ -1,50 +1,53 @@
-name: OCI signing-key rotation
+name: Rotate OCI deploy signing key
 
 on:
-  pull_request_target:
-    branches: [main]
-    paths: [.github/oci-deploy-identity.json]
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "Staged slot to verify (use the outgoing slot for rollback)"
+        type: choice
+        options: [a, b, legacy]
+        required: true
+      fingerprint:
+        description: "OCI fingerprint of the key staged in that slot"
+        type: string
+        required: true
+      activate:
+        description: "Switch the active signer after verification"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-  pull-requests: read
-  statuses: write
+  deployments: write
+
+concurrency:
+  group: oci-deploy-signer
+  cancel-in-progress: false
 
 jobs:
   candidate:
-    name: Check OCI signing-key candidate
+    name: Verify and optionally activate staged OCI signer
     if: >-
-      (github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
-      github.event.label.name == 'approved-oci-signing-key-rotation'
-    concurrency:
-      group: oci-signing-key-pr-${{ github.event.pull_request.number }}
-      cancel-in-progress: false
+      github.ref == 'refs/heads/main' &&
+      github.actor == github.repository_owner &&
+      github.run_attempt == 1
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 20
     env:
-      REPOSITORY_OWNER: ${{ github.repository_owner }}
+      CANDIDATE_SLOT: ${{ inputs.slot }}
+      CANDIDATE_FINGERPRINT: ${{ inputs.fingerprint }}
     steps:
-      - name: Check out trusted base automation
+      - name: Check out main automation for this dispatch
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Read the proposed selector as data
+      - name: Load OCI deploy signing key
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 scripts/oci_deploy_identity.py prepare \
-            "$RUNNER_TEMP/signing-key-request.json" "$RUNNER_TEMP/signing-key-candidate.json"
-          if [[ -f "$RUNNER_TEMP/signing-key-candidate.json" ]]; then
-            echo "CHECK_OCI_SIGNER=true" >> "$GITHUB_ENV"
-          fi
-
-      - name: Load OCI deploy signing key
-        if: env.CHECK_OCI_SIGNER == 'true'
-        env:
           OCI_DEPLOY_USER_OCID: ${{ vars.OCI_DEPLOY_USER_OCID }}
           OCI_DEPLOY_KEY_A: ${{ secrets.OCI_DEPLOY_KEY_A }}
           OCI_DEPLOY_KEY_B: ${{ secrets.OCI_DEPLOY_KEY_B }}
@@ -52,23 +55,20 @@ jobs:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-        run: python3 scripts/oci_deploy_identity.py load --candidate "$RUNNER_TEMP/signing-key-candidate.json"
+        run: python3 scripts/oci_deploy_identity.py check-candidate
 
       - name: Set up Terraform
-        if: env.CHECK_OCI_SIGNER == 'true'
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.17.2"
           terraform_wrapper: false
 
       - name: Select OCI CLI Python version
-        if: env.CHECK_OCI_SIGNER == 'true'
         uses: actions/setup-python@v7
         with:
           python-version: '3.15.2'
 
       - name: Prove access to existing production state and Vault
-        if: env.CHECK_OCI_SIGNER == 'true'
         working-directory: infra/terraform
         env:
           OCI_NAMESPACE: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
@@ -117,15 +117,8 @@ jobs:
             --query 'data."version-number"' --raw-output >/dev/null
           echo "Candidate authenticated to OCI Vault."
 
-      - name: Record verification and exact-head approval
-        if: always() && !cancelled()
+      - name: Activate verified signer
+        if: inputs.activate
         env:
           GH_TOKEN: ${{ github.token }}
-          RESULT: ${{ job.status }}
-        run: |
-          args=()
-          if [[ "$RESULT" == success ]]; then
-            args+=(--passed)
-          fi
-          python3 scripts/oci_deploy_identity.py report \
-            "$RUNNER_TEMP/signing-key-request.json" "$RUNNER_TEMP/signing-key-candidate.json" "${args[@]}"
+        run: python3 scripts/oci_deploy_identity.py activate

@@ -1,4 +1,3 @@
-import base64
 import json
 import os
 from pathlib import Path
@@ -6,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 import yaml
 
@@ -23,27 +23,7 @@ class DeployIdentityTest(unittest.TestCase):
         cls.fingerprint = identity.key_fingerprint(cls.pem)
 
     def setUp(self):
-        self.config = {"slot": "b", "fingerprint": self.fingerprint, "approval_pr": 21}
-        self.head = "a" * 40
-        self.pr = {
-            "state": "open",
-            "merged_at": "2026-11-27T12:00:00Z",
-            "base": {"ref": "main"},
-            "head": {"sha": self.head, "repo": {"full_name": "owner/repo"}},
-            "user": {"login": "owner"},
-        }
-        self.event = {
-            "id": 18, "label": {"name": identity.LABEL}, "event": "labeled",
-            "actor": {"login": "owner"}, "created_at": "2026-11-27T11:55:00Z",
-            "commit_id": None,
-        }
-        self.status = {
-            "context": identity.STATUS,
-            "created_at": "2026-11-27T11:59:00Z",
-            "state": "success",
-            "creator": {"login": "github-actions[bot]"},
-            "description": identity.description(self.config, self.event["id"]),
-        }
+        self.config = {"slot": "b", "fingerprint": self.fingerprint}
         self.settings = patch.dict(os.environ, {
             "OCI_DEPLOY_USER_OCID": "ocid1.user.oc1..candidate",
             "OCI_CLI_USER_OCID": "ocid1.user.oc1..legacy",
@@ -54,27 +34,23 @@ class DeployIdentityTest(unittest.TestCase):
                 "fingerprint": self.fingerprint,
                 "private_key_pem": self.pem,
             }),
-            "REPOSITORY_OWNER": "owner",
             "GITHUB_REPOSITORY": "owner/repo",
-            "GITHUB_RUN_ATTEMPT": "1",
+            "GITHUB_SHA": "a" * 40,
+            "GITHUB_SERVER_URL": "https://github.com",
+            "GITHUB_RUN_ID": "123",
         }, clear=True)
         self.settings.start()
         self.addCleanup(self.settings.stop)
 
-    def api(self, path):
-        if path == "pulls/21":
-            return self.pr
-        if path == f"contents/{identity.SELECTOR}?ref={self.head}":
-            return {"content": base64.b64encode(json.dumps(self.config).encode()).decode()}
-        self.fail(f"Unexpected GitHub API path: {path}")
-
-    def pages(self, path):
-        resources = {
-            "issues/21/events": [self.event],
-            f"commits/{self.head}/statuses": [self.status],
-            "pulls/21/files": [{"filename": identity.SELECTOR, "status": "modified"}],
+    def deployment(self, number, **overrides):
+        return {
+            "id": number,
+            "task": identity.SELECTION_TASK,
+            "environment": identity.SELECTION_ENVIRONMENT,
+            "creator": {"login": identity.BOT},
+            "payload": self.config,
+            **overrides,
         }
-        return iter(resources[path])
 
     def test_legacy_and_selected_bundle_are_independent(self):
         self.assertEqual(identity.credentials({"slot": "legacy"})[0], "ocid1.user.oc1..legacy")
@@ -84,7 +60,7 @@ class DeployIdentityTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     identity.credentials(self.config)
 
-    def test_bundle_must_match_pem_even_if_config_and_bundle_agree(self):
+    def test_bundle_must_match_pem_even_if_selection_and_bundle_agree(self):
         other = "00:" * 15 + "00"
         with patch.dict(os.environ, {
             "OCI_DEPLOY_KEY_B": json.dumps({"fingerprint": other, "private_key_pem": self.pem}),
@@ -94,13 +70,12 @@ class DeployIdentityTest(unittest.TestCase):
     def test_loader_does_not_export_private_key_material(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
             "RUNNER_TEMP": tmp, "GITHUB_ENV": f"{tmp}/env",
-        }), patch.object(identity, "require_merged_approval") as verify:
+        }):
             old_umask = os.umask(0o077)
             try:
                 identity.load(self.config)
             finally:
                 os.umask(old_umask)
-            verify.assert_called_once_with(self.config)
             pem = Path(tmp, "oci", "api_key.pem")
             self.assertEqual(pem.stat().st_mode & 0o777, 0o600)
             self.assertEqual(pem.read_text(), self.pem)
@@ -108,56 +83,44 @@ class DeployIdentityTest(unittest.TestCase):
             self.assertIn(f"TF_VAR_private_key_path={pem}", exported)
             self.assertNotIn("PRIVATE KEY-----", exported)
 
-    def test_merge_requires_the_same_head_slot_fingerprint_and_label(self):
-        with patch.object(identity, "api", side_effect=self.api), patch.object(
-            identity, "pages", side_effect=self.pages,
-        ):
-            identity.require_merged_approval(self.config)
-            with self.assertRaisesRegex(ValueError, "reviewed PR head"):
-                identity.require_merged_approval({**self.config, "slot": "a"})
-            for override in (
-                {"state": "failure"},
-                {"description": identity.description(self.config, 9)},
-                {"created_at": "2026-11-27T12:01:00Z"},
-                {"creator": {"login": "owner"}},
-            ):
-                with self.subTest(override=override), patch.dict(self.status, override):
-                    with self.assertRaisesRegex(ValueError, "successful signing-key check"):
-                        identity.require_merged_approval(self.config)
-            with patch.dict(self.event, {"event": "unlabeled"}):
-                with self.assertRaisesRegex(ValueError, "owner approval"):
-                    identity.require_merged_approval(self.config)
+    def test_reads_latest_successful_activation_and_skips_incomplete_records(self):
+        outgoing = {**self.config, "slot": "a"}
+        success = [{"state": "success", "creator": {"login": identity.BOT}}]
+        with patch.object(identity, "signer_deployments", return_value=[
+            self.deployment(1, payload=outgoing),
+            self.deployment(4, creator={"login": "someone"}),
+            self.deployment(2, payload=json.dumps(self.config)),
+            self.deployment(3),
+        ]), patch.object(identity, "api", side_effect=[[], success]) as api:
+            self.assertEqual(identity.active_selector(), self.config)
+            self.assertEqual([call.args[0] for call in api.call_args_list], [
+                "deployments/3/statuses?per_page=1", "deployments/2/statuses?per_page=1",
+            ])
 
-    def test_candidate_success_requires_owner_label_on_current_head(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.object(
-            identity, "api", side_effect=self.api,
-        ), patch.object(identity, "pages", side_effect=self.pages), patch.object(
-            identity, "set_status",
-        ) as status, patch.dict(os.environ, {"GITHUB_EVENT_PATH": f"{tmp}/event"}):
-            metadata, candidate = Path(tmp, "metadata"), Path(tmp, "candidate")
-            payload = {
-                "number": 21, "pull_request": self.pr,
-                "action": "labeled", "label": {"name": identity.LABEL},
-                "sender": {"login": "owner"},
-            }
-            event_file = Path(os.environ["GITHUB_EVENT_PATH"])
-            event_file.write_text(json.dumps(payload))
-            identity.prepare(metadata, candidate)
-            identity.report(metadata, candidate, passed=True)
-            status.assert_called_with(self.head, "success", self.status["description"])
+    def test_bootstraps_with_legacy_but_surfaces_github_errors(self):
+        with patch.object(identity, "api", return_value=[]):
+            self.assertEqual(identity.active_selector(), {"slot": "legacy"})
+        with patch.object(identity, "api", side_effect=HTTPError("", 403, "", None, None)):
+            with self.assertRaises(HTTPError):
+                identity.active_selector()
 
-            for overrides in ({"action": "synchronize"}, {"sender": {"login": "someone"}}):
-                with self.subTest(overrides=overrides):
-                    event_file.write_text(json.dumps({**payload, **overrides}))
-                    identity.prepare(metadata, candidate)
-                    with self.assertRaisesRegex(ValueError, "owner must apply"):
-                        identity.report(metadata, candidate, passed=True)
-                    self.assertEqual(status.call_args.args[1], "failure")
-
-            with patch.dict(self.pr["head"], {"sha": "b" * 40}):
-                status.reset_mock()
-                identity.report(metadata, candidate, passed=True)
-                status.assert_not_called()
+    def test_activation_records_public_selector_and_noops_when_already_selected(self):
+        with patch.object(identity, "active_selector", return_value={"slot": "legacy"}), patch.object(
+            identity, "api", side_effect=[{"id": 42}, {}],
+        ) as api:
+            identity.record_activation(self.config)
+            deployment, status = api.call_args_list
+            self.assertEqual(deployment.args[0], "deployments")
+            self.assertEqual(deployment.args[1]["payload"], self.config)
+            self.assertFalse(deployment.args[1]["auto_merge"])
+            self.assertEqual(status.args[0], "deployments/42/statuses")
+            self.assertEqual(status.args[1]["state"], "success")
+            self.assertFalse(status.args[1]["auto_inactive"])
+        with patch.object(identity, "active_selector", return_value=self.config), patch.object(
+            identity, "api",
+        ) as api:
+            identity.record_activation(self.config)
+            api.assert_not_called()
 
     def test_regional_workflows_load_the_selected_signer_before_using_oci(self):
         workflows = Path(".github/workflows")
@@ -178,24 +141,30 @@ class DeployIdentityTest(unittest.TestCase):
                 job = jobs[job_name]
                 self.assertEqual(job["environment"], "production")
                 steps = [step.get("name") for step in job["steps"]]
-                self.assertLess(steps.index("Load OCI deploy signing key"), steps.index(consumer))
-                if workflow == "ci":
-                    loader = job["steps"][steps.index("Load OCI deploy signing key")]
-                    self.assertIn("github.event.pull_request.base.sha", loader["env"]["OCI_SELECTOR_REF"])
+                index = steps.index("Load OCI deploy signing key")
+                self.assertLess(index, steps.index(consumer))
+                self.assertTrue(job["steps"][index]["run"].endswith("oci_deploy_identity.py load"))
 
-    def test_candidate_proof_uses_trusted_code_and_existing_state(self):
+    def test_manual_workflow_verifies_current_state_before_optional_activation(self):
         workflow = yaml.load(
             Path(".github/workflows/oci-signing-key-rotation.yml").read_text(), Loader=yaml.BaseLoader,
         )
-        steps = workflow["jobs"]["candidate"]["steps"]
+        self.assertEqual(set(workflow["on"]), {"workflow_dispatch"})
+        self.assertEqual(workflow["on"]["workflow_dispatch"]["inputs"]["activate"]["default"], "false")
+        job = workflow["jobs"]["candidate"]
+        self.assertIn("github.actor == github.repository_owner", job["if"])
+        self.assertIn("github.ref == 'refs/heads/main'", job["if"])
+        steps = job["steps"]
         self.assertEqual(steps[0]["with"]["ref"], "${{ github.sha }}")
         self.assertEqual(steps[0]["with"]["persist-credentials"], "false")
-        proof = next(step["run"] for step in steps if step["name"].startswith("Prove access"))
+        proof = steps[-2]["run"]
         self.assertIn("envs/prod/terraform.tfstate", proof)
         self.assertIn("terraform state list", proof)
         self.assertIn("terraform plan -refresh-only", proof)
         self.assertIn("secrets secret-bundle get", proof)
         self.assertNotIn("terraform apply", proof)
+        self.assertEqual(steps[-1]["if"], "inputs.activate")
+        self.assertTrue(steps[-1]["run"].endswith("oci_deploy_identity.py activate"))
 
 
 if __name__ == "__main__":

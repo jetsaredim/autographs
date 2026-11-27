@@ -43,8 +43,9 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `OCI_DEPLOY_USER_OCID` | Environment variable | Deploy user shared by both named signing-key slots. |
 | `OCI_DEPLOY_KEY_A`, `OCI_DEPLOY_KEY_B` | Environment secrets | JSON bundles with `fingerprint` and `private_key_pem`. Keep the outgoing slot available until the incoming slot works in normal CI and deploy. |
 
-The selector in `.github/oci-deploy-identity.json` initially uses the legacy
-repo secrets. See [Rotate the GitHub deploy API signing key](oci-bootstrap.md#rotate-the-github-deploy-api-signing-key)
+Regional OCI jobs initially use the legacy repo secrets. The manual
+**Rotate OCI deploy signing key** workflow records the active slot and
+fingerprint in GitHub deployment history after validating the candidate. See [Rotate the GitHub deploy API signing key](oci-bootstrap.md#rotate-the-github-deploy-api-signing-key)
 for enrollment, approval, and retirement.
 
 Production obtains the Oracle database password, wallet password, and admin

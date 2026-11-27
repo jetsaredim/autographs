@@ -456,7 +456,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         credentials = {"tenancy_ocid", "user_ocid", "fingerprint", "private_key_path"}
         self.assertTrue({f"TF_VAR_{name}" for name in required - credentials} <= bootstrap_env.keys())
         load_signer = next(step for step in bootstrap["steps"] if step.get("name") == "Load OCI deploy signing key")
-        self.assertIn("oci_deploy_identity.py load --ref main", load_signer["run"])
+        self.assertIn("oci_deploy_identity.py load", load_signer["run"])
 
     def test_post_adb_plan_requires_rotation_even_when_no_changes_are_planned(self):
         run = self.production_steps["Terraform apply"]["run"]

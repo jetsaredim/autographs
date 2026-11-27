@@ -142,8 +142,7 @@ jobs:
     permissions:
       contents: write
       packages: write
-      pull-requests: read
-      statuses: read
+      deployments: read
 
     steps:
       - name: Resolve release request
@@ -633,7 +632,6 @@ jobs:
           needs.runtime-secrets.outputs.approval != ''
         env:
           GH_TOKEN: ${{ github.token }}
-          REPOSITORY_OWNER: ${{ github.repository_owner }}
           OCI_DEPLOY_USER_OCID: ${{ vars.OCI_DEPLOY_USER_OCID }}
           OCI_DEPLOY_KEY_A: ${{ secrets.OCI_DEPLOY_KEY_A }}
           OCI_DEPLOY_KEY_B: ${{ secrets.OCI_DEPLOY_KEY_B }}
@@ -641,7 +639,7 @@ jobs:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-        run: python3 .vault-automation/scripts/oci_deploy_identity.py load --ref main
+        run: python3 .vault-automation/scripts/oci_deploy_identity.py load
 
       - name: Resolve runtime VM IP for rollback or secret rotation
         if: steps.request.outputs.operation == 'rollback' || needs.runtime-secrets.outputs.approval != ''
@@ -1210,8 +1208,7 @@ jobs:
     environment: production
     permissions:
       contents: read
-      pull-requests: read
-      statuses: read
+      deployments: read
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
@@ -1249,7 +1246,6 @@ jobs:
       - name: Load OCI deploy signing key
         env:
           GH_TOKEN: ${{ github.token }}
-          REPOSITORY_OWNER: ${{ github.repository_owner }}
           OCI_DEPLOY_USER_OCID: ${{ vars.OCI_DEPLOY_USER_OCID }}
           OCI_DEPLOY_KEY_A: ${{ secrets.OCI_DEPLOY_KEY_A }}
           OCI_DEPLOY_KEY_B: ${{ secrets.OCI_DEPLOY_KEY_B }}
@@ -1257,7 +1253,7 @@ jobs:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-        run: python3 scripts/oci_deploy_identity.py load --ref main
+        run: python3 scripts/oci_deploy_identity.py load
 
       - name: Create Vault resources and populate only untouched placeholders
         working-directory: infra/terraform

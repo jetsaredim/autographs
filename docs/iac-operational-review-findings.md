@@ -1116,16 +1116,16 @@ operator session, so the live tenancy plan is still pending.
 |---|---|---|
 | Install the workflow | Legacy | Existing GitHub secrets continue to work. Tenancy admin credentials still own the tenancy stack. |
 | Enroll and stage the candidate | Legacy or current named slot | The tenancy plan preserves the deploy user, state bucket, and outgoing key. The operator registers the incoming public key and stages the matching private bundle in GitHub's `production` environment. |
-| Check the selector PR | Outgoing slot | Trusted base code derives the candidate fingerprint, reads the existing regional state, runs an authenticated refresh-only Terraform plan, and reads a CURRENT Vault bundle without printing it. |
-| Label and merge | Incoming slot after merge | The owner label approves the checked head, slot and fingerprint. A job verifies that approval and the configured bundle before authenticating. Ordinary Terraform PR checks use the base branch signer. |
+| Run the workflow in verify mode | Outgoing slot | The runner derives the candidate fingerprint, reads existing regional state, runs an authenticated refresh-only Terraform plan, and reads a CURRENT Vault bundle without printing it. |
+| Run the workflow with activation enabled | Incoming slot after successful verification | The repository owner dispatches from `main`. The workflow repeats the checks and records the slot and fingerprint in GitHub deployment history. Regional OCI jobs read the latest successful selection. |
 | Verify and retire | Incoming slot | Verify a fresh normal job and let outgoing-key jobs finish. Retire the old registration with a separate tenancy admin apply and remove its GitHub secret. |
 
-The outgoing credential stays available for a reviewed selector rollback.
-Keep it until the new signer is verified. If its registration needs restoring,
+Use the same workflow to reactivate the outgoing slot if needed. Keep its
+credential until the new signer is verified. If its registration needs restoring,
 a tenancy administrator can restore the matching public key in the OCI
 Console. See the [operator procedure](oci-bootstrap.md#rotate-the-github-deploy-api-signing-key).
-The workflow starts with `legacy` selected. No live candidate check or
-production cutover has run.
+The workflow uses the legacy credential until the first successful activation.
+Live candidate proof and production activation are pending.
 
 ### Ansible playbooks
 
