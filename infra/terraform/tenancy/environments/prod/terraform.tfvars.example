@@ -30,12 +30,8 @@ owner_email = "collector@example.com"
 deploy_user_description = "GitHub Actions deployment user for Autographs."
 deploy_user_email       = ""
 
-# Optional: attach the deploy user's public API key from Terraform. Generate the
-# private key outside Terraform and store it in GitHub Secrets.
-deploy_user_api_public_key = <<EOT
------BEGIN PUBLIC KEY-----
-replace_me
------END PUBLIC KEY-----
-EOT
+# Optional. See docs/oci-bootstrap.md for generating the signing key outside
+# Terraform and passing only its public half to the tenancy root.
+deploy_user_api_public_key = ""
 
 state_bucket_name         = "autographs-tf-state"

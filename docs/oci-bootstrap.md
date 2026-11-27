@@ -121,6 +121,46 @@ cp infra/terraform/environments/prod/terraform.tfvars.example \
     a guarded second plan to attach scheduled rotation after ADB exists.
     A future wallet/admin rotation must be explicit and update both stores.
 
+## Optional GitHub deploy key registration
+
+For a new tenancy using API key authentication, generate the deploy signing
+key before the first tenancy plan. Use the existing operator credential to
+plan and apply. This creates the deploy user and registers the public half
+against that user.
+
+```bash
+oci_deploy_key_dir="$(mktemp -d)"
+chmod 700 "$oci_deploy_key_dir"
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+  -out "$oci_deploy_key_dir/deploy.pem"
+chmod 600 "$oci_deploy_key_dir/deploy.pem"
+openssl pkey -in "$oci_deploy_key_dir/deploy.pem" -pubout \
+  -out "$oci_deploy_key_dir/deploy-public.pem"
+```
+
+Add `-var="deploy_user_api_public_key=$(cat "$oci_deploy_key_dir/deploy-public.pem")"`
+to the tenancy plan and apply in step 4. Keep the public PEM in your local
+tenancy inputs for subsequent plans. After tenancy bootstrap, use the outputs
+and private file to configure GitHub Secrets for the new deployment:
+
+```bash
+(
+  set -euo pipefail
+  oci_deploy_user_id="$(terraform -chdir=infra/terraform/tenancy output -raw deploy_user_id)"
+  oci_deploy_fingerprint="$(terraform -chdir=infra/terraform/tenancy output -raw deploy_api_key_fingerprint)"
+  test -n "$oci_deploy_user_id" && test -n "$oci_deploy_fingerprint" || exit 1
+  printf '%s' "$oci_deploy_user_id" | gh secret set OCI_CLI_USER_OCID
+  printf '%s' "$oci_deploy_fingerprint" | gh secret set OCI_FINGERPRINT
+  gh secret set OCI_PRIVATE_KEY_PEM < "$oci_deploy_key_dir/deploy.pem"
+)
+```
+
+Set `OCI_TENANCY_OCID` from the same tenancy inputs. The Terraform-managed key
+registration contains the public PEM and exposes its fingerprint. OCI can list
+registered public keys and fingerprints. The caller's signing key remains in
+its secret store. For an existing deployment, confirm who manages the active
+key and verify a replacement credential before retiring the old one.
+
 ## IAM Boundary
 
 The baseline is intentionally compartment-scoped:

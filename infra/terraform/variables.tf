@@ -169,13 +169,13 @@ variable "autographs_dns_domain" {
 }
 
 variable "autographs_dns_ttl" {
-  description = "TTL for the autographs DNS record."
+  description = "TTL for the Porkbun backup A record and the Cloudflare A record in DNS-only mode."
   type        = number
   default     = 600
 
   validation {
-    condition     = var.autographs_dns_ttl >= 600
-    error_message = "autographs_dns_ttl must be at least 600 seconds for the Porkbun provider."
+    condition     = var.autographs_dns_ttl >= 600 && var.autographs_dns_ttl <= 86400
+    error_message = "autographs_dns_ttl must be between 600 and 86400 seconds to work with both DNS providers."
   }
 }
 

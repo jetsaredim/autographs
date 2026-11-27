@@ -47,8 +47,8 @@ The Cloudflare cutover, authenticated admin bypass, public document headers,
 repeated media cache HIT, and owner-approved rollback deferral are recorded
 below. Remaining:
 
-1. Complete the Terraform/Ansible operating-contract inventory and final
-   P8-POSTURE-006 disposition.
+1. Confirm the deploy API signing-key ownership and the remaining
+   Ansible/workflow dispositions for P8-POSTURE-006.
 2. Review `AGENTS.md` against the current architecture and Phase 8 status,
    update stale guidance and its source maps, and ensure the root `SECURITY.md`
    gives a usable vulnerability reporting path.
@@ -143,3 +143,17 @@ the link and current-state guidance at final closeout.
   review and CI; PR #377 still needs release-path verification;
   the owner has not yet accepted the revised inventory. P8-POSTURE-006 has no
   final owner disposition. Do not mark Plan 08-08 or Phase 8 complete.
+
+## 2026-11-27 owner review progress
+
+- The owner accepted the Terraform resource, lookup, module, and provider
+  inventory apart from the open deploy signing-key question. Porkbun stays as
+  the web A-record backup and shares the Cloudflare origin address and
+  DNS-only TTL input. The compartment is owned in tenancy IAM and looked up
+  by name in the deploy root. PR #100 preserved its former counted address
+  with a Terraform move.
+- PR #375 implements manual credential rotation on an approved PR merge.
+  The production cutover freezes publishing and proves the controller is
+  stopped before writing Vault. It installs the checked wallet when needed
+  and verifies health before unfreeze. CI and local fixtures passed.
+  A live production rotation remains unverified.
