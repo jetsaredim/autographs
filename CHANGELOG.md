@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.10.3](https://github.com/jetsaredim/autographs/compare/v0.10.2...v0.10.3) (2026-11-27)
+
+
+### Bug Fixes
+
+* flag destructive Terraform plans in PR CI ([#371](https://github.com/jetsaredim/autographs/issues/371)) ([abc17a0](https://github.com/jetsaredim/autographs/commit/abc17a0b53bccc188f00c6d766434d98bade212e))
+* keep Terraform approval in PR CI only ([#378](https://github.com/jetsaredim/autographs/issues/378)) ([a6e0734](https://github.com/jetsaredim/autographs/commit/a6e0734ccf003a49d018258c30854119d2dac7ab))
+* make Ansible own runtime deploy settings ([#379](https://github.com/jetsaredim/autographs/issues/379)) ([42b3fa7](https://github.com/jetsaredim/autographs/commit/42b3fa70510a7a752b2d8f58c6fdf44029420071))
+* quiet cargo-chef placeholder dependency warnings ([#368](https://github.com/jetsaredim/autographs/issues/368)) ([50ba6cf](https://github.com/jetsaredim/autographs/commit/50ba6cf02efccbfd2ec93693f7d5f7fe3cec402e))
+* restore Phase 8 live smoke test gate ([#372](https://github.com/jetsaredim/autographs/issues/372)) ([0c55934](https://github.com/jetsaredim/autographs/commit/0c5593436a15e0a4d13e7b5010c8de2f895bc503))
+* route reviewed Cloudflare changes through release deploy ([#377](https://github.com/jetsaredim/autographs/issues/377)) ([e84d58f](https://github.com/jetsaredim/autographs/commit/e84d58f80f628f1f58ba55f0760d2e86f8c87081))
+
+
+### Performance Improvements
+
+* scope expensive CI jobs to changed inputs ([#374](https://github.com/jetsaredim/autographs/issues/374)) ([92b655c](https://github.com/jetsaredim/autographs/commit/92b655ca01f5d6b87936ed62236adca25603a29c))
+
 ## [0.10.2](https://github.com/jetsaredim/autographs/compare/v0.10.1...v0.10.2) (2026-11-18)
 
 
