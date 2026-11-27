@@ -42,7 +42,7 @@ Evidence limits and production follow-up remain in the individual entries.
 
 | Item | Decision needed |
 |---|---|
-| [Deploy API signing key](#deploy-api-signing-key) | Confirm whether to keep optional Terraform registration with externally generated keys. The rest of the Terraform source inventory is dispositioned. |
+| [Deploy API signing key](#deploy-api-signing-key) | Retain Terraform registration and verify the first candidate before switching GitHub. |
 | Source inventory: [Ansible](#ansible-playbooks), [workflows](#github-workflows-and-local-actions) | Review the remaining proposed dispositions and any scope outside recorded decisions. |
 
 ### Evidence still pending after the review
@@ -1040,7 +1040,7 @@ changed plan without review. A source-only test is identified as such.
 | resource `oci_identity_user.deploy` | `infra/terraform/modules/iam/main.tf:54` | Tenancy bootstrap / operator | State `module.iam.oci_identity_user.deploy`; parent/name and optional email define automation identity. Replacement changes GitHub OCI credential principal; stop on changed tenancy plan and rotate credentials through operator path. Tenancy no-change plan; retain. | **Dispositioned** · Retain |
 | resource `oci_identity_user_group_membership.deploy` | `infra/terraform/modules/iam/main.tf:64` | Tenancy bootstrap / operator | State `module.iam.oci_identity_user_group_membership.deploy`; links managed user to deploy group. Missing membership removes deploy permissions; operator plan must review both IDs and recovery is restore membership. Tenancy no-change plan; retain. | **Dispositioned** · Retain |
 | resource `oci_identity_dynamic_group.runtime_instances` | `infra/terraform/modules/iam/main.tf:71` | Tenancy bootstrap / operator | State `module.iam.oci_identity_dynamic_group.runtime_instances`; matching rule limits instance principals to project compartment. Wrong rule breaks or widens private media access; operator plan and policy review required. Tenancy no-change plan; retain. | **Dispositioned** · Retain |
-| resource `oci_identity_api_key.deploy` | `infra/terraform/modules/iam/main.tf:83` | Tenancy bootstrap / operator | Optional `module.iam.oci_identity_api_key.deploy[0]` registers a supplied public PEM on the deployment user and exposes its fingerprint. See [deploy API signing key](#deploy-api-signing-key) for bootstrap automation and production ownership evidence limits. | **Proposed · owner review pending** |
+| resource `oci_identity_api_key.deploy` | `infra/terraform/modules/iam/main.tf:83` | Tenancy bootstrap / operator | Registers public PEMs on the deploy user in slots `a` and `b`. The legacy `[0]` address moves to `["a"]` without planned replacement when the existing PEM is preserved. | **Dispositioned** · Retain and rotate with overlap |
 | resource `oci_identity_policy.deploy` | `infra/terraform/modules/iam/main.tf:130` | Tenancy bootstrap / operator | State `module.iam.oci_identity_policy.deploy`; scoped statements grant deploy group compartment resource and state-bucket access. Changed statements can grant excess or break deploy; operator reviews exact policy plan. Tenancy no-change plan; retain. | **Dispositioned** · Retain |
 | resource `oci_identity_policy.operator` | `infra/terraform/modules/iam/main.tf:140` | Tenancy bootstrap / operator | State `module.iam.oci_identity_policy.operator`; scoped statements grant human day-two and break-glass resource access. Review any statement change before apply; restore prior policy from reviewed Terraform if access regresses. Tenancy no-change plan; retain. | **Dispositioned** · Retain |
 | resource `oci_identity_policy.runtime_object_access` | `infra/terraform/modules/iam/main.tf:150` | Tenancy bootstrap / operator | State `module.iam.oci_identity_policy.runtime_object_access`; dynamic group gets namespace read plus named private-bucket read/manage. Wrong compartment/bucket name blocks media or broadens access; operator plan and instance-principal smoke are checks. Tenancy no-change plan; retain. | **Dispositioned** · Retain |
@@ -1102,23 +1102,30 @@ retaining these resources.
 
 #### Deploy API signing key
 
-`deploy_user_api_public_key` comes from the operator's tenancy bootstrap
-inputs and defaults to an empty string. When supplied, the IAM module uploads
-the **public** PEM to its deploy user. OCI lets the operator list the public
-key and fingerprint. The private half stays with the caller and is configured
-as `OCI_PRIVATE_KEY_PEM` in GitHub. The committed tfvars example leaves the
-optional public PEM empty. The Terraform output `deploy_api_key_fingerprint` is
-populated only when the optional registration is managed by the tenancy stack.
+Tenancy Terraform registers the supplied public PEMs on the deploy user and
+returns their OCI fingerprints as `deploy_api_key_fingerprints` by slot. The
+legacy `deploy_user_api_public_key` input still supplies slot A. A moved block
+preserves the old address for deployments that already managed the key.
+Confirm the existing production registration in tenancy state before applying.
+The last local state read on 2026-11-27 returned OCI 401 with the expired
+operator session, so the live tenancy plan is still pending.
 
-For a fresh tenancy, generate the key pair in operator bootstrap tooling
-outside Terraform, pass the public half to the tenancy apply, then use Terraform
-outputs for the deploy user OCID and fingerprint when configuring GitHub
-Secrets. See the [bootstrap procedure](oci-bootstrap.md#optional-github-deploy-key-registration).
-The available authenticated tenancy plan did not enumerate the optional key
-address. A follow-up state read on 2026-11-27 returned OCI 401 using the local
-operator session. The current GitHub signer's registration path still needs
-confirmation. Keep credential ownership and any production rollover as a
-separate operator decision.
+##### Two-slot signing-key rotation
+
+| Step | Active GitHub slot | What must be proven |
+|---|---|---|
+| Install the workflow | Legacy | Existing GitHub secrets continue to work. Tenancy admin credentials still own the tenancy stack. |
+| Enroll and stage the candidate | Legacy or current named slot | The tenancy plan preserves the deploy user, state bucket, and outgoing key. The operator registers the incoming public key and stages the matching private bundle in GitHub's `production` environment. |
+| Check the selector PR | Outgoing slot | Trusted base code derives the candidate fingerprint, reads the existing regional state, runs an authenticated refresh-only Terraform plan, and reads a CURRENT Vault bundle without printing it. |
+| Label and merge | Incoming slot after merge | The owner label approves the checked head, slot and fingerprint. A job verifies that approval and the configured bundle before authenticating. Ordinary Terraform PR checks use the base branch signer. |
+| Verify and retire | Incoming slot | Verify a fresh normal job and let outgoing-key jobs finish. Retire the old registration with a separate tenancy admin apply and remove its GitHub secret. |
+
+The outgoing credential stays available for a reviewed selector rollback.
+Keep it until the new signer is verified. If its registration needs restoring,
+a tenancy administrator can restore the matching public key in the OCI
+Console. See the [operator procedure](oci-bootstrap.md#rotate-the-github-deploy-api-signing-key).
+The workflow starts with `legacy` selected. No live candidate check or
+production cutover has run.
 
 ### Ansible playbooks
 

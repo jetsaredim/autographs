@@ -161,6 +161,69 @@ registered public keys and fingerprints. The caller's signing key remains in
 its secret store. For an existing deployment, confirm who manages the active
 key and verify a replacement credential before retiring the old one.
 
+## Rotate the GitHub deploy API signing key
+
+The operator uses tenancy admin credentials for the tenancy stack. GitHub uses
+the deploy user for the regional stack, including the production Object Storage
+backend and Vault checks. The deployed controller and its SSH access use
+separate credentials.
+
+1. Confirm the existing key registration in OCI and tenancy state. For a
+   Terraform-managed key at `module.iam.oci_identity_api_key.deploy[0]`, the
+   migration plan should move it to `module.iam.oci_identity_api_key.deploy["a"]`
+   without replacing it. If the key was registered outside Terraform, reconcile
+   or import the registration before managing it in a slot. Stop if the
+   enrollment plan deletes or replaces the current key, deploy user, or state
+   bucket.
+2. Generate a new RSA key pair using the preceding procedure. Add its public
+   PEM to the inactive slot in the local tenancy input
+   `deploy_user_api_public_keys`, then plan and apply with the operator identity.
+   Use `terraform output -json deploy_api_key_fingerprints` in the tenancy root
+   to read the slot fingerprints. Keep the old registration active.
+3. In GitHub's `production` environment, set `OCI_DEPLOY_USER_OCID` to the
+   `deploy_user_id` output. For the inactive slot, upload its private PEM and
+   OCI fingerprint as a single JSON secret. For example, for slot B, supply
+   the path to the newly generated private key and its fingerprint to:
+
+   ```bash
+   jq -n --rawfile private_key_pem "$candidate_private_key_path" \
+     --arg fingerprint "$candidate_fingerprint" \
+     '{fingerprint: $fingerprint, private_key_pem: $private_key_pem}' \
+     | gh secret set OCI_DEPLOY_KEY_B --env production
+   ```
+
+   Leave `OCI_TENANCY_OCID` configured. While `legacy` is selected, keep the
+   existing `OCI_CLI_USER_OCID`, `OCI_FINGERPRINT`, and `OCI_PRIVATE_KEY_PEM`
+   secrets available.
+4. Open a same-repository PR that changes only
+   `.github/oci-deploy-identity.json`. Set `slot` to the candidate slot,
+   `fingerprint` to its OCI fingerprint, and `approval_pr` to that PR's number.
+   If needed, open the PR with the slot and fingerprint first, then update it
+   with the PR number. The trusted check loads the selector as data, verifies
+   the RSA fingerprint, reads the existing regional state, runs a refresh-only
+   plan, and tests access to a CURRENT Vault bundle without printing its
+   contents.
+5. After the candidate proof passes, the repository owner applies
+   `approved-oci-signing-key-rotation`. Create the label once if it does not
+   exist. Applying the label reruns the proof and records approval for that PR
+   head, slot, fingerprint, and label event. If the PR changes, remove and
+   reapply the label. Merge after **OCI signing key rotation** is green.
+   Subsequent jobs select the approved signer from the merged file and
+   check the recorded approval and matching credential before authenticating.
+6. Verify the selected signer in a fresh normal Terraform CI or production
+   workflow. Wait for old-key jobs to finish, then use a separate tenancy
+   admin plan and apply to remove only the retired registration. Remove the
+   retired GitHub secret after that. To retire a legacy slot A registration,
+   remove the old `deploy_user_api_public_key` input as well as any `a` entry
+   from the map. Run retries from the current `main` workflow after retirement.
+
+If activation needs to be reversed, keep the old credential available and
+open a selector-only PR pointing to it with the new PR number and its
+fingerprint. Use `legacy` if the old credential still uses the three legacy
+repo secrets. The same check and label authorize rollback. The tenancy
+administrator can restore a missing public-key registration using the OCI
+Console while retaining access to the tenancy stack.
+
 ## IAM Boundary
 
 The baseline is intentionally compartment-scoped:

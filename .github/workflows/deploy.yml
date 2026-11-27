@@ -142,6 +142,8 @@ jobs:
     permissions:
       contents: write
       packages: write
+      pull-requests: read
+      statuses: read
 
     steps:
       - name: Resolve release request
@@ -215,13 +217,16 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Checkout current Vault verification code
-        if: steps.request.outputs.operation != 'rollback'
+      - name: Checkout current Vault and signing-key automation
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.runtime-secrets.outputs.approval != '' && github.sha || 'main' }}
           path: .vault-automation
-          sparse-checkout: scripts/sync_runtime_vault_secrets.py
+          sparse-checkout: |
+            scripts/oci_deploy_identity.py
+            scripts/sync_runtime_vault_secrets.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout dispatched main retry guard
@@ -621,47 +626,30 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/oci-cli"
           "$RUNNER_TEMP/oci-cli/bin/pip" install --disable-pip-version-check 'oci-cli==3.96.2'
 
-      - name: Write OCI API private key
+      - name: Load OCI deploy signing key
         if: >-
-          needs.runtime-secrets.outputs.approval == '' &&
-          (steps.manifest.outputs.production_mutation_required == 'true' || steps.request.outputs.operation == 'rollback')
+          steps.manifest.outputs.production_mutation_required == 'true' ||
+          steps.request.outputs.operation == 'rollback' ||
+          needs.runtime-secrets.outputs.approval != ''
         env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          OCI_DEPLOY_USER_OCID: ${{ vars.OCI_DEPLOY_USER_OCID }}
+          OCI_DEPLOY_KEY_A: ${{ secrets.OCI_DEPLOY_KEY_A }}
+          OCI_DEPLOY_KEY_B: ${{ secrets.OCI_DEPLOY_KEY_B }}
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/oci"
-          printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
-          chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
+        run: python3 .vault-automation/scripts/oci_deploy_identity.py load --ref main
 
       - name: Resolve runtime VM IP for rollback or secret rotation
         if: steps.request.outputs.operation == 'rollback' || needs.runtime-secrets.outputs.approval != ''
         id: rollback_runtime
         uses: ./.github/actions/resolve-runtime-ip
         with:
-          oci-private-key-pem: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-          oci-cli-user-ocid: ${{ secrets.OCI_CLI_USER_OCID }}
-          oci-tenancy-ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          oci-fingerprint: ${{ secrets.OCI_FINGERPRINT }}
           oci-object-storage-namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           vm-public-ip: ${{ vars.VM_PUBLIC_IP }}
-
-      - name: Configure OCI CLI for Vault verification
-        if: steps.manifest.outputs.production_mutation_required == 'true' || needs.runtime-secrets.outputs.approval != ''
-        env:
-          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-        run: |
-          set -euo pipefail
-          {
-            printf '[DEFAULT]\n'
-            printf 'user=%s\n' "$OCI_CLI_USER_OCID"
-            printf 'tenancy=%s\n' "$OCI_TENANCY_OCID"
-            printf 'fingerprint=%s\n' "$OCI_FINGERPRINT"
-            printf 'key_file=%s\n' "$RUNNER_TEMP/oci/api_key.pem"
-            printf 'region=us-ashburn-1\n'
-          } > "$RUNNER_TEMP/oci/config"
-          chmod 600 "$RUNNER_TEMP/oci/config"
 
       - name: Revalidate approved rotation before taking the controller down
         if: needs.runtime-secrets.outputs.approval != ''
@@ -673,11 +661,6 @@ jobs:
           AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
           ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
           ORACLE_DB_WALLET_ZIP_BASE64: ${{ secrets.ORACLE_DB_WALLET_ZIP_BASE64 }}
-          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
-          OCI_REGION: us-ashburn-1
         run: |
           set -euo pipefail
           umask 077
@@ -708,19 +691,6 @@ jobs:
         id: terraform_apply
         working-directory: infra/terraform
         env:
-          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
-          OCI_REGION: us-ashburn-1
-          tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
-          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          private_key_path: ${{ runner.temp }}/oci/api_key.pem
-          TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
-          TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          TF_VAR_private_key_path: ${{ runner.temp }}/oci/api_key.pem
           TF_VAR_availability_domain: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
           TF_VAR_runtime_image_ocid: ${{ vars.OCI_RUNTIME_IMAGE_OCID }}
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
@@ -937,11 +907,6 @@ jobs:
           AUTOGRAPHS_ADMIN_PASSWORD_HASH: ${{ secrets.AUTOGRAPHS_ADMIN_PASSWORD_HASH }}
           ORACLE_DB_WALLET_PASSWORD: ${{ secrets.ORACLE_DB_WALLET_PASSWORD }}
           ORACLE_DB_WALLET_ZIP_BASE64: ${{ secrets.ORACLE_DB_WALLET_ZIP_BASE64 }}
-          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
-          OCI_REGION: us-ashburn-1
         run: |
           set -euo pipefail
           umask 077
@@ -1228,13 +1193,25 @@ jobs:
           RELEASE_TAG: ${{ steps.request.outputs.release_tag }}
         run: gh release edit "$RELEASE_TAG" --draft=false
 
-  bootstrap_secrets:
-    name: Populate initial runtime Vault secrets
+  approve_bootstrap_secrets:
+    name: Authorize initial runtime Vault secret bootstrap
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'bootstrap_secrets' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     environment: secret-audit
+    permissions: {}
+    steps:
+      - run: echo "Runtime Vault bootstrap authorized."
+
+  bootstrap_secrets:
+    name: Populate initial runtime Vault secrets
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'bootstrap_secrets' && github.ref == 'refs/heads/main' }}
+    needs: approve_bootstrap_secrets
+    runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: read
+      pull-requests: read
+      statuses: read
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
@@ -1269,39 +1246,22 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/oci-cli"
           "$RUNNER_TEMP/oci-cli/bin/pip" install --disable-pip-version-check 'oci-cli==3.96.2'
 
-      - name: Configure OCI API authentication
+      - name: Load OCI deploy signing key
         env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          OCI_DEPLOY_USER_OCID: ${{ vars.OCI_DEPLOY_USER_OCID }}
+          OCI_DEPLOY_KEY_A: ${{ secrets.OCI_DEPLOY_KEY_A }}
+          OCI_DEPLOY_KEY_B: ${{ secrets.OCI_DEPLOY_KEY_B }}
           OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-        run: |
-          set -euo pipefail
-          install -d -m 0700 "$RUNNER_TEMP/oci"
-          printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
-          chmod 0600 "$RUNNER_TEMP/oci/api_key.pem"
-          {
-            printf '[DEFAULT]\n'
-            printf 'user=%s\n' "$OCI_CLI_USER_OCID"
-            printf 'tenancy=%s\n' "$OCI_TENANCY_OCID"
-            printf 'fingerprint=%s\n' "$OCI_FINGERPRINT"
-            printf 'key_file=%s\n' "$RUNNER_TEMP/oci/api_key.pem"
-            printf 'region=us-ashburn-1\n'
-          } > "$RUNNER_TEMP/oci/config"
-          chmod 0600 "$RUNNER_TEMP/oci/config"
+        run: python3 scripts/oci_deploy_identity.py load --ref main
 
       - name: Create Vault resources and populate only untouched placeholders
         working-directory: infra/terraform
         env:
-          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
-          OCI_REGION: us-ashburn-1
-          TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
-          TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          TF_VAR_private_key_path: ${{ runner.temp }}/oci/api_key.pem
           TF_VAR_bootstrap_runtime_secrets: 'true'
           TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
           TF_VAR_media_bucket_namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}

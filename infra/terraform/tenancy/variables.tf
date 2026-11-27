@@ -99,6 +99,29 @@ variable "deploy_user_api_public_key" {
   default     = ""
 }
 
+variable "deploy_user_api_public_keys" {
+  description = "Public PEMs registered in signing-key slots a and b. Keep the active registration while enrolling its replacement."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for slot, key in var.deploy_user_api_public_keys :
+      contains(["a", "b"], slot) && can(regex("^-----BEGIN PUBLIC KEY-----", trimspace(key)))
+    ])
+    error_message = "Signing keys must be public PEMs in slots a or b."
+  }
+
+  validation {
+    condition = (
+      var.deploy_user_api_public_key == "" ||
+      !contains(keys(var.deploy_user_api_public_keys), "a") ||
+      trimspace(lookup(var.deploy_user_api_public_keys, "a", "")) == trimspace(var.deploy_user_api_public_key)
+    )
+    error_message = "Remove the legacy public key input when changing slot a."
+  }
+}
+
 variable "state_bucket_name" {
   description = "Object Storage bucket name for Terraform state."
   type        = string

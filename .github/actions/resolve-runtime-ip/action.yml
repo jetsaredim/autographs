@@ -2,18 +2,6 @@ name: Resolve runtime VM IP
 description: Resolve the production runtime VM public IP from Terraform state with a VM_PUBLIC_IP fallback.
 
 inputs:
-  oci-private-key-pem:
-    description: OCI API signing private key PEM.
-    required: true
-  oci-cli-user-ocid:
-    description: OCI API signing user OCID.
-    required: true
-  oci-tenancy-ocid:
-    description: OCI tenancy OCID.
-    required: true
-  oci-fingerprint:
-    description: OCI API signing key fingerprint.
-    required: true
   oci-object-storage-namespace:
     description: OCI Object Storage namespace containing the Terraform state bucket.
     required: true
@@ -60,29 +48,11 @@ runs:
         terraform_version: ${{ inputs.terraform-version }}
         terraform_wrapper: false
 
-    - name: Write OCI API private key
-      shell: bash
-      env:
-        OCI_PRIVATE_KEY_PEM: ${{ inputs.oci-private-key-pem }}
-      run: |
-        mkdir -p "$RUNNER_TEMP/oci"
-        printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
-        chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
-
     - name: Resolve runtime VM IP
       id: resolve
       shell: bash
       working-directory: ${{ inputs.terraform-working-directory }}
       env:
-        OCI_REGION: ${{ inputs.terraform-state-region }}
-        OCI_CLI_USER_OCID: ${{ inputs.oci-cli-user-ocid }}
-        OCI_TENANCY_OCID: ${{ inputs.oci-tenancy-ocid }}
-        OCI_FINGERPRINT: ${{ inputs.oci-fingerprint }}
-        OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
-        tenancy_ocid: ${{ inputs.oci-tenancy-ocid }}
-        user_ocid: ${{ inputs.oci-cli-user-ocid }}
-        fingerprint: ${{ inputs.oci-fingerprint }}
-        private_key_path: ${{ runner.temp }}/oci/api_key.pem
         VM_PUBLIC_IP: ${{ inputs.vm-public-ip }}
       run: |
         RESOLVED_VM_PUBLIC_IP=""

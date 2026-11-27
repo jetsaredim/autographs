@@ -20,6 +20,8 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
+  statuses: read
   packages: write
 
 env:
@@ -38,20 +40,30 @@ jobs:
   resolve-runtime:
     name: Resolve runtime VM
     runs-on: ubuntu-latest
+    environment: production
     outputs:
       runtime_public_ip: ${{ steps.resolve.outputs.runtime_public_ip }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Load OCI deploy signing key
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          OCI_DEPLOY_USER_OCID: ${{ vars.OCI_DEPLOY_USER_OCID }}
+          OCI_DEPLOY_KEY_A: ${{ secrets.OCI_DEPLOY_KEY_A }}
+          OCI_DEPLOY_KEY_B: ${{ secrets.OCI_DEPLOY_KEY_B }}
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+        run: python3 scripts/oci_deploy_identity.py load --ref main
+
       - name: Resolve runtime VM IP
         id: resolve
         uses: ./.github/actions/resolve-runtime-ip
         with:
-          oci-private-key-pem: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-          oci-cli-user-ocid: ${{ secrets.OCI_CLI_USER_OCID }}
-          oci-tenancy-ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          oci-fingerprint: ${{ secrets.OCI_FINGERPRINT }}
           oci-object-storage-namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           vm-public-ip: ${{ vars.VM_PUBLIC_IP }}
 

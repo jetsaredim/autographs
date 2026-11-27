@@ -49,8 +49,13 @@ output "runtime_dynamic_group_name" {
 }
 
 output "deploy_api_key_fingerprint" {
-  description = "API signing key fingerprint when deploy_user_api_public_key is attached."
+  description = "API signing key fingerprint for slot a, when enrolled."
   value       = module.iam.deploy_api_key_fingerprint
+}
+
+output "deploy_api_key_fingerprints" {
+  description = "OCI API signing key fingerprints by slot."
+  value       = module.iam.deploy_api_key_fingerprints
 }
 
 output "state_bucket_name" {

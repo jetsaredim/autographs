@@ -105,6 +105,7 @@ Autographs is a production-lean personal autograph collection website where you 
 - Update `.planning/codebase/*` after substantial codebase drift so future agents do not resurrect planning-only assumptions.
 ## Current Guidance
 - Phase 5 foundation, Phase 6 admin collection workflow, and Phase 7 metadata taxonomy/public facets are complete; do not rebuild finished work, and treat the Rust/static cutover and Next.js retirement as validated. Phase 8 plans 08-01 through 08-07 are implemented. Production security patching, admin-private previews and image adjustments with auto-assisted deskew/perspective correction, adjustment-aware publishing, and CDN cache behavior have recorded evidence. Plan 08-08 remains open for the IaC operating-contract disposition and final release-path verification. Keep `SECURITY.md` and these instructions aligned with the current system during closeout. Phase 9 owns optional franchise/product-line/set/non-default-language taxonomy media cues with text-only fallback intact, and Phase 10 owns advisory AI-assisted ingest.
+- The OCI deploy signer uses overlapping key slots. Keep the outgoing registration and its GitHub credential until a fresh workflow verifies the incoming signer. Tenancy key enrollment and retirement use the operator-admin path in `docs/oci-bootstrap.md`.
 - Do not introduce public accounts, multi-admin roles, direct Object Storage URLs, or a split frontend/backend service architecture for v1.
 <!-- GSD:conventions-end -->
 

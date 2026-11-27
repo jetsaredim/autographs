@@ -19,10 +19,13 @@ module "iam" {
   deploy_user_name           = local.deploy_user_name
   deploy_user_description    = var.deploy_user_description
   deploy_user_email          = var.deploy_user_email
-  deploy_user_api_public_key = var.deploy_user_api_public_key
-  media_bucket_name          = local.media_bucket_name
-  state_bucket_name          = var.state_bucket_name
-  tags                       = local.tags
+  deploy_user_api_public_keys = merge(
+    var.deploy_user_api_public_keys,
+    var.deploy_user_api_public_key != "" ? { a = var.deploy_user_api_public_key } : {},
+  )
+  media_bucket_name = local.media_bucket_name
+  state_bucket_name = var.state_bucket_name
+  tags              = local.tags
 }
 
 module "state_bucket" {

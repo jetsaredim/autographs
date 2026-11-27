@@ -239,7 +239,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         workflow = yaml.load(
             (WORKFLOW_PATH.parent / "runtime-secret-rotation.yml").read_text(), Loader=yaml.BaseLoader,
         )
-        resolver = next(step["run"] for step in workflow["jobs"]["rotation"]["steps"] if step.get("id") == "request")
+        resolver = next(step["run"] for step in workflow["jobs"]["resolve"]["steps"] if step.get("id") == "request")
         head, merged_sha = "a" * 40, "b" * 40
         merged_at = "2026-11-25T12:30:00Z"
         label = "approved-secret-rotation"
@@ -386,7 +386,9 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         bootstrap = self.workflow["jobs"]["bootstrap_secrets"]
         self.assertIn("inputs.operation == 'bootstrap_secrets'", bootstrap["if"])
         self.assertIn("github.ref == 'refs/heads/main'", bootstrap["if"])
-        self.assertEqual(bootstrap["environment"], "secret-audit")
+        self.assertEqual(bootstrap["environment"], "production")
+        self.assertEqual(bootstrap["needs"], "approve_bootstrap_secrets")
+        self.assertEqual(self.workflow["jobs"]["approve_bootstrap_secrets"]["environment"], "secret-audit")
         bootstrap_run = next(step["run"] for step in bootstrap["steps"]
                              if step.get("name") == "Create Vault resources and populate only untouched placeholders")
         bootstrap_step = next(step for step in bootstrap["steps"]
@@ -451,7 +453,10 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
                 r'^variable "([^"]+)" \{(.*?)^\}', root_variables, re.MULTILINE | re.DOTALL
             ) if not re.search(r'^\s+default\s*=', body, re.MULTILINE)
         }
-        self.assertTrue({f"TF_VAR_{name}" for name in required} <= bootstrap_env.keys())
+        credentials = {"tenancy_ocid", "user_ocid", "fingerprint", "private_key_path"}
+        self.assertTrue({f"TF_VAR_{name}" for name in required - credentials} <= bootstrap_env.keys())
+        load_signer = next(step for step in bootstrap["steps"] if step.get("name") == "Load OCI deploy signing key")
+        self.assertIn("oci_deploy_identity.py load --ref main", load_signer["run"])
 
     def test_post_adb_plan_requires_rotation_even_when_no_changes_are_planned(self):
         run = self.production_steps["Terraform apply"]["run"]

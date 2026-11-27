@@ -32,6 +32,7 @@ deploy_user_email       = ""
 
 # Optional. See docs/oci-bootstrap.md for generating the signing key outside
 # Terraform and passing only its public half to the tenancy root.
-deploy_user_api_public_key = ""
+# Public PEMs only. Keep the active slot registered while adding its replacement.
+deploy_user_api_public_keys = {}
 
 state_bucket_name         = "autographs-tf-state"

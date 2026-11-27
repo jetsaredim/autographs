@@ -21,10 +21,10 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 
 | Secret | Used By | Purpose |
 |--------|---------|---------|
-| `OCI_CLI_USER_OCID` | deploy workflow | OCI API signing identity user OCID |
+| `OCI_CLI_USER_OCID` | regional OCI workflows with the legacy slot | OCI API signing identity user OCID |
 | `OCI_TENANCY_OCID` | deploy workflow | OCI tenancy OCID |
-| `OCI_FINGERPRINT` | deploy workflow | OCI API signing key fingerprint |
-| `OCI_PRIVATE_KEY_PEM` | deploy workflow | OCI API signing private key PEM |
+| `OCI_FINGERPRINT` | regional OCI workflows with the legacy slot | OCI API signing key fingerprint |
+| `OCI_PRIVATE_KEY_PEM` | regional OCI workflows with the legacy slot | OCI API signing private key PEM |
 | `DEPLOY_SSH_PRIVATE_KEY` | deploy workflow | SSH private key for the OCI runtime VM |
 | `GHCR_TOKEN` | deploy workflow | Pull access for the controller image |
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / runtime | Base64-encoded ADB wallet zip used for mTLS connections |
@@ -36,7 +36,16 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 | `PORKBUN_API_KEY`, `PORKBUN_SECRET_KEY` | Terraform CI/deploy | Porkbun DNS provider credentials |
 | `RELEASE_PLEASE_APP_PRIVATE_KEY` | release workflow | GitHub App installation token signing key |
 
-The current OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the controller image build, Terraform, or VM deployment steps.
+### Production environment signing-key slots
+
+| Setting | Type | Purpose |
+| --- | --- | --- |
+| `OCI_DEPLOY_USER_OCID` | Environment variable | Deploy user shared by both named signing-key slots. |
+| `OCI_DEPLOY_KEY_A`, `OCI_DEPLOY_KEY_B` | Environment secrets | JSON bundles with `fingerprint` and `private_key_pem`. Keep the outgoing slot available until the incoming slot works in normal CI and deploy. |
+
+The selector in `.github/oci-deploy-identity.json` initially uses the legacy
+repo secrets. See [Rotate the GitHub deploy API signing key](oci-bootstrap.md#rotate-the-github-deploy-api-signing-key)
+for enrollment, approval, and retirement.
 
 Production obtains the Oracle database password, wallet password, and admin
 hash from OCI Vault secret IDs output by Terraform. GitHub stores copies of
@@ -100,7 +109,7 @@ For local runs, copy `.env.example` to an untracked file such as `.env.local`, t
 - `infra/terraform/tenancy/environments/prod/terraform.tfvars.example` to `infra/terraform/tenancy/environments/prod/terraform.tfvars`
 - `infra/terraform/environments/prod/terraform.tfvars.example` to `infra/terraform/environments/prod/terraform.tfvars`
 
-Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, media bucket, Object Storage backend, DNS, and SSH inputs. GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_PRIVATE_KEY_PEM` to a temporary private key file for Terraform. The deployment key is not a controller runtime credential; the running controller uses instance-principal authentication for OCI media access.
+Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, media bucket, Object Storage backend, DNS, and SSH inputs. GitHub Actions loads the selected signing key into a protected runner file and configures OCI CLI and Terraform to use that path. The controller uses instance-principal authentication for OCI media access.
 
 ## Data Services
 
@@ -108,7 +117,7 @@ Terraform manages the private OCI Object Storage media bucket and Oracle Autonom
 
 Fresh environments first run `deploy.yml` with `operation=bootstrap_secrets`
 from `main` after configuring the reviewer-gated `secret-audit` environment and
-both manual GitHub Secrets. The targeted apply creates the Vault resources
+both manual GitHub Secrets. The approval job unlocks the bootstrap job, which loads the signer from `production`. The targeted apply creates the Vault resources
 without ADB. OCI generates the Oracle database password
 with the `DBAAS_DEFAULT_PASSWORD` passphrase template and a length of 30, so its
 generated version 1 is immediately usable. Only the Oracle wallet password and

@@ -1,0 +1,131 @@
+name: OCI signing-key rotation
+
+on:
+  pull_request_target:
+    branches: [main]
+    paths: [.github/oci-deploy-identity.json]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
+jobs:
+  candidate:
+    name: Check OCI signing-key candidate
+    if: >-
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
+      github.event.label.name == 'approved-oci-signing-key-rotation'
+    concurrency:
+      group: oci-signing-key-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    env:
+      REPOSITORY_OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Check out trusted base automation
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Read the proposed selector as data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/oci_deploy_identity.py prepare \
+            "$RUNNER_TEMP/signing-key-request.json" "$RUNNER_TEMP/signing-key-candidate.json"
+          if [[ -f "$RUNNER_TEMP/signing-key-candidate.json" ]]; then
+            echo "CHECK_OCI_SIGNER=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Load OCI deploy signing key
+        if: env.CHECK_OCI_SIGNER == 'true'
+        env:
+          OCI_DEPLOY_USER_OCID: ${{ vars.OCI_DEPLOY_USER_OCID }}
+          OCI_DEPLOY_KEY_A: ${{ secrets.OCI_DEPLOY_KEY_A }}
+          OCI_DEPLOY_KEY_B: ${{ secrets.OCI_DEPLOY_KEY_B }}
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+        run: python3 scripts/oci_deploy_identity.py load --candidate "$RUNNER_TEMP/signing-key-candidate.json"
+
+      - name: Set up Terraform
+        if: env.CHECK_OCI_SIGNER == 'true'
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.17.2"
+          terraform_wrapper: false
+
+      - name: Select OCI CLI Python version
+        if: env.CHECK_OCI_SIGNER == 'true'
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.15.2'
+
+      - name: Prove access to existing production state and Vault
+        if: env.CHECK_OCI_SIGNER == 'true'
+        working-directory: infra/terraform
+        env:
+          OCI_NAMESPACE: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
+          TF_VAR_availability_domain: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
+          TF_VAR_runtime_image_ocid: ${{ vars.OCI_RUNTIME_IMAGE_OCID }}
+          TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
+          TF_VAR_media_bucket_namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
+          TF_VAR_porkbun_api_key: ${{ secrets.PORKBUN_API_KEY }}
+          TF_VAR_porkbun_secret_key: ${{ secrets.PORKBUN_SECRET_KEY }}
+          TF_VAR_autographs_dns_record_id: ${{ vars.AUTOGRAPHS_DNS_RECORD_ID }}
+          CLOUDFLARE_MODE_OVERRIDE: ${{ vars.CLOUDFLARE_MODE }}
+          TF_VAR_cloudflare_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if [[ -n "$CLOUDFLARE_MODE_OVERRIDE" ]]; then
+            export TF_VAR_cloudflare_mode="$CLOUDFLARE_MODE_OVERRIDE"
+          fi
+          terraform init -input=false \
+            -backend-config="bucket=autographs-tf-state" \
+            -backend-config="namespace=$OCI_NAMESPACE" \
+            -backend-config="region=$OCI_REGION" \
+            -backend-config="key=envs/prod/terraform.tfstate" \
+            -backend-config="workspace_key_prefix=envs" \
+            -backend-config="auth=APIKey"
+          state_addresses="$(terraform state list)"
+          for address in module.compute.oci_core_instance.runtime module.data_services.oci_database_autonomous_database.catalog; do
+            if ! grep -Fxq "$address" <<< "$state_addresses"; then
+              echo "::error::Expected production Terraform state address is missing: $address"
+              exit 1
+            fi
+          done
+          echo "Candidate authenticated to the existing production Terraform state."
+          if ! terraform plan -refresh-only -input=false -lock=false -no-color \
+            > "$RUNNER_TEMP/oci-signing-key-plan.log" 2>&1; then
+            echo "::error::The authenticated production Terraform refresh plan failed."
+            exit 1
+          fi
+          echo "Candidate completed the authenticated production Terraform refresh plan."
+          python3 -m venv "$RUNNER_TEMP/oci-cli"
+          "$RUNNER_TEMP/oci-cli/bin/pip" install --disable-pip-version-check 'oci-cli==3.96.2'
+          secret_id="$(terraform output -json runtime_secret_ids | jq -er '.admin_password_hash')"
+          "$RUNNER_TEMP/oci-cli/bin/oci" secrets secret-bundle get \
+            --config-file "$RUNNER_TEMP/oci/config" --secret-id "$secret_id" --stage CURRENT \
+            --query 'data."version-number"' --raw-output >/dev/null
+          echo "Candidate authenticated to OCI Vault."
+
+      - name: Record verification and exact-head approval
+        if: always() && !cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ job.status }}
+        run: |
+          args=()
+          if [[ "$RESULT" == success ]]; then
+            args+=(--passed)
+          fi
+          python3 scripts/oci_deploy_identity.py report \
+            "$RUNNER_TEMP/signing-key-request.json" "$RUNNER_TEMP/signing-key-candidate.json" "${args[@]}"
