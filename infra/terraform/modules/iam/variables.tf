@@ -38,8 +38,8 @@ variable "deploy_user_email" {
   type = string
 }
 
-variable "deploy_user_api_public_key" {
-  type = string
+variable "deploy_user_api_public_keys" {
+  type = map(string)
 }
 
 variable "media_bucket_name" {

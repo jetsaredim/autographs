@@ -4,7 +4,7 @@ pr: 281
 reviewed_head: 71f43f5b38d97077874d7e7edfdeb7f9feed8c42
 status: ready_to_resume
 source_review: .planning/phases/08-admin-media-review-and-operational-posture/08-REVIEW.md
-revised_plan: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-REVISED-PLAN.md
+revised_plan: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-REVISED-WORKPLAN.md
 checker_review: .planning/phases/08-admin-media-review-and-operational-posture/08-PR-281-WORKBENCH-PLAN-REVIEW.md
 checker_status: passed_cycle_3
 reassessment_iteration: 2

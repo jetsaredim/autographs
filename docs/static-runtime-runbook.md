@@ -780,9 +780,10 @@ records bootstrap-frozen state, but first-release seeding still requires a
 valid `current` release before the existing full-deploy static gate can pass.
 
 Only after production health and the host's public and preview origin checks
-pass does the workflow call `publish-unfreeze.yml` separately. It repeats the
+pass does the workflow call `publish-unfreeze.yml` once. That call rechecks the
 image/release/source, current static, frozen POST, Caddy validation, and
-disposable marker checks. Verify-only and mutating unfreeze consume the same
+disposable marker conditions before opening publication. The optional
+verify-only mode and mutating unfreeze consume the same
 audited media-or-document probe, compare pointer/manifest/history/marker
 digests against the freeze record, and prove persistent exact marker denial at
 both origins. The mutating call keeps its disposable marker through the Caddy

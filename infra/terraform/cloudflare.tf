@@ -20,7 +20,7 @@ resource "cloudflare_dns_record" "autographs" {
   name    = "${var.project_name}.${var.autographs_dns_domain}"
   type    = "A"
   content = module.compute.public_ip
-  ttl     = local.cloudflare_autographs_proxied ? 1 : 600
+  ttl     = local.cloudflare_autographs_proxied ? 1 : var.autographs_dns_ttl
   proxied = local.cloudflare_autographs_proxied
 }
 

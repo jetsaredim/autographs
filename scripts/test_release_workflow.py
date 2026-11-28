@@ -5,6 +5,7 @@
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -196,6 +197,94 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             self.assertIn(term, condition)
         self.assertNotIn("release", self.workflow["on"])
 
+    def test_secret_rotation_is_read_only_until_the_controller_is_frozen_and_stopped(self):
+        source = WORKFLOW_PATH.parent
+        check = yaml.load((source / "ci-runtime-secrets.yml").read_text(), Loader=yaml.BaseLoader)
+        reused = yaml.load((source / "runtime-secret-rotation.yml").read_text(), Loader=yaml.BaseLoader)
+        caller = self.workflow["jobs"]["runtime-secrets"]
+        self.assertEqual(check["jobs"]["drift"]["with"]["mode"], "check")
+        self.assertIn("pull_request_target", check["on"])
+        self.assertEqual(caller["with"]["mode"], "resolve")
+        self.assertEqual(self.release_job["needs"], "runtime-secrets")
+        self.assertNotIn("issues", reused["on"])
+        job = reused["jobs"]["rotation"]
+        checkout = next(step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout"))
+        self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
+        self.assertFalse(any("rotation-apply" in step.get("run", "") for step in job["steps"]))
+        frozen = "Freeze and verify publisher cutover preflight"
+        stopped = "Prove the frozen controller is stopped before rotating Vault"
+        update = "Apply the approved rotation while the controller is stopped"
+        resume = "Start and verify the current controller after credential-only rotation"
+        unfreeze = "Explicitly unfreeze verified production publication"
+        self.assert_ordered([
+            "Revalidate approved rotation before taking the controller down",
+            frozen, stopped, update, resume, "Run full deployment",
+            "Verify deployment health", unfreeze,
+        ])
+        steps = self.production_steps
+        self.assertIn("steps.publish_freeze_preflight.outcome == 'success'", steps[stopped]["if"])
+        self.assertEqual(steps[update]["if"], "steps.rotation_stopped.outcome == 'success'")
+        self.assertIn("steps.cutover.outputs.mode == 'rotation'", steps[resume]["if"])
+        self.assertIn("steps.rotation_apply.outcome == 'success'", steps[resume]["if"])
+        deploy = steps["Run full deployment"]
+        self.assertIn("steps.cutover.outputs.mode == 'release'", deploy["if"])
+        self.assertIn("steps.rotation_apply.outcome == 'success'", deploy["if"])
+        for step in (steps[resume], deploy):
+            self.assertEqual(step["env"]["AUTOGRAPHS_VERIFIED_WALLET_FILE"],
+                             "${{ steps.rotation_apply.outputs.wallet_file }}")
+        self.assertIn("steps.rotation_resume.outcome == 'success'", steps[unfreeze]["if"])
+        self.assertIn("steps.deployment_health.outputs.verified == 'true'", steps[unfreeze]["if"])
+
+    def test_merge_rotation_uses_the_reviewed_pr_head_and_latest_premerge_label(self):
+        workflow = yaml.load(
+            (WORKFLOW_PATH.parent / "runtime-secret-rotation.yml").read_text(), Loader=yaml.BaseLoader,
+        )
+        resolver = next(step["run"] for step in workflow["jobs"]["resolve"]["steps"] if step.get("id") == "request")
+        head, merged_sha = "a" * 40, "b" * 40
+        merged_at = "2026-11-25T12:30:00Z"
+        label = "approved-secret-rotation"
+        label_event = {"id": 41, "event": "labeled", "label": {"name": label},
+                       "actor": {"login": "owner"}, "created_at": "2026-11-25T12:20:00Z"}
+        pr = {
+            "merged_at": merged_at, "merge_commit_sha": merged_sha, "number": 123,
+            "base": {"ref": "main"}, "head": {"sha": head, "repo": {"full_name": "owner/repo"}},
+            "user": {"login": "owner"}, "labels": [{"name": label}],
+        }
+
+        def comment(checked_head, event_id):
+            record = {"request": {"head": checked_head, "label_event": event_id, "credential": "admin_password_hash"}}
+            return {"body": "<!-- AUTOGRAPHS_PR_ROTATION " + json.dumps(record) + " -->",
+                    "created_at": "2026-11-25T12:25:00Z", "user": {"login": "github-actions[bot]"}}
+
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            fake_gh = directory / "gh"
+            fake_gh.write_text(
+                '#!/bin/bash\ncase "$2" in\n'
+                '  */events) cat "$RUNNER_TEMP/events";;\n'
+                '  */comments) cat "$RUNNER_TEMP/comments";;\n'
+                '  */pulls) cat "$RUNNER_TEMP/pulls";;\n'
+                '  *) exit 1;;\nesac\n'
+            )
+            fake_gh.chmod(0o700)
+            env = {
+                **os.environ, "PATH": f"{temp}:{os.environ['PATH']}", "RUNNER_TEMP": temp,
+                "GITHUB_OUTPUT": str(directory / "output"), "MODE": "resolve", "OWNER": "owner",
+                "GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": merged_sha,
+                "GITHUB_REPOSITORY": "owner/repo", "APPROVAL_LABEL": label,
+            }
+            for event, receipt, expected in [
+                (label_event, comment(head, 41), True),
+                (label_event, comment("c" * 40, 41), False),
+                ({**label_event, "id": 42}, comment(head, 41), False),
+                ({**label_event, "created_at": "2026-11-25T12:31:00Z"}, comment(head, 41), False),
+            ]:
+                with self.subTest(event=event, receipt=receipt):
+                    for filename, data in {"pulls": [pr], "events": [event], "comments": [receipt]}.items():
+                        (directory / filename).write_text(json.dumps(data))
+                    result = subprocess.run(["bash", "-c", resolver], env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode == 0, expected, result.stderr)
+
     def test_terraform_changes_use_reviewed_release_deploy(self):
         jobs = self.workflow["jobs"]
         production_gate = jobs["production"]["if"]
@@ -248,6 +337,30 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
                              if step.get("name") == "Clean up local Podman images")
         self.assertNotIn("autographs_system_cleanup_deploy_path=", local_cleanup["with"]["options"])
 
+    def test_image_cleanup_uses_one_dry_run_input_for_local_and_ghcr(self):
+        cleanup = yaml.load(
+            (ROOT / ".github/workflows/image-cleanup.yml").read_text(),
+            Loader=yaml.BaseLoader,
+        )
+        inputs = cleanup["on"]["workflow_dispatch"]["inputs"]
+        self.assertEqual(list(inputs), ["dry_run"])
+        dry_run = inputs["dry_run"]
+        self.assertEqual(dry_run["default"], "false")
+        self.assertEqual(dry_run["options"], ["false", "true"])
+        self.assertEqual(cleanup["env"]["LOCAL_CLEANUP_DRY_RUN"], "${{ inputs.dry_run || 'false' }}")
+        self.assertEqual(
+            cleanup["env"]["GHCR_CLEANUP_DRY_RUN"],
+            cleanup["env"]["LOCAL_CLEANUP_DRY_RUN"],
+        )
+        local_cleanup = next(
+            step for step in cleanup["jobs"]["runtime-cleanup"]["steps"]
+            if step.get("name") == "Clean up local Podman images"
+        )
+        self.assertIn(
+            "autographs_system_cleanup_dry_run=${{ env.LOCAL_CLEANUP_DRY_RUN }}",
+            local_cleanup["with"]["options"],
+        )
+
     def test_runtime_deploy_user_is_owned_by_ansible(self):
         production_plan = self.production_steps["Terraform apply"]
         self.assertNotIn("TF_VAR_runtime_deploy_user", production_plan["env"])
@@ -273,7 +386,9 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         bootstrap = self.workflow["jobs"]["bootstrap_secrets"]
         self.assertIn("inputs.operation == 'bootstrap_secrets'", bootstrap["if"])
         self.assertIn("github.ref == 'refs/heads/main'", bootstrap["if"])
-        self.assertEqual(bootstrap["environment"], "secret-audit")
+        self.assertEqual(bootstrap["environment"], "production")
+        self.assertEqual(bootstrap["needs"], "approve_bootstrap_secrets")
+        self.assertEqual(self.workflow["jobs"]["approve_bootstrap_secrets"]["environment"], "secret-audit")
         bootstrap_run = next(step["run"] for step in bootstrap["steps"]
                              if step.get("name") == "Create Vault resources and populate only untouched placeholders")
         bootstrap_step = next(step for step in bootstrap["steps"]
@@ -321,6 +436,12 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             "oci_core_instance.runtime: delete,create",
             "oci_objectstorage_bucket.retired: forget",
         ])
+        data_filter = ci_plan.split('echo "Data lookup actions:"', 1)[1].split("| jq -r '", 1)[1].split("'", 1)[0]
+        data_result = subprocess.run(["jq", "-r", data_filter], input=json.dumps(plan),
+                                     text=True, capture_output=True, check=True)
+        self.assertEqual(data_result.stdout.splitlines(), [
+            "data.oci_identity_compartments.project: read",
+        ])
 
         bootstrap_env = next(step["env"] for step in bootstrap["steps"]
                              if step.get("name") == "Create Vault resources and populate only untouched placeholders")
@@ -332,7 +453,10 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
                 r'^variable "([^"]+)" \{(.*?)^\}', root_variables, re.MULTILINE | re.DOTALL
             ) if not re.search(r'^\s+default\s*=', body, re.MULTILINE)
         }
-        self.assertTrue({f"TF_VAR_{name}" for name in required} <= bootstrap_env.keys())
+        credentials = {"tenancy_ocid", "user_ocid", "fingerprint", "private_key_path"}
+        self.assertTrue({f"TF_VAR_{name}" for name in required - credentials} <= bootstrap_env.keys())
+        load_signer = next(step for step in bootstrap["steps"] if step.get("name") == "Load OCI deploy signing key")
+        self.assertIn("oci_deploy_identity.py load", load_signer["run"])
 
     def test_post_adb_plan_requires_rotation_even_when_no_changes_are_planned(self):
         run = self.production_steps["Terraform apply"]["run"]
@@ -785,7 +909,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         gate = self.production_steps[gate_name]
         self.assertEqual(gate["id"], "release_gate")
         self.assertEqual(
-            gate["if"], "steps.request.outputs.operation != 'rollback'"
+            gate["if"], "steps.request.outputs.operation != 'rollback' && steps.request.outputs.operation != 'rotation'"
         )
         self.assertEqual(
             gate["env"]["PRODUCTION_MUTATION_REQUIRED"],

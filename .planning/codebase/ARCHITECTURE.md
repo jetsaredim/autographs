@@ -25,9 +25,10 @@ Phase 7 metadata taxonomy and public facets are implemented on this same
 Rust/static foundation. The catalog now supports reusable signer profiles,
 item signer credits, first-class item taxonomy, schema version 2 public JSON,
 and generated public facets for signer, franchise, productLine, format,
-language, origin, role, and tag. Phase 8 is now the pending operational
-posture, CDN/cache, and admin media review/adjustment layer before Phase 9
-taxonomy media cues and Phase 10 advisory AI-assisted ingest.
+language, origin, role, and tag. Phase 8 has implemented operational posture,
+CDN/cache, and admin media review/adjustment work; final IaC disposition and
+release-path verification remain before Phase 9 taxonomy media cues and Phase
+10 advisory AI-assisted ingest.
 
 ## Layers
 
@@ -133,14 +134,15 @@ posture pass and CI hygiene guardrail, the origin CDN/cache contract, private
 authenticated image previews, a focused admin adjustment workbench, Oracle
 adjustment metadata, and adjustment-aware publishing with final-byte
 fingerprinted WebP URLs. Plan 08-08 closes source/security coverage and local
-gates; production CDN enablement and edge verification remain a blocking
-operator checkpoint. Phase 9 owns optional taxonomy media cues and Phase 10
+gates. Live CDN cache and admin bypass evidence is recorded; the IaC
+operating-contract disposition and final release-path
+verification remain open. Phase 9 owns optional taxonomy media cues and Phase 10
 owns advisory AI-assisted ingest.
 
 ## Notable Absences
 
-- Production Cloudflare proxying and edge-cache behavior have not been
-  verified; they remain the Phase 8 closeout checkpoint.
+- Final release-path verification and IaC operating-contract disposition remain
+  the Phase 8 closeout checkpoint.
 - Optional taxonomy/media thumbnail cues and AI-assisted metadata suggestions
   are not implemented yet; taxonomy media cues are Phase 9 scope and advisory
   AI-assisted ingest is Phase 10 scope.

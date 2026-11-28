@@ -168,6 +168,50 @@ the generated database password exists and the wallet/admin intentionally
 invalid version-1 bootstrap values have been replaced by `CURRENT` versions 2
 or later.
 
+## Rotate the admin hash or Oracle wallet password
+
+Set up the `approved-secret-rotation` PR label and the repository secret that
+signs the checked candidate. From the repository checkout, run:
+
+```bash
+gh label create approved-secret-rotation --description "Approve runtime secret rotation on PR merge"
+openssl rand -hex 32 | gh secret set RUNTIME_SECRET_ROTATION_AUTH_KEY
+```
+
+After the workflow lands on `main`, make the **Runtime secret drift** status a
+required PR check if branch protection should block merges on drift. The check
+runs trusted base-branch code. Fork and Dependabot PRs have no live-secret
+check and cannot authorize rotation.
+
+1. Set the new GitHub secret for one credential. Use an Argon2id hash for
+   `AUTOGRAPHS_ADMIN_PASSWORD_HASH`. For a wallet rotation, update
+   `ORACLE_DB_WALLET_PASSWORD` and the matching `ORACLE_DB_WALLET_ZIP_BASE64`
+   together. Keep values and wallet files out of source and PR comments.
+2. Open or update a same-repository PR targeting `main`. Changing a GitHub
+   secret does not trigger CI by itself. The next **Runtime secret drift**
+   check flags the mismatch and names the credential.
+3. As the repository owner, add `approved-secret-rotation` to that PR. The
+   check reruns and records the checked candidate, Vault version, PR head,
+   and label event. Wallet checks also verify the password can open the
+   checked PKCS#12 wallet. Wait for the green check, then merge within 24 hours.
+   If the PR changes or the check has expired, remove and reapply the label.
+4. The resulting `main` push selects the reviewed release if it deploys
+   runtime changes, or verifies the installed release for a credential-only
+   cutover. Under the production deployment lock, it revalidates the approval,
+   freezes publishing, and proves the controller is stopped. The runner then
+   writes and verifies the Vault version. Wallet rotation installs the checked
+   ZIP while the controller is still down. The job starts the controller once
+   and verifies Oracle health before unfreezing. A release that also changes
+   the runtime uses its existing cutover for all of these steps.
+
+If the cutover fails, rerun the failed production job from that same Actions
+run. Leave publishing frozen until the controller has started successfully and
+the unfreeze checks pass. A retry recognizes the Vault version written by the
+same run and finishes the cutover without creating another version. If the
+candidate or Vault version changed after approval, restore the approved
+candidate where applicable or resolve any outstanding draft before requesting
+fresh approval. Ordinary releases continue to fail on an unapproved mismatch.
+
 ## OCI-Managed Database Password Rotation Rollout
 
 Treat the first deployment that enables OCI generation and ADB-coordinated
@@ -290,8 +334,11 @@ deployments must preserve a previously committed old URL through preflight and
 role reaudit. The origin readiness probe is a verified unmarked current WebP,
 or `/manifest.json` when the current release is empty or every active image is
 exactly marked. Verify-only and mutating unfreeze require 200 for the selected
-path and 404 for every persistent marker on public and preview origins, before
-and after the Caddy restart; unmarked byte corruption keeps the gate frozen.
+path and 404 for every persistent marker on public and preview origins. The
+ordinary deploy invokes mutating unfreeze once after health; it runs these
+checks before removing the gate and repeats origin checks after the Caddy
+restart. The optional verify-only mode performs the prechecks without opening
+publication. Unmarked byte corruption keeps the gate frozen.
 Pre-stop checks prove only frozen document availability and publish denial;
 a pending publication intent is reconciled after verified old-process exit.
 The already-created `v0.5.0` tag predates the automatic gate installation. Its
@@ -666,7 +713,7 @@ pending and require their own implementation and production evidence.
 
 Terraform no longer embeds the runtime bootstrap state in cloud-init. If a clean VM is needed, manually run the deploy workflow with `recreate_runtime_instance=true`. The workflow taints `module.compute.oci_core_instance.runtime` before `terraform apply`, forcing OCI to recreate the runtime VM and then letting Ansible converge the full production state onto the replacement instance. During the counted-to-uncounted state migration, the retry path also accepts the old `[0]` address before the first apply of the moved block.
 
-Image cleanup runs weekly and by manual dispatch. Local cleanup protects active/previous controller references, container-used images, operator-protected tags, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` images. Remote GHCR cleanup runs inventory-only on schedules; manual `remote_operation=delete` explicitly enables deletion. Active/previous controller tags/digests, configured age/count windows, and untagged manifests are protected. `dry_run` controls local cleanup separately. See [retention](release-management.md#retention) before retiring Releases, source tags, or GHCR images.
+Image cleanup runs weekly and by manual dispatch. Scheduled and ordinary manual runs remove eligible local Podman and GHCR images; select `dry_run=true` on a manual run to preview both selections without deleting. Local cleanup protects active/previous controller references, container-used images, operator-protected tags, and the newest `AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT` images. GHCR cleanup protects active/previous controller tags and digests, configured age/count windows, and untagged manifests that may be needed by retained image indexes. See [retention](release-management.md#retention) before retiring Releases, source tags, or GHCR images.
 
 ### Post-Phase 6 Runtime Cleanup Checklist
 

@@ -300,7 +300,9 @@ handle /admin/api/publish/incremental {
             timedatectl.write_text("#!/bin/sh\nprintf 'yes\\n'\n")
             timedatectl.chmod(0o755)
             quadlet = root / "autographs-caddy.container"
-            quadlet.write_text("[Unit]\nAfter=network-online.target autographs-controller.service\nWants=network-online.target autographs-controller.service\n")
+            legacy_quadlet = "[Unit]\nAfter=network-online.target autographs-controller.service\nWants=network-online.target autographs-controller.service\n"
+            current_quadlet = "[Unit]\nAfter=network-online.target autographs-network.service\nWants=network-online.target\nRequires=autographs-network.service\n"
+            quadlet.write_text(legacy_quadlet)
             (root / "app.env").write_text("AUTOGRAPHS_CONTROLLER_IMAGE=ghcr.io/example/controller:v1.2.3\nAUTOGRAPHS_CONTROLLER_DIGEST=sha256:" + "a" * 64 + "\n")
             inventory = root / "inventory"
             inventory.write_text("[runtime]\nlocalhost ansible_connection=local ansible_become=false\n")
@@ -393,9 +395,23 @@ handle /admin/api/publish/incremental {
                 self.assertNotIn("x-autographs-publish-frozen", origin("/admin/api/publish/status").lower())
                 original_inode = (caddy_dir / "Caddyfile").stat().st_ino
 
+                legacy_preflight = invoke_preflight()
+                self.assertNotEqual(legacy_preflight.returncode, 0, legacy_preflight.stdout + legacy_preflight.stderr)
+                self.assertIn("Installed Caddy still depends on the controller", legacy_preflight.stdout)
+                self.assertNotIn("Stop old controller and all accepted or queued old requests", legacy_preflight.stdout)
+                self.assertEqual(quadlet.read_text(), legacy_quadlet)
+                self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
+                (caddy_dir / "Caddyfile").write_text(source)
+                reload_result = subprocess.run(
+                    ["docker", "exec", container, "caddy", "reload", "--config", "/etc/caddy/Caddyfile"],
+                    capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(reload_result.returncode, 0, reload_result.stderr)
+                quadlet.write_text(current_quadlet)
+
                 preflight = invoke_preflight()
                 self.assertEqual(preflight.returncode, 0, preflight.stdout + preflight.stderr)
-                self.assertIn("Require live freeze before touching Caddy service ordering", preflight.stdout)
+                self.assertIn("Require live freeze before checking Caddy independence", preflight.stdout)
                 self.assertIn("HTTP_STATUS=503", origin("/admin/api/publish/full", "POST"))
                 self.assertIn("cache-control: no-store", origin("/admin/api/publish/incremental", "POST").lower())
                 frozen_status = origin("/admin/api/publish/status").lower()
@@ -405,7 +421,7 @@ handle /admin/api/publish/incremental {
                 self.assertEqual((root / "private/pre-freeze-Caddyfile").read_text(), source)
                 self.assertIn("Require dual-origin active 200 and every exact marker 404", preflight.stdout)
                 self.assertTrue(fixture.record.exists())
-                self.assertNotIn("autographs-controller.service", quadlet.read_text())
+                self.assertEqual(quadlet.read_text(), current_quadlet)
 
                 reaudit = invoke_role_reaudit()
                 self.assertEqual(reaudit.returncode, 0, reaudit.stdout + reaudit.stderr)
@@ -1107,21 +1123,31 @@ handle /admin/api/publish/incremental {
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
         steps = workflow["jobs"]["production"]["steps"]
         named = {step.get("name"): (index, step) for index, step in enumerate(steps)}
+        cutover = named["Select release or credential-only cutover identity"]
         preflight = named["Freeze and verify publisher cutover preflight"]
+        resume = named["Start and verify the current controller after credential-only rotation"]
         deploy = named["Run full deployment"]
-        readiness = named["Verify frozen origin readiness"]
         unfreeze = named["Explicitly unfreeze verified production publication"]
         gate = named["Validate release completion gate"]
+        self.assertLess(cutover[0], preflight[0])
         self.assertLess(preflight[0], deploy[0])
-        self.assertLess(deploy[0], readiness[0])
-        self.assertLess(readiness[0], unfreeze[0])
+        self.assertLess(preflight[0], resume[0])
+        self.assertLess(resume[0], unfreeze[0])
+        self.assertLess(deploy[0], unfreeze[0])
         self.assertLess(unfreeze[0], gate[0])
+        self.assertNotIn("Verify frozen origin readiness", named)
+        self.assertEqual(sum(step.get("with", {}).get("playbook") == "playbooks/publish-unfreeze.yml"
+                             for step in steps), 1)
         self.assertEqual(preflight[1]["with"]["playbook"], "playbooks/publish-freeze-preflight.yml")
         self.assertIn("autographs_deploy_publish_frozen=true", deploy[1]["with"]["options"])
         self.assertIn("steps.publish_freeze_preflight.outcome == 'success'", deploy[1]["if"])
-        self.assertIn("production_mutation_required == 'true'", preflight[1]["if"])
-        self.assertIn("production_mutation_required == 'true'", unfreeze[1]["if"])
-        self.assertIn("autographs_publish_unfreeze_verify_only=true", readiness[1]["with"]["options"])
+        self.assertIn("steps.manifest.outputs.production_mutation_required == 'true'", cutover[1]["if"])
+        self.assertIn("steps.rotation_validation.outcome == 'success'", cutover[1]["if"])
+        self.assertEqual(preflight[1]["if"], "steps.cutover.outputs.mode != ''")
+        self.assertEqual(
+            unfreeze[1]["if"],
+            "steps.deployment_health.outputs.verified == 'true' || steps.rotation_resume.outcome == 'success'",
+        )
         self.assertIn("autographs_publish_unfreeze_verify_only=false", unfreeze[1]["with"]["options"])
         self.assertIn("PUBLISH_UNFREEZE_OUTCOME", gate[1]["env"])
 
@@ -1130,7 +1156,7 @@ handle /admin/api/publish/incremental {
         task_names = [task["name"] for task in preflight]
         drain = preflight[task_names.index("Verify and drain an installed runtime")]["block"]
         drain_names = [task["name"] for task in drain]
-        self.assertLess(drain_names.index("Require live freeze before touching Caddy service ordering"),
+        self.assertLess(drain_names.index("Require live freeze before checking Caddy independence"),
                         drain_names.index("Stop old controller and all accepted or queued old requests"))
         self.assertLess(drain_names.index("Inventory initial shared namespace without mutation before old process exit"),
                         drain_names.index("Stop old controller and all accepted or queued old requests"))
@@ -1153,6 +1179,12 @@ handle /admin/api/publish/incremental {
         unfreeze = yaml.safe_load((PLAYBOOKS / "publish-unfreeze.yml").read_text())[0]["tasks"]
         unfreeze_names = [task["name"] for task in unfreeze]
         self.assertLess(unfreeze_names.index("Verify current pointer, manifest, history, and marker inventory before unfreeze"),
+                        unfreeze_names.index("Remove managed gate only after readiness"))
+        self.assertLess(unfreeze_names.index("Require static 200 and no-store frozen POSTs"),
+                        unfreeze_names.index("Remove managed gate only after readiness"))
+        self.assertLess(unfreeze_names.index("Require every persistent exact marker denied at both origins"),
+                        unfreeze_names.index("Remove managed gate only after readiness"))
+        self.assertLess(unfreeze_names.index("Probe marked shared media on both origin routes"),
                         unfreeze_names.index("Remove managed gate only after readiness"))
         self.assertLess(unfreeze_names.index("Require dual-origin old committed media reachability"),
                         unfreeze_names.index("Remove managed gate only after readiness"))

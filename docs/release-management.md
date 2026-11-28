@@ -63,21 +63,21 @@ Legacy tags predating manifests are not automatically eligible for this dispatch
 
 ## Retention
 
-VM image cleanup remains scheduled. It preserves the active controller, previous controller, container-referenced images, explicitly protected tags, and the configured newest-image window. Other unused release-tagged images may be removed. Manual local cleanup defaults to dry-run.
+VM and GHCR image cleanup run weekly and by manual dispatch. Both delete eligible images by default. The VM cleanup preserves the active controller, previous controller, container-referenced images, explicitly protected tags, and the configured newest-image window. Other unused release-tagged images may be removed. Select `dry_run=true` to preview both cleanups without deleting images.
 
-Remote GHCR cleanup is inventory-only on schedules. Run an inventory first:
-
-```bash
-gh workflow run image-cleanup.yml --ref main -f dry_run=true -f remote_operation=inventory
-```
-
-Review the logged deployed and previous controller mappings, keep reasons, and deletion candidates. Explicitly request remote deletion only after reviewing that inventory:
+To preview both selections:
 
 ```bash
-gh workflow run image-cleanup.yml --ref main -f dry_run=true -f remote_operation=delete
+gh workflow run image-cleanup.yml --ref main -f dry_run=true
 ```
 
-Here `dry_run` controls VM-local deletion; `remote_operation` controls GHCR independently. Untagged manifests are retained conservatively because they may be platform children of a retained image index.
+Review the logged deployed and previous controller mappings, keep reasons, and deletion candidates. To run both cleanups manually:
+
+```bash
+gh workflow run image-cleanup.yml --ref main -f dry_run=false
+```
+
+The same `dry_run` value controls VM-local and GHCR deletion. Scheduled runs use `false`. GHCR selection retains the deployed and previous controller references, protected tags, the configured age and count windows, and untagged manifests that may be platform children of a retained image index.
 
 GitHub Releases and source tags are not permanent retention requirements. Before manually retiring them, choose a rollback floor, list Releases and tags, and inspect each retained manifest's controller mapping. Protect the currently deployed repository release and active/previous controller artifacts, including images reused by newer repository releases. Removing a Release also removes its manifest; removing its source tag breaks source-based retry.
 

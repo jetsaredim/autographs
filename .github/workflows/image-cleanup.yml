@@ -6,21 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Show what would be deleted without deleting images"
+        description: "Preview local and GHCR image cleanup without deleting images"
         required: false
-        default: "true"
+        default: "false"
         type: choice
         options:
           - "false"
           - "true"
-      remote_operation:
-        description: "GHCR inventory or explicit deletion after reviewing inventory"
-        required: true
-        default: inventory
-        type: choice
-        options:
-          - inventory
-          - delete
 
 concurrency:
   group: deploy-production
@@ -28,6 +20,7 @@ concurrency:
 
 permissions:
   contents: read
+  deployments: read
   packages: write
 
 env:
@@ -36,7 +29,7 @@ env:
   GHCR_CLEANUP_RETAIN_SEMVER_TAGGED: ${{ vars.GHCR_CLEANUP_RETAIN_SEMVER_TAGGED || vars.GHCR_CLEANUP_RETAIN_TAGGED || '3' }}
   GHCR_CLEANUP_MIN_AGE_DAYS: ${{ vars.GHCR_CLEANUP_MIN_AGE_DAYS || '7' }}
   GHCR_CLEANUP_PROTECTED_TAGS: ${{ vars.GHCR_CLEANUP_PROTECTED_TAGS || '' }}
-  GHCR_CLEANUP_DRY_RUN: ${{ github.event_name != 'workflow_dispatch' || inputs.remote_operation != 'delete' }}
+  GHCR_CLEANUP_DRY_RUN: ${{ inputs.dry_run || 'false' }}
   LOCAL_CLEANUP_DRY_RUN: ${{ inputs.dry_run || 'false' }}
   AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT: ${{ vars.AUTOGRAPHS_LOCAL_IMAGE_RETAIN_COUNT || '3' }}
   AUTOGRAPHS_DEPLOY_PATH_OVERRIDE: ${{ vars.DEPLOY_PATH }}
@@ -46,20 +39,29 @@ jobs:
   resolve-runtime:
     name: Resolve runtime VM
     runs-on: ubuntu-latest
+    environment: production
     outputs:
       runtime_public_ip: ${{ steps.resolve.outputs.runtime_public_ip }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Load OCI deploy signing key
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OCI_DEPLOY_USER_OCID: ${{ vars.OCI_DEPLOY_USER_OCID }}
+          OCI_DEPLOY_KEY_A: ${{ secrets.OCI_DEPLOY_KEY_A }}
+          OCI_DEPLOY_KEY_B: ${{ secrets.OCI_DEPLOY_KEY_B }}
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+        run: python3 scripts/oci_deploy_identity.py load
+
       - name: Resolve runtime VM IP
         id: resolve
         uses: ./.github/actions/resolve-runtime-ip
         with:
-          oci-private-key-pem: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-          oci-cli-user-ocid: ${{ secrets.OCI_CLI_USER_OCID }}
-          oci-tenancy-ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          oci-fingerprint: ${{ secrets.OCI_FINGERPRINT }}
           oci-object-storage-namespace: ${{ vars.OCI_OBJECT_STORAGE_NAMESPACE }}
           vm-public-ip: ${{ vars.VM_PUBLIC_IP }}
 

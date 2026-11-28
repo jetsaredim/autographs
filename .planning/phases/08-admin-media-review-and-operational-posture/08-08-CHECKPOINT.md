@@ -44,21 +44,29 @@ On 2026-11-06, public responses showed `/admin/` 200 with `Cache-Control: no-sto
 ## Current closeout gates
 
 The Cloudflare cutover, authenticated admin bypass, public document headers,
-and repeated media cache HIT are recorded in the progress below. Remaining:
+repeated media cache HIT, and owner-approved rollback deferral are recorded
+below. Remaining:
 
-1. Record a safe rollback exercise or the exact reason it was deferred, along
-   with the documented recovery path.
-2. Complete the Terraform/Ansible operating-contract inventory and final
-   P8-POSTURE-006 disposition.
+1. Confirm the deploy API signing-key ownership and the remaining
+   Ansible/workflow dispositions for P8-POSTURE-006.
+2. Review `AGENTS.md` against the current architecture and Phase 8 status,
+   update stale guidance and its source maps, and ensure the root `SECURITY.md`
+   gives a usable vulnerability reporting path.
 3. Write `08-08-SUMMARY.md` and update Phase 8 state and requirement status
    after those gates are satisfied.
+
+The root `SECURITY.md` now exists. The owner enabled GitHub private
+vulnerability reporting, and the repository API returned `enabled: true` on
+2026-11-21. The policy points directly to the private advisory form. Recheck
+the link and current-state guidance at final closeout.
 
 ## 2026-11-19 closeout progress
 
 - [PR #371](https://github.com/jetsaredim/autographs/pull/371) merged as
   `abc17a0` with passing PR checks. It flags destructive actions in the
   authenticated CI plan and requires a fresh PR label-add event after review;
-  routine release deployment retains its saved-plan and DNS guards.
+  routine release deployment retains its saved-plan apply. PR #378 removes
+  the DNS comparison added later in PR #377.
 - `security_scan_run_id: 43932933877` — the
   [2026-11-16 scanner run](https://github.com/jetsaredim/autographs/actions/runs/43932933877)
   succeeded. [Security report #326](https://github.com/jetsaredim/autographs/issues/326)
@@ -100,6 +108,52 @@ and repeated media cache HIT are recorded in the progress below. Remaining:
 - On 2026-11-19, the owner confirmed the admin UI currently shows 0 pending
   changes. This is a later clean-state observation following the measured
   2026-11-15 publish, not a capture immediately after that run.
-- Rollback exercise or a specific safe-deferral reason and the completed
-  Terraform/Ansible operating inventory remain open. Do not mark Plan 08-08
-  or Phase 8 complete.
+- `rollback_evidence: deferred by owner on 2026-11-20`. A rehearsal would
+  intentionally change the live Cloudflare proxy or DNS delegation without an
+  incident, introducing availability and admin-access risk for a low-probability
+  recovery scenario. The owner judged that disruption unnecessary. The
+  [DNS runbook](../../../docs/dns-runbook.md#ongoing-cloudflare-changes)
+  documents a reviewed `CLOUDFLARE_MODE=dns_only` override and saved release
+  plan/apply, followed by restoration to `proxied` after an incident. Short-lived
+  HTML/JSON and fingerprinted media give release rollback its documented
+  freshness behavior. No live rollback was performed or claimed.
+- The Terraform/Ansible/workflow source inventory now has entry-specific
+  inputs, supported states, failure/recovery paths, tests, and dispositions.
+  On 2026-11-21, the owner named IAC-004 and IAC-007, asked to review six
+  operational switch flows, and chose ordinary release deployment after PR
+  review for Cloudflare changes. [PR #376](https://github.com/jetsaredim/autographs/pull/376)
+  removed obsolete Node deploy cleanup, passed two reviews and CI, and merged
+  as `b724d75`. [PR #377](https://github.com/jetsaredim/autographs/pull/377)
+  changed the proxied default and shared release apply path, passed CI and its
+  second review, and merged as `e84d58f`. Its first review
+  found a critical unreviewed-DNS-action path; the revised gate binds DNS
+  actions to the successful Release PR CI record. The owner subsequently
+  clarified that this extra apply gate is unwanted; PR #378 removes it and
+  leaves destructive-plan approval in normal and Release PR CI.
+  The duplicate `CLOUDFLARE_MODE=proxied` GitHub variable was removed after
+  the new default merged. The authenticated
+  [post-removal Terraform CI job](https://github.com/jetsaredim/autographs/actions/runs/44908578055/job/136859340147)
+  used the then-current workflow fallback `proxied` and reported no changes.
+  PR #378 makes Terraform's default the sole source unless an override is set.
+  No apply ran. The
+  Release PR has not been merged or deployed.
+  PR #375's
+  inventory and `/tmp/autographs-iac-operational-review.html` now explain the
+  switches and runtime-secret readiness. PR #375 passed its mandatory third
+  review and CI; PR #377 still needs release-path verification;
+  the owner has not yet accepted the revised inventory. P8-POSTURE-006 has no
+  final owner disposition. Do not mark Plan 08-08 or Phase 8 complete.
+
+## 2026-11-27 owner review progress
+
+- The owner accepted the Terraform resource, lookup, module, and provider
+  inventory apart from the open deploy signing-key question. Porkbun stays as
+  the web A-record backup and shares the Cloudflare origin address and
+  DNS-only TTL input. The compartment is owned in tenancy IAM and looked up
+  by name in the deploy root. PR #100 preserved its former counted address
+  with a Terraform move.
+- PR #375 implements manual credential rotation on an approved PR merge.
+  The production cutover freezes publishing and proves the controller is
+  stopped before writing Vault. It installs the checked wallet when needed
+  and verifies health before unfreeze. CI and local fixtures passed.
+  A live production rotation remains unverified.

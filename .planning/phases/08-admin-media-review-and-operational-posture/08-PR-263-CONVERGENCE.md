@@ -6,7 +6,7 @@ trigger_review: 08-REVIEW.md
 trigger_review_commit: daef9efba4b96d02281b8ce1c4c0d01ea32367db
 trigger_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115511490
 assumption_revision_evidence: 08-REVIEW.md#convergence-reassessment
-implementation_plan_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md
+implementation_plan_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-REVISED-WORKPLAN.md
 implementation_plan_review_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
 implementation_plan_review_comment: https://github.com/jetsaredim/autographs/pull/263#issuecomment-6115613343
 previous_plan_review_evidence: 08-PR-263-CANDIDATE-OWNERSHIP-PLAN-REVIEW.md
@@ -42,7 +42,7 @@ cleanup authority by erasing the only in-process record of an old object.
 The complete lineage, shared invariants, consumer inventory, assumption audit,
 and failure matrix are durable in `08-REVIEW.md#convergence-reassessment`.
 The revised implementation plan is
-`08-PR-263-CANDIDATE-OWNERSHIP-REVISED-PLAN.md`. No source change may begin
+`08-PR-263-CANDIDATE-OWNERSHIP-REVISED-WORKPLAN.md`. No source change may begin
 until an independent reviewer approves that plan with zero Critical, Warning,
 and Info findings and both evidence references replace the null review fields
 above. Only then may this status return to `ready_to_resume`.
@@ -124,7 +124,7 @@ because it predates these findings.
 ### Revised plan and resume requirements
 
 The coherent implementation plan is
-`08-PR-263-RECOVERY-SURFACE-CLEANUP-REVISED-PLAN.md`. Coder work remains
+`08-PR-263-RECOVERY-SURFACE-CLEANUP-REVISED-WORKPLAN.md`. Coder work remains
 forbidden until an independent reviewer approves it with zero Critical,
 Warning, and Info findings. The review artifact and PR comment must replace the
 null evidence fields above before `status` may change to `ready_to_resume`.

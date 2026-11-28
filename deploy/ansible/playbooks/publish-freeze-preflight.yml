@@ -219,7 +219,7 @@
           register: freeze_gate_http
           changed_when: false
 
-        - name: Require live freeze before touching Caddy service ordering
+        - name: Require live freeze before checking Caddy independence
           ansible.builtin.assert:
             that:
               - "'HTTP_STATUS=503' in freeze_gate_http.results[0].stdout"
@@ -238,39 +238,16 @@
             group: "{{ autographs_publish_file_group }}"
             mode: "0600"
 
-        - name: Remove controller ordering from live Caddy quadlet
-          ansible.builtin.replace:
-            path: "{{ caddy_quadlet_path }}"
-            regexp: '(?m)^(After|Wants|Requires)=(.*) autographs-controller\.service$'
-            replace: '\1=\2'
-
-        - name: Read decoupled live Caddy quadlet
+        - name: Read installed Caddy quadlet
           ansible.builtin.slurp:
             src: "{{ caddy_quadlet_path }}"
-          register: freeze_decoupled_quadlet
+          register: freeze_installed_quadlet
 
-        - name: Require no controller unit dependency before Caddy restart
+        - name: Require Caddy independent of controller before stopping it
           ansible.builtin.assert:
             that:
-              - "'autographs-controller.service' not in (freeze_decoupled_quadlet.content | b64decode)"
-            fail_msg: Live Caddy still depends on the old controller; stop before route cutover.
-
-        - name: Reload systemd after live Caddy decoupling
-          ansible.builtin.systemd:
-            daemon_reload: true
-          when: not autographs_publish_freeze_fixture_mode | bool
-
-        - name: Restart old Caddy under its frozen configuration
-          ansible.builtin.systemd:
-            name: autographs-caddy.service
-            state: restarted
-          when: not autographs_publish_freeze_fixture_mode | bool
-
-        - name: Reload real fixture Caddy under its frozen configuration
-          ansible.builtin.command:
-            argv: [podman, exec, autographs-caddy, caddy, reload, --config, /etc/caddy/Caddyfile]
-          changed_when: true
-          when: autographs_publish_freeze_fixture_mode | bool
+              - "'autographs-controller.service' not in (freeze_installed_quadlet.content | b64decode)"
+            fail_msg: Installed Caddy still depends on the controller; stop before route cutover.
 
         - name: Inspect static volume mountpoint
           ansible.builtin.command:

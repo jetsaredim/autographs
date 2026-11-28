@@ -35,5 +35,9 @@ output "runtime_dynamic_group_name" {
 }
 
 output "deploy_api_key_fingerprint" {
-  value = var.deploy_user_api_public_key != "" ? oci_identity_api_key.deploy[0].fingerprint : null
+  value = try(oci_identity_api_key.deploy["a"].fingerprint, null)
+}
+
+output "deploy_api_key_fingerprints" {
+  value = { for slot, key in oci_identity_api_key.deploy : slot => key.fingerprint }
 }

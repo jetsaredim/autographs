@@ -21,30 +21,41 @@ These are repo-level GitHub Secrets for the deployment baseline and data service
 
 | Secret | Used By | Purpose |
 |--------|---------|---------|
-| `OCI_CLI_USER_OCID` | deploy workflow | OCI API signing identity user OCID |
+| `OCI_CLI_USER_OCID` | regional OCI workflows with the legacy slot | OCI API signing identity user OCID |
 | `OCI_TENANCY_OCID` | deploy workflow | OCI tenancy OCID |
-| `OCI_FINGERPRINT` | deploy workflow | OCI API signing key fingerprint |
-| `OCI_PRIVATE_KEY_PEM` | deploy workflow | OCI API signing private key PEM |
+| `OCI_FINGERPRINT` | regional OCI workflows with the legacy slot | OCI API signing key fingerprint |
+| `OCI_PRIVATE_KEY_PEM` | regional OCI workflows with the legacy slot | OCI API signing private key PEM |
 | `DEPLOY_SSH_PRIVATE_KEY` | deploy workflow | SSH private key for the OCI runtime VM |
 | `GHCR_TOKEN` | deploy workflow | Pull access for the controller image |
 | `ORACLE_DB_WALLET_ZIP_BASE64` | deploy workflow / runtime | Base64-encoded ADB wallet zip used for mTLS connections |
-| `ORACLE_DB_WALLET_PASSWORD` | approved Vault bootstrap and deploy verification | Wallet password source value; must match the OCI Vault CURRENT bundle and wallet zip |
-| `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | approved Vault bootstrap and deploy verification | Argon2 admin hash source value; must match the OCI Vault CURRENT bundle |
+| `ORACLE_DB_WALLET_PASSWORD` | approved Vault bootstrap, manual rotation, and deploy verification | Wallet password source value. The approved rotation includes the matching wallet ZIP. |
+| `AUTOGRAPHS_ADMIN_PASSWORD_HASH` | approved Vault bootstrap, manual rotation, and deploy verification | Argon2id admin hash source value. Deploy requires an exact match with the OCI Vault CURRENT bundle. |
+| `RUNTIME_SECRET_ROTATION_AUTH_KEY` | manual rotation preflight and approval | Random key used to bind a PR approval to the checked credential, current Vault version, and wallet ZIP where applicable. |
 | `AUTOGRAPHS_OPERATOR_API_TOKEN` | runtime | Optional compatibility token for non-management diagnostics; not a collection-management credential |
 | `CLOUDFLARE_API_TOKEN` | Terraform CI/deploy | Scoped token for the active Cloudflare zone, records, TLS setting, cache rules, and edge certificate read checks |
 | `PORKBUN_API_KEY`, `PORKBUN_SECRET_KEY` | Terraform CI/deploy | Porkbun DNS provider credentials |
 | `RELEASE_PLEASE_APP_PRIVATE_KEY` | release workflow | GitHub App installation token signing key |
 
-The current OCI authentication path uses OCI API signing keys because that is the initial locked decision. Treat this as a replaceable auth adapter: the workflow isolates these inputs so a future OIDC or other short-lived auth path can replace OCI API signing keys without redesigning the controller image build, Terraform, or VM deployment steps.
+### Production environment signing-key slots
+
+| Setting | Type | Purpose |
+| --- | --- | --- |
+| `OCI_DEPLOY_USER_OCID` | Environment variable | Deploy user shared by both named signing-key slots. |
+| `OCI_DEPLOY_KEY_A`, `OCI_DEPLOY_KEY_B` | Environment secrets | JSON bundles with `fingerprint` and `private_key_pem`. Keep the outgoing slot available until the incoming slot works in normal CI and deploy. |
+
+Regional OCI jobs initially use the legacy repo secrets. The manual
+**Rotate OCI deploy signing key** workflow records the active slot and
+fingerprint in GitHub deployment history after validating the candidate. See [Rotate the GitHub deploy API signing key](oci-bootstrap.md#rotate-the-github-deploy-api-signing-key)
+for enrollment, approval, and retirement.
 
 Production obtains the Oracle database password, wallet password, and admin
 hash from OCI Vault secret IDs output by Terraform. GitHub stores copies of
 only the wallet password and admin hash to seed exact Terraform placeholders
 during an approved `bootstrap_secrets` dispatch and detect later drift.
-Normal releases never overwrite a mismatched Vault value. A rotation must
-update both stores through an explicit reviewed process. Do not store the
-OCI-generated database password in GitHub. Local Ansible may still pass direct
-values as a transition fallback.
+Normal releases stop on a Vault mismatch. The [manual rotation workflow](deployment-runbook.md#rotate-the-admin-hash-or-oracle-wallet-password)
+checks GitHub/Vault drift in PR CI. A checked label approval authorizes the
+merge workflow to update Vault. OCI manages the separate generated database password. Local Ansible may
+still pass direct values as a transition fallback.
 
 ## GitHub Variables
 
@@ -99,7 +110,7 @@ For local runs, copy `.env.example` to an untracked file such as `.env.local`, t
 - `infra/terraform/tenancy/environments/prod/terraform.tfvars.example` to `infra/terraform/tenancy/environments/prod/terraform.tfvars`
 - `infra/terraform/environments/prod/terraform.tfvars.example` to `infra/terraform/environments/prod/terraform.tfvars`
 
-Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, media bucket, Object Storage backend, DNS, and SSH inputs. GitHub Actions uses equivalent `TF_VAR_*` environment variables and writes `OCI_PRIVATE_KEY_PEM` to a temporary private key file for Terraform. The deployment key is not a controller runtime credential; the running controller uses instance-principal authentication for OCI media access.
+Local Terraform uses OCI tenancy identity, compartment, runtime VM, database, media bucket, Object Storage backend, DNS, and SSH inputs. GitHub Actions loads the selected signing key into a protected runner file and configures OCI CLI and Terraform to use that path. The controller uses instance-principal authentication for OCI media access.
 
 ## Data Services
 
@@ -107,7 +118,7 @@ Terraform manages the private OCI Object Storage media bucket and Oracle Autonom
 
 Fresh environments first run `deploy.yml` with `operation=bootstrap_secrets`
 from `main` after configuring the reviewer-gated `secret-audit` environment and
-both manual GitHub Secrets. The targeted apply creates the Vault resources
+both manual GitHub Secrets. The approval job unlocks the bootstrap job, which loads the signer from `production`. The targeted apply creates the Vault resources
 without ADB. OCI generates the Oracle database password
 with the `DBAAS_DEFAULT_PASSWORD` passphrase template and a length of 30, so its
 generated version 1 is immediately usable. Only the Oracle wallet password and
@@ -115,17 +126,19 @@ admin password hash receive intentionally invalid Terraform bootstrap content;
 the bootstrap operation replaces only those exact version-1 placeholders from
 the two GitHub Secrets, then verifies their `CURRENT` versions advanced to at
 least 2. Any other mismatch fails without overwriting Vault. The generated database
-password must never be populated or overwritten out of band. Terraform derives
-readiness from non-secret Vault version metadata: until the generated password
-exists and both manual secrets have advanced, an ADB request fails its Terraform
-precondition. Normal deployment compares both manual Vault bundles with GitHub
-before planning and fails on mismatch. Secret contents do not enter Terraform
-inputs or state.
+password must never be populated or overwritten out of band. Terraform uses
+Vault version metadata to withhold secret IDs from the controller deployment
+until the generated password is ready and both manual secrets have advanced.
+Normal deployment compares both manual Vault bundles with GitHub before
+planning and fails on mismatch. The real secret values stay outside Terraform
+inputs and state.
 
 The runtime Terraform root owns the regional Vault, software key, and controller
 secrets and passes the managed Oracle database password secret OCID to the
-Autonomous Database resource as `secret_id`. ADB obtains that OCID through an
-exact-name lookup of the already-created secret. The managed secret discovers
+Autonomous Database resource as `secret_id`. The direct resource reference
+orders the password secret before ADB, including when both are created in one
+Terraform apply. The wallet password and admin hash are controller prerequisites.
+The managed secret discovers
 the existing ADB by its exact display and DB names for its OCI rotation target;
 the deploy workflow runs a guarded second plan after initial ADB creation to
 attach scheduled rotation. Only

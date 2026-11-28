@@ -1,10 +1,9 @@
 # DNS Runbook
 
 The current production zone uses Cloudflare authoritative DNS with a proxied
-`autographs` A record. Porkbun remains the registrar and retains its older DNS
-record as a rollback copy. OCI public DNS zones are intentionally not managed
-by Terraform because OCI public DNS is not available in the current free-tier
-setup.
+`autographs` A record. Porkbun remains the registrar and retains the matching
+origin A record as a rollback copy. The current OCI free-tier setup excludes
+OCI public DNS zones.
 
 The existing `infra/terraform/` root and OCI state manage the full Cloudflare
 zone, the three DNS records, Full (strict) TLS, and cache rules. Porkbun
@@ -76,19 +75,21 @@ Proxy: enabled
 TTL: automatic
 ```
 
-Porkbun retains the former DNS record as a rollback copy; editing it does not
-change live DNS while Cloudflare nameservers are delegated. Use the current
-Terraform output to check the Cloudflare A-record address:
+Terraform manages the two A records from the same hostname and VM public IP
+inputs. When the VM IP changes, the shared deploy plan reconciles both
+providers. Both use `autographs_dns_ttl` in DNS-only mode. Cloudflare uses
+automatic TTL while proxied. Public DNS then returns edge IPs, so compare the
+provider records' configured origin addresses using the authenticated
+Terraform plan or the provider consoles. Check that both match:
 
 ```bash
 terraform -chdir=infra/terraform output -raw runtime_public_ip
 ```
 
-Or check the GitHub Variable fallback:
-
-```bash
-gh variable list --repo jetsaredim/autographs --json name,value --jq '.[] | select(.name == "VM_PUBLIC_IP") | .value'
-```
+Before moving delegation back to Porkbun, confirm its A record still points
+to the VM and compare the apex MX and SPF records with Cloudflare. Terraform
+manages Cloudflare's MX and SPF records. Check the Porkbun mail copies in the
+registrar console when changing mail policy.
 
 ## TLS
 
@@ -116,7 +117,7 @@ On 2026-11-06, Porkbun was authoritative. Porkbun Connect has since copied the
 zone into the owner's Cloudflare account and delegated nameservers. The
 Cloudflare DNS-only A, MX, and SPF records were checked against authoritative
 answers; the unused apex ACME challenge TXT records were removed. Keep the
-Porkbun zone backup until the CDN cutover and rollback window are complete.
+Porkbun zone backup for delegation recovery.
 
 Cloudflare enablement checklist:
 

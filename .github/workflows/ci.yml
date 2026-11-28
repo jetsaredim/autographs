@@ -96,6 +96,7 @@ jobs:
           python3 -m unittest \
             scripts/test_release.py \
             scripts/test_release_workflow.py \
+            scripts/test_oci_deploy_identity.py \
             scripts/test_sync_runtime_vault_secrets.py \
             scripts/test_validate_release_please_inputs.py \
             scripts/test_select_removable_images.py \
@@ -238,6 +239,10 @@ jobs:
     needs: impact
     if: ${{ !cancelled() && (needs.impact.result != 'success' || needs.impact.outputs.terraform-checks == 'true') }}
     runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      deployments: read
 
     steps:
       - name: Checkout
@@ -260,32 +265,23 @@ jobs:
           terraform init -backend=false
           terraform validate
 
-      - name: Write OCI API private key
+      - name: Load OCI deploy signing key
         env:
+          GH_TOKEN: ${{ github.token }}
+          OCI_DEPLOY_USER_OCID: ${{ vars.OCI_DEPLOY_USER_OCID }}
+          OCI_DEPLOY_KEY_A: ${{ secrets.OCI_DEPLOY_KEY_A }}
+          OCI_DEPLOY_KEY_B: ${{ secrets.OCI_DEPLOY_KEY_B }}
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/oci"
-          printf '%s\n' "$OCI_PRIVATE_KEY_PEM" > "$RUNNER_TEMP/oci/api_key.pem"
-          chmod 600 "$RUNNER_TEMP/oci/api_key.pem"
+        run: python3 scripts/oci_deploy_identity.py load
 
       - name: Terraform plan
         id: terraform_plan
         working-directory: infra/terraform
         env:
           DESTRUCTIVE_PLAN_APPROVED: ${{ github.event.action == 'labeled' && github.event.label.name == 'terraform-destructive-plan-approved' }}
-          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-          OCI_PRIVATE_KEY_PATH: ${{ runner.temp }}/oci/api_key.pem
-          OCI_REGION: us-ashburn-1
-          tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
-          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          private_key_path: ${{ runner.temp }}/oci/api_key.pem
-          TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          TF_VAR_user_ocid: ${{ secrets.OCI_CLI_USER_OCID }}
-          TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          TF_VAR_private_key_path: ${{ runner.temp }}/oci/api_key.pem
           TF_VAR_availability_domain: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
           TF_VAR_runtime_image_ocid: ${{ vars.OCI_RUNTIME_IMAGE_OCID }}
           TF_VAR_runtime_ssh_public_keys: ${{ vars.OCI_RUNTIME_SSH_PUBLIC_KEYS || '[]' }}
@@ -336,6 +332,9 @@ jobs:
           echo "Changed managed-resource actions:"
           terraform show -json "$terraform_plan_file" \
             | jq -r '.resource_changes[]? | select(.mode == "managed" and .change.actions != ["no-op"]) | "\(.address): \(.change.actions | join(","))"'
+          echo "Data lookup actions:"
+          terraform show -json "$terraform_plan_file" \
+            | jq -r '.resource_changes[]? | select(.mode == "data") | "\(.address): \(.change.actions | join(","))"'
 
   validate-ansible:
     name: Ansible syntax and lint
@@ -364,6 +363,7 @@ jobs:
             deploy/ansible/playbooks/publish-freeze-role-reaudit-test.yml \
             deploy/ansible/playbooks/deploy-path-contract-test.yml \
             deploy/ansible/playbooks/controller-rollback.yml \
+            deploy/ansible/playbooks/rotate-runtime-secret.yml \
             deploy/ansible/playbooks/system-cleanup.yml \
             deploy/ansible/playbooks/security-scan.yml \
             deploy/ansible/playbooks/security-patch.yml \

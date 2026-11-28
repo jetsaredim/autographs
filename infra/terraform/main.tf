@@ -33,10 +33,9 @@ module "compute" {
 module "data_services" {
   source = "./modules/data_services"
 
-  runtime_secret_values_ready                  = local.runtime_secret_values_ready
   autonomous_database_name                     = local.autonomous_database_name
   autonomous_database_display_name             = local.autonomous_database_display_name
-  autonomous_database_admin_password_secret_id = local.autonomous_database_admin_password_secret_id
+  autonomous_database_admin_password_secret_id = oci_vault_secret.runtime["oracle_db_password"].id
   media_bucket_namespace                       = var.media_bucket_namespace
   media_bucket_name                            = local.media_bucket_name
   compartment_id                               = local.compartment_ocid

@@ -80,11 +80,16 @@ resource "oci_identity_dynamic_group" "runtime_instances" {
   freeform_tags = var.tags
 }
 
+moved {
+  from = oci_identity_api_key.deploy[0]
+  to   = oci_identity_api_key.deploy["a"]
+}
+
 resource "oci_identity_api_key" "deploy" {
   provider  = oci.home
-  count     = var.deploy_user_api_public_key != "" ? 1 : 0
+  for_each  = var.deploy_user_api_public_keys
   user_id   = oci_identity_user.deploy.id
-  key_value = var.deploy_user_api_public_key
+  key_value = each.value
 }
 
 locals {
