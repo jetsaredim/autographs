@@ -1123,11 +1123,16 @@ handle /admin/api/publish/incremental {
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
         steps = workflow["jobs"]["production"]["steps"]
         named = {step.get("name"): (index, step) for index, step in enumerate(steps)}
+        cutover = named["Select release or credential-only cutover identity"]
         preflight = named["Freeze and verify publisher cutover preflight"]
+        resume = named["Start and verify the current controller after credential-only rotation"]
         deploy = named["Run full deployment"]
         unfreeze = named["Explicitly unfreeze verified production publication"]
         gate = named["Validate release completion gate"]
+        self.assertLess(cutover[0], preflight[0])
         self.assertLess(preflight[0], deploy[0])
+        self.assertLess(preflight[0], resume[0])
+        self.assertLess(resume[0], unfreeze[0])
         self.assertLess(deploy[0], unfreeze[0])
         self.assertLess(unfreeze[0], gate[0])
         self.assertNotIn("Verify frozen origin readiness", named)
@@ -1136,9 +1141,13 @@ handle /admin/api/publish/incremental {
         self.assertEqual(preflight[1]["with"]["playbook"], "playbooks/publish-freeze-preflight.yml")
         self.assertIn("autographs_deploy_publish_frozen=true", deploy[1]["with"]["options"])
         self.assertIn("steps.publish_freeze_preflight.outcome == 'success'", deploy[1]["if"])
-        self.assertIn("production_mutation_required == 'true'", preflight[1]["if"])
-        self.assertIn("production_mutation_required == 'true'", unfreeze[1]["if"])
-        self.assertIn("steps.deployment_health.outputs.verified == 'true'", unfreeze[1]["if"])
+        self.assertIn("steps.manifest.outputs.production_mutation_required == 'true'", cutover[1]["if"])
+        self.assertIn("steps.rotation_validation.outcome == 'success'", cutover[1]["if"])
+        self.assertEqual(preflight[1]["if"], "steps.cutover.outputs.mode != ''")
+        self.assertEqual(
+            unfreeze[1]["if"],
+            "steps.deployment_health.outputs.verified == 'true' || steps.rotation_resume.outcome == 'success'",
+        )
         self.assertIn("autographs_publish_unfreeze_verify_only=false", unfreeze[1]["with"]["options"])
         self.assertIn("PUBLISH_UNFREEZE_OUTCOME", gate[1]["env"])
 

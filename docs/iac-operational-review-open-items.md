@@ -19,6 +19,5 @@ The evidence HTML search can find either label.
 
 | Item | Current state | Next step |
 |---|---|---|
-| Three Ansible fixture playbooks | `publish-freeze-deploy-test.yml`, `publish-freeze-render-test.yml`, and `security-report-render-test.yml` have syntax/lint evidence in this register but no recorded behavior run. The production-shaped Python fixture did run the real preflight, role reaudit, and both unfreeze modes against Caddy on 2026-11-22. | Run the three fixtures where practical, or record why the existing related tests and live proofs suffice. [Per-entry evidence](iac-operational-review-findings.md#ansible-playbooks). |
 | Final Phase 8 closeout | `AGENTS.md` and `SECURITY.md` exist; private vulnerability reporting is enabled. | Recheck current-state guidance and the reporting link, then write `08-08-SUMMARY.md` and update Phase 8 state/requirement status. [Checkpoint](../.planning/phases/08-admin-media-review-and-operational-posture/08-08-CHECKPOINT.md). |
 

@@ -37,6 +37,7 @@ Evidence limits and production follow-up remain in the individual entries.
 | [Local and GHCR image cleanup](#autographs-system-cleanup-dry-run) | The owner selected real cleanup as the manual workflow default on 2026-11-22, then applied the same `dry_run` setting to GHCR. Scheduled and ordinary manual runs execute both; `dry_run=true` previews both. |
 | [Deployment defaults](#deployment-defaults-and-ssh-key-ownership) | Terraform's unused deploy path and SSH user inputs were removed in reviewed PR #379. Ansible owns both defaults; the duplicate GitHub variables were removed after no-change plans, with post-removal plans also showing no changes. |
 | [Security patching execution](#security-patching-decision-flow) | Production scan, advisory drift refusal, approved DNF update, reboot, and clean follow-up were exercised. The 15 probe adapters have named local fixture evidence in the [census](#fixture-probe-adapter-census). |
+| [Ansible fixture behavior](#local-behavior-evidence-2026-11-28) | Local runs covered the full freeze deploy suite, the copied Caddyfile freeze render, and the security report render. The live Caddy cases passed, and a stale workflow assertion passed on targeted rerun after the test was corrected. |
 
 ### Awaiting owner review or acceptance
 
@@ -44,12 +45,6 @@ Evidence limits and production follow-up remain in the individual entries.
 |---|---|
 | [Deploy API signing key](#deploy-api-signing-key) | Retain Terraform registration and verify the first candidate before switching GitHub. |
 | Source inventory: [Ansible](#ansible-playbooks), [workflows](#github-workflows-and-local-actions) | Review the remaining proposed dispositions and any scope outside recorded decisions. |
-
-### Evidence still pending after the review
-
-| Item | Remaining proof or limitation |
-|---|---|
-| [Three Ansible entries](#ansible-playbooks) | The freeze deploy, freeze render, and security report render fixture playbooks currently record CI syntax/lint but no behavior run in this review. The role reaudit and unfreeze playbooks passed the local real-Caddy integration fixture on 2026-11-22. Decide whether existing related tests and live proofs suffice for the three remaining fixtures or run them before final acceptance. |
 
 **Requested setting details:** [publish frozen](#autographs-deploy-publish-frozen),
 [explicit cutover](#autographs-deploy-explicit-cutover),
@@ -1141,9 +1136,9 @@ the Phase 8 checkpoint.
 | `deploy/ansible/playbooks/controller-rollback.yml` | `deploy.yml`, `ci.yml` | Digest and prior-version mapping must match the active Caddy media route before controller-only replacement; staged quadlet/env files are cleaned in `always`, and health failure leaves a visible failed rollback. CI syntax/lint plus `scripts/test_release_workflow.py` source assertions, no local VM execution; retain recovery path. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/deploy-admin-credentials-validate-test.yml` | `ci.yml` | Disposable local negative fixture omits current Vault coordinate and direct hash; imports real credential selector and expects failure via `rescue`. CI syntax/lint only; local behavior pass (see evidence note); retain credential fail-closed fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/deploy.yml` | `deploy.yml`, `ci.yml` | Production runtime host waits for SSH then invokes `autographs_deploy` with privilege; role refuses unfrozen full cutover, while workflow health and unfreeze are separate. CI syntax/lint plus release workflow tests, no local host deploy; retain. | **Dispositioned** · Retain frozen deploy and ordered cutover · IAC-005 |
-| `deploy/ansible/playbooks/publish-freeze-deploy-test.yml` | `ci.yml` | Disposable local real-Caddy fixture exercises freeze, role deployment and unfreeze against HTTP origins; must prove denied publishing and healthy static route, then remove fixture directory. CI syntax/lint only; behavior result pending; retain integration fixture. | **Proposed · owner review pending** |
+| `deploy/ansible/playbooks/publish-freeze-deploy-test.yml` | `ci.yml` | Disposable local real-Caddy fixture exercises freeze, role deployment and unfreeze against HTTP origins; must prove denied publishing and healthy static route, then remove fixture directory. The real-Caddy cases passed locally on 2026-11-28. The one stale workflow assertion passed after updating the test for shared release and rotation preflight and unfreeze; retain integration fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/publish-freeze-preflight.yml` | `deploy.yml`, `ci.yml` | Fresh VM and installed runtime are separate states; validates release/digest, reloads live 503 publish gate in place, verifies Caddy's installed quadlet is independent of the controller, audits old process and media before stop, persists freeze record. No preflight systemd rewrite or restart is needed after the production quadlet conversion. Failure leaves frozen old route or refuses cutover; local real-Caddy integration fixture passed on 2026-11-22, and Ansible syntax/lint passed; retain. | **Dispositioned** · Retain freeze and reload Caddy in place · IAC-005 |
-| `deploy/ansible/playbooks/publish-freeze-render-test.yml` | `ci.yml` | Disposable copied Caddyfile renders both frozen and normal `publish_freeze.yml` states; asserts exact routes and restart notification. CI syntax/lint only; behavior result pending; retain rendering fixture. | **Proposed · owner review pending** |
+| `deploy/ansible/playbooks/publish-freeze-render-test.yml` | `ci.yml` | Disposable copied Caddyfile renders both frozen and normal `publish_freeze.yml` states; asserts exact routes and restart notification. Local behavior passed on 2026-11-28 (20 tasks, zero failures); retain rendering fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/publish-freeze-role-reaudit-test.yml` | `ci.yml` | Local disposable origin imports production role reaudit tasks to verify frozen Caddy and static media contract; fixture guard rejects a nonlocal path. Local real-Caddy integration fixture passed on 2026-11-22, along with CI syntax/lint; retain role-boundary fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/publish-unfreeze.yml` | `deploy.yml`, `ci.yml` | Optional verify-only state checks frozen release and origin readiness; the single ordinary mutating invocation checks readiness before removing the Caddy gate after health. Failed unfreeze restores frozen Caddyfile and durable record; both modes and failure recovery passed the local real-Caddy integration fixture on 2026-11-22, along with CI syntax/lint; retain. | **Dispositioned** · Retain readiness checks and one production invocation · IAC-005 |
 | `deploy/ansible/playbooks/rotate-runtime-secret.yml` | `runtime-secret-rotation.yml` | Checks the installed release or proves a matching freeze record and stopped controller before Vault writes. For credential-only rotation it installs the verified wallet and starts the current controller. Production rotation evidence is pending. | **Dispositioned** · Add the approved rotation runtime step |
@@ -1160,7 +1155,7 @@ the Phase 8 checkpoint.
 | `deploy/ansible/playbooks/security-reboot-result-validate-test.yml` | `ci.yml` | Fake GitHub fixture forces result refresh after reboot drift and inventory-only reconciliation; remaining findings must stay actionable. CI syntax/lint only; local behavior pass (see evidence note); retain reporting fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/security-reboot-state-validate-test.yml` | `ci.yml` | Fixture checks matching advisory state, DNF no-op, and nonkernel finding rejection before reboot mutation. CI syntax/lint only; local behavior pass (see evidence note); retain state/drift fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/security-reboot.yml` | `ci.yml`, `reboot-security-runtime.yml` | Approval and host scope precede scan, aggregate preflight and UEK boot mutation; post-reboot health precedes old-kernel cleanup and issue result. Failure workflow clears label; CI syntax/lint plus successful production reboot run `43631340188`; retain. | **Dispositioned** · Retain approved reboot flow · IAC-006 |
-| `deploy/ansible/playbooks/security-report-render-test.yml` | `ci.yml` | Fixture renders clean, finding and unsafe-kernel issue bodies; unsafe status must stay unapproved and body bounded. CI syntax/lint only; behavior result pending; retain report fixture. | **Proposed · owner review pending** |
+| `deploy/ansible/playbooks/security-report-render-test.yml` | `ci.yml` | Fixture renders clean, finding and unsafe-kernel issue bodies; unsafe status must stay unapproved and body bounded. Local behavior passed on 2026-11-28 (20 tasks, zero failures); retain report fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/security-request-metadata-validate-test.yml` | `ci.yml` | Fixture imports scanner issue metadata extractor and requires one valid metadata block; malformed/multiple blocks must fail approval parsing. CI syntax/lint only; local behavior pass (see evidence note); retain metadata fixture. | **Proposed · owner review pending** |
 | `deploy/ansible/playbooks/security-scan.yml` | `weekly-security-scan.yml`, `ci.yml` | Runner OpenSCAP scan collects every runtime host then publishes or closes one scanner issue; incomplete scan blocks actionable issue. CI syntax/lint plus successful production scan `43932933877`; retain. | **Dispositioned** · Retain production scan flow · IAC-006 |
 | `deploy/ansible/playbooks/security-target-scope-validate-test.yml` | `ci.yml` | Fixture supplies missing, empty and mismatched host groups; issue publication/approval must fail before mutation. CI syntax/lint only; local behavior pass (see evidence note); retain scope fixture. | **Proposed · owner review pending** |
@@ -1238,6 +1233,14 @@ format check also inspected an ignored operator-local
 `infra/terraform/tenancy/environments/prod/terraform.tfvars` and reported that
 file as unformatted; it was not changed because it is outside the committed
 review surface and may contain private production inputs.
+
+### Local behavior evidence (2026-11-28)
+
+| Fixture playbook | Local result |
+|---|---|
+| `publish-freeze-deploy-test.yml` | The wrapper ran the 23-test Python suite against a disposable Caddy container. The initial run passed 22 tests, including the real-Caddy cases. The failing assertion still expected the old release-only workflow condition. The corrected assertion passed on targeted rerun and now checks the shared release and credential-only cutover. |
+| `publish-freeze-render-test.yml` | Ran separately with a disposable Caddyfile. All 20 tasks passed. The fixture verified both frozen and restored routes and the restart notification. |
+| `security-report-render-test.yml` | All 20 tasks passed. The fixture checked clean, finding, and unsafe-kernel reports, including refusal to approve unsafe recovery. |
 
 ### GitHub workflows and local actions
 
